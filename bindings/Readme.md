@@ -7,17 +7,17 @@ List of bindings and their status:
 
 | Name  | Input Binding | Output Binding | Status
 | ------------- | -------------- | -------------  | ------------- |
-| Kafka | V | V | | Experimental |
-| RabbitMQ | V  | V | | Experimental |
-| AWS SQS | V | V | | Experimental |
-| AWS SNS |  | V | | Experimental |
-| Azure EventHubs | V | V | | Experimental |
+| Kafka | V | V | Experimental |
+| RabbitMQ | V  | V | Experimental |
+| AWS SQS | V | V | Experimental |
+| AWS SNS |  | V | Experimental |
+| Azure EventHubs | V | V | Experimental |
 | Azure CosmosDB |  V | | Experimental |
-| GCP Storage Bucket  | | V | | Experimental |
-| HTTP |  | V | | Experimental |
-| MQTT | V | V | | Experimental |
-| Redis |  | V | | Experimental |
-| AWS DynamoDB | | V | | Experimental |
+| GCP Storage Bucket  | | V | Experimental |
+| HTTP |  | V | Experimental |
+| MQTT | V | V | Experimental |
+| Redis |  | V | Experimental |
+| AWS DynamoDB | | V | Experimental |
 
 ## Implementing a new binding
 

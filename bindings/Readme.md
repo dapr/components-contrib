@@ -19,6 +19,7 @@ List of bindings and their status:
 | Redis |  | V | Experimental |
 | AWS DynamoDB | | V | Experimental |
 | AWS S3 | | V | Experimental |
+| Azure Blob Storage | | V | Experimental |
 
 ## Implementing a new binding
 

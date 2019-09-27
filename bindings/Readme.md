@@ -20,6 +20,7 @@ List of bindings and their status:
 | AWS DynamoDB | | V | Experimental |
 | AWS S3 | | V | Experimental |
 | Azure Blob Storage | | V | Experimental |
+| Azure Service Bus Queues | V | V | Experimental |
 
 ## Implementing a new binding
 

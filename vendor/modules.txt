@@ -58,6 +58,7 @@ github.com/aws/aws-sdk-go/aws/credentials
 github.com/aws/aws-sdk-go/aws/session
 github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute
+github.com/aws/aws-sdk-go/service/s3/s3manager
 github.com/aws/aws-sdk-go/service/sns
 github.com/aws/aws-sdk-go/service/sqs
 github.com/aws/aws-sdk-go/aws/awserr
@@ -78,6 +79,8 @@ github.com/aws/aws-sdk-go/aws/crr
 github.com/aws/aws-sdk-go/aws/signer/v4
 github.com/aws/aws-sdk-go/private/protocol
 github.com/aws/aws-sdk-go/private/protocol/jsonrpc
+github.com/aws/aws-sdk-go/service/s3
+github.com/aws/aws-sdk-go/service/s3/s3iface
 github.com/aws/aws-sdk-go/private/protocol/query
 github.com/aws/aws-sdk-go/internal/sdkrand
 github.com/aws/aws-sdk-go/service/sts
@@ -88,8 +91,12 @@ github.com/aws/aws-sdk-go/aws/ec2metadata
 github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/internal/sdkmath
 github.com/aws/aws-sdk-go/private/protocol/json/jsonutil
-github.com/aws/aws-sdk-go/private/protocol/query/queryutil
+github.com/aws/aws-sdk-go/internal/s3err
+github.com/aws/aws-sdk-go/private/protocol/eventstream
+github.com/aws/aws-sdk-go/private/protocol/eventstream/eventstreamapi
+github.com/aws/aws-sdk-go/private/protocol/restxml
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
+github.com/aws/aws-sdk-go/private/protocol/query/queryutil
 github.com/aws/aws-sdk-go/internal/sdkuri
 # github.com/census-instrumentation/opencensus-proto v0.2.1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1

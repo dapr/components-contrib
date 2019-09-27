@@ -26,6 +26,11 @@ type serviceBusQueuesMetadata struct {
 	QueueName        string `json:"queueName"`
 }
 
+// NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance
+func NewAzureServiceBusQueues() *AzureServiceBusQueues {
+	return &AzureServiceBusQueues{}
+}
+
 // Init parses connection properties and creates a new Service Bus Queue client
 func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	meta, err := a.parseMetadata(metadata)

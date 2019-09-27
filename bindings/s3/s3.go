@@ -52,8 +52,8 @@ func (s *AWSS3) Write(req *bindings.WriteRequest) error {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key = val
 	} else {
-		log.Debug("key not found. generating key")
 		key = uuid.New().String()
+		log.Debugf("key not found. generating key %s", key)
 	}
 
 	r := bytes.NewReader(req.Data)

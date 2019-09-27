@@ -18,6 +18,7 @@ List of bindings and their status:
 | MQTT | V | V | Experimental |
 | Redis |  | V | Experimental |
 | AWS DynamoDB | | V | Experimental |
+| Azure Blob Storage | | V | Experimental |
 
 ## Implementing a new binding
 

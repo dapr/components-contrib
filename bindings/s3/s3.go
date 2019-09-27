@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
@@ -51,6 +52,7 @@ func (s *AWSS3) Write(req *bindings.WriteRequest) error {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key = val
 	} else {
+		log.Debug("key not found. generating key")
 		key = uuid.New().String()
 	}
 

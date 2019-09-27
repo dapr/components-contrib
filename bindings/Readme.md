@@ -12,7 +12,7 @@ List of bindings and their status:
 | AWS SQS | V | V | Experimental |
 | AWS SNS |  | V | Experimental |
 | Azure EventHubs | V | V | Experimental |
-| Azure CosmosDB |  V | | Experimental |
+| Azure CosmosDB | | V | Experimental |
 | GCP Storage Bucket  | | V | Experimental |
 | HTTP |  | V | Experimental |
 | MQTT | V | V | Experimental |

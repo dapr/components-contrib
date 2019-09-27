@@ -10,7 +10,7 @@ import (
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"connectionString": "connString", "queueName": "queue1"}
-	a := AzureServiceBusQueues{}
+	a := NewAzureServiceBusQueues()
 	meta, err := a.parseMetadata(m)
 	assert.Nil(t, err)
 	assert.Equal(t, "connString", meta.ConnectionString)

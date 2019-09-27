@@ -3,7 +3,7 @@
 The purpose of Components Contrib is to provide open, community driven reusable components for building distributed applications.
 These components are being used by the [Actions](https://github.com/actionscore/actions) project, but are separate and decoupled from it.
 
-Using components developers can interact with bindings, state stores, messaging systems, bindings and more without caring about the underlying implementation.
+Using components developers can interact with bindings, state stores, messaging systems and more without caring about the underlying implementation.
 
 Available component types:
 

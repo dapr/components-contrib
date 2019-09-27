@@ -18,6 +18,7 @@ List of bindings and their status:
 | MQTT | V | V | Experimental |
 | Redis |  | V | Experimental |
 | AWS DynamoDB | | V | Experimental |
+| AWS S3 | | V | Experimental |
 
 ## Implementing a new binding
 

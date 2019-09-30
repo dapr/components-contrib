@@ -10,8 +10,8 @@ import (
 
 func TestInit(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"auth_provider_x509_cert_url": "a", "auth_uri": "a", "Bucket": "a", "client_x509_cert_url": "a", "client_email": "a", "client_id": "a", "private_key": "a",
-		"private_key_id": "a", "project_id": "a", "token_uri": "a", "type": "a", "topic": "t1", "subscription": "s1"}
+	m.Properties = map[string]string{"auth_provider_x509_cert_url": "https://auth", "auth_uri": "https://auth", "client_x509_cert_url": "https://cert", "client_email": "test@test.com", "client_id": "id", "private_key": "****",
+					 "private_key_id": "key_id", "project_id": "project1", "token_uri": "https://token", "type": "serviceaccount", "topic": "t1", "subscription": "s1"}
 	ps := GCPPubSub{}
 	b, err := ps.parseMetadata(m)
 	assert.Nil(t, err)
@@ -22,14 +22,14 @@ func TestInit(t *testing.T) {
 
 	assert.Equal(t, "s1", pubsubMeta.Subscription)
 	assert.Equal(t, "t1", pubsubMeta.Topic)
-	assert.Equal(t, "a", pubsubMeta.AuthProviderCertURL)
-	assert.Equal(t, "a", pubsubMeta.AuthURI)
-	assert.Equal(t, "a", pubsubMeta.ClientCertURL)
-	assert.Equal(t, "a", pubsubMeta.ClientEmail)
-	assert.Equal(t, "a", pubsubMeta.ClientID)
-	assert.Equal(t, "a", pubsubMeta.PrivateKey)
-	assert.Equal(t, "a", pubsubMeta.PrivateKeyID)
-	assert.Equal(t, "a", pubsubMeta.ProjectID)
-	assert.Equal(t, "a", pubsubMeta.TokenURI)
-	assert.Equal(t, "a", pubsubMeta.Type)
+	assert.Equal(t, "https://auth", pubsubMeta.AuthProviderCertURL)
+	assert.Equal(t, "https://auth", pubsubMeta.AuthURI)
+	assert.Equal(t, "https://cert", pubsubMeta.ClientCertURL)
+	assert.Equal(t, "test@test.com", pubsubMeta.ClientEmail)
+	assert.Equal(t, "id", pubsubMeta.ClientID)
+	assert.Equal(t, "****", pubsubMeta.PrivateKey)
+	assert.Equal(t, "key_id", pubsubMeta.PrivateKeyID)
+	assert.Equal(t, "project1", pubsubMeta.ProjectID)
+	assert.Equal(t, "https://token", pubsubMeta.TokenURI)
+	assert.Equal(t, "serviceaccount", pubsubMeta.Type)
 }

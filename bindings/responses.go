@@ -1,16 +1,16 @@
 package bindings
 
 import (
-	"github.com/actionscore/components-contrib/state"
+	"github.com/dapr/components-contrib/state"
 )
 
-// ReadResponse is an the return object from an actions input binding
+// ReadResponse is an the return object from an dapr input binding
 type ReadResponse struct {
 	Data     []byte            `json:"data"`
 	Metadata map[string]string `json:"metadata"`
 }
 
-// WriteRequest is the object given to an actions output binding
+// WriteRequest is the object given to an dapr output binding
 type WriteRequest struct {
 	Data     []byte            `json:"data"`
 	Metadata map[string]string `json:"metadata"`

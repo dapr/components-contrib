@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 
 	"github.com/joomcode/redispipe/redis"
 	"github.com/joomcode/redispipe/redisconn"

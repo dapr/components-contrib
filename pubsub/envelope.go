@@ -5,13 +5,13 @@ import (
 )
 
 const (
-	// DefaultCloudEventType is the default event type for an Actions published event
-	DefaultCloudEventType = "com.actions.event.sent"
-	// CloudEventsSpecVersion is the specversion used by Actions for the cloud events implementation
+	// DefaultCloudEventType is the default event type for an Dapr published event
+	DefaultCloudEventType = "com.dapr.event.sent"
+	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
 	CloudEventsSpecVersion = "0.3"
 )
 
-// CloudEventsEnvelope describes the Actions implementation of the Cloud Events spec
+// CloudEventsEnvelope describes the Dapr implementation of the Cloud Events spec
 // Spec details: https://github.com/cloudevents/spec/blob/master/spec.md
 type CloudEventsEnvelope struct {
 	ID              string      `json:"id"`

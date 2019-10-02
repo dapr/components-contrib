@@ -6,7 +6,7 @@ import (
 	"time"
 
 	servicebus "github.com/Azure/azure-service-bus-go"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 	"github.com/kubernetes-client/go/kubernetes/client"
 	"github.com/stretchr/testify/assert"
 )

@@ -8,7 +8,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/actionscore/components-contrib/pubsub"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func getFakeProperties() map[string]string {

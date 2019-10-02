@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/actionscore/components-contrib/state"
+	"github.com/dapr/components-contrib/state"
 
 	"github.com/joomcode/redispipe/redis"
 	"github.com/joomcode/redispipe/redisconn"

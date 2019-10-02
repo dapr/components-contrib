@@ -3,7 +3,7 @@ package blobstorage
 import (
 	"testing"
 
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 	"github.com/stretchr/testify/assert"
 )
 

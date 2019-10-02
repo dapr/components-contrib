@@ -9,7 +9,7 @@ import (
 
 	eventhub "github.com/Azure/azure-event-hubs-go"
 	log "github.com/Sirupsen/logrus"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events

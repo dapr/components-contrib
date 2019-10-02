@@ -1,4 +1,4 @@
-module github.com/actionscore/components-contrib
+module github.com/dapr/components-contrib
 
 go 1.12
 

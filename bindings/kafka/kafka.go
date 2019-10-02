@@ -10,7 +10,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation

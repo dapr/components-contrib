@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/pubsub"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 	"google.golang.org/api/option"
 )
 

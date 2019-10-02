@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/a8m/documentdb"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 )
 
 // CosmosDB allows performing state operations on collections

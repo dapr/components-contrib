@@ -6,7 +6,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/actionscore/components-contrib/state"
+	"github.com/dapr/components-contrib/state"
 
 	"github.com/a8m/documentdb"
 )

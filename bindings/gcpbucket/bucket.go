@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"cloud.google.com/go/storage"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/api/option"
 )

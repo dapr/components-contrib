@@ -11,7 +11,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 )
 
 const (

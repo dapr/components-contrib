@@ -7,7 +7,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"github.com/actionscore/components-contrib/pubsub"
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/go-redis/redis"
 )
 

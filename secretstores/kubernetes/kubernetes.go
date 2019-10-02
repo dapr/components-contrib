@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"errors"
 
-	"github.com/actionscore/components-contrib/secretstores"
+	"github.com/dapr/components-contrib/secretstores"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )

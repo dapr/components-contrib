@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/actionscore/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings"
 	"github.com/kubernetes-client/go/kubernetes/client"
 	"github.com/kubernetes-client/go/kubernetes/config"
 )

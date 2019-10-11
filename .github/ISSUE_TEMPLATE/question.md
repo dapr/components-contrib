@@ -1,6 +1,6 @@
 ---
 name: Question
-about: Ask a question about Dapr
+about: Ask a question about Components-Contrib
 title: ''
 labels: kind/question
 assignees: ''

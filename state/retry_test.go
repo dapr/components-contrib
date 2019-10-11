@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRetriPolicies(t *testing.T) {
+func TestRetryPolicies(t *testing.T) {
 	t.Run("set with no options", func(t *testing.T) {
 		counter := 0
 		SetWithRetries(func(req *SetRequest) error {

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestRetryPolicies is used to test retry policies
 func TestRetryPolicies(t *testing.T) {
 	t.Run("set with no options", func(t *testing.T) {
 		counter := 0

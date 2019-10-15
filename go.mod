@@ -26,7 +26,6 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/frankban/quicktest v1.5.0 // indirect
 	github.com/garyburd/redigo v1.6.0 // indirect
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect

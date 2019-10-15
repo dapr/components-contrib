@@ -142,6 +142,8 @@ github.com/eapache/queue
 # github.com/eclipse/paho.mqtt.golang v1.2.0
 github.com/eclipse/paho.mqtt.golang
 github.com/eclipse/paho.mqtt.golang/packets
+# github.com/ghodss/yaml v1.0.0
+github.com/ghodss/yaml
 # github.com/go-redis/redis v6.15.5+incompatible
 github.com/go-redis/redis
 github.com/go-redis/redis/internal
@@ -153,6 +155,8 @@ github.com/go-redis/redis/internal/util
 # github.com/gogo/protobuf v0.0.0-20171007142547-342cbe0a0415
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
+# github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+github.com/golang/glog
 # github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6
 github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.3.2
@@ -202,6 +206,10 @@ github.com/json-iterator/go
 github.com/jstemmer/go-junit-report
 github.com/jstemmer/go-junit-report/formatter
 github.com/jstemmer/go-junit-report/parser
+# github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
+github.com/kubernetes-client/go/kubernetes/client
+github.com/kubernetes-client/go/kubernetes/config
+github.com/kubernetes-client/go/kubernetes/config/api
 # github.com/mattn/go-ieproxy v0.0.0-20190610004146-91bb50d98149
 github.com/mattn/go-ieproxy
 # github.com/mitchellh/go-homedir v1.1.0
@@ -227,10 +235,7 @@ github.com/satori/go.uuid
 github.com/spf13/pflag
 # github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 github.com/streadway/amqp
-# github.com/stretchr/objx v0.2.0
-github.com/stretchr/objx
 # github.com/stretchr/testify v1.4.0
-github.com/stretchr/testify/mock
 github.com/stretchr/testify/assert
 # go.opencensus.io v0.22.1
 go.opencensus.io/trace
@@ -265,6 +270,7 @@ golang.org/x/lint
 # golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
 golang.org/x/net/websocket
 golang.org/x/net/proxy
+golang.org/x/net/context
 golang.org/x/net/http2
 golang.org/x/net/trace
 golang.org/x/net/internal/socks
@@ -272,7 +278,6 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/http/httpproxy
-golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/internal/timeseries
 # golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45

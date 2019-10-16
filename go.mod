@@ -11,8 +11,8 @@ require (
 	github.com/Azure/azure-service-bus-go v0.9.1
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/go-autorest v13.0.1+incompatible // indirect
-	github.com/Azure/go-autorest/autorest v0.9.1
-	github.com/Azure/go-autorest/autorest/adal v0.6.0
+	github.com/Azure/go-autorest/autorest v0.9.2
+	github.com/Azure/go-autorest/autorest/adal v0.8.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.3.0
 	github.com/Azure/go-autorest/autorest/to v0.3.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
@@ -27,7 +27,6 @@ require (
 	github.com/frankban/quicktest v1.5.0 // indirect
 	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
-	github.com/google/btree v1.0.0 // indirect
 	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/grpc-gateway v1.11.2 // indirect
@@ -39,6 +38,7 @@ require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
+	github.com/lithammer/shortuuid v3.0.0+incompatible // indirect
 	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
@@ -52,7 +52,7 @@ require (
 	golang.org/x/exp v0.0.0-20190927203820-447a159532ef // indirect
 	golang.org/x/image v0.0.0-20190910094157-69e4b8554b2a // indirect
 	golang.org/x/mobile v0.0.0-20190923204409-d3ece3b6da5f // indirect
-	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17 // indirect
+	golang.org/x/net v0.0.0-20191014212845-da9a3fd4c582 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	golang.org/x/sys v0.0.0-20190927073244-c990c680b611 // indirect
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect

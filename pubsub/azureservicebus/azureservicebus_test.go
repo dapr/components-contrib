@@ -8,12 +8,25 @@ package azureservicebus
 import (
 	"errors"
 	"testing"
+	"context"
 
 	"github.com/Azure/azure-service-bus-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
+
+type fakeSubscription struct {
+}
+
+func (f *fakeSubscription) Close(ctx context.Context) error {
+	return nil
+}
+
+func (f *fakeSubscription) Receive(ctx context.Context, handler servicebus.Handler) error {
+	
+	return nil
+}
 
 func getFakeProperties() map[string]string {
 	return map[string]string{

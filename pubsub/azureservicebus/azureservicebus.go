@@ -18,6 +18,7 @@ import (
 const (
 	connString = "connectionString"
 	subscriberID = "subscriberId"
+	maxDeliveryCount = 5
 )
 
 type azureServiceBus struct {
@@ -25,6 +26,12 @@ type azureServiceBus struct {
 	namespace *servicebus.Namespace
 	topicManager *servicebus.TopicManager
 }
+
+type subscription interface {
+	Close(ctx context.Context) error
+	Receive(ctx context.Context, handler servicebus.Handler) error 
+}
+
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus() pubsub.PubSub {
@@ -85,7 +92,8 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 		return fmt.Errorf("service bus error: could not instantiate topic %s", req.Topic)
 	}
 
-	sub, err := topic.NewSubscription(subID, nil)
+	var sub subscription
+	sub, err = topic.NewSubscription(subID, nil)
 	if err != nil {
 		return fmt.Errorf("service bus error: could not instantiate subscription %s for topic %s", subID, req.Topic)
 	}
@@ -97,10 +105,14 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 		}
 		err := handler(msg)
 		if err != nil {
-			message.Abandon(context.TODO())
+			if message.DeliveryCount >= maxDeliveryCount {
+				message.DeadLetter(ctx, fmt.Errorf(("service bus warning: poision message %s"), message.ID))
+			} else {
+				message.Abandon(ctx)
+			}
 			return fmt.Errorf("service bus error: could not handle message from topic %s", msg.Topic)
 		}
-		message.Complete(context.TODO())
+		message.Complete(ctx)
 		return nil
 	})
 
@@ -109,7 +121,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	return nil
 }
 
-func (a *azureServiceBus) handleSubscriptionMessages(sub *servicebus.Subscription, handlerFunc servicebus.HandlerFunc) {
+func (a *azureServiceBus) handleSubscriptionMessages(sub subscription, handlerFunc servicebus.HandlerFunc) {
 	defer sub.Close(context.TODO())
 	for {
 		if err := sub.Receive(context.TODO(), handlerFunc); err != nil {

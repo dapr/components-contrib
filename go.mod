@@ -38,7 +38,7 @@ require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
-	github.com/lithammer/shortuuid v3.0.0+incompatible // indirect
+	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect

@@ -82,12 +82,12 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	a.ensureSubscription(subID, req.Topic)
 	topic, err := a.namespace.NewTopic(req.Topic)
 	if err != nil {
-		return fmt.Errorf("service bus error: could not Instantiate topic %s", req.Topic)
+		return fmt.Errorf("service bus error: could not instantiate topic %s", req.Topic)
 	}
 
 	sub, err := topic.NewSubscription(subID, nil)
 	if err != nil {
-		return fmt.Errorf("service bus error: could not Instantiate subscription %s for topic %s", subID, req.Topic)
+		return fmt.Errorf("service bus error: could not instantiate subscription %s for topic %s", subID, req.Topic)
 	}
 
 	sbHandlerFunc := servicebus.HandlerFunc(func (ctx context.Context, message *servicebus.Message) error {
@@ -112,7 +112,9 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 func (a *azureServiceBus) handleSubscriptionMessages(sub *servicebus.Subscription, handlerFunc servicebus.HandlerFunc) {
 	defer sub.Close(context.TODO())
 	for {
-		sub.Receive(context.TODO(), handlerFunc)
+		if err := sub.Receive(context.TODO(), handlerFunc); err != nil {
+			// service bus handler errored...
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"context"
+	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/Azure/azure-service-bus-go"
@@ -31,7 +32,6 @@ type subscription interface {
 	Close(ctx context.Context) error
 	Receive(ctx context.Context, handler servicebus.Handler) error 
 }
-
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus() pubsub.PubSub {
@@ -77,11 +77,31 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 
 	sender, err := a.namespace.NewTopic(req.Topic, nil)
 
-	err = sender.Send(context.TODO(), servicebus.NewMessage(req.Data))
+	var ctx context.Context
+	ctx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+
+	err = sender.Send(ctx, servicebus.NewMessage(req.Data))
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func (ctx context.Context, message *servicebus.Message) error {
+	return func (ctx context.Context, message *servicebus.Message) error {
+		msg := &pubsub.NewMessage{
+			Data: message.Data,
+			Topic: topic,
+		}
+		err := handler(msg)
+		if err != nil {
+			if message.DeliveryCount >= maxDeliveryCount {
+				return message.DeadLetter(ctx, fmt.Errorf(("service bus error: poision message %s"), message.ID))
+			}
+			return message.Abandon(ctx)
+		}
+		return message.Complete(ctx)
+	}
 }
 
 func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
@@ -98,45 +118,34 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 		return fmt.Errorf("service bus error: could not instantiate subscription %s for topic %s", subID, req.Topic)
 	}
 
-	sbHandlerFunc := servicebus.HandlerFunc(func (ctx context.Context, message *servicebus.Message) error {
-		msg := &pubsub.NewMessage{
-			Data: message.Data,
-			Topic: req.Topic,
-		}
-		err := handler(msg)
-		if err != nil {
-			if message.DeliveryCount >= maxDeliveryCount {
-				message.DeadLetter(ctx, fmt.Errorf(("service bus warning: poision message %s"), message.ID))
-			} else {
-				message.Abandon(ctx)
-			}
-			return fmt.Errorf("service bus error: could not handle message from topic %s", msg.Topic)
-		}
-		message.Complete(ctx)
-		return nil
-	})
+	sbHandlerFunc := servicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
 
-	go a.handleSubscriptionMessages(sub, sbHandlerFunc)
+	ctx := context.Background() // infinite context
+	go a.handleSubscriptionMessages(ctx, sub, sbHandlerFunc)
 
 	return nil
 }
 
-func (a *azureServiceBus) handleSubscriptionMessages(sub subscription, handlerFunc servicebus.HandlerFunc) {
-	defer sub.Close(context.TODO())
+func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, sub subscription, handlerFunc servicebus.HandlerFunc) {
 	for {
-		if err := sub.Receive(context.TODO(), handlerFunc); err != nil {
-			// service bus handler errored...
+		if err := sub.Receive(ctx, handlerFunc); err != nil {
+			// handle message handling error...
 		}
 	}
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {
-	topicEntity, err := a.topicManager.Get(context.TODO(), topic)
+	var getCtx context.Context
+	getCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+	topicEntity, err := a.topicManager.Get(getCtx, topic)
 	if err != nil && !servicebus.IsErrNotFound(err) {
 		return fmt.Errorf("service bus error: could not get topic %s", topic)
 	}
+
 	if topicEntity == nil {
-		topicEntity, err = a.topicManager.Put(context.TODO(), topic, nil)
+		var putCtx context.Context
+		putCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+		topicEntity, err = a.topicManager.Put(putCtx, topic, nil)
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put topic %s", topic)
 		}
@@ -146,13 +155,17 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 
 func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	subscriptionManager, err := a.namespace.NewSubscriptionManager(topic)
-	subEntity, err := subscriptionManager.Get(context.TODO(), name)
+	var getCtx context.Context
+	getCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+	subEntity, err := subscriptionManager.Get(getCtx, name)
 	if err != nil && !servicebus.IsErrNotFound(err) {
 		return fmt.Errorf("service bus error: could not get subscription %s", name)
 	}
 
 	if subEntity == nil {
-		subEntity, err = subscriptionManager.Put(context.TODO(), name, nil)
+		var putCtx context.Context
+		putCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+		subEntity, err = subscriptionManager.Put(putCtx, name, nil)
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put subscription %s", name)
 		}

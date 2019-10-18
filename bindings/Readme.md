@@ -8,7 +8,7 @@ List of bindings and their status:
 | Name  | Input Binding | Output Binding | Status
 | ------------- | -------------- | -------------  | ------------- |
 | [Kafka](./kafka) | V | V | Experimental |
-| [RabbitMQ](./rabbitmq | V  | V | Experimental |
+| [RabbitMQ](./rabbitmq) | V  | V | Experimental |
 | [AWS SQS](./sqs) | V | V | Experimental |
 | [AWS SNS](./sns) |  | V | Experimental |
 | [GCP Cloud Pub/Sub](./pubsub) | V | V | Experimental |

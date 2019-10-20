@@ -6,6 +6,11 @@
 package etcd
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/state"
@@ -13,18 +18,85 @@ import (
 	"google.golang.org/grpc"
 )
 
+const defaultOperationTimeout = time.Duration(10 * time.Second)
+const defaultSeparator = ","
+
+var errMissingEndpoints = errors.New("Endpoints are required")
+var errInvalidDialTimeout = errors.New("DialTimeout is invalid")
+
 // StateStore is a Etcd state store
 type StateStore struct {
-	client *clientv3.Client
+	client           *clientv3.Client
+	operationTimeout time.Duration
+}
+
+type configProperties struct {
+	Endpoints        string `json:"endpoints"`
+	DialTimeout      string `json:"dialTimeout"`
+	OperationTimeout string `json:"operationTimeout"`
 }
 
 //--- StateStore ---
 
+// NewEtcdStateStore returns a new etcd state store
+func NewEtcdStateStore() *StateStore {
+	return &StateStore{}
+}
+
 // Init does metadata and connection parsing
 func (r *StateStore) Init(metadata state.Metadata) error {
+	cp, err := toConfigProperties(metadata.Properties)
+	if err != nil {
+		return err
+	}
+	err = validateRequired(cp)
+	if err != nil {
+		return err
+	}
 
-	endpoints := []string{""}
-	dialTimeout := time.Duration(20 * time.Second)
+	clientConfig, err := toEtcdConfig(cp)
+	if err != nil {
+		return err
+	}
+
+	client, err := clientv3.New(*clientConfig)
+	if err != nil {
+		return err
+	}
+
+	r.client = client
+
+	ot := defaultOperationTimeout
+	newOt, err := time.ParseDuration(cp.OperationTimeout)
+	if err == nil {
+		r.operationTimeout = newOt
+	}
+	r.operationTimeout = ot
+
+	return nil
+}
+
+func toConfigProperties(properties map[string]string) (*configProperties, error) {
+	b, err := json.Marshal(properties)
+	if err != nil {
+		return nil, err
+	}
+
+	var configProps configProperties
+	err = json.Unmarshal(b, &configProps)
+	if err != nil {
+		return nil, err
+	}
+
+	return &configProps, nil
+}
+
+func toEtcdConfig(configProps *configProperties) (*clientv3.Config, error) {
+	endpoints := strings.Split(configProps.Endpoints, defaultSeparator)
+	dialTimeout, err := time.ParseDuration(configProps.DialTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	clientConfig := clientv3.Config{
 		Endpoints:   endpoints,
@@ -32,23 +104,48 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	}
 
-	client, err := clientv3.New(clientConfig)
-	if err != nil {
-		return err
+	return &clientConfig, nil
+}
+
+func validateRequired(configProps *configProperties) error {
+	if len(configProps.Endpoints) == 0 {
+		return errMissingEndpoints
 	}
 
-	r.client = client
+	_, err := time.ParseDuration(configProps.DialTimeout)
+	if err != nil {
+		return errInvalidDialTimeout
+	}
 
 	return nil
 }
 
 // Get retrieves state from redis with a key
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return nil, nil
+	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
+	resp, err := r.client.Get(ctx, req.Key, clientv3.WithSort(clientv3.SortByVersion, clientv3.SortDescend))
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Count == 0 {
+		return &state.GetResponse{}, nil
+	}
+
+	return &state.GetResponse{
+		Data: resp.Kvs[0].Value,
+		ETag: fmt.Sprintf("%d", resp.Kvs[0].Version),
+	}, nil
 }
 
 // Delete performs a delete operation
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
+	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
+	_, err := r.client.Delete(ctx, req.Key)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -66,6 +163,13 @@ func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 
 // Set saves state into Etcd
 func (r *StateStore) Set(req *state.SetRequest) error {
+	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
+	// Probably there is a better way to convert to string from interface
+	vStr := fmt.Sprintf("%s", req.Value)
+	_, err := r.client.Put(ctx, req.Key, vStr)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -78,12 +182,5 @@ func (r *StateStore) BulkSet(req []state.SetRequest) error {
 		}
 	}
 
-	return nil
-}
-
-//--- TransactionalStateStore ---
-
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
-func (r *StateStore) Multi(operations []state.TransactionalRequest) error {
 	return nil
 }

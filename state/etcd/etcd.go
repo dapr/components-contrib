@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	jsoniter "github.com/json-iterator/go"
 	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc"
 )
@@ -26,6 +27,7 @@ var errInvalidDialTimeout = errors.New("DialTimeout is invalid")
 
 // StateStore is a Etcd state store
 type StateStore struct {
+	json             jsoniter.API
 	client           *clientv3.Client
 	operationTimeout time.Duration
 }
@@ -40,7 +42,9 @@ type configProperties struct {
 
 // NewEtcdStateStore returns a new etcd state store
 func NewEtcdStateStore() *StateStore {
-	return &StateStore{}
+	return &StateStore{
+		json: jsoniter.ConfigFastest,
+	}
 }
 
 // Init does metadata and connection parsing
@@ -164,8 +168,15 @@ func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 // Set saves state into Etcd
 func (r *StateStore) Set(req *state.SetRequest) error {
 	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
-	// Probably there is a better way to convert to string from interface
-	vStr := fmt.Sprintf("%s", req.Value)
+
+	var vStr string
+	b, ok := req.Value.([]byte)
+	if ok {
+		vStr = string(b)
+	} else {
+		vStr, _ = r.json.MarshalToString(req.Value)
+	}
+
 	_, err := r.client.Put(ctx, req.Key, vStr)
 	if err != nil {
 		return err

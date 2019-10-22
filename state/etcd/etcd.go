@@ -25,8 +25,8 @@ const defaultSeparator = ","
 var errMissingEndpoints = errors.New("Endpoints are required")
 var errInvalidDialTimeout = errors.New("DialTimeout is invalid")
 
-// StateStore is a Etcd state store
-type StateStore struct {
+// ETCD is a state store
+type ETCD struct {
 	json             jsoniter.API
 	client           *clientv3.Client
 	operationTimeout time.Duration
@@ -40,15 +40,15 @@ type configProperties struct {
 
 //--- StateStore ---
 
-// NewEtcdStateStore returns a new etcd state store
-func NewEtcdStateStore() *StateStore {
-	return &StateStore{
+// NewETCD returns a new ETCD state store
+func NewETCD() *ETCD {
+	return &ETCD{
 		json: jsoniter.ConfigFastest,
 	}
 }
 
 // Init does metadata and connection parsing
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *ETCD) Init(metadata state.Metadata) error {
 	cp, err := toConfigProperties(metadata.Properties)
 	if err != nil {
 		return err
@@ -124,8 +124,8 @@ func validateRequired(configProps *configProperties) error {
 	return nil
 }
 
-// Get retrieves state from redis with a key
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+// Get retrieves state from ETCD with a key
+func (r *ETCD) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
 	resp, err := r.client.Get(ctx, req.Key, clientv3.WithSort(clientv3.SortByVersion, clientv3.SortDescend))
 	if err != nil {
@@ -143,7 +143,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Delete performs a delete operation
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *ETCD) Delete(req *state.DeleteRequest) error {
 	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
 	_, err := r.client.Delete(ctx, req.Key)
 	if err != nil {
@@ -154,7 +154,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 // BulkDelete performs a bulk delete operation
-func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
+func (r *ETCD) BulkDelete(req []state.DeleteRequest) error {
 	for _, re := range req {
 		err := r.Delete(&re)
 		if err != nil {
@@ -165,8 +165,8 @@ func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-// Set saves state into Etcd
-func (r *StateStore) Set(req *state.SetRequest) error {
+// Set saves state into ETCD
+func (r *ETCD) Set(req *state.SetRequest) error {
 	ctx, _ := context.WithTimeout(context.Background(), r.operationTimeout)
 
 	var vStr string
@@ -185,7 +185,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 }
 
 // BulkSet performs a bulks save operation
-func (r *StateStore) BulkSet(req []state.SetRequest) error {
+func (r *ETCD) BulkSet(req []state.SetRequest) error {
 	for _, s := range req {
 		err := r.Set(&s)
 		if err != nil {

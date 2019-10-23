@@ -51,8 +51,8 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0
-	go.opencensus.io v0.22.1
 	go.etcd.io/etcd v3.3.17+incompatible
+	go.opencensus.io v0.22.1
 	go.uber.org/atomic v1.4.0 // indirect
 	go.uber.org/multierr v1.2.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect

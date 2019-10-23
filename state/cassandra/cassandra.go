@@ -89,13 +89,11 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 }
 
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {
-	err := c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
-	return err
+	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
 }
 
 func (c *Cassandra) tryCreateTable(table, keyspace string) error {
-	err := c.session.Query(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (key text, value blob, PRIMARY KEY (key));", keyspace, table)).Exec()
-	return err
+	return c.session.Query(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (key text, value blob, PRIMARY KEY (key));", keyspace, table)).Exec()
 }
 
 func (c *Cassandra) createClusterConfig(metadata *cassandraMetadata) (*gocql.ClusterConfig, error) {
@@ -197,8 +195,7 @@ func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
 // Delete performs a delete operation
 func (c *Cassandra) Delete(req *state.DeleteRequest) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE key='%s'", c.table, req.Key)
-	err := c.session.Query(query).Exec()
-	return err
+	return c.session.Query(query).Exec()
 }
 
 // BulkDelete performs a bulk delete operation
@@ -278,8 +275,7 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		session = sess
 	}
 
-	err := session.Query(query, req.Key, bt).Exec()
-	return err
+	return session.Query(query, req.Key, bt).Exec()
 }
 
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {

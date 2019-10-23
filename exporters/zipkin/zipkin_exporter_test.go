@@ -14,7 +14,7 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := exporters.Metadata{}
-	m.Properties = map[string]interface{}{"exporterAddress": "c"}
+	m.Properties = map[string]string{"exporterAddress": "c"}
 	exporter := NewZipkinExporter()
 	metadata, err := exporter.getZipkinMetadata(m)
 	assert.Nil(t, err)

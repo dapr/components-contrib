@@ -4,6 +4,10 @@ Tracing Exporters are [OpenTelemetry](https://opentelemetry.io/) exporter wrappe
 
 Currently supported exporters are:
 
+* Natvie
+
+  OpenTelemetry default exporter
+  
 * String
   
   Export to a string buffer. This is mostly used for testing purposes.

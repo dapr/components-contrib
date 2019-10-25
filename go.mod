@@ -36,6 +36,7 @@ require (
 	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/grpc-gateway v1.11.2 // indirect
+	github.com/hashicorp/consul/api v1.2.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/joomcode/errorx v1.0.0 // indirect
@@ -47,6 +48,7 @@ require (
 	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9 // indirect
 	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
+	github.com/pkg/errors v0.8.1
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/rogpeppe/fastuuid v1.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.4.0 // indirect

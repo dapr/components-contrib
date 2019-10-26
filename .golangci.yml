@@ -10,7 +10,7 @@ run:
   issues-exit-code: 1
 
   # include test files or not, default is true
-  tests: false
+  tests: true
 
   # list of build tags, all linters use it. Default is empty list.
   #build-tags:
@@ -23,8 +23,6 @@ run:
   #   	vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
   skip-dirs:
     - ^vendor$
-    - ^pkg.*client.*clientset.*versioned.*
-    - ^pkg.*client.*informers.*externalversions.*
 
   # which files to skip: they will be analyzed, but issues from them
   # won't be reported. Default value is empty list, but there is
@@ -222,8 +220,6 @@ linters:
     - dupl
     - errcheck
     - funlen
-    - gochecknoglobals
-    - gochecknoinits
     - gocyclo
     - gocognit
     - godox

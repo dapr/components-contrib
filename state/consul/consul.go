@@ -17,7 +17,6 @@ import (
 // Consul is a state store implementation for HashiCorp Consul.
 type Consul struct {
 	client        *api.Client
-	queryOpts     *api.QueryOptions
 	keyPrefixPath string
 }
 
@@ -82,12 +81,12 @@ func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 
 // Get retrieves a Consul KV item
 func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	var queryOpts *api.QueryOptions
+	queryOpts := &api.QueryOptions{}
 	if req.Options.Consistency == state.Strong {
 		queryOpts.RequireConsistent = true
 	}
 
-	resp, queryMeta, err := c.client.KV().Get(fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key), c.queryOpts)
+	resp, queryMeta, err := c.client.KV().Get(fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key), queryOpts)
 	if err != nil {
 		return nil, err
 	}

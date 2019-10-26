@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-const defaultOperationTimeout = time.Duration(10 * time.Second)
+const defaultOperationTimeout = 10 * time.Second
 const defaultSeparator = ","
 
 var errMissingEndpoints = errors.New("Endpoints are required")
@@ -38,7 +38,7 @@ type configProperties struct {
 	OperationTimeout string `json:"operationTimeout"`
 }
 
-//--- StateStore ---
+//--- Store ---
 
 // NewETCD returns a new ETCD state store
 func NewETCD() *ETCD {

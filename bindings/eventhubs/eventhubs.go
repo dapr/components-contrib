@@ -111,7 +111,6 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 	if a.metadata.ConsumerGroup != "" {
 		log.Infof("eventhubs: using consumer group %s", a.metadata.ConsumerGroup)
 		ops = append(ops, eventhub.ReceiveWithConsumerGroup(a.metadata.ConsumerGroup))
-
 	}
 
 	for _, partitionID := range runtimeInfo.PartitionIDs {

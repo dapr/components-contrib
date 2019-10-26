@@ -16,7 +16,7 @@ import (
 	"github.com/a8m/documentdb"
 )
 
-// StateStore is a CosmosDB state store
+// Store is a CosmosDB state store
 type StateStore struct {
 	client     *documentdb.DocumentDB
 	collection *documentdb.Collection
@@ -102,7 +102,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	_, err := c.client.QueryDocuments(
 		c.collection.Self,
-		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{"@id", key}),
+		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: key}),
 		&items,
 		options...,
 	)

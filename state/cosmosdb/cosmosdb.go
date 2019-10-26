@@ -63,7 +63,10 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	})
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
-		Query: fmt.Sprintf("SELECT * FROM ROOT r WHERE r.id='%s'", creds.Database),
+		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+		Parameters: []documentdb.Parameter{
+			{Name: "@id", Value: creds.Database},
+		},
 	})
 	if err != nil {
 		return err
@@ -73,7 +76,10 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 
 	c.db = &dbs[0]
 	colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-		Query: fmt.Sprintf("SELECT * FROM ROOT r WHERE r.id='%s'", creds.Collection),
+		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+		Parameters: []documentdb.Parameter{
+			{Name: "@id", Value: creds.Collection},
+		},
 	})
 	if err != nil {
 		return err

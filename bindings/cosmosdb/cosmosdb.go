@@ -62,7 +62,10 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 
 	c.db = &dbs[0]
 	colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-		Query: fmt.Sprintf("SELECT * FROM ROOT r WHERE r.id='%s'", m.Collection),
+		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+		Parameters: []documentdb.Parameter{
+			{Name: "@id", Value: m.Collection},
+		},
 	})
 	if err != nil {
 		return err

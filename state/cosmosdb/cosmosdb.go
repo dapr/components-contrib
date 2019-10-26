@@ -16,7 +16,7 @@ import (
 	"github.com/a8m/documentdb"
 )
 
-// Store is a CosmosDB state store
+// StateStore is a CosmosDB state store
 type StateStore struct {
 	client     *documentdb.DocumentDB
 	collection *documentdb.Collection

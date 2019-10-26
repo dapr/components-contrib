@@ -38,7 +38,7 @@ type configProperties struct {
 	OperationTimeout string `json:"operationTimeout"`
 }
 
-//--- Store ---
+//--- StateStore ---
 
 // NewETCD returns a new ETCD state store
 func NewETCD() *ETCD {

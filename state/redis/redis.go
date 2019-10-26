@@ -29,7 +29,7 @@ const (
 	infoReplicationDelimiter = "\r\n"
 )
 
-// Store is a Redis state store
+// StateStore is a Redis state store
 type StateStore struct {
 	client   *redis.SyncCtx
 	json     jsoniter.API

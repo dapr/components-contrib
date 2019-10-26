@@ -14,8 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// StateStore is a state store implementation for HashiCorp Consul.
-type StateStore struct {
+// Consul is a state store implementation for HashiCorp Consul.
+type Consul struct {
 	client        *api.Client
 	queryOpts     *api.QueryOptions
 	keyPrefixPath string
@@ -30,13 +30,13 @@ type consulConfig struct {
 }
 
 // NewConsulStateStore returns a new consul state store.
-func NewConsulStateStore() *StateStore {
-	return &StateStore{}
+func NewConsulStateStore() *Consul {
+	return &Consul{}
 }
 
 // Init does metadata and config parsing and initializes the
 // Consul client
-func (c *StateStore) Init(metadata state.Metadata) error {
+func (c *Consul) Init(metadata state.Metadata) error {
 	consulConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("couldn't convert metadata properties: %s", err)
@@ -59,10 +59,7 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 		return errors.Wrap(err, "initializing consul client")
 	}
 
-	var queryOpts *api.QueryOptions
-
 	c.client = client
-	c.queryOpts = queryOpts
 	c.keyPrefixPath = keyPrefixPath
 
 	return nil
@@ -71,20 +68,20 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 	b, err := json.Marshal(connInfo)
 	if err != nil {
-		return &consulConfig{}, err
+		return nil, err
 	}
 
 	var config consulConfig
 	err = json.Unmarshal(b, &config)
 	if err != nil {
-		return &consulConfig{}, err
+		return nil, err
 	}
 
 	return &config, nil
 }
 
 // Get retrieves a Consul KV item
-func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var queryOpts *api.QueryOptions
 	if req.Options.Consistency == state.Strong {
 		queryOpts.RequireConsistent = true
@@ -106,7 +103,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves a Consul KV item
-func (c *StateStore) Set(req *state.SetRequest) error {
+func (c *Consul) Set(req *state.SetRequest) error {
 	var reqValByte []byte
 	b, ok := req.Value.([]byte)
 	if ok {
@@ -128,8 +125,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulks save operation
-func (c *StateStore) BulkSet(req []state.SetRequest) error {
+// BulkSet performs a bulk save operation
+func (c *Consul) BulkSet(req []state.SetRequest) error {
 	for _, s := range req {
 		err := c.Set(&s)
 		if err != nil {
@@ -141,7 +138,7 @@ func (c *StateStore) BulkSet(req []state.SetRequest) error {
 }
 
 // Delete performes a Consul KV delete operation
-func (c *StateStore) Delete(req *state.DeleteRequest) error {
+func (c *Consul) Delete(req *state.DeleteRequest) error {
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
 	_, err := c.client.KV().Delete(keyWithPath, nil)
 	if err != nil {
@@ -152,7 +149,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 // BulkDelete performs a bulk delete operation
-func (c *StateStore) BulkDelete(req []state.DeleteRequest) error {
+func (c *Consul) BulkDelete(req []state.DeleteRequest) error {
 	for _, re := range req {
 		err := c.Delete(&re)
 		if err != nil {

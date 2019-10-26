@@ -18,7 +18,7 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
 	github.com/DataDog/zstd v1.4.1 // indirect
 	github.com/Shopify/sarama v1.23.1
-	github.com/Sirupsen/logrus v1.0.6
+	github.com/Sirupsen/logrus v1.0.6 // indirect
 	github.com/a8m/documentdb v1.2.0
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/creack/pty v1.1.9 // indirect
@@ -27,7 +27,6 @@ require (
 	github.com/frankban/quicktest v1.5.0 // indirect
 	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
-	github.com/google/btree v1.0.0 // indirect
 	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/grpc-gateway v1.11.2 // indirect
@@ -45,6 +44,7 @@ require (
 	github.com/rogpeppe/fastuuid v1.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.4.0 // indirect
 	github.com/satori/go.uuid v1.2.0
+	github.com/sirupsen/logrus v1.4.2
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0
 	go.opencensus.io v0.22.1 // indirect

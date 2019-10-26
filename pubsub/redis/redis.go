@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/go-redis/redis"

@@ -68,7 +68,7 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	} else if len(dbs) == 0 {
-		return fmt.Errorf("Database %s for CosmosDB state store not found", creds.Database)
+		return fmt.Errorf("database %s for CosmosDB state store not found", creds.Database)
 	}
 
 	c.db = &dbs[0]
@@ -78,7 +78,7 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	} else if len(colls) == 0 {
-		return fmt.Errorf("Collection %s for CosmosDB state store not found", creds.Collection)
+		return fmt.Errorf("collection %s for CosmosDB state store not found", creds.Collection)
 	}
 
 	c.collection = &colls[0]

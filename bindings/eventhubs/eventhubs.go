@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	eventhub "github.com/Azure/azure-event-hubs-go"
@@ -121,7 +122,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 	}
 
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, os.Kill)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 	<-signalChan
 
 	a.hub.Close(context.Background())

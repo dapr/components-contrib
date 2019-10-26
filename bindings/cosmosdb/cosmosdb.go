@@ -49,12 +49,15 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	})
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
-		Query: fmt.Sprintf("SELECT * FROM ROOT r WHERE r.id='%s'", m.Database),
+		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+		Parameters: []documentdb.Parameter{
+			{Name: "@id", Value: m.Database},
+		},
 	})
 	if err != nil {
 		return err
 	} else if len(dbs) == 0 {
-		return fmt.Errorf("Database %s for CosmosDB state store not found", m.Database)
+		return fmt.Errorf("database %s for CosmosDB state store not found", m.Database)
 	}
 
 	c.db = &dbs[0]
@@ -64,7 +67,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	} else if len(colls) == 0 {
-		return fmt.Errorf("Collection %s for CosmosDB state store not found", m.Collection)
+		return fmt.Errorf("collection %s for CosmosDB state store not found", m.Collection)
 	}
 
 	c.collection = &colls[0]

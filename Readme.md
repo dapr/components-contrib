@@ -36,5 +36,11 @@ git clone https://github.com/dapr/components-contrib.git github.com/dapr/compone
 ### Running tests
 
 ```bash
-go test ./...
+make test
+```
+
+### Running linting
+
+```bash
+make lint
 ```

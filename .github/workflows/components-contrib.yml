@@ -52,7 +52,7 @@ jobs:
       - name: Install golangci-lint
         if: matrix.target_arch != 'arm'
         run: |
-          curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "${{ env.GOROOT }}/bin" "${{ env.GOLANGCI_LINT_VER }}
+          curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "${{ env.GOROOT }}/bin" "${{ env.GOLANGCI_LINT_VER }}"
       - name: Run make lint
         if: matrix.target_arch != 'arm'
         run: make lint

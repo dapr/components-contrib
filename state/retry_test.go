@@ -85,5 +85,4 @@ func TestRetryPolicies(t *testing.T) {
 		})
 		assert.Equal(t, 3, counter, "should execute 3 times")
 	})
-
 }

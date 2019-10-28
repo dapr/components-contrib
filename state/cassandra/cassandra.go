@@ -194,8 +194,7 @@ func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
 
 // Delete performs a delete operation
 func (c *Cassandra) Delete(req *state.DeleteRequest) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE key='%s'", c.table, req.Key)
-	return c.session.Query(query).Exec()
+	return c.session.Query("DELETE FROM ? WHERE key = ?", c.table, req.Key).Exec()
 }
 
 // BulkDelete performs a bulk delete operation
@@ -212,8 +211,6 @@ func (c *Cassandra) BulkDelete(req []state.DeleteRequest) error {
 
 // Get retrieves state from cassandra with a key
 func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	query := fmt.Sprintf("SELECT value FROM %s WHERE key='%s'", c.table, req.Key)
-
 	session := c.session
 
 	if req.Options.Consistency == state.Strong {
@@ -232,7 +229,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		session = sess
 	}
 
-	results, err := session.Query(query).Iter().SliceMap()
+	results, err := session.Query("SELECT value FROM ? WHERE key = ?", c.table, req.Key).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -255,8 +252,6 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		bt, _ = jsoniter.ConfigFastest.Marshal(req.Value)
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table)
-
 	session := c.session
 
 	if req.Options.Consistency == state.Strong {
@@ -275,7 +270,7 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		session = sess
 	}
 
-	return session.Query(query, req.Key, bt).Exec()
+	return session.Query("INSERT INTO ? (key, value) VALUES (?, ?)", c.table, req.Key, bt).Exec()
 }
 
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {

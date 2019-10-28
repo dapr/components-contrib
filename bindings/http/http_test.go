@@ -20,5 +20,4 @@ func TestInit(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "a", hs.metadata.URL)
 	assert.Equal(t, "a", hs.metadata.Method)
-
 }

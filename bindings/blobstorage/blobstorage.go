@@ -35,7 +35,7 @@ type blobStorageMetadata struct {
 	Container        string `json:"container"`
 }
 
-// NewAzureBlobStorage returns a new CosmosDB instance
+// NewAzureBlobStorage returns a new Azure Blob Storage instance
 func NewAzureBlobStorage() *AzureBlobStorage {
 	return &AzureBlobStorage{}
 }

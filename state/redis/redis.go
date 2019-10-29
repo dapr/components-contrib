@@ -97,13 +97,12 @@ func (r *StateStore) getConnectedSlaves() (int, error) {
 	}
 
 	return r.parseConnectedSlaves(s), nil
-
 }
 
 func (r *StateStore) parseConnectedSlaves(res string) int {
 	infos := strings.Split(res, infoReplicationDelimiter)
 	for _, info := range infos {
-		if strings.Index(info, connectedSlavesReplicas) >= 0 {
+		if strings.Contains(info, connectedSlavesReplicas) {
 			parsedReplicas, _ := strconv.ParseUint(info[len(connectedSlavesReplicas):], 10, 32)
 			return int(parsedReplicas)
 		}

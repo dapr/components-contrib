@@ -6,6 +6,6 @@
 package nats
 
 type metadata struct {
-	natsURL string
-	queue   string
+	natsURL            string
+	natsQueueGroupName string
 }

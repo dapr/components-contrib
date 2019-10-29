@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	natsURL = "natsURL"
-	queue   = "queue"
+	natsURL            = "natsURL"
+	natsQueueGroupName = "natsQueueGroupName"
 )
 
 type natsPubSub struct {
@@ -37,8 +37,8 @@ func parseNATSMetadata(meta pubsub.Metadata) (metadata, error) {
 		return m, errors.New("nats error: missing nats URL")
 	}
 
-	if val, ok := meta.Properties[queue]; ok && val != "" {
-		m.queue = val
+	if val, ok := meta.Properties[natsQueueGroupName]; ok && val != "" {
+		m.natsQueueGroupName = val
 	} else {
 		return m, errors.New("nats error: missing queue name")
 	}
@@ -57,31 +57,28 @@ func (n *natsPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("nats: error connecting to nats at %s: %s", m.natsURL, err)
 	}
+	log.Debugf("connected to nats at %s", m.natsURL)
 
 	n.natsConn = natsConn
 	return nil
 }
 
 func (n *natsPubSub) Publish(req *pubsub.PublishRequest) error {
-	fmt.Printf("nats Publish request on subject %s with data %s", req.Topic, string(req.Data))
 	err := n.natsConn.Publish(req.Topic, req.Data)
 	if err != nil {
 		return fmt.Errorf("nats: error from publish: %s", err)
 	}
-	fmt.Println("message published successfully to NATS")
-
 	return nil
 }
 
 func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
-	fmt.Printf("nats Subscribe request on subject %s", req.Topic)
-	sub, err := n.natsConn.QueueSubscribe(req.Topic, n.metadata.queue, func(natsMsg *nats.Msg) {
+	sub, err := n.natsConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, func(natsMsg *nats.Msg) {
 		handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 	})
 	if err != nil {
 		log.Warnf("nats: error subscribe: %s", err)
 	}
-	fmt.Printf("NATS Subscribe request successful %v", sub)
+	log.Debugf("nats: subscribed to subject %s with queue group %s", sub.Subject, sub.Queue)
 
 	return nil
 }

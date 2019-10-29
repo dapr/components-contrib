@@ -22,5 +22,4 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "a", rm.Host)
 	assert.Equal(t, true, rm.DeleteWhenUnused)
 	assert.Equal(t, true, rm.Durable)
-
 }

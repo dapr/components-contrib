@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makerFn() interface{} { return &client.V1Namespace{} }
-
 type staticHandler struct {
 	Code        int
 	Body        string
@@ -64,7 +62,7 @@ func TestReadItem(t *testing.T) {
 	}
 	count := 0
 	i.Read(func(res *bindings.ReadResponse) error {
-		count = count + 1
+		count++
 
 		result := client.Result{}
 		json.Unmarshal(res.Data, &result)

@@ -234,7 +234,7 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 
 	config.Net.TLS.Enable = true
 	config.Net.TLS.Config = &tls.Config{
-		InsecureSkipVerify: true,
-		ClientAuth:         0,
+		//InsecureSkipVerify: true,
+		ClientAuth: 0,
 	}
 }

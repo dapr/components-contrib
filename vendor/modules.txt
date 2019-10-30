@@ -54,6 +54,25 @@ github.com/Azure/azure-service-bus-go
 github.com/Azure/azure-service-bus-go/atom
 # github.com/Azure/azure-storage-blob-go v0.8.0
 github.com/Azure/azure-storage-blob-go/azblob
+# github.com/Azure/go-autorest/autorest v0.9.1
+github.com/Azure/go-autorest/autorest
+github.com/Azure/go-autorest/autorest/azure
+# github.com/Azure/go-autorest/autorest/adal v0.6.0
+github.com/Azure/go-autorest/autorest/adal
+# github.com/Azure/go-autorest/autorest/azure/auth v0.3.0
+github.com/Azure/go-autorest/autorest/azure/auth
+# github.com/Azure/go-autorest/autorest/azure/cli v0.3.0
+github.com/Azure/go-autorest/autorest/azure/cli
+# github.com/Azure/go-autorest/autorest/date v0.2.0
+github.com/Azure/go-autorest/autorest/date
+# github.com/Azure/go-autorest/autorest/to v0.3.0
+github.com/Azure/go-autorest/autorest/to
+# github.com/Azure/go-autorest/autorest/validation v0.2.0
+github.com/Azure/go-autorest/autorest/validation
+# github.com/Azure/go-autorest/logger v0.1.0
+github.com/Azure/go-autorest/logger
+# github.com/Azure/go-autorest/tracing v0.5.0
+github.com/Azure/go-autorest/tracing
 # github.com/BurntSushi/toml v0.3.1
 github.com/BurntSushi/toml
 # github.com/DataDog/zstd v1.4.1
@@ -142,6 +161,10 @@ github.com/coreos/pkg/capnslog
 github.com/davecgh/go-spew/spew
 # github.com/devigned/tab v0.1.1
 github.com/devigned/tab
+# github.com/dgrijalva/jwt-go v3.2.0+incompatible
+github.com/dgrijalva/jwt-go
+# github.com/dimchansky/utfbom v1.1.0
+github.com/dimchansky/utfbom
 # github.com/eapache/go-resiliency v1.2.0
 github.com/eapache/go-resiliency/breaker
 # github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21

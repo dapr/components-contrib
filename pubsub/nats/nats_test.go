@@ -67,5 +67,4 @@ func TestParseNATSMetadata(t *testing.T) {
 		assert.Error(t, errors.New("nats error: missing nats URL"), err)
 		assert.Empty(t, m.natsURL)
 	})
-
 }

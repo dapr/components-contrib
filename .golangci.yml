@@ -31,6 +31,8 @@ run:
   skip-files:
   #  - ".*\\.my\\.go$"
   #  - lib/bad.go
+  
+  modules-download-mode: vendor
 
 # output configuration options
 output:

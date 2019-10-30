@@ -7,6 +7,8 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,6 +27,9 @@ type Kafka struct {
 	consumerGroup string
 	brokers       []string
 	publishTopic  string
+	authRequired  string
+	saslUsername  string
+	saslPassword  string
 }
 
 type kafkaMetadata struct {
@@ -32,6 +37,9 @@ type kafkaMetadata struct {
 	Topics        []string `json:"topics"`
 	PublishTopic  string   `json:"publishTopic"`
 	ConsumerGroup string   `json:"consumerGroup"`
+	AuthRequired  string   `json:"authRequired"`
+	SaslUsername  string   `json:"saslUsername"`
+	SaslPassword  string   `json:"saslPassword"`
 }
 
 type consumer struct {
@@ -80,6 +88,13 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	k.topics = meta.Topics
 	k.publishTopic = meta.PublishTopic
 	k.consumerGroup = meta.ConsumerGroup
+	k.authRequired = meta.AuthRequired
+
+	//ignore SASL properties if authRequired is false
+	if meta.AuthRequired == "true" {
+		k.saslUsername = meta.SaslUsername
+		k.saslPassword = meta.SaslPassword
+	}
 	return nil
 }
 
@@ -107,6 +122,27 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 	if val, ok := metadata.Properties["topics"]; ok && val != "" {
 		meta.Topics = strings.Split(val, ",")
 	}
+	if val, ok := metadata.Properties["authRequired"]; ok && (val == "true" || val == "false") {
+		meta.AuthRequired = val
+	} else {
+		return nil, errors.New("kafka error: invalid value for 'authRequired' attribute. use true or false")
+	}
+
+	//ignore SASL properties if authRequired is false
+	if meta.AuthRequired == "true" {
+
+		if val, ok := metadata.Properties["saslUsername"]; ok && val != "" {
+			meta.SaslUsername = val
+		} else {
+			return nil, errors.New("kafka error: missing SASL Username")
+		}
+
+		if val, ok := metadata.Properties["saslPassword"]; ok && val != "" {
+			meta.SaslPassword = val
+		} else {
+			return nil, errors.New("kafka error: missing SASL Password")
+		}
+	}
 	return &meta, nil
 }
 
@@ -115,6 +151,12 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
+	config.Version = sarama.V1_0_0_0
+
+	//ignore SASL properties if authRequired is false
+	if meta.AuthRequired == "true" {
+		updateAuthInfo(config, meta.SaslUsername, meta.SaslPassword)
+	}
 
 	producer, err := sarama.NewSyncProducer(meta.Brokers, config)
 	if err != nil {
@@ -126,7 +168,10 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
-
+	//ignore SASL properties if authRequired is false
+	if k.authRequired == "true" {
+		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
 	consumer := consumer{
 		callback: handler,
 		ready:    make(chan bool),
@@ -170,4 +215,17 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 
 func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
+}
+
+func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
+	config.Net.SASL.Enable = true
+	config.Net.SASL.User = saslUsername
+	config.Net.SASL.Password = saslPassword
+	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+
+	config.Net.TLS.Enable = true
+	config.Net.TLS.Config = &tls.Config{
+		InsecureSkipVerify: true,
+		ClientAuth:         0,
+	}
 }

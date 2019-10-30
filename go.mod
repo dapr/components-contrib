@@ -28,7 +28,6 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-	github.com/creack/pty v1.1.9 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/frankban/quicktest v1.5.0 // indirect
@@ -49,15 +48,17 @@ require (
 	github.com/joomcode/redispipe v0.9.0
 	github.com/json-iterator/go v1.1.7
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/kr/pty v1.1.8 // indirect
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
 	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9 // indirect
+	github.com/nats-io/gnatsd v1.4.1 // indirect
+	github.com/nats-io/go-nats v1.7.2
+	github.com/nats-io/nkeys v0.1.0 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/prometheus/client_golang v1.2.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
-	github.com/rogpeppe/fastuuid v1.2.0 // indirect
-	github.com/rogpeppe/go-internal v1.4.0 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/soheilhy/cmux v0.1.4 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
@@ -70,11 +71,8 @@ require (
 	go.uber.org/multierr v1.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20190927123631-a832865fa7ad
 	golang.org/x/exp v0.0.0-20190927203820-447a159532ef // indirect
-	golang.org/x/image v0.0.0-20190910094157-69e4b8554b2a // indirect
-	golang.org/x/mobile v0.0.0-20190923204409-d3ece3b6da5f // indirect
 	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
-	golang.org/x/sys v0.0.0-20190927073244-c990c680b611 // indirect
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
 	google.golang.org/api v0.10.0
 	google.golang.org/appengine v1.6.4 // indirect

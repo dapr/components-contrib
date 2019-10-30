@@ -4,8 +4,11 @@ State Stores provide a common way to interact with different data store implemen
 
 Currently supported state stores are:
 
-* Azure CosmosDB
 * Redis
+* HashiCorp Consul
+* Etcd
+* Cassandra
+* Azure CosmosDB
 
 ## Implementing a new State Store
 

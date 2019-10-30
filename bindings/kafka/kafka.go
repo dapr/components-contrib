@@ -189,18 +189,18 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 	go func() {
 		defer wg.Done()
 		for {
-			if err = client.Consume(ctx, k.topics, &consumer); err != nil {
-				log.Errorf("error from consumer: %s", err)
+			if err = client.Consume(ctx, k.topics, &c); err != nil {
+				log.Errorf("error from c: %s", err)
 			}
-			// check if context was cancelled, signaling that the consumer should stop
+			// check if context was cancelled, signaling that the c should stop
 			if ctx.Err() != nil {
 				return
 			}
-			consumer.ready = make(chan bool)
+			c.ready = make(chan bool)
 		}
 	}()
 
-	<-consumer.ready
+	<-c.ready
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)

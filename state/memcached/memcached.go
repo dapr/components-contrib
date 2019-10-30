@@ -3,6 +3,7 @@ package memcached
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,11 +13,12 @@ import (
 )
 
 const (
-	hosts = "hosts"
-
+	hosts              = "hosts"
+	maxIdleConnections = "maxIdleConnections"
+	timeout            = "timeout"
 	// These defaults are already provided by gomemcache
 	defaultMaxIdleConnections = 2
-	defaultTimeout            = 100 * time.Millisecond
+	defaultTimeout            = 1000 * time.Millisecond
 )
 
 type Memcached struct {
@@ -68,6 +70,22 @@ func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 		return nil, errors.New("missing or empty hosts field from metadata")
 	}
 
+	if val, ok := metadata.Properties[maxIdleConnections]; ok && val != "" {
+		p, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing maxIdleConnections")
+		}
+		meta.maxIdleConnections = p
+	}
+
+	if val, ok := metadata.Properties[timeout]; ok && val != "" {
+		p, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing timeout")
+		}
+		meta.timeout = time.Duration(p) * time.Millisecond
+	}
+
 	return &meta, nil
 }
 
@@ -109,7 +127,11 @@ func (m *Memcached) BulkDelete(req []state.DeleteRequest) error {
 func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	item, err := m.client.Get(req.Key)
 	if err != nil {
-		return &state.GetResponse{}, nil
+		// Return nil for status 204
+		if err == memcache.ErrCacheMiss {
+			return nil, nil
+		}
+		return &state.GetResponse{}, err
 	}
 
 	return &state.GetResponse{

@@ -208,7 +208,8 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
 
 	client, err := mongo.Connect(ctx, clientOptions)
 

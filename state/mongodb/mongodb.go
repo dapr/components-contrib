@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -20,6 +21,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 const (
@@ -28,6 +31,8 @@ const (
 	password         = "password"
 	databaseName     = "databaseName"
 	collectionName   = "collectionName"
+	writeConcern     = "writeConcern"
+	readConcern      = "readConcern"
 	operationTimeout = "operationTimeout"
 	id               = "_id"
 	value            = "value"
@@ -53,6 +58,8 @@ type mongoDBMetadata struct {
 	password         string
 	databaseName     string
 	collectionName   string
+	writeconcern     string
+	readconcern      string
 	operationTimeout time.Duration
 }
 
@@ -82,7 +89,22 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 
 	m.client = client
 
-	collection := m.client.Database(meta.databaseName).Collection(meta.collectionName)
+	// get the write concern
+	wc, err := getWriteConcernObject(meta.writeconcern)
+
+	if err != nil {
+		return fmt.Errorf("error in getting write concern object: %s", err)
+	}
+
+	// get the read concern
+	rc, err := getReadConcernObject(meta.readconcern)
+
+	if err != nil {
+		return fmt.Errorf("error in getting read concern object: %s", err)
+	}
+
+	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
+	collection := m.client.Database(meta.databaseName).Collection(meta.collectionName, opts)
 
 	m.collection = collection
 
@@ -227,6 +249,14 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 		meta.collectionName = val
 	}
 
+	if val, ok := metadata.Properties[writeConcern]; ok && val != "" {
+		meta.writeconcern = val
+	}
+
+	if val, ok := metadata.Properties[readConcern]; ok && val != "" {
+		meta.readconcern = val
+	}
+
 	var err error
 	var t time.Duration
 	if val, ok := metadata.Properties[operationTimeout]; ok && val != "" {
@@ -240,4 +270,44 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 	}
 
 	return &meta, nil
+}
+
+func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
+
+	var wc *writeconcern.WriteConcern
+	if cn != "" {
+		if cn == "majority" {
+			wc = writeconcern.New(writeconcern.WMajority(), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+		} else {
+
+			w, err := strconv.Atoi(cn)
+			wc = writeconcern.New(writeconcern.W(w), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+
+			return wc, err
+		}
+	}
+
+	// default
+	wc = writeconcern.New(writeconcern.W(1), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+	return wc, nil
+}
+
+func getReadConcernObject(cn string) (*readconcern.ReadConcern, error) {
+
+	switch cn {
+	case "local":
+		return readconcern.Local(), nil
+	case "majority":
+		return readconcern.Majority(), nil
+	case "available":
+		return readconcern.Available(), nil
+	case "linearizable":
+		return readconcern.Linearizable(), nil
+	case "snapshot":
+		return readconcern.Snapshot(), nil
+	case "":
+		return readconcern.Local(), nil
+	}
+
+	return nil, fmt.Errorf("readConcern %s not found", cn)
 }

@@ -37,12 +37,12 @@ const (
 	id               = "_id"
 	value            = "value"
 
-	defaultTimeout        = time.Duration(5 * time.Second)
+	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
 	defaultCollectionName = "daprCollection"
 
 	// mongodb://<username>:<password@<host>/<database>
-	connectionUriFormat = "mongodb://%s:%s@%s/%s"
+	connectionURIFormat = "mongodb://%s:%s@%s/%s"
 )
 
 // MongoDB is a state store implementation for MongoDB
@@ -171,7 +171,6 @@ func (m *MongoDB) BulkSet(req []state.SetRequest) error {
 
 // Delete performs a delete operation
 func (m *MongoDB) Delete(req *state.DeleteRequest) error {
-
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
@@ -201,7 +200,7 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	var uri string
 
 	if metadata.username != "" && metadata.password != "" {
-		uri = fmt.Sprintf(connectionUriFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName)
+		uri = fmt.Sprintf(connectionURIFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName)
 	}
 
 	// Set client options
@@ -221,7 +220,6 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 }
 
 func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
-
 	meta := mongoDBMetadata{
 		databaseName:     defaultDatabaseName,
 		collectionName:   defaultCollectionName,
@@ -274,13 +272,11 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 }
 
 func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
-
 	var wc *writeconcern.WriteConcern
 	if cn != "" {
 		if cn == "majority" {
 			wc = writeconcern.New(writeconcern.WMajority(), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
 		} else {
-
 			w, err := strconv.Atoi(cn)
 			wc = writeconcern.New(writeconcern.W(w), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
 
@@ -294,7 +290,6 @@ func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
 }
 
 func getReadConcernObject(cn string) (*readconcern.ReadConcern, error) {
-
 	switch cn {
 	case "local":
 		return readconcern.Local(), nil

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -196,4 +197,81 @@ func (r *ETCD) BulkSet(req []state.SetRequest) error {
 	}
 
 	return nil
+}
+
+// Watch watches on a key or prefix.
+// The watched events will be returned through the returned channel.
+func (r *ETCD) Watch(req *state.WatchStateRequest) (<-chan *state.StateEvent, error) {
+	opts := []clientv3.OpOption{clientv3.WithProgressNotify()}
+
+	if req.ETag != "" {
+		rev, err := strconv.Atoi(req.ETag)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, clientv3.WithRev(int64(rev)))
+	}
+
+	if _, exists := req.Metadata[state.WatchDiscardCreate]; !exists {
+		opts = append(opts, clientv3.WithCreatedNotify())
+	}
+	if _, exists := req.Metadata[state.WatchDiscardModify]; exists {
+		opts = append(opts, clientv3.WithFilterPut())
+	}
+	if _, exists := req.Metadata[state.WatchDiscardDelete]; exists {
+		opts = append(opts, clientv3.WithFilterDelete())
+	}
+	if _, exists := req.Metadata[state.WatchFromKey]; exists {
+		opts = append(opts, clientv3.WithFromKey())
+	}
+	if _, exists := req.Metadata[state.WatchMatchingPrefix]; exists {
+		opts = append(opts, clientv3.WithPrefix())
+	}
+	if endKey, exists := req.Metadata[state.WatchInRange]; exists {
+		opts = append(opts, clientv3.WithRange(endKey))
+	}
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	c := r.client.Watch(ctx, req.Key, opts...)
+	e := make(chan *state.StateEvent)
+
+	go func() {
+		defer cancelFn()
+		defer close(e)
+
+		for resp := range c {
+			if resp.IsProgressNotify() {
+				continue
+			}
+
+			for _, evt := range resp.Events {
+				ty := state.MODIFIED
+
+				if evt.IsCreate() {
+					ty = state.CREATED
+				} else if evt.Type == clientv3.EventTypeDelete {
+					ty = state.DELETED
+				}
+
+				s := &state.StateEvent{
+					Event: ty,
+					Key:   string(evt.Kv.Key),
+					Value: evt.Kv.Value,
+					ETag:  fmt.Sprintf("%d", evt.Kv.Version),
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case e <- s:
+				}
+			}
+
+			if resp.Err() != nil {
+				break
+			}
+		}
+	}()
+
+	return e, nil
 }

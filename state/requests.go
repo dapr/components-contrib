@@ -78,20 +78,20 @@ type WatchStateRequest struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
-type WatchEvent int
+type StateEventType int
 
 const (
-	CREATED WatchEvent = iota
+	CREATED StateEventType = iota
 	DELETED
-	CHANGED
+	MODIFIED
 	CHILDREN
 )
 
-// NewMessage is an event arriving from a message bus instance
+// StateEvent is an event arriving from a state watcher
 type StateEvent struct {
-	Event    WatchEvent        `json:"event"`
 	Key      string            `json:"key"`
-	Data     []byte            `json:"data"`
+	Value    []byte            `json:"value"`
 	ETag     string            `json:"etag,omitempty"`
 	Metadata map[string]string `json:"metadata"`
+	Event    StateEventType    `json:"event"`
 }

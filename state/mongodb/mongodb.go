@@ -266,9 +266,9 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 
 	if err != nil {
 		return nil, errors.New("incorrect operationTimeout field from metadata")
-	} else {
-		meta.operationTimeout = t
 	}
+
+	meta.operationTimeout = t
 
 	return &meta, nil
 }

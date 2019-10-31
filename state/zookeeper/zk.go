@@ -107,7 +107,7 @@ type StateStore struct {
 }
 
 var _ Conn = (*zk.Conn)(nil)
-var _ state.StateStore = (*StateStore)(nil)
+var _ state.Store = (*StateStore)(nil)
 
 // NewZookeeperStateStore returns a new Zookeeper state store
 func NewZookeeperStateStore() *StateStore {

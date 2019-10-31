@@ -33,7 +33,6 @@ require (
 	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
-	github.com/google/btree v1.0.0 // indirect
 	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1 // indirect
@@ -71,7 +70,7 @@ require (
 	go.uber.org/multierr v1.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20190927123631-a832865fa7ad
 	golang.org/x/exp v0.0.0-20190927203820-447a159532ef // indirect
-	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17 // indirect
+	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
 	google.golang.org/api v0.10.0

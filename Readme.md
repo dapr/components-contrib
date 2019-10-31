@@ -3,7 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/dapr/components-contrib)](https://goreportcard.com/report/github.com/dapr/components-contrib)
 [![Build Status](https://github.com/dapr/components-contrib/workflows/components-contrib/badge.svg?event=push&branch=master)](https://github.com/dapr/components-contrib/actions?workflow=components-contrib)
 [![Gitter](https://badges.gitter.im/Dapr/community.svg)](https://gitter.im/Dapr/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Join the chat at https://gitter.im/Dapr/components-contrib](https://badges.gitter.im/Dapr/components-contrib.svg)](https://gitter.im/Dapr/components-contrib?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
 The purpose of Components Contrib is to provide open, community driven reusable components for building distributed applications.

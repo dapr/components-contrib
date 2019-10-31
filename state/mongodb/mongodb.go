@@ -286,10 +286,10 @@ func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
 
 			return wc, err
 		}
+	} else {
+		wc = writeconcern.New(writeconcern.W(1), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
 	}
 
-	// default
-	wc = writeconcern.New(writeconcern.W(1), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
 	return wc, nil
 }
 

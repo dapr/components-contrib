@@ -19,12 +19,6 @@ import (
 
 //go:generate mockgen -package zookeeper -source zk.go -destination zk_mock.go
 
-var linearRetryPolicy = state.RetryPolicy{
-	Pattern:   state.Linear,
-	Threshold: 3,
-	Interval:  time.Millisecond,
-}
-
 // newConfig
 func TestNewConfig(t *testing.T) {
 	t.Run("With all required fields", func(t *testing.T) {
@@ -144,7 +138,11 @@ func TestDelete(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
 		err := s.Delete(&state.DeleteRequest{Key: "foo",
-			Options: state.DeleteStateOption{RetryPolicy: linearRetryPolicy},
+			Options: state.DeleteStateOption{RetryPolicy: state.RetryPolicy{
+				Pattern:   state.Linear,
+				Threshold: 3,
+				Interval:  time.Millisecond,
+			}},
 		})
 		assert.NoError(t, err, "Delete must be successful")
 	})
@@ -153,7 +151,11 @@ func TestDelete(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrUnknown).Times(3)
 
 		err := s.Delete(&state.DeleteRequest{Key: "foo",
-			Options: state.DeleteStateOption{RetryPolicy: linearRetryPolicy},
+			Options: state.DeleteStateOption{RetryPolicy: state.RetryPolicy{
+				Pattern:   state.Linear,
+				Threshold: 3,
+				Interval:  time.Millisecond,
+			}},
 		})
 		assert.EqualError(t, err, "failed to set value after 3 retries")
 	})
@@ -253,9 +255,13 @@ func TestSet(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
 		err := s.Set(&state.SetRequest{
-			Key:     "foo",
-			Value:   "bar",
-			Options: state.SetStateOption{RetryPolicy: linearRetryPolicy},
+			Key:   "foo",
+			Value: "bar",
+			Options: state.SetStateOption{RetryPolicy: state.RetryPolicy{
+				Pattern:   state.Linear,
+				Threshold: 3,
+				Interval:  time.Millisecond,
+			}},
 		})
 		assert.NoError(t, err, "Set must be successful")
 	})
@@ -263,9 +269,13 @@ func TestSet(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(3)
 
 		err := s.Set(&state.SetRequest{
-			Key:     "foo",
-			Value:   "bar",
-			Options: state.SetStateOption{RetryPolicy: linearRetryPolicy},
+			Key:   "foo",
+			Value: "bar",
+			Options: state.SetStateOption{RetryPolicy: state.RetryPolicy{
+				Pattern:   state.Linear,
+				Threshold: 3,
+				Interval:  time.Millisecond,
+			}},
 		})
 		assert.EqualError(t, err, "failed to set value after 3 retries")
 	})

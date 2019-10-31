@@ -23,10 +23,8 @@ const defaultMaxConnBufferSize = 1024 * 1024
 
 const anyVersion = -1
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-var errMissingServers = errors.New("Servers are required")
-var errInvalidSessionTimeout = errors.New("SessionTimeout is invalid")
+var errMissingServers = errors.New("servers are required")
+var errInvalidSessionTimeout = errors.New("sessionTimeout is invalid")
 
 type properties struct {
 	Servers           string `json:"servers"`
@@ -47,12 +45,12 @@ type config struct {
 func newConfig(metadata map[string]string) (c *config, err error) {
 	var buf []byte
 
-	if buf, err = json.Marshal(metadata); err != nil {
+	if buf, err = jsoniter.ConfigFastest.Marshal(metadata); err != nil {
 		return
 	}
 
 	var props properties
-	if err = json.Unmarshal(buf, &props); err != nil {
+	if err = jsoniter.ConfigFastest.Unmarshal(buf, &props); err != nil {
 		return
 	}
 
@@ -167,7 +165,7 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (s *StateStore) BulkDelete(reqs []state.DeleteRequest) error {
-	var ops []interface{}
+	ops := make([]interface{}, 0, len(reqs))
 
 	for _, req := range reqs {
 		req, err := s.newDeleteRequest(&req)
@@ -212,7 +210,7 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (s *StateStore) BulkSet(reqs []state.SetRequest) error {
-	var ops []interface{}
+	ops := make([]interface{}, 0, len(reqs))
 
 	for _, req := range reqs {
 		req, err := s.newSetDataRequest(&req)

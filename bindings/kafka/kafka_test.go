@@ -14,7 +14,6 @@ import (
 )
 
 func TestParseMetadata(t *testing.T) {
-
 	t.Run("correct metadata (authRequired false)", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{"consumerGroup": "a", "publishTopic": "a", "brokers": "a", "topics": "a", "authRequired": "false"}
@@ -26,7 +25,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
 		assert.False(t, meta.AuthRequired)
-
 	})
 
 	t.Run("correct metadata (authRequired FALSE)", func(t *testing.T) {
@@ -40,7 +38,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
 		assert.False(t, meta.AuthRequired)
-
 	})
 
 	t.Run("correct metadata (authRequired False)", func(t *testing.T) {
@@ -54,7 +51,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
 		assert.False(t, meta.AuthRequired)
-
 	})
 
 	t.Run("correct metadata (authRequired F)", func(t *testing.T) {
@@ -68,7 +64,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
 		assert.False(t, meta.AuthRequired)
-
 	})
 
 	t.Run("correct metadata (authRequired f)", func(t *testing.T) {
@@ -82,7 +77,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
 		assert.False(t, meta.AuthRequired)
-
 	})
 
 	t.Run("correct metadata (authRequired 0)", func(t *testing.T) {

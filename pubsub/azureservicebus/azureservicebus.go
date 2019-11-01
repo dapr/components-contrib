@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-service-bus-go"
 	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/lithammer/shortuuid"
 )
 
 const (
@@ -55,8 +54,7 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[consumerIDKey]; ok && val != "" {
 		m.ConsumerID = val
 	} else {
-		u := shortuuid.New()
-		m.ConsumerID = fmt.Sprintf("dapr-%s", u)
+		return m, errors.New("azure service bus error: missing consumerID")
 	}
 
 	useDefault := true

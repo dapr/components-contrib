@@ -7,7 +7,7 @@ package vault
 
 import (
 	"encoding/base64"
-	"os"
+	"io/ioutil"
 	"strconv"
 	"testing"
 
@@ -23,7 +23,7 @@ const (
 
 func TestReadVaultToken(t *testing.T) {
 	t.Run("read correct token", func(t *testing.T) {
-		f, err := os.Create("/tmp/vault-token")
+		f, err := ioutil.TempFile("/tmp", "vault-token")
 		assert.NoError(t, err)
 		defer f.Close()
 		tokenString := "thisisnottheroottoken"
@@ -39,7 +39,7 @@ func TestReadVaultToken(t *testing.T) {
 	})
 
 	t.Run("read incorrect token", func(t *testing.T) {
-		f, err := os.Create("/tmp/vault-token")
+		f, err := ioutil.TempFile("/tmp", "vault-token")
 		assert.NoError(t, err)
 		defer f.Close()
 		tokenString := "thisisnottheroottoken"

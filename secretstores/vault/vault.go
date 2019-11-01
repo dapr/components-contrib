@@ -34,7 +34,7 @@ const (
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
 	defaultVaultKVPrefix         string = "dapr"
-	vaultTokenHeader             string = "X-Vault-Token"
+	vaultHTTPHeader              string = "X-Vault-Token"
 )
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault
@@ -138,7 +138,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 
 	httpReq, err := http.NewRequest(http.MethodGet, vaultSecretPathAddr, nil)
 	// Set vault token.
-	httpReq.Header.Set(vaultTokenHeader, token)
+	httpReq.Header.Set(vaultHTTPHeader, token)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't generate request: %s", err)
 	}

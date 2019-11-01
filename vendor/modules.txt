@@ -131,6 +131,8 @@ github.com/aws/aws-sdk-go/service/sns
 github.com/aws/aws-sdk-go/service/sqs
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
+# github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+github.com/bradfitz/gomemcache/memcache
 # github.com/census-instrumentation/opencensus-proto v0.2.1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1
@@ -184,6 +186,8 @@ github.com/go-redis/redis/internal/hashtag
 github.com/go-redis/redis/internal/pool
 github.com/go-redis/redis/internal/proto
 github.com/go-redis/redis/internal/util
+# github.com/go-stack/stack v1.8.0
+github.com/go-stack/stack
 # github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 github.com/gocql/gocql
 github.com/gocql/gocql/internal/lru
@@ -198,6 +202,8 @@ github.com/gogo/protobuf/sortkeys
 github.com/golang/glog
 # github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6
 github.com/golang/groupcache/lru
+# github.com/golang/mock v1.3.1
+github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.3.2
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
@@ -234,10 +240,14 @@ github.com/grpc-ecosystem/grpc-gateway/utilities
 github.com/hailocab/go-hostpool
 # github.com/hashicorp/consul/api v1.2.0
 github.com/hashicorp/consul/api
+# github.com/hashicorp/errwrap v1.0.0
+github.com/hashicorp/errwrap
 # github.com/hashicorp/go-cleanhttp v0.5.1
 github.com/hashicorp/go-cleanhttp
 # github.com/hashicorp/go-immutable-radix v1.0.0
 github.com/hashicorp/go-immutable-radix
+# github.com/hashicorp/go-multierror v1.0.0
+github.com/hashicorp/go-multierror
 # github.com/hashicorp/go-rootcerts v1.0.0
 github.com/hashicorp/go-rootcerts
 # github.com/hashicorp/go-uuid v1.0.1
@@ -304,6 +314,8 @@ github.com/pkg/errors
 github.com/pmezard/go-difflib/difflib
 # github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 github.com/rcrowley/go-metrics
+# github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
+github.com/samuel/go-zookeeper/zk
 # github.com/satori/go.uuid v1.2.0
 github.com/satori/go.uuid
 # github.com/spf13/pflag v1.0.1
@@ -312,8 +324,41 @@ github.com/spf13/pflag
 github.com/streadway/amqp
 # github.com/stretchr/testify v1.4.0
 github.com/stretchr/testify/assert
+# github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
+github.com/xdg/scram
+# github.com/xdg/stringprep v1.0.0
+github.com/xdg/stringprep
 # go.etcd.io/etcd v3.3.17+incompatible
 go.etcd.io/etcd/clientv3
+# go.mongodb.org/mongo-driver v1.1.2
+go.mongodb.org/mongo-driver/bson
+go.mongodb.org/mongo-driver/bson/bsoncodec
+go.mongodb.org/mongo-driver/bson/bsonrw
+go.mongodb.org/mongo-driver/bson/bsontype
+go.mongodb.org/mongo-driver/bson/primitive
+go.mongodb.org/mongo-driver/event
+go.mongodb.org/mongo-driver/internal
+go.mongodb.org/mongo-driver/mongo
+go.mongodb.org/mongo-driver/mongo/options
+go.mongodb.org/mongo-driver/mongo/readconcern
+go.mongodb.org/mongo-driver/mongo/readpref
+go.mongodb.org/mongo-driver/mongo/writeconcern
+go.mongodb.org/mongo-driver/tag
+go.mongodb.org/mongo-driver/version
+go.mongodb.org/mongo-driver/x/bsonx
+go.mongodb.org/mongo-driver/x/bsonx/bsoncore
+go.mongodb.org/mongo-driver/x/mongo/driver
+go.mongodb.org/mongo-driver/x/mongo/driver/address
+go.mongodb.org/mongo-driver/x/mongo/driver/auth
+go.mongodb.org/mongo-driver/x/mongo/driver/auth/internal/gssapi
+go.mongodb.org/mongo-driver/x/mongo/driver/connstring
+go.mongodb.org/mongo-driver/x/mongo/driver/description
+go.mongodb.org/mongo-driver/x/mongo/driver/dns
+go.mongodb.org/mongo-driver/x/mongo/driver/operation
+go.mongodb.org/mongo-driver/x/mongo/driver/session
+go.mongodb.org/mongo-driver/x/mongo/driver/topology
+go.mongodb.org/mongo-driver/x/mongo/driver/uuid
+go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage
 # go.opencensus.io v0.22.1
 go.opencensus.io
 go.opencensus.io/internal
@@ -390,7 +435,7 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20190927191325-030b2cf1153e
+# golang.org/x/tools v0.0.0-20191028215554-80f3f9ca0853
 golang.org/x/tools/cmd/goimports
 golang.org/x/tools/go/analysis
 golang.org/x/tools/go/analysis/passes/inspect
@@ -408,6 +453,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/module
 golang.org/x/tools/internal/semver
+golang.org/x/tools/internal/span
 # google.golang.org/api v0.10.0
 google.golang.org/api/gensupport
 google.golang.org/api/googleapi

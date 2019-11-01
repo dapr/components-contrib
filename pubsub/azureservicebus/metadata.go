@@ -6,6 +6,6 @@
 package azureservicebus
 
 type metadata struct {
-	connectionString string
-	subscriberID string
+	ConnectionString string `json:"connectionString"`
+	ConsumerID       string `json:"consumerID"`
 }

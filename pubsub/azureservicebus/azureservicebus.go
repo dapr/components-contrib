@@ -18,7 +18,7 @@ import (
 
 const (
 	connString = "connectionString"
-	subscriberID = "subscriberId"
+	consumerID = "consumerID"
 	maxDeliveryCount = 5
 )
 
@@ -41,16 +41,16 @@ func NewAzureServiceBus() pubsub.PubSub {
 func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	m := metadata{}
 	if val, ok := meta.Properties[connString]; ok && val != "" {
-		m.connectionString = val
+		m.ConnectionString = val
 	} else {
 		return m, errors.New("azure serivce bus error: missing connection string")
 	}
-	if val, ok := meta.Properties[subscriberID]; ok && val != "" {
-		m.subscriberID = val
+	if val, ok := meta.Properties[consumerID]; ok && val != "" {
+		m.ConsumerID = val
 	} else {
 		// default
 		u := shortuuid.New()
-		m.subscriberID = fmt.Sprintf("dapr-%s", u)
+		m.ConsumerID = fmt.Sprintf("dapr-%s", u)
 	}
 
 	return m, nil
@@ -63,7 +63,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 	}
 
 	a.metadata = m 
-	a.namespace, err = servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.connectionString))
+	a.namespace, err = servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	a.ensureTopic(req.Topic)
 
-	sender, err := a.namespace.NewTopic(req.Topic, nil)
+	sender, err := a.namespace.NewTopic(req.Topic)
 
 	var ctx context.Context
 	ctx, _ = context.WithTimeout(context.Background(), time.Second * 60)
@@ -105,7 +105,7 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.
 }
 
 func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
-	subID := a.metadata.subscriberID
+	subID := a.metadata.ConsumerID
 	a.ensureSubscription(subID, req.Topic)
 	topic, err := a.namespace.NewTopic(req.Topic)
 	if err != nil {
@@ -113,7 +113,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	}
 
 	var sub subscription
-	sub, err = topic.NewSubscription(subID, nil)
+	sub, err = topic.NewSubscription(subID)
 	if err != nil {
 		return fmt.Errorf("service bus error: could not instantiate subscription %s for topic %s", subID, req.Topic)
 	}
@@ -129,7 +129,8 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, sub subscription, handlerFunc servicebus.HandlerFunc) {
 	for {
 		if err := sub.Receive(ctx, handlerFunc); err != nil {
-			// handle message handling error...
+			// TODO: handle message handling error...
+			fmt.Printf("%s", err)
 		}
 	}
 }
@@ -145,7 +146,7 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 	if topicEntity == nil {
 		var putCtx context.Context
 		putCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
-		topicEntity, err = a.topicManager.Put(putCtx, topic, nil)
+		topicEntity, err = a.topicManager.Put(putCtx, topic)
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put topic %s", topic)
 		}
@@ -155,6 +156,9 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 
 func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	subscriptionManager, err := a.namespace.NewSubscriptionManager(topic)
+	if err != nil {
+		return err
+	}
 	var getCtx context.Context
 	getCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
 	subEntity, err := subscriptionManager.Get(getCtx, name)
@@ -165,7 +169,7 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	if subEntity == nil {
 		var putCtx context.Context
 		putCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
-		subEntity, err = subscriptionManager.Put(putCtx, name, nil)
+		subEntity, err = subscriptionManager.Put(putCtx, name)
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put subscription %s", name)
 		}

@@ -31,7 +31,7 @@ func (f *fakeSubscription) Receive(ctx context.Context, handler servicebus.Handl
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		connString: "fakeConnectionString",
-		subscriberID: "fakeSubId",
+		consumerID: "fakeSubId",
 	}
 }
 
@@ -48,7 +48,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[connString], m.connectionString)
+		assert.Equal(t, fakeProperties[connString], m.ConnectionString)
 	})
 
 	t.Run("connectionstring is not given", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, errors.New(""), err)
-		assert.Empty(t, m.connectionString)
+		assert.Empty(t, m.ConnectionString)
 	})
 
 	t.Run("default subscriptionId", func(t *testing.T) {
@@ -73,12 +73,13 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[subscriberID] = ""
+		fakeMetaData.Properties[consumerID] = ""
 
 		// act
 		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.NotEmpty(t, m.subscriberID)
+		assert.NotEmpty(t, m.ConsumerID)
 	})
 }
+

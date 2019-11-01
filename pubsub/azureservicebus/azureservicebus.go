@@ -6,37 +6,37 @@
 package azureservicebus
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"context"
-	"time"
 	"strconv"
+	"time"
 
+	"github.com/Azure/azure-service-bus-go"
 	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/Azure/azure-service-bus-go"
 	"github.com/lithammer/shortuuid"
 )
 
 const (
-	connStringKey = "connectionString"
-	consumerIDKey = "consumerID"
+	connStringKey       = "connectionString"
+	consumerIDKey       = "consumerID"
 	maxDeliveryCountKey = "maxDeliveryCount"
-	timeoutInSecKey = "timeoutInSec"
+	timeoutInSecKey     = "timeoutInSec"
 
 	defaultMaxDeliveryCount = 10
-	defaultTimeoutInSec = 60
+	defaultTimeoutInSec     = 60
 )
 
 type azureServiceBus struct {
-	metadata metadata
-	namespace *servicebus.Namespace
+	metadata     metadata
+	namespace    *servicebus.Namespace
 	topicManager *servicebus.TopicManager
 }
 
 type subscription interface {
 	Close(ctx context.Context) error
-	Receive(ctx context.Context, handler servicebus.Handler) error 
+	Receive(ctx context.Context, handler servicebus.Handler) error
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
@@ -92,7 +92,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
-	a.metadata = m 
+	a.metadata = m
 	a.namespace, err = servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
 	if err != nil {
 		return err
@@ -106,7 +106,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	a.ensureTopic(req.Topic)
 
 	sender, err := a.namespace.NewTopic(req.Topic)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 
 	err = sender.Send(ctx, servicebus.NewMessage(req.Data))
@@ -138,11 +138,11 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	return nil
 }
 
-func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func (ctx context.Context, message *servicebus.Message) error {
-	return func (ctx context.Context, message *servicebus.Message) error {
+func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func(ctx context.Context, message *servicebus.Message) error {
+	return func(ctx context.Context, message *servicebus.Message) error {
 		// TODO: are there any conditions where we should return an error?
 		msg := &pubsub.NewMessage{
-			Data: message.Data,
+			Data:  message.Data,
 			Topic: topic,
 		}
 		err := handler(msg)
@@ -192,7 +192,7 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if entity == nil {
 		err = a.createSubscriptionEntity(subManager, topic, name)
 		if err != nil {
@@ -202,8 +202,8 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	return nil
 }
 
-func  (a *azureServiceBus) getTopicEntity(topic string) (*servicebus.TopicEntity, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) getTopicEntity(topic string) (*servicebus.TopicEntity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 
 	if a.topicManager == nil {
@@ -217,7 +217,7 @@ func  (a *azureServiceBus) getTopicEntity(topic string) (*servicebus.TopicEntity
 }
 
 func (a *azureServiceBus) createTopicEntity(topic string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 	_, err := a.topicManager.Put(ctx, topic)
 	if err != nil {
@@ -226,8 +226,8 @@ func (a *azureServiceBus) createTopicEntity(topic string) error {
 	return nil
 }
 
-func (a *azureServiceBus) getSubscriptionEntity(mgr *servicebus.SubscriptionManager,  topic, subscription string) (*servicebus.SubscriptionEntity, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) getSubscriptionEntity(mgr *servicebus.SubscriptionManager, topic, subscription string) (*servicebus.SubscriptionEntity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 	entity, err := mgr.Get(ctx, subscription)
 	if err != nil && !servicebus.IsErrNotFound(err) {
@@ -237,14 +237,14 @@ func (a *azureServiceBus) getSubscriptionEntity(mgr *servicebus.SubscriptionMana
 }
 
 func (a *azureServiceBus) createSubscriptionEntity(mgr *servicebus.SubscriptionManager, topic, subscription string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 	_, err := mgr.Put(ctx, subscription, subscriptionManagementOptionsWithMaxDeliveryCount(a.metadata.MaxDeliveryCount))
 	if err != nil {
 		return fmt.Errorf("service bus error: could not put subscription %s", subscription)
 	}
 	return nil
-} 
+}
 
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount int) servicebus.SubscriptionManagementOption {
 	return func(d *servicebus.SubscriptionDescription) error {

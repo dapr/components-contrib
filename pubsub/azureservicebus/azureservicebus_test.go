@@ -6,9 +6,9 @@
 package azureservicebus
 
 import (
+	"context"
 	"errors"
 	"testing"
-	"context"
 
 	"github.com/Azure/azure-service-bus-go"
 	"github.com/stretchr/testify/assert"
@@ -24,16 +24,16 @@ func (f *fakeSubscription) Close(ctx context.Context) error {
 }
 
 func (f *fakeSubscription) Receive(ctx context.Context, handler servicebus.Handler) error {
-	
+
 	return nil
 }
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		connStringKey: "fakeConnectionString",
-		consumerIDKey: "fakeConId",
+		connStringKey:       "fakeConnectionString",
+		consumerIDKey:       "fakeConId",
 		maxDeliveryCountKey: "10",
-		timeoutInSecKey: "90",
+		timeoutInSecKey:     "90",
 	}
 }
 
@@ -147,4 +147,3 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, m.TimeoutInSec, 60)
 	})
 }
-

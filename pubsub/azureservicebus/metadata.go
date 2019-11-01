@@ -5,10 +5,9 @@
 
 package azureservicebus
 
-// TODO: Expose subscription options
 type metadata struct {
 	ConnectionString string `json:"connectionString"`
 	ConsumerID       string `json:"consumerID"`
-	MaxDeliveryCount       int `json:"maxDeliveryCount"`
-	TimeoutInSec       int `json:"timeoutInSec"`
+	MaxDeliveryCount int    `json:"maxDeliveryCount"`
+	TimeoutInSec     int    `json:"timeoutInSec"`
 }

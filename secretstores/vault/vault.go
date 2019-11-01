@@ -34,6 +34,7 @@ const (
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
 	defaultVaultKVPrefix         string = "dapr"
+	vaultTokenHeader             string = "X-Vault-Token"
 )
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault
@@ -51,6 +52,13 @@ type tlsConfig struct {
 	vaultCAPath     string
 	vaultSkipVerify bool
 	vaultServerName string
+}
+
+// vaultKVResponse is the response data from Vault KV.
+type vaultKVResponse struct {
+	Data struct {
+		Data map[string]string `json:"data"`
+	} `json:"data"`
 }
 
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store
@@ -72,21 +80,10 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 	v.vaultAddress = address
 
-	tlsConf := tlsConfig{}
+	// Generate TLS config
+	tlsConf := metadataToTLSConfig(props)
 
-	// Configure TLS settings
-	skipVerify := props[componentSkipVerify]
-	tlsConf.vaultSkipVerify = false
-	if skipVerify == "true" {
-		tlsConf.vaultSkipVerify = true
-	}
-
-	tlsConf.vaultCACert = props[componentCaCert]
-	tlsConf.vaultCAPem = props[componentCaPem]
-	tlsConf.vaultCAPath = props[componentCaPath]
-	tlsConf.vaultServerName = props[componentTLSServerName]
-
-	client, err := v.createHTTPClient(&tlsConf)
+	client, err := v.createHTTPClient(tlsConf)
 	if err != nil {
 		return fmt.Errorf("couldn't create client using config: %s", err)
 	}
@@ -110,6 +107,24 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
+func metadataToTLSConfig(props map[string]string) *tlsConfig {
+	tlsConf := tlsConfig{}
+
+	// Configure TLS settings
+	skipVerify := props[componentSkipVerify]
+	tlsConf.vaultSkipVerify = false
+	if skipVerify == "true" {
+		tlsConf.vaultSkipVerify = true
+	}
+
+	tlsConf.vaultCACert = props[componentCaCert]
+	tlsConf.vaultCAPem = props[componentCaPem]
+	tlsConf.vaultCAPath = props[componentCaPath]
+	tlsConf.vaultServerName = props[componentTLSServerName]
+
+	return &tlsConf
+}
+
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	token, err := v.readVaultToken()
@@ -123,7 +138,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 
 	httpReq, err := http.NewRequest(http.MethodGet, vaultSecretPathAddr, nil)
 	// Set vault token.
-	httpReq.Header.Set("X-Vault-Token", token)
+	httpReq.Header.Set(vaultTokenHeader, token)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't generate request: %s", err)
 	}
@@ -142,11 +157,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 			httpresp, b.String())
 	}
 
-	var d struct {
-		Data struct {
-			Data map[string]string `json:"data"`
-		} `json:"data"`
-	}
+	var d vaultKVResponse
 
 	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't decode response body: %s", err)

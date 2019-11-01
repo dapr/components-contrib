@@ -163,52 +163,88 @@ func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic 
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {
-	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
-	defer getCancel()
-
-	if a.topicManager == nil {
-		return fmt.Errorf("service bus error: init() has not been called")
-	}
-	topicEntity, err := a.topicManager.Get(getCtx, topic)
-	if err != nil && !servicebus.IsErrNotFound(err) {
-		return fmt.Errorf("service bus error: could not get topic %s", topic)
+	entity, err := a.getTopicEntity(topic)
+	if err != nil {
+		return err
 	}
 
-	if topicEntity == nil {
-		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
-		defer putCancel()
-		topicEntity, err = a.topicManager.Put(putCtx, topic)
+	if entity == nil {	// entity can be nil only if err was topic not found
+		err = a.createTopicEntity(topic)
 		if err != nil {
-			return fmt.Errorf("service bus error: could not put topic %s", topic)
+			return err
 		}
 	}
 	return nil
 }
 
 func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
-	a.ensureTopic(topic) // TODO: should we create the topic if it doesn't exist?!
-
-	subscriptionManager, err := a.namespace.NewSubscriptionManager(topic)
+	err := a.ensureTopic(topic) // TODO: should we create the topic if it doesn't exist?!
 	if err != nil {
 		return err
 	}
-	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
-	defer getCancel()
-	subEntity, err := subscriptionManager.Get(getCtx, name)
-	if err != nil && !servicebus.IsErrNotFound(err) {
-		return fmt.Errorf("service bus error: could not get subscription %s", name)
+
+	subManager, err := a.namespace.NewSubscriptionManager(topic)
+	if err != nil {
+		return err
 	}
 
-	if subEntity == nil {
-		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
-		defer putCancel()
-		subEntity, err = subscriptionManager.Put(putCtx, name, subscriptionManagementOptionsWithMaxDeliveryCount(a.metadata.MaxDeliveryCount))
+	entity, err := a.getSubscriptionEntity(subManager, topic, name)
+	if err != nil {
+		return err
+	}
+	
+	if entity == nil {	// entity can be nil only if err was sub not found
+		err = a.createSubscriptionEntity(subManager, topic, name)
 		if err != nil {
-			return fmt.Errorf("service bus error: could not put subscription %s", name)
+			return err
 		}
 	}
 	return nil
 }
+
+func  (a *azureServiceBus) getTopicEntity(topic string) (*servicebus.TopicEntity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	defer cancel()
+
+	if a.topicManager == nil {
+		return nil, fmt.Errorf("service bus error: init() has not been called")
+	}
+	topicEntity, err := a.topicManager.Get(ctx, topic)
+	if err != nil && !servicebus.IsErrNotFound(err) {
+		return nil, fmt.Errorf("service bus error: could not get topic %s", topic)
+	}
+	return topicEntity, nil
+}
+
+func (a *azureServiceBus) createTopicEntity(topic string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	defer cancel()
+	_, err := a.topicManager.Put(ctx, topic)
+	if err != nil {
+		return fmt.Errorf("service bus error: could not put topic %s", topic)
+	}
+	return nil
+}
+
+func (a *azureServiceBus) getSubscriptionEntity(mgr *servicebus.SubscriptionManager,  topic, subscription string) (*servicebus.SubscriptionEntity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	defer cancel()
+	entity, err := mgr.Get(ctx, subscription)
+	if err != nil && !servicebus.IsErrNotFound(err) {
+		return nil, fmt.Errorf("service bus error: could not get subscription %s", subscription)
+	}
+	return entity, nil
+}
+
+func (a *azureServiceBus) createSubscriptionEntity(mgr *servicebus.SubscriptionManager, topic, subscription string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	defer cancel()
+	_, err := mgr.Put(ctx, subscription, subscriptionManagementOptionsWithMaxDeliveryCount(a.metadata.MaxDeliveryCount))
+	if err != nil {
+		return fmt.Errorf("service bus error: could not put subscription %s", subscription)
+	}
+	return nil
+} 
 
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount int) servicebus.SubscriptionManagementOption {
 	return func(d *servicebus.SubscriptionDescription) error {

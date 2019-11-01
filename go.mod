@@ -51,7 +51,6 @@ require (
 	github.com/json-iterator/go v1.1.7
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
-	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9 // indirect
 	github.com/nats-io/gnatsd v1.4.1 // indirect
 	github.com/nats-io/go-nats v1.7.2

@@ -72,21 +72,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Empty(t, m.ConnectionString)
 	})
 
-	t.Run("default consumerId", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[consumerIDKey] = ""
-
-		// act
-		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert
-		assert.NotEmpty(t, m.ConsumerID)
-	})
-
 	t.Run("default max delivery count", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 

@@ -104,6 +104,9 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	a.ensureTopic(req.Topic)
 
 	sender, err := a.namespace.NewTopic(req.Topic)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 

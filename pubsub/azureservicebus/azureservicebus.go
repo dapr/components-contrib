@@ -168,7 +168,7 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 		return err
 	}
 
-	if entity == nil {	// entity can be nil only if err was topic not found
+	if entity == nil {
 		err = a.createTopicEntity(topic)
 		if err != nil {
 			return err
@@ -193,7 +193,7 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 		return err
 	}
 	
-	if entity == nil {	// entity can be nil only if err was sub not found
+	if entity == nil {
 		err = a.createSubscriptionEntity(subManager, topic, name)
 		if err != nil {
 			return err

@@ -11,6 +11,7 @@ import (
 	"context"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/Azure/azure-service-bus-go"
 	"github.com/lithammer/shortuuid"
@@ -20,6 +21,7 @@ const (
 	connString = "connectionString"
 	consumerID = "consumerID"
 	maxDeliveryCount = 5
+	timeoutInSec = 60
 )
 
 type azureServiceBus struct {
@@ -78,7 +80,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	sender, err := a.namespace.NewTopic(req.Topic)
 
 	var ctx context.Context
-	ctx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+	ctx, _ = context.WithTimeout(context.Background(), time.Second * timeoutInSec)
 
 	err = sender.Send(ctx, servicebus.NewMessage(req.Data))
 	if err != nil {
@@ -89,6 +91,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 
 func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func (ctx context.Context, message *servicebus.Message) error {
 	return func (ctx context.Context, message *servicebus.Message) error {
+		// TODO: are there any conditions where we should return an error?
 		msg := &pubsub.NewMessage{
 			Data: message.Data,
 			Topic: topic,
@@ -120,32 +123,36 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 
 	sbHandlerFunc := servicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
 
-	ctx := context.Background() // infinite context
-	go a.handleSubscriptionMessages(ctx, sub, sbHandlerFunc)
+	ctx := context.Background()
+	go a.handleSubscriptionMessages(ctx, req.Topic, sub, sbHandlerFunc)
 
 	return nil
 }
 
-func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, sub subscription, handlerFunc servicebus.HandlerFunc) {
+func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic string, sub subscription, handlerFunc servicebus.HandlerFunc) {
 	for {
 		if err := sub.Receive(ctx, handlerFunc); err != nil {
-			// TODO: handle message handling error...
-			fmt.Printf("%s", err)
+			log.Errorf("service bus error: error receiving from topic %s: %s", topic, err)
+			return
 		}
 	}
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {
-	var getCtx context.Context
-	getCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+	defer getCancel()
+
+	if a.topicManager == nil {
+		return fmt.Errorf("service bus error: init() has not been called")
+	}
 	topicEntity, err := a.topicManager.Get(getCtx, topic)
 	if err != nil && !servicebus.IsErrNotFound(err) {
 		return fmt.Errorf("service bus error: could not get topic %s", topic)
 	}
 
 	if topicEntity == nil {
-		var putCtx context.Context
-		putCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+		defer putCancel()
 		topicEntity, err = a.topicManager.Put(putCtx, topic)
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put topic %s", topic)
@@ -155,20 +162,22 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 }
 
 func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
+	a.ensureTopic(topic) // TODO: should we create the topic if it doesn't exist?!
+
 	subscriptionManager, err := a.namespace.NewSubscriptionManager(topic)
 	if err != nil {
 		return err
 	}
-	var getCtx context.Context
-	getCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+	defer getCancel()
 	subEntity, err := subscriptionManager.Get(getCtx, name)
 	if err != nil && !servicebus.IsErrNotFound(err) {
 		return fmt.Errorf("service bus error: could not get subscription %s", name)
 	}
 
 	if subEntity == nil {
-		var putCtx context.Context
-		putCtx, _ = context.WithTimeout(context.Background(), time.Second * 60)
+		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+		defer putCancel()
 		subEntity, err = subscriptionManager.Put(putCtx, name)
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put subscription %s", name)

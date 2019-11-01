@@ -30,8 +30,10 @@ func (f *fakeSubscription) Receive(ctx context.Context, handler servicebus.Handl
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		connString: "fakeConnectionString",
-		consumerID: "fakeSubId",
+		connStringKey: "fakeConnectionString",
+		consumerIDKey: "fakeConId",
+		maxDeliveryCountKey: "10",
+		timeoutInSecKey: "90",
 	}
 }
 
@@ -48,7 +50,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[connString], m.ConnectionString)
+		assert.Equal(t, fakeProperties[connStringKey], m.ConnectionString)
+		assert.Equal(t, fakeProperties[consumerIDKey], m.ConsumerID)
+		assert.Equal(t, 10, m.MaxDeliveryCount)
+		assert.Equal(t, 90, m.TimeoutInSec)
 	})
 
 	t.Run("connectionstring is not given", func(t *testing.T) {
@@ -57,7 +62,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[connString] = ""
+		fakeMetaData.Properties[connStringKey] = ""
 
 		// act
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -67,19 +72,79 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Empty(t, m.ConnectionString)
 	})
 
-	t.Run("default subscriptionId", func(t *testing.T) {
+	t.Run("default consumerId", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[consumerID] = ""
+		fakeMetaData.Properties[consumerIDKey] = ""
 
 		// act
 		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
 		assert.NotEmpty(t, m.ConsumerID)
+	})
+
+	t.Run("default max delivery count", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxDeliveryCountKey] = ""
+
+		// act
+		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, m.MaxDeliveryCount, 10)
+	})
+
+	t.Run("invalid max delivery count", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxDeliveryCountKey] = "invalid_number"
+
+		// act
+		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, m.MaxDeliveryCount, 10)
+	})
+
+	t.Run("default timeout", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[timeoutInSecKey] = ""
+
+		// act
+		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, m.TimeoutInSec, 60)
+	})
+
+	t.Run("invalid timeout", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[timeoutInSecKey] = "invalid_number"
+
+		// act
+		m, _ := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, m.TimeoutInSec, 60)
 	})
 }
 

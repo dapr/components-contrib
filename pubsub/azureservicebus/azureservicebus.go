@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"context"
 	"time"
+	"strconv"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
@@ -18,10 +19,13 @@ import (
 )
 
 const (
-	connString = "connectionString"
-	consumerID = "consumerID"
-	maxDeliveryCount = 5
-	timeoutInSec = 60
+	connStringKey = "connectionString"
+	consumerIDKey = "consumerID"
+	maxDeliveryCountKey = "maxDeliveryCount"
+	timeoutInSecKey = "timeoutInSec"
+
+	defaultMaxDeliveryCount = 10
+	defaultTimeoutInSec = 60
 )
 
 type azureServiceBus struct {
@@ -42,17 +46,41 @@ func NewAzureServiceBus() pubsub.PubSub {
 
 func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	m := metadata{}
-	if val, ok := meta.Properties[connString]; ok && val != "" {
+	if val, ok := meta.Properties[connStringKey]; ok && val != "" {
 		m.ConnectionString = val
 	} else {
 		return m, errors.New("azure serivce bus error: missing connection string")
 	}
-	if val, ok := meta.Properties[consumerID]; ok && val != "" {
+
+	if val, ok := meta.Properties[consumerIDKey]; ok && val != "" {
 		m.ConsumerID = val
 	} else {
-		// default
 		u := shortuuid.New()
 		m.ConsumerID = fmt.Sprintf("dapr-%s", u)
+	}
+
+	useDefault := true
+	if val, ok := meta.Properties[maxDeliveryCountKey]; ok && val != "" {
+		var err error
+		m.MaxDeliveryCount, err = strconv.Atoi(val)
+		if err == nil {
+			useDefault = false
+		}
+	}
+	if useDefault {
+		m.MaxDeliveryCount = defaultMaxDeliveryCount
+	}
+
+	useDefault = true
+	if val, ok := meta.Properties[timeoutInSecKey]; ok && val != "" {
+		var err error
+		m.TimeoutInSec, err = strconv.Atoi(val)
+		if err == nil {
+			useDefault = false
+		}
+	}
+	if useDefault {
+		m.TimeoutInSec = defaultTimeoutInSec
 	}
 
 	return m, nil
@@ -78,33 +106,14 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	a.ensureTopic(req.Topic)
 
 	sender, err := a.namespace.NewTopic(req.Topic)
-
-	var ctx context.Context
-	ctx, _ = context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
+	defer cancel()
 
 	err = sender.Send(ctx, servicebus.NewMessage(req.Data))
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func (ctx context.Context, message *servicebus.Message) error {
-	return func (ctx context.Context, message *servicebus.Message) error {
-		// TODO: are there any conditions where we should return an error?
-		msg := &pubsub.NewMessage{
-			Data: message.Data,
-			Topic: topic,
-		}
-		err := handler(msg)
-		if err != nil {
-			if message.DeliveryCount >= maxDeliveryCount {
-				return message.DeadLetter(ctx, fmt.Errorf(("service bus error: poision message %s"), message.ID))
-			}
-			return message.Abandon(ctx)
-		}
-		return message.Complete(ctx)
-	}
 }
 
 func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
@@ -129,6 +138,21 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	return nil
 }
 
+func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func (ctx context.Context, message *servicebus.Message) error {
+	return func (ctx context.Context, message *servicebus.Message) error {
+		// TODO: are there any conditions where we should return an error?
+		msg := &pubsub.NewMessage{
+			Data: message.Data,
+			Topic: topic,
+		}
+		err := handler(msg)
+		if err != nil {
+			return message.Abandon(ctx)
+		}
+		return message.Complete(ctx)
+	}
+}
+
 func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic string, sub subscription, handlerFunc servicebus.HandlerFunc) {
 	for {
 		if err := sub.Receive(ctx, handlerFunc); err != nil {
@@ -139,7 +163,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic 
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {
-	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
 	defer getCancel()
 
 	if a.topicManager == nil {
@@ -151,7 +175,7 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 	}
 
 	if topicEntity == nil {
-		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
 		defer putCancel()
 		topicEntity, err = a.topicManager.Put(putCtx, topic)
 		if err != nil {
@@ -168,7 +192,7 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	if err != nil {
 		return err
 	}
-	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+	getCtx, getCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
 	defer getCancel()
 	subEntity, err := subscriptionManager.Get(getCtx, name)
 	if err != nil && !servicebus.IsErrNotFound(err) {
@@ -176,12 +200,20 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	}
 
 	if subEntity == nil {
-		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * timeoutInSec)
+		putCtx, putCancel := context.WithTimeout(context.Background(), time.Second * time.Duration(a.metadata.TimeoutInSec))
 		defer putCancel()
-		subEntity, err = subscriptionManager.Put(putCtx, name)
+		subEntity, err = subscriptionManager.Put(putCtx, name, subscriptionManagementOptionsWithMaxDeliveryCount(a.metadata.MaxDeliveryCount))
 		if err != nil {
 			return fmt.Errorf("service bus error: could not put subscription %s", name)
 		}
 	}
 	return nil
+}
+
+func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount int) servicebus.SubscriptionManagementOption {
+	return func(d *servicebus.SubscriptionDescription) error {
+		mdc := int32(maxDeliveryCount)
+		d.MaxDeliveryCount = &mdc
+		return nil
+	}
 }

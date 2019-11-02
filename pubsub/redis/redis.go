@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	host       = "redisHost"
-	password   = "redisPassword"
-	consumerID = "consumerID"
-	enableTLS  = "enableTLS"
+	host              = "redisHost"
+	password          = "redisPassword"
+	consumerID        = "consumerID"
+	enableTLS         = "enableTLS"
+	defaultSkipVerify = true
 )
 
 type redisStreams struct {
@@ -81,7 +82,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 
 	if r.metadata.enableTLS {
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: defaultSkipVerify,
 		}
 	}
 

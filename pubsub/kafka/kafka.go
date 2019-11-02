@@ -64,7 +64,7 @@ func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 // NewKafka returns a new kafka pubsub instance
-func NewKafka() *Kafka {
+func NewKafka() pubsub.PubSub {
 	return &Kafka{}
 }
 

@@ -6,6 +6,7 @@ Currently supported pub-subs are:
 
 * Redis Streams
 * NATS
+* Kafka
 
 ## Implementing a new Pub Sub
 

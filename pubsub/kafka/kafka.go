@@ -107,7 +107,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
 
-	consumer := consumer{
+	cs := consumer{
 		callback: handler,
 		ready:    make(chan bool),
 	}
@@ -124,18 +124,18 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	go func() {
 		defer wg.Done()
 		for {
-			if err = client.Consume(ctx, k.topics, &consumer); err != nil {
+			if err = client.Consume(ctx, k.topics, &cs); err != nil {
 				log.Errorf("error from consumer: %s", err)
 			}
 			// check if context was cancelled, signaling that the consumer should stop
 			if ctx.Err() != nil {
 				return
 			}
-			consumer.ready = make(chan bool)
+			cs.ready = make(chan bool)
 		}
 	}()
 
-	<-consumer.ready
+	<-cs.ready
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)

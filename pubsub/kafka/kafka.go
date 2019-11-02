@@ -63,7 +63,7 @@ func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// NewKafka returns a new kafka binding instance
+// NewKafka returns a new kafka pubsub instance
 func NewKafka() *Kafka {
 	return &Kafka{}
 }

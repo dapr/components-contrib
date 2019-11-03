@@ -141,7 +141,6 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 
 func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func(ctx context.Context, message *servicebus.Message) error {
 	return func(ctx context.Context, message *servicebus.Message) error {
-		// TODO: are there any conditions where we should return an error?
 		msg := &pubsub.NewMessage{
 			Data:  message.Data,
 			Topic: topic,
@@ -179,7 +178,7 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 }
 
 func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
-	err := a.ensureTopic(topic) // TODO: should we create the topic if it doesn't exist?!
+	err := a.ensureTopic(topic)
 	if err != nil {
 		return err
 	}

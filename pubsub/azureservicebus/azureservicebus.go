@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Azure/azure-service-bus-go"
+	servicebus "github.com/Azure/azure-service-bus-go"
 	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
 )

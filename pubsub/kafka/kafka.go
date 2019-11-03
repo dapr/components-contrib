@@ -24,7 +24,6 @@ type Kafka struct {
 	topics        []string
 	consumerGroup string
 	brokers       []string
-	publishTopic  string
 }
 
 type kafkaMetadata struct {
@@ -83,7 +82,6 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.brokers = meta.Brokers
 	k.producer = p
 	k.topics = meta.Topics
-	k.publishTopic = meta.PublishTopic
 	k.consumerGroup = meta.ConsumerGroup
 	return nil
 }
@@ -91,7 +89,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 // Publish message to Kafka cluster
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	_, _, err := k.producer.SendMessage(&sarama.ProducerMessage{
-		Topic: k.publishTopic,
+		Topic: req.Topic,
 		Value: sarama.ByteEncoder(req.Data),
 	})
 	if err != nil {
@@ -153,7 +151,6 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	meta.ConsumerGroup = metadata.Properties["consumerGroup"]
-	meta.PublishTopic = metadata.Properties["publishTopic"]
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")

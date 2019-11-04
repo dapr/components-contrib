@@ -81,7 +81,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 
 	if r.metadata.enableTLS {
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: r.metadata.enableTLS,
+			InsecureSkipVerify: r.metadata.enableTLS, /* #nosec */
 		}
 	}
 

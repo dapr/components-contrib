@@ -79,9 +79,10 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		MaxRetryBackoff: time.Second * 2,
 	}
 
+	/* #nosec */
 	if r.metadata.enableTLS {
 		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: r.metadata.enableTLS, /* #nosec */
+			InsecureSkipVerify: r.metadata.enableTLS,
 		}
 	}
 

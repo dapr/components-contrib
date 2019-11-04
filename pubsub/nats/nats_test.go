@@ -17,8 +17,8 @@ import (
 func TestParseNATSMetadata(t *testing.T) {
 	t.Run("metadata is correct", func(t *testing.T) {
 		fakeProperties := map[string]string{
-			natsURL:            "foonats1",
-			natsQueueGroupName: "fooq1",
+			natsURL:    "foonats1",
+			consumerID: "fooq1",
 		}
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
@@ -32,13 +32,13 @@ func TestParseNATSMetadata(t *testing.T) {
 		assert.NotEmpty(t, m.natsURL)
 		assert.NotEmpty(t, m.natsQueueGroupName)
 		assert.Equal(t, fakeProperties[natsURL], m.natsURL)
-		assert.Equal(t, fakeProperties[natsQueueGroupName], m.natsQueueGroupName)
+		assert.Equal(t, fakeProperties[consumerID], m.natsQueueGroupName)
 	})
 
 	t.Run("queue is not given", func(t *testing.T) {
 		fakeProperties := map[string]string{
-			natsURL:            "foonats2",
-			natsQueueGroupName: "",
+			natsURL:    "foonats2",
+			consumerID: "",
 		}
 
 		fakeMetaData := pubsub.Metadata{
@@ -55,8 +55,8 @@ func TestParseNATSMetadata(t *testing.T) {
 
 	t.Run("nats url is not given", func(t *testing.T) {
 		fakeProperties := map[string]string{
-			natsURL:            "",
-			natsQueueGroupName: "fooq2",
+			natsURL:    "",
+			consumerID: "fooq2",
 		}
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,

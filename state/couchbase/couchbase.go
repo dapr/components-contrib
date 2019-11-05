@@ -8,6 +8,7 @@ package couchbase
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/dapr/components-contrib/state"
 	"gopkg.in/couchbase/gocb.v1"
@@ -101,6 +102,24 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	}
 	defer bucket.Close()
 
+	//key already exists, needs to be replaced
+	if req.ETag != "" {
+		cas, cerr := eTagToCas(req.ETag)
+		if cerr != nil {
+			return fmt.Errorf("couchbase error: failed to convert etag %s to Cas - %v", req.ETag, err)
+		}
+		//using compare-and-swap for managing concurrent modifications
+		//https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
+		_, err = bucket.Replace(req.Key, value, cas, 0)
+
+		if err != nil {
+			return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
+		}
+
+		return nil
+	}
+
+	//replace or insert
 	_, err = bucket.Upsert(req.Key, value, 0)
 
 	if err != nil {
@@ -157,9 +176,16 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucket, err)
 	}
 	defer bucket.Close()
-	//Remove accepts Cas which can be sent as ETag, but its not compulsory for DeleteRequest
-	//setting Cas to 0
-	_, err = bucket.Remove(req.Key, 0)
+
+	var cas gocb.Cas = 0
+
+	if req.ETag != "" {
+		cas, err = eTagToCas(req.ETag)
+		if err != nil {
+			return fmt.Errorf("couchbase error: failed to convert etag %s to Cas - %v", req.ETag, err)
+		}
+	}
+	_, err = bucket.Remove(req.Key, cas)
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
 	}
@@ -177,4 +203,17 @@ func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
 	}
 
 	return nil
+}
+
+//converts string etag sent by the application into a gocb.Cas object,
+//which can then be used for optimistic locking for set and delete operations
+func eTagToCas(eTag string) (gocb.Cas, error) {
+	var cas gocb.Cas = 0
+	//CAS is a 64-bit integer - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html#cas-value-format
+	temp, err := strconv.ParseUint(eTag, 10, 64)
+	if err != nil {
+		return cas, err
+	}
+	cas = gocb.Cas(temp)
+	return cas, nil
 }

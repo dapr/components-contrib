@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
+	"gopkg.in/couchbase/gocb.v1"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -64,6 +65,21 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Properties: props}
 		err := validateMetadata(metadata)
+		assert.NotNil(t, err)
+	})
+}
+
+func TestETagToCas(t *testing.T) {
+	t.Run("with valid string", func(t *testing.T) {
+		casStr := "1572938024378368000"
+		ver := uint64(1572938024378368000)
+		var expectedCas gocb.Cas = gocb.Cas(ver)
+		cas, err := eTagToCas(casStr)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, expectedCas, cas)
+	})
+	t.Run("with empty string", func(t *testing.T) {
+		_, err := eTagToCas("")
 		assert.NotNil(t, err)
 	})
 }

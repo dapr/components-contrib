@@ -13,6 +13,10 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
+const (
+	invalidNumber = "invalid_number"
+)
+
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		connectionString:              "fakeConnectionString",
@@ -109,7 +113,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[timeoutInSec] = "invalid_number"
+		fakeMetaData.Properties[timeoutInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -171,7 +175,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[maxDeliveryCount] = "invalid_number"
+		fakeMetaData.Properties[maxDeliveryCount] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -202,7 +206,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[defaultMessageTimeToLiveInSec] = "invalid_number"
+		fakeMetaData.Properties[defaultMessageTimeToLiveInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -233,7 +237,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[autoDeleteOnIdleInSec] = "invalid_number"
+		fakeMetaData.Properties[autoDeleteOnIdleInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -264,7 +268,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[lockDurationInSec] = "invalid_number"
+		fakeMetaData.Properties[lockDurationInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

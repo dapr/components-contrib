@@ -245,7 +245,7 @@ func TestSet(t *testing.T) {
 	})
 	t.Run("With NoNode error and retry", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrNoNode).Times(1)
-		conn.EXPECT().Create("foo", []byte("\"bar\""), int32(0), nil).Return("/foo", nil).Times(1)
+		conn.EXPECT().Create("foo", []byte("\"bar\""), int32(0), defaultAcl).Return("/foo", nil).Times(1)
 
 		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
 		assert.NoError(t, err, "Key must be create")
@@ -324,7 +324,7 @@ func TestBulkSet(t *testing.T) {
 			{Error: zk.ErrNoNode}, {},
 		}, nil).Times(1)
 		conn.EXPECT().Multi([]interface{}{
-			&zk.CreateRequest{Path: "foo", Data: []byte("\"bar\"")},
+			&zk.CreateRequest{Path: "foo", Data: []byte("\"bar\""), Acl: defaultAcl},
 		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
 
 		err := s.BulkSet([]state.SetRequest{

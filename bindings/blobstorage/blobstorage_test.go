@@ -20,5 +20,8 @@ func TestParseMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "test", meta.Container)
 	assert.Equal(t, "account", meta.StorageAccount)
-	assert.Equal(t, "key", meta.StorageAccessKey)
+	storageAccessKey, err := meta.StorageAccessKey.Open()
+	assert.NoError(t, err)
+	defer storageAccessKey.Destroy()
+	assert.Equal(t, "key", storageAccessKey.String())
 }

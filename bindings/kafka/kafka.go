@@ -19,6 +19,7 @@ import (
 	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/secretstores"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -30,7 +31,7 @@ type Kafka struct {
 	publishTopic  string
 	authRequired  bool
 	saslUsername  string
-	saslPassword  string
+	saslPassword  secretstores.SecretKey
 }
 
 type kafkaMetadata struct {
@@ -94,7 +95,7 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	//ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
 		k.saslUsername = meta.SaslUsername
-		k.saslPassword = meta.SaslPassword
+		k.saslPassword = secretstores.NewSecretKey([]byte(meta.SaslPassword))
 	}
 	return nil
 }
@@ -179,7 +180,12 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 	config.Version = sarama.V1_0_0_0
 	//ignore SASL properties if authRequired is false
 	if k.authRequired {
-		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+		saslPassword, err := k.saslPassword.Open()
+		if err != nil {
+			return err
+		}
+		defer saslPassword.Destroy()
+		updateAuthInfo(config, k.saslUsername, saslPassword.String())
 	}
 	c := consumer{
 		callback: handler,

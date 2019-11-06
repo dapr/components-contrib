@@ -21,6 +21,8 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/Sirupsen/logrus v1.0.6
 	github.com/a8m/documentdb v1.2.0
+	github.com/awnumar/memcall v0.0.0-20191004114545-73db50fd9f80 // indirect
+	github.com/awnumar/memguard v0.20.1
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/bbolt v1.3.3 // indirect
@@ -75,12 +77,13 @@ require (
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.1
 	go.uber.org/multierr v1.2.0 // indirect
-	golang.org/x/crypto v0.0.0-20190927123631-a832865fa7ad
+	golang.org/x/crypto v0.0.0-20191105034135-c7e5f84aec59
 	golang.org/x/exp v0.0.0-20190927203820-447a159532ef // indirect
 	golang.org/x/image v0.0.0-20190910094157-69e4b8554b2a // indirect
 	golang.org/x/mobile v0.0.0-20190923204409-d3ece3b6da5f // indirect
 	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
+	golang.org/x/sys v0.0.0-20191105231009-c1f44814a5cd // indirect
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
 	golang.org/x/tools v0.0.0-20191028215554-80f3f9ca0853 // indirect
 	google.golang.org/api v0.10.0

@@ -5,9 +5,13 @@
 
 package redis
 
+import (
+	"github.com/dapr/components-contrib/secretstores"
+)
+
 type metadata struct {
 	host       string
-	password   string
+	password   secretstores.SecretKey
 	consumerID string
 	enableTLS  bool
 }

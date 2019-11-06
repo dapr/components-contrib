@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/secretstores"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket
@@ -26,10 +27,10 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region    string `json:"region"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
-	Bucket    string `json:"bucket"`
+	Region    string                 `json:"region"`
+	AccessKey string                 `json:"accessKey"`
+	SecretKey secretstores.SecretKey `json:"secretKey"`
+	Bucket    string                 `json:"bucket"`
 }
 
 // NewAWSS3 returns a new AWSS3 instance
@@ -85,9 +86,14 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 }
 
 func (s *AWSS3) getClient(metadata *s3Metadata) (*s3manager.Uploader, error) {
+	secretKey, err := metadata.SecretKey.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer secretKey.Destroy()
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(metadata.Region),
-		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""),
+		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, secretKey.String(), ""),
 	})
 	if err != nil {
 		return nil, err

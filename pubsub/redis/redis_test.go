@@ -39,7 +39,10 @@ func TestParseRedisMetadata(t *testing.T) {
 		// assert
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[host], m.host)
-		assert.Equal(t, fakeProperties[password], m.password)
+		pass, err := m.password.Open()
+		assert.NoError(t, err)
+		defer pass.Destroy()
+		assert.Equal(t, fakeProperties[password], pass.String())
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
 		assert.Equal(t, true, m.enableTLS)
 	})
@@ -75,7 +78,10 @@ func TestParseRedisMetadata(t *testing.T) {
 		// assert
 		assert.Error(t, errors.New("redis streams error: missing consumerID"), err)
 		assert.Equal(t, fakeProperties[host], m.host)
-		assert.Equal(t, fakeProperties[password], m.password)
+		pass, err := m.password.Open()
+		assert.NoError(t, err)
+		defer pass.Destroy()
+		assert.Equal(t, fakeProperties[password], pass.String())
 		assert.Empty(t, m.consumerID)
 	})
 }

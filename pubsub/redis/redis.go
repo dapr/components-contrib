@@ -15,6 +15,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/components-contrib/secretstores"
+
 	"github.com/go-redis/redis"
 )
 
@@ -44,7 +46,7 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 	}
 
 	if val, ok := meta.Properties[password]; ok && val != "" {
-		m.password = val
+		m.password = secretstores.NewSecretKey([]byte(val))
 	}
 
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
@@ -71,9 +73,14 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	}
 	r.metadata = m
 
+	password, err := m.password.Open()
+	if err != nil {
+		return err
+	}
+	defer password.Destroy()
 	options := &redis.Options{
 		Addr:            m.host,
-		Password:        m.password,
+		Password:        password.String(),
 		DB:              0,
 		MaxRetries:      3,
 		MaxRetryBackoff: time.Second * 2,

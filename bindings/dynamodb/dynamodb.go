@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/secretstores"
 )
 
 //DynamoDB allows performing stateful operations on AWS DynamoDB
@@ -24,10 +25,10 @@ type DynamoDB struct {
 }
 
 type dynamoDBMetadata struct {
-	Region    string `json:"region"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
-	Table     string `json:"table"`
+	Region    string                 `json:"region"`
+	AccessKey string                 `json:"accessKey"`
+	SecretKey secretstores.SecretKey `json:"secretKey"`
+	Table     string                 `json:"table"`
 }
 
 // NewDynamoDB returns a new DynamoDB instance
@@ -92,9 +93,14 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 }
 
 func (d *DynamoDB) getClient(meta *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
+	secretKey, err := meta.SecretKey.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer secretKey.Destroy()
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(meta.Region),
-		Credentials: credentials.NewStaticCredentials(meta.AccessKey, meta.SecretKey, ""),
+		Credentials: credentials.NewStaticCredentials(meta.AccessKey, secretKey.String(), ""),
 	})
 	if err != nil {
 		return nil, err

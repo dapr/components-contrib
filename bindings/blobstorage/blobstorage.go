@@ -17,6 +17,7 @@ import (
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/secretstores"
 )
 
 const (
@@ -30,9 +31,9 @@ type AzureBlobStorage struct {
 }
 
 type blobStorageMetadata struct {
-	StorageAccount   string `json:"storageAccount"`
-	StorageAccessKey string `json:"storageAccessKey"`
-	Container        string `json:"container"`
+	StorageAccount   string                 `json:"storageAccount"`
+	StorageAccessKey secretstores.SecretKey `json:"storageAccessKey"`
+	Container        string                 `json:"container"`
 }
 
 // NewAzureBlobStorage returns a new Azure Blob Storage instance
@@ -47,7 +48,12 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	a.metadata = m
-	credential, err := azblob.NewSharedKeyCredential(m.StorageAccount, m.StorageAccessKey)
+	storageAccessKey, err := m.StorageAccessKey.Open()
+	if err != nil {
+		return err
+	}
+	defer storageAccessKey.Destroy()
+	credential, err := azblob.NewSharedKeyCredential(m.StorageAccount, storageAccessKey.String())
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}

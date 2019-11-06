@@ -20,6 +20,9 @@ func TestParseMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "key", meta.AccessKey)
 	assert.Equal(t, "region", meta.Region)
-	assert.Equal(t, "secret", meta.SecretKey)
+	secretKey, err := meta.SecretKey.Open()
+	assert.NoError(t, err)
+	defer secretKey.Destroy()
+	assert.Equal(t, "secret", secretKey.String())
 	assert.Equal(t, "test", meta.Bucket)
 }

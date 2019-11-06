@@ -11,6 +11,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/secretstores"
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/api/option"
 )
@@ -22,17 +23,17 @@ type GCPStorage struct {
 }
 
 type gcpMetadata struct {
-	Bucket              string `json:"bucket"`
-	Type                string `json:"type"`
-	ProjectID           string `json:"project_id"`
-	PrivateKeyID        string `json:"private_key_id"`
-	PrivateKey          string `json:"private_key"`
-	ClientEmail         string `json:"client_email"`
-	ClientID            string `json:"client_id"`
-	AuthURI             string `json:"auth_uri"`
-	TokenURI            string `json:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url"`
+	Bucket              string                 `json:"bucket"`
+	Type                string                 `json:"type"`
+	ProjectID           string                 `json:"project_id"`
+	PrivateKeyID        string                 `json:"private_key_id"`
+	PrivateKey          secretstores.SecretKey `json:"private_key"`
+	ClientEmail         string                 `json:"client_email"`
+	ClientID            string                 `json:"client_id"`
+	AuthURI             string                 `json:"auth_uri"`
+	TokenURI            string                 `json:"token_uri"`
+	AuthProviderCertURL string                 `json:"auth_provider_x509_cert_url"`
+	ClientCertURL       string                 `json:"client_x509_cert_url"`
 }
 
 // NewGCPStorage returns a new GCP storage instance

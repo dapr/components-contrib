@@ -23,7 +23,7 @@ import (
 
 const defaultMaxBufferSize = 1024 * 1024
 const defaultMaxConnBufferSize = 1024 * 1024
-const defaultKeyPrefixPath = "/dapr"
+const defaultKeyPrefixPath = "/dapr/"
 
 const anyVersion = -1
 
@@ -86,8 +86,11 @@ func (props *properties) parse() (*config, error) {
 	}
 
 	keyPrefixPath := defaultKeyPrefixPath
-	if keyPrefixPath != "" {
+	if props.KeyPrefixPath != "" {
 		keyPrefixPath = props.KeyPrefixPath
+		if !strings.HasSuffix(keyPrefixPath, "/") {
+			keyPrefixPath = keyPrefixPath + "/"
+		}
 	}
 
 	return &config{
@@ -469,7 +472,7 @@ func (s *StateStore) trimPrefix(key string) string {
 		return key
 	}
 
-	return strings.TrimPrefix(key, s.keyPrefixPath+"/")
+	return strings.TrimPrefix(key, s.keyPrefixPath)
 }
 
 func (s *StateStore) parseETag(etag string) int32 {

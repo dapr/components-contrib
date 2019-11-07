@@ -3,6 +3,7 @@ module github.com/dapr/components-contrib
 go 1.13
 
 require (
+	cloud.google.com/go/datastore v1.0.0
 	cloud.google.com/go/pubsub v1.0.1
 	cloud.google.com/go/storage v1.0.0
 	contrib.go.opencensus.io/exporter/ocagent v0.6.0

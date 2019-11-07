@@ -89,7 +89,7 @@ func (props *properties) parse() (*config, error) {
 	if props.KeyPrefixPath != "" {
 		keyPrefixPath = props.KeyPrefixPath
 		if !strings.HasSuffix(keyPrefixPath, "/") {
-			keyPrefixPath = keyPrefixPath + "/"
+			keyPrefixPath += "/"
 		}
 	}
 

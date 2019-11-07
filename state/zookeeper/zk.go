@@ -388,7 +388,7 @@ func (s *StateStore) Watch(req *state.WatchStateRequest) (<-chan *state.Event, c
 
 					e := &state.Event{
 						Type:  ty,
-						Key:   evt.Path,
+						Key:   s.trimPrefix(evt.Path),
 						Value: value,
 						ETag:  etag,
 					}
@@ -457,11 +457,19 @@ func (s *StateStore) newSetDataRequest(req *state.SetRequest) (*zk.SetDataReques
 }
 
 func (s *StateStore) prefixedKey(key string) string {
-	if s.config == nil {
+	if s.config == nil || strings.HasPrefix(key, s.keyPrefixPath) {
 		return key
 	}
 
 	return path.Join(s.keyPrefixPath, key)
+}
+
+func (s *StateStore) trimPrefix(key string) string {
+	if s.config == nil {
+		return key
+	}
+
+	return strings.TrimPrefix(key, s.keyPrefixPath+"/")
 }
 
 func (s *StateStore) parseETag(etag string) int32 {

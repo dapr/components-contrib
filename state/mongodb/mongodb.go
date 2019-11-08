@@ -240,23 +240,18 @@ func (m *MongoDB) Multi(operations []state.TransactionalRequest) error {
 
 func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state.TransactionalRequest) error {
 	for _, o := range operations {
+		var err error
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
-
-			err := m.setInternal(sessCtx, &req)
-
-			if err != nil {
-				sessCtx.AbortTransaction(sessCtx)
-				return fmt.Errorf("error during transaction, aborting the transaction: %s", err)
-			}
+			err = m.setInternal(sessCtx, &req)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
-			err := m.deleteInternal(sessCtx, &req)
+			err = m.deleteInternal(sessCtx, &req)
+		}
 
-			if err != nil {
-				sessCtx.AbortTransaction(sessCtx)
-				return fmt.Errorf("error during transaction, aborting the transaction: %s", err)
-			}
+		if err != nil {
+			sessCtx.AbortTransaction(sessCtx)
+			return fmt.Errorf("error during transaction, aborting the transaction: %s", err)
 		}
 	}
 

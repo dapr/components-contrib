@@ -219,10 +219,8 @@ func (m *MongoDB) BulkDelete(req []state.DeleteRequest) error {
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
 func (m *MongoDB) Multi(operations []state.TransactionalRequest) error {
 	sess, err := m.client.StartSession()
-	err = sess.StartTransaction(options.Transaction().
-		SetReadConcern(readconcern.Snapshot()).
-		SetWriteConcern(writeconcern.New(writeconcern.WMajority())),
-	)
+	txnOpts := options.Transaction().SetReadConcern(readconcern.Snapshot()).
+		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
 
 	defer sess.EndSession(context.Background())
 
@@ -233,7 +231,7 @@ func (m *MongoDB) Multi(operations []state.TransactionalRequest) error {
 	sess.WithTransaction(context.Background(), func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, operations)
 		return nil, err
-	})
+	}, txnOpts)
 
 	return err
 }

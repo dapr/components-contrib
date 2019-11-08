@@ -11,7 +11,7 @@ Currently supported state stores are:
 * Azure CosmosDB
 * Memcached
 * Zookeeper
-* Cloud Firestore
+* Cloud Firestore (Datastore mode)
 
 ## Implementing a new State Store
 

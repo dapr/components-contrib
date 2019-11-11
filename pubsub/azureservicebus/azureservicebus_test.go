@@ -72,6 +72,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 		assert.Empty(t, m.ConnectionString)
 	})
 
@@ -88,6 +89,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 		assert.Empty(t, m.ConsumerID)
 	})
 
@@ -120,6 +122,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
 
 	t.Run("missing optional disableEntityManagement", func(t *testing.T) {
@@ -151,6 +154,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
 
 	t.Run("missing nullable maxDeliveryCount", func(t *testing.T) {
@@ -182,6 +186,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
 
 	t.Run("missing nullable defaultMessageTimeToLiveInSec", func(t *testing.T) {
@@ -213,6 +218,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
 
 	t.Run("missing nullable autoDeleteOnIdleInSec", func(t *testing.T) {
@@ -244,6 +250,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
 
 	t.Run("missing nullable lockDurationInSec", func(t *testing.T) {
@@ -275,5 +282,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert
 		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
+}
+
+func assertValidErrorMessage(t *testing.T, err error) {
+	assert.Contains(t, err.Error(), errorMessagePrefix)
 }

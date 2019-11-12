@@ -16,7 +16,7 @@ import (
 
 func TestResolve(t *testing.T) {
 	resolver := NewKubernetesResolver()
-	request := servicediscovery.ResolveRequest{Id: "myid", GrpcPort: 1234}
+	request := servicediscovery.ResolveRequest{ID: "myid", GrpcPort: 1234}
 
 	// ResolveID(), the function we are testing, formats this environment variable into part of the returned string.
 	// So as not to affect the local environment, we'll just read in whatever value the local environment

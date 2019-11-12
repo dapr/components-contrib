@@ -6,7 +6,7 @@
 package servicediscovery
 
 type ResolveRequest struct {
-	Id       string
+	ID       string
 	GrpcPort int
 	Data     map[string]string
 }

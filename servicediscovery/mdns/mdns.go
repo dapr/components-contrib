@@ -14,15 +14,15 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-func NewmDNSResolver() *MDNSResolver {
-	return &MDNSResolver{}
+func NewmDNSResolver() *Resolver {
+	return &Resolver{}
 }
 
-type MDNSResolver struct {
+type Resolver struct {
 }
 
-func (z *MDNSResolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
-	port, err := LookupPortMDNS(req.Id)
+func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
+	port, err := LookupPortMDNS(req.ID)
 	if err != nil {
 		return "", err
 	}
@@ -33,7 +33,7 @@ func (z *MDNSResolver) ResolveID(req *servicediscovery.ResolveRequest) (string, 
 func LookupPortMDNS(id string) (int, error) {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to initialize resolver: %e", err)
+		return -1, fmt.Errorf("failed to initialize resolver: %e", err)
 	}
 
 	port := -1

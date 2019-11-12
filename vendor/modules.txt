@@ -137,6 +137,8 @@ github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 github.com/bradfitz/gomemcache/memcache
+# github.com/cenkalti/backoff v2.2.1+incompatible
+github.com/cenkalti/backoff
 # github.com/census-instrumentation/opencensus-proto v0.2.1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1
@@ -163,6 +165,8 @@ github.com/coreos/etcd/raft/raftpb
 github.com/coreos/go-systemd/journal
 # github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 github.com/coreos/pkg/capnslog
+# github.com/dapr/dapr v0.1.0
+github.com/dapr/dapr/pkg/discovery
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/devigned/tab v0.1.1
@@ -197,7 +201,7 @@ github.com/gocql/gocql
 github.com/gocql/gocql/internal/lru
 github.com/gocql/gocql/internal/murmur
 github.com/gocql/gocql/internal/streams
-# github.com/gogo/protobuf v1.2.1
+# github.com/gogo/protobuf v1.3.0
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
@@ -232,10 +236,12 @@ github.com/google/gofuzz
 github.com/google/uuid
 # github.com/googleapis/gax-go/v2 v2.0.5
 github.com/googleapis/gax-go/v2
-# github.com/googleapis/gnostic v0.0.0-20170729233727-0c5108395e2d
+# github.com/googleapis/gnostic v0.3.1
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
+# github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
+github.com/grandcat/zeroconf
 # github.com/grpc-ecosystem/grpc-gateway v1.11.2
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/runtime
@@ -260,7 +266,7 @@ github.com/hashicorp/go-uuid
 github.com/hashicorp/golang-lru/simplelru
 # github.com/hashicorp/serf v0.8.2
 github.com/hashicorp/serf/coordinate
-# github.com/imdario/mergo v0.3.5
+# github.com/imdario/mergo v0.3.7
 github.com/imdario/mergo
 # github.com/jcmturner/gofork v1.0.0
 github.com/jcmturner/gofork/encoding/asn1
@@ -286,6 +292,8 @@ github.com/kubernetes-client/go/kubernetes/config
 github.com/kubernetes-client/go/kubernetes/config/api
 # github.com/mattn/go-ieproxy v0.0.0-20190610004146-91bb50d98149
 github.com/mattn/go-ieproxy
+# github.com/miekg/dns v1.0.14
+github.com/miekg/dns
 # github.com/mitchellh/go-homedir v1.1.0
 github.com/mitchellh/go-homedir
 # github.com/mitchellh/mapstructure v1.1.2
@@ -322,7 +330,7 @@ github.com/rcrowley/go-metrics
 github.com/samuel/go-zookeeper/zk
 # github.com/satori/go.uuid v1.2.0
 github.com/satori/go.uuid
-# github.com/spf13/pflag v1.0.1
+# github.com/spf13/pflag v1.0.3
 github.com/spf13/pflag
 # github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 github.com/streadway/amqp
@@ -407,6 +415,7 @@ golang.org/x/exp/cmd/apidiff
 golang.org/x/lint
 golang.org/x/lint/golint
 # golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
+golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -414,8 +423,12 @@ golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
+golang.org/x/net/internal/iana
+golang.org/x/net/internal/socket
 golang.org/x/net/internal/socks
 golang.org/x/net/internal/timeseries
+golang.org/x/net/ipv4
+golang.org/x/net/ipv6
 golang.org/x/net/proxy
 golang.org/x/net/trace
 golang.org/x/net/websocket
@@ -609,7 +622,7 @@ honnef.co/go/tools/staticcheck/vrp
 honnef.co/go/tools/stylecheck
 honnef.co/go/tools/unused
 honnef.co/go/tools/version
-# k8s.io/api v0.0.0-20190620084959-7cf5895f2711
+# k8s.io/api v0.0.0-20190819141258-3544db3b9e44
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/apps/v1
 k8s.io/api/apps/v1beta1
@@ -646,7 +659,7 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apimachinery v0.0.0-20190612205821-1799e75a0719
+# k8s.io/apimachinery v0.0.0-20190817020851-f2f3a405f61d
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/api/resource
@@ -741,9 +754,9 @@ k8s.io/client-go/util/connrotation
 k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
-# k8s.io/klog v0.3.1
+# k8s.io/klog v0.4.0
 k8s.io/klog
-# k8s.io/utils v0.0.0-20190221042446-c2654d5206da
+# k8s.io/utils v0.0.0-20190506122338-8fab8cb257d5
 k8s.io/utils/integer
 # pack.ag/amqp v0.12.3
 pack.ag/amqp

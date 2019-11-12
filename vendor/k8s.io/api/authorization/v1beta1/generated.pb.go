@@ -41,21 +41,16 @@ limitations under the License.
 */
 package v1beta1
 
-import (
-	fmt "fmt"
+import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
-	proto "github.com/gogo/protobuf/proto"
+import github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
 
-	math "math"
+import strings "strings"
+import reflect "reflect"
 
-	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
-
-	strings "strings"
-
-	reflect "reflect"
-
-	io "io"
-)
+import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

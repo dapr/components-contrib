@@ -29,21 +29,16 @@ limitations under the License.
 */
 package v1beta1
 
-import (
-	fmt "fmt"
+import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
-	proto "github.com/gogo/protobuf/proto"
+import k8s_io_api_core_v1 "k8s.io/api/core/v1"
 
-	math "math"
+import strings "strings"
+import reflect "reflect"
 
-	k8s_io_api_core_v1 "k8s.io/api/core/v1"
-
-	strings "strings"
-
-	reflect "reflect"
-
-	io "io"
-)
+import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/servicediscovery"
-	"github.com/dapr/dapr/pkg/discovery"
 	"github.com/grandcat/zeroconf"
 )
 
@@ -23,7 +22,7 @@ type MDNSResolver struct {
 }
 
 func (z *MDNSResolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
-	port, err := discovery.LookupPortMDNS(req.Id)
+	port, err := LookupPortMDNS(req.Id)
 	if err != nil {
 		return "", err
 	}

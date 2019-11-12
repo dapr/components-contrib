@@ -225,29 +225,22 @@ limitations under the License.
 */
 package v1
 
-import (
-	fmt "fmt"
+import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
-	proto "github.com/gogo/protobuf/proto"
+import k8s_io_apimachinery_pkg_api_resource "k8s.io/apimachinery/pkg/api/resource"
+import k8s_io_apimachinery_pkg_apis_meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import k8s_io_apimachinery_pkg_runtime "k8s.io/apimachinery/pkg/runtime"
 
-	math "math"
+import k8s_io_apimachinery_pkg_types "k8s.io/apimachinery/pkg/types"
 
-	k8s_io_apimachinery_pkg_api_resource "k8s.io/apimachinery/pkg/api/resource"
+import github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
 
-	k8s_io_apimachinery_pkg_apis_meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import strings "strings"
+import reflect "reflect"
 
-	k8s_io_apimachinery_pkg_runtime "k8s.io/apimachinery/pkg/runtime"
-
-	k8s_io_apimachinery_pkg_types "k8s.io/apimachinery/pkg/types"
-
-	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
-
-	strings "strings"
-
-	reflect "reflect"
-
-	io "io"
-)
+import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

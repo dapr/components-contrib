@@ -55,25 +55,19 @@ limitations under the License.
 */
 package v1
 
-import (
-	fmt "fmt"
+import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
-	proto "github.com/gogo/protobuf/proto"
+import k8s_io_api_core_v1 "k8s.io/api/core/v1"
+import k8s_io_apimachinery_pkg_apis_meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	math "math"
+import k8s_io_apimachinery_pkg_util_intstr "k8s.io/apimachinery/pkg/util/intstr"
 
-	k8s_io_api_core_v1 "k8s.io/api/core/v1"
+import strings "strings"
+import reflect "reflect"
 
-	k8s_io_apimachinery_pkg_apis_meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	k8s_io_apimachinery_pkg_util_intstr "k8s.io/apimachinery/pkg/util/intstr"
-
-	strings "strings"
-
-	reflect "reflect"
-
-	io "io"
-)
+import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

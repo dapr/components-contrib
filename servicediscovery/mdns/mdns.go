@@ -8,21 +8,25 @@ package mdns
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/dapr/components-contrib/servicediscovery"
 	"github.com/grandcat/zeroconf"
 )
 
-func NewmDNSResolver() *Resolver {
+var once sync.Once
+
+func NewMDNSResolver() *Resolver {
 	return &Resolver{}
 }
 
 type Resolver struct {
+	Resolver *zeroconf.Resolver
 }
 
 func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
-	port, err := LookupPortMDNS(req.ID)
+	port, err := z.LookupPortMDNS(req.ID)
 	if err != nil {
 		return "", err
 	}
@@ -30,30 +34,36 @@ func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, erro
 }
 
 // LookupPortMDNS uses mdns to find the port of a given service entry on a local network
-func LookupPortMDNS(id string) (int, error) {
-	resolver, err := zeroconf.NewResolver(nil)
+func (z *Resolver) LookupPortMDNS(id string) (int, error) {
+	var err error
+	var t *zeroconf.Resolver
+	once.Do(func() {
+		t, err = zeroconf.NewResolver(nil)
+		z.Resolver = t
+	})
+
 	if err != nil {
 		return -1, fmt.Errorf("failed to initialize resolver: %e", err)
 	}
 
 	port := -1
 	entries := make(chan *zeroconf.ServiceEntry)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-	defer cancel()
 
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
 			for _, text := range entry.Text {
 				if text == id {
 					port = entry.Port
-					cancel()
 					return
 				}
 			}
 		}
 	}(entries)
 
-	err = resolver.Browse(ctx, id, "local.", entries)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+	defer cancel()
+
+	err = z.Resolver.Browse(ctx, id, "local.", entries)
 	if err != nil {
 		return -1, fmt.Errorf("failed to browse: %s", err.Error())
 	}

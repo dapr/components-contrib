@@ -5,8 +5,15 @@
 
 package servicediscovery
 
+const DefaultNamespace = "default"
+
 type ResolveRequest struct {
-	ID       string
-	GrpcPort int
-	Data     map[string]string
+	ID        string
+	Namespace string
+	Port      int
+	Data      map[string]string
+}
+
+func NewResolveRequest() *ResolveRequest {
+	return &ResolveRequest{Namespace: "default"}
 }

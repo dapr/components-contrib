@@ -6,7 +6,6 @@
 package mdns
 
 import (
-	//	"fmt"
 	"testing"
 
 	"github.com/dapr/components-contrib/servicediscovery"
@@ -19,10 +18,10 @@ func TestResolve(t *testing.T) {
 	request := servicediscovery.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
 
 	resolver.ResolveID(&request)
-	temp := resolver.Resolver
+	temp := resolver.resolver
 
 	resolver.ResolveID(&request)
 
 	// this test that the inner Resolver object is not created more than once
-	assert.Equal(t, temp, resolver.Resolver)
+	assert.Equal(t, temp, resolver.resolver)
 }

@@ -20,8 +20,8 @@ func NewMDNSResolver() *Resolver {
 }
 
 type Resolver struct {
-	Once     sync.Once
-	Resolver *zeroconf.Resolver
+	once     sync.Once
+	resolver *zeroconf.Resolver
 }
 
 func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
@@ -36,9 +36,9 @@ func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, erro
 func (z *Resolver) LookupPortMDNS(id string) (int, error) {
 	var err error
 	var t *zeroconf.Resolver
-	z.Once.Do(func() {
+	z.once.Do(func() {
 		t, err = zeroconf.NewResolver(nil)
-		z.Resolver = t
+		z.resolver = t
 	})
 
 	if err != nil {
@@ -62,7 +62,7 @@ func (z *Resolver) LookupPortMDNS(id string) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 	defer cancel()
 
-	err = z.Resolver.Browse(ctx, id, "local.", entries)
+	err = z.resolver.Browse(ctx, id, "local.", entries)
 	if err != nil {
 		return -1, fmt.Errorf("failed to browse: %s", err.Error())
 	}

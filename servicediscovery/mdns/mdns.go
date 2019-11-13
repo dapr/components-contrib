@@ -15,13 +15,12 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-var once sync.Once
-
 func NewMDNSResolver() *Resolver {
 	return &Resolver{}
 }
 
 type Resolver struct {
+	Once     sync.Once
 	Resolver *zeroconf.Resolver
 }
 
@@ -37,7 +36,7 @@ func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, erro
 func (z *Resolver) LookupPortMDNS(id string) (int, error) {
 	var err error
 	var t *zeroconf.Resolver
-	once.Do(func() {
+	z.Once.Do(func() {
 		t, err = zeroconf.NewResolver(nil)
 		z.Resolver = t
 	})

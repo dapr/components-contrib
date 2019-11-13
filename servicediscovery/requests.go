@@ -15,5 +15,5 @@ type ResolveRequest struct {
 }
 
 func NewResolveRequest() *ResolveRequest {
-	return &ResolveRequest{Namespace: "default"}
+	return &ResolveRequest{Namespace: DefaultNamespace}
 }

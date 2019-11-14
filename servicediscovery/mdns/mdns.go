@@ -14,15 +14,15 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-func NewMDNSResolver() *Resolver {
-	return &Resolver{}
+func NewMDNSResolver() servicediscovery.Resolver {
+	return &resolver{}
 }
 
-type Resolver struct {
+type resolver struct {
 	resolver *zeroconf.Resolver
 }
 
-func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
+func (z *resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
 	port, err := z.LookupPortMDNS(req.ID)
 	if err != nil {
 		return "", err
@@ -31,7 +31,7 @@ func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, erro
 }
 
 // LookupPortMDNS uses mdns to find the port of a given service entry on a local network
-func (z *Resolver) LookupPortMDNS(id string) (int, error) {
+func (z *resolver) LookupPortMDNS(id string) (int, error) {
 	var err error
 
 	if z.resolver == nil {

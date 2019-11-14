@@ -7,6 +7,7 @@ package cloudkms
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	cloudkms "cloud.google.com/go/kms/apiv1"
@@ -20,22 +21,23 @@ const (
 
 // cloudkmsSecretStore is a secret store implementation of GCS KMS
 type cloudkmsSecretStore struct {
-	client   *cloudkms.KeyManagementClient
-	metadata *cloudkmsMetadata
+	client *cloudkms.KeyManagementClient
 }
 
 type cloudkmsMetadata struct {
 }
 
+// NewCloudKMSSecretStore returns a new cloudkmsSecretStore instance
 func NewCloudKMSSecretStore() *cloudkmsSecretStore {
 	return &cloudkmsSecretStore{}
 }
 
 // Init creates a cloudkmsClient
-func (v *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
+func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
 	//props := metadata.Properties
 	//projectId := props[projectId]
 	//locationId := props[locationId]
+	b, err := c.parseMetadata(metadata)
 
 	ctx := context.Background()
 	cloudkmsClient, err := cloudkms.NewKeyManagementClient(ctx)
@@ -44,6 +46,17 @@ func (v *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
 		return fmt.Errorf("error creating cloudkms client: %s", err)
 	}
 
-	v.client = cloudkmsClient
+	c.client = cloudkmsClient
+
 	return nil
+}
+
+// GetSecret retrieves a secret using a key and returns a map of decrypted string
+func (c *cloudkmsSecretStore) GetSecret(req secretstores.SecretStore) (secretstores.GetSecretResponse, error) {
+	token, err := c.r
+}
+
+func (c *cloudkmsSecretStore) parseMetadata(metadata secretstores.Metadata) ([]byte, error) {
+	b, err := json.Marshal(metadata.Properties)
+	return b, err
 }

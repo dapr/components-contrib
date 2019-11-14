@@ -8,7 +8,6 @@ package mdns
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/dapr/components-contrib/servicediscovery"
@@ -20,7 +19,6 @@ func NewMDNSResolver() *Resolver {
 }
 
 type Resolver struct {
-	once     sync.Once
 	resolver *zeroconf.Resolver
 }
 
@@ -35,14 +33,12 @@ func (z *Resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, erro
 // LookupPortMDNS uses mdns to find the port of a given service entry on a local network
 func (z *Resolver) LookupPortMDNS(id string) (int, error) {
 	var err error
-	var t *zeroconf.Resolver
-	z.once.Do(func() {
-		t, err = zeroconf.NewResolver(nil)
-		z.resolver = t
-	})
 
-	if err != nil {
-		return -1, fmt.Errorf("failed to initialize resolver: %e", err)
+	if z.resolver == nil {
+		z.resolver, err = zeroconf.NewResolver(nil)
+		if err != nil {
+			return -1, fmt.Errorf("failed to initialize resolver: %e", err)
+		}
 	}
 
 	port := -1

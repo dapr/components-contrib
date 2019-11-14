@@ -89,12 +89,6 @@ typedef enum { ZSTDds_getFrameHeaderSize, ZSTDds_decodeFrameHeader,
 typedef enum { zdss_init=0, zdss_loadHeader,
                zdss_read, zdss_load, zdss_flush } ZSTD_dStreamStage;
 
-typedef enum {
-    ZSTD_use_indefinitely = -1,  /* Use the dictionary indefinitely */
-    ZSTD_dont_use = 0,           /* Do not use the dictionary (if one exists free it) */
-    ZSTD_use_once = 1            /* Use the dictionary once and set to ZSTD_dont_use */
-} ZSTD_dictUses_e;
-
 struct ZSTD_DCtx_s
 {
     const ZSTD_seqSymbol* LLTptr;
@@ -129,7 +123,6 @@ struct ZSTD_DCtx_s
     const ZSTD_DDict* ddict;     /* set by ZSTD_initDStream_usingDDict(), or ZSTD_DCtx_refDDict() */
     U32 dictID;
     int ddictIsCold;             /* if == 1 : dictionary is "new" for working context, and presumed "cold" (not in cpu cache) */
-    ZSTD_dictUses_e dictUses;
 
     /* streaming */
     ZSTD_dStreamStage streamStage;

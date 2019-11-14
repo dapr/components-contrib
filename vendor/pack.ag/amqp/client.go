@@ -70,15 +70,13 @@ func Dial(addr string, opts ...ConnOption) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	dialer := &net.Dialer{Timeout: c.connectTimeout}
 	switch u.Scheme {
 	case "amqp", "":
-		c.net, err = dialer.Dial("tcp", host+":"+port)
+		c.net, err = net.Dial("tcp", host+":"+port)
 	case "amqps":
 		c.initTLSConfig()
 		c.tlsNegotiation = false
-		c.net, err = tls.DialWithDialer(dialer, "tcp", host+":"+port, c.tlsConfig)
+		c.net, err = tls.Dial("tcp", host+":"+port, c.tlsConfig)
 	default:
 		return nil, errorErrorf("unsupported scheme %q", u.Scheme)
 	}
@@ -392,7 +390,8 @@ func (s *Sender) send(ctx context.Context, msg *Message) (chan deliveryState, er
 	var (
 		maxPayloadSize = int64(s.link.session.conn.peerMaxFrameSize) - maxTransferFrameHeader
 		sndSettleMode  = s.link.senderSettleMode
-		senderSettled  = sndSettleMode != nil && (*sndSettleMode == ModeSettled || (*sndSettleMode == ModeMixed && msg.SendSettled))
+		rcvSettleMode  = s.link.receiverSettleMode
+		senderSettled  = sndSettleMode != nil && *sndSettleMode == ModeSettled
 		deliveryID     = atomic.AddUint32(&s.link.session.nextDeliveryID, 1)
 	)
 
@@ -417,16 +416,16 @@ func (s *Sender) send(ctx context.Context, msg *Message) (chan deliveryState, er
 		fr.Payload = append([]byte(nil), buf...)
 		fr.More = s.buf.len() > 0
 		if !fr.More {
-			// SSM=settled: overrides RSM; no acks.
-			// SSM=unsettled: sender should wait for receiver to ack
-			// RSM=first: receiver considers it settled immediately, but must still send ack (SSM=unsettled only)
-			// RSM=second: receiver sends ack and waits for return ack from sender (SSM=unsettled only)
-
 			// mark final transfer as settled when sender mode is settled
 			fr.Settled = senderSettled
 
-			// set done on last frame
+			// set done on last frame to be closed after network transmission
+			//
+			// If confirmSettlement is true (ReceiverSettleMode == "second"),
+			// Session.mux will intercept the done channel and close it when the
+			// receiver has confirmed settlement instead of on net transmit.
 			fr.done = make(chan deliveryState, 1)
+			fr.confirmSettlement = rcvSettleMode != nil && *rcvSettleMode == ModeSecond
 		}
 
 		select {
@@ -751,9 +750,9 @@ func (s *Session) mux(remoteBegin *performBegin) {
 				delete(handlesByDeliveryID, deliveryID)
 			}
 
-			// if not settled, add done chan to map
+			// if confirmSettlement requested, add done chan to map
 			// and clear from frame so conn doesn't close it.
-			if !fr.Settled && fr.done != nil {
+			if fr.confirmSettlement && fr.done != nil {
 				settlementByDeliveryID[deliveryID] = fr.done
 				fr.done = nil
 			}
@@ -1167,90 +1166,18 @@ func (l *link) muxFlow() error {
 }
 
 func (l *link) muxReceive(fr performTransfer) error {
+	// record the delivery ID and message format if this is
+	// the first frame of the message
 	if !l.more {
-		// this is the first transfer of a message,
-		// record the delivery ID, message format,
-		// and delivery Tag
 		if fr.DeliveryID != nil {
 			l.msg.deliveryID = *fr.DeliveryID
 		}
+
 		if fr.MessageFormat != nil {
 			l.msg.Format = *fr.MessageFormat
 		}
+
 		l.msg.DeliveryTag = fr.DeliveryTag
-
-		// these fields are required on first transfer of a message
-		if fr.DeliveryID == nil {
-			msg := "received message without a delivery-id"
-			l.closeWithError(&Error{
-				Condition:   ErrorNotAllowed,
-				Description: msg,
-			})
-			return errorNew(msg)
-		}
-		if fr.MessageFormat == nil {
-			msg := "received message without a message-format"
-			l.closeWithError(&Error{
-				Condition:   ErrorNotAllowed,
-				Description: msg,
-			})
-			return errorNew(msg)
-		}
-		if fr.DeliveryTag == nil {
-			msg := "received message without a delivery-tag"
-			l.closeWithError(&Error{
-				Condition:   ErrorNotAllowed,
-				Description: msg,
-			})
-			return errorNew(msg)
-		}
-	} else {
-		// this is a continuation of a multipart message
-		// some fields may be omitted on continuation transfers,
-		// but if they are included they must be consistent
-		// with the first.
-
-		if fr.DeliveryID != nil && *fr.DeliveryID != l.msg.deliveryID {
-			msg := fmt.Sprintf(
-				"received continuation transfer with inconsistent delivery-id: %d != %d",
-				*fr.DeliveryID, l.msg.deliveryID,
-			)
-			l.closeWithError(&Error{
-				Condition:   ErrorNotAllowed,
-				Description: msg,
-			})
-			return errorNew(msg)
-		}
-		if fr.MessageFormat != nil && *fr.MessageFormat != l.msg.Format {
-			msg := fmt.Sprintf(
-				"received continuation transfer with inconsistent message-format: %d != %d",
-				*fr.MessageFormat, l.msg.Format,
-			)
-			l.closeWithError(&Error{
-				Condition:   ErrorNotAllowed,
-				Description: msg,
-			})
-			return errorNew(msg)
-		}
-		if fr.DeliveryTag != nil && !bytes.Equal(fr.DeliveryTag, l.msg.DeliveryTag) {
-			msg := fmt.Sprintf(
-				"received continuation transfer with inconsistent delivery-tag: %q != %q",
-				fr.DeliveryTag, l.msg.DeliveryTag,
-			)
-			l.closeWithError(&Error{
-				Condition:   ErrorNotAllowed,
-				Description: msg,
-			})
-			return errorNew(msg)
-		}
-	}
-
-	// discard message if it's been aborted
-	if fr.Aborted {
-		l.buf.reset()
-		l.msg = Message{}
-		l.more = false
-		return nil
 	}
 
 	// ensure maxMessageSize will not be exceeded

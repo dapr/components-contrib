@@ -16,17 +16,18 @@ func getFakeProperties() map[string]string {
 	return props
 }
 
-var booleanFlagTests = []struct {
-	in       string
-	expected bool
-}{
-	{"true", true},
-	{"TRUE", true},
-	{"false", false},
-	{"FALSE", false},
-}
-
 func TestCreateMetadata(t *testing.T) {
+
+	var booleanFlagTests = []struct {
+		in       string
+		expected bool
+	}{
+		{"true", true},
+		{"TRUE", true},
+		{"false", false},
+		{"FALSE", false},
+	}
+
 	t.Run("metadata is correct", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 

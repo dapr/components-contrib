@@ -20,14 +20,20 @@ const (
 	couchbaseURL = "couchbaseURL"
 	username     = "username"
 	password     = "password"
-	bucket       = "bucket"
+	bucketName   = "bucketName"
+
+	//see https://docs.couchbase.com/go-sdk/1.6/durability.html#configuring-durability
+	numReplicasDurableReplication = "numReplicasDurableReplication"
+	numReplicasDurablePersistence = "numReplicasDurablePersistence"
 )
 
 // Couchbase is a couchbase state store
 type Couchbase struct {
-	cbCluster *gocb.Cluster
-	bucket    string //TODO: having bucket sent as part of request (get,set etc.) metadata would be more flexible
-	json      jsoniter.API
+	bucket                        *gocb.Bucket
+	bucketName                    string //TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
+	numReplicasDurableReplication uint
+	numReplicasDurablePersistence uint
+	json                          jsoniter.API
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store
@@ -50,8 +56,24 @@ func validateMetadata(metadata state.Metadata) error {
 		return errors.New("couchbase error: couchbase password is missing")
 	}
 
-	if metadata.Properties[bucket] == "" {
-		return errors.New("couchbase error: couchbase bucket is missing")
+	if metadata.Properties[bucketName] == "" {
+		return errors.New("couchbase error: couchbase bucket name is missing")
+	}
+
+	v := metadata.Properties[numReplicasDurableReplication]
+	if v != "" {
+		_, err := strconv.ParseUint(v, 10, 0)
+		if err != nil {
+			return fmt.Errorf("couchbase error: %v", err)
+		}
+	}
+
+	v = metadata.Properties[numReplicasDurablePersistence]
+	if v != "" {
+		_, err := strconv.ParseUint(v, 10, 0)
+		if err != nil {
+			return fmt.Errorf("couchbase error: %v", err)
+		}
 	}
 
 	return nil
@@ -63,21 +85,39 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-	cbs.bucket = metadata.Properties[bucket]
+	cbs.bucketName = metadata.Properties[bucketName]
 	c, err := gocb.Connect(metadata.Properties[couchbaseURL])
 	if err != nil {
 		return fmt.Errorf("couchbase error: unable to connect to couchbase at %s - %v ", metadata.Properties[couchbaseURL], err)
 	}
-	cbs.cbCluster = c
 	//does not actually trigger the authentication
-	cbs.cbCluster.Authenticate(gocb.PasswordAuthenticator{
+	c.Authenticate(gocb.PasswordAuthenticator{
 		Username: metadata.Properties[username],
 		Password: metadata.Properties[password],
 	})
+
+	//with RBAC, bucket-passwords are no longer used - https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
+	bucket, err := c.OpenBucket(cbs.bucketName, "")
+	if err != nil {
+		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucketName, err)
+	}
+	cbs.bucket = bucket
+
+	r := metadata.Properties[numReplicasDurableReplication]
+	if r != "" {
+		_r, _ := strconv.ParseUint(r, 10, 0)
+		cbs.numReplicasDurableReplication = uint(_r)
+	}
+
+	p := metadata.Properties[numReplicasDurablePersistence]
+	if p != "" {
+		_p, _ := strconv.ParseUint(p, 10, 0)
+		cbs.numReplicasDurablePersistence = uint(_p)
+	}
 	return nil
 }
 
-//Set stores value for a key to couchbase
+//Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
 func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	err := state.CheckSetRequestOptions(req)
 	if err != nil {
@@ -94,33 +134,27 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
-	//Under RBAC, bucket-passwords are no longer used
-	//see https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
-	bucket, err := cbs.cbCluster.OpenBucket(cbs.bucket, "")
-	if err != nil {
-		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucket, err)
-	}
-	defer bucket.Close()
 
-	//key already exists, needs to be replaced
+	//key already exists (use Replace)
 	if req.ETag != "" {
+		//compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
 		cas, cerr := eTagToCas(req.ETag)
 		if cerr != nil {
-			return fmt.Errorf("couchbase error: failed to convert etag %s to Cas - %v", req.ETag, err)
-		}
-		//using compare-and-swap for managing concurrent modifications
-		//https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
-		_, err = bucket.Replace(req.Key, value, cas, 0)
-
-		if err != nil {
 			return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
 		}
-
-		return nil
+		if req.Options.Consistency == state.Strong {
+			_, err = cbs.bucket.ReplaceDura(req.Key, value, cas, 0, cbs.numReplicasDurableReplication, cbs.numReplicasDurablePersistence)
+		} else {
+			_, err = cbs.bucket.Replace(req.Key, value, cas, 0)
+		}
+	} else {
+		//key does not exist: replace or insert (with Upsert)
+		if req.Options.Consistency == state.Strong {
+			_, err = cbs.bucket.UpsertDura(req.Key, value, 0, cbs.numReplicasDurableReplication, cbs.numReplicasDurablePersistence)
+		} else {
+			_, err = cbs.bucket.Upsert(req.Key, value, 0)
+		}
 	}
-
-	//replace or insert
-	_, err = bucket.Upsert(req.Key, value, 0)
 
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
@@ -143,13 +177,8 @@ func (cbs *Couchbase) BulkSet(req []state.SetRequest) error {
 
 // Get retrieves state from couchbase with a key
 func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	bucket, err := cbs.cbCluster.OpenBucket(cbs.bucket, "")
-	if err != nil {
-		return nil, fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucket, err)
-	}
-	defer bucket.Close()
 	var data interface{}
-	cas, err := bucket.Get(req.Key, &data)
+	cas, err := cbs.bucket.Get(req.Key, &data)
 	if err != nil {
 		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
 	}
@@ -171,21 +200,20 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		return err
 	}
-	bucket, err := cbs.cbCluster.OpenBucket(cbs.bucket, "")
-	if err != nil {
-		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucket, err)
-	}
-	defer bucket.Close()
 
 	var cas gocb.Cas = 0
 
 	if req.ETag != "" {
 		cas, err = eTagToCas(req.ETag)
 		if err != nil {
-			return fmt.Errorf("couchbase error: failed to convert etag %s to Cas - %v", req.ETag, err)
+			return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
 		}
 	}
-	_, err = bucket.Remove(req.Key, cas)
+	if req.Options.Consistency == state.Strong {
+		_, err = cbs.bucket.RemoveDura(req.Key, cas, cbs.numReplicasDurableReplication, cbs.numReplicasDurablePersistence)
+	} else {
+		_, err = cbs.bucket.Remove(req.Key, cas)
+	}
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
 	}
@@ -205,8 +233,7 @@ func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-//converts string etag sent by the application into a gocb.Cas object,
-//which can then be used for optimistic locking for set and delete operations
+//converts string etag sent by the application into a gocb.Cas object, which can then be used for optimistic locking for set and delete operations
 func eTagToCas(eTag string) (gocb.Cas, error) {
 	var cas gocb.Cas = 0
 	//CAS is a 64-bit integer - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html#cas-value-format

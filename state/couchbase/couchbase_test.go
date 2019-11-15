@@ -15,12 +15,26 @@ import (
 )
 
 func TestValidateMetadata(t *testing.T) {
-	t.Run("with all fields", func(t *testing.T) {
+	t.Run("with mandatory fields", func(t *testing.T) {
 		props := map[string]string{
 			couchbaseURL: "foo://bar",
 			username:     "kehsihba",
 			password:     "secret",
-			bucket:       "testbucket",
+			bucketName:   "testbucket",
+		}
+		metadata := state.Metadata{Properties: props}
+
+		err := validateMetadata(metadata)
+		assert.Equal(t, nil, err)
+	})
+	t.Run("with optional fields", func(t *testing.T) {
+		props := map[string]string{
+			couchbaseURL:                  "foo://bar",
+			username:                      "kehsihba",
+			password:                      "secret",
+			bucketName:                    "testbucket",
+			numReplicasDurablePersistence: "1",
+			numReplicasDurableReplication: "2",
 		}
 		metadata := state.Metadata{Properties: props}
 
@@ -29,9 +43,9 @@ func TestValidateMetadata(t *testing.T) {
 	})
 	t.Run("With missing couchbase URL", func(t *testing.T) {
 		props := map[string]string{
-			username: "kehsihba",
-			password: "secret",
-			bucket:   "testbucket",
+			username:   "kehsihba",
+			password:   "secret",
+			bucketName: "testbucket",
 		}
 		metadata := state.Metadata{Properties: props}
 		err := validateMetadata(metadata)
@@ -41,7 +55,7 @@ func TestValidateMetadata(t *testing.T) {
 		props := map[string]string{
 			couchbaseURL: "foo://bar",
 			password:     "secret",
-			bucket:       "testbucket",
+			bucketName:   "testbucket",
 		}
 		metadata := state.Metadata{Properties: props}
 		err := validateMetadata(metadata)
@@ -51,7 +65,7 @@ func TestValidateMetadata(t *testing.T) {
 		props := map[string]string{
 			couchbaseURL: "foo://bar",
 			username:     "kehsihba",
-			bucket:       "testbucket",
+			bucketName:   "testbucket",
 		}
 		metadata := state.Metadata{Properties: props}
 		err := validateMetadata(metadata)
@@ -62,6 +76,28 @@ func TestValidateMetadata(t *testing.T) {
 			couchbaseURL: "foo://bar",
 			username:     "kehsihba",
 			password:     "secret",
+		}
+		metadata := state.Metadata{Properties: props}
+		err := validateMetadata(metadata)
+		assert.NotNil(t, err)
+	})
+	t.Run("With invalid durable replication", func(t *testing.T) {
+		props := map[string]string{
+			couchbaseURL:                  "foo://bar",
+			username:                      "kehsihba",
+			password:                      "secret",
+			numReplicasDurableReplication: "junk",
+		}
+		metadata := state.Metadata{Properties: props}
+		err := validateMetadata(metadata)
+		assert.NotNil(t, err)
+	})
+	t.Run("With invalid durable persistence", func(t *testing.T) {
+		props := map[string]string{
+			couchbaseURL:                  "foo://bar",
+			username:                      "kehsihba",
+			password:                      "secret",
+			numReplicasDurablePersistence: "junk",
 		}
 		metadata := state.Metadata{Properties: props}
 		err := validateMetadata(metadata)

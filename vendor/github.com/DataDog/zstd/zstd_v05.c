@@ -218,11 +218,6 @@ MEM_STATIC void MEM_writeLE16(void* memPtr, U16 val)
     }
 }
 
-MEM_STATIC U32 MEM_readLE24(const void* memPtr)
-{
-    return MEM_readLE16(memPtr) + (((const BYTE*)memPtr)[2] << 16);
-}
-
 MEM_STATIC U32 MEM_readLE32(const void* memPtr)
 {
     if (MEM_isLittleEndian())
@@ -495,8 +490,6 @@ static const size_t ZSTDv05_frameHeaderSize_min = 5;
 #define MIN_CBLOCK_SIZE (1 /*litCSize*/ + 1 /* RLE or RAW */ + MIN_SEQUENCES_SIZE /* nbSeq==0 */)   /* for a non-null block */
 
 #define WILDCOPY_OVERLENGTH 8
-
-#define ZSTD_CONTENTSIZE_ERROR   (0ULL - 2)
 
 typedef enum { bt_compressed, bt_raw, bt_rle, bt_end } blockType_t;
 
@@ -2003,92 +1996,91 @@ size_t HUFv05_decompress4X2_usingDTable(
     const void* cSrc, size_t cSrcSize,
     const U16* DTable)
 {
+    const BYTE* const istart = (const BYTE*) cSrc;
+    BYTE* const ostart = (BYTE*) dst;
+    BYTE* const oend = ostart + dstSize;
+    const void* const dtPtr = DTable;
+    const HUFv05_DEltX2* const dt = ((const HUFv05_DEltX2*)dtPtr) +1;
+    const U32 dtLog = DTable[0];
+    size_t errorCode;
+
+    /* Init */
+    BITv05_DStream_t bitD1;
+    BITv05_DStream_t bitD2;
+    BITv05_DStream_t bitD3;
+    BITv05_DStream_t bitD4;
+    const size_t length1 = MEM_readLE16(istart);
+    const size_t length2 = MEM_readLE16(istart+2);
+    const size_t length3 = MEM_readLE16(istart+4);
+    size_t length4;
+    const BYTE* const istart1 = istart + 6;  /* jumpTable */
+    const BYTE* const istart2 = istart1 + length1;
+    const BYTE* const istart3 = istart2 + length2;
+    const BYTE* const istart4 = istart3 + length3;
+    const size_t segmentSize = (dstSize+3) / 4;
+    BYTE* const opStart2 = ostart + segmentSize;
+    BYTE* const opStart3 = opStart2 + segmentSize;
+    BYTE* const opStart4 = opStart3 + segmentSize;
+    BYTE* op1 = ostart;
+    BYTE* op2 = opStart2;
+    BYTE* op3 = opStart3;
+    BYTE* op4 = opStart4;
+    U32 endSignal;
+
     /* Check */
     if (cSrcSize < 10) return ERROR(corruption_detected);   /* strict minimum : jump table + 1 byte per stream */
-    {
-        const BYTE* const istart = (const BYTE*) cSrc;
-        BYTE* const ostart = (BYTE*) dst;
-        BYTE* const oend = ostart + dstSize;
-        const void* const dtPtr = DTable;
-        const HUFv05_DEltX2* const dt = ((const HUFv05_DEltX2*)dtPtr) +1;
-        const U32 dtLog = DTable[0];
-        size_t errorCode;
 
-        /* Init */
-        BITv05_DStream_t bitD1;
-        BITv05_DStream_t bitD2;
-        BITv05_DStream_t bitD3;
-        BITv05_DStream_t bitD4;
-        const size_t length1 = MEM_readLE16(istart);
-        const size_t length2 = MEM_readLE16(istart+2);
-        const size_t length3 = MEM_readLE16(istart+4);
-        size_t length4;
-        const BYTE* const istart1 = istart + 6;  /* jumpTable */
-        const BYTE* const istart2 = istart1 + length1;
-        const BYTE* const istart3 = istart2 + length2;
-        const BYTE* const istart4 = istart3 + length3;
-        const size_t segmentSize = (dstSize+3) / 4;
-        BYTE* const opStart2 = ostart + segmentSize;
-        BYTE* const opStart3 = opStart2 + segmentSize;
-        BYTE* const opStart4 = opStart3 + segmentSize;
-        BYTE* op1 = ostart;
-        BYTE* op2 = opStart2;
-        BYTE* op3 = opStart3;
-        BYTE* op4 = opStart4;
-        U32 endSignal;
+    length4 = cSrcSize - (length1 + length2 + length3 + 6);
+    if (length4 > cSrcSize) return ERROR(corruption_detected);   /* overflow */
+    errorCode = BITv05_initDStream(&bitD1, istart1, length1);
+    if (HUFv05_isError(errorCode)) return errorCode;
+    errorCode = BITv05_initDStream(&bitD2, istart2, length2);
+    if (HUFv05_isError(errorCode)) return errorCode;
+    errorCode = BITv05_initDStream(&bitD3, istart3, length3);
+    if (HUFv05_isError(errorCode)) return errorCode;
+    errorCode = BITv05_initDStream(&bitD4, istart4, length4);
+    if (HUFv05_isError(errorCode)) return errorCode;
 
-        length4 = cSrcSize - (length1 + length2 + length3 + 6);
-        if (length4 > cSrcSize) return ERROR(corruption_detected);   /* overflow */
-        errorCode = BITv05_initDStream(&bitD1, istart1, length1);
-        if (HUFv05_isError(errorCode)) return errorCode;
-        errorCode = BITv05_initDStream(&bitD2, istart2, length2);
-        if (HUFv05_isError(errorCode)) return errorCode;
-        errorCode = BITv05_initDStream(&bitD3, istart3, length3);
-        if (HUFv05_isError(errorCode)) return errorCode;
-        errorCode = BITv05_initDStream(&bitD4, istart4, length4);
-        if (HUFv05_isError(errorCode)) return errorCode;
-
-        /* 16-32 symbols per loop (4-8 symbols per stream) */
+    /* 16-32 symbols per loop (4-8 symbols per stream) */
+    endSignal = BITv05_reloadDStream(&bitD1) | BITv05_reloadDStream(&bitD2) | BITv05_reloadDStream(&bitD3) | BITv05_reloadDStream(&bitD4);
+    for ( ; (endSignal==BITv05_DStream_unfinished) && (op4<(oend-7)) ; ) {
+        HUFv05_DECODE_SYMBOLX2_2(op1, &bitD1);
+        HUFv05_DECODE_SYMBOLX2_2(op2, &bitD2);
+        HUFv05_DECODE_SYMBOLX2_2(op3, &bitD3);
+        HUFv05_DECODE_SYMBOLX2_2(op4, &bitD4);
+        HUFv05_DECODE_SYMBOLX2_1(op1, &bitD1);
+        HUFv05_DECODE_SYMBOLX2_1(op2, &bitD2);
+        HUFv05_DECODE_SYMBOLX2_1(op3, &bitD3);
+        HUFv05_DECODE_SYMBOLX2_1(op4, &bitD4);
+        HUFv05_DECODE_SYMBOLX2_2(op1, &bitD1);
+        HUFv05_DECODE_SYMBOLX2_2(op2, &bitD2);
+        HUFv05_DECODE_SYMBOLX2_2(op3, &bitD3);
+        HUFv05_DECODE_SYMBOLX2_2(op4, &bitD4);
+        HUFv05_DECODE_SYMBOLX2_0(op1, &bitD1);
+        HUFv05_DECODE_SYMBOLX2_0(op2, &bitD2);
+        HUFv05_DECODE_SYMBOLX2_0(op3, &bitD3);
+        HUFv05_DECODE_SYMBOLX2_0(op4, &bitD4);
         endSignal = BITv05_reloadDStream(&bitD1) | BITv05_reloadDStream(&bitD2) | BITv05_reloadDStream(&bitD3) | BITv05_reloadDStream(&bitD4);
-        for ( ; (endSignal==BITv05_DStream_unfinished) && (op4<(oend-7)) ; ) {
-            HUFv05_DECODE_SYMBOLX2_2(op1, &bitD1);
-            HUFv05_DECODE_SYMBOLX2_2(op2, &bitD2);
-            HUFv05_DECODE_SYMBOLX2_2(op3, &bitD3);
-            HUFv05_DECODE_SYMBOLX2_2(op4, &bitD4);
-            HUFv05_DECODE_SYMBOLX2_1(op1, &bitD1);
-            HUFv05_DECODE_SYMBOLX2_1(op2, &bitD2);
-            HUFv05_DECODE_SYMBOLX2_1(op3, &bitD3);
-            HUFv05_DECODE_SYMBOLX2_1(op4, &bitD4);
-            HUFv05_DECODE_SYMBOLX2_2(op1, &bitD1);
-            HUFv05_DECODE_SYMBOLX2_2(op2, &bitD2);
-            HUFv05_DECODE_SYMBOLX2_2(op3, &bitD3);
-            HUFv05_DECODE_SYMBOLX2_2(op4, &bitD4);
-            HUFv05_DECODE_SYMBOLX2_0(op1, &bitD1);
-            HUFv05_DECODE_SYMBOLX2_0(op2, &bitD2);
-            HUFv05_DECODE_SYMBOLX2_0(op3, &bitD3);
-            HUFv05_DECODE_SYMBOLX2_0(op4, &bitD4);
-            endSignal = BITv05_reloadDStream(&bitD1) | BITv05_reloadDStream(&bitD2) | BITv05_reloadDStream(&bitD3) | BITv05_reloadDStream(&bitD4);
-        }
-
-        /* check corruption */
-        if (op1 > opStart2) return ERROR(corruption_detected);
-        if (op2 > opStart3) return ERROR(corruption_detected);
-        if (op3 > opStart4) return ERROR(corruption_detected);
-        /* note : op4 supposed already verified within main loop */
-
-        /* finish bitStreams one by one */
-        HUFv05_decodeStreamX2(op1, &bitD1, opStart2, dt, dtLog);
-        HUFv05_decodeStreamX2(op2, &bitD2, opStart3, dt, dtLog);
-        HUFv05_decodeStreamX2(op3, &bitD3, opStart4, dt, dtLog);
-        HUFv05_decodeStreamX2(op4, &bitD4, oend,     dt, dtLog);
-
-        /* check */
-        endSignal = BITv05_endOfDStream(&bitD1) & BITv05_endOfDStream(&bitD2) & BITv05_endOfDStream(&bitD3) & BITv05_endOfDStream(&bitD4);
-        if (!endSignal) return ERROR(corruption_detected);
-
-        /* decoded size */
-        return dstSize;
     }
+
+    /* check corruption */
+    if (op1 > opStart2) return ERROR(corruption_detected);
+    if (op2 > opStart3) return ERROR(corruption_detected);
+    if (op3 > opStart4) return ERROR(corruption_detected);
+    /* note : op4 supposed already verified within main loop */
+
+    /* finish bitStreams one by one */
+    HUFv05_decodeStreamX2(op1, &bitD1, opStart2, dt, dtLog);
+    HUFv05_decodeStreamX2(op2, &bitD2, opStart3, dt, dtLog);
+    HUFv05_decodeStreamX2(op3, &bitD3, opStart4, dt, dtLog);
+    HUFv05_decodeStreamX2(op4, &bitD4, oend,     dt, dtLog);
+
+    /* check */
+    endSignal = BITv05_endOfDStream(&bitD1) & BITv05_endOfDStream(&bitD2) & BITv05_endOfDStream(&bitD3) & BITv05_endOfDStream(&bitD4);
+    if (!endSignal) return ERROR(corruption_detected);
+
+    /* decoded size */
+    return dstSize;
 }
 
 
@@ -3156,13 +3148,14 @@ static void ZSTDv05_decodeSequence(seq_t* seq, seqState_t* seqState)
     litLength = FSEv05_peakSymbol(&(seqState->stateLL));
     prevOffset = litLength ? seq->offset : seqState->prevOffset;
     if (litLength == MaxLL) {
-        const U32 add = *dumps++;
+        U32 add = *dumps++;
         if (add < 255) litLength += add;
-        else if (dumps + 3 <= de) {
-            litLength = MEM_readLE24(dumps);
+        else {
+            litLength = MEM_readLE32(dumps) & 0xFFFFFF;  /* no risk : dumps is always followed by seq tables > 1 byte */
             if (litLength&1) litLength>>=1, dumps += 3;
             else litLength = (U16)(litLength)>>1, dumps += 2;
         }
+        if (dumps > de) { litLength = MaxLL+255; }  /* late correction, to avoid using uninitialized memory */
         if (dumps >= de) { dumps = de-1; }  /* late correction, to avoid read overflow (data is now corrupted anyway) */
     }
 
@@ -3189,13 +3182,14 @@ static void ZSTDv05_decodeSequence(seq_t* seq, seqState_t* seqState)
     /* MatchLength */
     matchLength = FSEv05_decodeSymbol(&(seqState->stateML), &(seqState->DStream));
     if (matchLength == MaxML) {
-        const U32 add = dumps<de ? *dumps++ : 0;
+        U32 add = *dumps++;
         if (add < 255) matchLength += add;
-        else if (dumps + 3 <= de) {
-            matchLength = MEM_readLE24(dumps);
+        else {
+            matchLength = MEM_readLE32(dumps) & 0xFFFFFF;  /* no pb : dumps is always followed by seq tables > 1 byte */
             if (matchLength&1) matchLength>>=1, dumps += 3;
             else matchLength = (U16)(matchLength)>>1, dumps += 2;
         }
+        if (dumps > de) { matchLength = MaxML+255; }  /* late correction, to avoid using uninitialized memory */
         if (dumps >= de) { dumps = de-1; }  /* late correction, to avoid read overflow (data is now corrupted anyway) */
     }
     matchLength += MINMATCH;
@@ -3223,7 +3217,7 @@ static size_t ZSTDv05_execSequence(BYTE* op,
                                 const BYTE* const base, const BYTE* const vBase, const BYTE* const dictEnd)
 {
     static const int dec32table[] = { 0, 1, 2, 1, 4, 4, 4, 4 };   /* added */
-    static const int dec64table[] = { 8, 8, 8, 7, 8, 9,10,11 };   /* subtracted */
+    static const int dec64table[] = { 8, 8, 8, 7, 8, 9,10,11 };   /* substracted */
     BYTE* const oLitEnd = op + sequence.litLength;
     const size_t sequenceLength = sequence.litLength + sequence.matchLength;
     BYTE* const oMatchEnd = op + sequenceLength;   /* risk : address space overflow (32-bits) */
@@ -3514,57 +3508,34 @@ size_t ZSTDv05_decompress(void* dst, size_t maxDstSize, const void* src, size_t 
 #endif
 }
 
-/* ZSTD_errorFrameSizeInfoLegacy() :
-   assumes `cSize` and `dBound` are _not_ NULL */
-static void ZSTD_errorFrameSizeInfoLegacy(size_t* cSize, unsigned long long* dBound, size_t ret)
-{
-    *cSize = ret;
-    *dBound = ZSTD_CONTENTSIZE_ERROR;
-}
-
-void ZSTDv05_findFrameSizeInfoLegacy(const void *src, size_t srcSize, size_t* cSize, unsigned long long* dBound)
+size_t ZSTDv05_findFrameCompressedSize(const void *src, size_t srcSize)
 {
     const BYTE* ip = (const BYTE*)src;
     size_t remainingSize = srcSize;
-    size_t nbBlocks = 0;
     blockProperties_t blockProperties;
 
     /* Frame Header */
-    if (srcSize < ZSTDv05_frameHeaderSize_min) {
-        ZSTD_errorFrameSizeInfoLegacy(cSize, dBound, ERROR(srcSize_wrong));
-        return;
-    }
-    if (MEM_readLE32(src) != ZSTDv05_MAGICNUMBER) {
-        ZSTD_errorFrameSizeInfoLegacy(cSize, dBound, ERROR(prefix_unknown));
-        return;
-    }
+    if (srcSize < ZSTDv05_frameHeaderSize_min) return ERROR(srcSize_wrong);
+    if (MEM_readLE32(src) != ZSTDv05_MAGICNUMBER) return ERROR(prefix_unknown);
     ip += ZSTDv05_frameHeaderSize_min; remainingSize -= ZSTDv05_frameHeaderSize_min;
 
     /* Loop on each block */
     while (1)
     {
         size_t cBlockSize = ZSTDv05_getcBlockSize(ip, remainingSize, &blockProperties);
-        if (ZSTDv05_isError(cBlockSize)) {
-            ZSTD_errorFrameSizeInfoLegacy(cSize, dBound, cBlockSize);
-            return;
-        }
+        if (ZSTDv05_isError(cBlockSize)) return cBlockSize;
 
         ip += ZSTDv05_blockHeaderSize;
         remainingSize -= ZSTDv05_blockHeaderSize;
-        if (cBlockSize > remainingSize) {
-            ZSTD_errorFrameSizeInfoLegacy(cSize, dBound, ERROR(srcSize_wrong));
-            return;
-        }
+        if (cBlockSize > remainingSize) return ERROR(srcSize_wrong);
 
         if (cBlockSize == 0) break;   /* bt_end */
 
         ip += cBlockSize;
         remainingSize -= cBlockSize;
-        nbBlocks++;
     }
 
-    *cSize = ip - (const BYTE*)src;
-    *dBound = nbBlocks * BLOCKSIZE;
+    return ip - (const BYTE*)src;
 }
 
 /* ******************************

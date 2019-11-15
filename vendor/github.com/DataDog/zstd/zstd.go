@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"io/ioutil"
-	"runtime"
 	"unsafe"
 )
 
@@ -85,7 +84,6 @@ func CompressLevel(dst, src []byte, level int) ([]byte, error) {
 		C.size_t(len(src)),
 		C.int(level))
 
-	runtime.KeepAlive(src)
 	written := int(cWritten)
 	// Check if the return is an Error code
 	if err := getError(written); err != nil {
@@ -109,7 +107,6 @@ func Decompress(dst, src []byte) ([]byte, error) {
 			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
 			C.size_t(len(src)))
 
-		runtime.KeepAlive(src)
 		written := int(cWritten)
 		// Check error
 		if err := getError(written); err != nil {

@@ -33,11 +33,7 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1
-<<<<<<< HEAD
-	github.com/google/btree v1.0.0 // indirect
 	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect
-=======
->>>>>>> origin/master
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
@@ -75,7 +71,6 @@ require (
 	golang.org/x/tools v0.0.0-20191028215554-80f3f9ca0853 // indirect
 	google.golang.org/api v0.10.0
 	google.golang.org/grpc v1.24.0
-<<<<<<< HEAD
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4
@@ -85,11 +80,8 @@ require (
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
-	k8s.io/apimachinery v0.0.0-20190612205821-1799e75a0719
-=======
 	k8s.io/apimachinery v0.0.0-20190817020851-f2f3a405f61d
 	k8s.io/client v0.0.0-00010101000000-000000000000 // indirect
->>>>>>> origin/master
 	k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 )
 

@@ -35,7 +35,7 @@ func LookupPortMDNS(id string) (int, error) {
 	if err != nil {
 		return -1, fmt.Errorf("failed to initialize resolver: %e", err)
 	}
-	
+
 	port := -1
 	entries := make(chan *zeroconf.ServiceEntry)
 
@@ -64,4 +64,3 @@ func LookupPortMDNS(id string) (int, error) {
 	}
 	return port, nil
 }
-

@@ -8,4 +8,3 @@ package servicediscovery
 type Resolver interface {
 	ResolveID(req ResolveRequest) (string, error)
 }
-

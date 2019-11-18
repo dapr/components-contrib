@@ -19,11 +19,10 @@ func NewMDNSResolver() servicediscovery.Resolver {
 }
 
 type resolver struct {
-	resolver *zeroconf.Resolver
 }
 
-func (z *resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, error) {
-	port, err := z.LookupPortMDNS(req.ID)
+func (z *resolver) ResolveID(req servicediscovery.ResolveRequest) (string, error) {
+	port, err := LookupPortMDNS(req.ID)
 	if err != nil {
 		return "", err
 	}
@@ -31,14 +30,10 @@ func (z *resolver) ResolveID(req *servicediscovery.ResolveRequest) (string, erro
 }
 
 // LookupPortMDNS uses mdns to find the port of a given service entry on a local network
-func (z *resolver) LookupPortMDNS(id string) (int, error) {
-	var err error
-
-	if z.resolver == nil {
-		z.resolver, err = zeroconf.NewResolver(nil)
-		if err != nil {
-			return -1, fmt.Errorf("failed to initialize resolver: %e", err)
-		}
+func LookupPortMDNS(id string) (int, error) {
+	resolver, err := zeroconf.NewResolver(nil)
+	if err != nil {
+		return -1, fmt.Errorf("failed to initialize resolver: %e", err)
 	}
 
 	port := -1
@@ -58,7 +53,7 @@ func (z *resolver) LookupPortMDNS(id string) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 	defer cancel()
 
-	err = z.resolver.Browse(ctx, id, "local.", entries)
+	err = resolver.Browse(ctx, id, "local.", entries)
 	if err != nil {
 		return -1, fmt.Errorf("failed to browse: %s", err.Error())
 	}

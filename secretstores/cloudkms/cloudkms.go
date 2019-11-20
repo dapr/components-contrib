@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 
 	cloudkms "cloud.google.com/go/kms/apiv1"
+	"cloud.google.com/go/storage"
 	"github.com/dapr/components-contrib/secretstores"
 	"google.golang.org/api/option"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
@@ -34,7 +35,8 @@ type cloudkmsMetadata struct {
 	TokenURI            string `json:"token_uri"`
 	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
 	ClientCertURL       string `json:"client_x509_cert_url"`
-	SecretFilePath      string `json:"secret_file_path"`
+	GCPStorageBucket    string `json:"gcp_storage_bucket"`
+	SecretObject        string `json:"secret_object"`
 	KeyRingID           string `json:"key_ring_id"`
 	CryptoKeyID         string `json:"crypto_key_id"`
 }
@@ -71,7 +73,10 @@ func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string
 func (c *cloudkmsSecretStore) GetSecret(req secretstores.SecretStore) (secretstores.GetSecretResponse, error) {
-	ciphertext, err := ioutil.ReadFile(c.metadata.SecretFilePath)
+	gcpStorageBucket := c.metadata.GCPStorageBucket
+	secretObject := c.metadata.SecretObject
+
+	ciphertext, err := c.GetCipherTextFromSecretObject(gcpStorageBucket, secretObject)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("error reading secret file: %s", err)
 	}
@@ -91,6 +96,30 @@ func (c *cloudkmsSecretStore) GetSecret(req secretstores.SecretStore) (secretsto
 			secretstores.DefaultSecretRefKeyName: secretValue,
 		},
 	}, nil
+}
+
+func (c *cloudkmsSecretStore) GetCipherTextFromSecretObject(gcpStorageBucket string, secretObject string) ([]byte, error) {
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create GCS client: %s", err)
+	}
+
+	rc, err := client.Bucket(gcpStorageBucket).Object(secretObject).NewReader(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("Creation of read client failed: %s", err)
+	}
+
+	defer rc.Close()
+
+	data, err := ioutil.ReadAll(rc)
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed while reading secret file: %s", err)
+	}
+
+	return data, nil
 }
 
 func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) ([]byte, error) {

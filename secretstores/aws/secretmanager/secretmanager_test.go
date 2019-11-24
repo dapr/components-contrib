@@ -2,13 +2,16 @@ package secretmanager
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"testing"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/stretchr/testify/assert"
 )
+
+const secretValue = "secret"
 
 type mockedSM struct {
 	GetSecretValueFn func(*secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error)
@@ -38,23 +41,22 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(m)
 		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing value in metadata"))
+		assert.Equal(t, err, fmt.Errorf("missing secretValue in metadata"))
 	})
 }
 
 func TestGetSecret(t *testing.T) {
 	t.Run("successfully retrieve secret", func(t *testing.T) {
-
 		t.Run("without version id and version stage", func(t *testing.T) {
 			s := smSecretStore{
 				client: &mockedSM{
 					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.Nil(t, input.VersionId)
 						assert.Nil(t, input.VersionStage)
-						value := "secret"
+						secret := secretValue
 						return &secretsmanager.GetSecretValueOutput{
 							Name:         input.SecretId,
-							SecretString: &value,
+							SecretString: &secret,
 						}, nil
 					},
 				},
@@ -74,10 +76,10 @@ func TestGetSecret(t *testing.T) {
 				client: &mockedSM{
 					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.NotNil(t, input.VersionId)
-						value := "secret"
+						secret := secretValue
 						return &secretsmanager.GetSecretValueOutput{
 							Name:         input.SecretId,
-							SecretString: &value,
+							SecretString: &secret,
 						}, nil
 					},
 				},
@@ -91,7 +93,7 @@ func TestGetSecret(t *testing.T) {
 			}
 			output, e := s.GetSecret(req)
 			assert.Nil(t, e)
-			assert.Equal(t, "secret", output.Data[req.Name])
+			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 
 		t.Run("with version stage", func(t *testing.T) {
@@ -99,10 +101,10 @@ func TestGetSecret(t *testing.T) {
 				client: &mockedSM{
 					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.NotNil(t, input.VersionStage)
-						value := "secret"
+						secret := secretValue
 						return &secretsmanager.GetSecretValueOutput{
 							Name:         input.SecretId,
-							SecretString: &value,
+							SecretString: &secret,
 						}, nil
 					},
 				},
@@ -116,7 +118,7 @@ func TestGetSecret(t *testing.T) {
 			}
 			output, e := s.GetSecret(req)
 			assert.Nil(t, e)
-			assert.Equal(t, "secret", output.Data[req.Name])
+			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 	})
 

@@ -8,6 +8,7 @@ package secretmanager
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 
@@ -104,7 +105,7 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 		return nil, err
 	}
 	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" {
-		return nil, fmt.Errorf("missing value in metadata")
+		return nil, fmt.Errorf("missing secretValue in metadata")
 	}
 	return &meta, nil
 }

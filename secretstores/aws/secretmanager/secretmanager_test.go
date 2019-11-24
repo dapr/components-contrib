@@ -41,7 +41,7 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(m)
 		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing secretValue in metadata"))
+		assert.Equal(t, err, fmt.Errorf("missing aws credentials in metadata"))
 	})
 }
 

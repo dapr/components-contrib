@@ -23,7 +23,7 @@ const (
 	VersionStage = "VersionStage"
 )
 
-// NewSecretManager returns a new secret manager
+// NewSecretManager returns a new secret manager store
 func NewSecretManager() secretstores.SecretStore {
 	return &smSecretStore{}
 }
@@ -34,11 +34,11 @@ type secretManagerMetaData struct {
 	SecretKey string `json:"secretKey"`
 }
 
-//smSecretStore
 type smSecretStore struct {
 	client secretsmanageriface.SecretsManagerAPI
 }
 
+// Init creates a AWS secret manager client
 func (s smSecretStore) Init(metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
@@ -53,6 +53,7 @@ func (s smSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 func (s smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	var versionID *string
 	if value, ok := req.Metadata[VersionID]; ok {
@@ -105,7 +106,7 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 		return nil, err
 	}
 	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" {
-		return nil, fmt.Errorf("missing secretValue in metadata")
+		return nil, fmt.Errorf("missing aws credentials in metadata")
 	}
 	return &meta, nil
 }

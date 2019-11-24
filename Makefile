@@ -68,5 +68,9 @@ lint:
 go.mod:
 	go mod tidy
 
-check-dirty:
+################################################################################
+# Target: check-diff                                  #
+################################################################################
+.PHONY: check-diff
+check-diff:
 	git diff --exit-code # check no changes

@@ -58,7 +58,7 @@ jobs:
         run: make lint
       - name: Run make go.mod check-diry
         if: matrix.target_arch != 'arm'
-        run: make go.mod check-dirty
+        run: make go.mod check-diff
       - name: Run make test
         if: matrix.target_arch != 'arm'
         run: make test

@@ -29,10 +29,10 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0
+	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1
-	github.com/google/pprof v0.0.0-20190908185732-236ed259b199 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
@@ -45,6 +45,7 @@ require (
 	github.com/joomcode/redispipe v0.9.0
 	github.com/json-iterator/go v1.1.7
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
+	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9 // indirect
 	github.com/nats-io/gnatsd v1.4.1 // indirect
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nkeys v0.1.0 // indirect
@@ -75,6 +76,7 @@ require (
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.15 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect
+	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.3 // indirect
 	gopkg.in/couchbaselabs/jsonx.v1 v1.0.0 // indirect
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect

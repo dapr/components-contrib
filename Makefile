@@ -65,6 +65,8 @@ lint:
 # Target: update-dependencies                                                  #
 ################################################################################
 .PHONY: update-dependencies
-update-dependencies:
+go.mod:
 	go mod tidy
-	go mod vendor
+
+check-dirty:
+	git diff --exit-code # check no changes

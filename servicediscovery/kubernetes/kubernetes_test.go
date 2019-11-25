@@ -18,7 +18,7 @@ func TestResolve(t *testing.T) {
 	request := servicediscovery.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
 
 	u := fmt.Sprintf("myid-dapr.abc.svc.cluster.local:1234")
-	target, err := resolver.ResolveID(&request)
+	target, err := resolver.ResolveID(request)
 
 	assert.Nil(t, err)
 	assert.Equal(t, target, u)

@@ -32,8 +32,6 @@ run:
   #  - ".*\\.my\\.go$"
   #  - lib/bad.go
   
-  modules-download-mode: vendor
-
 # output configuration options
 output:
   # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"

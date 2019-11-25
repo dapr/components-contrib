@@ -62,9 +62,15 @@ lint:
 	$(GOLANGCI_LINT) run --fix
 
 ################################################################################
-# Target: update-dependencies                                                  #
+# Target: go.mod                                                               #
 ################################################################################
-.PHONY: update-dependencies
-update-dependencies:
+.PHONY: go.mod
+go.mod:
 	go mod tidy
-	go mod vendor
+
+################################################################################
+# Target: check-diff                                                           #
+################################################################################
+.PHONY: check-diff
+check-diff:
+	git diff --exit-code # check no changes

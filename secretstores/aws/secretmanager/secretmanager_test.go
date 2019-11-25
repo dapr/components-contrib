@@ -27,9 +27,10 @@ func TestInit(t *testing.T) {
 	s := NewSecretManager()
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"AccessKey": "a",
-			"Region":    "a",
-			"SecretKey": "a",
+			"AccessKey":    "a",
+			"Region":       "a",
+			"SecretKey":    "a",
+			"SessionToken": "a",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)

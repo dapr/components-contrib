@@ -29,9 +29,10 @@ func NewSecretManager() secretstores.SecretStore {
 }
 
 type secretManagerMetaData struct {
-	Region    string `json:"region"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
+	Region       string `json:"region"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
 }
 
 type smSecretStore struct {
@@ -39,7 +40,7 @@ type smSecretStore struct {
 }
 
 // Init creates a AWS secret manager client
-func (s smSecretStore) Init(metadata secretstores.Metadata) error {
+func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
@@ -54,7 +55,7 @@ func (s smSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-func (s smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	var versionID *string
 	if value, ok := req.Metadata[VersionID]; ok {
 		versionID = &value
@@ -86,7 +87,7 @@ func (s smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstore
 func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmanager.SecretsManager, error) {
 	sess, err := session.NewSession(aws.NewConfig().
 		WithRegion(*aws.String(metadata.Region)).
-		WithCredentials(credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, "")))
+		WithCredentials(credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken)))
 
 	if err != nil {
 		return nil, err
@@ -105,7 +106,7 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 	if err != nil {
 		return nil, err
 	}
-	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" {
+	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" || meta.SessionToken == "" {
 		return nil, fmt.Errorf("missing aws credentials in metadata")
 	}
 	return &meta, nil

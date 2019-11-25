@@ -43,7 +43,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, false, m.durable)
-		assert.Equal(t, true, m.autoAck)
+		assert.Equal(t, false, m.autoAck)
 		assert.Equal(t, false, m.requeueInFailure)
 		assert.Equal(t, true, m.deleteWhenUnused)
 		assert.Equal(t, uint8(0), m.deliveryMode)

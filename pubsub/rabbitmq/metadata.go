@@ -19,7 +19,7 @@ type metadata struct {
 
 // createMetadata creates a new instance from the pubsub metadata
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
-	result := metadata{deleteWhenUnused: true, autoAck: true}
+	result := metadata{deleteWhenUnused: true, autoAck: false}
 
 	if val, found := pubSubMetadata.Properties[metadataHostKey]; found && val != "" {
 		result.host = val

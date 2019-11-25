@@ -138,18 +138,17 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg
 
 	err := handler(pubsubMsg)
 	if err != nil {
-		log.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
+		log.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}
 
 	// if message is not auto acked we need to ack/nack
 	if !r.metadata.autoAck {
-
 		if err != nil {
 			requeue := r.metadata.requeueInFailure && !d.Redelivered
 
 			log.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
 			if err = r.channel.Nack(d.DeliveryTag, false, requeue); err != nil {
-				log.Errorf("%s error nacking message '%s' from topic '%s', %s", d.MessageId, logMessagePrefix, topic, err)
+				log.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		} else {
 			log.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)

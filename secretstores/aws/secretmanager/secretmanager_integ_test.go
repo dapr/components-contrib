@@ -13,8 +13,8 @@ import (
 	"testing"
 )
 
-// TestGetSecret requires AWS specific environments for authentication
-// AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KkEY, AWS_SESSION_TOKEN
+// TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
+// AWS_SECRET_ACCESS_KkEY and AWS_SESSION_TOKEN
 func TestIntegrationGetSecret(t *testing.T) {
 	secretName := "/aws/secret/testing"
 	sm := NewSecretManager()

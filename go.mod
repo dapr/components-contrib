@@ -20,6 +20,7 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/Sirupsen/logrus v1.0.6
 	github.com/a8m/documentdb v1.2.0
+	github.com/apache/thrift v0.13.0 // indirect
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

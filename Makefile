@@ -73,4 +73,4 @@ go.mod:
 ################################################################################
 .PHONY: check-diff
 check-diff:
-	git diff --exit-code # check no changes
+	git diff --exit-code ./go.mod # check no changes

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
 
@@ -47,15 +46,8 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 		return err
 	}
 	servers := metadata.Properties[hazelcastServers]
-	log.Info("servers", servers)
-
 	hzConfig := hazelcast.NewConfig()
-
-	serversArr := strings.Split(servers, ",")
-	log.Info("serversArr", len(serversArr))
-
 	hzConfig.NetworkConfig().AddAddress(strings.Split(servers, ",")...)
-	log.Info("NetworkConfig", hzConfig.NetworkConfig())
 
 	client, err := hazelcast.NewClientWithConfig(hzConfig)
 	if err != nil {

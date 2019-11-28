@@ -20,6 +20,7 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/Sirupsen/logrus v1.0.6
 	github.com/a8m/documentdb v1.2.0
+	github.com/apache/thrift v0.13.0 // indirect
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
@@ -31,6 +32,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
+	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1
 	github.com/google/uuid v1.1.1
@@ -40,6 +42,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/hashicorp/consul/api v1.2.0
 	github.com/hashicorp/go-multierror v1.0.0
+	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/joomcode/errorx v1.0.0 // indirect
 	github.com/joomcode/redispipe v0.9.0

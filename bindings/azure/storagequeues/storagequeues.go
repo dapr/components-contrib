@@ -27,6 +27,7 @@ type storageQueuesMetadata struct {
 	AccountKey  string `json:"accountKey"`
 	QueueName   string `json:"queueName"`
 	AccountName string `json:"accountName"`
+	RequestURI  string `json:"requestURI"`
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
@@ -41,8 +42,11 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	a.metadata = meta
-
-	u, _ := url.Parse(fmt.Sprintf("https://%s.queue.core.windows.net/%s", a.metadata.AccountName, a.metadata.QueueName))
+	reqURI := "https://%s.queue.core.windows.net/%s"
+	if a.metadata.RequestURI != "" {
+		reqURI = a.metadata.RequestURI
+	}
+	u, _ := url.Parse(fmt.Sprintf(reqURI, a.metadata.AccountName, a.metadata.QueueName))
 
 	credential, err := azqueue.NewSharedKeyCredential(a.metadata.AccountName, a.metadata.AccountKey)
 	if err != nil {
@@ -79,11 +83,39 @@ func (a *AzureStorageQueues) Write(req *bindings.WriteRequest) error {
 	s := string(req.Data[:])
 	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, time.Minute*10)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	return nil
 }
 
+// MessageReader gets the next message off the queue
+func (a *AzureStorageQueues) MessageReader(handler func(*bindings.ReadResponse) error) {
+	ctx := context.TODO()
+	messagesURL := a.queueURL.NewMessagesURL()
+	res, err := messagesURL.Dequeue(ctx, 1, time.Second*30)
+	if err != nil {
+		return
+	}
+	if res.NumMessages() == 0 {
+		return
+	}
+	mt := res.Message(0).Text
+	err = handler(&bindings.ReadResponse{
+		Data:     []byte(mt),
+		Metadata: map[string]string{},
+	})
+	if err != nil {
+		return
+	}
+	messageIDURL := messagesURL.NewMessageIDURL(res.Message(0).ID)
+	pr := res.Message(0).PopReceipt
+	_, err = messageIDURL.Delete(ctx, pr)
+	return
+}
+
 func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) error {
+
+	go a.MessageReader(handler)
+
 	return nil
 }

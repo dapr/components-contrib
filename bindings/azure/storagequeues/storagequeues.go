@@ -19,11 +19,14 @@ import (
 
 // AzureStorageQueues is an input/output binding reading from and sending events to Azure Storage queues
 type AzureStorageQueues struct {
+	metadata *storageQueuesMetadata
+	queueURL azqueue.QueueURL
 }
 
 type storageQueuesMetadata struct {
-	AccountKey string `json:"accountKey"`
-	QueueName  string `json:"queueName"`
+	AccountKey  string `json:"accountKey"`
+	QueueName   string `json:"queueName"`
+	AccountName string `json:"accountName"`
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
@@ -33,6 +36,26 @@ func NewAzureStorageQueues() *AzureStorageQueues {
 
 // Init parses connection properties and creates a new Storage Queue client
 func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
+	meta, err := a.parseMetadata(metadata)
+	if err != nil {
+		return err
+	}
+	a.metadata = meta
+
+	u, _ := url.Parse(fmt.Sprintf("https://%s.queue.core.windows.net/%s", a.metadata.AccountName, a.metadata.QueueName))
+
+	credential, err := azqueue.NewSharedKeyCredential(a.metadata.AccountName, a.metadata.AccountKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx := context.TODO()
+	a.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, azqueue.PipelineOptions{}))
+	_, err = a.queueURL.Create(ctx, azqueue.Metadata{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return nil
 }
 
@@ -41,7 +64,6 @@ func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storage
 	if err != nil {
 		return nil, err
 	}
-
 	var m storageQueuesMetadata
 	err = json.Unmarshal(b, &m)
 	if err != nil {
@@ -51,27 +73,11 @@ func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storage
 }
 
 func (a *AzureStorageQueues) Write(req *bindings.WriteRequest) error {
-	var accountName = "daprcomp"
-	var accountKey = "LDCIro1iN8LPqFo822X4Oecap/8s8anCNslB2pcxE1/pax/svHY7StnpGnOcIE1JiSU8IAVrag8t6QrjcYH/JQ=="
-
-	u, _ := url.Parse(fmt.Sprintf("https://%s.queue.core.windows.net/queue6", accountName))
-
-	credential, err := azqueue.NewSharedKeyCredential(accountName, accountKey)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	ctx := context.TODO()
-	queueURL := azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, azqueue.PipelineOptions{}))
-	_, err = queueURL.Create(ctx, azqueue.Metadata{})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	messagesURL := queueURL.NewMessagesURL()
-
-	_, err = messagesURL.Enqueue(ctx, "A message", time.Second*0, time.Minute*10)
-
+	messagesURL := a.queueURL.NewMessagesURL()
+	s := string(req.Data[:])
+	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, time.Minute*10)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -3,6 +3,7 @@ module github.com/dapr/components-contrib
 go 1.13
 
 require (
+	cloud.google.com/go v0.46.3
 	cloud.google.com/go/datastore v1.0.0
 	cloud.google.com/go/pubsub v1.0.1
 	cloud.google.com/go/storage v1.0.0
@@ -72,6 +73,7 @@ require (
 	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
 	golang.org/x/tools v0.0.0-20191028215554-80f3f9ca0853 // indirect
 	google.golang.org/api v0.10.0
+	google.golang.org/genproto v0.0.0-20190911173649-1774047e7e51
 	google.golang.org/grpc v1.24.0
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect

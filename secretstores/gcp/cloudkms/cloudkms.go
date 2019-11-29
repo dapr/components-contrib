@@ -43,7 +43,7 @@ type cloudkmsMetadata struct {
 }
 
 // NewCloudKMSSecretStore returns a new cloudkmsSecretStore instance
-func NewCloudKMSSecretStore() *cloudkmsSecretStore {
+func NewCloudKMSSecretStore() secretstores.SecretStore {
 	return &cloudkmsSecretStore{}
 }
 
@@ -86,7 +86,7 @@ func (c *cloudkmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 	gcpStorageBucket := c.metadata.GCPStorageBucket
 	secretObject := c.metadata.SecretObject
 
-	ciphertext, err := c.GetCipherTextFromSecretObject(gcpStorageBucket, secretObject)
+	ciphertext, err := c.getCipherTextFromSecretObject(gcpStorageBucket, secretObject)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("error reading secret file: %s", err)
 	}
@@ -108,14 +108,14 @@ func (c *cloudkmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 	}, nil
 }
 
-func (c *cloudkmsSecretStore) GetCipherTextFromSecretObject(gcpStorageBucket string, secretObject string) ([]byte, error) {
+func (c *cloudkmsSecretStore) getCipherTextFromSecretObject(gcpStorageBucket string, secretObject string) ([]byte, error) {
 	ctx := context.Background()
 	var client = c.storageclient
 
 	rc, err := client.Bucket(gcpStorageBucket).Object(secretObject).NewReader(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("Creation of read client failed: %s", err)
+		return nil, fmt.Errorf("creation of read client failed: %s", err)
 	}
 
 	defer rc.Close()
@@ -123,7 +123,7 @@ func (c *cloudkmsSecretStore) GetCipherTextFromSecretObject(gcpStorageBucket str
 	data, err := ioutil.ReadAll(rc)
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed while reading secret file: %s", err)
+		return nil, fmt.Errorf("failed while reading secret file: %s", err)
 	}
 
 	return data, nil
@@ -141,7 +141,7 @@ func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) (
 	resp, err := c.cloudkmsclient.Decrypt(ctx, req)
 
 	if err != nil {
-		return nil, fmt.Errorf("Decrypt: %v", err)
+		return nil, fmt.Errorf("decrypt: %v", err)
 	}
 
 	return resp.Plaintext, nil

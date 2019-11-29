@@ -1,6 +1,7 @@
 package cloudkms
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/dapr/components-contrib/secretstores"
@@ -28,15 +29,15 @@ func TestInit(t *testing.T) {
 			"crypto_key_id":               "a",
 		}
 		err := s.Init(m)
-
 		assert.Nil(t, err)
-		assert.NotNil(t, s.cloudkmsclient)
-		assert.NotNil(t, s.storageclient)
-		//Check that metadata is populated
-		assert.Equal(t, s.metadata.Type, m.Properties["type"])
-		assert.Equal(t, s.metadata.ProjectID, m.Properties["project_id"])
-		assert.Equal(t, s.metadata.PrivateKeyID, m.Properties["private_key_id"])
-		assert.Equal(t, s.metadata.PrivateKey, m.Properties["private_key"])
-		assert.Equal(t, s.metadata.ClientEmail, m.Properties["client_email"])
+	})
+
+	t.Run("Init with missing metadata", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"dummy": "a",
+		}
+		err := s.Init(m)
+		assert.NotNil(t, err)
+		assert.Equal(t, err, fmt.Errorf("error creating cloudkms client: missing 'type' field in credentials"))
 	})
 }

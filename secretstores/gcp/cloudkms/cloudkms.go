@@ -20,8 +20,9 @@ import (
 
 // cloudkmsSecretStore is a secret store implementation of GCS KMS
 type cloudkmsSecretStore struct {
-	client   *cloudkms.KeyManagementClient
-	metadata *cloudkmsMetadata
+	cloudkmsclient *cloudkms.KeyManagementClient
+	storageclient  *storage.Client
+	metadata       *cloudkmsMetadata
 }
 
 type cloudkmsMetadata struct {
@@ -62,17 +63,25 @@ func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
 	clientOptions := option.WithCredentialsJSON(b)
 	ctx := context.Background()
 	cloudkmsClient, err := cloudkms.NewKeyManagementClient(ctx, clientOptions)
+
 	if err != nil {
 		return fmt.Errorf("error creating cloudkms client: %s", err)
 	}
 
-	c.client = cloudkmsClient
+	storageClient, err := storage.NewClient(ctx, clientOptions)
+
+	if err != nil {
+		return fmt.Errorf("error creating cloud storage client: %s", err)
+	}
+
+	c.cloudkmsclient = cloudkmsClient
+	c.storageclient = storageClient
 	c.metadata = &cloudkmsMeta
 	return nil
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string
-func (c *cloudkmsSecretStore) GetSecret(req secretstores.SecretStore) (secretstores.GetSecretResponse, error) {
+func (c *cloudkmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	gcpStorageBucket := c.metadata.GCPStorageBucket
 	secretObject := c.metadata.SecretObject
 
@@ -100,10 +109,7 @@ func (c *cloudkmsSecretStore) GetSecret(req secretstores.SecretStore) (secretsto
 
 func (c *cloudkmsSecretStore) GetCipherTextFromSecretObject(gcpStorageBucket string, secretObject string) ([]byte, error) {
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create GCS client: %s", err)
-	}
+	var client = c.storageclient
 
 	rc, err := client.Bucket(gcpStorageBucket).Object(secretObject).NewReader(ctx)
 
@@ -131,7 +137,7 @@ func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) (
 		Ciphertext: ciphertext,
 	}
 
-	resp, err := c.client.Decrypt(ctx, req)
+	resp, err := c.cloudkmsclient.Decrypt(ctx, req)
 
 	if err != nil {
 		return nil, fmt.Errorf("Decrypt: %v", err)

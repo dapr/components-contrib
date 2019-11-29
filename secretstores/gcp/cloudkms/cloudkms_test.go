@@ -1,26 +1,18 @@
-package cloudkms 
+package cloudkms
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/stretchr/testify/assert"
-
 )
 
-const secretValue = "secret"
-
-type mockedSM struct {
-	GetSecretValueFn func(*secrets)
-}
-
-func TestInit (t *testing.T) {
+func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewCloudKMSSecretStore()
-	t.Run("Init with valid metadata", func (t *testing) {
+	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"type":                        "a",
+			"type":                        "service_account",
 			"project_id":                  "a",
 			"private_key_id":              "a",
 			"private_key":                 "a",
@@ -36,6 +28,15 @@ func TestInit (t *testing.T) {
 			"crypto_key_id":               "a",
 		}
 		err := s.Init(m)
-		assert.NotNil
+
+		assert.Nil(t, err)
+		assert.NotNil(t, s.cloudkmsclient)
+		assert.NotNil(t, s.storageclient)
+		//Check that metadata is populated
+		assert.Equal(t, s.metadata.Type, m.Properties["type"])
+		assert.Equal(t, s.metadata.ProjectID, m.Properties["project_id"])
+		assert.Equal(t, s.metadata.PrivateKeyID, m.Properties["private_key_id"])
+		assert.Equal(t, s.metadata.PrivateKey, m.Properties["private_key"])
+		assert.Equal(t, s.metadata.ClientEmail, m.Properties["client_email"])
 	})
 }

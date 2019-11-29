@@ -49,6 +49,7 @@ func NewCloudKMSSecretStore() *cloudkmsSecretStore {
 
 // Init creates a cloudkmsClient
 func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
+
 	b, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err

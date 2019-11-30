@@ -48,7 +48,7 @@ func TestReadQueue(t *testing.T) {
 		return nil
 	}
 
-	err = a.Read(handler)
+	_ = a.Read(handler)
 
 	time.Sleep(30 * time.Second)
 
@@ -67,7 +67,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 		return nil
 	}
 
-	err = a.Read(handler)
+	_ = a.Read(handler)
 
 	time.Sleep(30 * time.Second)
 

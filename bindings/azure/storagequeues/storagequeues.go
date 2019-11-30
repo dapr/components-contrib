@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"time"
 
@@ -50,14 +49,14 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 
 	credential, err := azqueue.NewSharedKeyCredential(a.metadata.AccountName, a.metadata.AccountKey)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	ctx := context.TODO()
 	a.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, azqueue.PipelineOptions{}))
 	_, err = a.queueURL.Create(ctx, azqueue.Metadata{})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	return nil
@@ -110,7 +109,9 @@ func (a *AzureStorageQueues) MessageReader(handler func(*bindings.ReadResponse) 
 	messageIDURL := messagesURL.NewMessageIDURL(res.Message(0).ID)
 	pr := res.Message(0).PopReceipt
 	_, err = messageIDURL.Delete(ctx, pr)
-	return
+	if err != nil {
+		return
+	}
 }
 
 func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) error {

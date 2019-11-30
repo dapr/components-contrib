@@ -43,7 +43,7 @@ func TestReadQueue(t *testing.T) {
 	assert.Nil(t, err)
 
 	var handler = func(data *bindings.ReadResponse) error {
-		s := string(data.Data[:])
+		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 		return nil
 	}
@@ -62,7 +62,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	assert.Nil(t, err)
 
 	var handler = func(data *bindings.ReadResponse) error {
-		s := string(data.Data[:])
+		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 		return nil
 	}

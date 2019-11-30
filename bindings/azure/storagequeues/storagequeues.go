@@ -79,7 +79,7 @@ func (a *AzureStorageQueues) Write(req *bindings.WriteRequest) error {
 
 	ctx := context.TODO()
 	messagesURL := a.queueURL.NewMessagesURL()
-	s := string(req.Data[:])
+	s := string(req.Data)
 	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, time.Minute*10)
 	if err != nil {
 		return err

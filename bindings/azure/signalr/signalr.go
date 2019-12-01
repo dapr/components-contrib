@@ -54,7 +54,6 @@ type SignalR struct {
 
 // Init is responsible for initializing the SignalR output based on the metadata
 func (s *SignalR) Init(metadata bindings.Metadata) error {
-
 	connectionString, ok := metadata.Properties[connectionStringKey]
 	if !ok || connectionString == "" {
 		return fmt.Errorf("missing connection string")
@@ -95,7 +94,6 @@ func (s *SignalR) Init(metadata bindings.Metadata) error {
 }
 
 func (s *SignalR) resolveAPIURL(req *bindings.WriteRequest) (string, error) {
-
 	hub := s.hub
 	if hub == "" {
 		hubFromRequest, ok := req.Metadata[hubKey]
@@ -135,7 +133,6 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 && resp.StatusCode != 202 {
-
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
@@ -150,7 +147,6 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 }
 
 func (s *SignalR) Write(req *bindings.WriteRequest) error {
-
 	url, err := s.resolveAPIURL(req)
 	if err != nil {
 		return err

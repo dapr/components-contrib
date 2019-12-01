@@ -124,7 +124,6 @@ func TestInvalidConfigurations(t *testing.T) {
 			s := NewSignalR()
 			err := s.Init(bindings.Metadata{Properties: tt.properties})
 			assert.NotNil(t, err)
-
 		})
 	}
 }
@@ -148,7 +147,6 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestWriteShouldFail(t *testing.T) {
-
 	httpTransport := &mockTransport{
 		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
 	}
@@ -200,7 +198,6 @@ func TestWriteShouldFail(t *testing.T) {
 }
 
 func TestWriteShouldSucceed(t *testing.T) {
-
 	httpTransport := &mockTransport{
 		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
 	}

@@ -75,13 +75,10 @@ func (s *SignalR) Init(metadata bindings.Metadata) error {
 				if s.endpoint[len(s.endpoint)-1] == '/' {
 					s.endpoint = s.endpoint[:len(s.endpoint)-1]
 				}
-				break
 			case "AccessKey":
 				s.accessKey = connectionValue[i+1:]
-				break
 			case "Version":
 				s.version = connectionValue[i+1:]
-				break
 			}
 		}
 	}

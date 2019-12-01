@@ -17,7 +17,6 @@ func getFakeProperties() map[string]string {
 }
 
 func TestCreateMetadata(t *testing.T) {
-
 	var booleanFlagTests = []struct {
 		in       string
 		expected bool
@@ -125,7 +124,6 @@ func TestCreateMetadata(t *testing.T) {
 	})
 
 	for _, tt := range booleanFlagTests {
-
 		t.Run(fmt.Sprintf("autoAck value=%s", tt.in), func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 

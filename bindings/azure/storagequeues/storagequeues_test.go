@@ -6,15 +6,56 @@
 package storagequeues
 
 import (
+	"context"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-storage-queue-go/azqueue"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
+type MockHelper struct {
+	mock.Mock
+}
+
+func (m *MockHelper) Init(accountName string, accountKey string, queueName string) error {
+
+}
+
+func (m *MockHelper) Write(data []byte) error {
+
+}
+
+func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
+
+}
+
+func (m *MockHelper) NewSharedKeyCredential(accountName string, accountKey string) (*azqueue.SharedKeyCredential, error) {
+	retvals := m.Called(accountName, accountKey)
+	return retvals.Get(0).(*azqueue.SharedKeyCredential), retvals.Error(1)
+}
+
+func (m *MockHelper) NewQueueURL(url url.URL, p pipeline.Pipeline) azqueue.QueueURL {
+	retvals := m.Called(url, p)
+	return retvals.Get(0).(azqueue.QueueURL)
+}
+
+func (m *MockHelper) NewQueue() error {
+	return nil
+}
+
 func TestWriteQueue(t *testing.T) {
-	a := NewAzureStorageQueues()
+
+	mm := new(MockHelper)
+	mm.On("NewSharedKeyCredential", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&azqueue.SharedKeyCredential{}, nil)
+	//	mm.On("NewQueueURL", mock.AnythingOfType("url.URL"), mock.AnythingOfType("pipeline.Pipeline")).Return()
+	a := AzureStorageQueues{helper: mm}
+
+	//a := NewAzureStorageQueues()
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1", "requestURI": "http://127.0.0.1:10001/%s/%s"}
 

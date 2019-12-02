@@ -7,12 +7,9 @@ package storagequeues
 
 import (
 	"context"
-	"net/url"
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-pipeline-go/pipeline"
-	"github.com/Azure/azure-storage-queue-go/azqueue"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,41 +20,27 @@ type MockHelper struct {
 }
 
 func (m *MockHelper) Init(accountName string, accountKey string, queueName string) error {
-
+	retvals := m.Called(accountName, accountKey, queueName)
+	return retvals.Error(0)
 }
 
 func (m *MockHelper) Write(data []byte) error {
-
+	return nil
 }
 
 func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
-
-}
-
-func (m *MockHelper) NewSharedKeyCredential(accountName string, accountKey string) (*azqueue.SharedKeyCredential, error) {
-	retvals := m.Called(accountName, accountKey)
-	return retvals.Get(0).(*azqueue.SharedKeyCredential), retvals.Error(1)
-}
-
-func (m *MockHelper) NewQueueURL(url url.URL, p pipeline.Pipeline) azqueue.QueueURL {
-	retvals := m.Called(url, p)
-	return retvals.Get(0).(azqueue.QueueURL)
-}
-
-func (m *MockHelper) NewQueue() error {
 	return nil
 }
 
 func TestWriteQueue(t *testing.T) {
 
 	mm := new(MockHelper)
-	mm.On("NewSharedKeyCredential", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&azqueue.SharedKeyCredential{}, nil)
-	//	mm.On("NewQueueURL", mock.AnythingOfType("url.URL"), mock.AnythingOfType("pipeline.Pipeline")).Return()
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
+
 	a := AzureStorageQueues{helper: mm}
 
-	//a := NewAzureStorageQueues()
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1", "requestURI": "http://127.0.0.1:10001/%s/%s"}
+	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -69,10 +52,30 @@ func TestWriteQueue(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestReadQueue(t *testing.T) {
-	a := NewAzureStorageQueues()
+// Uncomment this function to write a message to local storage queue
+/* func TestWriteLocalQueue(t *testing.T) {
+
+	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
+
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1", "requestURI": "http://127.0.0.1:10001/%s/%s"}
+	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+
+	err := a.Init(m)
+	assert.Nil(t, err)
+
+	r := bindings.WriteRequest{Data: []byte("This is my message")}
+
+	err = a.Write(&r)
+
+	assert.Nil(t, err)
+} */
+
+func TestReadQueue(t *testing.T) {
+	mm := new(MockHelper)
+	a := AzureStorageQueues{helper: mm}
+
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -94,10 +97,41 @@ func TestReadQueue(t *testing.T) {
 	time.Sleep(30 * time.Second)
 
 }
-func TestReadQueueNoMessage(t *testing.T) {
-	a := NewAzureStorageQueues()
+
+// Uncomment this function to test reding from local queue
+/* func TestReadLocalQueue(t *testing.T) {
+	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
+
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1", "requestURI": "http://127.0.0.1:10001/%s/%s"}
+	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+
+	err := a.Init(m)
+	assert.Nil(t, err)
+
+	r := bindings.WriteRequest{Data: []byte("This is my message")}
+
+	err = a.Write(&r)
+
+	assert.Nil(t, err)
+
+	var handler = func(data *bindings.ReadResponse) error {
+		s := string(data.Data)
+		assert.Equal(t, s, "This is my message")
+		return nil
+	}
+
+	_ = a.Read(handler)
+
+	time.Sleep(30 * time.Second)
+
+}
+*/
+func TestReadQueueNoMessage(t *testing.T) {
+	mm := new(MockHelper)
+	a := AzureStorageQueues{helper: mm}
+
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)

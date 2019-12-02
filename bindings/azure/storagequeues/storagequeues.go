@@ -37,6 +37,7 @@ type QueueHelper interface {
 type AzureQueueHelper struct {
 	credential *azqueue.SharedKeyCredential
 	queueURL   azqueue.QueueURL
+	reqURI     string
 }
 
 // Init sets up this helper
@@ -46,8 +47,7 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 		return err
 	}
 	d.credential = credential
-	reqURI := "https://%s.queue.core.windows.net/%s"
-	u, _ := url.Parse(fmt.Sprintf(reqURI, accountName, queueName))
+	u, _ := url.Parse(fmt.Sprintf(d.reqURI, accountName, queueName))
 	d.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, azqueue.PipelineOptions{}))
 	ctx := context.TODO()
 	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
@@ -93,7 +93,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 
 // NewAzureQueueHelper creates new helper
 func NewAzureQueueHelper() QueueHelper {
-	return &AzureQueueHelper{}
+	return &AzureQueueHelper{reqURI: "https://%s.queue.core.windows.net/%s"}
 }
 
 // AzureStorageQueues is an input/output binding reading from and sending events to Azure Storage queues
@@ -106,7 +106,6 @@ type storageQueuesMetadata struct {
 	AccountKey  string `json:"accountKey"`
 	QueueName   string `json:"queueName"`
 	AccountName string `json:"accountName"`
-	RequestURI  string `json:"requestURI"`
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
@@ -154,7 +153,6 @@ func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) er
 
 	c := consumer{
 		callback: handler,
-		ready:    make(chan bool),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -169,11 +167,9 @@ func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) er
 			if ctx.Err() != nil {
 				return
 			}
-			c.ready = make(chan bool)
 		}
 	}()
 
-	<-c.ready
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 	<-sigterm

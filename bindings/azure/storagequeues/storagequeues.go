@@ -71,6 +71,8 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		return err
 	}
 	if res.NumMessages() == 0 {
+		// Queue was empty so back off by 10 seconds before trying again
+		time.Sleep(10 * time.Second)
 		return nil
 	}
 	mt := res.Message(0).Text

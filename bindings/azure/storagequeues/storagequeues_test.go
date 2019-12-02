@@ -101,7 +101,7 @@ func TestReadQueue(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	pid := syscall.Getpid()
-	proc, err := os.FindProcess(pid)
+	proc, _ := os.FindProcess(pid)
 	proc.Signal(os.Interrupt)
 }
 
@@ -156,7 +156,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	pid := syscall.Getpid()
-	proc, err := os.FindProcess(pid)
+	proc, _ := os.FindProcess(pid)
 	proc.Signal(os.Interrupt)
 
 }

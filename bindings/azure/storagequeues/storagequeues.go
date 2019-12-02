@@ -22,7 +22,6 @@ import (
 )
 
 type consumer struct {
-	ready    chan bool
 	callback func(*bindings.ReadResponse) error
 }
 

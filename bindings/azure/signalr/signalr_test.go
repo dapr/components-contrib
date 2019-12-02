@@ -43,6 +43,16 @@ func TestConfigurationValid(t *testing.T) {
 			"",
 		},
 		{
+			"With semicolon after access key",
+			map[string]string{
+				"connectionString": "Endpoint=https://fake.service.signalr.net;AccessKey=fakekey",
+			},
+			"https://fake.service.signalr.net",
+			"fakekey",
+			"",
+			"",
+		},
+		{
 			"With trailing slash in endpoint",
 			map[string]string{
 				"connectionString": "Endpoint=https://fake.service.signalr.net/;AccessKey=fakekey;Version=1.1",
@@ -117,6 +127,12 @@ func TestInvalidConfigurations(t *testing.T) {
 				"connectionString1": "Endpoint=https://fake.service.signalr.net;",
 			},
 		},
+		{
+			"With empty endpoint value",
+			map[string]string{
+				"connectionString": "Endpoint=;AccessKey=fakekey;Version=1.1",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -153,7 +169,7 @@ func TestWriteShouldFail(t *testing.T) {
 
 	s := NewSignalR()
 	s.endpoint = "https://fake.service.signalr.net"
-	s.accessKey = "fakekey"
+	s.accessKey = "G7+nIt9n48+iYSltPRf1v8kE+MupFfEt/9NSNTKOdzA="
 	s.httpClient = &http.Client{
 		Transport: httpTransport,
 	}

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 
 	log "github.com/Sirupsen/logrus"
@@ -66,7 +66,7 @@ func (s *SignalR) Init(metadata bindings.Metadata) error {
 	// Expected: Endpoint=https://<servicename>.service.signalr.net;AccessKey=<access key>;Version=1.0;
 	connectionValues := strings.Split(strings.TrimSpace(connectionString), ";")
 	for _, connectionValue := range connectionValues {
-		if i := strings.Index(connectionValue, "="); i != -1 {
+		if i := strings.Index(connectionValue, "="); i != -1 && len(connectionValue) > (i+1) {
 			k := connectionValue[0:i]
 			switch k {
 			case "Endpoint":
@@ -82,11 +82,11 @@ func (s *SignalR) Init(metadata bindings.Metadata) error {
 		}
 	}
 
-	if len(s.endpoint) == 0 {
+	if s.endpoint == "" {
 		return fmt.Errorf("missing endpoint in connection string")
 	}
 
-	if len(s.accessKey) == 0 {
+	if s.accessKey == "" {
 		return fmt.Errorf("missing access key in connection string")
 	}
 
@@ -104,7 +104,7 @@ func (s *SignalR) resolveAPIURL(req *bindings.WriteRequest) (string, error) {
 		hub = hubFromRequest
 	}
 
-	url := ""
+	var url string
 	if group, ok := req.Metadata[groupKey]; ok && group != "" {
 		url = fmt.Sprintf("%s/api/v1/hubs/%s/groups/%s", s.endpoint, hub, group)
 	} else if user, ok := req.Metadata[userKey]; ok && user != "" {
@@ -175,20 +175,19 @@ func (s *SignalR) ensureValidToken(url string) (string, error) {
 	}
 
 	expiration := now.Add(1 * time.Hour)
-	pl := jwt.Payload{
-		Audience:       jwt.Audience{url},
-		ExpirationTime: jwt.NumericDate(expiration),
+
+	claims := &jwt.StandardClaims{
+		ExpiresAt: expiration.Unix(),
+		Audience:  url,
 	}
 
-	var hs = jwt.NewHS256([]byte(s.accessKey))
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	token, err := jwt.Sign(pl, hs)
-
+	newToken, err := token.SignedString([]byte(s.accessKey))
 	if err != nil {
 		return "", err
 	}
 
-	newToken := string(token)
 	s.tokens[url] = signalrCachedToken{token: newToken, expiration: expiration.Add(time.Minute * -5)}
 
 	return newToken, nil

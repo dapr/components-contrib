@@ -7,6 +7,8 @@ package storagequeues
 
 import (
 	"context"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -72,6 +74,8 @@ func TestWriteQueue(t *testing.T) {
 
 func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
+
 	a := AzureStorageQueues{helper: mm}
 
 	m := bindings.Metadata{}
@@ -92,10 +96,13 @@ func TestReadQueue(t *testing.T) {
 		return nil
 	}
 
-	_ = a.Read(handler)
+	go a.Read(handler)
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 
+	pid := syscall.Getpid()
+	proc, err := os.FindProcess(pid)
+	proc.Signal(os.Interrupt)
 }
 
 // Uncomment this function to test reding from local queue
@@ -128,6 +135,8 @@ func TestReadQueue(t *testing.T) {
 */
 func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
+
 	a := AzureStorageQueues{helper: mm}
 
 	m := bindings.Metadata{}
@@ -142,9 +151,13 @@ func TestReadQueueNoMessage(t *testing.T) {
 		return nil
 	}
 
-	_ = a.Read(handler)
+	go a.Read(handler)
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
+
+	pid := syscall.Getpid()
+	proc, err := os.FindProcess(pid)
+	proc.Signal(os.Interrupt)
 
 }
 

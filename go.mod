@@ -30,11 +30,13 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1
+	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c

@@ -122,7 +122,7 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 		return err
 	}
 
-	httpReq.Header.Add("Authorization", "Bearer "+token)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(httpReq)

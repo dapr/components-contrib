@@ -21,6 +21,7 @@ func getFakeProperties() map[string]string {
 		consumerID: "fakeConsumer",
 		host:       "fake.redis.com",
 		password:   "fakePassword",
+		enableTLS:  "true",
 	}
 }
 
@@ -40,6 +41,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[host], m.host)
 		assert.Equal(t, fakeProperties[password], m.password)
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
+		assert.Equal(t, true, m.enableTLS)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {

@@ -21,7 +21,6 @@ import (
 // Kafka allows reading/writing to a Kafka consumer group
 type Kafka struct {
 	producer      sarama.SyncProducer
-	topics        []string
 	consumerGroup string
 	brokers       []string
 }

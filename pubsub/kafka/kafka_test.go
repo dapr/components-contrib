@@ -20,5 +20,4 @@ func TestParseMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.Brokers[0])
 	assert.Equal(t, "a", meta.ConsumerGroup)
-	assert.Equal(t, "a", meta.Topics[0])
 }

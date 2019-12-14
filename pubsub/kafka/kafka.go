@@ -14,8 +14,8 @@ import (
 	"syscall"
 
 	"github.com/Shopify/sarama"
-	log "github.com/Sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
+	log "github.com/sirupsen/logrus"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -28,7 +28,6 @@ type Kafka struct {
 
 type kafkaMetadata struct {
 	Brokers       []string `json:"brokers"`
-	Topics        []string `json:"topics"`
 	PublishTopic  string   `json:"publishTopic"`
 	ConsumerGroup string   `json:"consumerGroup"`
 }
@@ -81,7 +80,6 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.brokers = meta.Brokers
 	k.producer = p
-	k.topics = meta.Topics
 	k.consumerGroup = meta.ConsumerGroup
 	return nil
 }
@@ -122,8 +120,8 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	go func() {
 		defer wg.Done()
 		for {
-			if err = client.Consume(ctx, k.topics, &cs); err != nil {
-				log.Errorf("error from consumer: %s", err)
+			if err = client.Consume(ctx, []string{req.Topic}, &cs); err != nil {
+				log.Errorf("error from consumer topic(%s) - %v", req.Topic, err)
 			}
 			// check if context was cancelled, signaling that the consumer should stop
 			if ctx.Err() != nil {
@@ -154,9 +152,6 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")
-	}
-	if val, ok := metadata.Properties["topics"]; ok && val != "" {
-		meta.Topics = strings.Split(val, ",")
 	}
 	return &meta, nil
 }

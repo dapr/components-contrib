@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 )

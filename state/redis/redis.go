@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
-
 	"github.com/joomcode/redispipe/redis"
 	"github.com/joomcode/redispipe/redisconn"
 	jsoniter "github.com/json-iterator/go"

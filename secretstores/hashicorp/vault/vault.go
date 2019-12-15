@@ -18,9 +18,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/net/http2"
-
 	"github.com/dapr/components-contrib/secretstores"
+	"golang.org/x/net/http2"
 )
 
 const (

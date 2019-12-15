@@ -9,13 +9,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/sirupsen/logrus"
 )
 
 // AWSSQS allows receiving and sending data to/from AWS SQS
@@ -84,7 +83,7 @@ func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) error) error {
 			WaitTimeSeconds: aws.Int64(20),
 		})
 		if err != nil {
-			log.Errorf("Unable to receive message from queue %q, %v.", *a.QueueURL, err)
+			logrus.Errorf("Unable to receive message from queue %q, %v.", *a.QueueURL, err)
 		}
 
 		if len(result.Messages) > 0 {

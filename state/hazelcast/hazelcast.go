@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hazelcast/hazelcast-go-client/core"
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/hazelcast/hazelcast-go-client"
+	"github.com/hazelcast/hazelcast-go-client/core"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (

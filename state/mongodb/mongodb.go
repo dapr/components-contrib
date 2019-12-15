@@ -14,10 +14,8 @@ import (
 	"strconv"
 	"time"
 
-	json "github.com/json-iterator/go"
-
 	"github.com/dapr/components-contrib/state"
-
+	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

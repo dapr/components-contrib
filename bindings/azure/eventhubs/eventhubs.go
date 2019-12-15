@@ -14,8 +14,8 @@ import (
 	"time"
 
 	eventhub "github.com/Azure/azure-event-hubs-go"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/sirupsen/logrus"
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events
@@ -84,7 +84,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 			enqTime := *event.SystemProperties.EnqueuedTime
 			d, err := time.ParseDuration(a.metadata.MessageAge)
 			if err != nil {
-				log.Errorf("error parsing duration: %s", err)
+				logrus.Errorf("error parsing duration: %s", err)
 				return nil
 			} else if time.Now().UTC().Sub(enqTime) > d {
 				return nil
@@ -110,7 +110,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 	}
 
 	if a.metadata.ConsumerGroup != "" {
-		log.Infof("eventhubs: using consumer group %s", a.metadata.ConsumerGroup)
+		logrus.Infof("eventhubs: using consumer group %s", a.metadata.ConsumerGroup)
 		ops = append(ops, eventhub.ReceiveWithConsumerGroup(a.metadata.ConsumerGroup))
 	}
 

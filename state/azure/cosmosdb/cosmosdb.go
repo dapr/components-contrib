@@ -9,11 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	jsoniter "github.com/json-iterator/go"
-
-	"github.com/dapr/components-contrib/state"
-
 	"github.com/a8m/documentdb"
+	"github.com/dapr/components-contrib/state"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // StateStore is a CosmosDB state store

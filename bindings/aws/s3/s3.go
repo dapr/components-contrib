@@ -9,14 +9,13 @@ import (
 	"bytes"
 	"encoding/json"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/google/uuid"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket
@@ -58,7 +57,7 @@ func (s *AWSS3) Write(req *bindings.WriteRequest) error {
 		key = val
 	} else {
 		key = uuid.New().String()
-		log.Debugf("key not found. generating key %s", key)
+		logrus.Debugf("key not found. generating key %s", key)
 	}
 
 	r := bytes.NewReader(req.Data)

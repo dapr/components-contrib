@@ -11,12 +11,10 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/google/uuid"
-
-	log "github.com/sirupsen/logrus"
-
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -61,7 +59,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	ctx := context.Background()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
 	// Don't return error, container might already exist
-	log.Debugf("error creating container: %s", err)
+	logrus.Debugf("error creating container: %s", err)
 	a.containerURL = containerURL
 	return nil
 }

@@ -17,8 +17,8 @@ import (
 	"syscall"
 
 	"github.com/Shopify/sarama"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/sirupsen/logrus"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -199,7 +199,7 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 		defer wg.Done()
 		for {
 			if err = client.Consume(ctx, k.topics, &c); err != nil {
-				log.Errorf("error from c: %s", err)
+				logrus.Errorf("error from c: %s", err)
 			}
 			// check if context was cancelled, signaling that the c should stop
 			if ctx.Err() != nil {

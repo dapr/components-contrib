@@ -12,8 +12,8 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -202,7 +202,7 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.
 func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic string, sub subscription, handlerFunc azservicebus.HandlerFunc) {
 	for {
 		if err := sub.Receive(ctx, handlerFunc); err != nil {
-			log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
+			logrus.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
 			return
 		}
 	}

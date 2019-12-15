@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
 	nats "github.com/nats-io/go-nats"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -57,7 +57,7 @@ func (n *natsPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("nats: error connecting to nats at %s: %s", m.natsURL, err)
 	}
-	log.Debugf("connected to nats at %s", m.natsURL)
+	logrus.Debugf("connected to nats at %s", m.natsURL)
 
 	n.natsConn = natsConn
 	return nil
@@ -76,9 +76,9 @@ func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 		handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 	})
 	if err != nil {
-		log.Warnf("nats: error subscribe: %s", err)
+		logrus.Warnf("nats: error subscribe: %s", err)
 	}
-	log.Debugf("nats: subscribed to subject %s with queue group %s", sub.Subject, sub.Queue)
+	logrus.Debugf("nats: subscribed to subject %s with queue group %s", sub.Subject, sub.Queue)
 
 	return nil
 }

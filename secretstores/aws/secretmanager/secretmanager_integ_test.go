@@ -7,10 +7,11 @@
 package secretmanager
 
 import (
-	"github.com/dapr/components-contrib/secretstores"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/dapr/components-contrib/secretstores"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,

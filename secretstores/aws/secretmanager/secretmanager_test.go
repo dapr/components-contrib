@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/stretchr/testify/assert"
 )

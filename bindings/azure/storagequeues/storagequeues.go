@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/sirupsen/logrus"
 )
 
 type consumer struct {
@@ -163,7 +163,7 @@ func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) er
 		for {
 			err := a.helper.Read(ctx, &c)
 			if err != nil {
-				log.Errorf("error from c: %s", err)
+				logrus.Errorf("error from c: %s", err)
 			}
 			if ctx.Err() != nil {
 				return

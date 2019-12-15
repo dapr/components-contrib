@@ -11,9 +11,8 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/state"
-	"gopkg.in/couchbase/gocb.v1"
-
 	jsoniter "github.com/json-iterator/go"
+	"gopkg.in/couchbase/gocb.v1"
 )
 
 const (

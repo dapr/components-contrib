@@ -12,10 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/go-redis/redis"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -112,7 +111,7 @@ func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
 	err := r.client.XGroupCreateMkStream(req.Topic, r.metadata.consumerID, "0").Err()
 	if err != nil {
-		log.Warnf("redis streams: %s", err)
+		logrus.Warnf("redis streams: %s", err)
 	}
 	go r.beginReadingFromStream(req.Topic, r.metadata.consumerID, handler)
 	return nil
@@ -157,7 +156,7 @@ func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler
 	for {
 		streams, err := r.readFromStream(stream, consumerID, start)
 		if err != nil {
-			log.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+			logrus.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			return
 		}
 		r.processStreams(consumerID, streams, handler)

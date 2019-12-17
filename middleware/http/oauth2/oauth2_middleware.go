@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"strings"
 
+	"context"
+
 	"github.com/dapr/components-contrib/middleware"
+	"github.com/fasthttp-contrib/sessions"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/oauth2"
-	"context"	
 )
 
 // Metadata is the oAuth middleware config
@@ -36,6 +38,13 @@ func NewOAuth2Middleware() *Middleware {
 type Middleware struct {
 }
 
+const (
+	stateParam   = "state"
+	savedState   = "auth-state"
+	redirectPath = "redirect-url"
+	codeParam    = "code"
+)
+
 // GetHandler retruns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
@@ -55,21 +64,25 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 					TokenURL: meta.TokenURL,
 				},
 			}
-			state := string(ctx.FormValue("state"))
+			session := sessions.StartFasthttp(ctx)
+			if session.GetString(meta.AuthHeaderName) != "" {
+				h(ctx)
+				return
+			}
+			state := string(ctx.FormValue(stateParam))
 			if state == "" {
 				id, _ := uuid.NewUUID()
-				cookie := fasthttp.Cookie{}
-				cookie.SetKey("state")
-				cookie.SetValue(id.String())
-				ctx.Response.Header.SetCookie(&cookie)
+				session.Set(savedState, id.String())
+				session.Set(redirectPath, string(ctx.RequestURI()))
 				url := conf.AuthCodeURL(id.String(), oauth2.AccessTypeOffline)
 				ctx.Redirect(url, 302)
 			} else {
-				saved := string(ctx.Request.Header.Cookie("state"))
-				if state != saved {
+				authState := session.GetString(savedState)
+				redirectURL := session.GetString(redirectPath)
+				if state != authState {
 					ctx.Error("invalid state", fasthttp.StatusBadRequest)
 				} else {
-					code := string(ctx.FormValue("code"))
+					code := string(ctx.FormValue(codeParam))
 					if code == "" {
 						ctx.Error("code not found", fasthttp.StatusBadRequest)
 					} else {
@@ -77,8 +90,9 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 						if err != nil {
 							ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 						}
+						session.Set(meta.AuthHeaderName, token.Type()+" "+token.AccessToken)
 						ctx.Request.Header.Add(meta.AuthHeaderName, token.Type()+" "+token.AccessToken)
-						h(ctx)
+						ctx.Redirect(redirectURL, 302)
 					}
 				}
 			}

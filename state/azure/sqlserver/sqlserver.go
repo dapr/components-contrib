@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package sqlserver
 
 import (
@@ -7,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"unicode"
 
 	"github.com/dapr/components-contrib/state"
 	mssql "github.com/denisenkom/go-mssqldb"
@@ -26,7 +32,7 @@ func KeyTypeFromString(k string) (KeyType, error) {
 		return IntegerKeyType, nil
 	}
 
-	return InvalidKeyType, errors.New("Invalid key type")
+	return InvalidKeyType, errors.New("invalid key type")
 }
 
 const (
@@ -53,13 +59,16 @@ const (
 	keyColumnName        = "Key"
 	rowVersionColumnName = "RowVersion"
 
-	defaultMaxKeyLength = 200
-	defaultSchema       = "dbo"
+	defaultKeyLength = 200
+	defaultSchema    = "dbo"
 )
 
 // NewSQLServerStore creates a new instance of a Sql Server transaction store
 func NewSQLServerStore() *StateStore {
-	return &StateStore{}
+	store := StateStore{}
+	store.migratorFactory = newMigration
+
+	return &store
 }
 
 // IndexedProperty defines a indexed property
@@ -77,6 +86,7 @@ type StateStore struct {
 	keyType           KeyType
 	keyLength         int
 	indexedProperties []IndexedProperty
+	migratorFactory   func(*StateStore) migrator
 
 	bulkDeleteCommand        string
 	itemRefTableTypeName     string
@@ -86,9 +96,39 @@ type StateStore struct {
 	deleteWithoutETagCommand string
 }
 
+func isLetterOrNumber(c rune) bool {
+	return unicode.IsNumber(c) || unicode.IsLetter(c)
+}
+
+func isValidSQLName(s string) bool {
+	for _, c := range s {
+		if !(isLetterOrNumber(c) || (c == '_')) {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidIndexedPropertyName(s string) bool {
+	for _, c := range s {
+		if !(isLetterOrNumber(c) || (c == '_') || (c == '.') || (c == '[') || (c == ']')) {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidIndexedPropertyType(s string) bool {
+	for _, c := range s {
+		if !(isLetterOrNumber(c) || (c == '(') || (c == ')')) {
+			return false
+		}
+	}
+	return true
+}
+
 // Init initializes the SQL server state store
 func (s *StateStore) Init(metadata state.Metadata) error {
-
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
 		s.connectionString = val
 	} else {
@@ -96,6 +136,10 @@ func (s *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	if val, ok := metadata.Properties[tableNameKey]; ok && val != "" {
+		if !isValidSQLName(val) {
+			return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
+
 		s.tableName = val
 	} else {
 		return fmt.Errorf("missing table name")
@@ -123,11 +167,14 @@ func (s *StateStore) Init(metadata state.Metadata) error {
 				return fmt.Errorf("invalid key length value of %d", s.keyLength)
 			}
 		} else {
-			s.keyLength = defaultMaxKeyLength
+			s.keyLength = defaultKeyLength
 		}
 	}
 
 	if val, ok := metadata.Properties[schemaKey]; ok && val != "" {
+		if !isValidSQLName(val) {
+			return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
 		s.schema = val
 	} else {
 		s.schema = defaultSchema
@@ -140,11 +187,37 @@ func (s *StateStore) Init(metadata state.Metadata) error {
 			return err
 		}
 
+		for _, p := range indexedProperties {
+			if p.ColumnName == "" {
+				return errors.New("indexed property column cannot be empty")
+			}
+
+			if p.Property == "" {
+				return errors.New("indexed property name cannot be empty")
+			}
+
+			if p.Type == "" {
+				return errors.New("indexed property type cannot be empty")
+			}
+
+			if !isValidSQLName(p.ColumnName) {
+				return fmt.Errorf("invalid indexed property column name, accepted characters are (A-Z, a-z, 0-9, _)")
+			}
+
+			if !isValidIndexedPropertyName(p.Property) {
+				return fmt.Errorf("invalid indexed property name, accepted characters are (A-Z, a-z, 0-9, _, ., [, ])")
+			}
+
+			if !isValidIndexedPropertyType(p.Type) {
+				return fmt.Errorf("invalid indexed property type, accepted characters are (A-Z, a-z, 0-9, _, (, ))")
+			}
+		}
+
 		s.indexedProperties = indexedProperties
 	}
 
-	migration := newMigration(s)
-	mr, err := migration.ensureDatabaseExists()
+	migration := s.migratorFactory(s)
+	mr, err := migration.executeMigrations()
 	if err != nil {
 		return err
 	}
@@ -152,16 +225,15 @@ func (s *StateStore) Init(metadata state.Metadata) error {
 	s.itemRefTableTypeName = mr.itemRefTableTypeName
 	s.bulkDeleteCommand = fmt.Sprintf("exec %s @itemsToDelete;", mr.bulkDeleteProcFullName)
 	s.upsertCommand = mr.upsertProcFullName
-	s.getCommand = fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key", s.schema, s.tableName)
-	s.deleteWithETagCommand = fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, s.schema, s.tableName)
-	s.deleteWithoutETagCommand = fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, s.schema, s.tableName)
+	s.getCommand = mr.getCommand
+	s.deleteWithETagCommand = mr.deleteWithETagCommand
+	s.deleteWithoutETagCommand = mr.deleteWithoutETagCommand
 
 	return nil
 }
 
 // Multi performs multiple updates on a Sql server store
 func (s *StateStore) Multi(reqs []state.TransactionalRequest) error {
-
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
 	for _, req := range reqs {
@@ -177,7 +249,7 @@ func (s *StateStore) Multi(reqs []state.TransactionalRequest) error {
 			}
 
 			sets = append(sets, setReq)
-			break
+
 		case state.Delete:
 
 			delReq, ok := req.Request.(state.DeleteRequest)
@@ -190,7 +262,7 @@ func (s *StateStore) Multi(reqs []state.TransactionalRequest) error {
 			}
 
 			deletes = append(deletes, delReq)
-			break
+
 		default:
 			return fmt.Errorf("unsupported operation: %s", req.Operation)
 		}
@@ -239,7 +311,6 @@ func (s *StateStore) executeMulti(sets []state.SetRequest, deletes []state.Delet
 
 // Delete removes an entity from the store
 func (s *StateStore) Delete(req *state.DeleteRequest) error {
-
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -249,13 +320,13 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 
 	var res sql.Result
 	if req.ETag != "" {
-		b, err := hexStringToBytes(req.ETag)
+		var b []byte
+		b, err = hex.DecodeString(req.ETag)
 		if err != nil {
 			return err
 		}
 
 		res, err = db.Exec(s.deleteWithETagCommand, sql.Named(keyColumnName, req.Key), sql.Named(rowVersionColumnName, b))
-
 	} else {
 		res, err = db.Exec(s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
 	}
@@ -284,7 +355,6 @@ type TvpDeleteTableStringKey struct {
 
 // BulkDelete removes multiple entries from the store
 func (s *StateStore) BulkDelete(req []state.DeleteRequest) error {
-
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -314,7 +384,7 @@ func (s *StateStore) executeBulkDelete(db dbExecutor, req []state.DeleteRequest)
 		var etag []byte
 		var err error
 		if d.ETag != "" {
-			etag, err = hexStringToBytes(d.ETag)
+			etag, err = hex.DecodeString(d.ETag)
 			if err != nil {
 				return err
 			}
@@ -347,7 +417,6 @@ func (s *StateStore) executeBulkDelete(db dbExecutor, req []state.DeleteRequest)
 
 // Get returns an entity from store
 func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return nil, err
@@ -384,7 +453,6 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set adds/updates an entity on store
 func (s *StateStore) Set(req *state.SetRequest) error {
-
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -408,7 +476,8 @@ func (s *StateStore) executeSet(db dbExecutor, req *state.SetRequest) error {
 
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.ETag != "" {
-		b, err := hexStringToBytes(req.ETag)
+		var b []byte
+		b, err = hex.DecodeString(req.ETag)
 		if err != nil {
 			return err
 		}

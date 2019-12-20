@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package sqlserver
 
 import (
@@ -5,30 +10,41 @@ import (
 	"fmt"
 )
 
+type migrator interface {
+	executeMigrations() (migrationResult, error)
+}
+
 type migration struct {
 	store *StateStore
 }
 
 type migrationResult struct {
-	bulkDeleteProcName     string
-	bulkDeleteProcFullName string
-	itemRefTableTypeName   string
-	upsertProcName         string
-	upsertProcFullName     string
-	pkColumnType           string
+	bulkDeleteProcName       string
+	bulkDeleteProcFullName   string
+	itemRefTableTypeName     string
+	upsertProcName           string
+	upsertProcFullName       string
+	pkColumnType             string
+	getCommand               string
+	deleteWithETagCommand    string
+	deleteWithoutETagCommand string
 }
 
-func newMigration(store *StateStore) *migration {
+func newMigration(store *StateStore) migrator {
 	return &migration{
 		store: store,
 	}
 }
 
-func (m *migration) ensureDatabaseExists() (migrationResult, error) {
+/* #nosec */
+func (m *migration) executeMigrations() (migrationResult, error) {
 	r := migrationResult{
-		bulkDeleteProcName:   fmt.Sprintf("sp_BulkDelete_%s", m.store.tableName),
-		itemRefTableTypeName: fmt.Sprintf("[%s].%s_Table", m.store.schema, m.store.tableName),
-		upsertProcName:       fmt.Sprintf("sp_Upsert_%s", m.store.tableName),
+		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.store.tableName),
+		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.store.schema, m.store.tableName),
+		upsertProcName:           fmt.Sprintf("sp_Upsert_%s", m.store.tableName),
+		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key", m.store.schema, m.store.tableName),
+		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.store.schema, m.store.tableName),
+		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.store.schema, m.store.tableName),
 	}
 
 	r.bulkDeleteProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.bulkDeleteProcName)
@@ -37,16 +53,12 @@ func (m *migration) ensureDatabaseExists() (migrationResult, error) {
 	switch m.store.keyType {
 	case StringKeyType:
 		r.pkColumnType = fmt.Sprintf("NVARCHAR(%d)", m.store.keyLength)
-		break
 
 	case UUIDKeyType:
 		r.pkColumnType = "uniqueidentifier"
-		break
 
 	case IntegerKeyType:
 		r.pkColumnType = "int"
-		break
-
 	}
 
 	db, err := sql.Open("sqlserver", m.store.connectionString)
@@ -81,8 +93,17 @@ func (m *migration) ensureDatabaseExists() (migrationResult, error) {
 	return r, nil
 }
 
-func (m *migration) ensureIndexedPropertyExists(ix IndexedProperty, db *sql.DB) error {
+func runCommand(tsql string, db *sql.DB) error {
+	_, err := db.Exec(tsql)
+	if err != nil {
+		return err
+	}
 
+	return nil
+}
+
+/* #nosec */
+func (m *migration) ensureIndexedPropertyExists(ix IndexedProperty, db *sql.DB) error {
 	indexName := "IX_" + ix.ColumnName
 
 	tsql := fmt.Sprintf(`
@@ -102,6 +123,7 @@ func (m *migration) ensureIndexedPropertyExists(ix IndexedProperty, db *sql.DB) 
 	return runCommand(tsql, db)
 }
 
+/* #nosec */
 func (m *migration) ensureSchemaExists(db *sql.DB) error {
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS(SELECT * FROM sys.schemas WHERE name = N'%s')
@@ -111,8 +133,8 @@ func (m *migration) ensureSchemaExists(db *sql.DB) error {
 	return runCommand(tsql, db)
 }
 
+/* #nosec */
 func (m *migration) ensureTableExists(db *sql.DB, r migrationResult) error {
-
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s')
     	CREATE TABLE [%s].[%s] (
@@ -138,6 +160,7 @@ func (m *migration) ensureTableExists(db *sql.DB, r migrationResult) error {
 	return runCommand(tsql, db)
 }
 
+/* #nosec */
 func (m *migration) ensureTypeExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 	IF type_id('[%s].%s_Table') IS NULL
@@ -151,6 +174,7 @@ func (m *migration) ensureTypeExists(db *sql.DB, mr migrationResult) error {
 	return runCommand(tsql, db)
 }
 
+/* #nosec */
 func (m *migration) ensureBulkDeleteStoredProcedureExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 		CREATE PROCEDURE %s 
@@ -188,8 +212,8 @@ func (m *migration) ensureStoredProcedureExists(db *sql.DB, mr migrationResult) 
 	return nil
 }
 
+/* #nosec */
 func (m *migration) createStoredProcedureIfNotExists(db *sql.DB, name string, escapedDefinition string) error {
-
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[%s].[%s]') AND type in (N'P', N'PC'))
 	BEGIN
@@ -202,6 +226,7 @@ func (m *migration) createStoredProcedureIfNotExists(db *sql.DB, name string, es
 	return runCommand(tsql, db)
 }
 
+/* #nosec */
 func (m *migration) ensureUpsertStoredProcedureExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 		CREATE PROCEDURE %s (

@@ -47,6 +47,8 @@ type userWithEtag struct {
 }
 
 func TestIntegrationCases(t *testing.T) {
+	t.Skip("Docker is required to run integration tests")
+
 	ensureDBIsValid(t)
 	t.Run("Single operations", testSingleOperations)
 	t.Run("Set New Record With Invalid Etag Should Fail", testSetNewRecordWithInvalidEtagShouldFail)

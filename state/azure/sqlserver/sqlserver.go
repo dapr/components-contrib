@@ -64,8 +64,8 @@ const (
 )
 
 // NewSQLServerStore creates a new instance of a Sql Server transaction store
-func NewSQLServerStore() *StateStore {
-	store := StateStore{}
+func NewSQLServerStore() *SQLServer {
+	store := SQLServer{}
 	store.migratorFactory = newMigration
 
 	return &store
@@ -78,15 +78,15 @@ type IndexedProperty struct {
 	Type       string `json:"type"`
 }
 
-// StateStore defines a Sql Server based state store
-type StateStore struct {
+// SQLServer defines a Ms SQL Server based state store
+type SQLServer struct {
 	connectionString  string
 	tableName         string
 	schema            string
 	keyType           KeyType
 	keyLength         int
 	indexedProperties []IndexedProperty
-	migratorFactory   func(*StateStore) migrator
+	migratorFactory   func(*SQLServer) migrator
 
 	bulkDeleteCommand        string
 	itemRefTableTypeName     string
@@ -128,7 +128,7 @@ func isValidIndexedPropertyType(s string) bool {
 }
 
 // Init initializes the SQL server state store
-func (s *StateStore) Init(metadata state.Metadata) error {
+func (s *SQLServer) Init(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
 		s.connectionString = val
 	} else {
@@ -233,7 +233,7 @@ func (s *StateStore) Init(metadata state.Metadata) error {
 }
 
 // Multi performs multiple updates on a Sql server store
-func (s *StateStore) Multi(reqs []state.TransactionalRequest) error {
+func (s *SQLServer) Multi(reqs []state.TransactionalRequest) error {
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
 	for _, req := range reqs {
@@ -275,7 +275,7 @@ func (s *StateStore) Multi(reqs []state.TransactionalRequest) error {
 	return nil
 }
 
-func (s *StateStore) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -310,7 +310,7 @@ func (s *StateStore) executeMulti(sets []state.SetRequest, deletes []state.Delet
 }
 
 // Delete removes an entity from the store
-func (s *StateStore) Delete(req *state.DeleteRequest) error {
+func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -354,7 +354,7 @@ type TvpDeleteTableStringKey struct {
 }
 
 // BulkDelete removes multiple entries from the store
-func (s *StateStore) BulkDelete(req []state.DeleteRequest) error {
+func (s *SQLServer) BulkDelete(req []state.DeleteRequest) error {
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -378,7 +378,7 @@ func (s *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-func (s *StateStore) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) error {
+func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) error {
 	values := make([]TvpDeleteTableStringKey, len(req))
 	for i, d := range req {
 		var etag []byte
@@ -416,7 +416,7 @@ func (s *StateStore) executeBulkDelete(db dbExecutor, req []state.DeleteRequest)
 }
 
 // Get returns an entity from store
-func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return nil, err
@@ -452,7 +452,7 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set adds/updates an entity on store
-func (s *StateStore) Set(req *state.SetRequest) error {
+func (s *SQLServer) Set(req *state.SetRequest) error {
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
@@ -468,7 +468,7 @@ type dbExecutor interface {
 	Exec(query string, args ...interface{}) (sql.Result, error)
 }
 
-func (s *StateStore) executeSet(db dbExecutor, req *state.SetRequest) error {
+func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	json, err := json.Marshal(req.Value)
 	if err != nil {
 		return err
@@ -501,7 +501,7 @@ func (s *StateStore) executeSet(db dbExecutor, req *state.SetRequest) error {
 }
 
 // BulkSet adds/updates multiple entities on store
-func (s *StateStore) BulkSet(req []state.SetRequest) error {
+func (s *SQLServer) BulkSet(req []state.SetRequest) error {
 	db, err := sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err

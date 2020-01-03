@@ -15,7 +15,7 @@ type migrator interface {
 }
 
 type migration struct {
-	store *StateStore
+	store *SQLServer
 }
 
 type migrationResult struct {
@@ -30,7 +30,7 @@ type migrationResult struct {
 	deleteWithoutETagCommand string
 }
 
-func newMigration(store *StateStore) migrator {
+func newMigration(store *SQLServer) migrator {
 	return &migration{
 		store: store,
 	}

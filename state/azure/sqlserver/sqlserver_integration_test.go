@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,8 +24,7 @@ import (
 )
 
 const (
-	masterConnectionString = "server=localhost;user id=sa;password=Pass@Word1;port=1433;"
-	connectionString       = "server=localhost;user id=sa;password=Pass@Word1;port=1433;database=dapr_test;"
+	connectionStringEnvKey = "DAPR_TEST_SQL_CONNSTRING"
 	usersTableName         = "Users"
 	invalidEtag            = "FFFFFFFFFFFFFFFF"
 	beverageTea            = "tea"
@@ -46,8 +46,23 @@ type userWithEtag struct {
 	etag string
 }
 
+func getMasterConnectionString() string {
+	return os.Getenv(connectionStringEnvKey)
+}
+
+func getConnectionString() string {
+	if connString := getMasterConnectionString(); connString != "" {
+		return connString + ";database=dapr_test;"
+	}
+
+	return ""
+}
+
 func TestIntegrationCases(t *testing.T) {
-	t.Skip("Docker is required to run integration tests")
+	connectionString := getMasterConnectionString()
+	if connectionString == "" {
+		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+	}
 
 	ensureDBIsValid(t)
 	t.Run("Single operations", testSingleOperations)
@@ -70,7 +85,7 @@ func getUniqueDBSchema() string {
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
 	metadata := state.Metadata{
 		Properties: map[string]string{
-			connectionStringKey: connectionString,
+			connectionStringKey: getConnectionString(),
 			schemaKey:           schema,
 			tableNameKey:        usersTableName,
 			keyTypeKey:          string(kt),
@@ -85,12 +100,12 @@ func createMetadata(schema string, kt KeyType, indexedProperties string) state.M
 }
 
 // Ensure the database is running
-// For docker use: docker run --name sqlserver -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Pass@Word1" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04
-func getTestStore(t *testing.T, indexedProperties string) *StateStore {
+// For docker, use: docker run --name sqlserver -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Pass@Word1" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04
+func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 	return getTestStoreWithKeyType(t, StringKeyType, indexedProperties)
 }
 
-func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *StateStore {
+func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *SQLServer {
 	ensureDBIsValid(t)
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
@@ -102,7 +117,7 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 }
 
 func ensureDBIsValid(t *testing.T) {
-	db, err := sql.Open("sqlserver", masterConnectionString)
+	db, err := sql.Open("sqlserver", getMasterConnectionString())
 	assert.Nil(t, err)
 	defer db.Close()
 
@@ -110,10 +125,9 @@ func ensureDBIsValid(t *testing.T) {
 IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = N'dapr_test')
 	CREATE DATABASE [dapr_test]`)
 	assert.Nil(t, err)
-
 }
 
-func assertUserExists(t *testing.T, store *StateStore, key string) (user, string) {
+func assertUserExists(t *testing.T, store *SQLServer, key string) (user, string) {
 	getRes, err := store.Get(&state.GetRequest{Key: key})
 	assert.Nil(t, err)
 	assert.NotNil(t, getRes)
@@ -127,7 +141,7 @@ func assertUserExists(t *testing.T, store *StateStore, key string) (user, string
 	return loaded, getRes.ETag
 }
 
-func assertLoadedUserIsEqual(t *testing.T, store *StateStore, key string, expected user) (user, string) {
+func assertLoadedUserIsEqual(t *testing.T, store *SQLServer, key string, expected user) (user, string) {
 	loaded, etag := assertUserExists(t, store, key)
 	assert.Equal(t, expected.ID, loaded.ID)
 	assert.Equal(t, expected.Name, loaded.Name)
@@ -136,12 +150,12 @@ func assertLoadedUserIsEqual(t *testing.T, store *StateStore, key string, expect
 	return loaded, etag
 }
 
-func assertUserDoesNotExist(t *testing.T, store *StateStore, key string) {
+func assertUserDoesNotExist(t *testing.T, store *SQLServer, key string) {
 	_, err := store.Get(&state.GetRequest{Key: key})
 	assert.NotNil(t, err)
 }
 
-func assertDBQuery(t *testing.T, store *StateStore, query string, assertReader func(t *testing.T, rows *sql.Rows)) {
+func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader func(t *testing.T, rows *sql.Rows)) {
 	db, err := sql.Open("sqlserver", store.connectionString)
 	assert.Nil(t, err)
 	defer db.Close()
@@ -154,7 +168,7 @@ func assertDBQuery(t *testing.T, store *StateStore, query string, assertReader f
 }
 
 /* #nosec */
-func assertUserCountIsEqualTo(t *testing.T, store *StateStore, expected int) {
+func assertUserCountIsEqualTo(t *testing.T, store *SQLServer, expected int) {
 	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.schema, store.tableName)
 	assertDBQuery(t, store, tsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
@@ -726,7 +740,7 @@ func testConcurrentSets(t *testing.T) {
 			totalSucceeds := int32(0)
 			for i := 0; i < parallelism; i++ {
 				wc.Add(1)
-				go func(id, etag string, start <-chan bool, wc *sync.WaitGroup, store *StateStore) {
+				go func(id, etag string, start <-chan bool, wc *sync.WaitGroup, store *SQLServer) {
 					<-start
 
 					defer wc.Done()

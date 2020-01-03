@@ -29,12 +29,12 @@ func TestValidConfiguration(t *testing.T) {
 	tests := []struct {
 		name     string
 		props    map[string]string
-		expected StateStore
+		expected SQLServer
 	}{
 		{
 			name:  "No schema",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				tableName:        sampleUserTableName,
 				schema:           defaultSchema,
@@ -45,7 +45,7 @@ func TestValidConfiguration(t *testing.T) {
 		{
 			name:  "Custom schema",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, schemaKey: "mytest"},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				tableName:        sampleUserTableName,
 				schema:           "mytest",
@@ -56,7 +56,7 @@ func TestValidConfiguration(t *testing.T) {
 		{
 			name:  "Unique identifier key type",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "uuid"},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				schema:           defaultSchema,
 				tableName:        sampleUserTableName,
@@ -67,7 +67,7 @@ func TestValidConfiguration(t *testing.T) {
 		{
 			name:  "Integer identifier key type",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "integer"},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				schema:           defaultSchema,
 				tableName:        sampleUserTableName,
@@ -78,7 +78,7 @@ func TestValidConfiguration(t *testing.T) {
 		{
 			name:  "Custom key length",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyLengthKey: "100"},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				schema:           defaultSchema,
 				tableName:        sampleUserTableName,
@@ -89,7 +89,7 @@ func TestValidConfiguration(t *testing.T) {
 		{
 			name:  "Single indexed property",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, indexedPropertiesKey: `[{"column": "Age","property":"age", "type":"int"}]`},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				schema:           defaultSchema,
 				tableName:        sampleUserTableName,
@@ -103,7 +103,7 @@ func TestValidConfiguration(t *testing.T) {
 		{
 			name:  "Multiple indexed properties",
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, indexedPropertiesKey: `[{"column": "Age","property":"age", "type":"int"}, {"column": "Name","property":"name", "type":"nvarchar(100)"}]`},
-			expected: StateStore{
+			expected: SQLServer{
 				connectionString: sampleConnectionString,
 				schema:           defaultSchema,
 				tableName:        sampleUserTableName,
@@ -120,7 +120,7 @@ func TestValidConfiguration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sqlStore := NewSQLServerStore()
-			sqlStore.migratorFactory = func(s *StateStore) migrator {
+			sqlStore.migratorFactory = func(s *SQLServer) migrator {
 				return &mockMigrator{}
 			}
 

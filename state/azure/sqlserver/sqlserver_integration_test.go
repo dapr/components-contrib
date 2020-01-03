@@ -24,6 +24,9 @@ import (
 )
 
 const (
+	// connectionStringEnvKey defines the key containing the integration test connection string
+	// To use docker, server=localhost;user id=sa;password=Pass@Word1;port=1433;
+	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;user id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;
 	connectionStringEnvKey = "DAPR_TEST_SQL_CONNSTRING"
 	usersTableName         = "Users"
 	invalidEtag            = "FFFFFFFFFFFFFFFF"
@@ -52,6 +55,10 @@ func getMasterConnectionString() string {
 
 func getConnectionString() string {
 	if connString := getMasterConnectionString(); connString != "" {
+		if strings.Contains(connString, "database=") {
+			return connString
+		}
+
 		return connString + ";database=dapr_test;"
 	}
 
@@ -72,8 +79,13 @@ func TestIntegrationCases(t *testing.T) {
 	t.Run("Bulk sets", testBulkSet)
 	t.Run("Bulk delete", testBulkDelete)
 	t.Run("Insert and Update Set Record Dates", testInsertAndUpdateSetRecordDates)
-	t.Run("Concurrent Sets", testConcurrentSets)
 	t.Run("Multiple initializations", testMultipleInitializations)
+
+	// Run concurrent set tests 10 times
+	const executions = 10
+	for i := 0; i < executions; i++ {
+		t.Run(fmt.Sprintf("Concurrent sets, try #%d", i+1), testConcurrentSets)
+	}
 }
 
 func getUniqueDBSchema() string {
@@ -131,7 +143,7 @@ func assertUserExists(t *testing.T, store *SQLServer, key string) (user, string)
 	getRes, err := store.Get(&state.GetRequest{Key: key})
 	assert.Nil(t, err)
 	assert.NotNil(t, getRes)
-	assert.NotNil(t, getRes.Data)
+	assert.NotNil(t, getRes.Data, "No data was returned")
 	assert.NotEmpty(t, getRes.ETag)
 
 	var loaded user
@@ -721,47 +733,42 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 }
 
 func testConcurrentSets(t *testing.T) {
-	const executions = 10
 	const parallelism = 10
 
-	for i := 0; i < executions; i++ {
-		t.Run(fmt.Sprintf("Only a single writer, try #%d", i+1), func(t *testing.T) {
-			store := getTestStore(t, "")
+	store := getTestStore(t, "")
 
-			u := user{"1", "John", "Coffee"}
-			err := store.Set(&state.SetRequest{Key: u.ID, Value: u})
-			assert.Nil(t, err)
+	u := user{"1", "John", "Coffee"}
+	err := store.Set(&state.SetRequest{Key: u.ID, Value: u})
+	assert.Nil(t, err)
 
-			_, etag := assertLoadedUserIsEqual(t, store, u.ID, u)
+	_, etag := assertLoadedUserIsEqual(t, store, u.ID, u)
 
-			var wc sync.WaitGroup
-			start := make(chan bool, parallelism)
-			totalErrors := int32(0)
-			totalSucceeds := int32(0)
-			for i := 0; i < parallelism; i++ {
-				wc.Add(1)
-				go func(id, etag string, start <-chan bool, wc *sync.WaitGroup, store *SQLServer) {
-					<-start
+	var wc sync.WaitGroup
+	start := make(chan bool, parallelism)
+	totalErrors := int32(0)
+	totalSucceeds := int32(0)
+	for i := 0; i < parallelism; i++ {
+		wc.Add(1)
+		go func(id, etag string, start <-chan bool, wc *sync.WaitGroup, store *SQLServer) {
+			<-start
 
-					defer wc.Done()
+			defer wc.Done()
 
-					modified := user{"1", "John", beverageTea}
-					err := store.Set(&state.SetRequest{Key: id, Value: modified, ETag: etag})
-					if err != nil {
-						atomic.AddInt32(&totalErrors, 1)
-					} else {
-						atomic.AddInt32(&totalSucceeds, 1)
-					}
-				}(u.ID, etag, start, &wc, store)
+			modified := user{"1", "John", beverageTea}
+			err := store.Set(&state.SetRequest{Key: id, Value: modified, ETag: etag})
+			if err != nil {
+				atomic.AddInt32(&totalErrors, 1)
+			} else {
+				atomic.AddInt32(&totalSucceeds, 1)
 			}
-
-			close(start)
-			wc.Wait()
-
-			assert.Equal(t, int32(parallelism-1), totalErrors)
-			assert.Equal(t, int32(1), totalSucceeds)
-		})
+		}(u.ID, etag, start, &wc, store)
 	}
+
+	close(start)
+	wc.Wait()
+
+	assert.Equal(t, int32(parallelism-1), totalErrors)
+	assert.Equal(t, int32(1), totalSucceeds)
 }
 
 func testMultipleInitializations(t *testing.T) {

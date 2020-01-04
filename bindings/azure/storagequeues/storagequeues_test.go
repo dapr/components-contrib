@@ -42,7 +42,7 @@ func TestWriteQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: mm}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -60,7 +60,7 @@ func TestWriteQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -79,7 +79,7 @@ func TestReadQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: mm}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -110,7 +110,7 @@ func TestReadQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -140,7 +140,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	a := AzureStorageQueues{helper: mm}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -164,7 +164,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 func TestParseMetadata(t *testing.T) {
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "myKey", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	a := NewAzureStorageQueues()
 	meta, err := a.parseMetadata(m)

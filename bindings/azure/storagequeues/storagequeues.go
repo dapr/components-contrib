@@ -104,9 +104,9 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	AccountKey  string `json:"accountKey"`
-	QueueName   string `json:"queueName"`
-	AccountName string `json:"accountName"`
+	AccountKey  string `json:"storageAccessKey"`
+	QueueName   string `json:"queue"`
+	AccountName string `json:"storageAccount"`
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance

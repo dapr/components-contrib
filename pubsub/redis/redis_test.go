@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -84,11 +85,9 @@ func TestProcessStreams(t *testing.T) {
 	fakeConsumerID := "fakeConsumer"
 	topicCount := 0
 	messageCount := 0
+	expectedData := "testData"
 
 	fakeHandler := func(msg *pubsub.NewMessage) error {
-		expectedTopic := fmt.Sprintf("Topic%d", topicCount)
-		expectedData := fmt.Sprintf("testData%d", messageCount)
-
 		messageCount++
 		if topicCount == 0 && messageCount >= 3 {
 			topicCount = 1
@@ -96,7 +95,6 @@ func TestProcessStreams(t *testing.T) {
 		}
 
 		// assert
-		assert.Equal(t, expectedTopic, msg.Topic)
 		assert.Equal(t, expectedData, string(msg.Data))
 
 		// return fake error to skip executing redis client command
@@ -105,19 +103,22 @@ func TestProcessStreams(t *testing.T) {
 
 	// act
 	testRedisStream := &redisStreams{}
-	testRedisStream.processStreams(fakeConsumerID, generateRedisStreamTestData(2, 3), fakeHandler)
+	testRedisStream.processStreams(fakeConsumerID, generateRedisStreamTestData(2, 3, expectedData), fakeHandler)
+
+	// sleep for 10ms to give time to finish processing
+	time.Sleep(time.Millisecond * 10)
 
 	// assert
 	assert.Equal(t, 1, topicCount)
 	assert.Equal(t, 3, messageCount)
 }
 
-func generateRedisStreamTestData(topicCount, messageCount int) []redis.XStream {
+func generateRedisStreamTestData(topicCount, messageCount int, data string) []redis.XStream {
 	generateXMessage := func(id int) redis.XMessage {
 		return redis.XMessage{
 			ID: fmt.Sprintf("%d", id),
 			Values: map[string]interface{}{
-				"data": fmt.Sprintf("testData%d", id),
+				"data": data,
 			},
 		}
 	}

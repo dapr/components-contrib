@@ -29,11 +29,13 @@ func TestGetCassandraMetadata(t *testing.T) {
 		assert.Equal(t, defaultProtoVersion, metadata.protoVersion)
 		assert.Equal(t, defaultReplicationFactor, metadata.replicationFactor)
 		assert.Equal(t, defaultTable, metadata.table)
+		assert.Equal(t, defaultPort, metadata.port)
 	})
 
 	t.Run("With custom values", func(t *testing.T) {
 		properties := map[string]string{
 			hosts:             "127.0.0.1",
+			port:              "9043",
 			consistency:       "Quorum",
 			keyspace:          "keyspace",
 			protoVersion:      "3",
@@ -56,6 +58,8 @@ func TestGetCassandraMetadata(t *testing.T) {
 		assert.Equal(t, properties[table], metadata.table)
 		assert.Equal(t, properties[username], metadata.username)
 		assert.Equal(t, properties[password], metadata.password)
+		assert.Equal(t, 9043, metadata.port)
+
 	})
 
 	t.Run("Incorrect proto version", func(t *testing.T) {

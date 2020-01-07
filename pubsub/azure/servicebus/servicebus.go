@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"runtime"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	log "github.com/sirupsen/logrus"
@@ -26,6 +27,7 @@ const (
 	defaultMessageTimeToLiveInSec = "defaultMessageTimeToLiveInSec"
 	autoDeleteOnIdleInSec         = "autoDeleteOnIdleInSec"
 	disableEntityManagement       = "disableEntityManagement"
+	numConcurrentConsumers        = "numConcurrentConsumers"
 	errorMessagePrefix            = "azure service bus error:"
 
 	// Defaults
@@ -81,6 +83,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.DisableEntityManagement, err = strconv.ParseBool(val)
 		if err != nil {
 			return m, fmt.Errorf("%s invalid disableEntityManagement %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.NumConcurrentConsumers = runtime.NumCPU()
+	if val, ok := meta.Properties[numConcurrentConsumers]; ok && val != "" {
+		var err error
+		m.NumConcurrentConsumers, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid numConcurrentConsumers %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -172,15 +183,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	}
 
 	var sub subscription
-	sub, err = topic.NewSubscription(subID)
+	sub, err = topic.NewSubscription(subID, azservicebus.SubscriptionWithPrefetchCount(uint32(a.metadata.NumConcurrentConsumers)))
 	if err != nil {
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
 
 	sbHandlerFunc := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
-
-	ctx := context.Background()
-	go a.handleSubscriptionMessages(ctx, req.Topic, sub, sbHandlerFunc)
+	go a.handleSubscriptionMessages(context.Background(), req.Topic, sub, sbHandlerFunc)
 
 	return nil
 }
@@ -200,11 +209,25 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.
 }
 
 func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic string, sub subscription, handlerFunc azservicebus.HandlerFunc) {
-	for {
-		if err := sub.Receive(ctx, handlerFunc); err != nil {
-			log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
-			return
-		}
+	msgChan := make(chan *azservicebus.Message, a.metadata.NumConcurrentConsumers)
+	defer close(msgChan)
+
+	var handler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
+		msgChan <- msg
+		return nil
+	}
+
+	for i := 0; i < a.metadata.NumConcurrentConsumers; i++ {
+		go func() {
+			for msg := range msgChan {
+				handlerFunc(context.Background(), msg)
+			}
+		} ()
+	}
+
+	if err := sub.Receive(ctx, handler); err != nil {
+		log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
+		return
 	}
 }
 

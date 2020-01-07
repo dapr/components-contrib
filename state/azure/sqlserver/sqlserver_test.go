@@ -119,7 +119,7 @@ func TestValidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStore()
+			sqlStore := NewSQLServerStateStore()
 			sqlStore.migratorFactory = func(s *SQLServer) migrator {
 				return &mockMigrator{}
 			}
@@ -234,7 +234,7 @@ func TestInvalidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStore()
+			sqlStore := NewSQLServerStateStore()
 
 			metadata := state.Metadata{
 				Properties: tt.props,

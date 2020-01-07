@@ -63,8 +63,8 @@ const (
 	defaultSchema    = "dbo"
 )
 
-// NewSQLServerStore creates a new instance of a Sql Server transaction store
-func NewSQLServerStore() *SQLServer {
+// NewSQLServerStateStore creates a new instance of a Sql Server transaction store
+func NewSQLServerStateStore() *SQLServer {
 	store := SQLServer{}
 	store.migratorFactory = newMigration
 

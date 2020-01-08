@@ -7,7 +7,6 @@ package servicebus
 
 import (
 	"testing"
-	"runtime"
 
 	"github.com/stretchr/testify/assert"
 
@@ -59,8 +58,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 2400, *m.DefaultMessageTimeToLiveInSec)
 		assert.NotNil(t, m.LockDurationInSec)
 		assert.Equal(t, 120, *m.LockDurationInSec)
-
-		assert.Equal(t, 1, m.NumConcurrentConsumers)
+		assert.NotNil(t, m.NumConcurrentConsumers)
+		assert.Equal(t, 1, *m.NumConcurrentConsumers)
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -289,7 +288,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
-	t.Run("missing optional numConcurrentConsumers", func(t *testing.T) {
+	t.Run("missing nullable numConcurrentConsumers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
@@ -301,12 +300,11 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		numCPU := runtime.NumCPU()
-		assert.Equal(t, m.NumConcurrentConsumers, numCPU)
+		assert.Nil(t, m.NumConcurrentConsumers)
 		assert.Nil(t, err)
 	})
 
-	t.Run("invalid optional timeoutInSec", func(t *testing.T) {
+	t.Run("invalid nullable numConcurrentConsumers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{

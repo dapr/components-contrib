@@ -10,11 +10,10 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-	"runtime"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/pubsub"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -34,6 +33,8 @@ const (
 	defaultTimeoutInSec            = 60
 	defaultDisableEntityManagement = false
 )
+
+type concurrentConsumer = struct{}
 
 type azureServiceBus struct {
 	metadata     metadata
@@ -86,15 +87,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	m.NumConcurrentConsumers = runtime.NumCPU()
-	if val, ok := meta.Properties[numConcurrentConsumers]; ok && val != "" {
-		var err error
-		m.NumConcurrentConsumers, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid numConcurrentConsumers %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
 	/* Nullable configuration settings - defaults will be set by the server */
 	if val, ok := meta.Properties[maxDeliveryCount]; ok && val != "" {
 		valAsInt, err := strconv.Atoi(val)
@@ -126,6 +118,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 			return m, fmt.Errorf("%s invalid autoDeleteOnIdleInSecKey %s, %s", errorMessagePrefix, val, err)
 		}
 		m.AutoDeleteOnIdleInSec = &valAsInt
+	}
+
+	if val, ok := meta.Properties[numConcurrentConsumers]; ok && val != "" {
+		var err error
+		valAsInt, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid numConcurrentConsumers %s, %s", errorMessagePrefix, val, err)
+		}
+		m.NumConcurrentConsumers = &valAsInt
 	}
 
 	return m, nil
@@ -183,7 +184,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 	}
 
 	var sub subscription
-	sub, err = topic.NewSubscription(subID, azservicebus.SubscriptionWithPrefetchCount(uint32(a.metadata.NumConcurrentConsumers)))
+	sub, err = topic.NewSubscription(subID)
 	if err != nil {
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
@@ -209,24 +210,40 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.
 }
 
 func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic string, sub subscription, handlerFunc azservicebus.HandlerFunc) {
-	msgChan := make(chan *azservicebus.Message, a.metadata.NumConcurrentConsumers)
-	defer close(msgChan)
+	var concurrentConsumers chan concurrentConsumer
+	limitConcurrency := a.metadata.NumConcurrentConsumers != nil
+	if limitConcurrency {
+		concurrentConsumers := make(chan concurrentConsumer, *a.metadata.NumConcurrentConsumers)
+		for i := 0; i < *a.metadata.NumConcurrentConsumers; i++ {
+			concurrentConsumers <- concurrentConsumer{}
+		}
+		defer close(concurrentConsumers)
+	}
 
 	var handler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
-		msgChan <- msg
+		go func() {
+			if limitConcurrency {
+				<-concurrentConsumers // Take or wait on a free consumer
+			}
+
+			// TODO: What should the correct time out on handling a message be?
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+			defer cancel()
+
+			err := handlerFunc(ctx, msg)
+			if err != nil {
+				log.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
+			}
+
+			if limitConcurrency {
+				concurrentConsumers <- concurrentConsumer{} // Release a consumer
+			}
+		}()
 		return nil
 	}
 
-	for i := 0; i < a.metadata.NumConcurrentConsumers; i++ {
-		go func() {
-			for msg := range msgChan {
-				handlerFunc(context.Background(), msg)
-			}
-		} ()
-	}
-
 	if err := sub.Receive(ctx, handler); err != nil {
-		log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
+		log.Errorf("%s error in receive loop for topic %s and it has been terminated, %s", errorMessagePrefix, topic, err)
 		return
 	}
 }

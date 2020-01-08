@@ -121,7 +121,7 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 	ensureDBIsValid(t)
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
-	store := NewSQLServerStore()
+	store := NewSQLServerStateStore()
 	err := store.Init(metadata)
 	assert.Nil(t, err)
 
@@ -787,7 +787,7 @@ func testMultipleInitializations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := getTestStoreWithKeyType(t, test.kt, test.indexedProperties)
 
-			store2 := NewSQLServerStore()
+			store2 := NewSQLServerStateStore()
 			assert.Nil(t, store2.Init(createMetadata(store.schema, test.kt, test.indexedProperties)))
 		})
 	}

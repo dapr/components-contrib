@@ -213,7 +213,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic 
 	var concurrentConsumers chan concurrentConsumer
 	limitConcurrency := a.metadata.NumConcurrentConsumers != nil
 	if limitConcurrency {
-		concurrentConsumers := make(chan concurrentConsumer, *a.metadata.NumConcurrentConsumers)
+		concurrentConsumers = make(chan concurrentConsumer, *a.metadata.NumConcurrentConsumers)
 		for i := 0; i < *a.metadata.NumConcurrentConsumers; i++ {
 			concurrentConsumers <- concurrentConsumer{}
 		}

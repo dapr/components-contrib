@@ -17,9 +17,14 @@ type ReadResponse struct {
 
 // AppResponse is the object describing the response from user code after a bindings event
 type AppResponse struct {
-	Data        interface{}        `json:"data"`
-	To          []string           `json:"to"`
-	StoreName   string             `json:"storeName"`
-	Requests    []state.SetRequest `json:"requests"`
-	Concurrency string             `json:"concurrency"`
+	Data        interface{}  `json:"data"`
+	To          []string     `json:"to"`
+	State       StateRequest `json:"state"`
+	Concurrency string       `json:"concurrency"`
+}
+
+// StateRequest is the object describing the state request in response from user code after a bindings event
+type StateRequest struct {
+	StoreName string             `json:"storeName"`
+	Requests  []state.SetRequest `json:"requests"`
 }

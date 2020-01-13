@@ -41,6 +41,7 @@ func TestGetClientCert(t *testing.T) {
 
 	testCertConfig, _ := testSecretStore.GetClientCert()
 
+	assert.Equal(t, "vaultName", testSecretStore.vaultName)
 	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 	assert.Equal(t, "testfile", testCertConfig.ClientCertificateConfig.CertificatePath)
 	assert.Equal(t, []byte("testcert"), testCertConfig.CertificateData)
@@ -135,6 +136,64 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		_, err := testCertConfig.Authorizer()
 		assert.Error(t, err)
 	})
+}
+
+func TestGetMSI(t *testing.T) {
+	metadata := map[string]string{
+		componentSPNClientID: fakeClientID,
+		componentVaultName:   "vaultName",
+	}
+
+	testSecretStore := keyvaultSecretStore{
+		metadata: secretstores.Metadata{
+			Properties: metadata,
+		},
+	}
+
+	testCertConfig := testSecretStore.GetMSI()
+
+	assert.Equal(t, "vaultName", testSecretStore.vaultName)
+	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
+	assert.Equal(t, "https://vault.azure.net", testCertConfig.Resource)
+}
+
+func TestAuthorizorWithMSI(t *testing.T) {
+	metadata := map[string]string{
+		componentVaultName: "vaultName",
+	}
+
+	testSecretStore := keyvaultSecretStore{
+		metadata: secretstores.Metadata{
+			Properties: metadata,
+		},
+	}
+
+	testCertConfig := testSecretStore.GetMSI()
+	assert.NotNil(t, testCertConfig)
+
+	authorizer, err := testCertConfig.Authorizer()
+	assert.NoError(t, err)
+	assert.NotNil(t, authorizer)
+}
+
+func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
+	metadata := map[string]string{
+		componentSPNClientID: fakeClientID,
+		componentVaultName:   "vaultName",
+	}
+
+	testSecretStore := keyvaultSecretStore{
+		metadata: secretstores.Metadata{
+			Properties: metadata,
+		},
+	}
+
+	testCertConfig := testSecretStore.GetMSI()
+	assert.NotNil(t, testCertConfig)
+
+	authorizer, err := testCertConfig.Authorizer()
+	assert.NoError(t, err)
+	assert.NotNil(t, authorizer)
 }
 
 func getTestCert() []byte {

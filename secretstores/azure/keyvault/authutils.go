@@ -23,18 +23,17 @@ type CertConfig struct {
 	CertificateData []byte
 }
 
-// GetClientCertificate creates a config object from the available certificate credentials.
+// GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
-func (k keyvaultSecretStore) GetClientCertificate() (CertConfig, error) {
+func (k keyvaultSecretStore) GetClientCert() (CertConfig, error) {
 	props := k.metadata.Properties
-	k.vaultName = props[componentVaultName]
 	certFilePath := props[componentSPNCertificateFile]
 	certBytes := []byte(props[componentSPNCertificate])
 	certPassword := props[componentSPNCertificatePassword]
 	clientID := props[componentSPNClientID]
 	tenantID := props[componentSPNTenantID]
 
-	if certPassword == "" {
+	if certFilePath == "" && certBytes == nil {
 		return CertConfig{}, fmt.Errorf("missing client secret")
 	}
 
@@ -138,8 +137,9 @@ func (mc MSIConfig) Authorizer() (autorest.Authorizer, error) {
 // 1. Client certificate
 // 2. MSI
 func (k keyvaultSecretStore) GetAuthorizer() (autorest.Authorizer, error) {
+	k.vaultName = k.metadata.Properties[componentVaultName]
 	// 1. Client Certificate
-	if c, e := k.GetClientCertificate(); e == nil {
+	if c, e := k.GetClientCert(); e == nil {
 		return c.Authorizer()
 	}
 

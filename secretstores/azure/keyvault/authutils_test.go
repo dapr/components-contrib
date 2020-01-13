@@ -88,7 +88,7 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		certBytes := getTestCert()
 
 		metadata := map[string]string{
-			componentSPNCertificate:         string(certBytes[:]),
+			componentSPNCertificate:         string(certBytes),
 			componentSPNCertificatePassword: "",
 			componentSPNClientID:            fakeClientID,
 			componentSPNTenantID:            fakeTenantID,

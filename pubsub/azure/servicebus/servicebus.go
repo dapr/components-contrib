@@ -42,11 +42,6 @@ type azureServiceBus struct {
 	topicManager *azservicebus.TopicManager
 }
 
-type subscription interface {
-	Close(ctx context.Context) error
-	Receive(ctx context.Context, handler azservicebus.Handler) error
-}
-
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus() pubsub.PubSub {
 	return &azureServiceBus{}
@@ -183,14 +178,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 		return fmt.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
 	}
 
-	var sub subscription
-	sub, err = topic.NewSubscription(subID)
+	sub, err := topic.NewSubscription(subID)
 	if err != nil {
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
 
 	sbHandlerFunc := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
-	go a.handleSubscriptionMessages(context.Background(), req.Topic, sub, sbHandlerFunc)
+	go a.handleSubscriptionMessages(req.Topic, sub, sbHandlerFunc)
 
 	return nil
 }
@@ -209,7 +203,7 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.
 	}
 }
 
-func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic string, sub subscription, handlerFunc azservicebus.HandlerFunc) {
+func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, handlerFunc azservicebus.HandlerFunc) {
 	var concurrentConsumers chan concurrentConsumer
 	limitConcurrency := a.metadata.NumConcurrentConsumers != nil
 	if limitConcurrency {
@@ -224,6 +218,9 @@ func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic 
 		go func() {
 			if limitConcurrency {
 				<-concurrentConsumers // Take or wait on a free consumer
+				defer func() {
+					concurrentConsumers <- concurrentConsumer{} // Release a consumer
+				} ()
 			}
 
 			// TODO: What should the correct time out on handling a message be?
@@ -235,16 +232,20 @@ func (a *azureServiceBus) handleSubscriptionMessages(ctx context.Context, topic 
 				log.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 			}
 
-			if limitConcurrency {
-				concurrentConsumers <- concurrentConsumer{} // Release a consumer
-			}
-		}()
+			
+		} ()
 		return nil
 	}
 
-	if err := sub.Receive(ctx, handler); err != nil {
-		log.Errorf("%s error in receive loop for topic %s and it has been terminated, %s", errorMessagePrefix, topic, err)
-		return
+	for {
+		if err := sub.Receive(context.Background(), handler); err != nil {
+			log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
+			// Must close to reset sub's receiver
+			if err := sub.Close(context.Background()); err != nil {
+				log.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
+				return // TODO: Can't handle error gracefully, what should be the behaviour?
+			}
+		}
 	}
 }
 

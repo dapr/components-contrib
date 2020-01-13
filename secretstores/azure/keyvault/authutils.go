@@ -25,7 +25,8 @@ type CertConfig struct {
 
 // GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
-func (k keyvaultSecretStore) GetClientCert() (CertConfig, error) {
+func (k *keyvaultSecretStore) GetClientCert() (CertConfig, error) {
+	k.vaultName = k.metadata.Properties[componentVaultName]
 	props := k.metadata.Properties
 	certFilePath := props[componentSPNCertificateFile]
 	certBytes := []byte(props[componentSPNCertificate])
@@ -102,7 +103,8 @@ func NewMSIConfig() MSIConfig {
 }
 
 // GetMSI creates a MSI config object from the available client ID.
-func (k keyvaultSecretStore) GetMSI() MSIConfig {
+func (k *keyvaultSecretStore) GetMSI() MSIConfig {
+	k.vaultName = k.metadata.Properties[componentVaultName]
 	props := k.metadata.Properties
 	config := NewMSIConfig()
 	config.Resource = azure.PublicCloud.ResourceIdentifiers.KeyVault
@@ -136,8 +138,7 @@ func (mc MSIConfig) Authorizer() (autorest.Authorizer, error) {
 // GetAuthorizer creates an Authorizer configured from environment variables in the order:
 // 1. Client certificate
 // 2. MSI
-func (k keyvaultSecretStore) GetAuthorizer() (autorest.Authorizer, error) {
-	k.vaultName = k.metadata.Properties[componentVaultName]
+func (k *keyvaultSecretStore) GetAuthorizer() (autorest.Authorizer, error) {
 	// 1. Client Certificate
 	if c, e := k.GetClientCert(); e == nil {
 		return c.Authorizer()

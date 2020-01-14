@@ -17,6 +17,11 @@ import (
 	"golang.org/x/crypto/pkcs12"
 )
 
+// EnvironmentSettings hold settings to authenticate with the Key Vault.
+type EnvironmentSettings struct {
+	Values map[string]string
+}
+
 // CertConfig provides the options to get a bearer authorizer from a client certificate.
 type CertConfig struct {
 	*auth.ClientCertificateConfig
@@ -25,14 +30,13 @@ type CertConfig struct {
 
 // GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
-func (k *keyvaultSecretStore) GetClientCert() (CertConfig, error) {
-	k.vaultName = k.metadata.Properties[componentVaultName]
-	props := k.metadata.Properties
-	certFilePath := props[componentSPNCertificateFile]
-	certBytes := []byte(props[componentSPNCertificate])
-	certPassword := props[componentSPNCertificatePassword]
-	clientID := props[componentSPNClientID]
-	tenantID := props[componentSPNTenantID]
+func (k *keyvaultSecretStore) GetClientCert(settings EnvironmentSettings) (CertConfig, error) {
+	k.vaultName = settings.Values[componentVaultName]
+	certFilePath := settings.Values[componentSPNCertificateFile]
+	certBytes := []byte(settings.Values[componentSPNCertificate])
+	certPassword := settings.Values[componentSPNCertificatePassword]
+	clientID := settings.Values[componentSPNClientID]
+	tenantID := settings.Values[componentSPNTenantID]
 
 	if certFilePath == "" && certBytes == nil {
 		return CertConfig{}, fmt.Errorf("missing client secret")
@@ -103,12 +107,11 @@ func NewMSIConfig() MSIConfig {
 }
 
 // GetMSI creates a MSI config object from the available client ID.
-func (k *keyvaultSecretStore) GetMSI() MSIConfig {
-	k.vaultName = k.metadata.Properties[componentVaultName]
-	props := k.metadata.Properties
+func (k *keyvaultSecretStore) GetMSI(settings EnvironmentSettings) MSIConfig {
+	k.vaultName = settings.Values[componentVaultName]
 	config := NewMSIConfig()
 	config.Resource = azure.PublicCloud.ResourceIdentifiers.KeyVault
-	config.ClientID = props[componentSPNClientID]
+	config.ClientID = settings.Values[componentSPNClientID]
 	return config
 }
 
@@ -138,14 +141,14 @@ func (mc MSIConfig) Authorizer() (autorest.Authorizer, error) {
 // GetAuthorizer creates an Authorizer configured from environment variables in the order:
 // 1. Client certificate
 // 2. MSI
-func (k *keyvaultSecretStore) GetAuthorizer() (autorest.Authorizer, error) {
+func (k *keyvaultSecretStore) GetAuthorizer(settings EnvironmentSettings) (autorest.Authorizer, error) {
 	// 1. Client Certificate
-	if c, e := k.GetClientCert(); e == nil {
+	if c, e := k.GetClientCert(settings); e == nil {
 		return c.Authorizer()
 	}
 
 	// 2. MSI
-	return k.GetMSI().Authorizer()
+	return k.GetMSI(settings).Authorizer()
 }
 
 func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificate, *rsa.PrivateKey, error) {

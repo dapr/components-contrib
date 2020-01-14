@@ -11,7 +11,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/components-contrib/secretstores"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,22 +23,20 @@ const (
 )
 
 func TestGetClientCert(t *testing.T) {
-	metadata := map[string]string{
-		componentSPNCertificateFile:     "testfile",
-		componentSPNCertificate:         "testcert",
-		componentSPNCertificatePassword: "1234",
-		componentSPNClientID:            fakeClientID,
-		componentSPNTenantID:            fakeTenantID,
-		componentVaultName:              "vaultName",
-	}
-
-	testSecretStore := keyvaultSecretStore{
-		metadata: secretstores.Metadata{
-			Properties: metadata,
+	settings := EnvironmentSettings{
+		Values: map[string]string{
+			componentSPNCertificateFile:     "testfile",
+			componentSPNCertificate:         "testcert",
+			componentSPNCertificatePassword: "1234",
+			componentSPNClientID:            fakeClientID,
+			componentSPNTenantID:            fakeTenantID,
+			componentVaultName:              "vaultName",
 		},
 	}
 
-	testCertConfig, _ := testSecretStore.GetClientCert()
+	testSecretStore := keyvaultSecretStore{}
+
+	testCertConfig, _ := testSecretStore.GetClientCert(settings)
 
 	assert.Equal(t, "vaultName", testSecretStore.vaultName)
 	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
@@ -58,21 +55,19 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	err := ioutil.WriteFile(testCertFileName, certBytes, 0644)
 	assert.NoError(t, err)
 
-	metadata := map[string]string{
-		componentSPNCertificateFile:     testCertFileName,
-		componentSPNCertificatePassword: "",
-		componentSPNClientID:            fakeClientID,
-		componentSPNTenantID:            fakeTenantID,
-		componentVaultName:              "vaultName",
-	}
-
-	testSecretStore := keyvaultSecretStore{
-		metadata: secretstores.Metadata{
-			Properties: metadata,
+	settings := EnvironmentSettings{
+		Values: map[string]string{
+			componentSPNCertificateFile:     testCertFileName,
+			componentSPNCertificatePassword: "",
+			componentSPNClientID:            fakeClientID,
+			componentSPNTenantID:            fakeTenantID,
+			componentVaultName:              "vaultName",
 		},
 	}
 
-	testCertConfig, _ := testSecretStore.GetClientCert()
+	testSecretStore := keyvaultSecretStore{}
+
+	testCertConfig, _ := testSecretStore.GetClientCert(settings)
 	assert.NotNil(t, testCertConfig)
 	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
@@ -88,21 +83,19 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 	t.Run("Certificate is valid", func(t *testing.T) {
 		certBytes := getTestCert()
 
-		metadata := map[string]string{
-			componentSPNCertificate:         string(certBytes),
-			componentSPNCertificatePassword: "",
-			componentSPNClientID:            fakeClientID,
-			componentSPNTenantID:            fakeTenantID,
-			componentVaultName:              "vaultName",
-		}
-
-		testSecretStore := keyvaultSecretStore{
-			metadata: secretstores.Metadata{
-				Properties: metadata,
+		settings := EnvironmentSettings{
+			Values: map[string]string{
+				componentSPNCertificate:         string(certBytes),
+				componentSPNCertificatePassword: "",
+				componentSPNClientID:            fakeClientID,
+				componentSPNTenantID:            fakeTenantID,
+				componentVaultName:              "vaultName",
 			},
 		}
 
-		testCertConfig, _ := testSecretStore.GetClientCert()
+		testSecretStore := keyvaultSecretStore{}
+
+		testCertConfig, _ := testSecretStore.GetClientCert(settings)
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
@@ -115,21 +108,19 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 	t.Run("Certificate is invalid", func(t *testing.T) {
 		certBytes := getTestCert()
 
-		metadata := map[string]string{
-			componentSPNCertificate:         string(certBytes[0:20]),
-			componentSPNCertificatePassword: "",
-			componentSPNClientID:            fakeClientID,
-			componentSPNTenantID:            fakeTenantID,
-			componentVaultName:              "vaultName",
-		}
-
-		testSecretStore := keyvaultSecretStore{
-			metadata: secretstores.Metadata{
-				Properties: metadata,
+		settings := EnvironmentSettings{
+			Values: map[string]string{
+				componentSPNCertificate:         string(certBytes[0:20]),
+				componentSPNCertificatePassword: "",
+				componentSPNClientID:            fakeClientID,
+				componentSPNTenantID:            fakeTenantID,
+				componentVaultName:              "vaultName",
 			},
 		}
 
-		testCertConfig, _ := testSecretStore.GetClientCert()
+		testSecretStore := keyvaultSecretStore{}
+
+		testCertConfig, _ := testSecretStore.GetClientCert(settings)
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
@@ -139,18 +130,16 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 }
 
 func TestGetMSI(t *testing.T) {
-	metadata := map[string]string{
-		componentSPNClientID: fakeClientID,
-		componentVaultName:   "vaultName",
-	}
-
-	testSecretStore := keyvaultSecretStore{
-		metadata: secretstores.Metadata{
-			Properties: metadata,
+	settings := EnvironmentSettings{
+		Values: map[string]string{
+			componentSPNClientID: fakeClientID,
+			componentVaultName:   "vaultName",
 		},
 	}
 
-	testCertConfig := testSecretStore.GetMSI()
+	testSecretStore := keyvaultSecretStore{}
+
+	testCertConfig := testSecretStore.GetMSI(settings)
 
 	assert.Equal(t, "vaultName", testSecretStore.vaultName)
 	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
@@ -158,17 +147,16 @@ func TestGetMSI(t *testing.T) {
 }
 
 func TestAuthorizorWithMSI(t *testing.T) {
-	metadata := map[string]string{
-		componentVaultName: "vaultName",
-	}
-
-	testSecretStore := keyvaultSecretStore{
-		metadata: secretstores.Metadata{
-			Properties: metadata,
+	settings := EnvironmentSettings{
+		Values: map[string]string{
+			componentSPNClientID: fakeClientID,
+			componentVaultName:   "vaultName",
 		},
 	}
 
-	testCertConfig := testSecretStore.GetMSI()
+	testSecretStore := keyvaultSecretStore{}
+
+	testCertConfig := testSecretStore.GetMSI(settings)
 	assert.NotNil(t, testCertConfig)
 
 	authorizer, err := testCertConfig.Authorizer()
@@ -177,18 +165,16 @@ func TestAuthorizorWithMSI(t *testing.T) {
 }
 
 func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
-	metadata := map[string]string{
-		componentSPNClientID: fakeClientID,
-		componentVaultName:   "vaultName",
-	}
-
-	testSecretStore := keyvaultSecretStore{
-		metadata: secretstores.Metadata{
-			Properties: metadata,
+	settings := EnvironmentSettings{
+		Values: map[string]string{
+			componentSPNClientID: fakeClientID,
+			componentVaultName:   "vaultName",
 		},
 	}
 
-	testCertConfig := testSecretStore.GetMSI()
+	testSecretStore := keyvaultSecretStore{}
+
+	testCertConfig := testSecretStore.GetMSI(settings)
 	assert.NotNil(t, testCertConfig)
 
 	authorizer, err := testCertConfig.Authorizer()

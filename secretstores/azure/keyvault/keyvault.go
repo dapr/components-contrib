@@ -27,7 +27,6 @@ const (
 type keyvaultSecretStore struct {
 	vaultName   string
 	vaultClient kv.BaseClient
-	metadata    secretstores.Metadata
 }
 
 // NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
@@ -40,8 +39,11 @@ func NewAzureKeyvaultSecretStore() secretstores.SecretStore {
 
 // Init creates a Kubernetes client
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
-	k.metadata = metadata
-	authorizer, err := k.GetAuthorizer()
+	settings := EnvironmentSettings{
+		Values: metadata.Properties,
+	}
+
+	authorizer, err := k.GetAuthorizer(settings)
 	if err == nil {
 		k.vaultClient.Authorizer = authorizer
 	}

@@ -49,7 +49,6 @@ func NewCloudKMSSecretStore() secretstores.SecretStore {
 
 // Init creates a cloudkmsClient
 func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
-
 	b, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -130,7 +129,6 @@ func (c *cloudkmsSecretStore) getCipherTextFromSecretObject(gcpStorageBucket str
 }
 
 func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) ([]byte, error) {
-
 	ctx := context.Background()
 	// Build the request
 	req := &kmspb.DecryptRequest{

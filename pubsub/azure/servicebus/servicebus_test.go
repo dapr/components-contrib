@@ -23,11 +23,12 @@ func getFakeProperties() map[string]string {
 		consumerID:                    "fakeConId",
 		disableEntityManagement:       "true",
 		timeoutInSec:                  "90",
+		handlerTimeoutInSec:           "30",
 		maxDeliveryCount:              "10",
 		autoDeleteOnIdleInSec:         "240",
 		defaultMessageTimeToLiveInSec: "2400",
 		lockDurationInSec:             "120",
-		numConcurrentConsumers:        "1",
+		numConcurrentHandlers:        "1",
 	}
 }
 
@@ -49,6 +50,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		assert.Equal(t, 90, m.TimeoutInSec)
 		assert.Equal(t, true, m.DisableEntityManagement)
+		assert.Equal(t, 30, m.HandlerTimeoutInSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
 		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
@@ -58,8 +60,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 2400, *m.DefaultMessageTimeToLiveInSec)
 		assert.NotNil(t, m.LockDurationInSec)
 		assert.Equal(t, 120, *m.LockDurationInSec)
-		assert.NotNil(t, m.NumConcurrentConsumers)
-		assert.Equal(t, 1, *m.NumConcurrentConsumers)
+		assert.NotNil(t, m.NumConcurrentHandlers)
+		assert.Equal(t, 1, *m.NumConcurrentHandlers)
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -108,7 +110,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.Equal(t, m.TimeoutInSec, 60)
+		assert.Equal(t, 60, m.TimeoutInSec)
 		assert.Nil(t, err)
 	})
 
@@ -140,7 +142,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.Equal(t, m.DisableEntityManagement, false)
+		assert.Equal(t, false, m.DisableEntityManagement)
 		assert.Nil(t, err)
 	})
 
@@ -151,6 +153,38 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[disableEntityManagement] = "invalid_bool"
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional handlerTimeoutInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[handlerTimeoutInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 60, m.HandlerTimeoutInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional handlerTimeoutInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[handlerTimeoutInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -288,29 +322,29 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
-	t.Run("missing nullable numConcurrentConsumers", func(t *testing.T) {
+	t.Run("missing nullable numConcurrentHandlers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[numConcurrentConsumers] = ""
+		fakeMetaData.Properties[numConcurrentHandlers] = ""
 
 		// act
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.Nil(t, m.NumConcurrentConsumers)
+		assert.Nil(t, m.NumConcurrentHandlers)
 		assert.Nil(t, err)
 	})
 
-	t.Run("invalid nullable numConcurrentConsumers", func(t *testing.T) {
+	t.Run("invalid nullable numConcurrentHandlers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[numConcurrentConsumers] = invalidNumber
+		fakeMetaData.Properties[numConcurrentHandlers] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

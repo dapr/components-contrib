@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	log "github.com/sirupsen/logrus"
 )
 
 type consumer struct {
@@ -151,7 +151,6 @@ func (a *AzureStorageQueues) Write(req *bindings.WriteRequest) error {
 }
 
 func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) error {
-
 	c := consumer{
 		callback: handler,
 	}

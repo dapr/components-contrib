@@ -35,7 +35,6 @@ func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
 }
 
 func TestWriteQueue(t *testing.T) {
-
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
@@ -158,11 +157,9 @@ func TestReadQueueNoMessage(t *testing.T) {
 	pid := syscall.Getpid()
 	proc, _ := os.FindProcess(pid)
 	proc.Signal(os.Interrupt)
-
 }
 
 func TestParseMetadata(t *testing.T) {
-
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 

@@ -34,11 +34,8 @@ func TestGetClientCert(t *testing.T) {
 		},
 	}
 
-	testSecretStore := keyvaultSecretStore{}
+	testCertConfig, _ := settings.GetClientCert()
 
-	testCertConfig, _ := testSecretStore.GetClientCert(settings)
-
-	assert.Equal(t, "vaultName", testSecretStore.vaultName)
 	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 	assert.Equal(t, "testfile", testCertConfig.ClientCertificateConfig.CertificatePath)
 	assert.Equal(t, []byte("testcert"), testCertConfig.CertificateData)
@@ -65,9 +62,7 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 		},
 	}
 
-	testSecretStore := keyvaultSecretStore{}
-
-	testCertConfig, _ := testSecretStore.GetClientCert(settings)
+	testCertConfig, _ := settings.GetClientCert()
 	assert.NotNil(t, testCertConfig)
 	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
@@ -93,9 +88,7 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 			},
 		}
 
-		testSecretStore := keyvaultSecretStore{}
-
-		testCertConfig, _ := testSecretStore.GetClientCert(settings)
+		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
@@ -118,9 +111,7 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 			},
 		}
 
-		testSecretStore := keyvaultSecretStore{}
-
-		testCertConfig, _ := testSecretStore.GetClientCert(settings)
+		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
@@ -137,11 +128,8 @@ func TestGetMSI(t *testing.T) {
 		},
 	}
 
-	testSecretStore := keyvaultSecretStore{}
+	testCertConfig := settings.GetMSI()
 
-	testCertConfig := testSecretStore.GetMSI(settings)
-
-	assert.Equal(t, "vaultName", testSecretStore.vaultName)
 	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
 	assert.Equal(t, "https://vault.azure.net", testCertConfig.Resource)
 }
@@ -154,9 +142,7 @@ func TestAuthorizorWithMSI(t *testing.T) {
 		},
 	}
 
-	testSecretStore := keyvaultSecretStore{}
-
-	testCertConfig := testSecretStore.GetMSI(settings)
+	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
 	authorizer, err := testCertConfig.Authorizer()
@@ -172,9 +158,7 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 		},
 	}
 
-	testSecretStore := keyvaultSecretStore{}
-
-	testCertConfig := testSecretStore.GetMSI(settings)
+	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
 	authorizer, err := testCertConfig.Authorizer()

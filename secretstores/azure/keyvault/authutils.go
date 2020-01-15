@@ -30,13 +30,12 @@ type CertConfig struct {
 
 // GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
-func (k *keyvaultSecretStore) GetClientCert(settings EnvironmentSettings) (CertConfig, error) {
-	k.vaultName = settings.Values[componentVaultName]
-	certFilePath := settings.Values[componentSPNCertificateFile]
-	certBytes := []byte(settings.Values[componentSPNCertificate])
-	certPassword := settings.Values[componentSPNCertificatePassword]
-	clientID := settings.Values[componentSPNClientID]
-	tenantID := settings.Values[componentSPNTenantID]
+func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
+	certFilePath := s.Values[componentSPNCertificateFile]
+	certBytes := []byte(s.Values[componentSPNCertificate])
+	certPassword := s.Values[componentSPNCertificatePassword]
+	clientID := s.Values[componentSPNClientID]
+	tenantID := s.Values[componentSPNTenantID]
 
 	if certFilePath == "" && certBytes == nil {
 		return CertConfig{}, fmt.Errorf("missing client secret")
@@ -107,11 +106,10 @@ func NewMSIConfig() MSIConfig {
 }
 
 // GetMSI creates a MSI config object from the available client ID.
-func (k *keyvaultSecretStore) GetMSI(settings EnvironmentSettings) MSIConfig {
-	k.vaultName = settings.Values[componentVaultName]
+func (s EnvironmentSettings) GetMSI() MSIConfig {
 	config := NewMSIConfig()
 	config.Resource = azure.PublicCloud.ResourceIdentifiers.KeyVault
-	config.ClientID = settings.Values[componentSPNClientID]
+	config.ClientID = s.Values[componentSPNClientID]
 	return config
 }
 
@@ -141,14 +139,14 @@ func (mc MSIConfig) Authorizer() (autorest.Authorizer, error) {
 // GetAuthorizer creates an Authorizer configured from environment variables in the order:
 // 1. Client certificate
 // 2. MSI
-func (k *keyvaultSecretStore) GetAuthorizer(settings EnvironmentSettings) (autorest.Authorizer, error) {
+func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 	// 1. Client Certificate
-	if c, e := k.GetClientCert(settings); e == nil {
+	if c, e := s.GetClientCert(); e == nil {
 		return c.Authorizer()
 	}
 
 	// 2. MSI
-	return k.GetMSI(settings).Authorizer()
+	return s.GetMSI().Authorizer()
 }
 
 func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificate, *rsa.PrivateKey, error) {

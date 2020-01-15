@@ -43,10 +43,12 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 		Values: metadata.Properties,
 	}
 
-	authorizer, err := k.GetAuthorizer(settings)
+	authorizer, err := settings.GetAuthorizer()
 	if err == nil {
 		k.vaultClient.Authorizer = authorizer
 	}
+
+	k.vaultName = settings.Values[componentVaultName]
 
 	return err
 }

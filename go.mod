@@ -57,6 +57,7 @@ require (
 	github.com/joomcode/errorx v1.0.0 // indirect
 	github.com/joomcode/redispipe v0.9.0
 	github.com/json-iterator/go v1.1.7
+	github.com/juju/ratelimit v1.0.1
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
@@ -97,6 +98,7 @@ require (
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.1
 	go.uber.org/multierr v1.2.0 // indirect
+	go.uber.org/ratelimit v0.1.0
 	golang.org/x/crypto v0.0.0-20190927123631-a832865fa7ad
 	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
@@ -113,6 +115,7 @@ require (
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 	gopkg.in/kataras/go-serializer.v0 v0.0.4 // indirect
+	gopkg.in/yaml.v2 v2.2.7
 	k8s.io/apimachinery v0.0.0-20190817020851-f2f3a405f61d
 	k8s.io/client v0.0.0-00010101000000-000000000000 // indirect
 	k8s.io/client-go v0.0.0-20190620085101-78d2af792bab

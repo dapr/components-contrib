@@ -10,21 +10,21 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/valyala/fasthttp"
 	"github.com/juju/ratelimit"
+	"github.com/valyala/fasthttp"
 )
 
 // Metadata is the oAuth middleware config
 type rateLimitMiddlewareMetadata struct {
-	Block                  bool     `json:"block"`
-	MaxRequestsPerSecond   float64  `json:"maxRequestsPerSecond"`
+	Block                bool    `json:"block"`
+	MaxRequestsPerSecond float64 `json:"maxRequestsPerSecond"`
 }
 
 const (
-	blockKey = "block"
+	blockKey                = "block"
 	maxRequestsPerSecondKey = "maxRequestsPerSecond"
-	numInvokesPerCall = 4
-	httpTooManyRequestsErr = "too many requests"
+	numInvokesPerCall       = 4
+	httpTooManyRequestsErr  = "too many requests"
 
 	defaultMaxRequestsPerSecond = 100
 )
@@ -35,7 +35,7 @@ func NewRateLimitMiddleware() *Middleware {
 }
 
 // Middleware is an oAuth2 authentication middleware
-type Middleware struct {}
+type Middleware struct{}
 
 // GetHandler returns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
@@ -64,14 +64,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				return
 			}
 			h(ctx)
-			return
 		}
 	}, nil
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimitMiddlewareMetadata, error) {
 	var middlewareMetadata rateLimitMiddlewareMetadata
-	
+
 	middlewareMetadata.Block = false
 	if val, ok := metadata.Properties[blockKey]; ok {
 		b, err := strconv.ParseBool(val)
@@ -92,6 +91,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 		}
 		middlewareMetadata.MaxRequestsPerSecond = f
 	}
-	
+
 	return &middlewareMetadata, nil
 }

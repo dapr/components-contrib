@@ -17,8 +17,8 @@ import (
 )
 
 type bearerMiddlewareMetadata struct {
-	IssuerURL   string `json:"issuerURL"`
-	ClientID	string `json:"clientID"`
+	IssuerURL string `json:"issuerURL"`
+	ClientID  string `json:"clientID"`
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware
@@ -29,6 +29,11 @@ func NewBearerMiddleware() *Middleware {
 // Middleware is an oAuth2 authentication middleware
 type Middleware struct {
 }
+
+const (
+	bearerPrefix       = "bearer "
+	bearerPrefixLength = len(bearerPrefix)
+)
 
 // GetHandler retruns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
@@ -50,11 +55,11 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
 			authHeader := string(ctx.Request.Header.Peek(fasthttp.HeaderAuthorization))
-			if (!strings.HasPrefix(authHeader, "Bearer ")) {
+			if (!strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix)) {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
 				return
 			}
-			rawToken := strings.TrimPrefix(authHeader, "Bearer ")
+			rawToken := authHeader[bearerPrefixLength:]
 			_, err := verifier.Verify(ctx, rawToken)
 			if (err != nil) {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)

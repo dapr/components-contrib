@@ -238,7 +238,7 @@ const inputs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 // generates a random string of length 20
 func genRandomString(n int) string {
 	b := make([]byte, n)
-	s := rand.NewSource(time.Now().UnixNano())
+	s := rand.NewSource(int64(time.Now().Nanosecond()))
 	for i := range b {
 		b[i] = inputs[s.Int63()%int64(len(inputs))]
 	}

@@ -3,6 +3,9 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
+/*
+Package natsstreaming implements NATS Streaming pubsub component
+*/
 package natsstreaming
 
 import (
@@ -18,15 +21,14 @@ import (
 	"github.com/nats-io/stan.go/pb"
 )
 
+// compulsory options
 const (
-	//compulsory
 	natsURL                = "natsURL"
 	natsStreamingClusterID = "natsStreamingClusterID"
+)
 
-	consumerID       = "consumerID" //passed in by Dapr runtime
-	subscriptionType = "subscriptionType"
-
-	//subscription options (optional)
+// subscription options (optional)
+const (
 	durableSubscriptionName = "durableSubscriptionName"
 	startAtSequence         = "startAtSequence"
 	startWithLastReceived   = "startWithLastReceived"
@@ -35,13 +37,20 @@ const (
 	startAtTimeDelta        = "startAtTimeDelta"
 	startAtTime             = "startAtTime"
 	startAtTimeFormat       = "startAtTimeFormat"
+)
 
-	//valid values
+// valid values for subscription options
+const (
 	subscriptionTypeQueueGroup = "queue"
 	subscriptionTypeTopic      = "topic"
 	startWithLastReceivedTrue  = "true"
 	deliverAllTrue             = "true"
 	deliverNewTrue             = "true"
+)
+
+const (
+	consumerID       = "consumerID" //passed in by Dapr runtime
+	subscriptionType = "subscriptionType"
 )
 
 type natsStreamingPubSub struct {
@@ -73,9 +82,7 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		} else {
 			return m, errors.New("nats-streaming error: valid value for subscriptionType is topic or queue")
 		}
-	} /*else {
-		return m, errors.New("nats-streaming error: missing subscriptionType")
-	}*/
+	}
 
 	if val, ok := meta.Properties[consumerID]; ok && val != "" {
 		m.natsQueueGroupName = val
@@ -87,9 +94,9 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.durableSubscriptionName = val
 	}
 
-	//subscription options - only one can be used
+	// subscription options - only one can be used
 	if val, ok := meta.Properties[startAtSequence]; ok && val != "" {
-		//nats streaming accepts a uint64 as sequence
+		// nats streaming accepts a uint64 as sequence
 		seq, err := strconv.ParseUint(meta.Properties[startAtSequence], 10, 64)
 		if err != nil {
 			return m, fmt.Errorf("nats-streaming error %s ", err)
@@ -99,21 +106,21 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 		m.startAtSequence = seq
 	} else if val, ok := meta.Properties[startWithLastReceived]; ok {
-		//only valid value is true
+		// only valid value is true
 		if val == startWithLastReceivedTrue {
 			m.startWithLastReceived = val
 		} else {
 			return m, errors.New("nats-streaming error: valid value for startWithLastReceived is true")
 		}
 	} else if val, ok := meta.Properties[deliverAll]; ok {
-		//only valid value is true
+		// only valid value is true
 		if val == deliverAllTrue {
 			m.deliverAll = val
 		} else {
 			return m, errors.New("nats-streaming error: valid value for deliverAll is true")
 		}
 	} else if val, ok := meta.Properties[deliverNew]; ok {
-		//only valid value is true
+		// only valid value is true
 		if val == deliverNewTrue {
 			m.deliverNew = val
 		} else {
@@ -175,7 +182,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler fun
 		herr := handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 		if herr != nil {
 		} else {
-			//we only send a successful ACK if there is no error from Dapr runtime
+			// we only send a successful ACK if there is no error from Dapr runtime
 			natsMsg.Ack()
 		}
 	}
@@ -220,7 +227,7 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 		}
 	}
 
-	//default is auto ACK. switching to manual ACK since processing errors need to be handled
+	// default is auto ACK. switching to manual ACK since processing errors need to be handled
 	options = append(options, stan.SetManualAckMode())
 
 	return options, nil
@@ -228,10 +235,12 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 
 const inputs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 
+// generates a random string of length 20
 func genRandomString(n int) string {
 	b := make([]byte, n)
+	s := rand.NewSource(time.Now().UnixNano())
 	for i := range b {
-		b[i] = inputs[rand.Int63()%int64(len(inputs))]
+		b[i] = inputs[s.Int63()%int64(len(inputs))]
 	}
 	clientID := string(b)
 

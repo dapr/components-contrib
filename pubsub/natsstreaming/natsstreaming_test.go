@@ -386,10 +386,4 @@ func TestGenRandomString(t *testing.T) {
 		assert.NotNil(t, clientID)
 		assert.Equal(t, 20, len(clientID))
 	})
-
-	t.Run("subsequent runs do not generate same client ID", func(t *testing.T) {
-		clientID1 := genRandomString(20)
-		clientID2 := genRandomString(20)
-		assert.NotEqual(t, clientID1, clientID2)
-	})
 }

@@ -44,14 +44,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		return nil, err
 	}
 
-	rps := meta.MaxRequestsPerSecond * numInvokesPerCall
-	var cap int64
-	if meta.MaxRequestsPerSecond < numInvokesPerCall {
-		cap = numInvokesPerCall
-	} else {
-		cap = int64(meta.MaxRequestsPerSecond) // WARN: data loss
-	}
-	bucket := ratelimit.NewBucketWithRate(rps, cap)
+	bucket := ratelimit.NewBucketWithRate(meta.MaxRequestsPerSecond, int64(meta.MaxRequestsPerSecond))
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {

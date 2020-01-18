@@ -23,7 +23,6 @@ type rateLimitMiddlewareMetadata struct {
 const (
 	blockKey                = "block"
 	maxRequestsPerSecondKey = "maxRequestsPerSecond"
-	numInvokesPerCall       = 4
 	httpTooManyRequestsErr  = "too many requests"
 
 	defaultMaxRequestsPerSecond = 100

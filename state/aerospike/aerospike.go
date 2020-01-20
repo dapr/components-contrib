@@ -12,10 +12,11 @@ import (
 	"github.com/dapr/components-contrib/state"
 
 	"encoding/json"
-	as "github.com/aerospike/aerospike-client-go"
-	jsoniter "github.com/json-iterator/go"
 	"strconv"
 	"strings"
+
+	as "github.com/aerospike/aerospike-client-go"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // metadata values
@@ -26,7 +27,6 @@ const (
 )
 
 var errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
-var errNamespaceHosts = errors.New("aerospike: value for 'namespace' missing")
 var errInvalidHosts = errors.New("aerospike: invalid value for hosts")
 var errInvalidETag = errors.New("aerospike: invalid ETag value")
 
@@ -98,7 +98,8 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 
 	// not a new record
 	if req.ETag != "" {
-		gen, err := convertETag(req.ETag)
+		var gen uint32
+		gen, err = convertETag(req.ETag)
 		if err != nil {
 			return errInvalidETag
 		}
@@ -145,6 +146,10 @@ func (aspike *Aerospike) BulkSet(req []state.SetRequest) error {
 func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	asKey, err := as.NewKey(aspike.namespace, aspike.set, req.Key)
 
+	if err != nil {
+		return nil, err
+	}
+
 	policy := &as.BasePolicy{}
 	if req.Options.Consistency == state.Strong {
 		policy.ConsistencyLevel = as.CONSISTENCY_ALL
@@ -176,7 +181,8 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	writePolicy := &as.WritePolicy{}
 
 	if req.ETag != "" {
-		gen, err := convertETag(req.ETag)
+		var gen uint32
+		gen, err = convertETag(req.ETag)
 		if err != nil {
 			return errInvalidETag
 		}
@@ -216,7 +222,7 @@ func (aspike *Aerospike) BulkDelete(req []state.DeleteRequest) error {
 }
 
 func parseHosts(hostsMeta string) ([]*as.Host, error) {
-	var hostPorts []*as.Host
+	hostPorts := []*as.Host{}
 	for _, hostPort := range strings.Split(hostsMeta, ",") {
 		if !strings.Contains(hostPort, ":") {
 			return nil, errInvalidHosts

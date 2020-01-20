@@ -90,7 +90,7 @@ func TestParseHostsForValidInputs(t *testing.T) {
 			result, err := parseHosts(test.hostPorts)
 			assert.Nil(t, err)
 			assert.NotNil(t, result)
-			assert.True(t, len(result) >= 0)
+			assert.True(t, len(result) >= 1)
 		})
 	}
 }

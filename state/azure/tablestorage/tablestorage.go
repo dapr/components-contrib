@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package tablestorage
 
 import (
@@ -62,18 +67,24 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 }
 
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	log.Debugf("delete one")
-	return nil
+	log.Debugf("delete %s", req.Key)
+	return r.deleteRow(req)
 }
 
 func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	log.Debugf("bulk delete")
+	log.Debugf("bulk delete %v key(s)", len(req))
+	for _, s := range req {
+		err := r.Delete(&s)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	log.Debugf("GET ONE")
-	pk, rk := r.getPartitionAndRowKey(req.Key)
+	log.Debugf("fetching %s", req.Key)
+	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 	err := entity.Get(1000, fullmetadata, nil)
 
@@ -92,13 +103,13 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (r *StateStore) Set(req *state.SetRequest) error {
-	log.Debugf("set ONE")
+	log.Debugf("saving %s", req.Key)
 
 	return r.writeRow(req)
 }
 
 func (r *StateStore) BulkSet(req []state.SetRequest) error {
-	log.Debugf("bulk set %v", len(req))
+	log.Debugf("bulk set %v key(s)", len(req))
 
 	for _, s := range req {
 		err := r.Set(&s)
@@ -143,18 +154,26 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 }
 
 func (r *StateStore) writeRow(req *state.SetRequest) error {
-	pk, rk := r.getPartitionAndRowKey(req.Key)
+	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 	entity.Properties = map[string]interface{}{
 		valueEntityProperty: r.marshal(req),
-		"ETag":              req.ETag, //todo
 	}
 
 	return entity.InsertOrReplace(nil)
 }
 
-func (r *StateStore) getPartitionAndRowKey(key string) (string, string) {
+func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
+	pk, rk := getPartitionAndRowKey(req.Key)
+	entity := r.table.GetEntityReference(pk, rk)
+	return entity.Delete(true, nil)
+}
+
+func getPartitionAndRowKey(key string) (string, string) {
 	pr := strings.Split(key, daprDelim)
+	if len(pr) != 2 {
+		return pr[0], ""
+	}
 	return pr[0], pr[1]
 }
 

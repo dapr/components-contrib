@@ -192,7 +192,6 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 			entity.OdataEtag = ""
 			return entity.Insert(storage.FullMetadata, nil)
 		}
-
 	}
 	return err
 }

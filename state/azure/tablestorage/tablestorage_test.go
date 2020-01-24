@@ -34,7 +34,7 @@ func TestGetTableStorageMetadata(t *testing.T) {
 
 func TestPartitionAndRowKey(t *testing.T) {
 	t.Run("Valid composite key", func(t *testing.T) {
-		pk, rk := getPartitionAndRowKey("pk__delim__rk")
+		pk, rk := getPartitionAndRowKey("pk||rk")
 		assert.Equal(t, "pk", pk)
 		assert.Equal(t, "rk", rk)
 	})

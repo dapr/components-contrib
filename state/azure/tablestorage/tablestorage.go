@@ -3,6 +3,30 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
+/*
+Azure Table Storage state store.
+
+Sample configuration in yaml:
+
+	apiVersion: dapr.io/v1alpha1
+	kind: Component
+	metadata:
+	  name: statestore
+	spec:
+	  type: state.azure.tablestorage
+	  metadata:
+	  - name: accountName
+		value: <storage account name>
+	  - name: accountKey
+		value: <key>
+	  - name: tableName
+		value: <table name>
+
+This store uses PartitionKey as service name, and RowKey as the rest of the composite key.
+
+Concurrency is supported with ETags according to https://docs.microsoft.com/en-us/azure/storage/common/storage-concurrency#managing-concurrency-in-table-storage
+*/
+
 package tablestorage
 
 import (
@@ -16,9 +40,9 @@ import (
 )
 
 const (
-	fullmetadata        = "application/json;odata=fullmetadata"
-	daprDelim           = "__delim__"
+	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
+	operationTimeout    = 1000
 
 	accountNameKey = "accountName"
 	accountKeyKey  = "accountKey"
@@ -36,9 +60,7 @@ type tablesMetadata struct {
 	tableName   string
 }
 
-// ---- Store interface begin
-
-//initialises connection to table storage, optionally creates a table if it doesn't exist
+// Initialises connection to table storage, optionally creates a table if it doesn't exist.
 func (r *StateStore) Init(metadata state.Metadata) error {
 	meta, err := getTablesMetadata(metadata.Properties)
 	if err != nil {
@@ -51,9 +73,9 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	//check table exists
 	log.Debugf("using table '%s'", meta.tableName)
-	err = r.table.Create(100, fullmetadata, nil)
+	err = r.table.Create(operationTimeout, storage.FullMetadata, nil)
 	if err != nil {
-		if azureError, ok := err.(storage.AzureStorageServiceError); ok && azureError.Code == "TableAlreadyExists" {
+		if isTableAlreadyExistsError(err) {
 			//error creating table, but it already exists so we're fine
 			log.Debugf("table already exists")
 		} else {
@@ -61,7 +83,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		}
 	}
 
-	log.Printf("table initialised, account: %s, table: %s", meta.accountName, meta.tableName)
+	log.Debugf("table initialised, account: %s, table: %s", meta.accountName, meta.tableName)
 
 	return nil
 }
@@ -86,19 +108,20 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	log.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
-	err := entity.Get(1000, fullmetadata, nil)
+	err := entity.Get(operationTimeout, storage.FullMetadata, nil)
 
 	if err != nil {
-		if azureError, ok := err.(storage.AzureStorageServiceError); ok && azureError.Code == "ResourceNotFound" {
+		if isNotFoundError(err) {
 			return &state.GetResponse{}, nil
 		}
 
 		return &state.GetResponse{}, err
 	}
 
-	data, err := r.unmarshal(entity)
+	data, etag, err := r.unmarshal(entity)
 	return &state.GetResponse{
 		Data: data,
+		ETag: etag,
 	}, err
 }
 
@@ -120,8 +143,6 @@ func (r *StateStore) BulkSet(req []state.SetRequest) error {
 
 	return nil
 }
-
-// ---- Store interface end
 
 func NewAzureTablesStateStore() *StateStore {
 	return &StateStore{
@@ -159,18 +180,52 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	entity.Properties = map[string]interface{}{
 		valueEntityProperty: r.marshal(req),
 	}
+	entity.OdataEtag = req.ETag
 
-	return entity.InsertOrReplace(nil)
+	// InsertOrReplace does not support ETag concurrency, therefore we will try to use Update method first
+	// as it's more frequent, and then Insert
+
+	err := entity.Update(false, nil)
+	if err != nil {
+		if isNotFoundError(err) {
+			// When entity is not found (set state first time) create it
+			entity.OdataEtag = ""
+			return entity.Insert(storage.FullMetadata, nil)
+		}
+
+	}
+	return err
+}
+
+func isConflictError(err error) bool {
+
+	// Unfortunately in case of conflict SDK does not provide specific error like AzureStorageError but a message only.
+	// Sample message:
+	//    Etag didn't match: storage: service returned error: StatusCode=412, ErrorCode=UpdateConditionNotSatisfied, ErrorMessage=The update condition specified in the request was not satisfied.
+
+	msg := err.Error()
+	return strings.Contains(msg, "StatusCode=412") && strings.Contains(msg, "ErrorCode=UpdateConditionNotSatisfied")
+}
+
+func isNotFoundError(err error) bool {
+	azureError, ok := err.(storage.AzureStorageServiceError)
+	return ok && azureError.Code == "ResourceNotFound"
+}
+
+func isTableAlreadyExistsError(err error) bool {
+	azureError, ok := err.(storage.AzureStorageServiceError)
+	return ok && azureError.Code == "TableAlreadyExists"
 }
 
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
+	entity.OdataEtag = req.ETag
 	return entity.Delete(true, nil)
 }
 
 func getPartitionAndRowKey(key string) (string, string) {
-	pr := strings.Split(key, daprDelim)
+	pr := strings.Split(key, keyDelimiter)
 	if len(pr) != 2 {
 		return pr[0], ""
 	}
@@ -188,19 +243,21 @@ func (r *StateStore) marshal(req *state.SetRequest) string {
 	return v
 }
 
-func (r *StateStore) unmarshal(row *storage.Entity) ([]byte, error) {
+func (r *StateStore) unmarshal(row *storage.Entity) ([]byte, string, error) {
 	raw := row.Properties[valueEntityProperty]
 
-	//value column not present
+	// value column not present
 	if raw == nil {
-		return nil, nil
+		return nil, "", nil
 	}
 
-	//must be a string
+	// must be a string
 	sv, ok := raw.(string)
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
+		return nil, "", errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
 	}
 
-	return []byte(sv), nil
+	// use native ETag
+	etag := row.OdataEtag
+	return []byte(sv), etag, nil
 }

@@ -197,16 +197,6 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	return err
 }
 
-func isConflictError(err error) bool {
-
-	// Unfortunately in case of conflict SDK does not provide specific error like AzureStorageError but a message only.
-	// Sample message:
-	//    Etag didn't match: storage: service returned error: StatusCode=412, ErrorCode=UpdateConditionNotSatisfied, ErrorMessage=The update condition specified in the request was not satisfied.
-
-	msg := err.Error()
-	return strings.Contains(msg, "StatusCode=412") && strings.Contains(msg, "ErrorCode=UpdateConditionNotSatisfied")
-}
-
 func isNotFoundError(err error) bool {
 	azureError, ok := err.(storage.AzureStorageServiceError)
 	return ok && azureError.Code == "ResourceNotFound"

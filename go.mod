@@ -34,6 +34,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/dnaeon/go-vcr v1.0.1 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072 // indirect

@@ -84,7 +84,7 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 	return nil
 }
 
-//Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings
+// Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings
 func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	err := state.CheckSetRequestOptions(req)
 	if err != nil {
@@ -228,8 +228,11 @@ func parseHosts(hostsMeta string) ([]*as.Host, error) {
 			return nil, errInvalidHosts
 		}
 		host := strings.Split(hostPort, ":")[0]
-		port, _ := strconv.Atoi(strings.Split(hostPort, ":")[1])
-		hostPorts = append(hostPorts, as.NewHost(host, port))
+		port, err := strconv.ParseUint(strings.Split(hostPort, ":")[1], 10, 32)
+		if err != nil {
+			return nil, errInvalidHosts
+		}
+		hostPorts = append(hostPorts, as.NewHost(host, int(port)))
 	}
 	return hostPorts, nil
 }

@@ -101,8 +101,9 @@ func TestParseHostsForInvalidInputs(t *testing.T) {
 		hostPorts string
 	}
 	tests := []testCase{
-		{"invalid host ports 1", "host1"},
-		{"invalid host ports 2", "host1:1234,host2"},
+		{"missing port", "host1"},
+		{"multiple entries missing port", "host1:1234,host2"},
+		{"invalid port", "host1:foo"},
 	}
 
 	for _, test := range tests {

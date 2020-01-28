@@ -26,12 +26,17 @@ const (
 	defaultMessageTimeToLiveInSec = "defaultMessageTimeToLiveInSec"
 	autoDeleteOnIdleInSec         = "autoDeleteOnIdleInSec"
 	disableEntityManagement       = "disableEntityManagement"
+	numConcurrentHandlers         = "numConcurrentHandlers"
+	handlerTimeoutInSec           = "handlerTimeoutInSec"
 	errorMessagePrefix            = "azure service bus error:"
 
 	// Defaults
 	defaultTimeoutInSec            = 60
+	defaultHandlerTimeoutInSec     = 60
 	defaultDisableEntityManagement = false
 )
+
+type handler = struct{}
 
 type azureServiceBus struct {
 	metadata     metadata
@@ -79,6 +84,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
+	m.HandlerTimeoutInSec = defaultHandlerTimeoutInSec
+	if val, ok := meta.Properties[handlerTimeoutInSec]; ok && val != "" {
+		var err error
+		m.HandlerTimeoutInSec, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid handlerTimeoutInSec %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
 	/* Nullable configuration settings - defaults will be set by the server */
 	if val, ok := meta.Properties[maxDeliveryCount]; ok && val != "" {
 		valAsInt, err := strconv.Atoi(val)
@@ -110,6 +124,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 			return m, fmt.Errorf("%s invalid autoDeleteOnIdleInSecKey %s, %s", errorMessagePrefix, val, err)
 		}
 		m.AutoDeleteOnIdleInSec = &valAsInt
+	}
+
+	if val, ok := meta.Properties[numConcurrentHandlers]; ok && val != "" {
+		var err error
+		valAsInt, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid numConcurrentHandlers %s, %s", errorMessagePrefix, val, err)
+		}
+		m.NumConcurrentHandlers = &valAsInt
 	}
 
 	return m, nil
@@ -153,7 +176,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg *pubsub.NewMessage) error) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
 		err := a.ensureSubscription(subID, req.Topic)
@@ -171,20 +194,19 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler func(ms
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
 
-	sbHandlerFunc := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
-
-	go a.handleSubscriptionMessages(req.Topic, sub, sbHandlerFunc)
+	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, daprHandler))
+	go a.handleSubscriptionMessages(req.Topic, sub, asbHandler)
 
 	return nil
 }
 
-func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.NewMessage) error) func(ctx context.Context, message *azservicebus.Message) error {
+func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pubsub.NewMessage) error) func(ctx context.Context, message *azservicebus.Message) error {
 	return func(ctx context.Context, message *azservicebus.Message) error {
 		msg := &pubsub.NewMessage{
 			Data:  message.Data,
 			Topic: topic,
 		}
-		err := handler(msg)
+		err := daprHandler(msg)
 		if err != nil {
 			return message.Abandon(ctx)
 		}
@@ -192,9 +214,43 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler func(msg *pubsub.
 	}
 }
 
-func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, handlerFunc azservicebus.HandlerFunc) {
+func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
+	
+	// Limiting the number of concurrent handlers will stop this
+	// components creating an unbounded amount of gorountines for
+	// each handle invocation.
+	limitNumConcurrentHandlers := a.metadata.NumConcurrentHandlers != nil
+	var handlers chan handler
+	if limitNumConcurrentHandlers {
+		handlers = make(chan handler, *a.metadata.NumConcurrentHandlers)
+		for i := 0; i < *a.metadata.NumConcurrentHandlers; i++ {
+			handlers <- handler{}
+		}
+		defer close(handlers)
+	}
+
+	var concurrentAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
+		go func() {
+			if limitNumConcurrentHandlers {
+				<-handlers // Take or wait on a free handler
+				defer func() {
+					handlers <- handler{} // Release a handler
+				} ()
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
+			defer cancel()
+
+			err := asbHandler(ctx, msg)
+			if err != nil {
+				log.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
+			}
+		} ()
+		return nil
+	}
+
 	for {
-		if err := sub.Receive(context.Background(), handlerFunc); err != nil {
+		if err := sub.Receive(context.Background(), concurrentAsbHandler); err != nil {
 			log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
 			// Must close to reset sub's receiver
 			if err := sub.Close(context.Background()); err != nil {

@@ -15,6 +15,9 @@ Currently supported state stores are:
 * Zookeeper
 * Cloud Firestore (Datastore mode)
 * Couchbase
+* Hazelcast
+* SQL Server
+* CloudState
 
 ## Implementing a new State Store
 

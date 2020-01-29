@@ -97,7 +97,7 @@ func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSe
 	if err != nil {
 		return res, fmt.Errorf("failed to access secret version: %v", err)
 	}
-	return secretstores.GetSecretResponse{Data: map[string]string{secretstores.DefaultSecretRefKeyName: string(result.Payload.Data)}}, nil
+	return secretstores.GetSecretResponse{Data: map[string]string{req.Name: string(result.Payload.Data)}}, nil
 }
 
 func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*secretManagerMetadata, error) {

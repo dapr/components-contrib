@@ -32,8 +32,10 @@ const (
 	defaultOperationTimeout = time.Second * 10
 )
 
+//nolint:gochecknoglobals
 var doOnce sync.Once
 
+//nolint:gochecknoglobals
 var fileDesc = `Ct0BChlnb29nbGUvcHJvdG9idWYvYW55LnByb3RvEg9nb29nbGUucHJvdG9idWYi
 NgoDQW55EhkKCHR5cGVfdXJsGAEgASgJUgd0eXBlVXJsEhQKBXZhbHVlGAIgASgM
 UgV2YWx1ZUJvChNjb20uZ29vZ2xlLnByb3RvYnVmQghBbnlQcm90b1ABWiVnaXRo
@@ -228,7 +230,7 @@ Y2xvdWRzdGF0ZS5TYXZlU3RhdGVFbnZlbG9wZRoWLmdvb2dsZS5wcm90b2J1Zi5F
 bXB0eSIAEkgKC0RlbGV0ZVN0YXRlEh8uY2xvdWRzdGF0ZS5EZWxldGVTdGF0ZUVu
 dmVsb3BlGhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5IgBiBnByb3RvMw==`
 
-type CloudStateCrdt struct {
+type CRDT struct {
 	connection *grpc.ClientConn
 	metadata   *crdtMetadata
 	json       jsoniter.API
@@ -239,14 +241,14 @@ type crdtMetadata struct {
 	serverPort int
 }
 
-func NewCloudStateCrdt() *CloudStateCrdt {
-	return &CloudStateCrdt{
+func NewCRDT() *CRDT {
+	return &CRDT{
 		json: jsoniter.ConfigFastest,
 	}
 }
 
 // Init does metadata and connection parsing
-func (c *CloudStateCrdt) Init(metadata state.Metadata) error {
+func (c *CRDT) Init(metadata state.Metadata) error {
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -257,7 +259,7 @@ func (c *CloudStateCrdt) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (c *CloudStateCrdt) startServer() error {
+func (c *CRDT) startServer() error {
 	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", c.metadata.serverPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -271,7 +273,7 @@ func (c *CloudStateCrdt) startServer() error {
 	return nil
 }
 
-func (c *CloudStateCrdt) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, error) {
+func (c *CRDT) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, error) {
 	d, err := base64.StdEncoding.DecodeString(fileDesc)
 	if err != nil {
 		return nil, err
@@ -291,12 +293,12 @@ func (c *CloudStateCrdt) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.En
 	}, nil
 }
 
-func (c *CloudStateCrdt) ReportError(ctx context.Context, in *pb.UserFunctionError) (*empty.Empty, error) {
+func (c *CRDT) ReportError(ctx context.Context, in *pb.UserFunctionError) (*empty.Empty, error) {
 	log.Errorf("error from CloudState: %s", in.GetMessage())
 	return &empty.Empty{}, nil
 }
 
-func (c *CloudStateCrdt) Handle(srv pb.Crdt_HandleServer) error {
+func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 	var val *any.Any
 
 	exists := false
@@ -313,6 +315,8 @@ func (c *CloudStateCrdt) Handle(srv pb.Crdt_HandleServer) error {
 		}
 
 		msg := strmIn.GetMessage()
+
+		//nolint:govet
 		switch m := msg.(type) {
 		case *pb.CrdtStreamIn_Init:
 			if m.Init.State != nil {
@@ -440,7 +444,7 @@ func (c *CloudStateCrdt) Handle(srv pb.Crdt_HandleServer) error {
 
 // Since CloudState runs as a sidecar, we're pushing the connection init to be lazily executed when a request comes in to
 // Give CloudState ample time to start and form a cluster.
-func (c *CloudStateCrdt) createConnectionOnce() error {
+func (c *CRDT) createConnectionOnce() error {
 	var connError error
 	doOnce.Do(func() {
 		conn, err := grpc.Dial(c.metadata.host, grpc.WithInsecure(), grpc.WithBlock())
@@ -453,7 +457,7 @@ func (c *CloudStateCrdt) createConnectionOnce() error {
 	return connError
 }
 
-func (r *CloudStateCrdt) parseMetadata(metadata state.Metadata) (*crdtMetadata, error) {
+func (c *CRDT) parseMetadata(metadata state.Metadata) (*crdtMetadata, error) {
 	m := crdtMetadata{}
 	if val, ok := metadata.Properties[host]; ok && val != "" {
 		m.host = val
@@ -473,12 +477,12 @@ func (r *CloudStateCrdt) parseMetadata(metadata state.Metadata) (*crdtMetadata, 
 	return &m, nil
 }
 
-func (c *CloudStateCrdt) getClient() kvstore_pb.KeyValueStoreClient {
+func (c *CRDT) getClient() kvstore_pb.KeyValueStoreClient {
 	return kvstore_pb.NewKeyValueStoreClient(c.connection)
 }
 
 // Get retrieves state from CloudState with a key
-func (c *CloudStateCrdt) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *CRDT) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	err := c.createConnectionOnce()
 	if err != nil {
 		return nil, err
@@ -503,7 +507,7 @@ func (c *CloudStateCrdt) Get(req *state.GetRequest) (*state.GetResponse, error) 
 }
 
 // Delete performs a delete operation
-func (c *CloudStateCrdt) Delete(req *state.DeleteRequest) error {
+func (c *CRDT) Delete(req *state.DeleteRequest) error {
 	err := c.createConnectionOnce()
 	if err != nil {
 		return err
@@ -521,7 +525,7 @@ func (c *CloudStateCrdt) Delete(req *state.DeleteRequest) error {
 }
 
 // BulkDelete performs a bulk delete operation
-func (c *CloudStateCrdt) BulkDelete(req []state.DeleteRequest) error {
+func (c *CRDT) BulkDelete(req []state.DeleteRequest) error {
 	err := c.createConnectionOnce()
 	if err != nil {
 		return err
@@ -537,7 +541,7 @@ func (c *CloudStateCrdt) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Set saves state into CloudState
-func (c *CloudStateCrdt) Set(req *state.SetRequest) error {
+func (c *CRDT) Set(req *state.SetRequest) error {
 	err := c.createConnectionOnce()
 	if err != nil {
 		return err
@@ -566,7 +570,7 @@ func (c *CloudStateCrdt) Set(req *state.SetRequest) error {
 }
 
 // BulkSet performs a bulks save operation
-func (c *CloudStateCrdt) BulkSet(req []state.SetRequest) error {
+func (c *CRDT) BulkSet(req []state.SetRequest) error {
 	err := c.createConnectionOnce()
 	if err != nil {
 		return err

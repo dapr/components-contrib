@@ -11,9 +11,9 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
 
-const versionID = "version_id"
+const VersionID = "version_id"
 
-type GCPCredentials struct {
+type gcpCredentials struct {
 	Type                string `json:"type"`
 	ProjectID           string `json:"project_id"`
 	PrivateKey          string `json:"private_key"`
@@ -27,39 +27,39 @@ type GCPCredentials struct {
 }
 
 type secretManagerMetadata struct {
-	GCPCredentials
+	gcpCredentials
 }
 
-type SecretManagerStore struct {
+// Store contains and GCP secret manager client and project id
+type Store struct {
 	client    *secretmanager.Client
 	ProjectID string
 }
 
 // NewSecreteManager returns new instance of  `SecretManagerStore`
-func NewSecreteManager() *SecretManagerStore {
-	return &SecretManagerStore{}
+func NewSecreteManager() *Store {
+	return &Store{}
 }
 
 // Init creates a GCP secret manager client
-func (sm *SecretManagerStore) Init(metadataRaw secretstores.Metadata) error {
-	metadata, err := sm.parseSecretManagerMetadata(metadataRaw)
+func (s *Store) Init(metadataRaw secretstores.Metadata) error {
+	metadata, err := s.parseSecretManagerMetadata(metadataRaw)
 	if err != nil {
 		return err
 	}
 
-	client, err := sm.getClient(metadata)
+	client, err := s.getClient(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to setup secretmanager client: %s", err)
 	}
 
-	sm.client = client
-	sm.ProjectID = metadata.ProjectID
+	s.client = client
+	s.ProjectID = metadata.ProjectID
 
 	return nil
 }
 
-func (sm *SecretManagerStore) getClient(metadata *secretManagerMetadata) (*secretmanager.Client, error) {
-
+func (s *Store) getClient(metadata *secretManagerMetadata) (*secretmanager.Client, error) {
 	b, _ := json.Marshal(metadata)
 	clientOptions := option.WithCredentialsJSON(b)
 	ctx := context.Background()
@@ -73,10 +73,10 @@ func (sm *SecretManagerStore) getClient(metadata *secretManagerMetadata) (*secre
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string
-func (sm *SecretManagerStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	res := secretstores.GetSecretResponse{Data: nil}
 
-	if sm.client == nil {
+	if s.client == nil {
 		return res, fmt.Errorf("client is not initialized")
 	}
 
@@ -85,22 +85,22 @@ func (sm *SecretManagerStore) GetSecret(req secretstores.GetSecretRequest) (secr
 	}
 
 	versionID := "latest"
-	if value, ok := req.Metadata[versionID]; ok {
+	if value, ok := req.Metadata[VersionID]; ok {
 		versionID = value
 	}
 
 	ctx := context.Background()
 	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", sm.ProjectID, req.Name, versionID),
+		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", s.ProjectID, req.Name, versionID),
 	}
-	result, err := sm.client.AccessSecretVersion(ctx, accessRequest)
+	result, err := s.client.AccessSecretVersion(ctx, accessRequest)
 	if err != nil {
 		return res, fmt.Errorf("failed to access secret version: %v", err)
 	}
 	return secretstores.GetSecretResponse{Data: map[string]string{secretstores.DefaultSecretRefKeyName: string(result.Payload.Data)}}, nil
 }
 
-func (sm *SecretManagerStore) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*secretManagerMetadata, error) {
+func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*secretManagerMetadata, error) {
 	b, err := json.Marshal(metadataRaw.Properties)
 	if err != nil {
 		return nil, err

@@ -330,7 +330,6 @@ func TestSubscriptionOptionsForInvalidOptions(t *testing.T) {
 }
 
 func TestSubscriptionOptions(t *testing.T) {
-
 	//general
 	t.Run("manual ACK option is present by default", func(t *testing.T) {
 		natsStreaming := natsStreamingPubSub{metadata: metadata{}}

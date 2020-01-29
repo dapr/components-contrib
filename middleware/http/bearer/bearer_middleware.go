@@ -11,8 +11,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/dapr/components-contrib/middleware"
 	oidc "github.com/coreos/go-oidc"
+	"github.com/dapr/components-contrib/middleware"
 	"github.com/valyala/fasthttp"
 )
 
@@ -55,17 +55,17 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
 			authHeader := string(ctx.Request.Header.Peek(fasthttp.HeaderAuthorization))
-			if (!strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix)) {
+			if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
 				return
 			}
 			rawToken := authHeader[bearerPrefixLength:]
 			_, err := verifier.Verify(ctx, rawToken)
-			if (err != nil) {
+			if err != nil {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
 				return
 			}
-			
+
 			h(ctx)
 		}
 	}, nil

@@ -11,7 +11,7 @@ import (
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
 	sm := NewSecreteManager()
-	t.Run("Init with valid metadata", func(t *testing.T) {
+	t.Run("Init with Wrong metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"type":                        "service_account",
 			"project_id":                  "a",
@@ -26,6 +26,7 @@ func TestInit(t *testing.T) {
 		}
 
 		err := sm.Init(m)
+		// Even if we pass wrong credentials `client.NewClient` dont throw an error
 		assert.Nil(t, err)
 	})
 
@@ -58,7 +59,7 @@ func TestGetSecret(t *testing.T) {
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
 	})
 
-	t.Run("Get Secret - with Init", func(t *testing.T) {
+	t.Run("Get Secret - with wrong Init", func(t *testing.T) {
 		m := secretstores.Metadata{
 			Properties: map[string]string{
 				"type":                        "service_account",

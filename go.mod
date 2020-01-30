@@ -21,6 +21,7 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.0
+	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/apache/thrift v0.13.0 // indirect
 	github.com/aws/aws-sdk-go v1.25.0
@@ -44,6 +45,8 @@ require (
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1
+	github.com/golang/protobuf v1.3.2
+	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1 // indirect
@@ -96,6 +99,7 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
+	github.com/yuin/gopher-lua v0.0.0-20191220021717-ab39c6098bdb // indirect
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.2

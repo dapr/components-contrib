@@ -1,5 +1,7 @@
 # Developing new component
 
+This document describes how to build and test new component.
+
 ## Prerequisites
 
 1. [Dapr development environment setup](https://github.com/dapr/dapr/blob/master/docs/development/setup-dapr-development-env.md)
@@ -52,37 +54,38 @@ make lint
 ## Validating with Dapr core
 
 1. Make sure you clone dapr and component-contrib repos under $GOPATH/src/github.com/dapr
-
 2. Replace github.com/dapr/components-contrib reference to the local component-contrib
-
 ```bash
 go mod edit -replace github.com/dapr/component-contrib=../component-contrib
 ```
-
-1. Import your component to dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L79)
-
-2. Register your component in dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)(e.g. binding)
-
-3. Build dapr code locally
-
+3. Import your component to dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L79)
+4. Register your component in dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)(e.g. binding)
+5. Build debuggable dapr binary
 ```bash
 make DEBUG=1 build
 ```
-
 6. Replace the installed daprd with the test binary (then dapr cli will use the test binary)
-
 ```bash
-# copy .\dist\windows_amd64\debug\daprd c:\dapr
-# cp ./dist/linux_amd64/debug/daprd /usr/local/bin
-
-# if you're using MacOS
+# Back up the current daprd
+mv /usr/local/bin/daprd /usr/local/bin/daprd.bak
 cp ./dist/darwin_amd64/debug/daprd /usr/local/bin
 ```
+> Linux Debuggable Binary: ./dist/linux_amd64/debug/daprd
+> Windows Debuggable Binary: .\dist\windows_amd64\debug\daprd
+7. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/samples/blob/master/5.bindings/nodeapp/)
+8. Create yaml for bindings in './components' under app’s directory (e.g. kafka example : https://github.com/dapr/samples/blob/master/5.bindings/deploy/kafka_bindings.yaml)
+9. Run your test app using dapr cli
+10. Make sure your component is loaded successfully in daprd log
 
-1. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/samples/blob/master/5.bindings/nodeapp/)
+## Submit your component
 
-2. Create yaml for bindings in './components' under app’s directory (e.g. kafka example : https://github.com/dapr/samples/blob/master/5.bindings/deploy/kafka_bindings.yaml)
-
-3. Run your test app using dapr cli
-
-4.  Make sure your binding component is loaded successfully in daprd log
+1. Create a pullrequest to add your component in [component-contrib](https://github.com/dapr/components-contrib/pulls) repo
+2. Get the approval from maintainers
+3. Fetch the latest dapr/dapr repo
+4. Update component-contrib go mod and ensure that component-contrib is updated to the latest version
+```bash
+go get -u github.com/dapr/components-contrib
+```
+5. Import your component to Dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L79)
+6. Register your component in Dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)
+7. Create a pullrequest in [Dapr](https://github.com/dapr/dapr/pulls)

@@ -21,6 +21,6 @@ Available component types:
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://github.com/dapr/docs).
 
-## Contributing to component-contrib
+## Contribution
 
 * [Developing new component](docs/developing-component.md)

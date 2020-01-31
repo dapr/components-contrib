@@ -21,33 +21,6 @@ Available component types:
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://github.com/dapr/docs).
 
-## Developing components
+## Contribution
 
-### Prerequisites
-
-1. The Go language environment [(instructions)](https://golang.org/doc/install).
-   * Make sure that your GOPATH and PATH are configured correctly
-   ```bash
-   export GOPATH=~/go
-   export PATH=$PATH:$GOPATH/bin
-   ```
-
-### Clone the repo
-
-```bash
-cd $GOPATH/src
-mkdir -p github.com/dapr/components-contrib
-git clone https://github.com/dapr/components-contrib.git github.com/dapr/components-contrib
-```
-
-### Running tests
-
-```bash
-make test
-```
-
-### Running linting
-
-```bash
-make lint
-```
+* [Developing new component](docs/developing-component.md)

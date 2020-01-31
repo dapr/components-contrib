@@ -8,23 +8,25 @@ package ratelimit
 import (
 	"fmt"
 	"strconv"
+	"net/http"
+	"io/ioutil"
 
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/juju/ratelimit"
+	"github.com/didip/tollbooth"
 	"github.com/valyala/fasthttp"
+	log "github.com/sirupsen/logrus"
+	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
-// Metadata is the oAuth middleware config
+// Metadata is the ratelimit middleware config
 type rateLimitMiddlewareMetadata struct {
-	Block                bool    `json:"block"`
 	MaxRequestsPerSecond float64 `json:"maxRequestsPerSecond"`
 }
 
 const (
-	blockKey                = "block"
 	maxRequestsPerSecondKey = "maxRequestsPerSecond"
-	httpTooManyRequestsErr  = "too many requests"
 
+	// Defaults
 	defaultMaxRequestsPerSecond = 100
 )
 
@@ -43,34 +45,18 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		return nil, err
 	}
 
-	bucket := ratelimit.NewBucketWithRate(meta.MaxRequestsPerSecond, int64(meta.MaxRequestsPerSecond))
+	limiter := tollbooth.NewLimiter(meta.MaxRequestsPerSecond, nil)
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+		limitHandler := tollbooth.LimitFuncHandler(limiter, newHTTPHandlerFunc(h))
 		return func(ctx *fasthttp.RequestCtx) {
-			if meta.Block {
-				// server side blocks
-				bucket.Wait(1)
-			} else if bucket.TakeAvailable(1) == 0 {
-				// error and expect client to handle retries
-				ctx.Error(httpTooManyRequestsErr, fasthttp.StatusTooManyRequests)
-				return
-			}
-			h(ctx)
+			fasthttpadaptor.NewFastHTTPHandlerFunc(limitHandler.ServeHTTP)(ctx)
 		}
 	}, nil
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimitMiddlewareMetadata, error) {
 	var middlewareMetadata rateLimitMiddlewareMetadata
-
-	middlewareMetadata.Block = false
-	if val, ok := metadata.Properties[blockKey]; ok {
-		b, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing ratelimit middelware property %s: %+v", blockKey, err)
-		}
-		middlewareMetadata.Block = b
-	}
 
 	middlewareMetadata.MaxRequestsPerSecond = defaultMaxRequestsPerSecond
 	if val, ok := metadata.Properties[maxRequestsPerSecondKey]; ok {
@@ -85,4 +71,44 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 	}
 
 	return &middlewareMetadata, nil
+}
+
+// TODO: This is also used in https://github.com/dapr/dapr/pull/962.
+//       move to common location when needed. Also needs additional
+//       support for multipartform data etc.
+func newHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := fasthttp.RequestCtx{
+			Request: fasthttp.Request{},
+			Response: fasthttp.Response{},
+		}
+
+		reqBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Errorf("error reading request body, %+v", err)
+			return
+		}
+		c.Request.SetBody(reqBody)
+		c.Request.SetRequestURI(r.URL.RequestURI())
+		c.Request.SetHost(r.Host)
+		c.Request.Header.SetMethod(r.Method)
+		c.Request.Header.Set("Proto", r.Proto)
+		c.Request.Header.Set("ProtoMajor", string(r.ProtoMajor))
+		c.Request.Header.Set("ProtoMinor", string(r.ProtoMinor))
+		for _, cookie := range r.Cookies() {
+			c.Request.Header.SetCookie(cookie.Name, cookie.Value)
+		}
+		for k, v := range r.Header {
+			for _, i := range v { // TODO: Check this works for Transfer-Encoding
+				c.Request.Header.Add(k, i)
+			}
+		}
+		
+		h(&c)
+
+		c.Response.Header.VisitAll(func(k []byte, v []byte) {
+			w.Header().Add(string(k), string(v))
+		})
+		c.Response.BodyWriteTo(w)
+	})
 }

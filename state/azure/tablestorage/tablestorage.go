@@ -31,12 +31,13 @@ package tablestorage
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/dapr/components-contrib/state"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"strings"
 )
 
 const (

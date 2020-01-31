@@ -28,7 +28,7 @@ func getFakeProperties() map[string]string {
 		autoDeleteOnIdleInSec:         "240",
 		defaultMessageTimeToLiveInSec: "2400",
 		lockDurationInSec:             "120",
-		numConcurrentHandlers:        "1",
+		numConcurrentHandlers:         "1",
 	}
 }
 

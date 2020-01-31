@@ -15,7 +15,7 @@ import (
 func TestInit(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber"}
-	tw := NewTwilioSMS()
+	tw := NewSMS()
 	err := tw.Init(m)
 	assert.NotNil(t, err)
 }
@@ -24,7 +24,7 @@ func TestParseDuration(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber",
 		"accountSid": "accountSid", "authToken": "authToken", "timeout": "badtimeout"}
-	tw := NewTwilioSMS()
+	tw := NewSMS()
 	err := tw.Init(m)
 	assert.NotNil(t, err)
 }

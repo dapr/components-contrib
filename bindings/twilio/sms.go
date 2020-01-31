@@ -16,7 +16,7 @@ const (
 	accountSid    = "accountSid"
 	authToken     = "authToken"
 	timeout       = "timeout"
-	twilioUrlBase = "https://api.twilio.com/2010-04-01/Accounts/"
+	twilioURLBase = "https://api.twilio.com/2010-04-01/Accounts/"
 )
 
 type OutputBinding interface {
@@ -24,7 +24,7 @@ type OutputBinding interface {
 	Write(req *bindings.WriteRequest) error
 }
 
-type TwilioSMS struct {
+type SMS struct {
 	metadata twilioMetadata
 }
 
@@ -36,11 +36,11 @@ type twilioMetadata struct {
 	timeout    time.Duration
 }
 
-func NewTwilioSMS() *TwilioSMS {
-	return &TwilioSMS{}
+func NewSMS() *SMS {
+	return &SMS{}
 }
 
-func (t *TwilioSMS) Init(metadata bindings.Metadata) error {
+func (t *SMS) Init(metadata bindings.Metadata) error {
 	twilioM := twilioMetadata{
 		timeout: time.Minute * 5,
 	}
@@ -74,7 +74,7 @@ func (t *TwilioSMS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (t *TwilioSMS) Write(req *bindings.WriteRequest) error {
+func (t *SMS) Write(req *bindings.WriteRequest) error {
 	v := url.Values{}
 	v.Set("To", t.metadata.toNumber)
 	v.Set("From", t.metadata.fromNumber)
@@ -85,8 +85,8 @@ func (t *TwilioSMS) Write(req *bindings.WriteRequest) error {
 		Timeout: t.metadata.timeout,
 	}
 
-	twilioUrl := fmt.Sprintf("%s%s/Messages.json", twilioUrlBase, t.metadata.accountSid)
-	httpReq, err := http.NewRequest("POST", twilioUrl, &vDr)
+	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
+	httpReq, err := http.NewRequest("POST", twilioURL, &vDr)
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,7 @@ func (t *TwilioSMS) Write(req *bindings.WriteRequest) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
 		return fmt.Errorf("error from Twilio: %s", resp.Status)
 	}

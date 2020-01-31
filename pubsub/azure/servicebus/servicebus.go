@@ -215,7 +215,6 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 }
 
 func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
-	
 	// Limiting the number of concurrent handlers will stop this
 	// components creating an unbounded amount of gorountines for
 	// each handle invocation.
@@ -235,7 +234,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 				<-handlers // Take or wait on a free handler
 				defer func() {
 					handlers <- handler{} // Release a handler
-				} ()
+				}()
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
@@ -245,7 +244,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 			if err != nil {
 				log.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 			}
-		} ()
+		}()
 		return nil
 	}
 

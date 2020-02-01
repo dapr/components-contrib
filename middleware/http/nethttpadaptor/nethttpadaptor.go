@@ -1,6 +1,7 @@
 package nethttpadaptor
 
 import (
+	"net"
 	"net/http"
 	"io/ioutil"
 
@@ -11,10 +12,10 @@ import (
 // NewNetHTTPHandlerFunc wraps a fasthttp.RequestHandler in a http.HandlerFunc
 func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := fasthttp.RequestCtx{
-			Request: fasthttp.Request{},
-			Response: fasthttp.Response{},
-		}
+		c := fasthttp.RequestCtx{}
+		remoteIP := net.ParseIP(r.RemoteAddr)
+		remoteAddr := net.IPAddr{remoteIP, ""}
+		c.Init(&fasthttp.Request{}, &remoteAddr, nil)
 
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {

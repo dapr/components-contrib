@@ -206,7 +206,20 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			},
 		},
 		{
-			"Content-Type with extensions is handled",
+			"Content-Type is handled",
+			func() *http.Request {
+				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req.Header.Add("Content-Type", "application/json")
+				return req
+			},
+			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
+				return func(ctx *fasthttp.RequestCtx) {
+					assert.Equal(t, "application/json", string(ctx.Request.Header.ContentType()))
+				}
+			},
+		},
+		{
+			"Content-Type with boundary is handled",
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.Header.Add("Content-Type", "multipart/form-data; boundary=test-boundary")
@@ -260,6 +273,19 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 						}
 					})
 					assert.Equal(t, "Basic YWxhZGRpbjpvcGVuc2VzYW1l", basicAuth)
+				}
+			},
+		},
+		{
+			"RemoteAddr is handled",
+			func() *http.Request {
+				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req.RemoteAddr = "1.1.1.1"
+				return req
+			},
+			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
+				return func(ctx *fasthttp.RequestCtx) {
+					assert.Equal(t, "1.1.1.1", ctx.RemoteAddr().String())
 				}
 			},
 		},

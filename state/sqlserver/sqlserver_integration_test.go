@@ -174,6 +174,7 @@ func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader fu
 
 	rows, err := db.Query(query)
 	assert.Nil(t, err)
+	assert.Nil(t, rows.Err())
 
 	defer rows.Close()
 	assertReader(t, rows)

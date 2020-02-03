@@ -3,11 +3,12 @@ package twilio
 import (
 	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dapr/components-contrib/bindings"
 )
 
 const (

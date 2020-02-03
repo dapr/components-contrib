@@ -280,7 +280,7 @@ func (c *CRDT) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, 
 	}
 
 	entities := []*pb.Entity{
-		&pb.Entity{
+		{
 			EntityType:    "cloudstate.crdt.Crdt",
 			ServiceName:   "cloudstate.KeyValueStore",
 			PersistenceId: "dapr",

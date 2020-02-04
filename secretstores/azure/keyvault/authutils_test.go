@@ -142,9 +142,9 @@ func TestFallbackToMSI(t *testing.T) {
 		},
 	}
 
-	testCertConfig, err := settings.GetAuthorizer()
+	authorizer, err := settings.GetAuthorizer()
 
-	assert.NotNil(t, testCertConfig)
+	assert.NotNil(t, authorizer)
 	assert.NoError(t, err)
 }
 

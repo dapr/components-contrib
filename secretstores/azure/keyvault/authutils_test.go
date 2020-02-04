@@ -134,6 +134,20 @@ func TestGetMSI(t *testing.T) {
 	assert.Equal(t, "https://vault.azure.net", testCertConfig.Resource)
 }
 
+func TestFallbackToMSI(t *testing.T) {
+	settings := EnvironmentSettings{
+		Values: map[string]string{
+			componentSPNClientID: fakeClientID,
+			componentVaultName:   "vaultName",
+		},
+	}
+
+	testCertConfig, err := settings.GetAuthorizer()
+
+	assert.NotNil(t, testCertConfig)
+	assert.NoError(t, err)
+}
+
 func TestAuthorizorWithMSI(t *testing.T) {
 	settings := EnvironmentSettings{
 		Values: map[string]string{

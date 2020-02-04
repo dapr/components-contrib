@@ -37,7 +37,7 @@ func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
 	clientID := s.Values[componentSPNClientID]
 	tenantID := s.Values[componentSPNTenantID]
 
-	if certFilePath == "" && certBytes == nil {
+	if certFilePath == "" && len(certBytes) == 0 {
 		return CertConfig{}, fmt.Errorf("missing client secret")
 	}
 

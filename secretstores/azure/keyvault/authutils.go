@@ -31,17 +31,17 @@ type CertConfig struct {
 // GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
 func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
-	certFilePath := s.Values[componentSPNCertificateFile]
-	certBytes := []byte(s.Values[componentSPNCertificate])
+	certFilePath, certFilePathPresent := s.Values[componentSPNCertificateFile]
+	certBytes, certBytesPresent := s.Values[componentSPNCertificate]
 	certPassword := s.Values[componentSPNCertificatePassword]
 	clientID := s.Values[componentSPNClientID]
 	tenantID := s.Values[componentSPNTenantID]
 
-	if certFilePath == "" && len(certBytes) == 0 {
+	if !certFilePathPresent && !certBytesPresent {
 		return CertConfig{}, fmt.Errorf("missing client secret")
 	}
 
-	authorizer := NewCertConfig(certFilePath, certBytes, certPassword, clientID, tenantID)
+	authorizer := NewCertConfig(certFilePath, []byte(certBytes), certPassword, clientID, tenantID)
 
 	return authorizer, nil
 }

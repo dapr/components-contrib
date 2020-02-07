@@ -144,7 +144,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 					var header2Found bool
 					var header3Found bool
 					ctx.Request.Header.VisitAll(func(k []byte, v []byte) {
-						switch string(k) { // NOTE: Header names will be reformatted
+						switch string(k) {
 						case "Testheaderkey1":
 							header1Found = true
 						case "Testheaderkey2":
@@ -174,17 +174,14 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 					var headerValue2Found bool
 					var headerValue3Found bool
 					ctx.Request.Header.VisitAll(func(k []byte, v []byte) {
-						switch string(k) { // NOTE: Header names will be reformatted
-						case "Testheaderkey1":
-							{
-								switch string(v) {
-								case "testHeaderValue1":
-									headerValue1Found = true
-								case "testHeaderValue2":
-									headerValue2Found = true
-								case "testHeaderValue3":
-									headerValue3Found = true
-								}
+						if string(k) == "Testheaderkey1" {
+							switch string(v) {
+							case "testHeaderValue1":
+								headerValue1Found = true
+							case "testHeaderValue2":
+								headerValue2Found = true
+							case "testHeaderValue3":
+								headerValue3Found = true
 							}
 						}
 					})
@@ -402,6 +399,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			w := httptest.NewRecorder()
 			newNetHTTPHandler.ServeHTTP(w, request)
 			res := w.Result()
+			defer res.Body.Close()
 			tt.evaluate(t, res)
 		})
 	}

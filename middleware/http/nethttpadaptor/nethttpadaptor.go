@@ -1,9 +1,9 @@
 package nethttpadaptor
 
 import (
+	"io/ioutil"
 	"net"
 	"net/http"
-	"io/ioutil"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
@@ -14,7 +14,7 @@ func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := fasthttp.RequestCtx{}
 		remoteIP := net.ParseIP(r.RemoteAddr)
-		remoteAddr := net.IPAddr{remoteIP, ""}
+		remoteAddr := net.IPAddr{remoteIP, ""} //nolint
 		c.Init(&fasthttp.Request{}, &remoteAddr, nil)
 
 		reqBody, err := ioutil.ReadAll(r.Body)
@@ -42,7 +42,7 @@ func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
 				c.Request.Header.Add(k, i)
 			}
 		}
-		
+
 		h(&c)
 
 		c.Response.Header.VisitAll(func(k []byte, v []byte) {

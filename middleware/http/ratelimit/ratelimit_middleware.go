@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/dapr/components-contrib/middleware/http/nethttpadaptor"
 	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/components-contrib/middleware/http/nethttpadaptor"
 	"github.com/didip/tollbooth"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"

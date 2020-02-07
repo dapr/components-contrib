@@ -166,6 +166,8 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return err
 	}
+	defer sender.Close(context.Background())
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 

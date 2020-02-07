@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib
 go 1.13
 
 require (
-	cloud.google.com/go v0.46.3
+	cloud.google.com/go v0.52.0
 	cloud.google.com/go/datastore v1.0.0
 	cloud.google.com/go/pubsub v1.0.1
 	cloud.google.com/go/storage v1.0.0
@@ -21,6 +21,7 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.0
+	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/apache/thrift v0.13.0 // indirect
 	github.com/aws/aws-sdk-go v1.25.0
@@ -28,12 +29,14 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.17+incompatible // indirect
+	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/didip/tollbooth v4.0.2+incompatible
+	github.com/dnaeon/go-vcr v1.0.1 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072 // indirect
@@ -43,7 +46,7 @@ require (
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1
-	github.com/google/go-cmp v0.3.1 // indirect
+	github.com/golang/protobuf v1.3.2
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1 // indirect
@@ -67,13 +70,16 @@ require (
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/nats-io/gnatsd v1.4.1 // indirect
 	github.com/nats-io/go-nats v1.7.2
-	github.com/nats-io/nkeys v0.1.0 // indirect
-	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/nats-io/nats-server/v2 v2.1.2 // indirect
+	github.com/nats-io/nats-streaming-server v0.16.2 // indirect
+	github.com/nats-io/nats.go v1.9.1
+	github.com/nats-io/stan.go v0.6.0
 	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/onsi/gomega v1.7.0 // indirect
 	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.2.1 // indirect
 	github.com/russross/blackfriday v2.0.0+incompatible // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
@@ -94,18 +100,17 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
-	go.etcd.io/bbolt v1.3.3 // indirect
+	github.com/yuin/gopher-lua v0.0.0-20191220021717-ab39c6098bdb // indirect
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.2
-	go.opencensus.io v0.22.1
+	go.opencensus.io v0.22.2
 	go.uber.org/multierr v1.2.0 // indirect
-	golang.org/x/crypto v0.0.0-20190927123631-a832865fa7ad
-	golang.org/x/net v0.0.0-20190926025831-c00fd9afed17
-	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	golang.org/x/tools v0.0.0-20191028215554-80f3f9ca0853 // indirect
-	google.golang.org/api v0.10.0
-	google.golang.org/genproto v0.0.0-20190911173649-1774047e7e51
-	google.golang.org/grpc v1.24.0
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/net v0.0.0-20200114155413-6afb5195e5aa
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	google.golang.org/api v0.15.0
+	google.golang.org/genproto v0.0.0-20200122232147-0452cf42e150
+	google.golang.org/grpc v1.26.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.15 // indirect
@@ -115,6 +120,7 @@ require (
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 	gopkg.in/kataras/go-serializer.v0 v0.0.4 // indirect
+	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 	k8s.io/apimachinery v0.0.0-20190817020851-f2f3a405f61d
 	k8s.io/client v0.0.0-00010101000000-000000000000 // indirect

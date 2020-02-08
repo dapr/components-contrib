@@ -59,7 +59,6 @@ func TestGetCassandraMetadata(t *testing.T) {
 		assert.Equal(t, properties[username], metadata.username)
 		assert.Equal(t, properties[password], metadata.password)
 		assert.Equal(t, 9043, metadata.port)
-
 	})
 
 	t.Run("Incorrect proto version", func(t *testing.T) {

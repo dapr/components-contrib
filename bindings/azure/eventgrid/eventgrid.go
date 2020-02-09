@@ -43,12 +43,15 @@ func NewAzureEventGrid() *AzureEventGrid {
 
 // Init performs metadata init
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
-	log.Info("Reading Event Grid metadata...")
+	log.Info("Parsing Event Grid metadata...")
+
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 	a.metadata = m
+
+	log.Info("Metadata parsed successfully.")
 
 	err = a.createSubscription()
 	if err != nil {
@@ -80,6 +83,33 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 
 	go http.ListenAndServe(":8080", nil)
 
+	log.Info("Listening for Event Grid events at http://localhost:8080/api/events")
+
+	return nil
+}
+
+func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
+	// client := http.Client{Timeout: time.Second * 10}
+	// request, err := http.NewRequest("POST", eventGridEndpoint, req.Data)
+	// request.Header.Set("Content-Type", "application/cloudevents+json")
+	// request.Header.Set("aeg-sas-key", a.metadata.ClientSecret)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+
+	// // Make request
+	// resp, err := client.Do(request)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+
+	// defer resp.Body.Close()
+	// body, err := ioutil.ReadAll(resp.Body)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// log.Println(string(body))
+
 	return nil
 }
 
@@ -97,22 +127,6 @@ func (a *AzureEventGrid) parseMetadata(metadata bindings.Metadata) (*azureEventG
 	return &eventGridMetadata, nil
 }
 
-// func messageHandler(w http.ResponseWriter, r *http.Request) {
-// 	if r.Method == "OPTIONS" {
-// 		w.Header().Add("WebHook-Allowed-Origin", r.Header.Get("WebHook-Request-Origin"))
-// 		w.Header().Add("WebHook-Allowed-Rate", "*")
-// 		w.WriteHeader(http.StatusOK)
-// 		w.Write([]byte(""))
-// 	} else if r.Method == "POST" {
-// 		bodyBytes, err := ioutil.ReadAll(r.Body)
-// 		if err != nil {
-// 			log.Error(err)
-// 		}
-
-// 		log.Info(string(bodyBytes))
-// 	}
-// }
-
 func (a *AzureEventGrid) createSubscription() error {
 	clientCredentialsConfig := auth.NewClientCredentialsConfig(a.metadata.ClientID, a.metadata.ClientSecret, a.metadata.TenantID)
 
@@ -123,46 +137,33 @@ func (a *AzureEventGrid) createSubscription() error {
 	}
 	subscriptionClient.Authorizer = authorizer
 
-	filter := fmt.Sprintf("name eq '%s'", a.metadata.EventGridSubscriptionName)
-	top := int32(10)
-	result, err := subscriptionClient.ListByResource(context.Background(), a.metadata.ResourceGroupName, "Microsoft.EventGrid", "topics", a.metadata.TopicName, filter, &top)
+	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.EventGrid/topics/%s", a.metadata.SubscriptionID, a.metadata.ResourceGroupName, a.metadata.TopicName)
+
+	eventInfo := eventgrid.EventSubscription{
+		EventSubscriptionProperties: &eventgrid.EventSubscriptionProperties{
+			Destination: eventgrid.WebHookEventSubscriptionDestination{
+				EndpointType: eventgrid.EndpointTypeWebHook,
+				WebHookEventSubscriptionDestinationProperties: &eventgrid.WebHookEventSubscriptionDestinationProperties{
+					EndpointURL: &a.metadata.SubscriberEndpoint,
+				},
+			},
+		},
+	}
+
+	log.WithFields(log.Fields{"scope": scope, "endpointURL": a.metadata.SubscriberEndpoint}).Info("Attempting to create or update Event Grid subscription.")
+	result, err := subscriptionClient.CreateOrUpdate(context.Background(), scope, a.metadata.EventGridSubscriptionName, eventInfo)
 	if err != nil {
 		return err
 	}
 
-	subscriptions := result.Values()
+	res := result.Future.Response()
 
-	//TODO: May not need to check this, instead just update it if it already exists
-	if len(subscriptions) > 0 {
-		log.WithFields(log.Fields{"subscription": *subscriptions[0].Name}).Info("Subscription already exists. Skipping creation.")
-	} else {
-		scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.EventGrid/topics/%s", a.metadata.SubscriptionID, a.metadata.ResourceGroupName, a.metadata.TopicName)
-
-		eventInfo := eventgrid.EventSubscription{
-			EventSubscriptionProperties: &eventgrid.EventSubscriptionProperties{
-				Destination: eventgrid.WebHookEventSubscriptionDestination{
-					EndpointType: eventgrid.EndpointTypeWebHook,
-					WebHookEventSubscriptionDestinationProperties: &eventgrid.WebHookEventSubscriptionDestinationProperties{
-						EndpointURL: &a.metadata.SubscriberEndpoint,
-					},
-				},
-			},
-		}
-
-		result, err := subscriptionClient.CreateOrUpdate(context.Background(), scope, a.metadata.EventGridSubscriptionName, eventInfo)
+	if res.StatusCode != http.StatusCreated {
+		bodyBytes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
-
-		res := result.Future.Response()
-
-		if res.StatusCode != http.StatusCreated {
-			bodyBytes, err := ioutil.ReadAll(res.Body)
-			if err != nil {
-				return err
-			}
-			return errors.New(string(bodyBytes))
-		}
+		return errors.New(string(bodyBytes))
 	}
 
 	return nil

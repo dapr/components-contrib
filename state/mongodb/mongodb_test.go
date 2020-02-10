@@ -61,4 +61,47 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		_, err := getMongoDBMetaData(m)
 		assert.NotNil(t, err)
 	})
+
+	t.Run("Valid connectionstring without params", func(t *testing.T) {
+		properties := map[string]string{
+			host:           "127.0.0.2",
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+			username:       "username",
+			password:       "password",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+
+		metadata, err := getMongoDBMetaData(m)
+		assert.Nil(t, err)
+
+		uri := getMongoURI(metadata)
+		expected := "mongodb://username:password@127.0.0.2/TestDB"
+
+		assert.Equal(t, expected, uri)
+	})
+
+	t.Run("Valid connectionstring with params", func(t *testing.T) {
+		properties := map[string]string{
+			host:           "127.0.0.2",
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+			username:       "username",
+			password:       "password",
+			params:         "?ssl=true",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+
+		metadata, err := getMongoDBMetaData(m)
+		assert.Nil(t, err)
+
+		uri := getMongoURI(metadata)
+		expected := "mongodb://username:password@127.0.0.2/TestDB?ssl=true"
+
+		assert.Equal(t, expected, uri)
+	})
 }

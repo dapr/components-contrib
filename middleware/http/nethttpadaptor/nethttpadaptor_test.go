@@ -286,6 +286,18 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 				}
 			},
 		},
+		{
+			"nil body is handled",
+			func() *http.Request {
+				req, _ := http.NewRequest("GET", "https://localhost:8080", nil)
+				return req
+			},
+			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
+				return func(ctx *fasthttp.RequestCtx) {
+					assert.Equal(t, 0, len(ctx.Request.Body()))
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

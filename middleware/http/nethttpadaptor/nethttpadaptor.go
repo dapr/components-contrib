@@ -17,12 +17,14 @@ func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
 		remoteAddr := net.IPAddr{remoteIP, ""} //nolint
 		c.Init(&fasthttp.Request{}, &remoteAddr, nil)
 
-		reqBody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Errorf("error reading request body, %+v", err)
-			return
+		if r.Body != nil {
+			reqBody, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Errorf("error reading request body, %+v", err)
+				return
+			}
+			c.Request.SetBody(reqBody)
 		}
-		c.Request.SetBody(reqBody)
 		c.Request.SetRequestURI(r.URL.RequestURI())
 		c.Request.URI().SetScheme(r.URL.Scheme)
 		c.Request.SetHost(r.Host)

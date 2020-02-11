@@ -3,6 +3,8 @@
 Bindings provide a common way to trigger an application with events from external systems, or invoke an external system with optional data payloads.
 Bindings are great for event-driven, on-demand compute and help reduce boilerplate code.
 
+To get started with bindings visit the [How To Guide](https://github.com/dapr/docs/tree/master/howto#resources-bindings).
+
 For detailed binding specs visit [Dapr docs](https://github.com/dapr/docs/tree/master/concepts/bindings/specs).
 
 List of bindings and their status:

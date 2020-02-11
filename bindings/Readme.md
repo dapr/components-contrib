@@ -51,7 +51,7 @@ A compliant binding needs to implement one or more interfaces, depending on the 
 
 Input binding:
 
-```
+```go
 type InputBinding interface {
 	Init(metadata Metadata) error
 	Read(handler func(*ReadResponse) error) error
@@ -60,9 +60,10 @@ type InputBinding interface {
 
 Output binding:
 
-```
+```go
 type OutputBinding interface {
 	Init(metadata Metadata) error
 	Write(req *WriteRequest) error
 }
 ```
+A spec is also needed in [Dapr docs](https://github.com/dapr/docs/tree/master/concepts/bindings/specs).

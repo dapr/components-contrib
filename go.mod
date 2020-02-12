@@ -43,7 +43,6 @@ require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/garyburd/redigo v1.6.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
-	github.com/go-redis/redis v6.15.7+incompatible
 	github.com/go-redis/redis/v7 v7.0.1
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.3.1

@@ -15,7 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 )
 
 const (
@@ -123,6 +123,7 @@ func (r *redisStreams) readFromStream(stream, consumerID, start string) ([]redis
 		Group:    consumerID,
 		Consumer: consumerID,
 		Streams:  []string{stream, start},
+		Block:    0,
 	}).Result()
 	if err != nil {
 		return nil, err

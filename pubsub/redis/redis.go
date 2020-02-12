@@ -123,7 +123,7 @@ func (r *redisStreams) readFromStream(stream, consumerID, start string) ([]redis
 		Group:    consumerID,
 		Consumer: consumerID,
 		Streams:  []string{stream, start},
-		Block:    0,
+		Block:    time.Millisecond * 100,
 	}).Result()
 	if err != nil {
 		return nil, err

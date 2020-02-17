@@ -22,6 +22,7 @@ func TestParseMetadata(t *testing.T) {
 		"subscriberEndpoint":        "a",
 		"subscriptionId":            "a",
 		"tenantId":                  "a",
+		"topicEndpoint":             "a",
 		"topicName":                 "a",
 	}
 
@@ -36,5 +37,6 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "a", meta.SubscriberEndpoint)
 	assert.Equal(t, "a", meta.SubscriptionID)
 	assert.Equal(t, "a", meta.TenantID)
+	assert.Equal(t, "a", meta.TopicEndpoint)
 	assert.Equal(t, "a", meta.TopicName)
 }

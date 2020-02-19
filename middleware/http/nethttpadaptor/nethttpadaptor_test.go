@@ -298,6 +298,30 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 				}
 			},
 		},
+		{
+			"proto headers are handled",
+			func() *http.Request {
+				req, _ := http.NewRequest("GET", "https://localhost:8080", nil)
+				return req
+			},
+			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
+				return func(ctx *fasthttp.RequestCtx) {
+					var major, minor string
+					ctx.Request.Header.VisitAll(func(k []byte, v []byte) {
+						if string(k) == "Protomajor" {
+							major = string(v)
+						}
+						if string(k) == "Protominor" {
+							minor = string(v)
+						}
+					})
+					assert.NotEqual(t, "", major)
+					assert.NotEqual(t, "", minor)
+					assert.Equal(t, "1", major)
+					assert.Equal(t, "1", minor)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -308,15 +308,13 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 				return func(ctx *fasthttp.RequestCtx) {
 					var major, minor string
 					ctx.Request.Header.VisitAll(func(k []byte, v []byte) {
-						if string(k) == "Protomajor" {
+						if strings.EqualFold(string(k), "protomajor") {
 							major = string(v)
 						}
-						if string(k) == "Protominor" {
+						if strings.EqualFold(string(k), "protominor") {
 							minor = string(v)
 						}
 					})
-					assert.NotEqual(t, "", major)
-					assert.NotEqual(t, "", minor)
 					assert.Equal(t, "1", major)
 					assert.Equal(t, "1", minor)
 				}

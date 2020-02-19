@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
@@ -30,8 +31,10 @@ func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
 		c.Request.SetHost(r.Host)
 		c.Request.Header.SetMethod(r.Method)
 		c.Request.Header.Set("Proto", r.Proto)
-		c.Request.Header.Set("ProtoMajor", string(r.ProtoMajor))
-		c.Request.Header.Set("ProtoMinor", string(r.ProtoMinor))
+		major := strconv.Itoa(r.ProtoMajor)
+		minor := strconv.Itoa(r.ProtoMinor)
+		c.Request.Header.Set("Protomajor", major)
+		c.Request.Header.Set("Protominor", minor)
 		c.Request.Header.SetContentType(r.Header.Get("Content-Type"))
 		c.Request.Header.SetContentLength(int(r.ContentLength))
 		c.Request.Header.SetReferer(r.Referer())

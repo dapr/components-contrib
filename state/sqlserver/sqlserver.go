@@ -437,7 +437,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.New("not found")
+		return &state.GetResponse{}, nil
 	}
 
 	var data string

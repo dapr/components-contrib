@@ -18,8 +18,10 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/bindings"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
+
+var log = logger.NewLogger("contrib.bindings")
 
 // Kafka allows reading/writing to a Kafka consumer group
 type Kafka struct {

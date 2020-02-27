@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/valyala/fasthttp"
 )
+
+var log = logger.NewLogger("contrib.middleware")
 
 // NewNetHTTPHandlerFunc wraps a fasthttp.RequestHandler in a http.HandlerFunc
 func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {

@@ -35,10 +35,12 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
+
+var log = logger.NewLogger("contrib.state")
 
 const (
 	keyDelimiter        = "||"

@@ -17,8 +17,10 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
+
+var log = logger.NewLogger("contrib.bindings")
 
 const (
 	errorPrefix         = "azure signalr error:"

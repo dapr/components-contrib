@@ -15,8 +15,10 @@ import (
 
 	eventhub "github.com/Azure/azure-event-hubs-go"
 	"github.com/dapr/components-contrib/bindings"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
+
+var log = logger.NewLogger("contrib.bindings")
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events
 type AzureEventHubs struct {

@@ -13,11 +13,12 @@ import (
 
 	"github.com/google/uuid"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
+
+var log = logger.NewLogger("contrib.bindings")
 
 const (
 	blobName = "blobName"

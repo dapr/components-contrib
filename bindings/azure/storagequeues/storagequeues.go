@@ -18,8 +18,10 @@ import (
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
 	"github.com/dapr/components-contrib/bindings"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
+
+var log = logger.NewLogger("contrib.bindings")
 
 type consumer struct {
 	callback func(*bindings.ReadResponse) error

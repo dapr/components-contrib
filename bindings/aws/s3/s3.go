@@ -10,14 +10,16 @@ import (
 	"encoding/json"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/dapr/components-contrib/bindings"
 )
+
+var log = logger.NewLogger("contrib.bindings")
 
 // AWSS3 is a binding for an AWS S3 storage bucket
 type AWSS3 struct {

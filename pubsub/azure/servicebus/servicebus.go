@@ -13,8 +13,10 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/pubsub"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
+
+var log = logger.NewLogger("contrib.pubsub")
 
 const (
 	// Keys

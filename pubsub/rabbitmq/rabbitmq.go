@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
+
+var log = logger.NewLogger("contrib.pubsub")
 
 const (
 	fanoutExchangeKind = "fanout"

@@ -12,11 +12,12 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-redis/redis/v7"
 )
+
+var log = logger.NewLogger("contrib.pubsub")
 
 const (
 	host       = "redisHost"

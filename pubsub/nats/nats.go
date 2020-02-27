@@ -10,9 +10,11 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 	nats "github.com/nats-io/go-nats"
-	log "github.com/sirupsen/logrus"
 )
+
+var log = logger.NewLogger("contrib.pubsub")
 
 const (
 	natsURL    = "natsURL"

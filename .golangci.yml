@@ -225,3 +225,4 @@ linters:
     - unparam
     - wsl
     - gomnd
+    - gochecknoglobals

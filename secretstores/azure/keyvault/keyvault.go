@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 )
@@ -27,13 +28,16 @@ const (
 type keyvaultSecretStore struct {
 	vaultName   string
 	vaultClient kv.BaseClient
+
+	logger logger.Logger
 }
 
 // NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
-func NewAzureKeyvaultSecretStore() secretstores.SecretStore {
+func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
 		vaultClient: kv.New(),
+		logger:      logger,
 	}
 }
 

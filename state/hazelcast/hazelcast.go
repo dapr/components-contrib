@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
 
@@ -19,13 +20,17 @@ const (
 
 //Hazelcast state store
 type Hazelcast struct {
-	hzMap core.Map
-	json  jsoniter.API
+	hzMap  core.Map
+	json   jsoniter.API
+	logger logger.Logger
 }
 
 // NewHazelcastStore returns a new hazelcast backed state store
-func NewHazelcastStore() *Hazelcast {
-	return &Hazelcast{json: jsoniter.ConfigFastest}
+func NewHazelcastStore(logger logger.Logger) *Hazelcast {
+	return &Hazelcast{
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
+	}
 }
 
 func validateMetadata(metadata state.Metadata) error {

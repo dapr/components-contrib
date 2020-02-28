@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
 
@@ -17,6 +18,7 @@ type RabbitMQ struct {
 	connection *amqp.Connection
 	channel    *amqp.Channel
 	metadata   *rabbitMQMetadata
+	logger     logger.Logger
 }
 
 // Metadata is the rabbitmq config
@@ -28,8 +30,8 @@ type rabbitMQMetadata struct {
 }
 
 // NewRabbitMQ returns a new rabbitmq instance
-func NewRabbitMQ() *RabbitMQ {
-	return &RabbitMQ{}
+func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
+	return &RabbitMQ{logger: logger}
 }
 
 // Init does metadata parsing and connection creation

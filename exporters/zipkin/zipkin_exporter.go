@@ -11,6 +11,7 @@ import (
 
 	"contrib.go.opencensus.io/exporter/zipkin"
 	"github.com/dapr/components-contrib/exporters"
+	"github.com/dapr/dapr/pkg/logger"
 	openzipkin "github.com/openzipkin/zipkin-go"
 	zipkinHTTP "github.com/openzipkin/zipkin-go/reporter/http"
 	"go.opencensus.io/trace"
@@ -23,12 +24,13 @@ type zipkinMetadata struct {
 }
 
 // NewZipkinExporter returns a new zipkin exporter instance
-func NewZipkinExporter() *Exporter {
-	return &Exporter{}
+func NewZipkinExporter(logger logger.Logger) *Exporter {
+	return &Exporter{logger: logger}
 }
 
 // Exporter is an OpenCensus zipkin exporter
 type Exporter struct {
+	logger logger.Logger
 }
 
 // Init creates a new zipkin endpoint and reporter

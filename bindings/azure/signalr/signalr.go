@@ -14,10 +14,9 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -30,10 +29,11 @@ const (
 )
 
 // NewSignalR creates a new pub/sub based on Azure SignalR
-func NewSignalR() *SignalR {
+func NewSignalR(logger logger.Logger) *SignalR {
 	return &SignalR{
 		tokens:     make(map[string]signalrCachedToken),
 		httpClient: &http.Client{Timeout: 30 * time.Second},
+		logger:     logger,
 	}
 }
 
@@ -50,6 +50,8 @@ type SignalR struct {
 	hub        string
 	tokens     map[string]signalrCachedToken
 	httpClient *http.Client
+
+	logger logger.Logger
 }
 
 // Init is responsible for initializing the SignalR output based on the metadata
@@ -141,7 +143,7 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 		return fmt.Errorf("%s azure signalr returned code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
 	}
 
-	log.Debugf("%s azure signalr call to '%s' returned with status code %d", logPrefix, url, resp.StatusCode)
+	s.logger.Debugf("%s azure signalr call to '%s' returned with status code %d", logPrefix, url, resp.StatusCode)
 
 	return nil
 }

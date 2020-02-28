@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc"
@@ -30,6 +31,7 @@ type ETCD struct {
 	json             jsoniter.API
 	client           *clientv3.Client
 	operationTimeout time.Duration
+	logger           logger.Logger
 }
 
 type configProperties struct {
@@ -41,9 +43,10 @@ type configProperties struct {
 //--- StateStore ---
 
 // NewETCD returns a new ETCD state store
-func NewETCD() *ETCD {
+func NewETCD(logger logger.Logger) *ETCD {
 	return &ETCD{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 

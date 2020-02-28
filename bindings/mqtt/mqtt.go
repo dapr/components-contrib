@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
@@ -25,6 +26,8 @@ import (
 type MQTT struct {
 	metadata *mqttMetadata
 	client   mqtt.Client
+
+	logger logger.Logger
 }
 
 // Metadata is the MQTT config
@@ -34,8 +37,8 @@ type mqttMetadata struct {
 }
 
 // NewMQTT returns a new MQTT instance
-func NewMQTT() *MQTT {
-	return &MQTT{}
+func NewMQTT(logger logger.Logger) *MQTT {
+	return &MQTT{logger: logger}
 }
 
 // Init does MQTT connection parsing

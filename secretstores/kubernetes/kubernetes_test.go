@@ -8,12 +8,13 @@ package kubernetes
 import (
 	"testing"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetNamespace(t *testing.T) {
 	t.Run("has namespace", func(t *testing.T) {
-		store := kubernetesSecretStore{}
+		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
 		namespace := "a"
 
 		ns, err := store.getNamespaceFromMetadata(map[string]string{"namespace": namespace})
@@ -22,7 +23,7 @@ func TestGetNamespace(t *testing.T) {
 	})
 
 	t.Run("no namespace", func(t *testing.T) {
-		store := kubernetesSecretStore{}
+		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
 		_, err := store.getNamespaceFromMetadata(map[string]string{})
 
 		assert.NotNil(t, err)

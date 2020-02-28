@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 func getFakeProperties() map[string]string {
@@ -102,7 +103,7 @@ func TestProcessStreams(t *testing.T) {
 	}
 
 	// act
-	testRedisStream := &redisStreams{}
+	testRedisStream := &redisStreams{logger: logger.NewLogger("test")}
 	testRedisStream.processStreams(fakeConsumerID, generateRedisStreamTestData(2, 3, expectedData), fakeHandler)
 
 	// sleep for 10ms to give time to finish processing

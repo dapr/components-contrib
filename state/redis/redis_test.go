@@ -8,11 +8,12 @@ package redis
 import (
 	"testing"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetKeyVersion(t *testing.T) {
-	store := NewRedisStateStore()
+	store := NewRedisStateStore(logger.NewLogger("test"))
 	t.Run("With all required fields", func(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
 		assert.Equal(t, nil, err, "failed to read all fields")
@@ -44,7 +45,7 @@ func TestGetKeyVersion(t *testing.T) {
 }
 
 func TestParseEtag(t *testing.T) {
-	store := NewRedisStateStore()
+	store := NewRedisStateStore(logger.NewLogger("test"))
 	t.Run("Empty ETag", func(t *testing.T) {
 		ver, err := store.parseETag("")
 		assert.Equal(t, nil, err, "failed to parse ETag")
@@ -62,7 +63,7 @@ func TestParseEtag(t *testing.T) {
 }
 
 func TestParseConnectedSlavs(t *testing.T) {
-	store := NewRedisStateStore()
+	store := NewRedisStateStore(logger.NewLogger("test"))
 
 	t.Run("Empty info", func(t *testing.T) {
 		slaves := store.parseConnectedSlaves("")

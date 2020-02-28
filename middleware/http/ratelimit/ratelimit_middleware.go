@@ -11,6 +11,7 @@ import (
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/components-contrib/middleware/http/nethttpadaptor"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/didip/tollbooth"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
@@ -29,12 +30,14 @@ const (
 )
 
 // NewRateLimitMiddleware returns a new oAuth2 middleware
-func NewRateLimitMiddleware() *Middleware {
-	return &Middleware{}
+func NewRateLimitMiddleware(logger logger.Logger) *Middleware {
+	return &Middleware{logger: logger}
 }
 
 // Middleware is an oAuth2 authentication middleware
-type Middleware struct{}
+type Middleware struct {
+	logger logger.Logger
+}
 
 // GetHandler returns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
@@ -46,7 +49,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	limiter := tollbooth.NewLimiter(meta.MaxRequestsPerSecond, nil)
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		limitHandler := tollbooth.LimitFuncHandler(limiter, nethttpadaptor.NewNetHTTPHandlerFunc(h))
+		limitHandler := tollbooth.LimitFuncHandler(limiter, nethttpadaptor.NewNetHTTPHandlerFunc(m.logger, h))
 		wrappedHandler := fasthttpadaptor.NewFastHTTPHandlerFunc(limitHandler.ServeHTTP)
 		return func(ctx *fasthttp.RequestCtx) {
 			wrappedHandler(ctx)

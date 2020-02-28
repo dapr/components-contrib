@@ -11,6 +11,7 @@ import (
 	"errors"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/joomcode/redispipe/redis"
 	"github.com/joomcode/redispipe/redisconn"
@@ -19,6 +20,7 @@ import (
 // Redis is a redis output binding
 type Redis struct {
 	client *redis.SyncCtx
+	logger logger.Logger
 }
 
 type redisMetadata struct {
@@ -27,8 +29,8 @@ type redisMetadata struct {
 }
 
 // NewRedis returns a new redis bindings instance
-func NewRedis() *Redis {
-	return &Redis{}
+func NewRedis(logger logger.Logger) *Redis {
+	return &Redis{logger: logger}
 }
 
 // Init performs metadata parsing and connection creation

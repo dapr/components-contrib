@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
-	sm := NewSecreteManager()
+	sm := NewSecreteManager(logger.NewLogger("test"))
 	t.Run("Init with Wrong metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"type":                        "service_account",
@@ -50,7 +51,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestGetSecret(t *testing.T) {
-	sm := NewSecreteManager()
+	sm := NewSecreteManager(logger.NewLogger("test"))
 
 	t.Run("Get Secret - without Init", func(t *testing.T) {
 		v, err := sm.GetSecret(secretstores.GetSecretRequest{Name: "test"})

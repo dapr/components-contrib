@@ -11,9 +11,8 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
@@ -27,6 +26,8 @@ const (
 type AzureBlobStorage struct {
 	metadata     *blobStorageMetadata
 	containerURL azblob.ContainerURL
+
+	logger logger.Logger
 }
 
 type blobStorageMetadata struct {
@@ -36,8 +37,8 @@ type blobStorageMetadata struct {
 }
 
 // NewAzureBlobStorage returns a new Azure Blob Storage instance
-func NewAzureBlobStorage() *AzureBlobStorage {
-	return &AzureBlobStorage{}
+func NewAzureBlobStorage(logger logger.Logger) *AzureBlobStorage {
+	return &AzureBlobStorage{logger: logger}
 }
 
 // Init performs metadata parsing
@@ -61,7 +62,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	ctx := context.Background()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
 	// Don't return error, container might already exist
-	log.Debugf("error creating container: %s", err)
+	a.logger.Debugf("error creating container: %s", err)
 	a.containerURL = containerURL
 	return nil
 }

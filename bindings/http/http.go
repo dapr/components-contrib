@@ -13,12 +13,15 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
 // nolint:golint
 type HTTPSource struct {
 	metadata httpMetadata
+
+	logger logger.Logger
 }
 
 type httpMetadata struct {
@@ -27,8 +30,8 @@ type httpMetadata struct {
 }
 
 // NewHTTP returns a new HTTPSource
-func NewHTTP() *HTTPSource {
-	return &HTTPSource{}
+func NewHTTP(logger logger.Logger) *HTTPSource {
+	return &HTTPSource{logger: logger}
 }
 
 // Init performs metadata parsing

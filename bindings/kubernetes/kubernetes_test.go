@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/kubernetes-client/go/kubernetes/client"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,7 +35,7 @@ func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"namespace": nsName}
 
-	i := kubernetesInput{}
+	i := kubernetesInput{logger: logger.NewLogger("test")}
 	i.parseMetadata(m)
 
 	assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
@@ -59,6 +60,7 @@ func TestReadItem(t *testing.T) {
 	i := &kubernetesInput{
 		config: cfg,
 		client: client.NewAPIClient(cfg),
+		logger: logger.NewLogger("test"),
 	}
 	count := 0
 	i.Read(func(res *bindings.ReadResponse) error {

@@ -7,6 +7,7 @@ import (
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1beta1"
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 	"google.golang.org/api/option"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
@@ -34,11 +35,13 @@ type secretManagerMetadata struct {
 type Store struct {
 	client    *secretmanager.Client
 	ProjectID string
+
+	logger logger.Logger
 }
 
 // NewSecreteManager returns new instance of  `SecretManagerStore`
-func NewSecreteManager() *Store {
-	return &Store{}
+func NewSecreteManager(logger logger.Logger) *Store {
+	return &Store{logger: logger}
 }
 
 // Init creates a GCP secret manager client

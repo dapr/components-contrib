@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/exporters"
+	"github.com/dapr/dapr/pkg/logger"
 	"go.opencensus.io/trace"
 )
 
@@ -18,13 +19,14 @@ type Metadata struct {
 }
 
 // NewStringExporter returns a new string exporter instance
-func NewStringExporter() *Exporter {
-	return &Exporter{}
+func NewStringExporter(logger logger.Logger) *Exporter {
+	return &Exporter{logger: logger}
 }
 
 // Exporter is an OpenCensus string exporter
 type Exporter struct {
 	Buffer *string
+	logger logger.Logger
 }
 
 // ExportSpan exports span content to the buffer

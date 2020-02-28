@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +29,7 @@ func (m *mockedSM) GetSecretValue(input *secretsmanager.GetSecretValueInput) (*s
 
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
-	s := NewSecretManager()
+	s := NewSecretManager(logger.NewLogger("test"))
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",

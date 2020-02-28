@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	mssql "github.com/denisenkom/go-mssqldb"
 )
 
@@ -64,8 +65,8 @@ const (
 )
 
 // NewSQLServerStateStore creates a new instance of a Sql Server transaction store
-func NewSQLServerStateStore() *SQLServer {
-	store := SQLServer{}
+func NewSQLServerStateStore(logger logger.Logger) *SQLServer {
+	store := SQLServer{logger: logger}
 	store.migratorFactory = newMigration
 
 	return &store
@@ -94,6 +95,8 @@ type SQLServer struct {
 	getCommand               string
 	deleteWithETagCommand    string
 	deleteWithoutETagCommand string
+
+	logger logger.Logger
 }
 
 func isLetterOrNumber(c rune) bool {

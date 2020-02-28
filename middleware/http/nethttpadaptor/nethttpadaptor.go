@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/valyala/fasthttp"
 )
 
 // NewNetHTTPHandlerFunc wraps a fasthttp.RequestHandler in a http.HandlerFunc
-func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
+func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http.HandlerFunc { //nolint
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := fasthttp.RequestCtx{}
 		remoteIP := net.ParseIP(r.RemoteAddr)
@@ -21,7 +21,7 @@ func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
 		if r.Body != nil {
 			reqBody, err := ioutil.ReadAll(r.Body)
 			if err != nil {
-				log.Errorf("error reading request body, %+v", err)
+				logger.Errorf("error reading request body, %+v", err)
 				return
 			}
 			c.Request.SetBody(reqBody)

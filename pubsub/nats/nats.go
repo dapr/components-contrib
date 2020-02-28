@@ -10,8 +10,8 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 	nats "github.com/nats-io/go-nats"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,11 +22,13 @@ const (
 type natsPubSub struct {
 	metadata metadata
 	natsConn *nats.Conn
+
+	logger logger.Logger
 }
 
 // NewNATSPubSub returns a new NATS pub-sub implementation
-func NewNATSPubSub() pubsub.PubSub {
-	return &natsPubSub{}
+func NewNATSPubSub(logger logger.Logger) pubsub.PubSub {
+	return &natsPubSub{logger: logger}
 }
 
 func parseNATSMetadata(meta pubsub.Metadata) (metadata, error) {
@@ -57,7 +59,7 @@ func (n *natsPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("nats: error connecting to nats at %s: %s", m.natsURL, err)
 	}
-	log.Debugf("connected to nats at %s", m.natsURL)
+	n.logger.Debugf("connected to nats at %s", m.natsURL)
 
 	n.natsConn = natsConn
 	return nil
@@ -76,9 +78,9 @@ func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 		handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 	})
 	if err != nil {
-		log.Warnf("nats: error subscribe: %s", err)
+		n.logger.Warnf("nats: error subscribe: %s", err)
 	}
-	log.Debugf("nats: subscribed to subject %s with queue group %s", sub.Subject, sub.Queue)
+	n.logger.Debugf("nats: subscribed to subject %s with queue group %s", sub.Subject, sub.Queue)
 
 	return nil
 }

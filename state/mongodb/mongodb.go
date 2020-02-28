@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dapr/dapr/pkg/logger"
 	json "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
@@ -51,6 +52,8 @@ type MongoDB struct {
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
+
+	logger logger.Logger
 }
 
 type mongoDBMetadata struct {
@@ -72,8 +75,8 @@ type Item struct {
 }
 
 // NewMongoDBStateStore returns a new MongoDB state store
-func NewMongoDB() *MongoDB {
-	return &MongoDB{}
+func NewMongoDB(logger logger.Logger) *MongoDB {
+	return &MongoDB{logger: logger}
 }
 
 // Init establishes connection to the store based on the metadata

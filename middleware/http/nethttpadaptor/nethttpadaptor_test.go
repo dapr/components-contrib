@@ -8,11 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 )
 
 func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
+	testLogger := logger.NewLogger("test")
 	tests := []struct {
 		name                string
 		inputRequestFactory func() *http.Request
@@ -325,7 +327,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.inputRequestFactory()
-			handler := NewNetHTTPHandlerFunc(tt.evaluateFactory(t))
+			handler := NewNetHTTPHandlerFunc(testLogger, tt.evaluateFactory(t))
 
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -334,6 +336,8 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 }
 
 func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
+	testLogger := logger.NewLogger("test")
+
 	tests := []struct {
 		name                string
 		inputHandlerFactory func() fasthttp.RequestHandler
@@ -428,7 +432,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			handler := tt.inputHandlerFactory()
 			request := tt.inputRequestFactory()
 
-			newNetHTTPHandler := NewNetHTTPHandlerFunc(handler)
+			newNetHTTPHandler := NewNetHTTPHandlerFunc(testLogger, handler)
 
 			w := httptest.NewRecorder()
 			newNetHTTPHandler.ServeHTTP(w, request)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -119,7 +120,7 @@ func TestValidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore()
+			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
 			sqlStore.migratorFactory = func(s *SQLServer) migrator {
 				return &mockMigrator{}
 			}
@@ -234,7 +235,7 @@ func TestInvalidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore()
+			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
 
 			metadata := state.Metadata{
 				Properties: tt.props,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -24,6 +25,7 @@ const (
 type Memcached struct {
 	client *memcache.Client
 	json   jsoniter.API
+	logger logger.Logger
 }
 
 type memcachedMetadata struct {
@@ -32,9 +34,10 @@ type memcachedMetadata struct {
 	timeout            time.Duration
 }
 
-func NewMemCacheStateStore() *Memcached {
+func NewMemCacheStateStore(logger logger.Logger) *Memcached {
 	return &Memcached{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 

@@ -18,7 +18,7 @@ import (
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
 	"github.com/dapr/components-contrib/bindings"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 type consumer struct {
@@ -37,6 +37,7 @@ type AzureQueueHelper struct {
 	credential *azqueue.SharedKeyCredential
 	queueURL   azqueue.QueueURL
 	reqURI     string
+	logger     logger.Logger
 }
 
 // Init sets up this helper
@@ -93,14 +94,19 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 }
 
 // NewAzureQueueHelper creates new helper
-func NewAzureQueueHelper() QueueHelper {
-	return &AzureQueueHelper{reqURI: "https://%s.queue.core.windows.net/%s"}
+func NewAzureQueueHelper(logger logger.Logger) QueueHelper {
+	return &AzureQueueHelper{
+		reqURI: "https://%s.queue.core.windows.net/%s",
+		logger: logger,
+	}
 }
 
 // AzureStorageQueues is an input/output binding reading from and sending events to Azure Storage queues
 type AzureStorageQueues struct {
 	metadata *storageQueuesMetadata
 	helper   QueueHelper
+
+	logger logger.Logger
 }
 
 type storageQueuesMetadata struct {
@@ -110,8 +116,8 @@ type storageQueuesMetadata struct {
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
-func NewAzureStorageQueues() *AzureStorageQueues {
-	return &AzureStorageQueues{helper: NewAzureQueueHelper()}
+func NewAzureStorageQueues(logger logger.Logger) *AzureStorageQueues {
+	return &AzureStorageQueues{helper: NewAzureQueueHelper(logger), logger: logger}
 }
 
 // Init parses connection properties and creates a new Storage Queue client
@@ -162,7 +168,7 @@ func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) er
 		for {
 			err := a.helper.Read(ctx, &c)
 			if err != nil {
-				log.Errorf("error from c: %s", err)
+				a.logger.Errorf("error from c: %s", err)
 			}
 			if ctx.Err() != nil {
 				return

@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	VersionID    = "VersionID"
-	VersionStage = "VersionStage"
+	VersionID    = "version_id"
+	VersionStage = "version_stage"
 )
 
 // NewSecretManager returns a new secret manager store

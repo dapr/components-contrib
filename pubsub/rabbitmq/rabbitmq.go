@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
 
@@ -28,15 +28,13 @@ type rabbitMQ struct {
 	channel           *amqp.Channel
 	metadata          *metadata
 	declaredExchanges map[string]bool
+
+	logger logger.Logger
 }
 
 // NewRabbitMQ creates a new RabbitMQ pub/sub
-func NewRabbitMQ() pubsub.PubSub {
-	return createRabbitMQ()
-}
-
-func createRabbitMQ() *rabbitMQ {
-	return &rabbitMQ{declaredExchanges: make(map[string]bool)}
+func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
+	return &rabbitMQ{declaredExchanges: make(map[string]bool), logger: logger}
 }
 
 // Init does metadata parsing and connection creation
@@ -69,7 +67,7 @@ func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 		return err
 	}
 
-	log.Debugf("%s publishing message to topic '%s'", logMessagePrefix, req.Topic)
+	r.logger.Debugf("%s publishing message to topic '%s'", logMessagePrefix, req.Topic)
 
 	err = r.channel.Publish(req.Topic, "", false, false, amqp.Publishing{
 		ContentType:  "text/plain",
@@ -92,13 +90,13 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubs
 
 	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
 
-	log.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
+	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
 	q, err := r.channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, true, false, nil)
 	if err != nil {
 		return err
 	}
 
-	log.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
+	r.logger.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
 	err = r.channel.QueueBind(q.Name, "", req.Topic, false, nil)
 	if err != nil {
 		return err
@@ -137,7 +135,7 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg
 
 	err := handler(pubsubMsg)
 	if err != nil {
-		log.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}
 
 	// if message is not auto acked we need to ack/nack
@@ -145,14 +143,14 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg
 		if err != nil {
 			requeue := r.metadata.requeueInFailure && !d.Redelivered
 
-			log.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
+			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
 			if err = r.channel.Nack(d.DeliveryTag, false, requeue); err != nil {
-				log.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
+				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		} else {
-			log.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
+			r.logger.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
 			if err = r.channel.Ack(d.DeliveryTag, false); err != nil {
-				log.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
+				r.logger.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		}
 	}
@@ -160,7 +158,7 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg
 
 func (r *rabbitMQ) ensureExchangeDeclared(exchange string) error {
 	if _, exists := r.declaredExchanges[exchange]; !exists {
-		log.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, fanoutExchangeKind)
+		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, fanoutExchangeKind)
 		err := r.channel.ExchangeDeclare(exchange, fanoutExchangeKind, true, false, false, false, nil)
 		if err != nil {
 			return err

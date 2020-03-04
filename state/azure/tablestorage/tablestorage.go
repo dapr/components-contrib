@@ -35,9 +35,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -53,6 +53,8 @@ const (
 type StateStore struct {
 	table *storage.Table
 	json  jsoniter.API
+
+	logger logger.Logger
 }
 
 type tablesMetadata struct {
@@ -73,29 +75,29 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.table = tables.GetTableReference(meta.tableName)
 
 	//check table exists
-	log.Debugf("using table '%s'", meta.tableName)
+	r.logger.Debugf("using table '%s'", meta.tableName)
 	err = r.table.Create(operationTimeout, storage.FullMetadata, nil)
 	if err != nil {
 		if isTableAlreadyExistsError(err) {
 			//error creating table, but it already exists so we're fine
-			log.Debugf("table already exists")
+			r.logger.Debugf("table already exists")
 		} else {
 			return err
 		}
 	}
 
-	log.Debugf("table initialised, account: %s, table: %s", meta.accountName, meta.tableName)
+	r.logger.Debugf("table initialised, account: %s, table: %s", meta.accountName, meta.tableName)
 
 	return nil
 }
 
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	log.Debugf("delete %s", req.Key)
+	r.logger.Debugf("delete %s", req.Key)
 	return r.deleteRow(req)
 }
 
 func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	log.Debugf("bulk delete %v key(s)", len(req))
+	r.logger.Debugf("bulk delete %v key(s)", len(req))
 	for _, s := range req {
 		err := r.Delete(&s)
 		if err != nil {
@@ -106,7 +108,7 @@ func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 }
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	log.Debugf("fetching %s", req.Key)
+	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 	err := entity.Get(operationTimeout, storage.FullMetadata, nil)
@@ -127,13 +129,13 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (r *StateStore) Set(req *state.SetRequest) error {
-	log.Debugf("saving %s", req.Key)
+	r.logger.Debugf("saving %s", req.Key)
 
 	return r.writeRow(req)
 }
 
 func (r *StateStore) BulkSet(req []state.SetRequest) error {
-	log.Debugf("bulk set %v key(s)", len(req))
+	r.logger.Debugf("bulk set %v key(s)", len(req))
 
 	for _, s := range req {
 		err := r.Set(&s)
@@ -145,9 +147,10 @@ func (r *StateStore) BulkSet(req []state.SetRequest) error {
 	return nil
 }
 
-func NewAzureTablesStateStore() *StateStore {
+func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
 	return &StateStore{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 

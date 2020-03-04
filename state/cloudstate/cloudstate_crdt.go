@@ -18,11 +18,11 @@ import (
 	"github.com/dapr/components-contrib/state"
 	pb "github.com/dapr/components-contrib/state/cloudstate/proto"
 	kvstore_pb "github.com/dapr/components-contrib/state/cloudstate/proto/kv_store"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	jsoniter "github.com/json-iterator/go"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
@@ -234,6 +234,8 @@ type CRDT struct {
 	connection *grpc.ClientConn
 	metadata   *crdtMetadata
 	json       jsoniter.API
+
+	logger logger.Logger
 }
 
 type crdtMetadata struct {
@@ -241,9 +243,10 @@ type crdtMetadata struct {
 	serverPort int
 }
 
-func NewCRDT() *CRDT {
+func NewCRDT(logger logger.Logger) *CRDT {
 	return &CRDT{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 
@@ -262,13 +265,13 @@ func (c *CRDT) Init(metadata state.Metadata) error {
 func (c *CRDT) startServer() error {
 	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", c.metadata.serverPort))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		c.logger.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
 	pb.RegisterCrdtServer(s, c)
 	pb.RegisterEntityDiscoveryServer(s, c)
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		c.logger.Fatalf("failed to serve: %v", err)
 	}
 	return nil
 }
@@ -280,7 +283,7 @@ func (c *CRDT) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, 
 	}
 
 	entities := []*pb.Entity{
-		&pb.Entity{
+		{
 			EntityType:    "cloudstate.crdt.Crdt",
 			ServiceName:   "cloudstate.KeyValueStore",
 			PersistenceId: "dapr",
@@ -294,7 +297,7 @@ func (c *CRDT) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, 
 }
 
 func (c *CRDT) ReportError(ctx context.Context, in *pb.UserFunctionError) (*empty.Empty, error) {
-	log.Errorf("error from CloudState: %s", in.GetMessage())
+	c.logger.Errorf("error from CloudState: %s", in.GetMessage())
 	return &empty.Empty{}, nil
 }
 
@@ -309,7 +312,7 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 			break
 		}
 		if err != nil {
-			log.Debugf("error from src.Recv(): %s", err)
+			c.logger.Debugf("error from src.Recv(): %s", err)
 			srv.Context().Done()
 			return err
 		}
@@ -387,7 +390,7 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 					var saveState kvstore_pb.SaveStateEnvelope
 					err := ptypes.UnmarshalAny(vAny, &saveState)
 					if err != nil {
-						log.Error(err)
+						c.logger.Error(err)
 						break
 					}
 

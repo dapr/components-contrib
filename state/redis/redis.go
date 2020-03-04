@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/joomcode/redispipe/redis"
 	"github.com/joomcode/redispipe/redisconn"
@@ -34,6 +35,8 @@ type StateStore struct {
 	client   *redis.SyncCtx
 	json     jsoniter.API
 	replicas int
+
+	logger logger.Logger
 }
 
 type credentials struct {
@@ -42,9 +45,10 @@ type credentials struct {
 }
 
 // NewRedisStateStore returns a new redis state store
-func NewRedisStateStore() *StateStore {
+func NewRedisStateStore(logger logger.Logger) *StateStore {
 	return &StateStore{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 

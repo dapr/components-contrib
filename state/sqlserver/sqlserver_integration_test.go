@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 
 	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -121,7 +122,7 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 	ensureDBIsValid(t)
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
-	store := NewSQLServerStateStore()
+	store := NewSQLServerStateStore(logger.NewLogger("test"))
 	err := store.Init(metadata)
 	assert.Nil(t, err)
 
@@ -174,6 +175,7 @@ func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader fu
 
 	rows, err := db.Query(query)
 	assert.Nil(t, err)
+	assert.Nil(t, rows.Err())
 
 	defer rows.Close()
 	assertReader(t, rows)
@@ -787,7 +789,7 @@ func testMultipleInitializations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := getTestStoreWithKeyType(t, test.kt, test.indexedProperties)
 
-			store2 := NewSQLServerStateStore()
+			store2 := NewSQLServerStateStore(logger.NewLogger("test"))
 			assert.Nil(t, store2.Init(createMetadata(store.schema, test.kt, test.indexedProperties)))
 		})
 	}

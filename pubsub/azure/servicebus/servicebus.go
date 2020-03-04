@@ -13,7 +13,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/pubsub"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -42,11 +42,13 @@ type azureServiceBus struct {
 	metadata     metadata
 	namespace    *azservicebus.Namespace
 	topicManager *azservicebus.TopicManager
+
+	logger logger.Logger
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
-func NewAzureServiceBus() pubsub.PubSub {
-	return &azureServiceBus{}
+func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
+	return &azureServiceBus{logger: logger}
 }
 
 func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
@@ -166,6 +168,8 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return err
 	}
+	defer sender.Close(context.Background())
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 
@@ -242,7 +246,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 			err := asbHandler(ctx, msg)
 			if err != nil {
-				log.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
+				a.logger.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 			}
 		}()
 		return nil
@@ -250,10 +254,10 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	for {
 		if err := sub.Receive(context.Background(), concurrentAsbHandler); err != nil {
-			log.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
+			a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
 			// Must close to reset sub's receiver
 			if err := sub.Close(context.Background()); err != nil {
-				log.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
+				a.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
 				return // TODO: Can't handle error gracefully, what should be the behaviour?
 			}
 		}

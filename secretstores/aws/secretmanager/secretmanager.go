@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -19,13 +20,13 @@ import (
 )
 
 const (
-	VersionID    = "VersionID"
-	VersionStage = "VersionStage"
+	VersionID    = "version_id"
+	VersionStage = "version_stage"
 )
 
 // NewSecretManager returns a new secret manager store
-func NewSecretManager() secretstores.SecretStore {
-	return &smSecretStore{}
+func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
+	return &smSecretStore{logger: logger}
 }
 
 type secretManagerMetaData struct {
@@ -37,6 +38,7 @@ type secretManagerMetaData struct {
 
 type smSecretStore struct {
 	client secretsmanageriface.SecretsManagerAPI
+	logger logger.Logger
 }
 
 // Init creates a AWS secret manager client

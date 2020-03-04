@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -38,7 +39,7 @@ func TestWriteQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
@@ -75,7 +76,7 @@ func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
@@ -136,7 +137,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
@@ -163,7 +164,7 @@ func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	a := NewAzureStorageQueues()
+	a := NewAzureStorageQueues(logger.NewLogger("test"))
 	meta, err := a.parseMetadata(m)
 
 	assert.Nil(t, err)

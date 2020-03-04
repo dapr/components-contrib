@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dapr/dapr/pkg/logger"
 	json "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
@@ -34,6 +35,7 @@ const (
 	writeConcern     = "writeConcern"
 	readConcern      = "readConcern"
 	operationTimeout = "operationTimeout"
+	params           = "params"
 	id               = "_id"
 	value            = "value"
 
@@ -41,8 +43,8 @@ const (
 	defaultDatabaseName   = "daprStore"
 	defaultCollectionName = "daprCollection"
 
-	// mongodb://<username>:<password@<host>/<database>
-	connectionURIFormat = "mongodb://%s:%s@%s/%s"
+	// mongodb://<username>:<password@<host>/<database><params>
+	connectionURIFormat = "mongodb://%s:%s@%s/%s%s"
 )
 
 // MongoDB is a state store implementation for MongoDB
@@ -50,6 +52,8 @@ type MongoDB struct {
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
+
+	logger logger.Logger
 }
 
 type mongoDBMetadata struct {
@@ -60,6 +64,7 @@ type mongoDBMetadata struct {
 	collectionName   string
 	writeconcern     string
 	readconcern      string
+	params           string
 	operationTimeout time.Duration
 }
 
@@ -70,8 +75,8 @@ type Item struct {
 }
 
 // NewMongoDBStateStore returns a new MongoDB state store
-func NewMongoDB() *MongoDB {
-	return &MongoDB{}
+func NewMongoDB(logger logger.Logger) *MongoDB {
+	return &MongoDB{logger: logger}
 }
 
 // Init establishes connection to the store based on the metadata
@@ -256,11 +261,15 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 	return nil
 }
 
+func getMongoURI(metadata *mongoDBMetadata) string {
+	return fmt.Sprintf(connectionURIFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
+}
+
 func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	var uri string
 
 	if metadata.username != "" && metadata.password != "" {
-		uri = fmt.Sprintf(connectionURIFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName)
+		uri = getMongoURI(metadata)
 	}
 
 	// Set client options
@@ -314,6 +323,10 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 
 	if val, ok := metadata.Properties[readConcern]; ok && val != "" {
 		meta.readconcern = val
+	}
+
+	if val, ok := metadata.Properties[params]; ok && val != "" {
+		meta.params = val
 	}
 
 	var err error

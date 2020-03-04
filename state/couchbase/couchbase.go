@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	"gopkg.in/couchbase/gocb.v1"
 
 	jsoniter "github.com/json-iterator/go"
@@ -34,12 +35,15 @@ type Couchbase struct {
 	numReplicasDurableReplication uint
 	numReplicasDurablePersistence uint
 	json                          jsoniter.API
+
+	logger logger.Logger
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store
-func NewCouchbaseStateStore() *Couchbase {
+func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
 	return &Couchbase{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 

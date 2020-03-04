@@ -11,14 +11,16 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/servicediscovery"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/grandcat/zeroconf"
 )
 
-func NewMDNSResolver() servicediscovery.Resolver {
-	return &resolver{}
+func NewMDNSResolver(logger logger.Logger) servicediscovery.Resolver {
+	return &resolver{logger: logger}
 }
 
 type resolver struct {
+	logger logger.Logger
 }
 
 func (z *resolver) ResolveID(req servicediscovery.ResolveRequest) (string, error) {

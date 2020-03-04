@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"encoding/json"
 	"strconv"
@@ -36,12 +37,14 @@ type Aerospike struct {
 	set       string // optional
 	client    *as.Client
 	json      jsoniter.API
+	logger    logger.Logger
 }
 
 // NewAerospikeStateStore returns a new Aerospike state store
-func NewAerospikeStateStore() *Aerospike {
+func NewAerospikeStateStore(logger logger.Logger) state.Store {
 	return &Aerospike{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 

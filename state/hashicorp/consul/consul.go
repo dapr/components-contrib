@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
 )
@@ -18,6 +19,7 @@ import (
 type Consul struct {
 	client        *api.Client
 	keyPrefixPath string
+	logger        logger.Logger
 }
 
 type consulConfig struct {
@@ -29,8 +31,8 @@ type consulConfig struct {
 }
 
 // NewConsulStateStore returns a new consul state store.
-func NewConsulStateStore() *Consul {
-	return &Consul{}
+func NewConsulStateStore(logger logger.Logger) *Consul {
+	return &Consul{logger: logger}
 }
 
 // Init does metadata and config parsing and initializes the

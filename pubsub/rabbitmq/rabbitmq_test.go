@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +15,10 @@ func createAmqpMessage(body string) amqp.Delivery {
 
 func TestProcessSubscriberMessage(t *testing.T) {
 	testMetadata := &metadata{autoAck: true}
-	testRabbitMQSubscriber := createRabbitMQ()
+	testRabbitMQSubscriber := &rabbitMQ{
+		declaredExchanges: make(map[string]bool),
+		logger:            logger.NewLogger("test"),
+	}
 	testRabbitMQSubscriber.metadata = testMetadata
 
 	const topic = "testTopic"

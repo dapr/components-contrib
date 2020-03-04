@@ -3,11 +3,13 @@ package twilio
 import (
 	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -19,13 +21,9 @@ const (
 	twilioURLBase = "https://api.twilio.com/2010-04-01/Accounts/"
 )
 
-type OutputBinding interface {
-	Init(metadata bindings.Metadata) error
-	Write(req *bindings.WriteRequest) error
-}
-
 type SMS struct {
 	metadata twilioMetadata
+	logger   logger.Logger
 }
 
 type twilioMetadata struct {
@@ -36,8 +34,8 @@ type twilioMetadata struct {
 	timeout    time.Duration
 }
 
-func NewSMS() *SMS {
-	return &SMS{}
+func NewSMS(logger logger.Logger) *SMS {
+	return &SMS{logger: logger}
 }
 
 func (t *SMS) Init(metadata bindings.Metadata) error {

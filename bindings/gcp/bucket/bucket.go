@@ -11,6 +11,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/api/option"
 )
@@ -19,6 +20,7 @@ import (
 type GCPStorage struct {
 	metadata gcpMetadata
 	client   *storage.Client
+	logger   logger.Logger
 }
 
 type gcpMetadata struct {
@@ -36,8 +38,8 @@ type gcpMetadata struct {
 }
 
 // NewGCPStorage returns a new GCP storage instance
-func NewGCPStorage() *GCPStorage {
-	return &GCPStorage{}
+func NewGCPStorage(logger logger.Logger) *GCPStorage {
+	return &GCPStorage{logger: logger}
 }
 
 // Init performs connection parsing

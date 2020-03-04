@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
@@ -17,12 +16,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket
 type AWSS3 struct {
 	metadata *s3Metadata
 	uploader *s3manager.Uploader
+	logger   logger.Logger
 }
 
 type s3Metadata struct {
@@ -33,8 +34,8 @@ type s3Metadata struct {
 }
 
 // NewAWSS3 returns a new AWSS3 instance
-func NewAWSS3() *AWSS3 {
-	return &AWSS3{}
+func NewAWSS3(logger logger.Logger) *AWSS3 {
+	return &AWSS3{logger: logger}
 }
 
 // Init does metadata parsing and connection creation
@@ -58,7 +59,7 @@ func (s *AWSS3) Write(req *bindings.WriteRequest) error {
 		key = val
 	} else {
 		key = uuid.New().String()
-		log.Debugf("key not found. generating key %s", key)
+		s.logger.Debugf("key not found. generating key %s", key)
 	}
 
 	r := bytes.NewReader(req.Data)

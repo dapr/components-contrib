@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -35,14 +36,13 @@ func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
 }
 
 func TestWriteQueue(t *testing.T) {
-
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -60,7 +60,7 @@ func TestWriteQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -76,10 +76,10 @@ func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -110,7 +110,7 @@ func TestReadQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -137,10 +137,10 @@ func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -158,15 +158,13 @@ func TestReadQueueNoMessage(t *testing.T) {
 	pid := syscall.Getpid()
 	proc, _ := os.FindProcess(pid)
 	proc.Signal(os.Interrupt)
-
 }
 
 func TestParseMetadata(t *testing.T) {
-
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"accountKey": "myKey", "queueName": "queue1", "accountName": "devstoreaccount1"}
+	m.Properties = map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	a := NewAzureStorageQueues()
+	a := NewAzureStorageQueues(logger.NewLogger("test"))
 	meta, err := a.parseMetadata(m)
 
 	assert.Nil(t, err)

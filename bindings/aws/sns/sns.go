@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -21,6 +22,8 @@ import (
 type AWSSNS struct {
 	client   *sns.SNS
 	topicARN string
+
+	logger logger.Logger
 }
 
 type snsMetadata struct {
@@ -36,8 +39,8 @@ type dataPayload struct {
 }
 
 // NewAWSSNS creates a new AWSSNS binding instance
-func NewAWSSNS() *AWSSNS {
-	return &AWSSNS{}
+func NewAWSSNS(logger logger.Logger) *AWSSNS {
+	return &AWSSNS{logger: logger}
 }
 
 // Init does metadata parsing

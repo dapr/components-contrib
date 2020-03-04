@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 )
@@ -25,38 +26,33 @@ const (
 )
 
 type keyvaultSecretStore struct {
-	vaultName        string
-	vaultClient      kv.BaseClient
-	clientAuthorizer ClientAuthorizer
+	vaultName   string
+	vaultClient kv.BaseClient
+
+	logger logger.Logger
 }
 
 // NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
-func NewAzureKeyvaultSecretStore() secretstores.SecretStore {
+func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
 		vaultClient: kv.New(),
+		logger:      logger,
 	}
 }
 
 // Init creates a Kubernetes client
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
-	props := metadata.Properties
-	k.vaultName = props[componentVaultName]
-	certFilePath := props[componentSPNCertificateFile]
-	certBytes := []byte(props[componentSPNCertificate])
-	certPassword := props[componentSPNCertificatePassword]
+	settings := EnvironmentSettings{
+		Values: metadata.Properties,
+	}
 
-	k.clientAuthorizer = NewClientAuthorizer(
-		certFilePath,
-		certBytes,
-		certPassword,
-		props[componentSPNClientID],
-		props[componentSPNTenantID])
-
-	authorizer, err := k.clientAuthorizer.Authorizer()
+	authorizer, err := settings.GetAuthorizer()
 	if err == nil {
 		k.vaultClient.Authorizer = authorizer
 	}
+
+	k.vaultName = settings.Values[componentVaultName]
 
 	return err
 }

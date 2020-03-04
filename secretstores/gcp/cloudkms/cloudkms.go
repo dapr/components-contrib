@@ -14,6 +14,7 @@ import (
 	cloudkms "cloud.google.com/go/kms/apiv1"
 	"cloud.google.com/go/storage"
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 	"google.golang.org/api/option"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 )
@@ -23,6 +24,7 @@ type cloudkmsSecretStore struct {
 	cloudkmsclient *cloudkms.KeyManagementClient
 	storageclient  *storage.Client
 	metadata       *cloudkmsMetadata
+	logger         logger.Logger
 }
 
 type cloudkmsMetadata struct {
@@ -43,13 +45,12 @@ type cloudkmsMetadata struct {
 }
 
 // NewCloudKMSSecretStore returns a new cloudkmsSecretStore instance
-func NewCloudKMSSecretStore() secretstores.SecretStore {
-	return &cloudkmsSecretStore{}
+func NewCloudKMSSecretStore(logger logger.Logger) secretstores.SecretStore {
+	return &cloudkmsSecretStore{logger: logger}
 }
 
 // Init creates a cloudkmsClient
 func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
-
 	b, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -130,7 +131,6 @@ func (c *cloudkmsSecretStore) getCipherTextFromSecretObject(gcpStorageBucket str
 }
 
 func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) ([]byte, error) {
-
 	ctx := context.Background()
 	// Build the request
 	req := &kmspb.DecryptRequest{

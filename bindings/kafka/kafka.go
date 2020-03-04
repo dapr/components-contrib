@@ -17,8 +17,8 @@ import (
 	"syscall"
 
 	"github.com/Shopify/sarama"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -31,6 +31,7 @@ type Kafka struct {
 	authRequired  bool
 	saslUsername  string
 	saslPassword  string
+	logger        logger.Logger
 }
 
 type kafkaMetadata struct {
@@ -68,8 +69,8 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 }
 
 // NewKafka returns a new kafka binding instance
-func NewKafka() *Kafka {
-	return &Kafka{}
+func NewKafka(logger logger.Logger) *Kafka {
+	return &Kafka{logger: logger}
 }
 
 // Init does metadata parsing and connection establishment
@@ -199,7 +200,7 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 		defer wg.Done()
 		for {
 			if err = client.Consume(ctx, k.topics, &c); err != nil {
-				log.Errorf("error from c: %s", err)
+				k.logger.Errorf("error from c: %s", err)
 			}
 			// check if context was cancelled, signaling that the c should stop
 			if ctx.Err() != nil {

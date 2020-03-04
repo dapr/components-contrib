@@ -11,6 +11,7 @@ import (
 
 	"github.com/a8m/documentdb"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // CosmosDB allows performing state operations on collections
@@ -19,6 +20,8 @@ type CosmosDB struct {
 	collection   *documentdb.Collection
 	db           *documentdb.Database
 	partitionKey string
+
+	logger logger.Logger
 }
 
 type cosmosDBCredentials struct {
@@ -30,8 +33,8 @@ type cosmosDBCredentials struct {
 }
 
 // NewCosmosDB returns a new CosmosDB instance
-func NewCosmosDB() *CosmosDB {
-	return &CosmosDB{}
+func NewCosmosDB(logger logger.Logger) *CosmosDB {
+	return &CosmosDB{logger: logger}
 }
 
 // Init performs CosmosDB connection parsing and connecting

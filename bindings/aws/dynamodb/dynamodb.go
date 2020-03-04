@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -21,6 +22,7 @@ import (
 type DynamoDB struct {
 	client *dynamodb.DynamoDB
 	table  string
+	logger logger.Logger
 }
 
 type dynamoDBMetadata struct {
@@ -31,8 +33,8 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDB returns a new DynamoDB instance
-func NewDynamoDB() *DynamoDB {
-	return &DynamoDB{}
+func NewDynamoDB(logger logger.Logger) *DynamoDB {
+	return &DynamoDB{logger: logger}
 }
 
 // Init performs connection parsing for DynamoDB

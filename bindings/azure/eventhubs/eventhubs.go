@@ -14,14 +14,16 @@ import (
 	"time"
 
 	eventhub "github.com/Azure/azure-event-hubs-go"
-	log "github.com/sirupsen/logrus"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events
 type AzureEventHubs struct {
 	hub      *eventhub.Hub
 	metadata *azureEventHubsMetadata
+
+	logger logger.Logger
 }
 
 type azureEventHubsMetadata struct {
@@ -31,8 +33,8 @@ type azureEventHubsMetadata struct {
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance
-func NewAzureEventHubs() *AzureEventHubs {
-	return &AzureEventHubs{}
+func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
+	return &AzureEventHubs{logger: logger}
 }
 
 // Init performs metadata init
@@ -84,7 +86,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 			enqTime := *event.SystemProperties.EnqueuedTime
 			d, err := time.ParseDuration(a.metadata.MessageAge)
 			if err != nil {
-				log.Errorf("error parsing duration: %s", err)
+				a.logger.Errorf("error parsing duration: %s", err)
 				return nil
 			} else if time.Now().UTC().Sub(enqTime) > d {
 				return nil
@@ -110,7 +112,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 	}
 
 	if a.metadata.ConsumerGroup != "" {
-		log.Infof("eventhubs: using consumer group %s", a.metadata.ConsumerGroup)
+		a.logger.Infof("eventhubs: using consumer group %s", a.metadata.ConsumerGroup)
 		ops = append(ops, eventhub.ReceiveWithConsumerGroup(a.metadata.ConsumerGroup))
 	}
 

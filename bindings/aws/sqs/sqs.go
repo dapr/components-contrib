@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/dapr/dapr/pkg/logger"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -22,6 +22,8 @@ import (
 type AWSSQS struct {
 	Client   *sqs.SQS
 	QueueURL *string
+
+	logger logger.Logger
 }
 
 type sqsMetadata struct {
@@ -32,7 +34,7 @@ type sqsMetadata struct {
 }
 
 // NewAWSSQS returns a new AWS SQS instance
-func NewAWSSQS() *AWSSQS {
+func NewAWSSQS(logger logger.Logger) *AWSSQS {
 	return &AWSSQS{}
 }
 
@@ -84,7 +86,7 @@ func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) error) error {
 			WaitTimeSeconds: aws.Int64(20),
 		})
 		if err != nil {
-			log.Errorf("Unable to receive message from queue %q, %v.", *a.QueueURL, err)
+			a.logger.Errorf("Unable to receive message from queue %q, %v.", *a.QueueURL, err)
 		}
 
 		if len(result.Messages) > 0 {

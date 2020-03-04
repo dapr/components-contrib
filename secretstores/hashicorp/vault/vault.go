@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -44,6 +45,8 @@ type vaultSecretStore struct {
 	vaultAddress        string
 	vaultTokenMountPath string
 	vaultKVPrefix       string
+
+	logger logger.Logger
 }
 
 // tlsConfig is TLS configuration to interact with HashiCorp Vault
@@ -63,9 +66,10 @@ type vaultKVResponse struct {
 }
 
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store
-func NewHashiCorpVaultSecretStore() secretstores.SecretStore {
+func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &vaultSecretStore{
 		client: &http.Client{},
+		logger: logger,
 	}
 }
 

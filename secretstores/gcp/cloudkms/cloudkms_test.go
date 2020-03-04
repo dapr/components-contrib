@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
-	s := NewCloudKMSSecretStore()
+	s := NewCloudKMSSecretStore(logger.NewLogger("test"))
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"type":                        "service_account",

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
 
@@ -17,6 +18,7 @@ type RabbitMQ struct {
 	connection *amqp.Connection
 	channel    *amqp.Channel
 	metadata   *rabbitMQMetadata
+	logger     logger.Logger
 }
 
 // Metadata is the rabbitmq config
@@ -28,8 +30,8 @@ type rabbitMQMetadata struct {
 }
 
 // NewRabbitMQ returns a new rabbitmq instance
-func NewRabbitMQ() *RabbitMQ {
-	return &RabbitMQ{}
+func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
+	return &RabbitMQ{logger: logger}
 }
 
 // Init does metadata parsing and connection creation
@@ -57,12 +59,7 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 }
 
 func (r *RabbitMQ) Write(req *bindings.WriteRequest) error {
-	q, err := r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, nil)
-	if err != nil {
-		return err
-	}
-
-	err = r.channel.Publish("", q.Name, false, false, amqp.Publishing{
+	err := r.channel.Publish("", r.metadata.QueueName, false, false, amqp.Publishing{
 		ContentType: "text/plain",
 		Body:        req.Data,
 	})
@@ -95,7 +92,7 @@ func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {
 	msgs, err := r.channel.Consume(
 		q.Name,
 		"",
-		true,
+		false,
 		false,
 		false,
 		false,

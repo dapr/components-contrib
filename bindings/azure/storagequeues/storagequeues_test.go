@@ -125,7 +125,7 @@ func TestReadQueueDecode(t *testing.T) {
 
 	var handler = func(data *bindings.ReadResponse) error {
 		s := string(data.Data)
-		assert.Equal(t, s, "This is my message2")
+		assert.Equal(t, s, "This is my message")
 		return nil
 	}
 

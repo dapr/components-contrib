@@ -30,6 +30,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/go-redis/redis/v7 v7.0.1
+	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.0
 	github.com/golang/protobuf v1.3.3
@@ -38,6 +39,7 @@ require (
 	github.com/hashicorp/consul/api v1.2.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
+	github.com/joomcode/errorx v1.0.1 // indirect
 	github.com/joomcode/redispipe v0.9.0
 	github.com/json-iterator/go v1.1.8
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
@@ -62,6 +64,7 @@ require (
 	google.golang.org/genproto v0.0.0-20200122232147-0452cf42e150
 	google.golang.org/grpc v1.26.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
+	gopkg.in/couchbase/gocbcore.v7 v7.1.16 // indirect
 	k8s.io/apimachinery v0.17.0
 	k8s.io/client-go v0.17.0
 )

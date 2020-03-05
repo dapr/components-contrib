@@ -107,7 +107,6 @@ func TestReadQueue(t *testing.T) {
 
 func TestReadQueueDecode(t *testing.T) {
 	mm := new(MockHelper)
-	mock.AnythingOfType("bool")
 	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}

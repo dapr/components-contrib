@@ -85,9 +85,9 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	var data []byte
 
 	if d.decodeBase64 {
-		decoded, err := base64.StdEncoding.DecodeString(strings.Trim(mt, "\""))
-		if err != nil {
-			return err
+		decoded, decodeError := base64.StdEncoding.DecodeString(strings.Trim(mt, "\""))
+		if decodeError != nil {
+			return decodeError
 		}
 		data = decoded
 	} else {

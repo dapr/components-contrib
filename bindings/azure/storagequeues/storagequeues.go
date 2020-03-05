@@ -7,11 +7,13 @@ package storagequeues
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,7 +29,7 @@ type consumer struct {
 
 // QueueHelper enables injection for testnig
 type QueueHelper interface {
-	Init(accountName string, accountKey string, queueName string) error
+	Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error
 	Write(data []byte) error
 	Read(ctx context.Context, consumer *consumer) error
 }
@@ -38,15 +40,17 @@ type AzureQueueHelper struct {
 	queueURL   azqueue.QueueURL
 	reqURI     string
 	logger     logger.Logger
+	decodeBase64 bool
 }
 
 // Init sets up this helper
-func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName string) error {
+func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error {
 	credential, err := azqueue.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
 		return err
 	}
 	d.credential = credential
+	d.decodeBase64 = decodeBase64
 	u, _ := url.Parse(fmt.Sprintf(d.reqURI, accountName, queueName))
 	d.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, azqueue.PipelineOptions{}))
 	ctx := context.TODO()
@@ -77,8 +81,21 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		return nil
 	}
 	mt := res.Message(0).Text
+
+	var data []byte
+
+	if d.decodeBase64 {
+		decoded, err := base64.StdEncoding.DecodeString(strings.Trim(mt, "\""))
+		if err != nil {
+			return err
+		}
+		data = decoded
+	} else {
+		data = []byte(mt)
+	}
+
 	err = consumer.callback(&bindings.ReadResponse{
-		Data:     []byte(mt),
+		Data:     data,
 		Metadata: map[string]string{},
 	})
 	if err != nil {
@@ -113,6 +130,7 @@ type storageQueuesMetadata struct {
 	AccountKey  string `json:"storageAccessKey"`
 	QueueName   string `json:"queue"`
 	AccountName string `json:"storageAccount"`
+	DecodeBase64 string `json:"decodeBase64"`
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
@@ -128,7 +146,12 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 	}
 	a.metadata = meta
 
-	err = a.helper.Init(a.metadata.AccountName, a.metadata.AccountKey, a.metadata.QueueName)
+	decodeBase64 := false
+	if a.metadata.DecodeBase64 == "true" {
+		decodeBase64 = true
+	}
+
+	err = a.helper.Init(a.metadata.AccountName, a.metadata.AccountKey, a.metadata.QueueName, decodeBase64)
 	if err != nil {
 		return err
 	}

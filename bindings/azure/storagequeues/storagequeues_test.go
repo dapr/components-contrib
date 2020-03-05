@@ -22,8 +22,8 @@ type MockHelper struct {
 	mock.Mock
 }
 
-func (m *MockHelper) Init(accountName string, accountKey string, queueName string) error {
-	retvals := m.Called(accountName, accountKey, queueName)
+func (m *MockHelper) Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error {
+	retvals := m.Called(accountName, accountKey, queueName, decodeBase64)
 	return retvals.Error(0)
 }
 
@@ -37,7 +37,7 @@ func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
 
 func TestWriteQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
@@ -74,7 +74,7 @@ func TestWriteQueue(t *testing.T) {
 
 func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
@@ -93,6 +93,40 @@ func TestReadQueue(t *testing.T) {
 	var handler = func(data *bindings.ReadResponse) error {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
+		return nil
+	}
+
+	go a.Read(handler)
+
+	time.Sleep(5 * time.Second)
+
+	pid := syscall.Getpid()
+	proc, _ := os.FindProcess(pid)
+	proc.Signal(os.Interrupt)
+}
+
+func TestReadQueueDecode(t *testing.T) {
+	mm := new(MockHelper)
+	mock.AnythingOfType("bool")
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
+
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", "decodeBase64": "true"}
+
+	err := a.Init(m)
+	assert.Nil(t, err)
+
+	r := bindings.WriteRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
+
+	err = a.Write(&r)
+
+	assert.Nil(t, err)
+
+	var handler = func(data *bindings.ReadResponse) error {
+		s := string(data.Data)
+		assert.Equal(t, s, "This is my message2")
 		return nil
 	}
 
@@ -135,7 +169,7 @@ func TestReadQueue(t *testing.T) {
 */
 func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
+	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), false).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 

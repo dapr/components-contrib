@@ -164,7 +164,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
 	<-exitChan
 
-	err = a.hub.Close(context.Background())
+	a.hub.Close(context.Background())
 
 	return nil
 }

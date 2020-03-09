@@ -80,7 +80,7 @@ func (t *SMS) Write(req *bindings.WriteRequest) error {
 	if toNumberValue == "" {
 		toNumberFromRequest, ok := req.Metadata[toNumber]
 		if !ok || toNumberFromRequest == "" {
-			return errors.New("twillio missing \"to\"")
+			return errors.New("twilio missing \"toNumber\" field")
 		}
 		toNumberValue = toNumberFromRequest
 	}

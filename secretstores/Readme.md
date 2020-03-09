@@ -5,6 +5,7 @@ Secret Stores provide a common way to interact with different secret stores, clo
 Currently supported secret stores are:
 
 * Kubernetes
+* Hashicorp Vault
 * Azure KeyVault
 * AWS Secret manager
 * GCP Cloud KMS

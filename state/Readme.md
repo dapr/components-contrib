@@ -4,6 +4,7 @@ State Stores provide a common way to interact with different data store implemen
 
 Currently supported state stores are:
 
+* AWS DynamoDB
 * Azure CosmosDB
 * Azure Table Storage
 * Cassandra
@@ -18,6 +19,8 @@ Currently supported state stores are:
 * Redis
 * SQL Server
 * Zookeeper
+* Cloud Firestore (Datastore mode)
+* Couchbase
 
 ## Implementing a new State Store
 

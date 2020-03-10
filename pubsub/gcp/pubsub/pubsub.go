@@ -120,7 +120,7 @@ func (g *GCPPubSub) ensureTopic(topic string) error {
 	entity := g.getTopic(topic)
 	exists, err := entity.Exists(context.Background())
 	if !exists {
-		entity, err = g.client.CreateTopic(context.Background(), topic)
+		_, err = g.client.CreateTopic(context.Background(), topic)
 	}
 	return err
 }
@@ -138,7 +138,7 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error 
 	entity := g.getSubscription(subscription)
 	exists, subErr := entity.Exists(context.Background())
 	if !exists {
-		entity, subErr = g.client.CreateSubscription(context.Background(), g.metadata.Subscription,
+		_, subErr = g.client.CreateSubscription(context.Background(), g.metadata.Subscription,
 			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic)})
 	}
 	return subErr

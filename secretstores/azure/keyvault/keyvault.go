@@ -61,7 +61,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	secretResp, err := k.vaultClient.GetSecret(context.Background(), k.getVaultURI(), req.Name, "")
 	if err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, err
+		return secretstores.GetSecretResponse{}, err
 	}
 
 	secretValue := ""
@@ -71,7 +71,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{
-			secretstores.DefaultSecretRefKeyName: secretValue,
+			req.Name: secretValue,
 		},
 	}, nil
 }

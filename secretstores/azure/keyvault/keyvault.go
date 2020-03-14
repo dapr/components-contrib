@@ -51,19 +51,19 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	certFilePath := metadata.Properties[componentSPNCertificateFile]
 	certBytes := []byte(metadata.Properties[componentSPNCertificate])
 	certPassword := metadata.Properties[componentSPNCertificatePassword]
-	clientId := metadata.Properties[componentSPNClientID]
-	tenantId := metadata.Properties[componentSPNTenantID]
+	clientID := metadata.Properties[componentSPNClientID]
+	tenantID := metadata.Properties[componentSPNTenantID]
 
 	var authorizer autorest.Authorizer
 	var err error
-	if certFilePath != "" && len(certBytes) > 0 && certPassword != "" && clientId != "" && tenantId != "" {
+	if certFilePath != "" && len(certBytes) > 0 && certPassword != "" && clientID != "" && tenantID != "" {
 		// SPN configured
 		auth := NewClientAuthorizer(
 			certFilePath,
 			certBytes,
 			certPassword,
-			clientId,
-			tenantId)
+			clientID,
+			tenantID)
 
 		authorizer, err = auth.Authorizer()
 		if err != nil {

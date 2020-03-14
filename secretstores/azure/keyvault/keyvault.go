@@ -13,6 +13,7 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
+	"github.com/Azure/go-autorest/autorest"
 )
 
 // Keyvault secret store component metadata properties
@@ -47,13 +48,36 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 		Values: metadata.Properties,
 	}
 
-	authorizer, err := settings.GetAuthorizer()
-	if err == nil {
-		k.vaultClient.Authorizer = authorizer
+	certFilePath := metadata.Properties[componentSPNCertificateFile]
+	certBytes := []byte(metadata.Properties[componentSPNCertificate])
+	certPassword := metadata.Properties[componentSPNCertificatePassword]
+	clientId := metadata.Properties[componentSPNClientID]
+	tenantId := metadata.Properties[componentSPNTenantID]
+
+	var authorizer autorest.Authorizer
+	var err error
+	if certFilePath != "" && len(certBytes) > 0 && certPassword != "" && clientId != "" && tenantId != "" {
+		// SPN configured
+		auth := NewClientAuthorizer(
+			certFilePath,
+			certBytes,
+			certPassword,
+			clientId,
+			tenantId)
+
+		authorizer, err = auth.Authorizer()
+		if err != nil {
+			return fmt.Errorf("error creating client certificate authorizer: %s", err)
+		}
+	} else {
+		// Try managed identity
+		authorizer, err = settings.GetAuthorizer()
+		if err != nil {
+			return fmt.Errorf("error creating managed identity authorizer: %s", err)
+		}
 	}
-
+	k.vaultClient.Authorizer = authorizer
 	k.vaultName = settings.Values[componentVaultName]
-
 	return err
 }
 

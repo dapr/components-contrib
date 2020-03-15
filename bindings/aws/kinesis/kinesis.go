@@ -129,14 +129,13 @@ func (a *AWSKinesis) Write(req *bindings.WriteRequest) error {
 }
 
 func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) error) error {
-
-	if kinesisConsumerMode(a.metadata.KinesisConsumerMode) == SharedThroughput {
+	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		a.worker = worker.NewWorker(a.recordProcessorFactory(handler), a.workerConfig, nil)
 		err := a.worker.Start()
 		if err != nil {
 			return err
 		}
-	} else if kinesisConsumerMode(a.metadata.KinesisConsumerMode) == ExtendedFanout {
+	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
 		ctx := context.Background()
 		stream, err := a.client.DescribeStream(&kinesis.DescribeStreamInput{StreamName: &a.metadata.StreamName})
 		if err != nil {
@@ -149,9 +148,9 @@ func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) error) error {
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
 	<-exitChan
 
-	if kinesisConsumerMode(a.metadata.KinesisConsumerMode) == SharedThroughput {
+	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		go a.worker.Shutdown()
-	} else if kinesisConsumerMode(a.metadata.KinesisConsumerMode) == ExtendedFanout {
+	} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
 		go a.deregisterConsumer(a.streamARN, a.consumerARN)
 	}
 
@@ -223,6 +222,10 @@ func (a *AWSKinesis) registerConsumer(streamARN *string) (*string, error) {
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	err = a.waitUntilConsumerExists(context.Background(), &kinesis.DescribeStreamConsumerInput{
 		ConsumerName: &a.metadata.ConsumerName,

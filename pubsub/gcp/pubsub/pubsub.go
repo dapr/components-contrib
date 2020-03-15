@@ -13,6 +13,7 @@ import (
 
 const (
 	errorMessagePrefix = "gcp pubsub error:"
+	consumerID         = "consumerID"
 )
 
 // GCPPubSub type
@@ -46,8 +47,10 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 		return fmt.Errorf("%s error creating pubsub client: %s", errorMessagePrefix, err)
 	}
 
-	if pubsubMeta.Subscription == "" {
-		return fmt.Errorf("%s missing subscription", errorMessagePrefix)
+	if val, ok := meta.Properties[consumerID]; ok && val != "" {
+		pubsubMeta.ConsumerID = val
+	} else {
+		return fmt.Errorf("%s missing consumerID", errorMessagePrefix)
 	}
 
 	g.client = pubsubClient
@@ -87,14 +90,14 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg 
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(g.metadata.Subscription, req.Topic)
+		subError := g.ensureSubscription(g.metadata.ConsumerID, req.Topic)
 		if subError != nil {
-			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.Subscription, subError)
+			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.ConsumerID, subError)
 		}
 	}
 
 	topic := g.getTopic(req.Topic)
-	sub := g.getSubscription(g.metadata.Subscription)
+	sub := g.getSubscription(g.metadata.ConsumerID)
 
 	go g.handleSubscriptionMessages(topic, sub, daprHandler)
 	return nil
@@ -138,7 +141,7 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error 
 	entity := g.getSubscription(subscription)
 	exists, subErr := entity.Exists(context.Background())
 	if !exists {
-		_, subErr = g.client.CreateSubscription(context.Background(), g.metadata.Subscription,
+		_, subErr = g.client.CreateSubscription(context.Background(), g.metadata.ConsumerID,
 			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic)})
 	}
 	return subErr

@@ -2,7 +2,7 @@ package pubsub
 
 // GCPPubSubMetaData pubsub metadata
 type metadata struct {
-	Subscription            string `json:"subscription"`
+	ConsumerID              string `json:"consumerID"`
 	DisableEntityManagement bool   `json:"disableEntityManagement"`
 	Type                    string `json:"type"`
 	ProjectID               string `json:"project_id"`

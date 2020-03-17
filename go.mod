@@ -20,6 +20,7 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.0
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
+	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.1.0+incompatible

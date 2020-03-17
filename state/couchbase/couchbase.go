@@ -184,7 +184,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var data interface{}
 	cas, err := cbs.bucket.Get(req.Key, &data)
 	if err != nil {
-		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
+		return &state.GetResponse{}, nil
 	}
 	value, err := cbs.json.Marshal(&data)
 

@@ -9,9 +9,9 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/google/uuid"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/google/uuid"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
@@ -19,15 +19,15 @@ import (
 // AliCloudOSS is a binding for an AliCloud OSS storage bucket
 type AliCloudOSS struct {
 	metadata *ossMetadata
-	client *oss.Client
+	client   *oss.Client
 	logger   logger.Logger
 }
 
 type ossMetadata struct {
 	Endpoint    string `json:"endpoint"`
 	AccessKeyID string `json:"accessKeyID"`
-	AccessKey string `json:"accessKey"`
-	Bucket    string `json:"bucket"`
+	AccessKey   string `json:"accessKey"`
+	Bucket      string `json:"bucket"`
 }
 
 // NewAliCloudOSS returns a new AWSS3 instance
@@ -60,20 +60,19 @@ func (s *AliCloudOSS) Write(req *bindings.WriteRequest) error {
 	}
 
 	//r := bytes.NewReader(req.Data)
-	bucket, err :=s.client.Bucket(s.metadata.Bucket)
+	bucket, err := s.client.Bucket(s.metadata.Bucket)
 
 	if err != nil {
-		return  err
+		return err
 	}
-	
+
 	// Upload a byte array.
 	err = bucket.PutObject(key, bytes.NewReader(req.Data))
-	if err != nil  {
-		return  err
+	if err != nil {
+		return err
 	}
 
 	return err
-
 }
 
 func (s *AliCloudOSS) parseMetadata(metadata bindings.Metadata) (*ossMetadata, error) {

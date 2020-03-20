@@ -32,6 +32,10 @@ const (
 	storageAccountKey    = "storageAccountKey"
 	storageContainerName = "storageContainerName"
 
+	// optional
+	partitionKeyName = "partitionKey"
+	partitionIDName  = "partitionID"
+
 	// errors
 	missingConnectionStringErrorMsg     = "error: connectionString is a required attribute"
 	missingStorageAccountNameErrorMsg   = "error: storageAccountName is a required attribute"
@@ -54,6 +58,12 @@ type azureEventHubsMetadata struct {
 	storageAccountName   string
 	storageAccountKey    string
 	storageContainerName string
+	partitionID          string
+	partitionKey         string
+}
+
+func (m azureEventHubsMetadata) partitioned() bool {
+	return m.partitionID != ""
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance
@@ -69,6 +79,12 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	}
 	a.metadata = m
 	hub, err := eventhub.NewHubFromConnectionString(a.metadata.connectionString)
+
+	// Create paritioned sender if the partitionID is configured
+	if a.metadata.partitioned() {
+		hub, err = eventhub.NewHubFromConnectionString(a.metadata.connectionString,
+			eventhub.HubWithPartitionedSender(a.metadata.partitionID))
+	}
 
 	if err != nil {
 		return fmt.Errorf("unable to connect to azure event hubs: %v", err)
@@ -111,14 +127,34 @@ func parseMetadata(meta bindings.Metadata) (*azureEventHubsMetadata, error) {
 		return m, errors.New(missingConsumerGroupErrorMsg)
 	}
 
+	if val, ok := meta.Properties[partitionKeyName]; ok {
+		m.partitionKey = val
+	}
+
+	if val, ok := meta.Properties[partitionIDName]; ok {
+		m.partitionID = val
+	}
+
 	return m, nil
 }
 
 // Write posts an event hubs message
 func (a *AzureEventHubs) Write(req *bindings.WriteRequest) error {
-	err := a.hub.Send(context.Background(), &eventhub.Event{
+	event := &eventhub.Event{
 		Data: req.Data,
-	})
+	}
+
+	// Send partitionKey in event
+	if a.metadata.partitionKey != "" {
+		event.PartitionKey = &a.metadata.partitionKey
+	} else {
+		partitionKey, ok := req.Metadata[partitionKeyName]
+		if partitionKey != "" && ok {
+			event.PartitionKey = &partitionKey
+		}
+	}
+
+	err := a.hub.Send(context.Background(), event)
 	if err != nil {
 		return err
 	}
@@ -128,6 +164,73 @@ func (a *AzureEventHubs) Write(req *bindings.WriteRequest) error {
 
 // Read gets messages from eventhubs in a non-blocking fashion
 func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error {
+	if !a.metadata.partitioned() {
+		a.RegisterEventProcessor(handler)
+	} else {
+		a.RegisterPartitionedEventProcessor(handler)
+	}
+
+	// close Event Hubs when application exits
+	exitChan := make(chan os.Signal, 1)
+	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
+	<-exitChan
+
+	a.hub.Close(context.Background())
+
+	return nil
+}
+
+// RegisterPartitionedEventProcessor - receive eventhub messages by partitionID
+func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*bindings.ReadResponse) error) error {
+	ctx := context.Background()
+
+	runtimeInfo, err := a.hub.GetRuntimeInformation(ctx)
+	if err != nil {
+		return err
+	}
+
+	callback := func(c context.Context, event *eventhub.Event) error {
+		if event != nil {
+			handler(&bindings.ReadResponse{
+				Data: event.Data,
+			})
+		}
+		return nil
+	}
+
+	ops := []eventhub.ReceiveOption{
+		eventhub.ReceiveWithLatestOffset(),
+	}
+
+	if a.metadata.consumerGroup != "" {
+		a.logger.Infof("eventhubs: using consumer group %s", a.metadata.consumerGroup)
+		ops = append(ops, eventhub.ReceiveWithConsumerGroup(a.metadata.consumerGroup))
+	}
+
+	if contains(runtimeInfo.PartitionIDs, a.metadata.partitionID) {
+		a.logger.Infof("eventhubs: using partition id %s", a.metadata.partitionID)
+
+		_, err := a.hub.Receive(ctx, a.metadata.partitionID, callback, ops...)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
+}
+
+// RegisterEventProcessor - receive eventhub messages by eventprocessor
+// host by balancing partitions
+func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) error) error {
 
 	cred, err := azblob.NewSharedKeyCredential(a.metadata.storageAccountName, a.metadata.storageAccountKey)
 	if err != nil {
@@ -157,14 +260,6 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 	if err != nil {
 		return err
 	}
-
-	// close Event Hubs when application exits
-
-	exitChan := make(chan os.Signal, 1)
-	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
-	<-exitChan
-
-	a.hub.Close(context.Background())
 
 	return nil
 }

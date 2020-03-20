@@ -30,7 +30,7 @@ type ossMetadata struct {
 	Bucket      string `json:"bucket"`
 }
 
-// NewAliCloudOSS returns a new AWSS3 instance
+// NewAliCloudOSS returns a new  instance
 func NewAliCloudOSS(logger logger.Logger) *AliCloudOSS {
 	return &AliCloudOSS{logger: logger}
 }

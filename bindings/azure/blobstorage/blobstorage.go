@@ -7,10 +7,10 @@ package blobstorage
 
 import (
 	"context"
+	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	b64 "encoding/base64"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
@@ -107,7 +107,7 @@ func (a *AzureBlobStorage) Write(req *bindings.WriteRequest) error {
 	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return fmt.Errorf("The MD5 value specified in ContentMD5 is invalid. MD5 value must be 128 bits and base64 encoded.")
+			return fmt.Errorf("The MD5 value specified in ContentMD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.ContentMD5 = sDec
 		delete(req.Metadata, contentMD5)
@@ -128,10 +128,10 @@ func (a *AzureBlobStorage) Write(req *bindings.WriteRequest) error {
 		blobHTTPHeaders.CacheControl = val
 		delete(req.Metadata, cacheControl)
 	}
-	
+
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
-		Parallelism: 	 16,
-		Metadata:    	 req.Metadata,
+		Parallelism:     16,
+		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
 	return err

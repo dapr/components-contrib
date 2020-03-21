@@ -9,8 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-    "net/url"
-    b64 "encoding/base64"
+	"net/url"
+	b64 "encoding/base64"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
@@ -22,11 +22,11 @@ import (
 const (
 	blobName           = "blobName"
 	contentType        = "ContentType"
-    contentMD5         = "ContentMD5"
-    contentEncoding    = "ContentEncoding"
-    contentLanguage    = "ContentLanguage"
-    contentDisposition = "ContentDisposition"
-    cacheControl       = "CacheControl"
+	contentMD5         = "ContentMD5"
+	contentEncoding    = "ContentEncoding"
+	contentLanguage    = "ContentLanguage"
+	contentDisposition = "ContentDisposition"
+	cacheControl       = "CacheControl"
 )
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account
@@ -101,32 +101,32 @@ func (a *AzureBlobStorage) Write(req *bindings.WriteRequest) error {
 
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 	if val, ok := req.Metadata[contentType]; ok && val != "" {
-        blobHTTPHeaders.ContentType = val
-        delete(req.Metadata, contentType)
-    }
-    if val, ok := req.Metadata[contentMD5]; ok && val != "" {
-        sDec, err := b64.StdEncoding.DecodeString(val)
-        if err != nil || len(sDec) != 16 {
-            return fmt.Errorf("The MD5 value specified in ContentMD5 is invalid. MD5 value must be 128 bits and base64 encoded.")
-        }
-        blobHTTPHeaders.ContentMD5 = sDec
-        delete(req.Metadata, contentMD5)
-    }
-    if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
-        blobHTTPHeaders.ContentEncoding = val
-        delete(req.Metadata, contentEncoding)
-    }
-    if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
-        blobHTTPHeaders.ContentLanguage = val
-        delete(req.Metadata, contentLanguage)
-    }
-    if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
-        blobHTTPHeaders.ContentDisposition = val
-        delete(req.Metadata, contentDisposition)
-    }
-    if val, ok := req.Metadata[cacheControl]; ok && val != "" {
-        blobHTTPHeaders.CacheControl = val
-        delete(req.Metadata, cacheControl)
+		blobHTTPHeaders.ContentType = val
+		delete(req.Metadata, contentType)
+	}
+	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
+		sDec, err := b64.StdEncoding.DecodeString(val)
+		if err != nil || len(sDec) != 16 {
+			return fmt.Errorf("The MD5 value specified in ContentMD5 is invalid. MD5 value must be 128 bits and base64 encoded.")
+		}
+		blobHTTPHeaders.ContentMD5 = sDec
+		delete(req.Metadata, contentMD5)
+	}
+	if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
+		blobHTTPHeaders.ContentEncoding = val
+		delete(req.Metadata, contentEncoding)
+	}
+	if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
+		blobHTTPHeaders.ContentLanguage = val
+		delete(req.Metadata, contentLanguage)
+	}
+	if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
+		blobHTTPHeaders.ContentDisposition = val
+		delete(req.Metadata, contentDisposition)
+	}
+	if val, ok := req.Metadata[cacheControl]; ok && val != "" {
+		blobHTTPHeaders.CacheControl = val
+		delete(req.Metadata, cacheControl)
 	}
 	
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{

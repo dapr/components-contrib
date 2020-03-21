@@ -107,7 +107,7 @@ func (a *AzureBlobStorage) Write(req *bindings.WriteRequest) error {
 	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return fmt.Errorf("The MD5 value specified in ContentMD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+			return fmt.Errorf("The MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.ContentMD5 = sDec
 		delete(req.Metadata, contentMD5)

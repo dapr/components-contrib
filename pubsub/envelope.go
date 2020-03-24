@@ -27,10 +27,11 @@ type CloudEventsEnvelope struct {
 	SpecVersion     string      `json:"specversion"`
 	DataContentType string      `json:"datacontenttype"`
 	Data            interface{} `json:"data"`
+	Subject         string      `json:"subject"`
 }
 
 // NewCloudEventsEnvelope returns a new CloudEventsEnvelope
-func NewCloudEventsEnvelope(id, source, eventType string, data []byte) *CloudEventsEnvelope {
+func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) *CloudEventsEnvelope {
 	if eventType == "" {
 		eventType = DefaultCloudEventType
 	}
@@ -52,5 +53,6 @@ func NewCloudEventsEnvelope(id, source, eventType string, data []byte) *CloudEve
 		Data:            i,
 		SpecVersion:     CloudEventsSpecVersion,
 		DataContentType: contentType,
+		Subject:         subject,
 	}
 }

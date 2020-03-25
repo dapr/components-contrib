@@ -4,6 +4,7 @@ Pub Subs provide a common way to interact with different message bus implementat
 
 Currently supported pub-subs are:
 
+* Hazelcast
 * Redis Streams
 * NATS
 * Kafka

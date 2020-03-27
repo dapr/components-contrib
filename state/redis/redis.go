@@ -70,7 +70,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	var tlsConfig *tls.Config
-	err = json.Unmarshal(b, *tlsConfig)
+	err = json.Unmarshal(b, tlsConfig)
 	if err != nil {
 		return err
 	}

@@ -132,7 +132,7 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if err != nil {
 		// Return nil for status 204
 		if err == memcache.ErrCacheMiss {
-			return nil, nil
+			return &state.GetResponse{}, nil
 		}
 		return &state.GetResponse{}, err
 	}

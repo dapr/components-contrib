@@ -110,8 +110,10 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hazelcast error: failed to get value for %s: %s", req.Key, err)
 	}
+
+	//HZ Get API returns nil response if key does not exist in the map
 	if resp == nil {
-		return nil, fmt.Errorf("hazelcast error: key %s does not exist in store", req.Key)
+		return &state.GetResponse{}, nil
 	}
 	value, err := store.json.Marshal(&resp)
 

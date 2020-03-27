@@ -20,7 +20,9 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.0
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
+	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aws/aws-sdk-go v1.25.0
+	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dapr/dapr v0.4.1-0.20200228055659-71892bc0111e
@@ -57,6 +59,7 @@ require (
 	github.com/tidwall/pretty v1.0.1 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20200122045848-3419fae592fc // indirect
 	github.com/valyala/fasthttp v1.6.0
+	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.3

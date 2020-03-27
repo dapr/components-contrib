@@ -7,6 +7,7 @@ package redis
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +19,9 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 
-	"github.com/joomcode/redispipe/redis"
-	"github.com/joomcode/redispipe/redisconn"
 	jsoniter "github.com/json-iterator/go"
+
+	redis "github.com/go-redis/redis/v7"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 
 // StateStore is a Redis state store
 type StateStore struct {
-	client   *redis.SyncCtx
+	client   *redis.Client
 	json     jsoniter.API
 	replicas int
 
@@ -68,19 +69,19 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	ctx := context.Background()
-	opts := redisconn.Opts{
-		DB:       0,
-		Password: redisCreds.Password,
-	}
-	conn, err := redisconn.Connect(ctx, redisCreds.Host, opts)
+	var tlsConfig *tls.Config
+	err = json.Unmarshal(b, *tlsConfig)
 	if err != nil {
 		return err
 	}
 
-	r.client = &redis.SyncCtx{
-		S: conn,
+	opts := redis.Options{
+		DB:        0,
+		Password:  redisCreds.Password,
+		TLSConfig: tlsConfig,
 	}
+
+	r.client = redis.NewClient(&opts)
 
 	r.replicas, err = r.getConnectedSlaves()
 
@@ -88,8 +89,8 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res := r.client.Do(context.Background(), "INFO replication")
-	if err := redis.AsError(res); err != nil {
+	res, err := r.client.DoContext(context.Background(), "INFO replication").Result()
+	if err != nil {
 		return 0, err
 	}
 
@@ -119,9 +120,9 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	if req.ETag == "" {
 		req.ETag = "0"
 	}
-	res := r.client.Do(context.Background(), "EVAL", delQuery, 1, req.Key, req.ETag)
+	_, err := r.client.DoContext(context.Background(), "EVAL", delQuery, 1, req.Key, req.ETag).Result()
 
-	if err := redis.AsError(res); err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to delete key '%s' due to ETag mismatch", req.Key)
 	}
 
@@ -150,8 +151,8 @@ func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
-	res := r.client.Do(context.Background(), "GET", req.Key)
-	if err := redis.AsError(res); err != nil {
+	res, err := r.client.DoContext(context.Background(), "GET", req.Key).Result()
+	if err != nil {
 		return nil, err
 	}
 
@@ -167,8 +168,8 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 
 // Get retrieves state from redis with a key
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	res := r.client.Do(context.Background(), "HGETALL", req.Key) // Prefer values with ETags
-	if err := redis.AsError(res); err != nil {
+	res, err := r.client.DoContext(context.Background(), "HGETALL", req.Key).Result() // Prefer values with ETags
+	if err != nil {
 		return r.directGet(req) //Falls back to original get
 	}
 	if res == nil {
@@ -211,14 +212,14 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		bt, _ = r.json.Marshal(req.Value)
 	}
 
-	res := r.client.Do(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt)
-	if err := redis.AsError(res); err != nil {
+	_, err = r.client.DoContext(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt).Result()
+	if err != nil {
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		res = r.client.Do(context.Background(), "WAIT", r.replicas, 1000)
-		if err := redis.AsError(res); err != nil {
+		_, err = r.client.DoContext(context.Background(), "WAIT", r.replicas, 1000).Result()
+		if err != nil {
 			return fmt.Errorf("timed out while waiting for %v replicas to acknowledge write", r.replicas)
 		}
 	}
@@ -245,19 +246,20 @@ func (r *StateStore) BulkSet(req []state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
 func (r *StateStore) Multi(operations []state.TransactionalRequest) error {
-	redisReqs := []redis.Request{}
+
+	pipe := r.client.TxPipeline()
 	for _, o := range operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			b, _ := r.json.Marshal(req.Value)
-			redisReqs = append(redisReqs, redis.Req("SET", req.Key, b))
+			pipe.Set(req.Key, b, 0)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
-			redisReqs = append(redisReqs, redis.Req("DEL", req.Key))
+			pipe.Del(req.Key)
 		}
 	}
 
-	_, err := r.client.SendTransaction(context.Background(), redisReqs)
+	_, err := pipe.Exec()
 	return err
 }
 

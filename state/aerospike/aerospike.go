@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go"
+	"github.com/aerospike/aerospike-client-go/types"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -161,6 +162,9 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
+		if err == types.ErrKeyNotFound {
+			return &state.GetResponse{}, nil
+		}
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
 	}
 	value, err := aspike.json.Marshal(record.Bins)

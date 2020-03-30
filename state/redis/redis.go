@@ -68,6 +68,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.password = val
 	}
 
+	m.enableTLS = false
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
 		tls, err := strconv.ParseBool(val)
 		if err != nil {
@@ -112,10 +113,9 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		DB:              0,
 		MaxRetries:      m.maxRetries,
 		MaxRetryBackoff: m.maxRetryBackoff,
-	}
-
-	opts.TLSConfig = &tls.Config{
-		InsecureSkipVerify: m.enableTLS,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: m.enableTLS,
+		},
 	}
 
 	r.client = redis.NewClient(opts)

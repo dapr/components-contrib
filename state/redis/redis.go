@@ -8,10 +8,8 @@ package redis
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -29,20 +27,24 @@ const (
 	delQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if not var1 or type(var1)==\"table\" or var1 == ARGV[1] or var1 == \"\" or ARGV[1] == \"0\" then return redis.call(\"DEL\", KEYS[1]) else return error(\"failed to delete \" .. KEYS[1]) end"
 	connectedSlavesReplicas  = "connected_slaves:"
 	infoReplicationDelimiter = "\r\n"
+	host                     = "redisHost"
+	password                 = "redisPassword"
+	enableTLS                = "enableTLS"
+	maxRetries               = "maxRetries"
+	maxRetryBackoff          = "maxRetryBackoff"
+	defaultBase              = 10
+	defaultBitSize           = 0
+	defaultExpirationTime    = 0
 )
 
 // StateStore is a Redis state store
 type StateStore struct {
 	client   *redis.Client
 	json     jsoniter.API
+	metadata metadata
 	replicas int
 
 	logger logger.Logger
-}
-
-type credentials struct {
-	Host     string `json:"redisHost"`
-	Password string `json:"redisPassword"`
 }
 
 // NewRedisStateStore returns a new redis state store
@@ -53,35 +55,74 @@ func NewRedisStateStore(logger logger.Logger) *StateStore {
 	}
 }
 
+func parseRedisMetadata(meta state.Metadata) (metadata, error) {
+	m := metadata{}
+
+	if val, ok := meta.Properties[host]; ok && val != "" {
+		m.host = val
+	} else {
+		return m, errors.New("redis store error: missing host address")
+	}
+
+	if val, ok := meta.Properties[password]; ok && val != "" {
+		m.password = val
+	}
+
+	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
+		tls, err := strconv.ParseBool(val)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse enableTLS field: %s", err)
+		}
+		m.enableTLS = tls
+	}
+
+	m.maxRetries = 3
+	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
+		}
+		m.maxRetries = int(parsedVal)
+	}
+
+	m.maxRetryBackoff = time.Second * 2
+	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
+		}
+		m.maxRetryBackoff = time.Duration(parsedVal)
+	}
+
+	return m, nil
+}
+
 // Init does metadata and connection parsing
 func (r *StateStore) Init(metadata state.Metadata) error {
-	rand.Seed(time.Now().Unix())
 
-	connInfo := metadata.Properties
-	b, err := json.Marshal(connInfo)
+	m, err := parseRedisMetadata(metadata)
 	if err != nil {
 		return err
 	}
+	r.metadata = m
 
-	var redisCreds credentials
-	err = json.Unmarshal(b, &redisCreds)
+	opts := &redis.Options{
+		Addr:            m.host,
+		Password:        m.password,
+		DB:              0,
+		MaxRetries:      m.maxRetries,
+		MaxRetryBackoff: m.maxRetryBackoff,
+	}
+
+	opts.TLSConfig = &tls.Config{
+		InsecureSkipVerify: m.enableTLS,
+	}
+
+	r.client = redis.NewClient(opts)
+	_, err = r.client.Ping().Result()
 	if err != nil {
-		return err
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
 	}
-
-	var tlsConfig *tls.Config
-	err = json.Unmarshal(b, tlsConfig)
-	if err != nil {
-		return err
-	}
-
-	opts := redis.Options{
-		DB:        0,
-		Password:  redisCreds.Password,
-		TLSConfig: tlsConfig,
-	}
-
-	r.client = redis.NewClient(&opts)
 
 	r.replicas, err = r.getConnectedSlaves()
 
@@ -252,7 +293,7 @@ func (r *StateStore) Multi(operations []state.TransactionalRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			b, _ := r.json.Marshal(req.Value)
-			pipe.Set(req.Key, b, 0)
+			pipe.Set(req.Key, b, defaultExpirationTime)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			pipe.Del(req.Key)

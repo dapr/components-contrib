@@ -134,7 +134,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.DoContext(context.Background(), "INFO replication").Result()
+	res, err := r.client.DoContext(context.Background(), "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}

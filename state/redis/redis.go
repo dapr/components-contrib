@@ -113,6 +113,8 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		DB:              0,
 		MaxRetries:      m.maxRetries,
 		MaxRetryBackoff: m.maxRetryBackoff,
+
+		/* #nosec */
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: m.enableTLS,
 		},

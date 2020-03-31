@@ -34,7 +34,11 @@ const (
 	maxRetryBackoff          = "maxRetryBackoff"
 	defaultBase              = 10
 	defaultBitSize           = 0
+	defaultDB                = 0
 	defaultExpirationTime    = 0
+	defaultMaxRetries        = 3
+	defaultMaxRetryBackoff   = time.Second * 2
+	defaultEnableTLS         = false
 )
 
 // StateStore is a Redis state store
@@ -68,7 +72,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.password = val
 	}
 
-	m.enableTLS = false
+	m.enableTLS = defaultEnableTLS
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
 		tls, err := strconv.ParseBool(val)
 		if err != nil {
@@ -77,7 +81,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.enableTLS = tls
 	}
 
-	m.maxRetries = 3
+	m.maxRetries = defaultMaxRetries
 	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
@@ -86,7 +90,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.maxRetries = int(parsedVal)
 	}
 
-	m.maxRetryBackoff = time.Second * 2
+	m.maxRetryBackoff = defaultMaxRetryBackoff
 	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
@@ -110,7 +114,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	opts := &redis.Options{
 		Addr:            m.host,
 		Password:        m.password,
-		DB:              0,
+		DB:              defaultDB,
 		MaxRetries:      m.maxRetries,
 		MaxRetryBackoff: m.maxRetryBackoff,
 	}

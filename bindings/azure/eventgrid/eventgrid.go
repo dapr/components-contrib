@@ -75,7 +75,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 				ctx.Response.Header.Add("WebHook-Allowed-Origin", string(ctx.Request.Header.Peek("WebHook-Request-Origin")))
 				ctx.Response.Header.Add("WebHook-Allowed-Rate", "*")
 				ctx.Response.Header.SetStatusCode(fasthttp.StatusOK)
-				_, err := ctx.Response.BodyWriter().Write([]byte(""))
+				_, err = ctx.Response.BodyWriter().Write([]byte(""))
 				if err != nil {
 					a.logger.Error(err.Error())
 				}

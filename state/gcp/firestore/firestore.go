@@ -12,6 +12,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/api/option"
 )
@@ -22,6 +23,8 @@ const defaultEntityKind = "DaprState"
 type Firestore struct {
 	client     *datastore.Client
 	entityKind string
+
+	logger logger.Logger
 }
 
 type firestoreMetadata struct {
@@ -42,8 +45,8 @@ type StateEntity struct {
 	Value string
 }
 
-func NewFirestoreStateStore() *Firestore {
-	return &Firestore{}
+func NewFirestoreStateStore(logger logger.Logger) *Firestore {
+	return &Firestore{logger: logger}
 }
 
 // Init does metadata and connection parsing

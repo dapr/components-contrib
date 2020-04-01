@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 )
 
 const (
@@ -28,11 +28,13 @@ const (
 type redisStreams struct {
 	metadata metadata
 	client   *redis.Client
+
+	logger logger.Logger
 }
 
 // NewRedisStreams returns a new redis streams pub-sub implementation
-func NewRedisStreams() pubsub.PubSub {
-	return &redisStreams{}
+func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
+	return &redisStreams{logger: logger}
 }
 
 func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
@@ -112,7 +114,7 @@ func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
 	err := r.client.XGroupCreateMkStream(req.Topic, r.metadata.consumerID, "0").Err()
 	if err != nil {
-		log.Warnf("redis streams: %s", err)
+		r.logger.Warnf("redis streams: %s", err)
 	}
 	go r.beginReadingFromStream(req.Topic, r.metadata.consumerID, handler)
 	return nil
@@ -123,6 +125,7 @@ func (r *redisStreams) readFromStream(stream, consumerID, start string) ([]redis
 		Group:    consumerID,
 		Consumer: consumerID,
 		Streams:  []string{stream, start},
+		Block:    0,
 	}).Result()
 	if err != nil {
 		return nil, err
@@ -159,7 +162,7 @@ func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler
 	for {
 		streams, err := r.readFromStream(stream, consumerID, start)
 		if err != nil {
-			log.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+			r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			return
 		}
 		r.processStreams(consumerID, streams, handler)

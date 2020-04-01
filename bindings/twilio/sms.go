@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -20,13 +21,10 @@ const (
 	twilioURLBase = "https://api.twilio.com/2010-04-01/Accounts/"
 )
 
-type OutputBinding interface {
-	Init(metadata bindings.Metadata) error
-	Write(req *bindings.WriteRequest) error
-}
-
 type SMS struct {
-	metadata twilioMetadata
+	metadata   twilioMetadata
+	logger     logger.Logger
+	httpClient *http.Client
 }
 
 type twilioMetadata struct {
@@ -37,8 +35,11 @@ type twilioMetadata struct {
 	timeout    time.Duration
 }
 
-func NewSMS() *SMS {
-	return &SMS{}
+func NewSMS(logger logger.Logger) *SMS {
+	return &SMS{
+		logger:     logger,
+		httpClient: &http.Client{},
+	}
 }
 
 func (t *SMS) Init(metadata bindings.Metadata) error {
@@ -46,9 +47,6 @@ func (t *SMS) Init(metadata bindings.Metadata) error {
 		timeout: time.Minute * 5,
 	}
 
-	if metadata.Properties[toNumber] == "" {
-		return errors.New("\"to\" is a required field")
-	}
 	if metadata.Properties[fromNumber] == "" {
 		return errors.New("\"fromNumber\" is a required field")
 	}
@@ -72,19 +70,26 @@ func (t *SMS) Init(metadata bindings.Metadata) error {
 	}
 
 	t.metadata = twilioM
+	t.httpClient.Timeout = twilioM.timeout
+
 	return nil
 }
 
 func (t *SMS) Write(req *bindings.WriteRequest) error {
+	toNumberValue := t.metadata.toNumber
+	if toNumberValue == "" {
+		toNumberFromRequest, ok := req.Metadata[toNumber]
+		if !ok || toNumberFromRequest == "" {
+			return errors.New("twilio missing \"toNumber\" field")
+		}
+		toNumberValue = toNumberFromRequest
+	}
+
 	v := url.Values{}
-	v.Set("To", t.metadata.toNumber)
+	v.Set("To", toNumberValue)
 	v.Set("From", t.metadata.fromNumber)
 	v.Set("Body", string(req.Data))
 	vDr := *strings.NewReader(v.Encode())
-
-	client := &http.Client{
-		Timeout: t.metadata.timeout,
-	}
 
 	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
 	httpReq, err := http.NewRequest("POST", twilioURL, &vDr)
@@ -95,7 +100,7 @@ func (t *SMS) Write(req *bindings.WriteRequest) error {
 	httpReq.Header.Add("Accept", "application/json")
 	httpReq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := client.Do(httpReq)
+	resp, err := t.httpClient.Do(httpReq)
 	if err != nil {
 		return err
 	}

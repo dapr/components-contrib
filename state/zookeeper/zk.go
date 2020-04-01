@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/samuel/go-zookeeper/zk"
@@ -104,14 +105,16 @@ type Conn interface {
 type StateStore struct {
 	*config
 	conn Conn
+
+	logger logger.Logger
 }
 
 var _ Conn = (*zk.Conn)(nil)
 var _ state.Store = (*StateStore)(nil)
 
 // NewZookeeperStateStore returns a new Zookeeper state store
-func NewZookeeperStateStore() *StateStore {
-	return &StateStore{}
+func NewZookeeperStateStore(logger logger.Logger) *StateStore {
+	return &StateStore{logger: logger}
 }
 
 func (s *StateStore) Init(metadata state.Metadata) (err error) {

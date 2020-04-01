@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
@@ -21,6 +22,8 @@ type StateStore struct {
 	client     *documentdb.DocumentDB
 	collection *documentdb.Collection
 	db         *documentdb.Database
+
+	logger logger.Logger
 }
 
 type credentials struct {
@@ -38,8 +41,8 @@ type CosmosItem struct {
 }
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
-func NewCosmosDBStateStore() *StateStore {
-	return &StateStore{}
+func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
+	return &StateStore{logger: logger}
 }
 
 // Init does metadata and connection parsing

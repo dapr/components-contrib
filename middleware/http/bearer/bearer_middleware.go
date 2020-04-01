@@ -13,6 +13,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -22,12 +23,13 @@ type bearerMiddlewareMetadata struct {
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware
-func NewBearerMiddleware() *Middleware {
-	return &Middleware{}
+func NewBearerMiddleware(logger logger.Logger) *Middleware {
+	return &Middleware{logger: logger}
 }
 
 // Middleware is an oAuth2 authentication middleware
 type Middleware struct {
+	logger logger.Logger
 }
 
 const (

@@ -8,11 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 )
 
 func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
+	testLogger := logger.NewLogger("test")
 	tests := []struct {
 		name                string
 		inputRequestFactory func() *http.Request
@@ -286,12 +288,46 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 				}
 			},
 		},
+		{
+			"nil body is handled",
+			func() *http.Request {
+				req, _ := http.NewRequest("GET", "https://localhost:8080", nil)
+				return req
+			},
+			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
+				return func(ctx *fasthttp.RequestCtx) {
+					assert.Equal(t, 0, len(ctx.Request.Body()))
+				}
+			},
+		},
+		{
+			"proto headers are handled",
+			func() *http.Request {
+				req, _ := http.NewRequest("GET", "https://localhost:8080", nil)
+				return req
+			},
+			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
+				return func(ctx *fasthttp.RequestCtx) {
+					var major, minor string
+					ctx.Request.Header.VisitAll(func(k []byte, v []byte) {
+						if strings.EqualFold(string(k), "protomajor") {
+							major = string(v)
+						}
+						if strings.EqualFold(string(k), "protominor") {
+							minor = string(v)
+						}
+					})
+					assert.Equal(t, "1", major)
+					assert.Equal(t, "1", minor)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.inputRequestFactory()
-			handler := NewNetHTTPHandlerFunc(tt.evaluateFactory(t))
+			handler := NewNetHTTPHandlerFunc(testLogger, tt.evaluateFactory(t))
 
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
@@ -300,6 +336,8 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 }
 
 func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
+	testLogger := logger.NewLogger("test")
+
 	tests := []struct {
 		name                string
 		inputHandlerFactory func() fasthttp.RequestHandler
@@ -394,7 +432,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			handler := tt.inputHandlerFactory()
 			request := tt.inputRequestFactory()
 
-			newNetHTTPHandler := NewNetHTTPHandlerFunc(handler)
+			newNetHTTPHandler := NewNetHTTPHandlerFunc(testLogger, handler)
 
 			w := httptest.NewRecorder()
 			newNetHTTPHandler.ServeHTTP(w, request)

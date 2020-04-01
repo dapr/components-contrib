@@ -10,12 +10,14 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"encoding/json"
 	"strconv"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go"
+	"github.com/aerospike/aerospike-client-go/types"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -36,12 +38,14 @@ type Aerospike struct {
 	set       string // optional
 	client    *as.Client
 	json      jsoniter.API
+	logger    logger.Logger
 }
 
 // NewAerospikeStateStore returns a new Aerospike state store
-func NewAerospikeStateStore() *Aerospike {
+func NewAerospikeStateStore(logger logger.Logger) state.Store {
 	return &Aerospike{
-		json: jsoniter.ConfigFastest,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 }
 
@@ -158,6 +162,9 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
+		if err == types.ErrKeyNotFound {
+			return &state.GetResponse{}, nil
+		}
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
 	}
 	value, err := aspike.json.Marshal(record.Bins)

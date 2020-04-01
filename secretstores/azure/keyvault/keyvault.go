@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 )
@@ -27,13 +28,16 @@ const (
 type keyvaultSecretStore struct {
 	vaultName   string
 	vaultClient kv.BaseClient
+
+	logger logger.Logger
 }
 
 // NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
-func NewAzureKeyvaultSecretStore() secretstores.SecretStore {
+func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
 		vaultClient: kv.New(),
+		logger:      logger,
 	}
 }
 
@@ -57,7 +61,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	secretResp, err := k.vaultClient.GetSecret(context.Background(), k.getVaultURI(), req.Name, "")
 	if err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, err
+		return secretstores.GetSecretResponse{}, err
 	}
 
 	secretValue := ""
@@ -67,7 +71,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{
-			secretstores.DefaultSecretRefKeyName: secretValue,
+			req.Name: secretValue,
 		},
 	}, nil
 }

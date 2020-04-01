@@ -12,6 +12,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"google.golang.org/api/option"
 )
 
@@ -25,6 +26,7 @@ const (
 type GCPPubSub struct {
 	client   *pubsub.Client
 	metadata *pubSubMetadata
+	logger   logger.Logger
 }
 
 type pubSubMetadata struct {
@@ -43,8 +45,8 @@ type pubSubMetadata struct {
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance
-func NewGCPPubSub() *GCPPubSub {
-	return &GCPPubSub{}
+func NewGCPPubSub(logger logger.Logger) *GCPPubSub {
+	return &GCPPubSub{logger: logger}
 }
 
 // Init parses metadata and creates a new Pub Sub client

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/nats-io/gnatsd/logger"
 	nats "github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
@@ -56,11 +57,13 @@ const (
 type natsStreamingPubSub struct {
 	metadata         metadata
 	natStreamingConn stan.Conn
+
+	logger logger.Logger
 }
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation
-func NewNATSStreamingPubSub() pubsub.PubSub {
-	return &natsStreamingPubSub{}
+func NewNATSStreamingPubSub(logger logger.Logger) pubsub.PubSub {
+	return &natsStreamingPubSub{logger: logger}
 }
 
 func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {

@@ -9,17 +9,19 @@ import (
 	"errors"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
 type kubernetesSecretStore struct {
 	kubeClient kubernetes.Interface
+	logger     logger.Logger
 }
 
 // NewKubernetesSecretStore returns a new Kubernetes secret store
-func NewKubernetesSecretStore() secretstores.SecretStore {
-	return &kubernetesSecretStore{}
+func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
+	return &kubernetesSecretStore{logger: logger}
 }
 
 // Init creates a Kubernetes client

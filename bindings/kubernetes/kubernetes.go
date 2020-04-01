@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/kubernetes-client/go/kubernetes/client"
 	"github.com/kubernetes-client/go/kubernetes/config"
 )
@@ -18,13 +19,14 @@ type kubernetesInput struct {
 	config    *client.Configuration
 	client    *client.APIClient
 	namespace string
+	logger    logger.Logger
 }
 
 var _ = bindings.InputBinding(&kubernetesInput{})
 
 // NewKubernetes returns a new Kubernetes event input binding
-func NewKubernetes() bindings.InputBinding {
-	return &kubernetesInput{}
+func NewKubernetes(logger logger.Logger) bindings.InputBinding {
+	return &kubernetesInput{logger: logger}
 }
 
 func (k *kubernetesInput) Init(metadata bindings.Metadata) error {

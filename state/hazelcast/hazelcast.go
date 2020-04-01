@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
 
@@ -19,13 +20,17 @@ const (
 
 //Hazelcast state store
 type Hazelcast struct {
-	hzMap core.Map
-	json  jsoniter.API
+	hzMap  core.Map
+	json   jsoniter.API
+	logger logger.Logger
 }
 
 // NewHazelcastStore returns a new hazelcast backed state store
-func NewHazelcastStore() *Hazelcast {
-	return &Hazelcast{json: jsoniter.ConfigFastest}
+func NewHazelcastStore(logger logger.Logger) *Hazelcast {
+	return &Hazelcast{
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
+	}
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -105,8 +110,10 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hazelcast error: failed to get value for %s: %s", req.Key, err)
 	}
+
+	//HZ Get API returns nil response if key does not exist in the map
 	if resp == nil {
-		return nil, fmt.Errorf("hazelcast error: key %s does not exist in store", req.Key)
+		return &state.GetResponse{}, nil
 	}
 	value, err := store.json.Marshal(&resp)
 

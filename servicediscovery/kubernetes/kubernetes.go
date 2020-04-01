@@ -9,13 +9,15 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/servicediscovery"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 type resolver struct {
+	logger logger.Logger
 }
 
-func NewKubernetesResolver() servicediscovery.Resolver {
-	return &resolver{}
+func NewKubernetesResolver(logger logger.Logger) servicediscovery.Resolver {
+	return &resolver{logger: logger}
 }
 
 func (z *resolver) ResolveID(req servicediscovery.ResolveRequest) (string, error) {

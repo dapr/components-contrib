@@ -11,6 +11,7 @@ import (
 
 	"contrib.go.opencensus.io/exporter/ocagent"
 	"github.com/dapr/components-contrib/exporters"
+	"github.com/dapr/dapr/pkg/logger"
 	"go.opencensus.io/trace"
 )
 
@@ -21,12 +22,13 @@ type nativeExporterMetadata struct {
 }
 
 // NewNativeExporter returns a new native exporter instance
-func NewNativeExporter() *Exporter {
-	return &Exporter{}
+func NewNativeExporter(logger logger.Logger) *Exporter {
+	return &Exporter{logger: logger}
 }
 
 // Exporter is an OpenCensus native exporter
 type Exporter struct {
+	logger logger.Logger
 }
 
 // Init creates a new native endpoint and reporter

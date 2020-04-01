@@ -7,17 +7,19 @@
 package secretmanager
 
 import (
-	"github.com/dapr/components-contrib/secretstores"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
 // AWS_SECRET_ACCESS_KkEY and AWS_SESSION_TOKEN
 func TestIntegrationGetSecret(t *testing.T) {
 	secretName := "/aws/secret/testing"
-	sm := NewSecretManager()
+	sm := NewSecretManager(logger.NewLogger("test"))
 	err := sm.Init(secretstores.Metadata{
 		Properties: map[string]string{
 			"Region":       os.Getenv("AWS_DEFAULT_REGION"),

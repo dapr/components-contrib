@@ -12,6 +12,7 @@ import (
 
 	servicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -24,6 +25,8 @@ const (
 type AzureServiceBusQueues struct {
 	metadata *serviceBusQueuesMetadata
 	client   *servicebus.Queue
+
+	logger logger.Logger
 }
 
 type serviceBusQueuesMetadata struct {
@@ -32,8 +35,8 @@ type serviceBusQueuesMetadata struct {
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance
-func NewAzureServiceBusQueues() *AzureServiceBusQueues {
-	return &AzureServiceBusQueues{}
+func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
+	return &AzureServiceBusQueues{logger: logger}
 }
 
 // Init parses connection properties and creates a new Service Bus Queue client

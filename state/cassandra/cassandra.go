@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -39,6 +40,8 @@ type Cassandra struct {
 	session *gocql.Session
 	cluster *gocql.ClusterConfig
 	table   string
+
+	logger logger.Logger
 }
 
 type cassandraMetadata struct {
@@ -54,8 +57,8 @@ type cassandraMetadata struct {
 }
 
 // NewCassandraStateStore returns a new cassandra state store
-func NewCassandraStateStore() *Cassandra {
-	return &Cassandra{}
+func NewCassandraStateStore(logger logger.Logger) *Cassandra {
+	return &Cassandra{logger: logger}
 }
 
 // Init performs metadata and connection parsing

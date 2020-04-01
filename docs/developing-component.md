@@ -56,7 +56,7 @@ make lint
 1. Make sure you clone dapr and component-contrib repos under $GOPATH/src/github.com/dapr
 2. Replace github.com/dapr/components-contrib reference to the local component-contrib
 ```bash
-go mod edit -replace github.com/dapr/component-contrib=../component-contrib
+go mod edit -replace github.com/dapr/components-contrib=../components-contrib
 ```
 3. Import your component to dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L79)
 4. Register your component in dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)(e.g. binding)

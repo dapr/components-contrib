@@ -4,32 +4,37 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/valyala/fasthttp"
 )
 
 // NewNetHTTPHandlerFunc wraps a fasthttp.RequestHandler in a http.HandlerFunc
-func NewNetHTTPHandlerFunc(h fasthttp.RequestHandler) http.HandlerFunc {
+func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http.HandlerFunc { //nolint
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := fasthttp.RequestCtx{}
 		remoteIP := net.ParseIP(r.RemoteAddr)
 		remoteAddr := net.IPAddr{remoteIP, ""} //nolint
 		c.Init(&fasthttp.Request{}, &remoteAddr, nil)
 
-		reqBody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Errorf("error reading request body, %+v", err)
-			return
+		if r.Body != nil {
+			reqBody, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				logger.Errorf("error reading request body, %+v", err)
+				return
+			}
+			c.Request.SetBody(reqBody)
 		}
-		c.Request.SetBody(reqBody)
 		c.Request.SetRequestURI(r.URL.RequestURI())
 		c.Request.URI().SetScheme(r.URL.Scheme)
 		c.Request.SetHost(r.Host)
 		c.Request.Header.SetMethod(r.Method)
 		c.Request.Header.Set("Proto", r.Proto)
-		c.Request.Header.Set("ProtoMajor", string(r.ProtoMajor))
-		c.Request.Header.Set("ProtoMinor", string(r.ProtoMinor))
+		major := strconv.Itoa(r.ProtoMajor)
+		minor := strconv.Itoa(r.ProtoMinor)
+		c.Request.Header.Set("Protomajor", major)
+		c.Request.Header.Set("Protominor", minor)
 		c.Request.Header.SetContentType(r.Header.Get("Content-Type"))
 		c.Request.Header.SetContentLength(int(r.ContentLength))
 		c.Request.Header.SetReferer(r.Referer())

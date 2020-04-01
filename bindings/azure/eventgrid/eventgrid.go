@@ -6,24 +6,25 @@
 package eventgrid
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
+
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2019-06-01/eventgrid"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/dapr/components-contrib/bindings"
-	log "github.com/sirupsen/logrus"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/valyala/fasthttp"
 )
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events
 type AzureEventGrid struct {
 	metadata *azureEventGridMetadata
+	logger   logger.Logger
 }
 
 type azureEventGridMetadata struct {
@@ -39,14 +40,14 @@ type azureEventGridMetadata struct {
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance
-func NewAzureEventGrid() *AzureEventGrid {
-	log.Info("NewAzureEventGrid() called...")
-	return &AzureEventGrid{}
+func NewAzureEventGrid(logger logger.Logger) *AzureEventGrid {
+	logger.Debug("NewAzureEventGrid() called...")
+	return &AzureEventGrid{logger: logger}
 }
 
 // Init performs metadata init
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
-	log.Infof("Parsing Event Grid metadata(%s)...", metadata.Name)
+	a.logger.Debugf("Parsing Event Grid metadata(%s)...", metadata.Name)
 
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
@@ -54,73 +55,74 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	}
 	a.metadata = m
 
-	log.Info("Metadata parsed successfully.")
+	a.logger.Debug("Metadata parsed successfully.")
 
 	return nil
 }
 
 func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error {
-	log.Info("Read() called...")
+	a.logger.Debug("Read() called...")
 
 	err := a.createSubscription()
 	if err != nil {
 		return err
 	}
 
-	http.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "OPTIONS" {
-			w.Header().Add("WebHook-Allowed-Origin", r.Header.Get("WebHook-Request-Origin"))
-			w.Header().Add("WebHook-Allowed-Rate", "*")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(""))
-		} else if r.Method == "POST" {
-			bodyBytes, err := ioutil.ReadAll(r.Body)
-			if err != nil {
-				log.Error(err)
-			}
+	m := func(ctx *fasthttp.RequestCtx) {
+		switch string(ctx.Path()) {
+		case "/api/events":
+			if string(ctx.Method()) == "OPTIONS" {
+				ctx.Response.Header.Add("WebHook-Allowed-Origin", string(ctx.Request.Header.Peek("WebHook-Request-Origin")))
+				ctx.Response.Header.Add("WebHook-Allowed-Rate", "*")
+				ctx.Response.Header.SetStatusCode(fasthttp.StatusOK)
+				_, err := ctx.Response.BodyWriter().Write([]byte(""))
+				if err != nil {
+					a.logger.Error(err.Error())
+				}
+			} else if string(ctx.Method()) == "POST" {
+				bodyBytes := ctx.PostBody()
 
-			log.Info(string(bodyBytes))
-			err = handler(&bindings.ReadResponse{
-				Data: bodyBytes,
-			})
-			if err != nil {
-				log.Error(err)
+				a.logger.Debug(string(bodyBytes))
+				err = handler(&bindings.ReadResponse{
+					Data: bodyBytes,
+				})
+				if err != nil {
+					a.logger.Error(err.Error())
+				}
 			}
 		}
-	})
+	}
 
-	go http.ListenAndServe(":8080", nil)
+	fasthttp.ListenAndServe(":8080", m)
 
-	log.Info("listening for Event Grid events at http://localhost:8080/api/events")
+	a.logger.Debug("listening for Event Grid events at http://localhost:8080/api/events")
 
 	return nil
 }
 
 func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
-	log.WithField("data", string(req.Data)).Info("Write() called...")
-	client := http.Client{Timeout: time.Second * 10}
-	request, err := http.NewRequest("POST", a.metadata.TopicEndpoint, bytes.NewBuffer(req.Data))
+	a.logger.Debug("Write() called. data: %s", string(req.Data))
+
+	request := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(request)
+	request.Header.SetMethod(fasthttp.MethodPost)
 	request.Header.Set("Content-Type", "application/cloudevents+json")
 	request.Header.Set("aeg-sas-key", a.metadata.ClientSecret)
+	request.SetRequestURI(a.metadata.TopicEndpoint)
+	request.SetBody(req.Data)
+
+	response := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(response)
+
+	client := &fasthttp.Client{WriteTimeout: time.Second * 10}
+	err := client.Do(request, response)
 	if err != nil {
-		log.Error(err)
-		return err
+		a.logger.Error(err.Error())
 	}
 
-	resp, err := client.Do(request)
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-		log.Error(string(body))
+	if response.StatusCode() != fasthttp.StatusOK {
+		body := response.Body()
+		a.logger.Error(string(body))
 		return errors.New(string(body))
 	}
 
@@ -164,7 +166,7 @@ func (a *AzureEventGrid) createSubscription() error {
 		},
 	}
 
-	log.WithFields(log.Fields{"scope": scope, "endpointURL": a.metadata.SubscriberEndpoint}).Info("Attempting to create or update Event Grid subscription.")
+	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", scope, a.metadata.SubscriberEndpoint)
 	result, err := subscriptionClient.CreateOrUpdate(context.Background(), scope, a.metadata.EventGridSubscriptionName, eventInfo)
 	if err != nil {
 		return err
@@ -172,7 +174,7 @@ func (a *AzureEventGrid) createSubscription() error {
 
 	res := result.Future.Response()
 
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != fasthttp.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return err

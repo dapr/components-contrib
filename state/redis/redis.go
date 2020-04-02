@@ -104,7 +104,6 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 
 // Init does metadata and connection parsing
 func (r *StateStore) Init(metadata state.Metadata) error {
-
 	m, err := parseRedisMetadata(metadata)
 	if err != nil {
 		return err
@@ -295,7 +294,6 @@ func (r *StateStore) BulkSet(req []state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
 func (r *StateStore) Multi(operations []state.TransactionalRequest) error {
-
 	pipe := r.client.TxPipeline()
 	for _, o := range operations {
 		if o.Operation == state.Upsert {

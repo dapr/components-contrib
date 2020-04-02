@@ -14,7 +14,6 @@ import (
 
 func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {
-
 		props := map[string]string{"connectionString": "fake", "consumerID": "mygroup", "storageAccountName": "account", "storageAccountKey": "key", "storageContainerName": "container"}
 
 		metadata := pubsub.Metadata{Properties: props}

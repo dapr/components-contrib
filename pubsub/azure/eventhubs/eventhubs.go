@@ -121,9 +121,8 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-// Subscribe recieves data from Azure Event Hubs
+// Subscribe receives data from Azure Event Hubs
 func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
-
 	cred, err := azblob.NewSharedKeyCredential(aeh.metadata.storageAccountName, aeh.metadata.storageAccountKey)
 	if err != nil {
 		return err

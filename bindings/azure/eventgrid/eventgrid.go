@@ -37,6 +37,7 @@ type azureEventGridMetadata struct {
 	TopicEndpoint             string `json:"topicEndpoint"`
 	ClientID                  string `json:"clientId"`
 	ClientSecret              string `json:"clientSecret"`
+	HandshakePort             string `json:"handshakePort"`
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance
@@ -93,9 +94,9 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 		}
 	}
 
-	fasthttp.ListenAndServe(":8080", m)
+	fasthttp.ListenAndServe(fmt.Sprintf(":%s", a.metadata.HandshakePort), m)
 
-	a.logger.Debug("listening for Event Grid events at http://localhost:8080/api/events")
+	a.logger.Debugf("listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
 
 	return nil
 }
@@ -139,6 +140,10 @@ func (a *AzureEventGrid) parseMetadata(metadata bindings.Metadata) (*azureEventG
 	err = json.Unmarshal(b, &eventGridMetadata)
 	if err != nil {
 		return nil, err
+	}
+
+	if eventGridMetadata.HandshakePort == "" {
+		eventGridMetadata.HandshakePort = "8080"
 	}
 	return &eventGridMetadata, nil
 }

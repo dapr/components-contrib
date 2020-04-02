@@ -3,11 +3,12 @@ package hazelcast
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/hazelcast/hazelcast-go-client"
 	hazelcastCore "github.com/hazelcast/hazelcast-go-client/core"
-	"strings"
 )
 
 const (

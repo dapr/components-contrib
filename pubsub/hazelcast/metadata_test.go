@@ -1,9 +1,10 @@
 package hazelcast
 
 import (
+	"testing"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestValidateMetadata(t *testing.T) {

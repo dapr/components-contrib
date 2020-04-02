@@ -14,7 +14,6 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {
-
 		props := map[string]string{connectionString: "fake", consumerGroup: "mygroup", storageAccountName: "account", storageAccountKey: "key", storageContainerName: "container"}
 
 		bindingsMetadata := bindings.Metadata{Properties: props}

@@ -12,6 +12,7 @@ import (
 	"github.com/a8m/documentdb"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/yalp/jsonpath"
 )
 
 // CosmosDB allows performing state operations on collections
@@ -103,13 +104,28 @@ func (c *CosmosDB) Write(req *bindings.WriteRequest) error {
 		return err
 	}
 
-	if val, ok := obj.(map[string]interface{})[c.partitionKey]; ok && val != "" {
-		_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
-		if err != nil {
-			return err
-		}
-
-		return nil
+	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("missing partitionKey field %s from request body", c.partitionKey)
+
+	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (interface{}, error) {
+	val, err := jsonpath.Read(obj, "$."+key)
+	if err != nil {
+		return nil, fmt.Errorf("missing partitionKey field %s from request body - %s", c.partitionKey, err)
+	}
+
+	if val == "" {
+		return nil, fmt.Errorf("partitionKey field %s from request body is empty", c.partitionKey)
+	}
+
+	return val, nil
 }

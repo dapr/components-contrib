@@ -28,7 +28,6 @@ const (
 	defaultBase            = 10
 	defaultBitSize         = 0
 	defaultDB              = 0
-	defaultExpirationTime  = 0
 	defaultMaxRetries      = 3
 	defaultMaxRetryBackoff = time.Second * 2
 	defaultEnableTLS       = false

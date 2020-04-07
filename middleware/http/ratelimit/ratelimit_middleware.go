@@ -64,10 +64,10 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 	if val, ok := metadata.Properties[maxRequestsPerSecondKey]; ok {
 		f, err := strconv.ParseFloat(val, 64)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing ratelimit middelware property %s: %+v", maxRequestsPerSecondKey, err)
+			return nil, fmt.Errorf("error parsing ratelimit middleware property %s: %+v", maxRequestsPerSecondKey, err)
 		}
 		if f <= 0 {
-			return nil, fmt.Errorf("ratelimit middelware property %s must be a positive value", maxRequestsPerSecondKey)
+			return nil, fmt.Errorf("ratelimit middleware property %s must be a positive value", maxRequestsPerSecondKey)
 		}
 		middlewareMetadata.MaxRequestsPerSecond = f
 	}

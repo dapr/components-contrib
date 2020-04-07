@@ -30,7 +30,7 @@ type consumer struct {
 // QueueHelper enables injection for testnig
 type QueueHelper interface {
 	Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error
-	Write(data []byte) error
+	Write(data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 }
 
@@ -61,11 +61,16 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 	return nil
 }
 
-func (d *AzureQueueHelper) Write(data []byte) error {
+func (d *AzureQueueHelper) Write(data []byte, ttl *time.Duration) error {
 	ctx := context.TODO()
 	messagesURL := d.queueURL.NewMessagesURL()
 	s := string(data)
-	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, time.Minute*10)
+
+	if ttl == nil {
+		defaultTime := time.Minute * 10
+		ttl = &defaultTime
+	}
+	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, *ttl)
 	return err
 }
 
@@ -131,6 +136,7 @@ type storageQueuesMetadata struct {
 	QueueName    string `json:"queue"`
 	AccountName  string `json:"storageAccount"`
 	DecodeBase64 string `json:"decodeBase64"`
+	ttl          *time.Duration
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
@@ -168,11 +174,31 @@ func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storage
 	if err != nil {
 		return nil, err
 	}
+
+	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		m.ttl = &ttl
+	}
+
 	return &m, nil
 }
 
 func (a *AzureStorageQueues) Write(req *bindings.WriteRequest) error {
-	err := a.helper.Write(req.Data)
+	ttlToUse := a.metadata.ttl
+	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		ttlToUse = &ttl
+	}
+
+	err = a.helper.Write(req.Data, ttlToUse)
 	if err != nil {
 		return err
 	}

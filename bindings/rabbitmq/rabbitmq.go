@@ -7,18 +7,26 @@ package rabbitmq
 
 import (
 	"encoding/json"
+	"strconv"
+	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
 
+const (
+	rabbitMQQueueMessageTTLKey = "x-message-ttl"
+)
+
 // RabbitMQ allows sending/receiving data to/from RabbitMQ
 type RabbitMQ struct {
-	connection *amqp.Connection
-	channel    *amqp.Channel
-	metadata   *rabbitMQMetadata
-	logger     logger.Logger
+	connection      *amqp.Connection
+	channel         *amqp.Channel
+	metadata        rabbitMQMetadata
+	logger          logger.Logger
+	queue           amqp.Queue
+	defaultQueueTTL *time.Duration
 }
 
 // Metadata is the rabbitmq config
@@ -36,14 +44,12 @@ func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
 
 // Init does metadata parsing and connection creation
 func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
-	meta, err := r.getRabbitMQMetadata(metadata)
+	err := r.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	r.metadata = meta
-
-	conn, err := amqp.Dial(meta.Host)
+	conn, err := amqp.Dial(r.metadata.Host)
 	if err != nil {
 		return err
 	}
@@ -55,42 +61,82 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 
 	r.connection = conn
 	r.channel = ch
+
+	q, err := r.declareQueue()
+	if err != nil {
+		return err
+	}
+
+	r.queue = q
+
 	return nil
 }
 
 func (r *RabbitMQ) Write(req *bindings.WriteRequest) error {
-	err := r.channel.Publish("", r.metadata.QueueName, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        req.Data,
-	})
+	pub := amqp.Publishing{
+		DeliveryMode: amqp.Persistent,
+		ContentType:  "text/plain",
+		Body:         req.Data,
+	}
+
+	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
 	if err != nil {
 		return err
 	}
+
+	if ok {
+		// RabbitMQ expects the duration in ms
+		pub.Expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
+	}
+
+	err = r.channel.Publish("", r.metadata.QueueName, false, false, pub)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (r *RabbitMQ) getRabbitMQMetadata(metadata bindings.Metadata) (*rabbitMQMetadata, error) {
+func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var rabbitMQMeta rabbitMQMetadata
-	err = json.Unmarshal(b, &rabbitMQMeta)
-	if err != nil {
-		return nil, err
-	}
-	return &rabbitMQMeta, nil
-}
-
-func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {
-	q, err := r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, nil)
 	if err != nil {
 		return err
 	}
 
+	var m rabbitMQMetadata
+	err = json.Unmarshal(b, &m)
+	if err != nil {
+		return err
+	}
+
+	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		r.defaultQueueTTL = &ttl
+	}
+
+	r.metadata = m
+	return nil
+}
+
+func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
+	args := amqp.Table{}
+	if r.defaultQueueTTL != nil {
+		// Value in ms
+		ttl := *r.defaultQueueTTL / time.Millisecond
+		args[rabbitMQQueueMessageTTLKey] = int(ttl)
+	}
+
+	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
+}
+
+func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {
 	msgs, err := r.channel.Consume(
-		q.Name,
+		r.queue.Name,
 		"",
 		false,
 		false,

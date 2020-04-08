@@ -36,10 +36,10 @@ type QueueHelper interface {
 
 // AzureQueueHelper concrete impl of queue helper
 type AzureQueueHelper struct {
-	credential *azqueue.SharedKeyCredential
-	queueURL   azqueue.QueueURL
-	reqURI     string
-	logger     logger.Logger
+	credential   *azqueue.SharedKeyCredential
+	queueURL     azqueue.QueueURL
+	reqURI       string
+	logger       logger.Logger
 	decodeBase64 bool
 }
 
@@ -127,9 +127,9 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	AccountKey  string `json:"storageAccessKey"`
-	QueueName   string `json:"queue"`
-	AccountName string `json:"storageAccount"`
+	AccountKey   string `json:"storageAccessKey"`
+	QueueName    string `json:"queue"`
+	AccountName  string `json:"storageAccount"`
 	DecodeBase64 string `json:"decodeBase64"`
 }
 

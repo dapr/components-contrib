@@ -231,7 +231,6 @@ func contains(arr []string, str string) bool {
 // RegisterEventProcessor - receive eventhub messages by eventprocessor
 // host by balancing partitions
 func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) error) error {
-
 	cred, err := azblob.NewSharedKeyCredential(a.metadata.storageAccountName, a.metadata.storageAccountKey)
 	if err != nil {
 		return err

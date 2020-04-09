@@ -40,8 +40,6 @@ require (
 	github.com/hashicorp/consul/api v1.2.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/joomcode/errorx v1.0.1 // indirect
-	github.com/joomcode/redispipe v0.9.0
 	github.com/json-iterator/go v1.1.8
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
 	github.com/nats-io/gnatsd v1.4.1

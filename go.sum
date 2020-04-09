@@ -430,8 +430,6 @@ github.com/jonboulle/clockwork v0.1.0 h1:VKV+ZcuP6l3yW9doeqz6ziZGgcynBVQO+obU0+0
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
 github.com/joomcode/errorx v1.0.0 h1:RJAKLTy1Sv2Tszhu14m5RZP4VGRlhXutG/XlL1En5VM=
 github.com/joomcode/errorx v1.0.0/go.mod h1:kgco15ekB6cs+4Xjzo7SPeXzx38PbJzBwbnu9qfVNHQ=
-github.com/joomcode/errorx v1.0.1 h1:CalpDWz14ZHd68fIqluJasJosAewpz2TFaJALrUxjrk=
-github.com/joomcode/errorx v1.0.1/go.mod h1:kgco15ekB6cs+4Xjzo7SPeXzx38PbJzBwbnu9qfVNHQ=
 github.com/joomcode/redispipe v0.9.0 h1:NukwwIvxhg6r2lVxa1RJhEZXYPZZF/OX9WZJk+2cK1Q=
 github.com/joomcode/redispipe v0.9.0/go.mod h1:4S/gpBCZ62pB/3+XLNWDH7jQnB0vxmpddAMBva2adpM=
 github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7 h1:K//n/AqR5HjG3qxbrBCL4vJPW0MVFSs9CPK1OOJdRME=
@@ -715,8 +713,6 @@ github.com/valyala/fasthttp v1.6.0/go.mod h1:FstJa9V+Pj9vQ7OJie2qMHdwemEDaDiSdBn
 github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a/go.mod h1:v3UYOV9WzVtRmSR+PDvWpU/qWl4Wa5LApYYX4ZtKbio=
 github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e h1:KeXc49gLugrPowKxekYZBZ34FEQW5+R6lP8B56B02mo=
 github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e/go.mod h1:JFn5wAwfmRZgv/VScA9aUc51zOVL5395yPKGxPi3eNo=
-github.com/vmware/vmware-go-kcl v0.0.0-20200310160057-7d5bfbb7a17b h1:cAQLc/0P+YG+tdN8QPUIFEAH8ABg911N0d12H/N3t8o=
-github.com/vmware/vmware-go-kcl v0.0.0-20200310160057-7d5bfbb7a17b/go.mod h1:JFn5wAwfmRZgv/VScA9aUc51zOVL5395yPKGxPi3eNo=
 github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c h1:u40Z8hqBAAQyv+vATcGgV0YCnDjqSL7/q/JyPhhJSPk=
 github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c/go.mod h1:lB8K/P019DLNhemzwFU4jHLhdvlE6uDZjXFejJXr49I=
 github.com/xdg/stringprep v1.0.0 h1:d9X0esnoa3dFsV0FG35rAT0RIhYFlPq7MiP+DW89La0=

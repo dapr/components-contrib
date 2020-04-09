@@ -44,7 +44,7 @@ func TestPartitionKeyValue(t *testing.T) {
 	_, err = cosmosDB.getPartitionKeyValue("notexists", obj)
 	assert.NotNil(t, err)
 
-	// // Empty key
+	// // Empty value for the key
 	_, err = cosmosDB.getPartitionKeyValue("empty", obj)
 	assert.NotNil(t, err)
 
@@ -60,5 +60,9 @@ func TestPartitionKeyValue(t *testing.T) {
 
 	//Invalid nested partition key
 	_, err = cosmosDB.getPartitionKeyValue("address.notexists", obj)
+	assert.NotNil(t, err)
+
+	// Empty key is passed
+	val, err = cosmosDB.getPartitionKeyValue("", obj)
 	assert.NotNil(t, err)
 }

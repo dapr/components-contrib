@@ -63,6 +63,6 @@ func TestPartitionKeyValue(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Empty key is passed
-	val, err = cosmosDB.getPartitionKeyValue("", obj)
+	_, err = cosmosDB.getPartitionKeyValue("", obj)
 	assert.NotNil(t, err)
 }

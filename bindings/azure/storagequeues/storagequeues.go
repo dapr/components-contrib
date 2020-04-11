@@ -23,6 +23,10 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
+const (
+	defaultTTL = time.Minute * 10
+)
+
 type consumer struct {
 	callback func(*bindings.ReadResponse) error
 }
@@ -67,8 +71,8 @@ func (d *AzureQueueHelper) Write(data []byte, ttl *time.Duration) error {
 	s := string(data)
 
 	if ttl == nil {
-		defaultTime := time.Minute * 10
-		ttl = &defaultTime
+		ttlToUse := defaultTTL
+		ttl = &ttlToUse
 	}
 	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, *ttl)
 	return err

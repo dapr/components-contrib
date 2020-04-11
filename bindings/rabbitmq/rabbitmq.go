@@ -21,12 +21,11 @@ const (
 
 // RabbitMQ allows sending/receiving data to/from RabbitMQ
 type RabbitMQ struct {
-	connection      *amqp.Connection
-	channel         *amqp.Channel
-	metadata        rabbitMQMetadata
-	logger          logger.Logger
-	queue           amqp.Queue
-	defaultQueueTTL *time.Duration
+	connection *amqp.Connection
+	channel    *amqp.Channel
+	metadata   rabbitMQMetadata
+	logger     logger.Logger
+	queue      amqp.Queue
 }
 
 // Metadata is the rabbitmq config
@@ -35,6 +34,7 @@ type rabbitMQMetadata struct {
 	Host             string `json:"host"`
 	Durable          bool   `json:"durable,string"`
 	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
+	defaultQueueTTL  *time.Duration
 }
 
 // NewRabbitMQ returns a new rabbitmq instance
@@ -84,6 +84,8 @@ func (r *RabbitMQ) Write(req *bindings.WriteRequest) error {
 		return err
 	}
 
+	// The default time to live has been set in the queue
+	// We allow overriding on each call, by setting a value in request metadata
 	if ok {
 		// RabbitMQ expects the duration in ms
 		pub.Expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
@@ -116,7 +118,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	}
 
 	if ok {
-		r.defaultQueueTTL = &ttl
+		m.defaultQueueTTL = &ttl
 	}
 
 	r.metadata = m
@@ -125,9 +127,9 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 
 func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 	args := amqp.Table{}
-	if r.defaultQueueTTL != nil {
+	if r.metadata.defaultQueueTTL != nil {
 		// Value in ms
-		ttl := *r.defaultQueueTTL / time.Millisecond
+		ttl := *r.metadata.defaultQueueTTL / time.Millisecond
 		args[rabbitMQQueueMessageTTLKey] = int(ttl)
 	}
 

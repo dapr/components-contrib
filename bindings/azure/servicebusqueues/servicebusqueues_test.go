@@ -21,8 +21,6 @@ import (
 const (
 	// Environment variable containing the connection string to Azure Service Bus
 	testServiceBusEnvKey = "DAPR_TEST_AZURE_SERVICEBUS"
-
-	ttlBindingMetadataKey = "ttl"
 )
 
 func getTestServiceBusConnectionString() string {
@@ -48,14 +46,14 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", "ttl": ""},
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: ""},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
 			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
 		},
 		{
 			name:                     "With TTL",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", "ttl": "1"},
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "1"},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
 			expectedTTL:              oneSecondDuration,
@@ -83,15 +81,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", "ttl": "  "},
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", "ttl": "-1"},
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", "ttl": "abc"},
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "abc"},
 		},
 	}
 
@@ -143,7 +141,7 @@ func TestQueueWithTTL(t *testing.T) {
 	queueName := uuid.New().String()
 	a := NewAzureServiceBusQueues(logger.NewLogger("test"))
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"connectionString": serviceBusConnectionString, "queueName": queueName, "ttl": "1"}
+	m.Properties = map[string]string{"connectionString": serviceBusConnectionString, "queueName": queueName, bindings.TTLMetadataKey: "1"}
 	err := a.Init(m)
 	assert.Nil(t, err)
 
@@ -220,7 +218,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest := bindings.WriteRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
-			ttlBindingMetadataKey: "1",
+			bindings.TTLMetadataKey: "1",
 		},
 	}
 	err = queueBinding1.Write(&writeRequest)
@@ -244,7 +242,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest = bindings.WriteRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
-			ttlBindingMetadataKey: "1",
+			bindings.TTLMetadataKey: "1",
 		},
 	}
 	err = queueBinding2.Write(&writeRequest)

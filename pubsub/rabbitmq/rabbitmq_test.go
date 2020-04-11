@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func createAMQPMessage(body string) amqp.Delivery {
+func createAmqpMessage(body string) amqp.Delivery {
 	return amqp.Delivery{Body: []byte(body)}
 }
 
@@ -30,18 +30,20 @@ func TestProcessSubscriberMessage(t *testing.T) {
 
 	fakeHandler := func(msg *pubsub.NewMessage) error {
 		messageCount++
+
 		assert.Equal(t, topic, msg.Topic)
 		assert.NotNil(t, msg.Data)
+
 		return nil
 	}
 
 	go testRabbitMQSubscriber.listenMessages(ch, topic, fakeHandler)
 	assert.Equal(t, messageCount, 0)
-	ch <- createAMQPMessage("{ \"msg\": \"1\"}")
-	ch <- createAMQPMessage("{ \"msg\": \"2\"}")
+	ch <- createAmqpMessage("{ \"msg\": \"1\"}")
+	ch <- createAmqpMessage("{ \"msg\": \"2\"}")
 	assert.GreaterOrEqual(t, messageCount, 1)
 	assert.LessOrEqual(t, messageCount, 2)
-	ch <- createAMQPMessage("{ \"msg\": \"3\"}")
+	ch <- createAmqpMessage("{ \"msg\": \"3\"}")
 	assert.GreaterOrEqual(t, messageCount, 2)
 	assert.LessOrEqual(t, messageCount, 3)
 }

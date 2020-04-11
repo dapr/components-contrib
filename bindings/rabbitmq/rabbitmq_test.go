@@ -24,8 +24,6 @@ const (
 	// To run using docker: docker run -d --hostname -rabbit --name test-rabbit -p 15672:15672 -p 5672:5672 rabbitmq:3-management
 	// In that case the connection string will be: amqp://guest:guest@localhost:5672/
 	testRabbitMQHostEnvKey = "DAPR_TEST_RABBITMQ_HOST"
-
-	ttlBindingMetadataKey = "ttl"
 )
 
 func getTestRabbitMQHost() string {
@@ -57,15 +55,15 @@ func TestParseMetadata(t *testing.T) {
 			expectedDurable:          false,
 		},
 		{
-			name:                     "TTL",
-			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", "ttl": "1"},
+			name:                     "With one second TTL",
+			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", bindings.TTLMetadataKey: "1"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedTTL:              &oneSecondTTL,
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", "ttl": ""},
+			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", bindings.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 		},
@@ -82,7 +80,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, host, r.metadata.Host)
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
-			assert.Equal(t, tt.expectedTTL, r.defaultQueueTTL)
+			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
 		})
 	}
 }
@@ -97,15 +95,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"QueueName": queueName, "Host": host, "ttl": "  "},
+			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"QueueName": queueName, "Host": host, "ttl": "-1"},
+			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"QueueName": queueName, "Host": host, "ttl": "abc"},
+			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "abc"},
 		},
 	}
 
@@ -149,11 +147,11 @@ func TestQueuesWithTTL(t *testing.T) {
 	metadata := bindings.Metadata{
 		Name: "testQueue",
 		Properties: map[string]string{
-			"queueName":        queueName,
-			"host":             rabbitmqHost,
-			"deleteWhenUnused": strconv.FormatBool(exclusive),
-			"durable":          strconv.FormatBool(durable),
-			"ttl":              strconv.FormatInt(ttlInSeconds, 10),
+			"queueName":             queueName,
+			"host":                  rabbitmqHost,
+			"deleteWhenUnused":      strconv.FormatBool(exclusive),
+			"durable":               strconv.FormatBool(durable),
+			bindings.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
 		},
 	}
 
@@ -235,7 +233,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest := bindings.WriteRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
-			ttlBindingMetadataKey: strconv.Itoa(ttlInSeconds),
+			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds),
 		},
 	}
 
@@ -257,7 +255,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest = bindings.WriteRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
-			ttlBindingMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
+			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
 		},
 	}
 	err = rabbitMQBinding2.Write(&writeRequest)

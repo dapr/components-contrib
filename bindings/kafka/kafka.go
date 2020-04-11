@@ -21,6 +21,10 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
+const (
+	key = "partitionKey"
+)
+
 // Kafka allows reading/writing to a Kafka consumer group
 type Kafka struct {
 	producer      sarama.SyncProducer
@@ -101,10 +105,15 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 }
 
 func (k *Kafka) Write(req *bindings.WriteRequest) error {
-	_, _, err := k.producer.SendMessage(&sarama.ProducerMessage{
+	msg := &sarama.ProducerMessage{
 		Topic: k.publishTopic,
 		Value: sarama.ByteEncoder(req.Data),
-	})
+	}
+	if val, ok := req.Metadata[key]; ok && val != "" {
+		msg.Key = sarama.StringEncoder(val)
+	}
+
+	_, _, err := k.producer.SendMessage(msg)
 	if err != nil {
 		return err
 	}

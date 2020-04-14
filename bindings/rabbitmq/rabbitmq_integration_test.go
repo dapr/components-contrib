@@ -1,3 +1,5 @@
+// +build integration_test
+
 // ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.

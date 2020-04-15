@@ -23,11 +23,10 @@ type SendGrid struct {
 }
 
 type sendGridMetadata struct {
-	APIKey      string `json:"apiKey"`
-	EmailFrom   string `json:"emailFrom"`
-	EmailTo     string `json:"emailTo"`
-	Subject     string `json:"subject"`
-	ContentType string `json:"contentType"`
+	APIKey    string `json:"apiKey"`
+	EmailFrom string `json:"emailFrom"`
+	EmailTo   string `json:"emailTo"`
+	Subject   string `json:"subject"`
 }
 
 // NewSendGrid returns a new SendGrid bindings instance
@@ -51,7 +50,6 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 	sgMeta.EmailTo = meta.Properties["emailTo"]
 	sgMeta.EmailFrom = meta.Properties["emailFrom"]
 	sgMeta.Subject = meta.Properties["subject"]
-	sgMeta.ContentType = meta.Properties["contentType"]
 
 	return sgMeta, nil
 }
@@ -66,7 +64,6 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 
 	// Um, yeah that's about it!
 	sg.metadata = meta
-	sg.logger.Errorf("### HELLO %s", sg.metadata.APIKey)
 	return nil
 }
 

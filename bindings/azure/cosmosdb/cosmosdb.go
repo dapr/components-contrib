@@ -8,6 +8,7 @@ package cosmosdb
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/a8m/documentdb"
 	"github.com/dapr/components-contrib/bindings"
@@ -103,13 +104,54 @@ func (c *CosmosDB) Write(req *bindings.WriteRequest) error {
 		return err
 	}
 
-	if val, ok := obj.(map[string]interface{})[c.partitionKey]; ok && val != "" {
-		_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
-		if err != nil {
-			return err
-		}
-
-		return nil
+	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("missing partitionKey field %s from request body", c.partitionKey)
+
+	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (interface{}, error) {
+	val, err := c.lookup(obj.(map[string]interface{}), strings.Split(key, "."))
+	if err != nil {
+		return nil, fmt.Errorf("missing partitionKey field %s from request body - %s", c.partitionKey, err)
+	}
+
+	if val == "" {
+		return nil, fmt.Errorf("partitionKey field %s from request body is empty", c.partitionKey)
+	}
+
+	return val, nil
+}
+
+func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{}, err error) {
+	var ok bool
+
+	if len(ks) == 0 {
+		return nil, fmt.Errorf("needs at least one key")
+	}
+
+	c.logger.Infof("%s, %s", ks[0], m[ks[0]])
+
+	if val, ok = m[ks[0]]; !ok {
+		return nil, fmt.Errorf("key not found %v", ks[0])
+	}
+
+	// Last Key
+	if len(ks) == 1 {
+		return val, nil
+	}
+
+	// Convert val to map to iterate again
+	if m, ok = val.(map[string]interface{}); !ok {
+		return nil, fmt.Errorf("invalid structure at %#v", val)
+	}
+
+	return c.lookup(m, ks[1:])
 }

@@ -19,6 +19,9 @@ const (
 	correlationID = "correlationID"
 	label         = "label"
 	id            = "id"
+
+	// AzureServiceBusDefaultMessageTimeToLive defines the default time to live for queues, which is 14 days. The same way Azure Portal does.
+	AzureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
 )
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues
@@ -32,6 +35,7 @@ type AzureServiceBusQueues struct {
 type serviceBusQueuesMetadata struct {
 	ConnectionString string `json:"connectionString"`
 	QueueName        string `json:"queueName"`
+	ttl              time.Duration
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance
@@ -52,7 +56,43 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
-	client, err := ns.NewQueue(a.metadata.QueueName)
+	qm := ns.NewQueueManager()
+
+	ctx := context.Background()
+
+	queues, err := qm.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	var entity *servicebus.QueueEntity
+	for _, q := range queues {
+		if q.Name == a.metadata.QueueName {
+			entity = q
+			break
+		}
+	}
+
+	// Create queue if it does not exist
+	if entity == nil {
+		var ttl time.Duration
+		var ok bool
+		ttl, ok, err = bindings.TryGetTTL(metadata.Properties)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			ttl = a.metadata.ttl
+		}
+
+		entity, err = qm.Put(ctx, a.metadata.QueueName, servicebus.QueueEntityWithMessageTimeToLive(&ttl))
+		if err != nil {
+			return err
+		}
+	}
+
+	client, err := ns.NewQueue(entity.Name)
 	if err != nil {
 		return err
 	}
@@ -71,6 +111,19 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	if err != nil {
 		return nil, err
 	}
+
+	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	if err != nil {
+		return nil, err
+	}
+
+	// set the same default message time to live as suggested in Azure Portal to 14 days (otherwise it will be 10675199 days)
+	if !ok {
+		ttl = AzureServiceBusDefaultMessageTimeToLive
+	}
+
+	m.ttl = ttl
+
 	return &m, nil
 }
 
@@ -85,8 +138,17 @@ func (a *AzureServiceBusQueues) Write(req *bindings.WriteRequest) error {
 	if val, ok := req.Metadata[correlationID]; ok && val != "" {
 		msg.CorrelationID = val
 	}
-	err := a.client.Send(ctx, msg)
-	return err
+
+	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		msg.TTL = &ttl
+	}
+
+	return a.client.Send(ctx, msg)
 }
 
 func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) error) error {

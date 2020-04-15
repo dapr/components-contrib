@@ -8,6 +8,7 @@
 package rabbitmq
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -47,9 +48,7 @@ func getMessageWithRetries(ch *amqp.Channel, queueName string, maxDuration time.
 
 func TestQueuesWithTTL(t *testing.T) {
 	rabbitmqHost := getTestRabbitMQHost()
-	if rabbitmqHost == "" {
-		t.Skipf("RabbitMQ binding integration tests skipped. To enable define the connection string using environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey)
-	}
+	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
 
 	queueName := uuid.New().String()
 	durable := true
@@ -107,9 +106,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 func TestPublishingWithTTL(t *testing.T) {
 	rabbitmqHost := getTestRabbitMQHost()
-	if rabbitmqHost == "" {
-		t.Skipf("RabbitMQ binding integration tests skipped. To enable define the connection string using environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey)
-	}
+	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
 
 	queueName := uuid.New().String()
 	durable := true

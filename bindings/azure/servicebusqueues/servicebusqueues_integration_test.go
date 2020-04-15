@@ -9,6 +9,7 @@ package servicebusqueues
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -58,9 +59,7 @@ func getMessageWithRetries(queue *servicebus.Queue, maxDuration time.Duration) (
 
 func TestQueueWithTTL(t *testing.T) {
 	serviceBusConnectionString := getTestServiceBusConnectionString()
-	if serviceBusConnectionString == "" {
-		t.Skipf("Azure ServiceBus binding integration tests skipped. To enable define the connection string using environment variable '%s'", testServiceBusEnvKey)
-	}
+	assert.NotEmpty(serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
 
 	queueName := uuid.New().String()
 	a := NewAzureServiceBusQueues(logger.NewLogger("test"))
@@ -112,9 +111,7 @@ func TestQueueWithTTL(t *testing.T) {
 
 func TestPublishingWithTTL(t *testing.T) {
 	serviceBusConnectionString := getTestServiceBusConnectionString()
-	if serviceBusConnectionString == "" {
-		t.Skipf("Azure ServiceBus binding integration tests skipped. To enable define the connection string using environment variable '%s'", testServiceBusEnvKey)
-	}
+	assert.NotEmpty(serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
 
 	queueName := uuid.New().String()
 	queueBinding1 := NewAzureServiceBusQueues(logger.NewLogger("test"))

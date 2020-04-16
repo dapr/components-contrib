@@ -84,7 +84,7 @@ func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
 	// Build email to
 	var to *mail.Email
 	if len(sg.metadata.EmailTo) > 0 {
-		to = mail.NewEmail("", sg.metadata.EmailFrom)
+		to = mail.NewEmail("", sg.metadata.EmailTo)
 	}
 	if len(req.Metadata["emailTo"]) > 0 {
 		to = mail.NewEmail("", req.Metadata["emailTo"])
@@ -95,7 +95,7 @@ func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
 
 	// Build email subject
 	subject := ""
-	if len(sg.metadata.EmailTo) > 0 {
+	if len(sg.metadata.Subject) > 0 {
 		subject = sg.metadata.Subject
 	}
 	if len(req.Metadata["subject"]) > 0 {

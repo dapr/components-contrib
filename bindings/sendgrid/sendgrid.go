@@ -46,7 +46,6 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 	}
 
 	// Optional properties
-	sgMeta.EmailFrom = meta.Properties["emailFrom"]
 	sgMeta.EmailTo = meta.Properties["emailTo"]
 	sgMeta.EmailFrom = meta.Properties["emailFrom"]
 	sgMeta.Subject = meta.Properties["subject"]
@@ -117,13 +116,12 @@ func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
 	client := sendgrid.NewSendClient(sg.metadata.APIKey)
 	resp, err := client.Send(message)
 	if err != nil {
-		return err
+		return fmt.Errorf("error from SendGrid, sending email failed: %+v", err)
 	}
 
 	// Check SendGrid response is OK
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		sg.logger.Errorf("status code from SendGrid not ok %d\n", resp.StatusCode)
-		return fmt.Errorf("error from SendGrid: %d", resp.StatusCode)
+		return fmt.Errorf("error from SendGrid, sending email failed: %d", resp.StatusCode)
 	}
 
 	sg.logger.Info("sent email with SendGrid")

@@ -7,6 +7,7 @@ package servicebusqueues
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -14,11 +15,79 @@ import (
 )
 
 func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"connectionString": "connString", "queueName": "queue1"}
-	a := NewAzureServiceBusQueues(logger.NewLogger("test"))
-	meta, err := a.parseMetadata(m)
-	assert.Nil(t, err)
-	assert.Equal(t, "connString", meta.ConnectionString)
-	assert.Equal(t, "queue1", meta.QueueName)
+	var oneSecondDuration time.Duration = time.Second
+
+	testCases := []struct {
+		name                     string
+		properties               map[string]string
+		expectedConnectionString string
+		expectedQueueName        string
+		expectedTTL              time.Duration
+	}{
+		{
+			name:                     "ConnectionString and queue name",
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1"},
+			expectedConnectionString: "connString",
+			expectedQueueName:        "queue1",
+			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
+		},
+		{
+			name:                     "Empty TTL",
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: ""},
+			expectedConnectionString: "connString",
+			expectedQueueName:        "queue1",
+			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
+		},
+		{
+			name:                     "With TTL",
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "1"},
+			expectedConnectionString: "connString",
+			expectedQueueName:        "queue1",
+			expectedTTL:              oneSecondDuration,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			a := NewAzureServiceBusQueues(logger.NewLogger("test"))
+			meta, err := a.parseMetadata(m)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expectedConnectionString, meta.ConnectionString)
+			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
+			assert.Equal(t, tt.expectedTTL, meta.ttl)
+		})
+	}
+}
+
+func TestParseMetadataWithInvalidTTL(t *testing.T) {
+	testCases := []struct {
+		name       string
+		properties map[string]string
+	}{
+		{
+			name:       "Whitespaces TTL",
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "  "},
+		},
+		{
+			name:       "Negative ttl",
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "-1"},
+		},
+		{
+			name:       "Non-numeric ttl",
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "abc"},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+
+			a := NewAzureServiceBusQueues(logger.NewLogger("test"))
+			_, err := a.parseMetadata(m)
+			assert.NotNil(t, err)
+		})
+	}
 }

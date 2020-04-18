@@ -6,9 +6,11 @@
 package sendgrid
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -22,11 +24,23 @@ type SendGrid struct {
 	logger   logger.Logger
 }
 
+// Our metadata holds standard email properties
 type sendGridMetadata struct {
 	APIKey    string `json:"apiKey"`
 	EmailFrom string `json:"emailFrom"`
 	EmailTo   string `json:"emailTo"`
 	Subject   string `json:"subject"`
+	EmailCc   string `json:"emailCc"`
+	EmailBcc  string `json:"emailBcc"`
+}
+
+// Wrapper to help decode SendGrid API errors
+type sendGridRestError struct {
+	Errors []struct {
+		Field   interface{} `json:"field"`
+		Message interface{} `json:"message"`
+		Help    interface{} `json:"help"`
+	} `json:"errors"`
 }
 
 // NewSendGrid returns a new SendGrid bindings instance
@@ -45,10 +59,12 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 		return sgMeta, errors.New("SendGrid binding error: apiKey field is required in metadata")
 	}
 
-	// Optional properties
+	// Optional properties, these can be set on a per request basis
 	sgMeta.EmailTo = meta.Properties["emailTo"]
 	sgMeta.EmailFrom = meta.Properties["emailFrom"]
 	sgMeta.Subject = meta.Properties["subject"]
+	sgMeta.EmailCc = meta.Properties["emailCc"]
+	sgMeta.EmailBcc = meta.Properties["emailBcc"]
 
 	return sgMeta, nil
 }
@@ -68,60 +84,98 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 
 // Write does the work of sending message to SendGrid API
 func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
-	// We allow two possible sources of these fields, the component metadata or request metadata
-	// Build email from,
-	var from *mail.Email
-	if len(sg.metadata.EmailFrom) > 0 {
-		from = mail.NewEmail("", sg.metadata.EmailFrom)
+
+	// Note. We allow two possible sources of the properties we need,
+	// the component metadata or request metadata, request takes priority if present
+
+	// Build email from address, this is required
+	var fromAddress *mail.Email
+	if sg.metadata.EmailFrom != "" {
+		fromAddress = mail.NewEmail("", sg.metadata.EmailFrom)
 	}
-	if len(req.Metadata["emailFrom"]) > 0 {
-		from = mail.NewEmail("", req.Metadata["emailFrom"])
+	if req.Metadata["emailFrom"] != "" {
+		fromAddress = mail.NewEmail("", req.Metadata["emailFrom"])
 	}
-	if from == nil {
+	if fromAddress == nil {
 		return fmt.Errorf("error SendGrid from email not supplied")
 	}
 
-	// Build email to
-	var to *mail.Email
-	if len(sg.metadata.EmailTo) > 0 {
-		to = mail.NewEmail("", sg.metadata.EmailTo)
+	// Build email to address, this is required
+	var toAddress *mail.Email
+	if sg.metadata.EmailTo != "" {
+		toAddress = mail.NewEmail("", sg.metadata.EmailTo)
 	}
-	if len(req.Metadata["emailTo"]) > 0 {
-		to = mail.NewEmail("", req.Metadata["emailTo"])
+	if req.Metadata["emailTo"] != "" {
+		toAddress = mail.NewEmail("", req.Metadata["emailTo"])
 	}
-	if to == nil {
+	if toAddress == nil {
 		return fmt.Errorf("error SendGrid to email not supplied")
 	}
 
-	// Build email subject
+	// Build email subject, this is required
 	subject := ""
-	if len(sg.metadata.Subject) > 0 {
+	if sg.metadata.Subject != "" {
 		subject = sg.metadata.Subject
 	}
-	if len(req.Metadata["subject"]) > 0 {
+	if req.Metadata["subject"] != "" {
 		subject = req.Metadata["subject"]
 	}
-	if len(subject) == 0 {
+	if subject == "" {
 		return fmt.Errorf("error SendGrid subject not supplied")
 	}
 
+	// Build email cc address, this is optional
+	var ccAddress *mail.Email
+	if sg.metadata.EmailCc != "" {
+		ccAddress = mail.NewEmail("", sg.metadata.EmailCc)
+	}
+	if req.Metadata["emailCc"] != "" {
+		ccAddress = mail.NewEmail("", req.Metadata["emailCc"])
+	}
+
+	// Build email cc address, this is optional
+	var bccAddress *mail.Email
+	if sg.metadata.EmailBcc != "" {
+		bccAddress = mail.NewEmail("", sg.metadata.EmailBcc)
+	}
+	if req.Metadata["emailBcc"] != "" {
+		bccAddress = mail.NewEmail("", req.Metadata["emailBcc"])
+	}
+
 	// Email body is held in req.Data, after we tidy it up a bit
-	htmlContent, _ := strconv.Unquote(string(req.Data))
-	plainContent := "Sorry plain text not supported"
+	emailBody, _ := strconv.Unquote(string(req.Data))
 
-	// Construct message
-	message := mail.NewSingleEmail(from, subject, to, plainContent, htmlContent)
+	// Construct email message
+	email := mail.NewV3Mail()
+	email.SetFrom(fromAddress)
+	email.AddContent(mail.NewContent("text/html", emailBody))
 
-	// Send it :)
+	// Add other fields to email
+	personalization := mail.NewPersonalization()
+	personalization.AddTos(toAddress)
+	personalization.Subject = subject
+	if ccAddress != nil {
+		personalization.AddCCs(ccAddress)
+	}
+	if bccAddress != nil {
+		personalization.AddBCCs(bccAddress)
+	}
+	email.AddPersonalizations(personalization)
+
+	// Send the email
 	client := sendgrid.NewSendClient(sg.metadata.APIKey)
-	resp, err := client.Send(message)
+	resp, err := client.Send(email)
 	if err != nil {
 		return fmt.Errorf("error from SendGrid, sending email failed: %+v", err)
 	}
 
 	// Check SendGrid response is OK
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		return fmt.Errorf("error from SendGrid, sending email failed: %d", resp.StatusCode)
+		// Extract the underlying error message(s) returned from SendGrid REST API
+		sendGridError := sendGridRestError{}
+		json.NewDecoder(strings.NewReader(resp.Body)).Decode(&sendGridError)
+		// Pass it back to the caller, so they have some idea what went wrong
+		return fmt.Errorf("error from SendGrid, sending email failed: %d %+v", resp.StatusCode, sendGridError)
 	}
 
 	sg.logger.Info("sent email with SendGrid")

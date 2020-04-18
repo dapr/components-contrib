@@ -133,7 +133,7 @@ func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
 		ccAddress = mail.NewEmail("", req.Metadata["emailCc"])
 	}
 
-	// Build email cc address, this is optional
+	// Build email bcc address, this is optional
 	var bccAddress *mail.Email
 	if sg.metadata.EmailBcc != "" {
 		bccAddress = mail.NewEmail("", sg.metadata.EmailBcc)

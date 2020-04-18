@@ -84,8 +84,7 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 
 // Write does the work of sending message to SendGrid API
 func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
-
-	// Note. We allow two possible sources of the properties we need,
+	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present
 
 	// Build email from address, this is required

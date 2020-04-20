@@ -84,6 +84,46 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 	return resp, nil
 }
 
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	resp := secretstores.GetSecretResponse{
+		Data: map[string]string{},
+	}
+
+	search := true
+	var nextToken *string = nil
+
+	for search {
+		output, err := s.client.ListSecrets(&secretsmanager.ListSecretsInput{
+			MaxResults: nil,
+			NextToken:  nextToken,
+		})
+		if err != nil {
+			return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't list secrets: %s", err)
+		}
+
+		for _, entry := range output.SecretList {
+			secrets, err := s.client.GetSecretValue(&secretsmanager.GetSecretValueInput{
+				SecretId: entry.Name,
+				// VersionId:    versionID,
+				// VersionStage: versionStage,
+			})
+			if err != nil {
+				return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", *entry.Name)
+			}
+
+			if entry.Name != nil && secrets.SecretString != nil {
+				resp.Data[*entry.Name] = *secrets.SecretString
+			}
+		}
+
+		nextToken = output.NextToken
+		search = output.NextToken != nil
+	}
+
+	return resp, nil
+}
+
 func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmanager.SecretsManager, error) {
 	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
 	if err != nil {

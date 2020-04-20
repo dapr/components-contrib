@@ -8,6 +8,8 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 	"github.com/dapr/components-contrib/secretstores"
@@ -75,7 +77,62 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 	}, nil
 }
 
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	vaultURI := k.getVaultURI()
+
+	maxResults, err := k.getMaxResultsFromMetadata(req.Metadata)
+	if err != nil {
+		return secretstores.GetSecretResponse{}, err
+	}
+
+	secretsResp, err := k.vaultClient.GetSecretsComplete(context.Background(), vaultURI, maxResults)
+	if err != nil {
+		return secretstores.GetSecretResponse{}, err
+	}
+
+	resp := secretstores.GetSecretResponse{
+		Data: map[string]string{},
+	}
+
+	for secretsResp.NotDone() {
+		secretItem := secretsResp.Value()
+		secretName := strings.TrimPrefix(*secretItem.ID, vaultURI)
+
+		secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
+		if err != nil {
+			return secretstores.GetSecretResponse{}, err
+		}
+
+		secretValue := ""
+		if secretResp.Value != nil {
+			secretValue = *secretResp.Value
+		}
+
+		resp.Data[secretName] = secretValue
+
+		secretsResp.NextWithContext(context.Background())
+	}
+
+	return resp, nil
+}
+
 // getVaultURI returns Azure Key Vault URI
 func (k *keyvaultSecretStore) getVaultURI() string {
 	return fmt.Sprintf("https://%s.vault.azure.net", k.vaultName)
+}
+
+func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]string) (*int32, error) {
+	if s, ok := metadata["maxresults"]; ok && s != "" {
+		/* #nosec */
+		val, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, err
+		}
+		converted := int32(val)
+
+		return &converted, nil
+	}
+
+	return nil, nil
 }

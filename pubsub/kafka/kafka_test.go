@@ -6,19 +6,19 @@
 package kafka
 
 import (
-	"github.com/dapr/dapr/pkg/logger"
 	"testing"
+
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
 )
 
 func getKafkaPubsub() *Kafka {
-	return &Kafka{logger:logger.NewLogger("kafka_test")}
+	return &Kafka{logger: logger.NewLogger("kafka_test")}
 }
 
 func TestParseMetadata(t *testing.T) {
-
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"consumerID": "a", "brokers": "a", "authRequired": "false"}
 	k := getKafkaPubsub()
@@ -41,7 +41,7 @@ func TestMissingBrokers(t *testing.T) {
 
 func TestMissingAuthRequired(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{ "brokers": "akfak.com:9092"}
+	m.Properties = map[string]string{"brokers": "akfak.com:9092"}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
 	assert.Error(t, err)
@@ -53,7 +53,7 @@ func TestMissingAuthRequired(t *testing.T) {
 func TestMissingSaslValues(t *testing.T) {
 	m := pubsub.Metadata{}
 	k := getKafkaPubsub()
-	m.Properties = map[string]string{ "brokers": "akfak.com:9092", "authRequired": "true"}
+	m.Properties = map[string]string{"brokers": "akfak.com:9092", "authRequired": "true"}
 	meta, err := k.getKafkaMetadata(m)
 	assert.Error(t, err)
 	assert.Nil(t, meta)
@@ -73,7 +73,7 @@ func TestPresentSaslValues(t *testing.T) {
 	m := pubsub.Metadata{}
 	k := getKafkaPubsub()
 	m.Properties = map[string]string{
-		"brokers": "akfak.com:9092",
+		"brokers":      "akfak.com:9092",
 		"authRequired": "true",
 		"saslUsername": "sassafras",
 		"saslPassword": "sassapass",
@@ -88,7 +88,7 @@ func TestPresentSaslValues(t *testing.T) {
 
 func TestInvalidAuthRequiredFlag(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{ "brokers": "akfak.com:9092", "authRequired": "maybe?????????????"}
+	m.Properties = map[string]string{"brokers": "akfak.com:9092", "authRequired": "maybe?????????????"}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
 	assert.Error(t, err)

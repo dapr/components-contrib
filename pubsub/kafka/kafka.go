@@ -9,15 +9,16 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"github.com/Shopify/sarama"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/Shopify/sarama"
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -158,9 +159,9 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 
 		for {
 			// Consume the requested topic
-			err := cg.Consume(ctx, []string{req.Topic}, &cs)
-			if err != nil {
-				k.logger.Errorf("Error consuming %s: %s", req.Topic, err)
+			innerError := cg.Consume(ctx, []string{req.Topic}, &cs)
+			if innerError != nil {
+				k.logger.Errorf("Error consuming %s: %s", req.Topic, innerError)
 			}
 
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops

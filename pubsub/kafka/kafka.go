@@ -7,12 +7,14 @@ package kafka
 
 import (
 	"context"
-	"fmt"
+	"crypto/tls"
+	"errors"
 	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -23,26 +25,29 @@ type Kafka struct {
 	producer      sarama.SyncProducer
 	consumerGroup string
 	brokers       []string
-	logger			logger.Logger
+	logger        logger.Logger
+	authRequired  bool
+	saslUsername  string
+	saslPassword  string
 }
 
 type kafkaMetadata struct {
-	Brokers       []string `json:"brokers"`
-	PublishTopic  string   `json:"publishTopic"`
-	ConsumerGroup string   `json:"consumerGroup"`
+	Brokers      []string `json:"brokers"`
+	PublishTopic string   `json:"publishTopic"`
+	ConsumerID   string   `json:"consumerID"`
+	AuthRequired bool     `json:"authRequired"`
+	SaslUsername string   `json:"saslUsername"`
+	SaslPassword string   `json:"saslPassword"`
 }
 
 type consumer struct {
 	ready    chan bool
 	callback func(msg *pubsub.NewMessage) error
-	once sync.Once
+	once     sync.Once
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	fmt.Printf("message consuming claim...")
 	for message := range claim.Messages() {
-		// XXX: Remove this
-		fmt.Printf("message consuming claim: %v\n", message)
 		if consumer.callback != nil {
 			err := consumer.callback(&pubsub.NewMessage{
 				Topic: claim.Topic(),
@@ -62,7 +67,7 @@ func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
-	consumer.once.Do(func () {
+	consumer.once.Do(func() {
 		close(consumer.ready)
 	})
 
@@ -90,7 +95,13 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.brokers = meta.Brokers
 	k.producer = p
-	k.consumerGroup = meta.ConsumerGroup
+	k.consumerGroup = meta.ConsumerID
+
+	if meta.AuthRequired {
+		k.saslUsername = meta.SaslUsername
+		k.saslPassword = meta.SaslPassword
+	}
+
 	k.logger.Debug("Kafka message bus initialization complete")
 	return nil
 }
@@ -118,6 +129,10 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_0_0_0
 
+	if k.authRequired {
+		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+
 	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, config)
 
 	if err != nil {
@@ -127,15 +142,17 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	ctx, cancel := context.WithCancel(context.Background())
 	ready := make(chan bool)
 	cs := consumer{
-		ready: ready,
+		ready:    ready,
 		callback: handler,
 	}
 
+	closeOnce := &sync.Once{}
+
 	go func() {
-		defer func() {
+		defer closeOnce.Do(func() {
 			k.logger.Debugf("Closing ConsumerGroup for topic %s", req.Topic)
 			cg.Close()
-		}()
+		})
 
 		k.logger.Debugf("Subscribed and listening to topic: %s", req.Topic)
 
@@ -189,13 +206,46 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 // getKafkaMetadata returns new Kafka metadata
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
-	meta.ConsumerGroup = metadata.Properties["consumerGroup"]
+	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
+	meta.ConsumerID = metadata.Properties["consumerID"]
+	k.logger.Debugf("Using %s as ConsumerGroup name", meta.ConsumerID)
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")
+	} else {
+		return nil, errors.New("kafka error: missing 'brokers' attribute")
 	}
 
-	k.logger.Infof("Found brokers: %v", meta.Brokers)
+	k.logger.Debugf("Found brokers: %v", meta.Brokers)
+
+	val, ok := metadata.Properties["authRequired"]
+	if !ok {
+		return nil, errors.New("kafka error: missing 'authRequired' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("kafka error: 'authRequired' attribute was empty")
+	}
+	validAuthRequired, err := strconv.ParseBool(val)
+
+	if err != nil {
+		return nil, errors.New("kafka error: invalid value for 'authRequired' attribute")
+	}
+	meta.AuthRequired = validAuthRequired
+
+	//ignore SASL properties if authRequired is false
+	if meta.AuthRequired {
+		if val, ok := metadata.Properties["saslUsername"]; ok && val != "" {
+			meta.SaslUsername = val
+		} else {
+			return nil, errors.New("kafka error: missing SASL Username")
+		}
+
+		if val, ok := metadata.Properties["saslPassword"]; ok && val != "" {
+			meta.SaslPassword = val
+		} else {
+			return nil, errors.New("kafka error: missing SASL Password")
+		}
+	}
 
 	return &meta, nil
 }
@@ -206,9 +256,26 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
 
+	if k.authRequired {
+		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+
 	producer, err := sarama.NewSyncProducer(meta.Brokers, config)
 	if err != nil {
 		return nil, err
 	}
 	return producer, nil
+}
+
+func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
+	config.Net.SASL.Enable = true
+	config.Net.SASL.User = saslUsername
+	config.Net.SASL.Password = saslPassword
+	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+
+	config.Net.TLS.Enable = true
+	config.Net.TLS.Config = &tls.Config{
+		//InsecureSkipVerify: true,
+		ClientAuth: 0,
+	}
 }

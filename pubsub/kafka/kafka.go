@@ -34,7 +34,6 @@ type Kafka struct {
 
 type kafkaMetadata struct {
 	Brokers      []string `json:"brokers"`
-	PublishTopic string   `json:"publishTopic"`
 	ConsumerID   string   `json:"consumerID"`
 	AuthRequired bool     `json:"authRequired"`
 	SaslUsername string   `json:"saslUsername"`
@@ -77,8 +76,6 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 
 // NewKafka returns a new kafka pubsub instance
 func NewKafka(l logger.Logger) pubsub.PubSub {
-	// XXX: Remove this override of the log level
-	l.SetOutputLevel(logger.DebugLevel)
 	return &Kafka{logger: l}
 }
 

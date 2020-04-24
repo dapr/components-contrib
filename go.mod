@@ -40,8 +40,6 @@ require (
 	github.com/hashicorp/consul/api v1.2.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/joomcode/errorx v1.0.1 // indirect
-	github.com/joomcode/redispipe v0.9.0
 	github.com/json-iterator/go v1.1.8
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
 	github.com/nats-io/gnatsd v1.4.1
@@ -53,6 +51,8 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/satori/go.uuid v1.2.0
+	github.com/sendgrid/rest v2.4.1+incompatible // indirect
+	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0

@@ -9,12 +9,9 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/pubsub"
@@ -30,6 +27,11 @@ type Kafka struct {
 	authRequired  bool
 	saslUsername  string
 	saslPassword  string
+	cg            sarama.ConsumerGroup
+	topics        map[string]bool
+	cancel        context.CancelFunc
+	consumer      consumer
+	config        *sarama.Config
 }
 
 type kafkaMetadata struct {
@@ -100,6 +102,17 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		k.saslPassword = meta.SaslPassword
 	}
 
+	config := sarama.NewConfig()
+	config.Version = sarama.V2_0_0_0
+
+	if k.authRequired {
+		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+
+	k.config = config
+
+	k.topics = make(map[string]bool)
+
 	k.logger.Debug("Kafka message bus initialization complete")
 	return nil
 }
@@ -121,44 +134,80 @@ func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
+func (k *Kafka) addTopic(newTopic string) []string {
+	// Add topic to our map of topics
+	k.topics[newTopic] = true
+
+	topics := make([]string, len(k.topics))
+
+	i := 0
+	for topic := range k.topics {
+		topics[i] = topic
+		i++
+	}
+
+	return topics
+}
+
+// Close down consumer group resources, refresh once
+func (k *Kafka) closeSubscripionResources() {
+	if k.cg != nil {
+		k.cancel()
+		err := k.cg.Close()
+
+		if err != nil {
+			k.logger.Errorf("Error closing consumer group: %v", err)
+		}
+
+		k.consumer.once.Do(func() {
+			close(k.consumer.ready)
+			k.consumer.once = sync.Once{}
+		})
+	}
+}
+
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
-	config := sarama.NewConfig()
-	config.Version = sarama.V2_0_0_0
+	topics := k.addTopic(req.Topic)
 
-	if k.authRequired {
-		updateAuthInfo(config, k.saslUsername, k.saslPassword)
-	}
+	// Close resources and reset synchronization primitives
+	k.closeSubscripionResources()
 
-	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, config)
+	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
 
 	if err != nil {
 		return err
 	}
 
+	k.cg = cg
+
 	ctx, cancel := context.WithCancel(context.Background())
+	k.cancel = cancel
+
 	ready := make(chan bool)
-	cs := consumer{
+	k.consumer = consumer{
 		ready:    ready,
 		callback: handler,
 	}
 
-	closeOnce := &sync.Once{}
-
 	go func() {
-		defer closeOnce.Do(func() {
-			k.logger.Debugf("Closing ConsumerGroup for topic %s", req.Topic)
-			cg.Close()
-		})
+		defer func() {
+			k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
+			err := k.cg.Close()
 
-		k.logger.Debugf("Subscribed and listening to topic: %s", req.Topic)
+			if err != nil {
+				k.logger.Errorf("Error closing consumer group: %v", err)
+			}
+		}()
+
+		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {
 			// Consume the requested topic
-			innerError := cg.Consume(ctx, []string{req.Topic}, &cs)
+			innerError := k.cg.Consume(ctx, topics, &(k.consumer))
 			if innerError != nil {
-				k.logger.Errorf("Error consuming %s: %s", req.Topic, innerError)
+				k.logger.Errorf("Error consuming %v: %v", topics, innerError)
 			}
 
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
@@ -166,34 +215,6 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 			if ctx.Err() != nil {
 				return
 			}
-		}
-	}()
-
-	// Spin up a go routine to handle OS signals
-	go func() {
-		sigterm := make(chan os.Signal, 1)
-		signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-		recvdSignal := <-sigterm
-		k.logger.Debug("Interrupt signal received. Shutting down pubsub listener.")
-		cancel()
-		err = cg.Close()
-		if err != nil {
-			k.logger.Errorf("Error closing consumer group client: %v", err)
-		}
-		// Resending the received signal in order to resume normal processing of that signal
-		signal.Reset()
-		proc, err := os.FindProcess(os.Getpid())
-
-		if err != nil {
-			k.logger.Errorf("Error when handling interrupt. Exiting\n%v", err)
-			os.Exit(1)
-			return
-		}
-
-		// Resend the signal to continue with normal handling
-		if err = proc.Signal(recvdSignal); err != nil {
-			k.logger.Errorf("Error resending signal. Exiting\n%v", err)
-			os.Exit(1)
 		}
 	}()
 

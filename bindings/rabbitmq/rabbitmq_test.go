@@ -7,6 +7,7 @@ package rabbitmq
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -14,13 +15,89 @@ import (
 )
 
 func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"QueueName": "a", "Host": "a", "DeleteWhenUnused": "true", "Durable": "true"}
-	r := RabbitMQ{logger: logger.NewLogger("test")}
-	rm, err := r.getRabbitMQMetadata(m)
-	assert.Nil(t, err)
-	assert.Equal(t, "a", rm.QueueName)
-	assert.Equal(t, "a", rm.Host)
-	assert.Equal(t, true, rm.DeleteWhenUnused)
-	assert.Equal(t, true, rm.Durable)
+	const queueName = "test-queue"
+	const host = "test-host"
+	var oneSecondTTL time.Duration = time.Second
+
+	testCases := []struct {
+		name                     string
+		properties               map[string]string
+		expectedDeleteWhenUnused bool
+		expectedDurable          bool
+		expectedTTL              *time.Duration
+	}{
+		{
+			name:                     "Delete / Durable",
+			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "true", "Durable": "true"},
+			expectedDeleteWhenUnused: true,
+			expectedDurable:          true,
+		},
+		{
+			name:                     "Not Delete / Not Durable",
+			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+		},
+		{
+			name:                     "With one second TTL",
+			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", bindings.TTLMetadataKey: "1"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedTTL:              &oneSecondTTL,
+		},
+		{
+			name:                     "Empty TTL",
+			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", bindings.TTLMetadataKey: ""},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			r := RabbitMQ{logger: logger.NewLogger("test")}
+			err := r.parseMetadata(m)
+			assert.Nil(t, err)
+			assert.Equal(t, queueName, r.metadata.QueueName)
+			assert.Equal(t, host, r.metadata.Host)
+			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
+			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
+			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
+		})
+	}
+}
+
+func TestParseMetadataWithInvalidTTL(t *testing.T) {
+	const queueName = "test-queue"
+	const host = "test-host"
+
+	testCases := []struct {
+		name       string
+		properties map[string]string
+	}{
+		{
+			name:       "Whitespaces TTL",
+			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "  "},
+		},
+		{
+			name:       "Negative ttl",
+			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "-1"},
+		},
+		{
+			name:       "Non-numeric ttl",
+			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "abc"},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			r := RabbitMQ{logger: logger.NewLogger("test")}
+			err := r.parseMetadata(m)
+			assert.NotNil(t, err)
+		})
+	}
 }

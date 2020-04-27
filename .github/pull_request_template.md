@@ -14,4 +14,4 @@ Please make sure you've completed the relevant tasks for this PR, out of the fol
 
 * [ ] Code compiles correctly
 * [ ] Created/updated tests
-* [ ] Extended the documentation
+* [ ] Extended the documentation / Created issue in the https://github.com/dapr/docs/ repo: dapr/docs#_[issue number]_

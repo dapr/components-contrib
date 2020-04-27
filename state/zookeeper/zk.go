@@ -141,6 +141,9 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
 
 	if err != nil {
+		if err == zk.ErrNoNode {
+			return &state.GetResponse{}, nil
+		}
 		return nil, err
 	}
 

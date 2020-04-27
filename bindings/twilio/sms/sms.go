@@ -1,4 +1,4 @@
-package twilio
+package sms
 
 import (
 	"errors"

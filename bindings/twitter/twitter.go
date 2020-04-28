@@ -74,7 +74,6 @@ func (t *twitterInput) parseMetadata(metadata bindings.Metadata) error {
 
 // Read triggers the Twitter search and events on each result tweet
 func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
-
 	config := oauth1.NewConfig(t.consumerKey, t.consumerSecret)
 	token := oauth1.NewToken(t.accessToken, t.accessSecret)
 
@@ -91,8 +90,8 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 
 	demux.Tweet = func(tweet *twitter.Tweet) {
 		t.logger.Debugf("raw tweet: %+v", tweet)
-		data, err := json.Marshal(tweet)
-		if err != nil {
+		data, marshalErr := json.Marshal(tweet)
+		if marshalErr != nil {
 			t.logger.Errorf("error marshaling tweet: %+v", tweet)
 			return
 		}
@@ -127,11 +126,38 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 	t.logger.Info("starting handler...")
 	go demux.HandleChan(stream.Messages)
 
-	// handle SIGINT and SIGTERM (HIT CTRL-C) signals
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	t.logger.Info(<-ch)
-	t.logger.Infof("stopping stream for query: %s...", t.query)
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+
+	go func() {
+		for {
+			s := <-signalChan
+			switch s {
+			// kill -SIGHUP XXXX
+			case syscall.SIGHUP:
+				t.logger.Info("stopping, component hung up")
+
+			// kill -SIGINT XXXX or Ctrl+c
+			case syscall.SIGINT:
+				t.logger.Info("stopping, process killed (SIGINT)")
+
+			// kill -SIGTERM XXXX
+			case syscall.SIGTERM:
+				t.logger.Info("stopping, process killed (SIGTERM)")
+
+			// kill -SIGQUIT XXXX
+			case syscall.SIGQUIT:
+				t.logger.Info("stopping, process killed (SIGQUIT)")
+
+			default:
+				t.logger.Info("stopping, process killed (unknown signal)")
+			}
+		}
+	}()
 
 	return nil
 }

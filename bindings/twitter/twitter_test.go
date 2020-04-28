@@ -34,7 +34,6 @@ func getTestMetadata() bindings.Metadata {
 }
 
 func TestParseMetadata(t *testing.T) {
-
 	m := getTestMetadata()
 	i := twitterInput{logger: logger.NewLogger("test")}
 	err := i.parseMetadata(m)
@@ -52,7 +51,6 @@ func TestParseMetadata(t *testing.T) {
 	m.Properties["query"] = ""
 	err = i.parseMetadata(m)
 	assert.NotNilf(t, err, "no error parsing invalid metadata properties")
-
 }
 
 func TestInit(t *testing.T) {
@@ -73,5 +71,4 @@ func TestReadError(t *testing.T) {
 		assert.NotNilf(t, err, "no error on read with invalid credentials")
 		return nil
 	})
-
 }

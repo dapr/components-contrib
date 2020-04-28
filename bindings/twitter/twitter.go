@@ -116,14 +116,14 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 		StallWarnings: twitter.Bool(true),
 	}
 
-	t.logger.Infof("starting stream for query: %s", t.query)
+	t.logger.Debug("starting stream for query: %s", t.query)
 	stream, err := client.Streams.Filter(filterParams)
 	if err != nil {
 		return errors.Wrapf(err, "error executing stream filter: %+v", filterParams)
 	}
 	defer stream.Stop()
 
-	t.logger.Info("starting handler...")
+	t.logger.Debug("starting handler...")
 	go demux.HandleChan(stream.Messages)
 
 	signalChan := make(chan os.Signal, 1)

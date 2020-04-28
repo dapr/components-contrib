@@ -70,9 +70,9 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 	}
 
 	m := func(ctx *fasthttp.RequestCtx) {
-		switch string(ctx.Path()) {
-		case "/api/events":
-			if string(ctx.Method()) == "OPTIONS" {
+		if string(ctx.Path()) == "/api/events" {
+			switch string(ctx.Method()) {
+			case "OPTIONS":
 				ctx.Response.Header.Add("WebHook-Allowed-Origin", string(ctx.Request.Header.Peek("WebHook-Request-Origin")))
 				ctx.Response.Header.Add("WebHook-Allowed-Rate", "*")
 				ctx.Response.Header.SetStatusCode(fasthttp.StatusOK)
@@ -80,7 +80,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 				if err != nil {
 					a.logger.Error(err.Error())
 				}
-			} else if string(ctx.Method()) == "POST" {
+			case "POST":
 				bodyBytes := ctx.PostBody()
 
 				a.logger.Debug(string(bodyBytes))
@@ -89,6 +89,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 				})
 				if err != nil {
 					a.logger.Error(err.Error())
+					ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
 				}
 			}
 		}
@@ -119,6 +120,7 @@ func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
 	err := client.Do(request, response)
 	if err != nil {
 		a.logger.Error(err.Error())
+		return err
 	}
 
 	if response.StatusCode() != fasthttp.StatusOK {

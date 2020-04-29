@@ -143,25 +143,25 @@ func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
 
 func (a *AzureEventGrid) ensureInputBindingMetadata() error {
 	if a.metadata.TenantID == "" {
-		return errors.New("TenantID is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'TenantID' is empty in EventGrid binding")
 	}
 	if a.metadata.SubscriptionID == "" {
-		return errors.New("SubscriptionID is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'SubscriptionID' is empty in EventGrid binding")
 	}
 	if a.metadata.ClientID == "" {
-		return errors.New("ClientID is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'ClientID' is empty in EventGrid binding")
 	}
 	if a.metadata.ClientSecret == "" {
-		return errors.New("ClientSecret is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'ClientSecret' is empty in EventGrid binding")
 	}
 	if a.metadata.SubscriberEndpoint == "" {
-		return errors.New("SubscriberEndpoint is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'SubscriberEndpoint' is empty in EventGrid binding")
 	}
 	if a.metadata.HandshakePort == "" {
-		return errors.New("HandshakePort is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'HandshakePort' is empty in EventGrid binding")
 	}
 	if a.metadata.Scope == "" {
-		return errors.New("Scope is empty in EventGrid binding metadata")
+		return errors.New("metadata field 'Scope' is empty in EventGrid binding")
 	}
 
 	return nil
@@ -169,11 +169,11 @@ func (a *AzureEventGrid) ensureInputBindingMetadata() error {
 
 func (a *AzureEventGrid) ensureOutputBindingMetadata() error {
 	if a.metadata.AccessKey == "" {
-		msg := fmt.Sprintf("AccessKey is empty in EventGrid binding (%s) metadata", a.metadata.Name)
+		msg := fmt.Sprintf("metadata field 'AccessKey' is empty in EventGrid binding (%s)", a.metadata.Name)
 		return errors.New(msg)
 	}
 	if a.metadata.TopicEndpoint == "" {
-		msg := fmt.Sprintf("TopicEndpoint is empty in EventGrid binding (%s) metadata", a.metadata.Name)
+		msg := fmt.Sprintf("metadata field 'TopicEndpoint' is empty in EventGrid binding (%s)", a.metadata.Name)
 		return errors.New(msg)
 	}
 

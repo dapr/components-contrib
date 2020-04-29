@@ -15,28 +15,30 @@ import (
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"clientId":                  "a",
-		"clientSecret":              "a",
-		"eventGridSubscriptionName": "a",
-		"resourceGroupName":         "a",
-		"subscriberEndpoint":        "a",
-		"subscriptionId":            "a",
-		"tenantId":                  "a",
-		"topicEndpoint":             "a",
-		"topicName":                 "a",
+		"tenantId":              "a",
+		"subscriptionId":        "a",
+		"clientId":              "a",
+		"clientSecret":          "a",
+		"subscriberEndpoint":    "a",
+		"handshakePort":         "a",
+		"scope":                 "a",
+		"eventSubscriptionName": "a",
+		"accessKey":             "a",
+		"topicEndpoint":         "a",
 	}
 
 	eh := AzureEventGrid{}
 	meta, err := eh.parseMetadata(m)
 
 	assert.Nil(t, err)
+	assert.Equal(t, "a", meta.TenantID)
+	assert.Equal(t, "a", meta.SubscriptionID)
 	assert.Equal(t, "a", meta.ClientID)
 	assert.Equal(t, "a", meta.ClientSecret)
-	assert.Equal(t, "a", meta.EventGridSubscriptionName)
-	assert.Equal(t, "a", meta.ResourceGroupName)
 	assert.Equal(t, "a", meta.SubscriberEndpoint)
-	assert.Equal(t, "a", meta.SubscriptionID)
-	assert.Equal(t, "a", meta.TenantID)
+	assert.Equal(t, "a", meta.HandshakePort)
+	assert.Equal(t, "a", meta.Scope)
+	assert.Equal(t, "a", meta.EventSubscriptionName)
+	assert.Equal(t, "a", meta.AccessKey)
 	assert.Equal(t, "a", meta.TopicEndpoint)
-	assert.Equal(t, "a", meta.TopicName)
 }

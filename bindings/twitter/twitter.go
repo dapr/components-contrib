@@ -150,6 +150,5 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 
 		}
 	}
-
 	return nil
 }

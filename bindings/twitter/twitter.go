@@ -137,19 +137,13 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 	for !done {
 		s := <-signalChan
 		switch s {
-
 		case syscall.SIGHUP:
 			t.logger.Info("stopping, component hung up")
 			done = true
-			break
-
 		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 			t.logger.Info("stopping, component terminated")
 			done = true
-			break
-
 		}
 	}
-
 	return nil
 }

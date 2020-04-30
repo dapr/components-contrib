@@ -7,6 +7,7 @@ package twitter
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -80,17 +81,15 @@ func TestReadError(t *testing.T) {
 // TestRead executes the Read method which calls Twiter API
 // test tokens must be set
 // go test -v -count=1 -run TestReed ./bindings/twitter/
-// TODO: load test credentails
-//       exit test after n tweets
 func TestReed(t *testing.T) {
-	t.SkipNow()
+	t.SkipNow() // skip this test until able to read credentials in test infra
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"consumerKey":    "",
-		"consumerSecret": "",
-		"accessToken":    "",
-		"accessSecret":   "",
-		"query":          "dapr",
+		"consumerKey":    os.Getenv("CONSUMER_KEY"),
+		"consumerSecret": os.Getenv("CONSUMER_SECRET"),
+		"accessToken":    os.Getenv("ACCESS_TOKEN"),
+		"accessSecret":   os.Getenv("ACCESS_SECRET"),
+		"query":          "microsoft",
 	}
 	tw := NewTwitter(logger.NewLogger("test"))
 	err := tw.Init(m)

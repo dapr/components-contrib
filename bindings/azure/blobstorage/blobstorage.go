@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
@@ -129,7 +130,10 @@ func (a *AzureBlobStorage) Write(req *bindings.WriteRequest) error {
 		delete(req.Metadata, cacheControl)
 	}
 
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
+	// Unescape data which will still be a JSON string
+	unescapedData, _ := strconv.Unquote(string(req.Data))
+
+	_, err := azblob.UploadBufferToBlockBlob(context.Background(), []byte(unescapedData), blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,

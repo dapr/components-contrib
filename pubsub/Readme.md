@@ -7,6 +7,7 @@ Currently supported pub-subs are:
 * Hazelcast
 * Redis Streams
 * NATS
+* Kafka
 * Azure Service Bus
 * RabbitMQ
 

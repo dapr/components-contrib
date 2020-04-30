@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package twilio
+package sms
 
 import (
 	"errors"

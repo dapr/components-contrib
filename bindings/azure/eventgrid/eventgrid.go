@@ -14,7 +14,7 @@ import (
 
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2019-06-01/eventgrid"
+	"github.com/Azure/azure-sdk-for-go/services/preview/eventgrid/mgmt/2020-04-01-preview/eventgrid"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -28,43 +28,49 @@ type AzureEventGrid struct {
 }
 
 type azureEventGridMetadata struct {
-	TenantID                  string `json:"tenantId"`
-	SubscriptionID            string `json:"subscriptionId"`
-	ResourceGroupName         string `json:"resourceGroupName"`
-	TopicName                 string `json:"topicName"`
-	EventGridSubscriptionName string `json:"eventGridSubscriptionName"`
-	SubscriberEndpoint        string `json:"subscriberEndpoint"`
-	TopicEndpoint             string `json:"topicEndpoint"`
-	ClientID                  string `json:"clientId"`
-	ClientSecret              string `json:"clientSecret"`
-	HandshakePort             string `json:"handshakePort"`
+	// Component Name
+	Name string
+
+	// Required Input Binding Metadata
+	TenantID           string `json:"tenantId"`
+	SubscriptionID     string `json:"subscriptionId"`
+	ClientID           string `json:"clientId"`
+	ClientSecret       string `json:"clientSecret"`
+	SubscriberEndpoint string `json:"subscriberEndpoint"`
+	HandshakePort      string `json:"handshakePort"`
+	Scope              string `json:"scope"`
+
+	// Optional Input Binding Metadata
+	EventSubscriptionName string `json:"eventSubscriptionName"`
+
+	// Required Output Binding Metadata
+	AccessKey     string `json:"accessKey"`
+	TopicEndpoint string `json:"topicEndpoint"`
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance
 func NewAzureEventGrid(logger logger.Logger) *AzureEventGrid {
-	logger.Debug("NewAzureEventGrid() called...")
 	return &AzureEventGrid{logger: logger}
 }
 
 // Init performs metadata init
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
-	a.logger.Debugf("Parsing Event Grid metadata(%s)...", metadata.Name)
-
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 	a.metadata = m
 
-	a.logger.Debug("Metadata parsed successfully.")
-
 	return nil
 }
 
 func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error {
-	a.logger.Debug("Read() called...")
+	err := a.ensureInputBindingMetadata()
+	if err != nil {
+		return err
+	}
 
-	err := a.createSubscription()
+	err = a.createSubscription()
 	if err != nil {
 		return err
 	}
@@ -83,7 +89,6 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 			case "POST":
 				bodyBytes := ctx.PostBody()
 
-				a.logger.Debug(string(bodyBytes))
 				err = handler(&bindings.ReadResponse{
 					Data: bodyBytes,
 				})
@@ -103,13 +108,17 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 }
 
 func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
-	a.logger.Debug("Write() called. data: %s", string(req.Data))
+	err := a.ensureOutputBindingMetadata()
+	if err != nil {
+		a.logger.Error(err.Error())
+		return err
+	}
 
 	request := fasthttp.AcquireRequest()
 	defer fasthttp.ReleaseRequest(request)
 	request.Header.SetMethod(fasthttp.MethodPost)
 	request.Header.Set("Content-Type", "application/cloudevents+json")
-	request.Header.Set("aeg-sas-key", a.metadata.ClientSecret)
+	request.Header.Set("aeg-sas-key", a.metadata.AccessKey)
 	request.SetRequestURI(a.metadata.TopicEndpoint)
 	request.SetBody(req.Data)
 
@@ -117,7 +126,7 @@ func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
 	defer fasthttp.ReleaseResponse(response)
 
 	client := &fasthttp.Client{WriteTimeout: time.Second * 10}
-	err := client.Do(request, response)
+	err = client.Do(request, response)
 	if err != nil {
 		a.logger.Error(err.Error())
 		return err
@@ -127,6 +136,45 @@ func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
 		body := response.Body()
 		a.logger.Error(string(body))
 		return errors.New(string(body))
+	}
+
+	return nil
+}
+
+func (a *AzureEventGrid) ensureInputBindingMetadata() error {
+	if a.metadata.TenantID == "" {
+		return errors.New("metadata field 'TenantID' is empty in EventGrid binding")
+	}
+	if a.metadata.SubscriptionID == "" {
+		return errors.New("metadata field 'SubscriptionID' is empty in EventGrid binding")
+	}
+	if a.metadata.ClientID == "" {
+		return errors.New("metadata field 'ClientID' is empty in EventGrid binding")
+	}
+	if a.metadata.ClientSecret == "" {
+		return errors.New("metadata field 'ClientSecret' is empty in EventGrid binding")
+	}
+	if a.metadata.SubscriberEndpoint == "" {
+		return errors.New("metadata field 'SubscriberEndpoint' is empty in EventGrid binding")
+	}
+	if a.metadata.HandshakePort == "" {
+		return errors.New("metadata field 'HandshakePort' is empty in EventGrid binding")
+	}
+	if a.metadata.Scope == "" {
+		return errors.New("metadata field 'Scope' is empty in EventGrid binding")
+	}
+
+	return nil
+}
+
+func (a *AzureEventGrid) ensureOutputBindingMetadata() error {
+	if a.metadata.AccessKey == "" {
+		msg := fmt.Sprintf("metadata field 'AccessKey' is empty in EventGrid binding (%s)", a.metadata.Name)
+		return errors.New(msg)
+	}
+	if a.metadata.TopicEndpoint == "" {
+		msg := fmt.Sprintf("metadata field 'TopicEndpoint' is empty in EventGrid binding (%s)", a.metadata.Name)
+		return errors.New(msg)
 	}
 
 	return nil
@@ -144,8 +192,14 @@ func (a *AzureEventGrid) parseMetadata(metadata bindings.Metadata) (*azureEventG
 		return nil, err
 	}
 
+	eventGridMetadata.Name = metadata.Name
+
 	if eventGridMetadata.HandshakePort == "" {
 		eventGridMetadata.HandshakePort = "8080"
+	}
+
+	if eventGridMetadata.EventSubscriptionName == "" {
+		eventGridMetadata.EventSubscriptionName = metadata.Name
 	}
 	return &eventGridMetadata, nil
 }
@@ -160,8 +214,6 @@ func (a *AzureEventGrid) createSubscription() error {
 	}
 	subscriptionClient.Authorizer = authorizer
 
-	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.EventGrid/topics/%s", a.metadata.SubscriptionID, a.metadata.ResourceGroupName, a.metadata.TopicName)
-
 	eventInfo := eventgrid.EventSubscription{
 		EventSubscriptionProperties: &eventgrid.EventSubscriptionProperties{
 			Destination: eventgrid.WebHookEventSubscriptionDestination{
@@ -170,11 +222,12 @@ func (a *AzureEventGrid) createSubscription() error {
 					EndpointURL: &a.metadata.SubscriberEndpoint,
 				},
 			},
+			EventDeliverySchema: eventgrid.CloudEventSchemaV10,
 		},
 	}
 
-	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", scope, a.metadata.SubscriberEndpoint)
-	result, err := subscriptionClient.CreateOrUpdate(context.Background(), scope, a.metadata.EventGridSubscriptionName, eventInfo)
+	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
+	result, err := subscriptionClient.CreateOrUpdate(context.Background(), a.metadata.Scope, a.metadata.EventSubscriptionName, eventInfo)
 	if err != nil {
 		return err
 	}

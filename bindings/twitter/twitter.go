@@ -27,6 +27,7 @@ type twitterInput struct {
 	accessSecret   string
 	query          string
 	logger         logger.Logger
+	maxTweets      int
 }
 
 var _ = bindings.InputBinding(&twitterInput{})
@@ -133,31 +134,23 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
 
-	go func() {
-		for {
-			s := <-signalChan
-			switch s {
-			// kill -SIGHUP XXXX
-			case syscall.SIGHUP:
-				t.logger.Info("stopping, component hung up")
+	done := false
+	for !done {
+		s := <-signalChan
+		switch s {
 
-			// kill -SIGINT XXXX or Ctrl+c
-			case syscall.SIGINT:
-				t.logger.Info("stopping, process killed (SIGINT)")
+		case syscall.SIGHUP:
+			t.logger.Info("stopping, component hung up")
+			done = true
+			break
 
-			// kill -SIGTERM XXXX
-			case syscall.SIGTERM:
-				t.logger.Info("stopping, process killed (SIGTERM)")
+		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+			t.logger.Info("stopping, component terminated")
+			done = true
+			break
 
-			// kill -SIGQUIT XXXX
-			case syscall.SIGQUIT:
-				t.logger.Info("stopping, process killed (SIGQUIT)")
-
-			default:
-				t.logger.Info("stopping, process killed (unknown signal)")
-			}
 		}
-	}()
+	}
 
 	return nil
 }

@@ -6,10 +6,12 @@
 package twitter
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dghubble/go-twitter/twitter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,6 +62,8 @@ func TestInit(t *testing.T) {
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 }
 
+// TestReadError excutes the Read method and fails before the Twitter API call
+// go test -v -count=1 -run TestReadError ./bindings/twitter/
 func TestReadError(t *testing.T) {
 	m := getTestMetadata()
 	tw := NewTwitter(logger.NewLogger("test"))
@@ -71,4 +75,35 @@ func TestReadError(t *testing.T) {
 		assert.NotNilf(t, err, "no error on read with invalid credentials")
 		return nil
 	})
+}
+
+// TestRead executes the Read method which calls Twiter API
+// test tokens must be set
+// go test -v -count=1 -run TestReed ./bindings/twitter/
+// TODO: load test credentails
+//       exit test after n tweets
+func TestReed(t *testing.T) {
+	t.SkipNow()
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{
+		"consumerKey":    "",
+		"consumerSecret": "",
+		"accessToken":    "",
+		"accessSecret":   "",
+		"query":          "dapr",
+	}
+	tw := NewTwitter(logger.NewLogger("test"))
+	err := tw.Init(m)
+	assert.Nilf(t, err, "error initializing valid metadata properties")
+
+	counter := 0
+	err = tw.Read(func(res *bindings.ReadResponse) error {
+		counter++
+		t.Logf("tweet[%d]", counter)
+		var tweet twitter.Tweet
+		json.Unmarshal(res.Data, &tweet)
+		assert.NotEmpty(t, tweet.IDStr, "tweet should have an ID")
+		return nil
+	})
+	assert.Nilf(t, err, "error on read")
 }

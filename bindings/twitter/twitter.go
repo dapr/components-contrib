@@ -27,7 +27,6 @@ type twitterInput struct {
 	accessSecret   string
 	query          string
 	logger         logger.Logger
-	maxTweets      int
 }
 
 var _ = bindings.InputBinding(&twitterInput{})

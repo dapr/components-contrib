@@ -10,12 +10,14 @@ Currently supported pub-subs are:
 * Kafka
 * Azure Service Bus
 * RabbitMQ
+* Azure Event Hubs
+* GCP Pub/Sub
 
 ## Implementing a new Pub Sub
 
 A compliant pub sub needs to implement the following interface:
 
-```
+```go
 type PubSub interface {
 	Init(metadata Metadata) error
 	Publish(req *PublishRequest) error

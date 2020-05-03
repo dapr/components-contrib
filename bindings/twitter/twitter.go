@@ -133,31 +133,17 @@ func (t *twitterInput) Read(handler func(*bindings.ReadResponse) error) error {
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
 
-	go func() {
-		for {
-			s := <-signalChan
-			switch s {
-			// kill -SIGHUP XXXX
-			case syscall.SIGHUP:
-				t.logger.Info("stopping, component hung up")
-
-			// kill -SIGINT XXXX or Ctrl+c
-			case syscall.SIGINT:
-				t.logger.Info("stopping, process killed (SIGINT)")
-
-			// kill -SIGTERM XXXX
-			case syscall.SIGTERM:
-				t.logger.Info("stopping, process killed (SIGTERM)")
-
-			// kill -SIGQUIT XXXX
-			case syscall.SIGQUIT:
-				t.logger.Info("stopping, process killed (SIGQUIT)")
-
-			default:
-				t.logger.Info("stopping, process killed (unknown signal)")
-			}
+	done := false
+	for !done {
+		s := <-signalChan
+		switch s {
+		case syscall.SIGHUP:
+			t.logger.Info("stopping, component hung up")
+			done = true
+		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+			t.logger.Info("stopping, component terminated")
+			done = true
 		}
-	}()
-
+	}
 	return nil
 }

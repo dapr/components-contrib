@@ -219,12 +219,12 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 }
 
 func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
-	// Limiting the number of concurrent handlers will stop this
-	// components creating an unbounded amount of gorountines for
-	// each handle invocation.
+	// Limiting the number of concurrent handlers will throttle
+	// how many messages are receieved and processed concurrently.
 	limitNumConcurrentHandlers := a.metadata.NumConcurrentHandlers != nil
 	var handlers chan handler
 	if limitNumConcurrentHandlers {
+		a.logger.Debugf("Limited to %d message handlers", *a.metadata.NumConcurrentHandlers)
 		handlers = make(chan handler, *a.metadata.NumConcurrentHandlers)
 		for i := 0; i < *a.metadata.NumConcurrentHandlers; i++ {
 			handlers <- handler{}
@@ -232,11 +232,12 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 		defer close(handlers)
 	}
 
-	var concurrentAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
+	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
+		// Process messages asynchronously
 		go func() {
 			if limitNumConcurrentHandlers {
-				<-handlers // Take or wait on a free handler
 				defer func() {
+					a.logger.Debugf("Releasing message handler")
 					handlers <- handler{} // Release a handler
 				}()
 			}
@@ -244,6 +245,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
 			defer cancel()
 
+			a.logger.Debugf("Handling message from topic")
 			err := asbHandler(ctx, msg)
 			if err != nil {
 				a.logger.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
@@ -253,12 +255,18 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 	}
 
 	for {
-		if err := sub.Receive(context.Background(), concurrentAsbHandler); err != nil {
+		if limitNumConcurrentHandlers {
+			a.logger.Debugf("Taking message handler")
+			<-handlers // Take or wait on a free handler before getting a new message
+		}
+
+		a.logger.Debugf("Receiving message from topic")
+		if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
 			a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
 			// Must close to reset sub's receiver
 			if err := sub.Close(context.Background()); err != nil {
 				a.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
-				return // TODO: Can't handle error gracefully, what should be the behaviour?
+				return
 			}
 		}
 	}

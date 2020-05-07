@@ -57,7 +57,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/pretty v1.0.1 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20200122045848-3419fae592fc // indirect
 	github.com/valyala/fasthttp v1.6.0
@@ -65,7 +65,7 @@ require (
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.3
-	golang.org/x/crypto v0.0.0-20200206161412-a0c6ece9d31a
+	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/api v0.15.0

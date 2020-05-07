@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
@@ -23,6 +24,7 @@ const (
 	maxDeliveryCount              = "maxDeliveryCount"
 	timeoutInSec                  = "timeoutInSec"
 	lockDurationInSec             = "lockDurationInSec"
+	lockRenewalInSec              = "lockRenewalInSec"
 	defaultMessageTimeToLiveInSec = "defaultMessageTimeToLiveInSec"
 	autoDeleteOnIdleInSec         = "autoDeleteOnIdleInSec"
 	disableEntityManagement       = "disableEntityManagement"
@@ -33,22 +35,27 @@ const (
 	// Defaults
 	defaultTimeoutInSec            = 60
 	defaultHandlerTimeoutInSec     = 60
+	defaultLockRenewalInSec        = 20
 	defaultDisableEntityManagement = false
 )
 
 type handler = struct{}
 
 type azureServiceBus struct {
-	metadata     metadata
-	namespace    *azservicebus.Namespace
-	topicManager *azservicebus.TopicManager
-
-	logger logger.Logger
+	metadata       metadata
+	namespace      *azservicebus.Namespace
+	topicManager   *azservicebus.TopicManager
+	activeMessages map[string]*azservicebus.Message
+	mu             sync.RWMutex
+	logger         logger.Logger
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
-	return &azureServiceBus{logger: logger}
+	return &azureServiceBus{
+		activeMessages: make(map[string]*azservicebus.Message),
+		logger:         logger,
+	}
 }
 
 func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
@@ -92,6 +99,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.HandlerTimeoutInSec, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("%s invalid handlerTimeoutInSec %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.LockRenewalInSec = defaultLockRenewalInSec
+	if val, ok := meta.Properties[lockRenewalInSec]; ok && val != "" {
+		var err error
+		m.LockRenewalInSec, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid lockRenewalInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -193,7 +209,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler fun
 		return fmt.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
 	}
 
-	sub, err := topic.NewSubscription(subID)
+	sub, err := topic.NewSubscription(subID, azservicebus.SubscriptionWithPrefetchCount(1))
 	if err != nil {
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
@@ -212,10 +228,26 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 		}
 		err := daprHandler(msg)
 		if err != nil {
-			return message.Abandon(ctx)
+			return a.abondonMessage(ctx, message)
 		}
-		return message.Complete(ctx)
+		return a.completeMessage(ctx, message)
 	}
+}
+
+func (a *azureServiceBus) abondonMessage(ctx context.Context, m *azservicebus.Message) error {
+	a.mu.Lock()
+	delete(a.activeMessages, m.ID)
+	a.mu.Unlock()
+
+	return m.Abandon(ctx)
+}
+
+func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.Message) error {
+	a.mu.Lock()
+	delete(a.activeMessages, m.ID)
+	a.mu.Unlock()
+
+	return m.Complete(ctx)
 }
 
 func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
@@ -232,7 +264,12 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 		defer close(handlers)
 	}
 
+	// Message handler
 	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
+		a.mu.Lock()
+		a.activeMessages[msg.ID] = msg
+		a.mu.Unlock()
+
 		// Process messages asynchronously
 		go func() {
 			if limitNumConcurrentHandlers {
@@ -254,6 +291,30 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 		return nil
 	}
 
+	// Lock renewal loop
+	go func() {
+		for {
+			time.Sleep(time.Second * time.Duration(a.metadata.LockRenewalInSec))
+
+			if (len(a.activeMessages) == 0){
+				continue
+			}
+
+			msgs := make([]*azservicebus.Message, 0)
+			a.mu.RLock()
+			for _, m := range a.activeMessages {
+				msgs = append(msgs, m)
+			}
+			a.mu.RUnlock()
+			a.logger.Debugf("Renewing %d message locks", len(msgs))
+			err := sub.RenewLocks(context.Background(), msgs...)
+			if err != nil {
+				a.logger.Errorf("%s error renewing message locks for topic %s, ", errorMessagePrefix, topic, err)
+			}
+		}
+	}()
+
+	// Receiver loop
 	for {
 		if limitNumConcurrentHandlers {
 			a.logger.Debugf("Taking message handler")

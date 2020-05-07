@@ -12,6 +12,7 @@ type metadata struct {
 	ConsumerID                    string `json:"consumerID"`
 	TimeoutInSec                  int    `json:"timeoutInSec"`
 	HandlerTimeoutInSec           int    `json:"handlerTimeoutInSec"`
+	LockRenewalInSec              int    `json:"lockRenewalInSec"`
 	DisableEntityManagement       bool   `json:"disableEntityManagement"`
 	MaxDeliveryCount              *int   `json:"maxDeliveryCount"`
 	LockDurationInSec             *int   `json:"lockDurationInSec"`

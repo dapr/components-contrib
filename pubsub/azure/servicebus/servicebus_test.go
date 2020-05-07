@@ -28,6 +28,7 @@ func getFakeProperties() map[string]string {
 		autoDeleteOnIdleInSec:         "240",
 		defaultMessageTimeToLiveInSec: "2400",
 		lockDurationInSec:             "120",
+		lockRenewalInSec:              "15",
 		numConcurrentHandlers:         "1",
 	}
 }
@@ -62,6 +63,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 120, *m.LockDurationInSec)
 		assert.NotNil(t, m.NumConcurrentHandlers)
 		assert.Equal(t, 1, *m.NumConcurrentHandlers)
+		assert.NotNil(t, m.LockRenewalInSec)
+		assert.Equal(t, 15, m.LockRenewalInSec)
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -313,6 +316,38 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[lockDurationInSec] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing nullable lockRenewalInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[lockRenewalInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Nil(t, m.LockRenewalInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid nullable lockRenewalInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[lockRenewalInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

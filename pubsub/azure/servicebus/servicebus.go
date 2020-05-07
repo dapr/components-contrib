@@ -30,6 +30,7 @@ const (
 	disableEntityManagement       = "disableEntityManagement"
 	numConcurrentHandlers         = "numConcurrentHandlers"
 	handlerTimeoutInSec           = "handlerTimeoutInSec"
+	prefetchCount                 = "prefetchCount"
 	errorMessagePrefix            = "azure service bus error:"
 
 	// Defaults
@@ -153,6 +154,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.NumConcurrentHandlers = &valAsInt
 	}
 
+	if val, ok := meta.Properties[prefetchCount]; ok && val != "" {
+		var err error
+		valAsInt, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid prefetchCount %s, %s", errorMessagePrefix, val, err)
+		}
+		m.PrefetchCount = &valAsInt
+	}
+
 	return m, nil
 }
 
@@ -209,7 +219,11 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler fun
 		return fmt.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
 	}
 
-	sub, err := topic.NewSubscription(subID, azservicebus.SubscriptionWithPrefetchCount(1))
+	var opts []azservicebus.SubscriptionOption
+	if a.metadata.PrefetchCount != nil {
+		opts = append(opts, azservicebus.SubscriptionWithPrefetchCount(uint32(*a.metadata.PrefetchCount)))
+	}
+	sub, err := topic.NewSubscription(subID, opts...)
 	if err != nil {
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
@@ -226,6 +240,8 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 			Data:  message.Data,
 			Topic: topic,
 		}
+
+		a.logger.Debugf("Calling app's handler for message %s", message.ID)
 		err := daprHandler(msg)
 		if err != nil {
 			return a.abondonMessage(ctx, message)
@@ -235,18 +251,22 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 }
 
 func (a *azureServiceBus) abondonMessage(ctx context.Context, m *azservicebus.Message) error {
+	a.logger.Debugf("Removing message %s from active messages", m.ID)
 	a.mu.Lock()
 	delete(a.activeMessages, m.ID)
 	a.mu.Unlock()
 
+	a.logger.Debugf("Abandoning message %s", m.ID)
 	return m.Abandon(ctx)
 }
 
 func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.Message) error {
+	a.logger.Debugf("Removing message %s from active messages", m.ID)
 	a.mu.Lock()
 	delete(a.activeMessages, m.ID)
 	a.mu.Unlock()
 
+	a.logger.Debugf("Completing message %s", m.ID)
 	return m.Complete(ctx)
 }
 
@@ -256,7 +276,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 	limitNumConcurrentHandlers := a.metadata.NumConcurrentHandlers != nil
 	var handlers chan handler
 	if limitNumConcurrentHandlers {
-		a.logger.Debugf("Limited to %d message handlers", *a.metadata.NumConcurrentHandlers)
+		a.logger.Debugf("Limited to %d message handler(s)", *a.metadata.NumConcurrentHandlers)
 		handlers = make(chan handler, *a.metadata.NumConcurrentHandlers)
 		for i := 0; i < *a.metadata.NumConcurrentHandlers; i++ {
 			handlers <- handler{}
@@ -266,6 +286,8 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Message handler
 	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
+		a.logger.Debugf("Received message %s from topic", msg.ID)
+
 		a.mu.Lock()
 		a.activeMessages[msg.ID] = msg
 		a.mu.Unlock()
@@ -276,16 +298,17 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 				defer func() {
 					a.logger.Debugf("Releasing message handler")
 					handlers <- handler{} // Release a handler
+					a.logger.Debugf("Released message handler")
 				}()
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
 			defer cancel()
 
-			a.logger.Debugf("Handling message from topic")
+			a.logger.Debugf("Handling message %s", msg.ID)
 			err := asbHandler(ctx, msg)
 			if err != nil {
-				a.logger.Errorf("%s error handling message from topic '%s', %s", errorMessagePrefix, topic, err)
+				a.logger.Errorf("%s error handling message %s from topic '%s', %s", errorMessagePrefix, msg.ID, topic, err)
 			}
 		}()
 		return nil
@@ -297,6 +320,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 			time.Sleep(time.Second * time.Duration(a.metadata.LockRenewalInSec))
 
 			if (len(a.activeMessages) == 0){
+				a.logger.Debugf("No active messages to renew lock for")
 				continue
 			}
 
@@ -306,10 +330,10 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 				msgs = append(msgs, m)
 			}
 			a.mu.RUnlock()
-			a.logger.Debugf("Renewing %d message locks", len(msgs))
+			a.logger.Debugf("Renewing %d active message lock(s)", len(msgs))
 			err := sub.RenewLocks(context.Background(), msgs...)
 			if err != nil {
-				a.logger.Errorf("%s error renewing message locks for topic %s, ", errorMessagePrefix, topic, err)
+				a.logger.Errorf("%s error renewing active message lock(s) for topic %s, ", errorMessagePrefix, topic, err)
 			}
 		}
 	}()
@@ -317,11 +341,12 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 	// Receiver loop
 	for {
 		if limitNumConcurrentHandlers {
-			a.logger.Debugf("Taking message handler")
+			a.logger.Debugf("Attempting to take message handler")
 			<-handlers // Take or wait on a free handler before getting a new message
+			a.logger.Debugf("Taken message handler")
 		}
 
-		a.logger.Debugf("Receiving message from topic")
+		a.logger.Debugf("Waiting to receive message from topic")
 		if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
 			a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
 			// Must close to reset sub's receiver

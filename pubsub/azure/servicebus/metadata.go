@@ -19,4 +19,5 @@ type metadata struct {
 	DefaultMessageTimeToLiveInSec *int   `json:"defaultMessageTimeToLiveInSec"`
 	AutoDeleteOnIdleInSec         *int   `json:"autoDeleteOnIdleInSec"`
 	NumConcurrentHandlers         *int   `json:"numConcurrentHandlers"`
+	PrefetchCount                 *int   `json:"prefetchCount"`
 }

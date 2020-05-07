@@ -30,6 +30,7 @@ func getFakeProperties() map[string]string {
 		lockDurationInSec:             "120",
 		lockRenewalInSec:              "15",
 		numConcurrentHandlers:         "1",
+		prefetchCount:                 "10",
 	}
 }
 
@@ -65,6 +66,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 1, *m.NumConcurrentHandlers)
 		assert.NotNil(t, m.LockRenewalInSec)
 		assert.Equal(t, 15, m.LockRenewalInSec)
+		assert.NotNil(t, m.PrefetchCount)
+		assert.Equal(t, 10, m.PrefetchCount)
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -380,6 +383,38 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[numConcurrentHandlers] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing nullable prefetchCount", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[prefetchCount] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Nil(t, m.PrefetchCount)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid nullable prefetchCount", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[prefetchCount] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

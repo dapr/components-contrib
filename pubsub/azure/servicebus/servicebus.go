@@ -291,15 +291,13 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 		a.activeMessages[msg.ID] = msg
 		a.mu.Unlock()
 
-		if limitNumConcurrentHandlers {
-			a.logger.Debugf("Attempting to take message handler")
-			<-handlers // Take or wait on a free handler before getting a new message
-			a.logger.Debugf("Taken message handler")
-		}
-
 		// Process messages asynchronously
 		go func() {
 			if limitNumConcurrentHandlers {
+				a.logger.Debugf("Attempting to take message handler")
+				<-handlers // Take or wait on a free handler before getting a new message
+				a.logger.Debugf("Taken message handler")
+
 				defer func() {
 					a.logger.Debugf("Releasing message handler")
 					handlers <- handler{} // Release a handler

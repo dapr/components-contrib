@@ -286,11 +286,16 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Message handler
 	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
-		a.logger.Debugf("Received message %s from topic", msg.ID)
-
+		a.logger.Debugf("Adding message %s to active messages", msg.ID)
 		a.mu.Lock()
 		a.activeMessages[msg.ID] = msg
 		a.mu.Unlock()
+
+		if limitNumConcurrentHandlers {
+			a.logger.Debugf("Attempting to take message handler")
+			<-handlers // Take or wait on a free handler before getting a new message
+			a.logger.Debugf("Taken message handler")
+		}
 
 		// Process messages asynchronously
 		go func() {
@@ -316,10 +321,16 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Lock renewal loop
 	go func() {
+		// Disable log renewal when LockRenewalInSec=0
+		if a.metadata.LockRenewalInSec == 0 {
+			a.logger.Debugf("lock renewal disabled")
+			return
+		}
+
 		for {
 			time.Sleep(time.Second * time.Duration(a.metadata.LockRenewalInSec))
 
-			if (len(a.activeMessages) == 0){
+			if len(a.activeMessages) == 0 {
 				a.logger.Debugf("No active messages to renew lock for")
 				continue
 			}
@@ -340,12 +351,6 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Receiver loop
 	for {
-		if limitNumConcurrentHandlers {
-			a.logger.Debugf("Attempting to take message handler")
-			<-handlers // Take or wait on a free handler before getting a new message
-			a.logger.Debugf("Taken message handler")
-		}
-
 		a.logger.Debugf("Waiting to receive message from topic")
 		if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
 			a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)

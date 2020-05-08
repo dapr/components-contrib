@@ -16,20 +16,15 @@ const(
 )
 
 type fakeDBaccess struct {
-	setupExecuted bool
+	initExecuted bool
 }
 
 func (m *fakeDBaccess) Init() (error){
-	m.setupExecuted = true
+	m.initExecuted = true
 	return nil;
 }
 
-// Creates a new instance of PostreSQL with fakes to prevent real database calls.
-func createNewStoreWithFakes() PostgreSQL {
-	return *NewPostgreSQLStateStore(logger.NewLogger("test"), &fakeDBaccess{})
-}
-
-// Proves that the Init method runs the 
+// Proves that the Init method runs the init method
 func TestInitRunsDBAccessInit(t *testing.T) {
 
 	p := createNewStoreWithFakes()
@@ -42,5 +37,10 @@ func TestInitRunsDBAccessInit(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, p.dbaccess)
 	fake := p.dbaccess.(*fakeDBaccess)
-	assert.True(t, fake.setupExecuted)
+	assert.True(t, fake.initExecuted)
+}
+
+// Creates a new instance of PostreSQL with fakes to prevent real database calls.
+func createNewStoreWithFakes() PostgreSQL {
+	return *NewPostgreSQLStateStore(logger.NewLogger("test"), &fakeDBaccess{})
 }

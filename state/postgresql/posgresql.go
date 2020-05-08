@@ -11,19 +11,17 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
-
-
 // PostgreSQL state store
 type PostgreSQL struct {
-	logger logger.Logger
-	dbaccess          dbAccess
+	logger		logger.Logger
+	dbaccess	dbAccess
 }
 
 // NewPostgreSQLStateStore creates a new instance of a PostgreSQL state store
 func NewPostgreSQLStateStore(logger logger.Logger, dbaccess dbAccess) *PostgreSQL {
 	return &PostgreSQL{
-		logger:   logger,
-		dbaccess:  dbaccess,
+		logger:		logger,
+		dbaccess:	dbaccess,
 	}
 }
 
@@ -34,7 +32,6 @@ func (p *PostgreSQL) Init(metadata state.Metadata) error {
 
 // Delete removes an entity from the store
 func (p *PostgreSQL) Delete(req *state.DeleteRequest) error {
-
 	return nil
 }
 
@@ -52,7 +49,6 @@ func (p *PostgreSQL) BulkDelete(req []state.DeleteRequest) error {
 
 // Get returns an entity from store
 func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
-
 	return nil, nil
 }
 

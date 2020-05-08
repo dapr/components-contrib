@@ -11,35 +11,36 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInitConfiguration(t *testing.T) {
+const(
+	fakeConnectionString = "not a real connection"
+)
 
-	tests := []struct {
-		name        string
-		props       map[string]string
-		expectedErr string
-	}{
-		{
-			name:        "Empty",
-			props:       map[string]string{},
-			expectedErr: errMissingConnectionString,
-		},
+type fakeDBaccess struct {
+	setupExecuted bool
+}
+
+func (m *fakeDBaccess) Init() (error){
+	m.setupExecuted = true
+	return nil;
+}
+
+// Creates a new instance of PostreSQL with fakes to prevent real database calls.
+func createNewStoreWithFakes() PostgreSQL {
+	return *NewPostgreSQLStateStore(logger.NewLogger("test"), &fakeDBaccess{})
+}
+
+// Proves that the Init method runs the 
+func TestInitRunsDBAccessInit(t *testing.T) {
+
+	p := createNewStoreWithFakes()
+	metadata := state.Metadata{
+		Properties: map[string]string{connectionStringKey: fakeConnectionString},
 	}
+
+	err := p.Init(metadata)
 	
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			postgresStore := NewPostgreSQLStateStore(logger.NewLogger("test"))
-
-			metadata := state.Metadata{
-				Properties: tt.props,
-			}
-
-			err := postgresStore.Init(metadata)
-			assert.NotNil(t, err)
-
-			if tt.expectedErr != "" {
-				assert.Equal(t, err.Error(), tt.expectedErr)
-			}
-		})
-	}
-	
+	assert.Nil(t, err)
+	assert.NotNil(t, p.dbaccess)
+	fake := p.dbaccess.(*fakeDBaccess)
+	assert.True(t, fake.setupExecuted)
 }

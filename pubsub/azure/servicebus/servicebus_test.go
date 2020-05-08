@@ -67,7 +67,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.NotNil(t, m.LockRenewalInSec)
 		assert.Equal(t, 15, m.LockRenewalInSec)
 		assert.NotNil(t, m.PrefetchCount)
-		assert.Equal(t, 10, m.PrefetchCount)
+		assert.Equal(t, 10, *m.PrefetchCount)
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -200,6 +200,22 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
+	t.Run("invalid optional lockRenewalInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[lockRenewalInSec] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
 	t.Run("missing nullable maxDeliveryCount", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
@@ -319,38 +335,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[lockDurationInSec] = invalidNumber
-
-		// act
-		_, err := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert
-		assert.Error(t, err)
-		assertValidErrorMessage(t, err)
-	})
-
-	t.Run("missing nullable lockRenewalInSec", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[lockRenewalInSec] = ""
-
-		// act
-		m, err := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert
-		assert.Nil(t, m.LockRenewalInSec)
-		assert.Nil(t, err)
-	})
-
-	t.Run("invalid nullable lockRenewalInSec", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[lockRenewalInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

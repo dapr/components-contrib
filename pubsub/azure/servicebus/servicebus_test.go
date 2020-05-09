@@ -19,18 +19,20 @@ const (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		connectionString:              "fakeConnectionString",
-		consumerID:                    "fakeConId",
-		disableEntityManagement:       "true",
-		timeoutInSec:                  "90",
-		handlerTimeoutInSec:           "30",
-		maxDeliveryCount:              "10",
-		autoDeleteOnIdleInSec:         "240",
-		defaultMessageTimeToLiveInSec: "2400",
-		lockDurationInSec:             "120",
-		lockRenewalInSec:              "15",
-		numConcurrentHandlers:         "1",
-		prefetchCount:                 "10",
+		connectionString:               "fakeConnectionString",
+		consumerID:                     "fakeConId",
+		disableEntityManagement:        "true",
+		timeoutInSec:                   "90",
+		handlerTimeoutInSec:            "30",
+		maxDeliveryCount:               "10",
+		autoDeleteOnIdleInSec:          "240",
+		defaultMessageTimeToLiveInSec:  "2400",
+		lockDurationInSec:              "120",
+		lockRenewalInSec:               "15",
+		numConcurrentHandlers:          "1",
+		prefetchCount:                  "10",
+		maxActiveMessages:              "100",
+		maxActiveMessagesRecoveryInSec: "5",
 	}
 }
 
@@ -53,6 +55,12 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 90, m.TimeoutInSec)
 		assert.Equal(t, true, m.DisableEntityManagement)
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
+		assert.NotNil(t, m.LockRenewalInSec)
+		assert.Equal(t, 15, m.LockRenewalInSec)
+		assert.NotNil(t, m.MaxActiveMessage)
+		assert.Equal(t, 100, m.MaxActiveMessage)
+		assert.NotNil(t, m.MaxActiveMessagesRecoveryInSec)
+		assert.Equal(t, 5, m.MaxActiveMessagesRecoveryInSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
 		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
@@ -64,10 +72,9 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 120, *m.LockDurationInSec)
 		assert.NotNil(t, m.NumConcurrentHandlers)
 		assert.Equal(t, 1, *m.NumConcurrentHandlers)
-		assert.NotNil(t, m.LockRenewalInSec)
-		assert.Equal(t, 15, m.LockRenewalInSec)
 		assert.NotNil(t, m.PrefetchCount)
 		assert.Equal(t, 10, *m.PrefetchCount)
+
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -200,6 +207,22 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
+	t.Run("missing optional lockRenewalInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[lockRenewalInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 20, m.LockRenewalInSec)
+		assert.Nil(t, err)
+	})
+
 	t.Run("invalid optional lockRenewalInSec", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
@@ -207,6 +230,70 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[lockRenewalInSec] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxActiveMessages", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessages] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 10000, m.MaxActiveMessage)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxActiveMessages", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessages] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxActiveMessagesRecoveryInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 2, m.MaxActiveMessagesRecoveryInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxActiveMessagesRecoveryInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

@@ -19,25 +19,31 @@ import (
 
 const (
 	// Keys
-	connectionString              = "connectionString"
-	consumerID                    = "consumerID"
-	maxDeliveryCount              = "maxDeliveryCount"
-	timeoutInSec                  = "timeoutInSec"
-	lockDurationInSec             = "lockDurationInSec"
-	lockRenewalInSec              = "lockRenewalInSec"
-	defaultMessageTimeToLiveInSec = "defaultMessageTimeToLiveInSec"
-	autoDeleteOnIdleInSec         = "autoDeleteOnIdleInSec"
-	disableEntityManagement       = "disableEntityManagement"
-	numConcurrentHandlers         = "numConcurrentHandlers"
-	handlerTimeoutInSec           = "handlerTimeoutInSec"
-	prefetchCount                 = "prefetchCount"
-	errorMessagePrefix            = "azure service bus error:"
+	connectionString               = "connectionString"
+	consumerID                     = "consumerID"
+	maxDeliveryCount               = "maxDeliveryCount"
+	timeoutInSec                   = "timeoutInSec"
+	lockDurationInSec              = "lockDurationInSec"
+	lockRenewalInSec               = "lockRenewalInSec"
+	defaultMessageTimeToLiveInSec  = "defaultMessageTimeToLiveInSec"
+	autoDeleteOnIdleInSec          = "autoDeleteOnIdleInSec"
+	disableEntityManagement        = "disableEntityManagement"
+	numConcurrentHandlers          = "numConcurrentHandlers"
+	handlerTimeoutInSec            = "handlerTimeoutInSec"
+	prefetchCount                  = "prefetchCount"
+	maxActiveMessages              = "maxActiveMessages"
+	maxActiveMessagesRecoveryInSec = "maxActiveMessagesRecoveryInSec"
+	errorMessagePrefix             = "azure service bus error:"
 
 	// Defaults
-	defaultTimeoutInSec            = 60
-	defaultHandlerTimeoutInSec     = 60
-	defaultLockRenewalInSec        = 20
-	defaultDisableEntityManagement = false
+	defaultTimeoutInSec        = 60
+	defaultHandlerTimeoutInSec = 60
+	defaultLockRenewalInSec    = 20
+	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
+	// We should change this if performance testing suggests a more sensible default.
+	defaultMaxActiveMessages              = 10000
+	defaultMaxActiveMessagesRecoveryInSec = 2
+	defaultDisableEntityManagement        = false
 )
 
 type handler = struct{}
@@ -109,6 +115,24 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.LockRenewalInSec, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("%s invalid lockRenewalInSec %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.MaxActiveMessage = defaultMaxActiveMessages
+	if val, ok := meta.Properties[maxActiveMessages]; ok && val != "" {
+		var err error
+		m.MaxActiveMessage, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid maxActiveMessages %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.MaxActiveMessagesRecoveryInSec = defaultMaxActiveMessagesRecoveryInSec
+	if val, ok := meta.Properties[maxActiveMessagesRecoveryInSec]; ok && val != "" {
+		var err error
+		m.MaxActiveMessagesRecoveryInSec, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid recoveryInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -349,14 +373,20 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Receiver loop
 	for {
-		a.logger.Debugf("Waiting to receive message from topic")
-		if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
-			a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
-			// Must close to reset sub's receiver
-			if err := sub.Close(context.Background()); err != nil {
-				a.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
-				return
+		// If we have too many active messages, don't receive more.
+		if len(a.activeMessages) < a.metadata.MaxActiveMessage {
+			a.logger.Debugf("Waiting to receive message from topic")
+			if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
+				a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
+				// Must close to reset sub's receiver
+				if err := sub.Close(context.Background()); err != nil {
+					a.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
+					return
+				}
 			}
+		} else {
+			a.logger.Debugf("Max active messages %d exceeded, recovering for %d seconds", a.metadata.MaxActiveMessage, a.metadata.MaxActiveMessagesRecoveryInSec)
+			time.Sleep(time.Second * time.Duration(a.metadata.MaxActiveMessagesRecoveryInSec))
 		}
 	}
 }

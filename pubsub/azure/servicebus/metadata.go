@@ -20,6 +20,6 @@ type metadata struct {
 	LockDurationInSec              *int   `json:"lockDurationInSec"`
 	DefaultMessageTimeToLiveInSec  *int   `json:"defaultMessageTimeToLiveInSec"`
 	AutoDeleteOnIdleInSec          *int   `json:"autoDeleteOnIdleInSec"`
-	NumConcurrentHandlers          *int   `json:"numConcurrentHandlers"`
+	MaxConcurrentHandlers          *int   `json:"maxConcurrentHandlers"`
 	PrefetchCount                  *int   `json:"prefetchCount"`
 }

@@ -28,7 +28,7 @@ const (
 	defaultMessageTimeToLiveInSec  = "defaultMessageTimeToLiveInSec"
 	autoDeleteOnIdleInSec          = "autoDeleteOnIdleInSec"
 	disableEntityManagement        = "disableEntityManagement"
-	numConcurrentHandlers          = "numConcurrentHandlers"
+	maxConcurrentHandlers          = "maxConcurrentHandlers"
 	handlerTimeoutInSec            = "handlerTimeoutInSec"
 	prefetchCount                  = "prefetchCount"
 	maxActiveMessages              = "maxActiveMessages"
@@ -169,13 +169,13 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.AutoDeleteOnIdleInSec = &valAsInt
 	}
 
-	if val, ok := meta.Properties[numConcurrentHandlers]; ok && val != "" {
+	if val, ok := meta.Properties[maxConcurrentHandlers]; ok && val != "" {
 		var err error
 		valAsInt, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("%s invalid numConcurrentHandlers %s, %s", errorMessagePrefix, val, err)
+			return m, fmt.Errorf("%s invalid maxConcurrentHandlers %s, %s", errorMessagePrefix, val, err)
 		}
-		m.NumConcurrentHandlers = &valAsInt
+		m.MaxConcurrentHandlers = &valAsInt
 	}
 
 	if val, ok := meta.Properties[prefetchCount]; ok && val != "" {
@@ -297,12 +297,12 @@ func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.M
 func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
 	// Limiting the number of concurrent handlers will throttle
 	// how many messages are receieved and processed concurrently.
-	limitNumConcurrentHandlers := a.metadata.NumConcurrentHandlers != nil
+	limitConcurrentHandlers := a.metadata.MaxConcurrentHandlers != nil
 	var handlers chan handler
-	if limitNumConcurrentHandlers {
-		a.logger.Debugf("Limited to %d message handler(s)", *a.metadata.NumConcurrentHandlers)
-		handlers = make(chan handler, *a.metadata.NumConcurrentHandlers)
-		for i := 0; i < *a.metadata.NumConcurrentHandlers; i++ {
+	if limitConcurrentHandlers {
+		a.logger.Debugf("Limited to %d message handler(s)", *a.metadata.MaxConcurrentHandlers)
+		handlers = make(chan handler, *a.metadata.MaxConcurrentHandlers)
+		for i := 0; i < *a.metadata.MaxConcurrentHandlers; i++ {
 			handlers <- handler{}
 		}
 		defer close(handlers)
@@ -317,7 +317,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 		// Process messages asynchronously
 		go func() {
-			if limitNumConcurrentHandlers {
+			if limitConcurrentHandlers {
 				a.logger.Debugf("Attempting to take message handler")
 				<-handlers // Take or wait on a free handler before getting a new message
 				a.logger.Debugf("Taken message handler")

@@ -29,7 +29,7 @@ func getFakeProperties() map[string]string {
 		defaultMessageTimeToLiveInSec:  "2400",
 		lockDurationInSec:              "120",
 		lockRenewalInSec:               "15",
-		numConcurrentHandlers:          "1",
+		maxConcurrentHandlers:          "1",
 		prefetchCount:                  "10",
 		maxActiveMessages:              "100",
 		maxActiveMessagesRecoveryInSec: "5",
@@ -70,11 +70,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 2400, *m.DefaultMessageTimeToLiveInSec)
 		assert.NotNil(t, m.LockDurationInSec)
 		assert.Equal(t, 120, *m.LockDurationInSec)
-		assert.NotNil(t, m.NumConcurrentHandlers)
-		assert.Equal(t, 1, *m.NumConcurrentHandlers)
+		assert.NotNil(t, m.MaxConcurrentHandlers)
+		assert.Equal(t, 1, *m.MaxConcurrentHandlers)
 		assert.NotNil(t, m.PrefetchCount)
 		assert.Equal(t, 10, *m.PrefetchCount)
-
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -431,29 +430,29 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
-	t.Run("missing nullable numConcurrentHandlers", func(t *testing.T) {
+	t.Run("missing nullable maxConcurrentHandlers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[numConcurrentHandlers] = ""
+		fakeMetaData.Properties[maxConcurrentHandlers] = ""
 
 		// act
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.Nil(t, m.NumConcurrentHandlers)
+		assert.Nil(t, m.MaxConcurrentHandlers)
 		assert.Nil(t, err)
 	})
 
-	t.Run("invalid nullable numConcurrentHandlers", func(t *testing.T) {
+	t.Run("invalid nullable maxConcurrentHandlers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[numConcurrentHandlers] = invalidNumber
+		fakeMetaData.Properties[maxConcurrentHandlers] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

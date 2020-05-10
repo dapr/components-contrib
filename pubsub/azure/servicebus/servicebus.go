@@ -268,13 +268,13 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 		a.logger.Debugf("Calling app's handler for message %s", message.ID)
 		err := daprHandler(msg)
 		if err != nil {
-			return a.abondonMessage(ctx, message)
+			return a.abandonMessage(ctx, message)
 		}
 		return a.completeMessage(ctx, message)
 	}
 }
 
-func (a *azureServiceBus) abondonMessage(ctx context.Context, m *azservicebus.Message) error {
+func (a *azureServiceBus) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
 	a.logger.Debugf("Removing message %s from active messages", m.ID)
 	a.mu.Lock()
 	delete(a.activeMessages, m.ID)

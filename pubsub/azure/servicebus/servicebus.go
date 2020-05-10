@@ -44,7 +44,6 @@ const (
 	defaultMaxActiveMessages              = 10000
 	defaultMaxActiveMessagesRecoveryInSec = 2
 	defaultDisableEntityManagement        = false
-	minPrefetchCount                      = 1
 )
 
 type handler = struct{}
@@ -188,19 +187,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.PrefetchCount = &valAsInt
 	}
 
-	/* Apply constraints */
-	mpc := minPrefetchCount
-	if m.PrefetchCount != nil {
-		// If prefetchCount is set, we must maintain this many
-		// active messages as a minimum to avoid lock expiration.
-		if *m.PrefetchCount > mpc {
-			mpc = *m.PrefetchCount
-		}
-	}
-	if m.MaxActiveMessage < mpc {
-		m.MaxActiveMessage = mpc
-	}
-
 	return m, nil
 }
 
@@ -209,8 +195,6 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-
-	a.logger.Debugf("metdata set: %+v", m)
 
 	a.metadata = m
 	a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))

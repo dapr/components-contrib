@@ -44,6 +44,7 @@ const (
 	defaultMaxActiveMessages              = 10000
 	defaultMaxActiveMessagesRecoveryInSec = 2
 	defaultDisableEntityManagement        = false
+	minPrefetchCount                      = 1
 )
 
 type handler = struct{}
@@ -187,6 +188,19 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.PrefetchCount = &valAsInt
 	}
 
+	/* Apply constraints */
+	mpc := minPrefetchCount
+	if m.PrefetchCount != nil {
+		// If prefetchCount is set, we must maintain this many
+		// active messages as a minimum to avoid lock expiration.
+		if *m.PrefetchCount > mpc {
+			mpc = *m.PrefetchCount
+		}
+	}
+	if m.MaxActiveMessage < mpc {
+		m.MaxActiveMessage = mpc
+	}
+
 	return m, nil
 }
 
@@ -195,6 +209,8 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	a.logger.Debugf("metdata set: %+v", m)
 
 	a.metadata = m
 	a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
@@ -268,35 +284,16 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 		a.logger.Debugf("Calling app's handler for message %s", message.ID)
 		err := daprHandler(msg)
 		if err != nil {
+			a.logger.Debugf("Error in app's handler: %+v", err)
 			return a.abandonMessage(ctx, message)
 		}
 		return a.completeMessage(ctx, message)
 	}
 }
 
-func (a *azureServiceBus) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
-	a.logger.Debugf("Removing message %s from active messages", m.ID)
-	a.mu.Lock()
-	delete(a.activeMessages, m.ID)
-	a.mu.Unlock()
-
-	a.logger.Debugf("Abandoning message %s", m.ID)
-	return m.Abandon(ctx)
-}
-
-func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.Message) error {
-	a.logger.Debugf("Removing message %s from active messages", m.ID)
-	a.mu.Lock()
-	delete(a.activeMessages, m.ID)
-	a.mu.Unlock()
-
-	a.logger.Debugf("Completing message %s", m.ID)
-	return m.Complete(ctx)
-}
-
 func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
 	// Limiting the number of concurrent handlers will throttle
-	// how many messages are receieved and processed concurrently.
+	// how many messages are processed concurrently.
 	limitConcurrentHandlers := a.metadata.MaxConcurrentHandlers != nil
 	var handlers chan handler
 	if limitConcurrentHandlers {
@@ -308,22 +305,21 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 		defer close(handlers)
 	}
 
-	// Message handler
+	// Async message handler
 	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
-		a.logger.Debugf("Adding message %s to active messages", msg.ID)
-		a.mu.Lock()
-		a.activeMessages[msg.ID] = msg
-		a.mu.Unlock()
+		if a.lockRenewalEnabled() {
+			a.addActiveMessage(msg)
+		}
 
 		// Process messages asynchronously
 		go func() {
 			if limitConcurrentHandlers {
-				a.logger.Debugf("Attempting to take message handler")
+				a.logger.Debugf("Attempting to take message handler...")
 				<-handlers // Take or wait on a free handler before getting a new message
 				a.logger.Debugf("Taken message handler")
 
 				defer func() {
-					a.logger.Debugf("Releasing message handler")
+					a.logger.Debugf("Releasing message handler...")
 					handlers <- handler{} // Release a handler
 					a.logger.Debugf("Released message handler")
 				}()
@@ -343,8 +339,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Lock renewal loop
 	go func() {
-		// Disable log renewal when LockRenewalInSec=0
-		if a.metadata.LockRenewalInSec == 0 {
+		if !a.lockRenewalEnabled() {
 			a.logger.Debugf("lock renewal disabled")
 			return
 		}
@@ -373,7 +368,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Receiver loop
 	for {
-		// If we have too many active messages, don't receive more.
+		// If we have too many active messages don't receive any more for a while.
 		if len(a.activeMessages) < a.metadata.MaxActiveMessage {
 			a.logger.Debugf("Waiting to receive message from topic")
 			if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
@@ -385,10 +380,47 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 				}
 			}
 		} else {
-			a.logger.Debugf("Max active messages %d exceeded, recovering for %d seconds", a.metadata.MaxActiveMessage, a.metadata.MaxActiveMessagesRecoveryInSec)
+			// Sleep to allow the current active messages to be processed before getting more.
+			a.logger.Debugf("Max active messages %d reached, recovering for %d seconds", a.metadata.MaxActiveMessage, a.metadata.MaxActiveMessagesRecoveryInSec)
 			time.Sleep(time.Second * time.Duration(a.metadata.MaxActiveMessagesRecoveryInSec))
 		}
 	}
+}
+
+func (a *azureServiceBus) lockRenewalEnabled() bool {
+	return a.metadata.LockRenewalInSec > 0
+}
+
+func (a *azureServiceBus) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
+	if a.lockRenewalEnabled() {
+		a.removeActiveMessage(m.ID)
+	}
+
+	a.logger.Debugf("Abandoning message %s", m.ID)
+	return m.Abandon(ctx)
+}
+
+func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.Message) error {
+	if a.lockRenewalEnabled() {
+		a.removeActiveMessage(m.ID)
+	}
+
+	a.logger.Debugf("Completing message %s", m.ID)
+	return m.Complete(ctx)
+}
+
+func (a *azureServiceBus) addActiveMessage(m *azservicebus.Message) {
+	a.logger.Debugf("Adding message %s to active messages", m.ID)
+	a.mu.Lock()
+	a.activeMessages[m.ID] = m
+	a.mu.Unlock()
+}
+
+func (a *azureServiceBus) removeActiveMessage(messageID string) {
+	a.logger.Debugf("Removing message %s from active messages", messageID)
+	a.mu.Lock()
+	delete(a.activeMessages, messageID)
+	a.mu.Unlock()
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {

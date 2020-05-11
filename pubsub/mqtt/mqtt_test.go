@@ -16,7 +16,6 @@ import (
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		mqttURL:          "fakeUser:fakePassword@fake.mqtt.host:1883",
-		mqttTopic:        "fakeTopic",
 		mqttQOS:          "1",
 		mqttRetain:       "true",
 		mqttClientID:     "fakeClientID",
@@ -37,7 +36,6 @@ func TestParseMetadata(t *testing.T) {
 		// assert
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, fakeProperties[mqttTopic], m.topic)
 		assert.Equal(t, byte(1), m.qos)
 		assert.Equal(t, true, m.retain)
 		assert.Equal(t, fakeProperties[mqttClientID], m.clientID)
@@ -59,21 +57,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
 	})
 
-	t.Run("topic is not given", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[mqttTopic] = ""
-
-		m, err := parseMQTTMetaData(fakeMetaData)
-
-		// assert
-		assert.EqualError(t, err, errors.New("MQTT pub sub error: missing topic").Error())
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-	})
-
 	t.Run("qos and retain is not given", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
@@ -88,7 +71,6 @@ func TestParseMetadata(t *testing.T) {
 		// assert
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, fakeProperties[mqttTopic], m.topic)
 		assert.Equal(t, byte(0), m.qos)
 		assert.Equal(t, false, m.retain)
 	})
@@ -106,7 +88,6 @@ func TestParseMetadata(t *testing.T) {
 		// assert
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, fakeProperties[mqttTopic], m.topic)
 		assert.Equal(t, byte(1), m.qos)
 		assert.Equal(t, true, m.retain)
 		assert.NotEqual(t, fakeProperties[mqttClientID], m.clientID)

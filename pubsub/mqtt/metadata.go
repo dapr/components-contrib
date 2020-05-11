@@ -6,10 +6,7 @@
 package mqtt
 
 type metadata struct {
-	// mandatory parameters
-	url   string
-	topic string
-	// optional parameters
+	url          string
 	clientID     string
 	qos          byte
 	retain       bool

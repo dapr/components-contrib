@@ -21,7 +21,6 @@ import (
 const (
 	// Keys
 	mqttURL          = "url"
-	mqttTopic        = "topic"
 	mqttQOS          = "qos"
 	mqttRetain       = "retain"
 	mqttClientID     = "clientID"
@@ -57,12 +56,6 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 		m.url = val
 	} else {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
-	}
-
-	if val, ok := md.Properties[mqttTopic]; ok && val != "" {
-		m.topic = val
-	} else {
-		return &m, fmt.Errorf("%s missing topic", errorMsgPrefix)
 	}
 
 	// optional configuration settings

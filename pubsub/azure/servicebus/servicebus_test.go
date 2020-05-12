@@ -57,8 +57,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
 		assert.NotNil(t, m.LockRenewalInSec)
 		assert.Equal(t, 15, m.LockRenewalInSec)
-		assert.NotNil(t, m.MaxActiveMessage)
-		assert.Equal(t, 100, m.MaxActiveMessage)
+		assert.NotNil(t, m.MaxActiveMessages)
+		assert.Equal(t, 100, m.MaxActiveMessages)
 		assert.NotNil(t, m.MaxActiveMessagesRecoveryInSec)
 		assert.Equal(t, 5, m.MaxActiveMessagesRecoveryInSec)
 
@@ -250,7 +250,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.Equal(t, 10000, m.MaxActiveMessage)
+		assert.Equal(t, 10000, m.MaxActiveMessages)
 		assert.Nil(t, err)
 	})
 

@@ -3,6 +3,12 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
+// PostgreSQL implementation notes:
+// - sql.DB methods provide limited support for parameter substitution, so in 
+//   some cases fmt.Sprintf is used to replace values, e.g. table names.
+// - TODO: Insert/Update time
+// - TODO: ETag for concurrency
+
 package postgresql
 
 import (
@@ -33,7 +39,7 @@ type PostgresDBAccess struct {
 }
 
 // NewPostgresDBAccess creates a new instance of postgresAccess
-func NewPostgresDBAccess (logger logger.Logger, metadata state.Metadata) *PostgresDBAccess {
+func NewPostgresDBAccess (logger logger.Logger) *PostgresDBAccess {
 	return &PostgresDBAccess{
 		logger: logger,
 	}
@@ -75,9 +81,14 @@ func (p *PostgresDBAccess) Init(metadata *state.Metadata) (error) {
 // Set makes an insert or update to the database.
 func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
 	
-	//p.db.Exec()
-	
-	return nil
+	// Sprintf is required for table name because sql.DB does not substitue parameters for table names.
+	result, err := p.db.Exec(fmt.Sprintf(
+		`INSERT INTO %s (key, value) VALUES ($1, $2)
+		 ON CONFLICT (key) DO UPDATE SET value = $2;`, 
+				tableName), req.Key, req.Value)
+
+	p.logger.Debug(result)
+	return err
 }
 
 // Get returns data from the database.

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"os"
 	"testing"
+	"github.com/google/uuid"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestInitConfiguration(t *testing.T) {
 				Properties: tt.props,
 			}
 
-			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger, *metadata))
+			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
 
 			err := p.Init(metadata)
 			if tt.expectedErr == "" {
@@ -74,7 +75,22 @@ func TestDBIsValid(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	
+	key := uuid.New().String()
+	
+	metadata := &state.Metadata{
+		Properties: map[string]string{connectionStringKey: getConnectionString(),},
+	}
 
+	pgs := getNewPostgreSQLStore()
+	pgs.Init(metadata)
+
+	setReq := &state.SetRequest{
+		Key: key,
+		Value: `{"something": "somevalue"}`,
+	}
+
+	pgs.Set(setReq)
 }
 
 func getConnectionString() string {
@@ -82,7 +98,7 @@ func getConnectionString() string {
 }
 
 func getNewPostgreSQLStore() *PostgreSQL {
-	metadata := &state.Metadata{}
+	
 	logger := logger.NewLogger("test")
-	return NewPostgreSQLStateStore(NewPostgresDBAccess(logger, *metadata))
+	return NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
 }

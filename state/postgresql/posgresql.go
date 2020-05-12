@@ -18,16 +18,16 @@ type PostgreSQL struct {
 }
 
 // NewPostgreSQLStateStore creates a new instance of a PostgreSQL state store
-func NewPostgreSQLStateStore(logger logger.Logger, dbaccess dbAccess) *PostgreSQL {
+func NewPostgreSQLStateStore(dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
-		logger:		logger,
-		dbaccess:	dbaccess,
+		logger:		dba.Logger(),
+		dbaccess:	dba,
 	}
 }
 
 // Init initializes the SQL server state store
-func (p *PostgreSQL) Init(metadata state.Metadata) error {
-	return p.dbaccess.Init()
+func (p *PostgreSQL) Init(metadata *state.Metadata) error {
+	return p.dbaccess.Init(metadata)
 }
 
 // Delete removes an entity from the store
@@ -54,7 +54,7 @@ func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set adds/updates an entity on store
 func (p *PostgreSQL) Set(req *state.SetRequest) error {
-	return nil
+	return p.dbaccess.Set(req);
 }
 
 // BulkSet adds/updates multiple entities on store

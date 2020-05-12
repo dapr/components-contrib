@@ -15,20 +15,38 @@ const(
 	fakeConnectionString = "not a real connection"
 )
 
+// Fake implementation of interface postgressql.dbaccess
 type fakeDBaccess struct {
+	logger logger.Logger
 	initExecuted bool
+	setExecuted bool
+	getExecuted bool
 }
 
-func (m *fakeDBaccess) Init() (error){
+func (m *fakeDBaccess) Init(metadata *state.Metadata) (error){
 	m.initExecuted = true
 	return nil;
+}
+
+func (m *fakeDBaccess) Set(req *state.SetRequest) (error){
+	m.setExecuted = true
+	return nil;
+}
+
+func (m *fakeDBaccess) Get(req *state.GetRequest) (error){
+	m.getExecuted = true
+	return nil;
+}
+
+func (m *fakeDBaccess) Logger() logger.Logger{
+	return m.logger
 }
 
 // Proves that the Init method runs the init method
 func TestInitRunsDBAccessInit(t *testing.T) {
 
 	p := createNewStoreWithFakes()
-	metadata := state.Metadata{
+	metadata := &state.Metadata{
 		Properties: map[string]string{connectionStringKey: fakeConnectionString},
 	}
 
@@ -40,7 +58,14 @@ func TestInitRunsDBAccessInit(t *testing.T) {
 	assert.True(t, fake.initExecuted)
 }
 
+// Proves that PostgreSQL implements state.Store.
+func TestPostgreSQLImplementsStore(t *testing.T){
+	assert.NotNil(t, createNewStoreWithFakes())
+}
+
 // Creates a new instance of PostreSQL with fakes to prevent real database calls.
-func createNewStoreWithFakes() PostgreSQL {
-	return *NewPostgreSQLStateStore(logger.NewLogger("test"), &fakeDBaccess{})
+func createNewStoreWithFakes() *PostgreSQL {
+	return NewPostgreSQLStateStore(&fakeDBaccess{
+		logger: logger.NewLogger("test"),
+	})
 }

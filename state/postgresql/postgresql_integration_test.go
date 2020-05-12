@@ -7,7 +7,6 @@ package postgresql
 import (
 	"database/sql"
 	"os"
-	"strings"
 	"testing"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
@@ -16,19 +15,9 @@ import (
 )
 
 const (
-	connectionStringEnvKey = "DAPR_TEST_POSTGRES_CONNSTRING"
+	connectionStringEnvKey = "DAPR_TEST_POSTGRES_CONNSTRING" // Environment variable containing the connection string
 	databaseName = "dapr_test"
 )
-
-func TestIntegrationCases(t *testing.T) {
-	connectionString := getConnectionString()
-	if connectionString == "" {
-		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
-	}
-
-	ensureDBIsValid(t)
-	//t.Run("Single operations", testSingleOperations)
-}
 
 func TestInitConfiguration(t *testing.T) {
 	
@@ -53,11 +42,11 @@ func TestInitConfiguration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			
-			metadata := state.Metadata{
+			metadata := &state.Metadata{
 				Properties: tt.props,
 			}
 
-			p := NewPostgreSQLStateStore(logger, NewPostgresDBAccess(logger, metadata))
+			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger, *metadata))
 
 			err := p.Init(metadata)
 			if tt.expectedErr == "" {
@@ -70,42 +59,30 @@ func TestInitConfiguration(t *testing.T) {
 	}
 }
 
-func getMasterConnectionString() string {
-	return os.Getenv(connectionStringEnvKey)
-}
-
-func getConnectionString() string {
-	if connString := getMasterConnectionString(); connString != "" {
-		if strings.Contains(connString, "database=") {
-			return connString
-		}
-
-		return connString + " database=" + databaseName
+func TestDBIsValid(t *testing.T) {
+	connectionString := getConnectionString()
+	if connectionString == "" {
+		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
 	}
 
-	return ""
-}
-
-func ensureDBIsValid(t *testing.T) {
-	cstr := getMasterConnectionString()
-	db, err := sql.Open("pgx", cstr)
+	db, err := sql.Open("pgx", connectionString)
 	assert.Nil(t, err)
 	
 	defer db.Close()
 	err = db.Ping()
 	assert.Nil(t, err)
-
-	ensureDBExists(t, db)
 }
 
-// Creates the test database if it does not exist
-func ensureDBExists(t *testing.T, db *sql.DB){
-	var exists int = -1
-	err := db.QueryRow("SELECT Count(*) as Exists FROM pg_database WHERE datname = $1", databaseName).Scan(&exists)
-	assert.Nil(t, err)
-	assert.NotEqual(t, exists, -1)
-	if(exists == 0){
-		_, err = db.Exec("CREATE DATABASE $1", databaseName)
-		assert.Nil(t, err)
-	}
+func TestSet(t *testing.T) {
+
+}
+
+func getConnectionString() string {
+	return os.Getenv(connectionStringEnvKey)
+}
+
+func getNewPostgreSQLStore() *PostgreSQL {
+	metadata := &state.Metadata{}
+	logger := logger.NewLogger("test")
+	return NewPostgreSQLStateStore(NewPostgresDBAccess(logger, *metadata))
 }

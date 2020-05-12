@@ -102,13 +102,32 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk set operation
 func (d *StateStore) BulkSet(req []state.SetRequest) error {
+	writeRequests := []*dynamodb.WriteRequest{}
+
 	for _, r := range req {
-		err := d.Set(&r)
-		if err != nil {
-			return err
+		writeRequest := &dynamodb.WriteRequest{
+			PutRequest: &dynamodb.PutRequest{
+				Item: map[string]*dynamodb.AttributeValue{
+					"key": {
+						S: aws.String(r.Key),
+					},
+					"value": {
+						S: aws.String(fmt.Sprintf("%v", r.Value)),
+					},
+				},
+			},
 		}
+
+		writeRequests = append(writeRequests, writeRequest)
 	}
-	return nil
+
+	requestItems := map[string][]*dynamodb.WriteRequest{}
+	requestItems[d.table] = writeRequests
+
+	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
+	})
+	return e
 }
 
 // Delete performs a delete operation
@@ -127,13 +146,28 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
+	writeRequests := []*dynamodb.WriteRequest{}
+
 	for _, r := range req {
-		err := d.Delete(&r)
-		if err != nil {
-			return err
+		writeRequest := &dynamodb.WriteRequest{
+			DeleteRequest: &dynamodb.DeleteRequest{
+				Key: map[string]*dynamodb.AttributeValue{
+					"key": {
+						S: aws.String(r.Key),
+					},
+				},
+			},
 		}
+		writeRequests = append(writeRequests, writeRequest)
 	}
-	return nil
+
+	requestItems := map[string][]*dynamodb.WriteRequest{}
+	requestItems[d.table] = writeRequests
+
+	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
+	})
+	return e
 }
 
 func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMetadata, error) {

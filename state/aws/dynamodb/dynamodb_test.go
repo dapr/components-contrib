@@ -17,9 +17,10 @@ import (
 )
 
 type mockedDynamoDB struct {
-	GetItemFn    func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
-	PutItemFn    func(input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error)
-	DeleteItemFn func(input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error)
+	GetItemFn        func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
+	PutItemFn        func(input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error)
+	DeleteItemFn     func(input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error)
+	BatchWriteItemFn func(input *dynamodb.BatchWriteItemInput) (*dynamodb.BatchWriteItemOutput, error)
 	dynamodbiface.DynamoDBAPI
 }
 
@@ -33,6 +34,10 @@ func (m *mockedDynamoDB) PutItem(input *dynamodb.PutItemInput) (*dynamodb.PutIte
 
 func (m *mockedDynamoDB) DeleteItem(input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
 	return m.DeleteItemFn(input)
+}
+
+func (m *mockedDynamoDB) BatchWriteItem(input *dynamodb.BatchWriteItemInput) (*dynamodb.BatchWriteItemOutput, error) {
+	return m.BatchWriteItemFn(input)
 }
 
 func TestInit(t *testing.T) {
@@ -209,6 +214,89 @@ func TestSet(t *testing.T) {
 	})
 }
 
+func TestBulkSet(t *testing.T) {
+	type value struct {
+		Value string
+	}
+
+	t.Run("Successfully set items", func(t *testing.T) {
+		tableName := "table_name"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+					expected := map[string][]*dynamodb.WriteRequest{}
+					expected[tableName] = []*dynamodb.WriteRequest{
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key1"),
+									},
+									"value": {
+										S: aws.String("{value1}"),
+									},
+								},
+							},
+						},
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key2"),
+									},
+									"value": {
+										S: aws.String("{value2}"),
+									},
+								},
+							},
+						},
+					}
+					assert.Equal(t, expected, input.RequestItems)
+					return &dynamodb.BatchWriteItemOutput{
+						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
+					}, nil
+				},
+			},
+			table: tableName,
+		}
+		req := []state.SetRequest{
+			{
+				Key: "key1",
+				Value: value{
+					Value: "value1",
+				},
+			},
+			{
+				Key: "key2",
+				Value: value{
+					Value: "value2",
+				},
+			},
+		}
+		err := ss.BulkSet(req)
+		assert.Nil(t, err)
+	})
+	t.Run("Un-successfully set items", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+					return nil, fmt.Errorf("unable to bulk write items")
+				},
+			},
+		}
+		req := []state.SetRequest{
+			{
+				Key: "key",
+				Value: value{
+					Value: "value",
+				},
+			},
+		}
+		err := ss.BulkSet(req)
+		assert.NotNil(t, err)
+	})
+}
+
 func TestDelete(t *testing.T) {
 	t.Run("Successfully delete item", func(t *testing.T) {
 		req := &state.DeleteRequest{
@@ -243,6 +331,70 @@ func TestDelete(t *testing.T) {
 			Key: "key",
 		}
 		err := ss.Delete(req)
+		assert.NotNil(t, err)
+	})
+}
+
+func TestBulkDelete(t *testing.T) {
+	t.Run("Successfully delete items", func(t *testing.T) {
+		tableName := "table_name"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+					expected := map[string][]*dynamodb.WriteRequest{}
+					expected[tableName] = []*dynamodb.WriteRequest{
+						{
+							DeleteRequest: &dynamodb.DeleteRequest{
+								Key: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key1"),
+									},
+								},
+							},
+						},
+						{
+							DeleteRequest: &dynamodb.DeleteRequest{
+								Key: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key2"),
+									},
+								},
+							},
+						},
+					}
+					assert.Equal(t, expected, input.RequestItems)
+					return &dynamodb.BatchWriteItemOutput{
+						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
+					}, nil
+				},
+			},
+			table: tableName,
+		}
+		req := []state.DeleteRequest{
+			{
+				Key: "key1",
+			},
+			{
+				Key: "key2",
+			},
+		}
+		err := ss.BulkDelete(req)
+		assert.Nil(t, err)
+	})
+	t.Run("Un-successfully delete items", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+					return nil, fmt.Errorf("unable to bulk write items")
+				},
+			},
+		}
+		req := []state.DeleteRequest{
+			{
+				Key: "key",
+			},
+		}
+		err := ss.BulkDelete(req)
 		assert.NotNil(t, err)
 	})
 }

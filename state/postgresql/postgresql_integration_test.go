@@ -6,13 +6,15 @@ package postgresql
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"testing"
-	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -74,7 +76,7 @@ func TestDBIsValid(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestSetGet(t *testing.T) {
+func TestSetGetDelete(t *testing.T) {
 	
 	key := uuid.New().String()
 	
@@ -91,26 +93,54 @@ func TestSetGet(t *testing.T) {
 		Value: `{"something": "somevalue"}`,
 	}
 
+	// Set
 	err := pgs.Set(setReq)
 	assert.Nil(t, err)
+	assert.True(t, storeItemExists(t, key))
 
+	// Get
 	getReq := &state.GetRequest{
 		Key: key,
 		Metadata: metadata.Properties,
 		Options: state.GetStateOption{},
 	}
 	
-	response, getErr := pgs.Get(getReq)
-	assert.NotNil(t, response)
+	getResponse, getErr := pgs.Get(getReq)
+	assert.NotNil(t, getResponse)
 	assert.Nil(t, getErr)
+
+	// Delete
+	deleteReq := &state.DeleteRequest{
+		Key: key,
+		Metadata: metadata.Properties,
+		Options: state.DeleteStateOption{},
+	}
+
+	deleteErr := pgs.Delete(deleteReq)
+	assert.Nil(t, deleteErr)
+	assert.False(t, storeItemExists(t, key))
+
 }
 
 func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
+func getDbConnection(t *testing.T) *sql.DB {
+	db, err := sql.Open("pgx", getConnectionString())
+	assert.Nil(t, err)
+	return db
+}
+
 func getNewPostgreSQLStore() *PostgreSQL {
-	
 	logger := logger.NewLogger("test")
 	return NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
+}
+
+func storeItemExists(t *testing.T, key string) bool {
+	var exists bool = false
+	statement := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %s WHERE key = $1)`, tableName)
+	err := getDbConnection(t).QueryRow(statement, key).Scan(&exists)
+	assert.Nil(t, err)
+	return exists
 }

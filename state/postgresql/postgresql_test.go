@@ -38,6 +38,10 @@ func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error){
 	return nil, nil;
 }
 
+func (m *fakeDBaccess) Delete(req *state.DeleteRequest) (error) {
+	return nil
+}
+
 func (m *fakeDBaccess) Logger() logger.Logger{
 	return m.logger
 }

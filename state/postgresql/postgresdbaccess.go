@@ -9,6 +9,7 @@
 // - TODO: Insert/Update time
 // - TODO: ETag for concurrency
 // - TODO: Would the connection string change after Init is called?
+// - TODO: Rename the dbaccess interface and the variable that stores it
 
 package postgresql
 
@@ -76,13 +77,13 @@ func (p *PostgresDBAccess) Init(metadata *state.Metadata) (error) {
 // Set makes an insert or update to the database.
 func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
 	
-	// Sprintf is required for table name because sql.DB does not substitue parameters for table names.
-	result, err := p.db.Exec(fmt.Sprintf(
+	// Sprintf is required for table name because sql.DB does not substitue parameters for table names,
+	// however, sql.DB parameter substitution is also used to prevent injection attacks.
+	_, err := p.db.Exec(fmt.Sprintf(
 		`INSERT INTO %s (key, value) VALUES ($1, $2)
 		 ON CONFLICT (key) DO UPDATE SET value = $2;`, 
 				tableName), req.Key, req.Value)
 
-	p.logger.Debug(result)
 	return err
 }
 
@@ -103,6 +104,17 @@ func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 	return response, nil
 }
+
+// Delete removes an item from the state store.
+func (p *PostgresDBAccess) Delete(req *state.DeleteRequest) (error) {
+
+	_, err := p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
+	if err != nil {
+		return err
+	}
+
+	return nil
+} 
 
 func (p *PostgresDBAccess) ensureStateTable() (error) {
 	var exists bool = false

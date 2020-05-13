@@ -32,7 +32,7 @@ func (p *PostgreSQL) Init(metadata *state.Metadata) error {
 
 // Delete removes an entity from the store
 func (p *PostgreSQL) Delete(req *state.DeleteRequest) error {
-	return nil
+	return p.dbaccess.Delete(req)
 }
 
 // BulkDelete removes multiple entries from the store

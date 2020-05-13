@@ -15,4 +15,5 @@ type dbAccess interface {
 	Init(metadata *state.Metadata) (error)
 	Set(req *state.SetRequest) (error)
 	Get(req *state.GetRequest) (*state.GetResponse, error)
+	Delete(req *state.DeleteRequest) error
 }

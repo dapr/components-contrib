@@ -14,5 +14,5 @@ type dbAccess interface {
 	Logger() logger.Logger
 	Init(metadata *state.Metadata) (error)
 	Set(req *state.SetRequest) (error)
-	Get(req *state.GetRequest) (error)
+	Get(req *state.GetRequest) (*state.GetResponse, error)
 }

@@ -8,6 +8,7 @@
 //   some cases fmt.Sprintf is used to replace values, e.g. table names.
 // - TODO: Insert/Update time
 // - TODO: ETag for concurrency
+// - TODO: Would the connection string change after Init is called?
 
 package postgresql
 
@@ -30,12 +31,6 @@ type PostgresDBAccess struct {
 	logger				logger.Logger
 	db					*sql.DB
 	connectionString	string
-	tableName			string
-	schema				string
-	bulkDeleteCommand	string
-	upsertCommand		string
-	getCommand			string
-	deleteCommand		string
 }
 
 // NewPostgresDBAccess creates a new instance of postgresAccess
@@ -92,8 +87,21 @@ func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
 }
 
 // Get returns data from the database.
-func (p *PostgresDBAccess) Get(req *state.GetRequest) (error) {
-	return nil
+func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	
+	var value string
+	err := p.db.QueryRow("SELECT value FROM state WHERE key = $1", req.Key).Scan(&value)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &state.GetResponse{
+		Data: []byte(value),
+		ETag: "",
+		Metadata: req.Metadata,
+	}
+
+	return response, nil
 }
 
 func (p *PostgresDBAccess) ensureStateTable() (error) {

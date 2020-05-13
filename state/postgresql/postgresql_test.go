@@ -33,9 +33,9 @@ func (m *fakeDBaccess) Set(req *state.SetRequest) (error){
 	return nil;
 }
 
-func (m *fakeDBaccess) Get(req *state.GetRequest) (error){
+func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error){
 	m.getExecuted = true
-	return nil;
+	return nil, nil;
 }
 
 func (m *fakeDBaccess) Logger() logger.Logger{

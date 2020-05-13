@@ -74,7 +74,7 @@ func TestDBIsValid(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestSet(t *testing.T) {
+func TestSetGet(t *testing.T) {
 	
 	key := uuid.New().String()
 	
@@ -87,10 +87,22 @@ func TestSet(t *testing.T) {
 
 	setReq := &state.SetRequest{
 		Key: key,
+		Metadata: metadata.Properties,
 		Value: `{"something": "somevalue"}`,
 	}
 
-	pgs.Set(setReq)
+	err := pgs.Set(setReq)
+	assert.Nil(t, err)
+
+	getReq := &state.GetRequest{
+		Key: key,
+		Metadata: metadata.Properties,
+		Options: state.GetStateOption{},
+	}
+	
+	response, getErr := pgs.Get(getReq)
+	assert.NotNil(t, response)
+	assert.Nil(t, getErr)
 }
 
 func getConnectionString() string {

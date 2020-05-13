@@ -49,7 +49,7 @@ func (p *PostgreSQL) BulkDelete(req []state.DeleteRequest) error {
 
 // Get returns an entity from store
 func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return nil, nil
+	return p.dbaccess.Get(req)
 }
 
 // Set adds/updates an entity on store

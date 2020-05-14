@@ -1,43 +1,43 @@
 {
-    "conformant": true,
+    "conformant": false,
     "component_type": "state",
-    "component_name": "aerospike",
+    "component_name": "hazelcast",
     "functions": {
         "bulkdelete": {
             "function_name": "bulkdelete",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 5620
+            "execution_duration_in_μs": 6429
         },
         "bulkset": {
             "function_name": "bulkset",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 6391
+            "execution_duration_in_μs": 7323
         },
         "delete": {
             "function_name": "delete",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 719
+            "execution_duration_in_μs": 750
         },
         "get": {
             "function_name": "get",
             "included": true,
-            "conformed": true,
-            "execution_duration_in_μs": 3603
+            "conformed": false,
+            "execution_duration_in_μs": 705
         },
         "init": {
             "function_name": "init",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 11485
+            "execution_duration_in_μs": 6526
         },
         "set": {
             "function_name": "set",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 2242
+            "execution_duration_in_μs": 800
         }
     }
 }

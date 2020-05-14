@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: <NAME>
+  namespace: <NAMESPACE>
+spec:
+  type: state.hazelcast
+  metadata:
+  - name: hazelcastServers
+    value: "localhost:5701"
+  - name: hazelcastMap
+    value: default

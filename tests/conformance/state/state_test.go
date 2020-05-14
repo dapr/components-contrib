@@ -15,6 +15,7 @@ import (
 	"github.com/dapr/components-contrib/state/aerospike"
 	"github.com/dapr/components-contrib/state/etcd"
 	"github.com/dapr/components-contrib/state/hashicorp/consul"
+	"github.com/dapr/components-contrib/state/hazelcast"
 	"github.com/dapr/components-contrib/state/memcached"
 	"github.com/dapr/components-contrib/state/mongodb"
 	"github.com/dapr/components-contrib/state/redis"
@@ -32,10 +33,10 @@ type ValueType struct {
 
 const (
 	maxInitDurationInMs   = 100
-	maxSetDurationInMs    = 30
-	maxGetDurationInMs    = 30
-	maxDeleteDurationInMs = 30
-	numBulkRequests       = 30
+	maxSetDurationInMs    = 100
+	maxGetDurationInMs    = 100
+	maxDeleteDurationInMs = 100
+	numBulkRequests       = 10
 
 	componentType = "state"
 
@@ -106,6 +107,12 @@ func TestConsul(t *testing.T) {
 func TestEtcd(t *testing.T) {
 	runWithStateStore(t, "etcd", func() state.Store {
 		return etcd.NewETCD(nil)
+	})
+}
+
+func TestHazelcast(t *testing.T) {
+	runWithStateStore(t, "hazelcast", func() state.Store {
+		return hazelcast.NewHazelcastStore(nil)
 	})
 }
 

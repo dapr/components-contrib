@@ -133,7 +133,7 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 	// Init
 	t.Run(initName, func(t *testing.T) {
 		start := time.Now()
-		err := statestore.Init(state.Metadata{
+		err = statestore.Init(state.Metadata{
 			Properties: props,
 		})
 		duration := time.Since(start)

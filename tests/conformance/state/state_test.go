@@ -1,4 +1,4 @@
-package statestore
+package state
 
 import (
 	"encoding/json"
@@ -30,10 +30,10 @@ type ValueType struct {
 
 const (
 	maxInitDurationInMs   = 30
-	maxSetDurationInMs    = 15
-	maxGetDurationInMs    = 10
-	maxDeleteDurationInMs = 15
-	numBulkRequests       = 15
+	maxSetDurationInMs    = 30
+	maxGetDurationInMs    = 30
+	maxDeleteDurationInMs = 30
+	numBulkRequests       = 30
 
 	componentType = "state"
 
@@ -47,10 +47,10 @@ const (
 
 // nolint:gochecknoglobals
 var (
-	renderDisabled  = false
-	renderReportDir = ""
-	renderPretty    = false
-	renderFormat    = ""
+	reportDisabled = false
+	reportDir      = ""
+	reportPretty   = false
+	reportFormat   = ""
 )
 
 func newKey(length int) string {
@@ -63,10 +63,10 @@ func newKey(length int) string {
 }
 
 func TestMain(m *testing.M) {
-	_, renderDisabled = os.LookupEnv("RENDER_DISABLE")
-	renderReportDir = os.Getenv("RENDER_REPORT_DIR")
-	renderFormat = os.Getenv("RENDER_FORMAT")
-	_, renderPretty = os.LookupEnv("RENDER_PRETTY")
+	_, reportDisabled = os.LookupEnv("REPORT_DISABLE")
+	reportDir = os.Getenv("REPORT_RESULTS_DIR")
+	reportFormat = os.Getenv("REPORT_FORMAT")
+	_, reportPretty = os.LookupEnv("REPORT_PRETTY")
 
 	os.Exit(m.Run())
 }
@@ -107,15 +107,15 @@ func runTestWithStateStore(t *testing.T, name string, componentFactory func() st
 	props := convertMetadataToProperties(c.Spec.Metadata)
 	checkAPIConformance(t, props, store, report)
 
-	if !renderDisabled {
-		b, renderedFormat, err := report.Render(renderFormat, renderPretty)
+	if !reportDisabled {
+		b, renderedFormat, err := report.Render(reportFormat, reportPretty)
 		if err != nil {
 			panic(fmt.Sprintf("error rendering conformance report: %+v", err))
 		}
-		if renderReportDir == "" {
+		if reportDir == "" {
 			t.Logf("%+v", string(b))
 		} else {
-			reportOut := fmt.Sprintf("%s.%s", filepath.Join(renderReportDir, name), renderedFormat)
+			reportOut := fmt.Sprintf("%s.%s", filepath.Join(reportDir, componentType, name), renderedFormat)
 			if err = ioutil.WriteFile(reportOut, b, 0666); err != nil {
 				panic(fmt.Sprintf("error writing conformance report %s: %+v", reportOut, err))
 			}

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	jsonFormat := "json"
+	jsonFormat = "json"
 )
 
 type FunctionReport struct {

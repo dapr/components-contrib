@@ -44,7 +44,9 @@ const (
 	defaultCollectionName = "daprCollection"
 
 	// mongodb://<username>:<password@<host>/<database><params>
-	connectionURIFormat = "mongodb://%s:%s@%s/%s%s"
+	authenticatedConnectionURIFormat = "mongodb://%s:%s@%s/%s%s"
+	// mongodb://<host>/<database><params>
+	connectionURIFormat = "mongodb://%s/%s%s"
 )
 
 // MongoDB is a state store implementation for MongoDB
@@ -85,6 +87,8 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	m.operationTimeout = meta.operationTimeout
 
 	client, err := getMongoDBClient(meta)
 
@@ -261,14 +265,20 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 	return nil
 }
 
+func getMongoURIWithAuth(metadata *mongoDBMetadata) string {
+	return fmt.Sprintf(authenticatedConnectionURIFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
+}
+
 func getMongoURI(metadata *mongoDBMetadata) string {
-	return fmt.Sprintf(connectionURIFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
+	return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
 }
 
 func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	var uri string
 
 	if metadata.username != "" && metadata.password != "" {
+		uri = getMongoURIWithAuth(metadata)
+	} else {
 		uri = getMongoURI(metadata)
 	}
 
@@ -276,11 +286,10 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), metadata.operationTimeout)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, clientOptions)
-
 	if err != nil {
 		return nil, err
 	}
@@ -330,16 +339,12 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 	}
 
 	var err error
-	var t time.Duration
 	if val, ok := metadata.Properties[operationTimeout]; ok && val != "" {
-		t, err = time.ParseDuration(val)
+		meta.operationTimeout, err = time.ParseDuration(val)
+		if err != nil {
+			return nil, errors.New("incorrect operationTimeout field from metadata")
+		}
 	}
-
-	if err != nil {
-		return nil, errors.New("incorrect operationTimeout field from metadata")
-	}
-
-	meta.operationTimeout = t
 
 	return &meta, nil
 }

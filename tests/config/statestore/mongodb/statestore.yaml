@@ -1,0 +1,9 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mongodb
+spec:
+  type: state.mongodb
+  metadata:
+  - name: host
+    value: "127.0.0.1:27017"

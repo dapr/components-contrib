@@ -45,6 +45,7 @@ const (
 	bulkDeleteName = "bulkdelete"
 )
 
+// nolint:gochecknoglobals
 var (
 	renderDisabled  = false
 	renderReportDir = ""

@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+const (
+	jsonFormat := "json"
+)
+
 type FunctionReport struct {
 	FunctionName          string `json:"function_name"`
 	Included              bool   `json:"included"`
@@ -50,12 +54,12 @@ func (c *ComponentReport) Render(format string, pretty bool) ([]byte, string, er
 	c.Conformant = conforms
 
 	switch strings.ToLower(format) {
-	case "json":
+	case jsonFormat:
 		b, err := renderReportAsJSON(c, pretty)
-		return b, "json", err
+		return b, jsonFormat, err
 	default:
 		b, err := renderReportAsJSON(c, pretty)
-		return b, "json", err
+		return b, jsonFormat, err
 	}
 }
 

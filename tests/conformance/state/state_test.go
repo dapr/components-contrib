@@ -13,6 +13,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/aerospike"
+	"github.com/dapr/components-contrib/state/etcd"
 	"github.com/dapr/components-contrib/state/hashicorp/consul"
 	"github.com/dapr/components-contrib/state/memcached"
 	"github.com/dapr/components-contrib/state/mongodb"
@@ -30,7 +31,7 @@ type ValueType struct {
 }
 
 const (
-	maxInitDurationInMs   = 30
+	maxInitDurationInMs   = 100
 	maxSetDurationInMs    = 30
 	maxGetDurationInMs    = 30
 	maxDeleteDurationInMs = 30
@@ -99,6 +100,12 @@ func TestAerospike(t *testing.T) {
 func TestConsul(t *testing.T) {
 	runWithStateStore(t, "consul", func() state.Store {
 		return consul.NewConsulStateStore(nil)
+	})
+}
+
+func TestEtcd(t *testing.T) {
+	runWithStateStore(t, "etcd", func() state.Store {
+		return etcd.NewETCD(nil)
 	})
 }
 

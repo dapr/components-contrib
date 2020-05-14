@@ -1,43 +1,43 @@
 {
     "conformant": true,
     "component_type": "state",
-    "component_name": "mongodb",
+    "component_name": "consul",
     "functions": {
         "bulkdelete": {
             "function_name": "bulkdelete",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 57052
+            "execution_duration_in_μs": 22863
         },
         "bulkset": {
             "function_name": "bulkset",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 68762
+            "execution_duration_in_μs": 28510
         },
         "delete": {
             "function_name": "delete",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 1951
+            "execution_duration_in_μs": 1007
         },
         "get": {
             "function_name": "get",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 765
+            "execution_duration_in_μs": 1141
         },
         "init": {
             "function_name": "init",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 143
+            "execution_duration_in_μs": 44
         },
         "set": {
             "function_name": "set",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 5357
+            "execution_duration_in_μs": 1526
         }
     }
 }

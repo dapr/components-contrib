@@ -1,0 +1,11 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: etcd
+spec:
+  type: state.etcd
+  metadata:
+  - name: endpoints
+    value: localhost:2379
+  - name: dialTimeout
+    value: 5s

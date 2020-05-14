@@ -1,0 +1,43 @@
+{
+    "conformant": true,
+    "component_type": "state",
+    "component_name": "cassandra",
+    "functions": {
+        "bulkdelete": {
+            "function_name": "bulkdelete",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 16579
+        },
+        "bulkset": {
+            "function_name": "bulkset",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 17745
+        },
+        "delete": {
+            "function_name": "delete",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 57965
+        },
+        "get": {
+            "function_name": "get",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 3638
+        },
+        "init": {
+            "function_name": "init",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 17818
+        },
+        "set": {
+            "function_name": "set",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 2807
+        }
+    }
+}

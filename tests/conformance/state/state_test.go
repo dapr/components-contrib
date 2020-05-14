@@ -13,6 +13,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/aerospike"
+	"github.com/dapr/components-contrib/state/cassandra"
 	"github.com/dapr/components-contrib/state/etcd"
 	"github.com/dapr/components-contrib/state/hashicorp/consul"
 	"github.com/dapr/components-contrib/state/hazelcast"
@@ -32,7 +33,7 @@ type ValueType struct {
 }
 
 const (
-	maxInitDurationInMs   = 100
+	maxInitDurationInMs   = 1000
 	maxSetDurationInMs    = 100
 	maxGetDurationInMs    = 100
 	maxDeleteDurationInMs = 100
@@ -113,6 +114,12 @@ func TestEtcd(t *testing.T) {
 func TestHazelcast(t *testing.T) {
 	runWithStateStore(t, "hazelcast", func() state.Store {
 		return hazelcast.NewHazelcastStore(nil)
+	})
+}
+
+func TestCassandra(t *testing.T) {
+	runWithStateStore(t, "cassandra", func() state.Store {
+		return cassandra.NewCassandraStateStore(nil)
 	})
 }
 

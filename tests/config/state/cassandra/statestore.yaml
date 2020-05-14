@@ -1,0 +1,9 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: cassandra
+spec:
+  type: state.cassandra
+  metadata:
+  - name: hosts
+    value: localhost:9042

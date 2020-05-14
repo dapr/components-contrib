@@ -35,7 +35,7 @@ const (
 	maxDeleteDurationInMs = 15
 	numBulkRequests       = 15
 
-	componentType = "pubsub"
+	componentType = "state"
 
 	initName       = "init"
 	getName        = "get"

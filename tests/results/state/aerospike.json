@@ -1,0 +1,43 @@
+{
+    "conformant": true,
+    "component_type": "state",
+    "component_name": "aerospike",
+    "functions": {
+        "bulkdelete": {
+            "function_name": "bulkdelete",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 6642
+        },
+        "bulkset": {
+            "function_name": "bulkset",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 15148
+        },
+        "delete": {
+            "function_name": "delete",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 1651
+        },
+        "get": {
+            "function_name": "get",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 2243
+        },
+        "init": {
+            "function_name": "init",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 11892
+        },
+        "set": {
+            "function_name": "set",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 8363
+        }
+    }
+}

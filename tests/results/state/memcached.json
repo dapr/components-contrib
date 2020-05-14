@@ -1,0 +1,43 @@
+{
+    "conformant": true,
+    "component_type": "state",
+    "component_name": "memcached",
+    "functions": {
+        "bulkdelete": {
+            "function_name": "bulkdelete",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 7191
+        },
+        "bulkset": {
+            "function_name": "bulkset",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 8510
+        },
+        "delete": {
+            "function_name": "delete",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 626
+        },
+        "get": {
+            "function_name": "get",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 729
+        },
+        "init": {
+            "function_name": "init",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 1176
+        },
+        "set": {
+            "function_name": "set",
+            "included": true,
+            "conformed": true,
+            "execution_duration_in_μs": 647
+        }
+    }
+}

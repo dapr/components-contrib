@@ -20,6 +20,7 @@ import (
 	"github.com/dapr/components-contrib/state/memcached"
 	"github.com/dapr/components-contrib/state/mongodb"
 	"github.com/dapr/components-contrib/state/redis"
+	"github.com/dapr/components-contrib/state/zookeeper"
 	"github.com/dapr/components-contrib/tests/conformance"
 	"github.com/stretchr/testify/assert"
 
@@ -123,6 +124,12 @@ func TestCassandra(t *testing.T) {
 	})
 }
 
+func TestZookeeper(t *testing.T) {
+	runWithStateStore(t, "zookeeper", func() state.Store {
+		return zookeeper.NewZookeeperStateStore(nil)
+	})
+}
+
 func runWithStateStore(t *testing.T, name string, componentFactory func() state.Store) {
 	report := conformance.NewComponentReport(name, componentType)
 
@@ -197,7 +204,7 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 		getReq := &state.GetRequest{
 			Key: key,
 		}
-		getRes, err := statestore.Get(getReq)
+		getRes, err := statestore.Get(getReq) // nolint:govet
 		duration := time.Since(start)
 		maxDuration := time.Millisecond * time.Duration(maxGetDurationInMs)
 		counter := 0

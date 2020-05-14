@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: <NAME>
+  namespace: <NAMESPACE>
+spec:
+  type: state.zookeeper
+  metadata:
+  - name: servers
+    value: localhost:2181
+  - name: sessionTimeout
+    value: "5s"

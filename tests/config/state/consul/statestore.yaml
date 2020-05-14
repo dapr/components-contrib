@@ -1,0 +1,11 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: consul
+spec:
+  type: state.consul
+  metadata:
+  - name: datacenter
+    value: dc1
+  - name: httpAddr
+    value: localhost:8500

@@ -7,37 +7,37 @@
             "function_name": "bulkdelete",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 17032
+            "execution_duration_in_μs": 16751
         },
         "bulkset": {
             "function_name": "bulkset",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 22519
+            "execution_duration_in_μs": 19836
         },
         "delete": {
             "function_name": "delete",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 862
+            "execution_duration_in_μs": 590
         },
         "get": {
             "function_name": "get",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 757
+            "execution_duration_in_μs": 659
         },
         "init": {
             "function_name": "init",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 2426
+            "execution_duration_in_μs": 2052
         },
         "set": {
             "function_name": "set",
             "included": true,
             "conformed": true,
-            "execution_duration_in_μs": 774
+            "execution_duration_in_μs": 640
         }
     }
 }

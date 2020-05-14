@@ -13,6 +13,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/aerospike"
+	"github.com/dapr/components-contrib/state/hashicorp/consul"
 	"github.com/dapr/components-contrib/state/memcached"
 	"github.com/dapr/components-contrib/state/mongodb"
 	"github.com/dapr/components-contrib/state/redis"
@@ -72,34 +73,40 @@ func TestMain(m *testing.M) {
 }
 
 func TestRedis(t *testing.T) {
-	runTestWithStateStore(t, "redis", func() state.Store {
+	runWithStateStore(t, "redis", func() state.Store {
 		return redis.NewRedisStateStore(nil)
 	})
 }
 
 func TestMongoDB(t *testing.T) {
-	runTestWithStateStore(t, "mongodb", func() state.Store {
+	runWithStateStore(t, "mongodb", func() state.Store {
 		return mongodb.NewMongoDB(nil)
 	})
 }
 
 func TestMemcached(t *testing.T) {
-	runTestWithStateStore(t, "memcached", func() state.Store {
+	runWithStateStore(t, "memcached", func() state.Store {
 		return memcached.NewMemCacheStateStore(nil)
 	})
 }
 
 func TestAerospike(t *testing.T) {
-	runTestWithStateStore(t, "aerospike", func() state.Store {
+	runWithStateStore(t, "aerospike", func() state.Store {
 		return aerospike.NewAerospikeStateStore(nil)
 	})
 }
 
-func runTestWithStateStore(t *testing.T, name string, componentFactory func() state.Store) {
+func TestConsul(t *testing.T) {
+	runWithStateStore(t, "consul", func() state.Store {
+		return consul.NewConsulStateStore(nil)
+	})
+}
+
+func runWithStateStore(t *testing.T, name string, componentFactory func() state.Store) {
 	report := conformance.NewComponentReport(name, componentType)
 
 	store := componentFactory()
-	comps, err := loadComponents(fmt.Sprintf("../../config/statestore/%s", name))
+	comps, err := loadComponents(fmt.Sprintf("../../config/state/%s", name))
 	assert.Nil(t, err)
 	assert.Equal(t, len(comps), 1) // We only expect a single component per state store
 

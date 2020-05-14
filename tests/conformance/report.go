@@ -43,7 +43,7 @@ func (c *ComponentReport) AddFunctionReport(fr *FunctionReport) {
 func (c *ComponentReport) Render(format string, pretty bool) ([]byte, string, error) {
 	conforms := true
 	for _, f := range c.Functions {
-		if !f.Conformant {
+		if !f.Conformant && f.Included {
 			conforms = false
 		}
 	}

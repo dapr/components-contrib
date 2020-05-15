@@ -23,8 +23,6 @@ const (
 	maxGetDurationInMs    = 10
 	maxDeleteDurationInMs = 10
 	numBulkRequests       = 10
-
-	componentType = "state"
 )
 
 /*
@@ -91,7 +89,7 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		start := time.Now()
 		getRes, err := statestore.Get(getReq) // nolint:govet
 		elapsed := time.Since(start)
-		maxElapsed := time.Millisecond * time.Duration(maxSetDurationInMs)
+		maxElapsed := time.Millisecond * time.Duration(maxGetDurationInMs)
 		assert.Nil(t, err)
 		assert.Equal(t, value, getRes.Data)
 		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
@@ -131,7 +129,7 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		start := time.Now()
 		err := statestore.BulkSet(bulkSetReqs)
 		elapsed := time.Since(start)
-		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
+		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests) // assumes at least linear scale
 		assert.Nil(t, err)
 		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
 			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
@@ -150,7 +148,7 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		start := time.Now()
 		err := statestore.BulkDelete(bulkDeleteReqs)
 		elapsed := time.Since(start)
-		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
+		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests) // assumes at least linear scale
 		assert.Nil(t, err)
 		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
 			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())

@@ -15,18 +15,20 @@ import (
 type PostgreSQL struct {
 	logger		logger.Logger
 	dbaccess	dbAccess
+	metadata	state.Metadata
 }
 
-// NewPostgreSQLStateStore creates a new instance of a PostgreSQL state store
+// NewPostgreSQLStateStore creates a new instance of a PostgreSQL state store banana
 func NewPostgreSQLStateStore(dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
 		logger:		dba.Logger(),
+		metadata:   dba.Metadata(),
 		dbaccess:	dba,
 	}
 }
 
 // Init initializes the SQL server state store
-func (p *PostgreSQL) Init(metadata *state.Metadata) error {
+func (p *PostgreSQL) Init(metadata state.Metadata) error {
 	return p.dbaccess.Init(metadata)
 }
 
@@ -64,6 +66,15 @@ func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// Close implements io.Closer
+func (p *PostgreSQL) Close() error {
+	if p.dbaccess != nil {
+		return p.dbaccess.Close()
 	}
 
 	return nil

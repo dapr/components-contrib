@@ -22,8 +22,71 @@ const (
 	databaseName = "dapr_test"
 )
 
-func TestInitConfiguration(t *testing.T) {
+func TestPostgreSQLIntegration (t *testing.T) {
+	connectionString := getConnectionString()
+	if connectionString == "" {
+		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+	}
+
+	metadata := &state.Metadata{
+		Properties: map[string]string{connectionStringKey: connectionString,},
+	}
 	
+	pgs := NewPostgreSQLStateStore(NewPostgresDBAccess(logger.NewLogger("test")))
+	defer pgs.Close()
+
+	error := pgs.Init(*metadata)
+	if error != nil {
+		t.Fatal(error)
+	}
+
+	// Can set and get an item.
+	t.Run("Get Set Delete one item", func(t *testing.T) {
+		key := uuid.New().String()
+		value := `{"something": "somevalue"}`
+		setItem(t, pgs, key, value)
+		getResponse := getItem(t, pgs, key)
+		assert.Equal(t, value, string(getResponse.Data))
+		deleteItem(t, pgs, key)
+	})
+
+	// When an item does not exist, get should return a response with Data set to nil.
+	t.Run("Get item that does not exist", func(t *testing.T) {
+		key := uuid.New().String()
+		response := getItem(t, pgs, key)
+		assert.Nil(t, response.Data)
+	})
+
+	// Insert date and update date are correctly set and updated in the database
+	t.Run("Set updates the updatedate field", func(t *testing.T) {
+		key := uuid.New().String()
+		value := `{"something": "somevalue"}`
+		setItem(t, pgs, key, value)
+		
+		// insertdate should have a value and updatedate should be nil
+		retrievedValue, insertdate, updatedate := getRowData(t, key)
+		assert.Equal(t, value, retrievedValue)
+		assert.NotNil(t, insertdate)
+		assert.Equal(t, "", updatedate.String)
+
+		// insertdate should not change, updatedate should have a value
+		value = `{"newthing": "newvalue"}`
+		setItem(t, pgs, key, value)
+		retrievedValue, newinsertdate, updatedate := getRowData(t, key)
+		assert.Equal(t, value, retrievedValue)
+		assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
+		assert.NotEqual(t, "", updatedate.String)
+		
+		deleteItem(t, pgs, key)
+	})
+}
+
+func TestInitConfiguration(t *testing.T) {
+	connectionString := getConnectionString()
+	if connectionString == "" {
+		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+	}
+
 	logger := logger.NewLogger("test")
 	tests := []struct {
 		name        string
@@ -50,8 +113,9 @@ func TestInitConfiguration(t *testing.T) {
 			}
 
 			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
+			defer p.Close()
 
-			err := p.Init(metadata)
+			err := p.Init(*metadata)
 			if tt.expectedErr == "" {
 				assert.Nil(t, err)
 			} else {
@@ -62,85 +126,64 @@ func TestInitConfiguration(t *testing.T) {
 	}
 }
 
-func TestDBIsValid(t *testing.T) {
-	connectionString := getConnectionString()
-	if connectionString == "" {
-		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
-	}
-
-	db, err := sql.Open("pgx", connectionString)
-	assert.Nil(t, err)
-	
-	defer db.Close()
-	err = db.Ping()
-	assert.Nil(t, err)
+func getConnectionString() string {
+	return os.Getenv(connectionStringEnvKey)
 }
 
-func TestSetGetDelete(t *testing.T) {
-	
-	key := uuid.New().String()
-	
-	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: getConnectionString(),},
-	}
-
-	pgs := getNewPostgreSQLStore()
-	pgs.Init(metadata)
-
+func setItem(t *testing.T, pgs *PostgreSQL, key string, value string) {
 	setReq := &state.SetRequest{
 		Key: key,
-		Metadata: metadata.Properties,
-		Value: `{"something": "somevalue"}`,
+		Metadata: pgs.metadata.Properties,
+		Value: value,
 	}
 
-	// Set
 	err := pgs.Set(setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, key))
+}
 
-	// Get
+func getItem (t *testing.T, pgs *PostgreSQL, key string) *state.GetResponse {
 	getReq := &state.GetRequest{
 		Key: key,
-		Metadata: metadata.Properties,
+		Metadata: pgs.metadata.Properties,
 		Options: state.GetStateOption{},
 	}
 	
-	getResponse, getErr := pgs.Get(getReq)
-	assert.NotNil(t, getResponse)
+	response, getErr := pgs.Get(getReq)
 	assert.Nil(t, getErr)
+	assert.NotNil(t, response)
+	return response
+}
 
-	// Delete
+func deleteItem (t *testing.T, pgs *PostgreSQL, key string) {
 	deleteReq := &state.DeleteRequest{
 		Key: key,
-		Metadata: metadata.Properties,
+		Metadata: pgs.metadata.Properties,
 		Options: state.DeleteStateOption{},
 	}
 
 	deleteErr := pgs.Delete(deleteReq)
 	assert.Nil(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
-
-}
-
-func getConnectionString() string {
-	return os.Getenv(connectionStringEnvKey)
-}
-
-func getDbConnection(t *testing.T) *sql.DB {
-	db, err := sql.Open("pgx", getConnectionString())
-	assert.Nil(t, err)
-	return db
-}
-
-func getNewPostgreSQLStore() *PostgreSQL {
-	logger := logger.NewLogger("test")
-	return NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
 }
 
 func storeItemExists(t *testing.T, key string) bool {
+	db, err := sql.Open("pgx", getConnectionString())
+	assert.Nil(t, err)
+	defer db.Close()
+	
 	var exists bool = false
 	statement := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %s WHERE key = $1)`, tableName)
-	err := getDbConnection(t).QueryRow(statement, key).Scan(&exists)
+	err = db.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)
 	return exists
+}
+
+func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.NullString, updatedate sql.NullString) {
+	db, err := sql.Open("pgx", getConnectionString())
+	assert.Nil(t, err)
+	defer db.Close()
+
+	err = db.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	return returnValue, insertdate, updatedate
 }

@@ -4,12 +4,13 @@
 // ------------------------------------------------------------
 
 // PostgreSQL implementation notes:
-// - sql.DB methods provide limited support for parameter substitution, so in 
-//   some cases fmt.Sprintf is used to replace values, e.g. table names.
-// - TODO: Insert/Update time
 // - TODO: ETag for concurrency
-// - TODO: Would the connection string change after Init is called?
+// - TODO: Implement consistency flags
+// - TODO: Implement transactions
 // - TODO: Rename the dbaccess interface and the variable that stores it
+// - TODO: Run linter
+// - TODO: Verify that postgresql naming conventions were followed
+// - TODO: Implement benchmark tests
 
 package postgresql
 
@@ -30,6 +31,7 @@ const (
 // PostgresDBAccess implements dbaccess
 type PostgresDBAccess struct {
 	logger				logger.Logger
+	metadata 			state.Metadata
 	db					*sql.DB
 	connectionString	string
 }
@@ -46,14 +48,21 @@ func (p *PostgresDBAccess) Logger() logger.Logger {
 	return p.logger
 }
 
+// Metadata returns an instance of logger.Logger
+func (p *PostgresDBAccess) Metadata() state.Metadata {
+	return p.metadata
+}
+
 // Init sets up PostgreSQL connection and ensures that the state table exists
-func (p *PostgresDBAccess) Init(metadata *state.Metadata) (error) {
+func (p *PostgresDBAccess) Init(metadata state.Metadata) (error) {
+	p.metadata = metadata
+
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
 		p.connectionString = val
 	} else {
 		return fmt.Errorf(errMissingConnectionString)
 	}
-
+	
 	db, err := sql.Open("pgx", p.connectionString)
 	if err != nil {
 		return err
@@ -81,21 +90,25 @@ func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
 	// however, sql.DB parameter substitution is also used to prevent injection attacks.
 	_, err := p.db.Exec(fmt.Sprintf(
 		`INSERT INTO %s (key, value) VALUES ($1, $2)
-		 ON CONFLICT (key) DO UPDATE SET value = $2;`, 
+		 ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`, 
 				tableName), req.Key, req.Value)
 
 	return err
 }
 
-// Get returns data from the database.
+// Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	
 	var value string
-	err := p.db.QueryRow("SELECT value FROM state WHERE key = $1", req.Key).Scan(&value)
+	err := p.db.QueryRow(fmt.Sprintf("SELECT value FROM %s WHERE key = $1", tableName), req.Key).Scan(&value)
 	if err != nil {
+		// If no rows exist, return an empty response, otherwise return the error.
+		if err == sql.ErrNoRows {
+			return &state.GetResponse{}, nil
+		}
 		return nil, err
 	}
-
+	
 	response := &state.GetResponse{
 		Data: []byte(value),
 		ETag: "",
@@ -116,6 +129,15 @@ func (p *PostgresDBAccess) Delete(req *state.DeleteRequest) (error) {
 	return nil
 } 
 
+// Close implements io.Close
+func (p *PostgresDBAccess) Close() error {
+	if p.db != nil {
+		return p.db.Close()
+	}
+
+	return nil
+}
+
 func (p *PostgresDBAccess) ensureStateTable() (error) {
 	var exists bool = false
 	err := p.db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
@@ -126,7 +148,9 @@ func (p *PostgresDBAccess) ensureStateTable() (error) {
 	if !exists {
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 									key varchar(200) NOT NULL PRIMARY KEY,
-									value json NOT NULL);`, tableName)
+									value json NOT NULL,
+									insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+									updatedate TIMESTAMP WITH TIME ZONE NULL);`, tableName)
 		_, err = p.db.Exec(createTable)
 		if err != nil {
 			return err

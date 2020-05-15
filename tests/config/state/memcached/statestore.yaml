@@ -1,9 +1,0 @@
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: memcached
-spec:
-  type: state.memcached
-  metadata:
-  - name: hosts
-    value: "localhost:11211"

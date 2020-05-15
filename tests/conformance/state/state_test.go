@@ -3,30 +3,14 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"math/rand"
 	"testing"
 	"time"
 
-	"math/rand"
-
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/aerospike"
-	"github.com/dapr/components-contrib/state/cassandra"
-	"github.com/dapr/components-contrib/state/etcd"
-	"github.com/dapr/components-contrib/state/hashicorp/consul"
-	"github.com/dapr/components-contrib/state/hazelcast"
-	"github.com/dapr/components-contrib/state/memcached"
-	"github.com/dapr/components-contrib/state/mongodb"
 	"github.com/dapr/components-contrib/state/redis"
-	"github.com/dapr/components-contrib/state/zookeeper"
 	"github.com/dapr/components-contrib/tests/conformance"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
-	"github.com/dapr/dapr/pkg/components"
-	config "github.com/dapr/dapr/pkg/config/modes"
 )
 
 type ValueType struct {
@@ -41,132 +25,39 @@ const (
 	numBulkRequests       = 10
 
 	componentType = "state"
-
-	initName       = "init"
-	getName        = "get"
-	setName        = "set"
-	deleteName     = "delete"
-	bulkSetName    = "bulkset"
-	bulkDeleteName = "bulkdelete"
 )
 
-// nolint:gochecknoglobals
-var (
-	reportDisabled = false
-	reportDir      = ""
-	reportPretty   = false
-	reportFormat   = ""
-)
-
-func newKey(length int) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyz")
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
-}
-
-func TestMain(m *testing.M) {
-	_, reportDisabled = os.LookupEnv("REPORT_DISABLE")
-	reportDir = os.Getenv("REPORT_RESULTS_DIR")
-	reportFormat = os.Getenv("REPORT_FORMAT")
-	_, reportPretty = os.LookupEnv("REPORT_PRETTY")
-
-	os.Exit(m.Run())
-}
-
+/*
+	State store component tests
+*/
 func TestRedis(t *testing.T) {
 	runWithStateStore(t, "redis", func() state.Store {
 		return redis.NewRedisStateStore(nil)
 	})
 }
 
-func TestMongoDB(t *testing.T) {
-	runWithStateStore(t, "mongodb", func() state.Store {
-		return mongodb.NewMongoDB(nil)
-	})
-}
-
-func TestMemcached(t *testing.T) {
-	runWithStateStore(t, "memcached", func() state.Store {
-		return memcached.NewMemCacheStateStore(nil)
-	})
-}
-
-func TestAerospike(t *testing.T) {
-	runWithStateStore(t, "aerospike", func() state.Store {
-		return aerospike.NewAerospikeStateStore(nil)
-	})
-}
-
-func TestConsul(t *testing.T) {
-	runWithStateStore(t, "consul", func() state.Store {
-		return consul.NewConsulStateStore(nil)
-	})
-}
-
-func TestEtcd(t *testing.T) {
-	runWithStateStore(t, "etcd", func() state.Store {
-		return etcd.NewETCD(nil)
-	})
-}
-
-func TestHazelcast(t *testing.T) {
-	runWithStateStore(t, "hazelcast", func() state.Store {
-		return hazelcast.NewHazelcastStore(nil)
-	})
-}
-
-func TestCassandra(t *testing.T) {
-	runWithStateStore(t, "cassandra", func() state.Store {
-		return cassandra.NewCassandraStateStore(nil)
-	})
-}
-
-func TestZookeeper(t *testing.T) {
-	runWithStateStore(t, "zookeeper", func() state.Store {
-		return zookeeper.NewZookeeperStateStore(nil)
-	})
-}
-
 func runWithStateStore(t *testing.T, name string, componentFactory func() state.Store) {
-	report := conformance.NewComponentReport(name, componentType)
-
 	store := componentFactory()
-	comps, err := loadComponents(fmt.Sprintf("../../config/state/%s", name))
+	comps, err := conformance.LoadComponents(fmt.Sprintf("../../config/state/%s", name))
 	assert.Nil(t, err)
 	assert.Equal(t, len(comps), 1) // We only expect a single component per state store
 
 	c := comps[0]
-	props := convertMetadataToProperties(c.Spec.Metadata)
-	checkAPIConformance(t, props, store, report)
-
-	if !reportDisabled {
-		b, renderedFormat, err := report.Render(reportFormat, reportPretty)
-		if err != nil {
-			panic(fmt.Sprintf("error rendering conformance report: %+v", err))
-		}
-		if reportDir == "" {
-			t.Logf("%+v", string(b))
-		} else {
-			reportOut := fmt.Sprintf("%s.%s", filepath.Join(reportDir, componentType, name), renderedFormat)
-			if err = ioutil.WriteFile(reportOut, b, 0666); err != nil {
-				panic(fmt.Sprintf("error writing conformance report %s: %+v", reportOut, err))
-			}
-		}
-	}
+	props := conformance.ConvertMetadataToProperties(c.Spec.Metadata)
+	// Run the state store conformance tests
+	stateStoreConformanceTests(t, props, store)
 }
 
-func checkAPIConformance(t *testing.T, props map[string]string, statestore state.Store, report *conformance.ComponentReport) {
+func stateStoreConformanceTests(t *testing.T, props map[string]string, statestore state.Store) {
+	// Test vars
 	rand.Seed(time.Now().Unix())
-	key := newKey(8)
+	key := conformance.NewRandString(8)
 	b, err := json.Marshal(ValueType{Message: "test"})
 	assert.Nil(t, err)
 	value := b
 
 	// Init
-	t.Run(initName, func(t *testing.T) {
+	t.Run("init", func(t *testing.T) {
 		start := time.Now()
 		err = statestore.Init(state.Metadata{
 			Properties: props,
@@ -175,11 +66,10 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 		maxDuration := time.Millisecond * time.Duration(maxInitDurationInMs)
 		assert.Nil(t, err)
 		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
-		report.AddFunctionReport(conformance.NewFunctionReport(initName, duration.Microseconds(), true))
 	})
 
 	// Set
-	t.Run(setName, func(t *testing.T) {
+	t.Run("set", func(t *testing.T) {
 		start := time.Now()
 		setReq := &state.SetRequest{
 			Key:   key,
@@ -195,11 +85,10 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
 			counter++
 		}
-		report.AddFunctionReport(conformance.NewFunctionReport(setName, duration.Microseconds(), counter == 2))
 	})
 
 	// Get
-	t.Run(getName, func(t *testing.T) {
+	t.Run("get", func(t *testing.T) {
 		start := time.Now()
 		getReq := &state.GetRequest{
 			Key: key,
@@ -217,11 +106,10 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
 			counter++
 		}
-		report.AddFunctionReport(conformance.NewFunctionReport(getName, duration.Microseconds(), counter == 3))
 	})
 
 	// Delete
-	t.Run(deleteName, func(t *testing.T) {
+	t.Run("delete", func(t *testing.T) {
 		start := time.Now()
 		delReq := &state.DeleteRequest{
 			Key: key,
@@ -236,9 +124,9 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
 			counter++
 		}
-		report.AddFunctionReport(conformance.NewFunctionReport(deleteName, duration.Microseconds(), counter == 2))
 	})
 
+	// Bulk test vars
 	var bulkSetReqs []state.SetRequest
 	var bulkDeleteReqs []state.DeleteRequest
 	for k := 0; k < numBulkRequests; k++ {
@@ -253,7 +141,7 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 	}
 
 	// BulkSet
-	t.Run(bulkSetName, func(t *testing.T) {
+	t.Run("bulkset", func(t *testing.T) {
 		start := time.Now()
 		err = statestore.BulkSet(bulkSetReqs)
 		duration := time.Since(start)
@@ -274,12 +162,11 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 			if assert.Nil(t, err) {
 				counter++
 			}
-			report.AddFunctionReport(conformance.NewFunctionReport(bulkSetName, duration.Microseconds(), counter == numBulkRequests+2))
 		}
 	})
 
 	// BulkDelete
-	t.Run(bulkDeleteName, func(t *testing.T) {
+	t.Run("bulkdelete", func(t *testing.T) {
 		start := time.Now()
 		err = statestore.BulkDelete(bulkDeleteReqs)
 		duration := time.Since(start)
@@ -291,26 +178,5 @@ func checkAPIConformance(t *testing.T, props map[string]string, statestore state
 		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
 			counter++
 		}
-		report.AddFunctionReport(conformance.NewFunctionReport(bulkDeleteName, duration.Microseconds(), counter == 2))
 	})
-}
-
-func loadComponents(componentPath string) ([]v1alpha1.Component, error) {
-	cfg := config.StandaloneConfig{
-		ComponentsPath: componentPath,
-	}
-	standaloneComps := components.NewStandaloneComponents(cfg)
-	components, err := standaloneComps.LoadComponents()
-	if err != nil {
-		return nil, err
-	}
-	return components, nil
-}
-
-func convertMetadataToProperties(items []v1alpha1.MetadataItem) map[string]string {
-	properties := map[string]string{}
-	for _, c := range items {
-		properties[c.Name] = c.Value
-	}
-	return properties
 }

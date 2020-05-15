@@ -78,13 +78,8 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		err = statestore.Set(setReq)
 		duration := time.Since(start)
 		maxDuration := time.Millisecond * time.Duration(maxSetDurationInMs)
-		counter := 0
-		if assert.Nil(t, err) {
-			counter++
-		}
-		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
-			counter++
-		}
+		assert.Nil(t, err)
+		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
 	})
 
 	// Get
@@ -96,16 +91,9 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		getRes, err := statestore.Get(getReq) // nolint:govet
 		duration := time.Since(start)
 		maxDuration := time.Millisecond * time.Duration(maxGetDurationInMs)
-		counter := 0
-		if assert.Nil(t, err) {
-			counter++
-		}
-		if assert.Equal(t, value, getRes.Data) {
-			counter++
-		}
-		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
-			counter++
-		}
+		assert.Nil(t, err)
+		assert.Equal(t, value, getRes.Data)
+		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
 	})
 
 	// Delete
@@ -117,13 +105,8 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		err = statestore.Delete(delReq)
 		duration := time.Since(start)
 		maxDuration := time.Millisecond * time.Duration(maxDeleteDurationInMs)
-		counter := 0
-		if assert.Nil(t, err) {
-			counter++
-		}
-		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
-			counter++
-		}
+		assert.Nil(t, err)
+		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
 	})
 
 	// Bulk test vars
@@ -146,22 +129,15 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		err = statestore.BulkSet(bulkSetReqs)
 		duration := time.Since(start)
 		maxDuration := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
-		counter := 0
-		if assert.Nil(t, err) {
-			counter++
-		}
-		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
-			counter++
-		}
+		assert.Nil(t, err)
+		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
 		for k := 0; k < numBulkRequests; k++ {
 			bkey := fmt.Sprintf("%s-%d", key, k)
 			greq := &state.GetRequest{
 				Key: bkey,
 			}
 			_, err = statestore.Get(greq)
-			if assert.Nil(t, err) {
-				counter++
-			}
+			assert.Nil(t, err)
 		}
 	})
 
@@ -171,12 +147,7 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 		err = statestore.BulkDelete(bulkDeleteReqs)
 		duration := time.Since(start)
 		maxDuration := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
-		counter := 0
-		if assert.Nil(t, err) {
-			counter++
-		}
-		if assert.Less(t, duration.Microseconds(), maxDuration.Microseconds()) {
-			counter++
-		}
+		assert.Nil(t, err)
+		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
 	})
 }

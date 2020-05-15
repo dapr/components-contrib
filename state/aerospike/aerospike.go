@@ -120,14 +120,11 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	}
 
 	data := make(map[string]interface{})
-	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = json.Marshal(req.Value)
+	arr, err := json.Marshal(req.Value)
+	if err != nil {
+		return err
 	}
-	err = json.Unmarshal(bt, &data)
+	err = json.Unmarshal(arr, &data)
 	if err != nil {
 		return err
 	}

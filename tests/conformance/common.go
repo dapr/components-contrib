@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"math/rand"
+	"time"
 
 	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
 	"github.com/dapr/dapr/pkg/components"
@@ -29,6 +30,7 @@ func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) map[string]strin
 }
 
 func NewRandString(length int) string {
+	rand.Seed(time.Now().Unix())
 	var letters = []rune("abcdefghijklmnopqrstuvwxyz")
 	b := make([]rune, length)
 	for i := range b {

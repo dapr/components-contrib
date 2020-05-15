@@ -3,7 +3,6 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -48,7 +47,6 @@ func runWithStateStore(t *testing.T, name string, componentFactory func() state.
 
 func stateStoreConformanceTests(t *testing.T, props map[string]string, statestore state.Store) {
 	// Test vars
-	rand.Seed(time.Now().Unix())
 	key := conformance.NewRandString(8)
 	b, _ := json.Marshal(ValueType{Message: "test"})
 	value := b

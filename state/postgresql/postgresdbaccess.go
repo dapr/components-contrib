@@ -11,6 +11,7 @@
 // - TODO: Run linter
 // - TODO: Verify that postgresql naming conventions were followed
 // - TODO: Implement benchmark tests
+// - TODO: Find out constraints on key size
 
 package postgresql
 

@@ -19,8 +19,53 @@ import (
 
 const (
 	connectionStringEnvKey = "DAPR_TEST_POSTGRES_CONNSTRING" // Environment variable containing the connection string
-	databaseName = "dapr_test"
 )
+
+
+func TestInitConfiguration(t *testing.T) {
+	connectionString := getConnectionString()
+	if connectionString == "" {
+		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+	}
+
+	logger := logger.NewLogger("test")
+	tests := []struct {
+		name        string
+		props       map[string]string
+		expectedErr string
+	}{
+		{
+			name:        "Empty",
+			props:       map[string]string{},
+			expectedErr: errMissingConnectionString,
+		},
+		{
+			name:        "Valid connection string",
+			props:       map[string]string{connectionStringKey: getConnectionString(),},
+			expectedErr: "",
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			
+			metadata := &state.Metadata{
+				Properties: tt.props,
+			}
+
+			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
+			defer p.Close()
+
+			err := p.Init(*metadata)
+			if tt.expectedErr == "" {
+				assert.Nil(t, err)
+			} else {
+				assert.NotNil(t, err)
+				assert.Equal(t, err.Error(), tt.expectedErr)
+			}
+		})
+	}
+}
 
 func TestPostgreSQLIntegration (t *testing.T) {
 	connectionString := getConnectionString()
@@ -79,51 +124,42 @@ func TestPostgreSQLIntegration (t *testing.T) {
 		
 		deleteItem(t, pgs, key)
 	})
-}
 
-func TestInitConfiguration(t *testing.T) {
-	connectionString := getConnectionString()
-	if connectionString == "" {
-		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
-	}
+	t.Run("Bulk set and bulk delete", func(t *testing.T){
+		setReq := []state.SetRequest {
+			{
+				Key: uuid.New().String(),
+				Metadata: pgs.metadata.Properties,
+				Value: `{"request1": "value1"}`,
+			},
+			{
+				Key: uuid.New().String(),
+				Metadata: pgs.metadata.Properties,
+				Value: `{"request2": "value2"}`,
+			},
+		}
 
-	logger := logger.NewLogger("test")
-	tests := []struct {
-		name        string
-		props       map[string]string
-		expectedErr string
-	}{
-		{
-			name:        "Empty",
-			props:       map[string]string{},
-			expectedErr: errMissingConnectionString,
-		},
-		{
-			name:        "Valid connection string",
-			props:       map[string]string{connectionStringKey: getConnectionString(),},
-			expectedErr: "",
-		},
-	}
-	
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			
-			metadata := &state.Metadata{
-				Properties: tt.props,
-			}
+		err := pgs.BulkSet(setReq)
+		assert.Nil(t, err)
+		assert.True(t, storeItemExists(t, setReq[0].Key))
+		assert.True(t, storeItemExists(t, setReq[1].Key))
 
-			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
-			defer p.Close()
+		deleteReq := []state.DeleteRequest {
+			{
+				Key: setReq[0].Key,
+				Metadata: pgs.metadata.Properties,
+			},
+			{
+				Key: setReq[1].Key,
+				Metadata: pgs.metadata.Properties,
+			},
+		}
 
-			err := p.Init(*metadata)
-			if tt.expectedErr == "" {
-				assert.Nil(t, err)
-			} else {
-				assert.NotNil(t, err)
-				assert.Equal(t, err.Error(), tt.expectedErr)
-			}
-		})
-	}
+		err = pgs.BulkDelete(deleteReq)
+		assert.Nil(t, err)
+		assert.False(t, storeItemExists(t, setReq[0].Key))
+		assert.False(t, storeItemExists(t, setReq[1].Key))
+	})
 }
 
 func getConnectionString() string {

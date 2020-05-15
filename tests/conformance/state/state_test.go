@@ -18,10 +18,10 @@ type ValueType struct {
 }
 
 const (
-	maxInitDurationInMs   = 1000
-	maxSetDurationInMs    = 100
-	maxGetDurationInMs    = 100
-	maxDeleteDurationInMs = 100
+	maxInitDurationInMs   = 10
+	maxSetDurationInMs    = 10
+	maxGetDurationInMs    = 10
+	maxDeleteDurationInMs = 10
 	numBulkRequests       = 10
 
 	componentType = "state"
@@ -52,61 +52,64 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 	// Test vars
 	rand.Seed(time.Now().Unix())
 	key := conformance.NewRandString(8)
-	b, err := json.Marshal(ValueType{Message: "test"})
-	assert.Nil(t, err)
+	b, _ := json.Marshal(ValueType{Message: "test"})
 	value := b
 
 	// Init
 	t.Run("init", func(t *testing.T) {
 		start := time.Now()
-		err = statestore.Init(state.Metadata{
+		err := statestore.Init(state.Metadata{
 			Properties: props,
 		})
-		duration := time.Since(start)
-		maxDuration := time.Millisecond * time.Duration(maxInitDurationInMs)
+		elapsed := time.Since(start)
+		maxElapsed := time.Millisecond * time.Duration(maxInitDurationInMs)
 		assert.Nil(t, err)
-		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
+		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
 	})
 
 	// Set
 	t.Run("set", func(t *testing.T) {
-		start := time.Now()
 		setReq := &state.SetRequest{
 			Key:   key,
 			Value: value,
 		}
-		err = statestore.Set(setReq)
-		duration := time.Since(start)
-		maxDuration := time.Millisecond * time.Duration(maxSetDurationInMs)
+		start := time.Now()
+		err := statestore.Set(setReq)
+		elapsed := time.Since(start)
+		maxElapsed := time.Millisecond * time.Duration(maxSetDurationInMs)
 		assert.Nil(t, err)
-		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
+		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
 	})
 
 	// Get
 	t.Run("get", func(t *testing.T) {
-		start := time.Now()
 		getReq := &state.GetRequest{
 			Key: key,
 		}
+		start := time.Now()
 		getRes, err := statestore.Get(getReq) // nolint:govet
-		duration := time.Since(start)
-		maxDuration := time.Millisecond * time.Duration(maxGetDurationInMs)
+		elapsed := time.Since(start)
+		maxElapsed := time.Millisecond * time.Duration(maxSetDurationInMs)
 		assert.Nil(t, err)
 		assert.Equal(t, value, getRes.Data)
-		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
+		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
 	})
 
 	// Delete
 	t.Run("delete", func(t *testing.T) {
-		start := time.Now()
 		delReq := &state.DeleteRequest{
 			Key: key,
 		}
-		err = statestore.Delete(delReq)
-		duration := time.Since(start)
-		maxDuration := time.Millisecond * time.Duration(maxDeleteDurationInMs)
+		start := time.Now()
+		err := statestore.Delete(delReq)
+		elapsed := time.Since(start)
+		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs)
 		assert.Nil(t, err)
-		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
+		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
 	})
 
 	// Bulk test vars
@@ -126,11 +129,12 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 	// BulkSet
 	t.Run("bulkset", func(t *testing.T) {
 		start := time.Now()
-		err = statestore.BulkSet(bulkSetReqs)
-		duration := time.Since(start)
-		maxDuration := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
+		err := statestore.BulkSet(bulkSetReqs)
+		elapsed := time.Since(start)
+		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
 		assert.Nil(t, err)
-		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
+		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
 		for k := 0; k < numBulkRequests; k++ {
 			bkey := fmt.Sprintf("%s-%d", key, k)
 			greq := &state.GetRequest{
@@ -144,10 +148,11 @@ func stateStoreConformanceTests(t *testing.T, props map[string]string, statestor
 	// BulkDelete
 	t.Run("bulkdelete", func(t *testing.T) {
 		start := time.Now()
-		err = statestore.BulkDelete(bulkDeleteReqs)
-		duration := time.Since(start)
-		maxDuration := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
+		err := statestore.BulkDelete(bulkDeleteReqs)
+		elapsed := time.Since(start)
+		maxElapsed := time.Millisecond * time.Duration(maxDeleteDurationInMs*numBulkRequests)
 		assert.Nil(t, err)
-		assert.Less(t, duration.Microseconds(), maxDuration.Microseconds())
+		assert.Less(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
 	})
 }

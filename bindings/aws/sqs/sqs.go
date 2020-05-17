@@ -126,7 +126,6 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-
 	awsConfig := aws.NewConfig()
 
 	if metadata.Region != "" {

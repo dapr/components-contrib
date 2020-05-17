@@ -129,12 +129,8 @@ func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
 	awsConfig := aws.NewConfig().WithRegion(metadata.Region)
 
 	if metadata.AccessKey != "" && metadata.SecretKey != "" {
-		// a.logger.Debug("Configuring AWS session with explicit credentials")
 		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""))
-	} else {
-		// a.logger.Debug("Configuring AWS session with implicit credentials")
 	}
-
 
 	sess, err := session.NewSession(awsConfig)
 	if err != nil {

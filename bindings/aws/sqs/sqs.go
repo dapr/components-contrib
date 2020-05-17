@@ -126,7 +126,13 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	awsConfig := aws.NewConfig().WithRegion(metadata.Region)
+
+	awsConfig := aws.NewConfig()
+
+	if metadata.Region != "" {
+		awsConfig = awsConfig.WithRegion(metadata.Region)
+	}
+
 
 	if metadata.AccessKey != "" && metadata.SecretKey != "" {
 		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""))

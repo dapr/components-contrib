@@ -12,12 +12,16 @@
 // - TODO: Verify that postgresql naming conventions were followed
 // - TODO: Implement benchmark tests
 // - TODO: Find out constraints on key size
+// - TODO: Parameter validation for request structs
 
 package postgresql
 
 import (
-	"fmt"
 	"database/sql"
+	"errors"
+	"fmt"
+	"strconv"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -87,21 +91,39 @@ func (p *PostgresDBAccess) Init(metadata state.Metadata) (error) {
 // Set makes an insert or update to the database.
 func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
 	
-	// Sprintf is required for table name because sql.DB does not substitue parameters for table names,
-	// however, sql.DB parameter substitution is also used to prevent injection attacks.
-	_, err := p.db.Exec(fmt.Sprintf(
-		`INSERT INTO %s (key, value) VALUES ($1, $2)
-		 ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`, 
-				tableName), req.Key, req.Value)
+	var result sql.Result
+	var err error
 
-	return err
+	// Sprintf is required for table name because sql.DB does not substitue parameters for table names.
+	// Other parameters use sql.DB parameter substitution.
+	if req.ETag == "" {
+		result, err = p.db.Exec(fmt.Sprintf(
+			`INSERT INTO %s (key, value) VALUES ($1, $2)
+			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`, 
+			tableName), req.Key, req.Value)
+	} else {
+		// Convert req.ETag to integer for postgres compatibility
+		etag, conversionError := strconv.Atoi(req.ETag)
+		if(conversionError != nil) {
+			return conversionError
+		}
+
+		// When an etag is provided do an update - no insert
+		result, err = p.db.Exec(fmt.Sprintf(
+			`UPDATE %s SET value = $1, updatedate = NOW() 
+			 WHERE key = $2 AND xmin = $3;`, 
+			tableName), req.Value, req.Key, etag)
+	}
+
+	return returnSingleDbResult(result, err)
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	
 	var value string
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value FROM %s WHERE key = $1", tableName), req.Key).Scan(&value)
+	var etag int
+	err := p.db.QueryRow(fmt.Sprintf("SELECT value, xmin as etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -112,7 +134,7 @@ func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 	
 	response := &state.GetResponse{
 		Data: []byte(value),
-		ETag: "",
+		ETag: strconv.Itoa(etag),
 		Metadata: req.Metadata,
 	}
 
@@ -122,13 +144,48 @@ func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 // Delete removes an item from the state store.
 func (p *PostgresDBAccess) Delete(req *state.DeleteRequest) (error) {
 
-	_, err := p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
+	var result sql.Result
+	var err error
+
+	if(req.ETag == "") {
+		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
+	} else {
+		
+		// Convert req.ETag to integer for postgres compatibility
+		etag, conversionError := strconv.Atoi(req.ETag)
+		if(conversionError != nil) {
+			return conversionError
+		}
+
+		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
+	}
+
+	return returnSingleDbResult(result, err)
+} 
+
+// Verifies that the sql.Result affected only one row and no errors exist
+func returnSingleDbResult(result sql.Result, err error) error {
+	
 	if err != nil {
 		return err
+	} 
+
+	rowsAffected, resultErr := result.RowsAffected()
+	
+	if resultErr != nil {
+		return resultErr
+	}
+	
+	if rowsAffected == 0 {
+		return errors.New("database operation failed: no rows match given criteria")
+	}
+
+	if rowsAffected > 1 {
+		return errors.New("database operation failed: more than one row affected, expected one")
 	}
 
 	return nil
-} 
+}
 
 // Close implements io.Close
 func (p *PostgresDBAccess) Close() error {

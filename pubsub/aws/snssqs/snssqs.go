@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/dapr/dapr/pkg/logger"
-	"strconv"
-	"strings"
 
 	//aws_client "github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -21,9 +22,11 @@ import (
 type snsSqs struct {
 	// Key is the topic name, value is the ARN of the topic
 	topics map[string]string
+	// Key is the hashed topic name, value is the actual topic name
+	topicHash map[string]string
 	// Key is the topic name, value holds the ARN of the queue and its url
 	queues    map[string]*sqsQueueInfo
-	awsAcctId string
+	awsAcctID string
 	snsClient *sns.SNS
 	sqsClient *sqs.SQS
 	metadata  *snsSqsMetadata
@@ -42,7 +45,7 @@ type snsSqsMetadata struct {
 	// The AWS endpoint for the component to use.
 	awsEndpoint string
 	// The AWS account ID to use for SNS/SQS. Required
-	awsAccountId string
+	awsAccountID string
 	// The AWS secret corresponding to the account ID. Required
 	awsSecret string
 	// The AWS token to use. Required
@@ -60,22 +63,26 @@ type snsSqsMetadata struct {
 	messageMaxNumber int64
 }
 
+const (
+	awsSqsQueueNameKey = "dapr-queue-name"
+	awsSnsTopicNameKey = "dapr-topic-name"
+)
+
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{logger: l}
 }
 
-func parseInt64 (input string, propertyName string) (int64, error) {
+func parseInt64(input string, propertyName string) (int64, error) {
 	number, err := strconv.Atoi(input)
 
 	if err != nil {
-		return -1, errors.New(fmt.Sprintf("Parsing %s failed with: %v", propertyName, err))
+		return -1, fmt.Errorf("parsing %s failed with: %v", propertyName, err)
 	}
 	return int64(number), nil
 }
 
 // Take a name and hash it for compatibility with AWS resource names
 // The output is fixed at 64 characters
-// TODO plumb this is, affix the plaintext name as a tag attribute
 func nameToHash(name string) string {
 	h := sha256.New()
 	h.Write([]byte(name))
@@ -92,37 +99,37 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.awsEndpoint = val
 	}
 
-	val, ok := props["awsAccountId"]
+	val, ok := props["awsAccountID"]
 
 	if !ok {
-		return nil, errors.New("Missing required property: awsAccountId")
+		return nil, errors.New("missing required property: awsAccountID")
 	}
 
-	md.awsAccountId = val
+	md.awsAccountID = val
 
 	val, ok = props["awsSecret"]
 	if !ok {
-		return nil, errors.New("Missing required property: awsSecret")
+		return nil, errors.New("missing required property: awsSecret")
 	}
 
 	md.awsSecret = val
 
 	val, ok = props["awsToken"]
 	if !ok {
-		return nil, errors.New("Missing required property: awsToken")
+		return nil, errors.New("missing required property: awsToken")
 	}
 
 	md.awsToken = val
 
 	val, ok = props["awsRegion"]
 	if !ok {
-		return nil, errors.New("Missing required property: awsRegion")
+		return nil, errors.New("missing required property: awsRegion")
 	}
 
 	md.awsRegion = val
 
 	if val, ok := props["messageVisibilityTimeout"]; !ok {
-		 md.messageVisibilityTimeout = 10
+		md.messageVisibilityTimeout = 10
 	} else {
 		timeout, err := parseInt64(val, "messageVisibilityTimeout")
 
@@ -203,34 +210,39 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.metadata = md
 
 	s.topics = make(map[string]string)
+	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
 	config := aws.NewConfig()
-	endpoint := md.awsEndpoint 
-	s.awsAcctId = md.awsAccountId
-	config.Credentials = credentials.NewStaticCredentials(s.awsAcctId, md.awsSecret, md.awsToken)
+	endpoint := md.awsEndpoint
+	s.awsAcctID = md.awsAccountID
+	config.Credentials = credentials.NewStaticCredentials(s.awsAcctID, md.awsSecret, md.awsToken)
 	config.Endpoint = &endpoint
 	config.Region = aws.String(md.awsRegion)
-	sesh := session.Must(session.NewSession(config))
+	sesh, err := session.NewSession(config)
+
+	if err != nil {
+		// Rather than using session.Must, defer pass the error up to the runtime
+		return err
+	}
+
 	s.snsClient = sns.New(sesh)
 	s.sqsClient = sqs.New(sesh)
 
 	return nil
 }
-// FIXME: Topic name must not contain slashes, the topic name will have to be stored in some other place, perhaps as a tag
-// or the topic name could be encoded as a SHA-256
-// Create the topic, return the topic's ARN
-func (s *snsSqs) createTopic(topic string) (string, error) {
+
+func (s *snsSqs) createTopic(topic string) (string, string, error) {
+	hashedName := nameToHash(topic)
 	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{
-		//Attributes: nil,
-		Name: aws.String(topic),
-		//Tags:       nil, TODO add something to indicate that this topic was created by dapr
+		Name: aws.String(hashedName),
+		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
 	})
 
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return *(createTopicResponse.TopicArn), nil
+	return *(createTopicResponse.TopicArn), hashedName, nil
 }
 
 // Get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
@@ -245,7 +257,7 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 
 	s.logger.Debugf("No topic ARN found for %s\n Creating topic instead.", topic)
 
-	topicArn, err := s.createTopic(topic)
+	topicArn, hashedName, err := s.createTopic(topic)
 
 	if err != nil {
 		s.logger.Errorf("Error creating new topic %s: %v", topic, err)
@@ -254,15 +266,15 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 
 	// Record topic ARN
 	s.topics[topic] = topicArn
+	s.topicHash[hashedName] = topic
 
 	return topicArn, nil
 }
 
-// FIXME: Queue name is not guaranteed to contain safe character for AWS queuenames, probably encode as SHA-256
 func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 	createQueueResponse, err := s.sqsClient.CreateQueue(&sqs.CreateQueueInput{
-		QueueName: aws.String(queueName),
-		//Tags:       nil, TODO add something indicating that this was created with dapr
+		QueueName: aws.String(nameToHash(queueName)),
+		Tags:      map[string]*string{awsSqsQueueNameKey: aws.String(queueName)},
 	})
 
 	if err != nil {
@@ -337,9 +349,9 @@ func parseTopicArn(arn string) string {
 	return arn[strings.LastIndex(arn, ":")+1:]
 }
 
-func (s *snsSqs) acknowledgeMessage(queueUrl string, receiptHandle *string) error {
+func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) error {
 	_, err := s.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
-		QueueUrl:      &queueUrl,
+		QueueUrl:      &queueURL,
 		ReceiptHandle: receiptHandle,
 	})
 
@@ -351,30 +363,25 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	recvCount, ok := message.Attributes[sqs.MessageSystemAttributeNameApproximateReceiveCount]
 
 	if !ok {
-		return errors.New(
-			fmt.Sprintf(
-				"No ApproximateReceiveCount returned with response, will not attempt further processing: %v", message))
-
+		return fmt.Errorf(
+			"no ApproximateReceiveCount returned with response, will not attempt further processing: %v", message)
 	}
 
 	recvCountInt, err := strconv.ParseInt(*recvCount, 10, 32)
 
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error parsing ApproximateReceiveCount from message: %v", message))
+		return fmt.Errorf("error parsing ApproximateReceiveCount from message: %v", message)
 	}
 
 	// If we are over the allowable retry limit, delete the message from the queue
 	// TODO dead letter queue
 	if recvCountInt >= s.metadata.messageRetryLimit {
-		if err := s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle); err != nil {
-			return errors.New(
-				fmt.Sprintf(
-					"Error acknowledging message after receiving the message too many times: %v", err))
+		if innerErr := s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle); innerErr != nil {
+			return fmt.Errorf("error acknowledging message after receiving the message too many times: %v", innerErr)
 		}
 
-		return errors.New(
-			fmt.Sprintf(
-				"Message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit))
+		return fmt.Errorf(
+			"message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit)
 	}
 
 	// Otherwise try to handle the message
@@ -383,17 +390,18 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error unmarshalling message: %v", err))
+		return fmt.Errorf("error unmarshalling message: %v", err)
 	}
 
 	topic := parseTopicArn(messageBody.TopicArn)
+	topic = s.topicHash[topic]
 	err = handler(&pubsub.NewMessage{
 		Data:  []byte(messageBody.Message),
 		Topic: topic,
 	})
 
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error handling message: %v", err))
+		return fmt.Errorf("error handling message: %v", err)
 	}
 
 	// Otherwise, there was no error, acknowledge the message
@@ -415,7 +423,7 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 			})
 
 			if err != nil {
-				s.logger.Errorf("Error consuming topic: %v", err)
+				s.logger.Errorf("error consuming topic: %v", err)
 				continue
 			}
 

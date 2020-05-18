@@ -24,21 +24,22 @@ type resolver struct {
 }
 
 func (z *resolver) ResolveID(req servicediscovery.ResolveRequest) (string, error) {
-	port, err := LookupPortMDNS(req.ID)
+	address, err := lookupAddressMDNS(req.ID)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("localhost:%v", port), nil
+	return address, nil
 }
 
-// LookupPortMDNS uses mdns to find the port of a given service entry on a local network
-func LookupPortMDNS(id string) (int, error) {
+// lookupAddressMDNS uses mdns to find the port of a given service entry on a local network
+func lookupAddressMDNS(id string) (string, error) {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
-		return -1, fmt.Errorf("failed to initialize resolver: %e", err)
+		return "", fmt.Errorf("failed to initialize resolver: %e", err)
 	}
 
 	port := -1
+	ip := "localhost" // default
 	entries := make(chan *zeroconf.ServiceEntry)
 
 	go func(results <-chan *zeroconf.ServiceEntry) {
@@ -46,6 +47,11 @@ func LookupPortMDNS(id string) (int, error) {
 			for _, text := range entry.Text {
 				if text == id {
 					port = entry.Port
+					if len(entry.AddrIPv4) > 0 {
+						ip = entry.AddrIPv4[0].String()
+					} else if len(entry.AddrIPv6) > 0 {
+						ip = entry.AddrIPv6[0].String()
+					}
 					return
 				}
 			}
@@ -57,12 +63,12 @@ func LookupPortMDNS(id string) (int, error) {
 
 	err = resolver.Browse(ctx, id, "local.", entries)
 	if err != nil {
-		return -1, fmt.Errorf("failed to browse: %s", err.Error())
+		return "", fmt.Errorf("failed to browse: %s", err.Error())
 	}
 
 	<-ctx.Done()
 	if port == -1 {
-		return port, fmt.Errorf("couldn't find service: %s", id)
+		return "", fmt.Errorf("couldn't find service: %s", id)
 	}
-	return port, nil
+	return fmt.Sprintf("%s:%d", ip, port), nil
 }

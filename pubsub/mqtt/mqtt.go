@@ -23,7 +23,7 @@ const (
 	mqttURL          = "url"
 	mqttQOS          = "qos"
 	mqttRetain       = "retain"
-	mqttClientID     = "clientID"
+	mqttClientID     = "consumerID"
 	mqttCleanSession = "cleanSession"
 
 	// errors

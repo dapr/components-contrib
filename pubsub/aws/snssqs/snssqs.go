@@ -290,6 +290,25 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		s.logger.Errorf("Error fetching queue attributes for %s: %v", queueName, err)
 	}
 
+	// Add permissions to allow SNS to send messages to this queue
+	_, err = s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
+		Attributes: map[string]*string{
+			"Policy": aws.String(fmt.Sprintf(`{
+				"Statement": [{
+					"Effect":"Allow",
+					"Principal":"*",
+					"Action":"sqs:SendMessage",
+					"Resource":"%s"				
+				}]
+			}`, *(queueAttributesResponse.Attributes["QueueArn"]))),
+		},
+		QueueUrl: createQueueResponse.QueueUrl,
+	}))
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &sqsQueueInfo{
 		arn: *(queueAttributesResponse.Attributes["QueueArn"]),
 		url: *(createQueueResponse.QueueUrl),

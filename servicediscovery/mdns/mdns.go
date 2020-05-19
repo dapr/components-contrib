@@ -39,7 +39,7 @@ func lookupAddressMDNS(id string) (string, error) {
 	}
 
 	port := -1
-	ip := "localhost" // default
+	var addr string
 	entries := make(chan *zeroconf.ServiceEntry)
 
 	go func(results <-chan *zeroconf.ServiceEntry) {
@@ -48,9 +48,11 @@ func lookupAddressMDNS(id string) (string, error) {
 				if text == id {
 					port = entry.Port
 					if len(entry.AddrIPv4) > 0 {
-						ip = entry.AddrIPv4[0].String()
+						addr = entry.AddrIPv4[0].String() // entry has IPv4
 					} else if len(entry.AddrIPv6) > 0 {
-						ip = entry.AddrIPv6[0].String()
+						addr = entry.AddrIPv6[0].String() // entry has IPv6
+					} else {
+						addr = "localhost" // default
 					}
 					return
 				}
@@ -67,8 +69,8 @@ func lookupAddressMDNS(id string) (string, error) {
 	}
 
 	<-ctx.Done()
-	if port == -1 {
+	if port == -1 || addr == "" {
 		return "", fmt.Errorf("couldn't find service: %s", id)
 	}
-	return fmt.Sprintf("%s:%d", ip, port), nil
+	return fmt.Sprintf("%s:%d", addr, port), nil
 }

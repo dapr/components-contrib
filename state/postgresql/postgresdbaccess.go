@@ -177,7 +177,7 @@ func returnSingleDbResult(result sql.Result, err error) error {
 	}
 	
 	if rowsAffected == 0 {
-		return errors.New("database operation failed: no rows match given criteria")
+		return errors.New("database operation failed: no rows match given key and etag")
 	}
 
 	if rowsAffected > 1 {

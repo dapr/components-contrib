@@ -63,10 +63,119 @@ func TestPostgreSQLIntegration (t *testing.T) {
 		setUpdatesTheUpdatedateField(t, pgs)
 	})
 
+	// Bulk set and delete work
 	t.Run("Bulk set and bulk delete", func(t *testing.T){
 		t.Parallel()
 		testBulkSetAndBulkDelete(t, pgs)
 	})
+
+	// Updates and deletes with an etag are valid
+	t.Run("Update and delete with etag succeeds", func(t *testing.T){
+		t.Parallel()
+		updateAndDeleteWithEtagSucceeds(t, pgs)
+	})
+
+	// Updates with an etag are valid
+	t.Run("Update with old fails", func(t *testing.T){
+		t.Parallel()
+		updateWithOldEtagFails(t, pgs)
+	})
+
+	// Inserts should not have etags
+	t.Run("Insert with etag fails", func(t *testing.T){
+		t.Parallel()
+		newItemWithEtagFails(t, pgs)
+	})
+
+	// Delete with invalid etag fails
+	t.Run("Delete with invalid etag fails", func(t *testing.T){
+		t.Parallel()
+		deleteWithInvalidEtagFails(t, pgs)
+	})
+}
+
+func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
+
+	// Create new item
+	key := uuid.New().String()
+	value := `{"something": "somevalue"}`
+	setItem(t, pgs, key, value, "")
+	
+	// Delete the item with a fake etag
+	deleteReq := &state.DeleteRequest{
+		Key: key,
+		ETag: "1234",
+		Metadata: pgs.metadata.Properties,
+	}
+	err := pgs.Delete(deleteReq)
+	assert.NotNil(t, err)
+}
+
+// newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure
+func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
+	
+	value := `{"newthing2": "newvalue2"}`
+	invalidEtag := "12345"
+
+	setReq := &state.SetRequest{
+		Key: uuid.New().String(),
+		Metadata: pgs.metadata.Properties,
+		ETag: invalidEtag,
+		Value: value,
+	}
+
+	err := pgs.Set(setReq)
+	assert.NotNil(t, err)
+}
+
+func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
+
+	// Create and retrieve new item
+	key := uuid.New().String()
+	value := `{"something": "somevalue"}`
+	setItem(t, pgs, key, value, "")
+	getResponse := getItem(t, pgs, key)
+	assert.NotNil(t, getResponse.ETag)
+	originalEtag := getResponse.ETag
+
+	// Change the value and get the updated etag
+	newValue := `{"newthing": "newvalue"}`
+	setItem(t, pgs, key, newValue, originalEtag)
+	updatedItem := getItem(t, pgs, key)
+	assert.Equal(t, newValue, string(updatedItem.Data))
+
+	// Update again with the original etag - expect udpate failure
+	newValue = `{"newthing2": "newvalue2"}`
+	setReq := &state.SetRequest{
+		Key: key,
+		Metadata: pgs.metadata.Properties,
+		ETag: originalEtag,
+		Value: newValue,
+	}
+	err := pgs.Set(setReq)
+	assert.NotNil(t, err)
+}
+
+func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *PostgreSQL) {
+
+	// Create and retrieve new item
+	key := uuid.New().String()
+	value := `{"something": "somevalue"}`
+	setItem(t, pgs, key, value, "")
+	getResponse := getItem(t, pgs, key)
+	assert.NotNil(t, getResponse.ETag)
+
+	// Change the value and compare
+	newValue := `{"newthing": "newvalue"}`
+	setItem(t, pgs, key, newValue, getResponse.ETag)
+	updatedItem := getItem(t, pgs, key)
+	assert.Equal(t, newValue, string(updatedItem.Data))
+
+	// ETag should change when item is updated
+	assert.NotEqual(t, getResponse.ETag, updatedItem.ETag) 
+
+	// Delete
+	deleteItem(t, pgs, key, updatedItem.ETag)
 }
 
 // getSetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
@@ -84,7 +193,7 @@ func getSetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	newGetResponse := getItem(t, pgs, key)
 	assert.Equal(t, newValue, string(newGetResponse.Data))
 
-	deleteItem(t, pgs, key)
+	deleteItem(t, pgs, key, "")
 }
 
 // getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist
@@ -114,7 +223,7 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *PostgreSQL) {
 	assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
 	assert.NotEqual(t, "", updatedate.String)
 	
-	deleteItem(t, pgs, key)	
+	deleteItem(t, pgs, key, "")	
 }
 
 // Tests valid bulk sets and deletes
@@ -226,10 +335,11 @@ func getItem (t *testing.T, pgs *PostgreSQL, key string) *state.GetResponse {
 	return response
 }
 
-func deleteItem (t *testing.T, pgs *PostgreSQL, key string) {
+func deleteItem (t *testing.T, pgs *PostgreSQL, key string, etag string) {
 	deleteReq := &state.DeleteRequest{
 		Key: key,
 		Metadata: pgs.metadata.Properties,
+		ETag: etag,
 		Options: state.DeleteStateOption{},
 	}
 

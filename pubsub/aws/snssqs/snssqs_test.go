@@ -16,7 +16,8 @@ func Test_parseTopicArn(t *testing.T) {
 	r.Equal("qqnoob", parseTopicArn("arn:aws:sqs:us-east-1:000000000000:qqnoob"))
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_happyPath(t *testing.T) {
+// Verify that all metadata ends up in the correct spot
+func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -51,7 +52,7 @@ func Test_snsSqs_getSnsSqsMetatdata_happyPath(t *testing.T) {
 	r.Equal(int64(5), md.messageMaxNumber)
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_defaults(t *testing.T) {
+func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -63,7 +64,6 @@ func Test_snsSqs_getSnsSqsMetatdata_defaults(t *testing.T) {
 		"consumerID":   "consumer",
 		"awsAccountID": "acctId",
 		"awsSecret":    "secret",
-		"awsToken":     "token",
 		"awsRegion":    "region",
 	}})
 
@@ -73,7 +73,7 @@ func Test_snsSqs_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal("", md.awsEndpoint)
 	r.Equal("acctId", md.awsAccountID)
 	r.Equal("secret", md.awsSecret)
-	r.Equal("token", md.awsToken)
+	r.Equal("", md.awsToken)
 	r.Equal("region", md.awsRegion)
 	r.Equal(int64(10), md.messageVisibilityTimeout)
 	r.Equal(int64(10), md.messageRetryLimit)
@@ -81,7 +81,7 @@ func Test_snsSqs_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal(int64(10), md.messageMaxNumber)
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
+func Test_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -103,7 +103,7 @@ func Test_snsSqs_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
 	r.Nil(md)
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
+func Test_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -125,7 +125,7 @@ func Test_snsSqs_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
 	r.Nil(md)
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
+func Test_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -147,7 +147,7 @@ func Test_snsSqs_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
 	r.Nil(md)
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T) {
+func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -169,7 +169,7 @@ func Test_snsSqs_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T)
 	r.Nil(md)
 }
 
-func Test_snsSqs_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) {
+func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -191,7 +191,7 @@ func Test_snsSqs_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) 
 	r.Nil(md)
 }
 
-func Test_snsSqs_parseInt64(t *testing.T) {
+func Test_parseInt64(t *testing.T) {
 	r := require.New(t)
 	number, err := parseInt64("applesauce", "propertyName")
 	r.EqualError(err, "parsing propertyName failed with: strconv.Atoi: parsing \"applesauce\": invalid syntax")
@@ -208,7 +208,7 @@ func Test_snsSqs_parseInt64(t *testing.T) {
 	r.Error(err)
 }
 
-func Test_snsSqs_nameToHash(t *testing.T) {
+func Test_nameToHash(t *testing.T) {
 	r := require.New(t)
 
 	// This string is too long and contains invalid character for either an SQS queue or an SNS topic

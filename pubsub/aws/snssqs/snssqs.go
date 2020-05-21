@@ -116,10 +116,10 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 
 	val, ok = props["awsToken"]
 	if !ok {
-		return nil, errors.New("missing required property: awsToken")
+		md.awsToken = ""
+	} else {
+		md.awsToken = val
 	}
-
-	md.awsToken = val
 
 	val, ok = props["awsRegion"]
 	if !ok {
@@ -198,9 +198,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 }
 
 func (s *snsSqs) Init(metadata pubsub.Metadata) error {
-	// Either publish or subscribe needs reference to a TopicARN
-	// So we should keep a map of topic ARNs
-	// This map should be written to whenever
 	md, err := s.getSnsSqsMetatdata(metadata)
 
 	if err != nil {
@@ -209,6 +206,8 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 
 	s.metadata = md
 
+	// Both Publish and Subscribe need reference the topic ARN
+	// Track these ARNs in this map
 	s.topics = make(map[string]string)
 	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
@@ -260,7 +259,7 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 	topicArn, hashedName, err := s.createTopic(topic)
 
 	if err != nil {
-		s.logger.Errorf("Error creating new topic %s: %v", topic, err)
+		s.logger.Errorf("error creating new topic %s: %v", topic, err)
 		return "", err
 	}
 
@@ -287,7 +286,7 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 	})
 
 	if err != nil {
-		s.logger.Errorf("Error fetching queue attributes for %s: %v", queueName, err)
+		s.logger.Errorf("error fetching queue attributes for %s: %v", queueName, err)
 	}
 
 	// Add permissions to allow SNS to send messages to this queue
@@ -341,21 +340,20 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 
 	if err != nil {
-		s.logger.Errorf("Error getting topic ARN for %s: %v", req.Topic, err)
+		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
 	}
 
 	message := string(req.Data)
-	publishOutput, err := s.snsClient.Publish(&sns.PublishInput{
+	_, err = s.snsClient.Publish(&sns.PublishInput{
 		Message:  &message,
 		TopicArn: &topicArn,
 	})
 
 	if err != nil {
-		s.logger.Errorf("Error publishing topic %s with topic ARN %s: %v", req.Topic, topicArn, err)
+		s.logger.Errorf("error publishing topic %s with topic ARN %s: %v", req.Topic, topicArn, err)
 		return err
 	}
 
-	s.logger.Debugf("Message published: %v\n%v", message, publishOutput)
 	return nil
 }
 
@@ -404,7 +402,6 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	}
 
 	// Otherwise try to handle the message
-
 	var messageBody snsMessage
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
@@ -471,7 +468,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 
 	if err != nil {
-		s.logger.Errorf("Error getting topic ARN for %s: %v", req.Topic, err)
+		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
 		return err
 	}
 
@@ -479,7 +476,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	queueInfo, err := s.getOrCreateQueue(s.metadata.sqsQueueName)
 
 	if err != nil {
-		s.logger.Errorf("Error retrieving SQS queue: %v", err)
+		s.logger.Errorf("error retrieving SQS queue: %v", err)
 		return err
 	}
 
@@ -493,7 +490,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	})
 
 	if err != nil {
-		s.logger.Errorf("Error subscribing to topic %s: %v", req.Topic, err)
+		s.logger.Errorf("error subscribing to topic %s: %v", req.Topic, err)
 		return err
 	}
 

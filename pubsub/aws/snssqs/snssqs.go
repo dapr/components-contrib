@@ -39,18 +39,18 @@ type sqsQueueInfo struct {
 }
 
 type snsSqsMetadata struct {
-	// the name of the queue for this application. The is provided by the runtime as "consumerID"
+	// name of the queue for this application. The is provided by the runtime as "consumerID"
 	sqsQueueName string
 
-	// the AWS endpoint for the component to use.
+	// aws endpoint for the component to use.
 	awsEndpoint string
-	// the AWS account ID to use for SNS/SQS. Required
+	// aws account ID to use for SNS/SQS. Required
 	awsAccountID string
-	// the AWS secret corresponding to the account ID. Required
+	// aws secret corresponding to the account ID. Required
 	awsSecret string
-	// the AWS token to use. Required
+	// aws token to use. Required
 	awsToken string
-	// the AWS region in which SNS/SQS should create resources. Required
+	// aws region in which SNS/SQS should create resources. Required
 	awsRegion string
 
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10

@@ -20,11 +20,11 @@ import (
 )
 
 type snsSqs struct {
-	// Key is the topic name, value is the ARN of the topic
+	// key is the topic name, value is the ARN of the topic
 	topics map[string]string
-	// Key is the hashed topic name, value is the actual topic name
+	// key is the hashed topic name, value is the actual topic name
 	topicHash map[string]string
-	// Key is the topic name, value holds the ARN of the queue and its url
+	// key is the topic name, value holds the ARN of the queue and its url
 	queues    map[string]*sqsQueueInfo
 	awsAcctID string
 	snsClient *sns.SNS
@@ -39,27 +39,27 @@ type sqsQueueInfo struct {
 }
 
 type snsSqsMetadata struct {
-	// The name of the queue for this application. The is provided by the runtime as "consumerID"
+	// the name of the queue for this application. The is provided by the runtime as "consumerID"
 	sqsQueueName string
 
-	// The AWS endpoint for the component to use.
+	// the AWS endpoint for the component to use.
 	awsEndpoint string
-	// The AWS account ID to use for SNS/SQS. Required
+	// the AWS account ID to use for SNS/SQS. Required
 	awsAccountID string
-	// The AWS secret corresponding to the account ID. Required
+	// the AWS secret corresponding to the account ID. Required
 	awsSecret string
-	// The AWS token to use. Required
+	// the AWS token to use. Required
 	awsToken string
-	// The AWS region in which SNS/SQS should create resources. Required
+	// the AWS region in which SNS/SQS should create resources. Required
 	awsRegion string
 
-	// Amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10
+	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10
 	messageVisibilityTimeout int64
-	// Number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10
+	// number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10
 	messageRetryLimit int64
-	// Amount of time to await receipt of a message before making another request. Default: 1
+	// amount of time to await receipt of a message before making another request. Default: 1
 	messageWaitTimeSeconds int64
-	// Maximum number of messsages to receive from the queue at a time. Default: 10, Maximum: 10
+	// maximum number of messsages to receive from the queue at a time. Default: 10, Maximum: 10
 	messageMaxNumber int64
 }
 
@@ -81,8 +81,8 @@ func parseInt64(input string, propertyName string) (int64, error) {
 	return int64(number), nil
 }
 
-// Take a name and hash it for compatibility with AWS resource names
-// The output is fixed at 64 characters
+// take a name and hash it for compatibility with AWS resource names
+// the output is fixed at 64 characters
 func nameToHash(name string) string {
 	h := sha256.New()
 	h.Write([]byte(name))
@@ -206,8 +206,8 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 
 	s.metadata = md
 
-	// Both Publish and Subscribe need reference the topic ARN
-	// Track these ARNs in this map
+	// both Publish and Subscribe need reference the topic ARN
+	// track these ARNs in this map
 	s.topics = make(map[string]string)
 	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
@@ -220,7 +220,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	sesh, err := session.NewSession(config)
 
 	if err != nil {
-		// Rather than using session.Must, defer pass the error up to the runtime
+		// rather than using session.Must, defer pass the error up to the runtime
 		return err
 	}
 
@@ -244,7 +244,7 @@ func (s *snsSqs) createTopic(topic string) (string, string, error) {
 	return *(createTopicResponse.TopicArn), hashedName, nil
 }
 
-// Get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
+// get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
 func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 	topicArn, ok := s.topics[topic]
@@ -263,7 +263,7 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 		return "", err
 	}
 
-	// Record topic ARN
+	// record topic ARN
 	s.topics[topic] = topicArn
 	s.topicHash[hashedName] = topic
 
@@ -289,7 +289,7 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		s.logger.Errorf("error fetching queue attributes for %s: %v", queueName, err)
 	}
 
-	// Add permissions to allow SNS to send messages to this queue
+	// add permissions to allow SNS to send messages to this queue
 	_, err = s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
 		Attributes: map[string]*string{
 			"Policy": aws.String(fmt.Sprintf(`{
@@ -376,7 +376,7 @@ func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) erro
 }
 
 func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, handler func(msg *pubsub.NewMessage) error) error {
-	// If this message has been received > x times, delete from queue, it's borked
+	// if this message has been received > x times, delete from queue, it's borked
 	recvCount, ok := message.Attributes[sqs.MessageSystemAttributeNameApproximateReceiveCount]
 
 	if !ok {
@@ -390,7 +390,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 		return fmt.Errorf("error parsing ApproximateReceiveCount from message: %v", message)
 	}
 
-	// If we are over the allowable retry limit, delete the message from the queue
+	// if we are over the allowable retry limit, delete the message from the queue
 	// TODO dead letter queue
 	if recvCountInt >= s.metadata.messageRetryLimit {
 		if innerErr := s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle); innerErr != nil {
@@ -401,7 +401,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 			"message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit)
 	}
 
-	// Otherwise try to handle the message
+	// otherwise try to handle the message
 	var messageBody snsMessage
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
@@ -420,7 +420,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 		return fmt.Errorf("error handling message: %v", err)
 	}
 
-	// Otherwise, there was no error, acknowledge the message
+	// otherwise, there was no error, acknowledge the message
 	return s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle)
 }
 
@@ -428,7 +428,7 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 	go func() {
 		for {
 			messageResponse, err := s.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
-				// Use this property to decide when a message should be discarded
+				// use this property to decide when a message should be discarded
 				AttributeNames: []*string{
 					aws.String(sqs.MessageSystemAttributeNameApproximateReceiveCount),
 				},
@@ -443,7 +443,7 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 				continue
 			}
 
-			// Retry receiving messages
+			// retry receiving messages
 			if len(messageResponse.Messages) < 1 {
 				s.logger.Debug("No messages received, requesting again")
 				continue
@@ -461,10 +461,10 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 }
 
 func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
-	// Subscribers declare a topic ARN
+	// subscribers declare a topic ARN
 	// and declare a SQS queue to use
-	// These should be idempotent
-	// Queues should not be created if they exist
+	// these should be idempotent
+	// queues should not be created if they exist
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 
 	if err != nil {
@@ -472,7 +472,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 		return err
 	}
 
-	// This is the ID of the application, it is supplied via runtime as "consumerID"
+	// this is the ID of the application, it is supplied via runtime as "consumerID"
 	queueInfo, err := s.getOrCreateQueue(s.metadata.sqsQueueName)
 
 	if err != nil {
@@ -480,7 +480,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 		return err
 	}
 
-	// Subscription creation is idempotent. Subscriptions are unique by topic/queue
+	// subscription creation is idempotent. Subscriptions are unique by topic/queue
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
 		Attributes:            nil,
 		Endpoint:              &queueInfo.arn, // create SQS queue per subscription

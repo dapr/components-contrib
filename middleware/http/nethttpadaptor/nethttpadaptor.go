@@ -48,6 +48,14 @@ func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http
 			}
 		}
 
+		ctx := r.Context()
+		reqCtx, ok := ctx.(*fasthttp.RequestCtx)
+		if ok {
+			reqCtx.VisitUserValues(func(k []byte, v interface{}) {
+				c.SetUserValueBytes(k, v)
+			})
+		}
+
 		h(&c)
 
 		c.Response.Header.VisitAll(func(k []byte, v []byte) {

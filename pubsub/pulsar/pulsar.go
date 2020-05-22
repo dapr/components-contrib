@@ -64,8 +64,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 		TLSAllowInsecureConnection: m.EnableTLS,
 	})
 	if err != nil {
-		p.logger.Debugf("Could not instantiate Pulsar client: %v", err)
-		return fmt.Errorf("Nope")
+		return fmt.Errorf("Could not instantiate Pulsar client: %v", err)
 	}
 	defer client.Close()
 
@@ -100,7 +99,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	options := pulsar.ConsumerOptions{
 		Topic:            req.Topic,
 		SubscriptionName: p.metadata.SubscriptionName,
-		Type:             pulsar.Shared,
+		Type:             pulsar.Failover,
 	}
 
 	options.MessageChannel = channel

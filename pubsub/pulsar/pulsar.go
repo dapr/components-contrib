@@ -122,6 +122,7 @@ func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler f
 	})
 	if err != nil {
 		p.logger.Debugf("Could not handle topic %s", topic)
+	} else {
+		m.Ack(m.Message)
 	}
-	m.Ack(m.Message)
 }

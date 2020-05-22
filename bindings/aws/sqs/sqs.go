@@ -12,7 +12,7 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/authentication/aws_authentication"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 )
 
 // AWSSQS allows receiving and sending data to/from AWS SQS
@@ -123,12 +123,11 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	sess, err := aws_authentication.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
 	if err != nil {
 		return nil, err
 	}
 	c := sqs.New(sess)
-
 
 	return c, nil
 }

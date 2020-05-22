@@ -37,5 +37,4 @@ func TestInvalidTLSInput(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, meta)
 	assert.Equal(t, "Pulsar Error: invalid value for enableTLS", err.Error())
-
 }

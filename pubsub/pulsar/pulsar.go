@@ -78,16 +78,19 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
 		Topic: req.Topic,
 	})
+	if err != nil {
+		return err
+	}
 
 	_, err = producer.Send(context.Background(), &pulsar.ProducerMessage{
 		Payload: req.Data,
 	})
-
-	defer producer.Close()
-
 	if err != nil {
 		return err
 	}
+
+	defer producer.Close()
+
 	return nil
 }
 

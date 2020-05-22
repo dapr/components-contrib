@@ -51,7 +51,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData)
 
 		// assert
-		assert.EqualError(t, err, errors.New("MQTT pub sub error: missing url").Error())
+		assert.EqualError(t, err, errors.New("mqtt pub sub error: missing url").Error())
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
 	})
 

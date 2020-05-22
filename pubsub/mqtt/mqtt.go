@@ -27,7 +27,7 @@ const (
 	mqttCleanSession = "cleanSession"
 
 	// errors
-	errorMsgPrefix = "MQTT pub sub error:"
+	errorMsgPrefix = "mqtt pub sub error:"
 
 	// Defaults
 	defaultQOS          = 0
@@ -113,19 +113,17 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 
 	m.client = client
 
-	m.logger.Debug("MQTT message bus initialization complete")
+	m.logger.Debug("mqtt message bus initialization complete")
 	return nil
 }
 
 // Publish the topic to mqtt pub sub.
 func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
-	m.logger.Debugf("mqtt: publishing topic %v with data: %v", req.Topic, req.Data)
+	m.logger.Debugf("mqtt publishing topic %s with data: %v", req.Topic, req.Data)
 
 	token := m.client.Publish(req.Topic, m.metadata.qos, m.metadata.retain, req.Data)
-	for !token.WaitTimeout(defaultWait) {
-	}
-	if err := token.Error(); err != nil {
-		return fmt.Errorf("mqtt: error from publish: %v", err)
+	if !token.WaitTimeout(defaultWait) || token.Error() != nil {
+		return fmt.Errorf("mqtt error from publish: %v", token.Error())
 	}
 	return nil
 }
@@ -139,7 +137,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 			handler(&pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
 		})
 	if err := token.Error(); err != nil {
-		return fmt.Errorf("mqtt: error from subscribe: %v", err)
+		return fmt.Errorf("mqtt error from subscribe: %v", err)
 	}
 	return nil
 }

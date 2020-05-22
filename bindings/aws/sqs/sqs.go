@@ -7,15 +7,12 @@ package sqs
 
 import (
 	"encoding/json"
-	"time"
-
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"time"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/authentication/aws_authentication"
 )
 
 // AWSSQS allows receiving and sending data to/from AWS SQS
@@ -126,21 +123,12 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	awsConfig := aws.NewConfig()
-
-	if metadata.Region != "" {
-		awsConfig = awsConfig.WithRegion(metadata.Region)
-	}
-
-	if metadata.AccessKey != "" && metadata.SecretKey != "" {
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""))
-	}
-
-	sess, err := session.NewSession(awsConfig)
+	sess, err := aws_authentication.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
 	if err != nil {
 		return nil, err
 	}
-
 	c := sqs.New(sess)
+
+
 	return c, nil
 }

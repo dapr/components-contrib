@@ -16,7 +16,6 @@ import (
 const (
 	host             = "host"
 	subscriptionName = "subscriptionName"
-	consumerID       = "consumerID"
 	enableTLS        = "enableTLS"
 )
 
@@ -30,32 +29,27 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 	return &Pulsar{logger: l}
 }
 
-func parsePulsarMetadata(meta pubsub.Metadata) (pulsarMetadata, error) {
+func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m := pulsarMetadata{}
 	if val, ok := meta.Properties[host]; ok && val != "" {
 		m.Host = val
 	} else {
-		return m, errors.New("Pulsar error: missing pulsar Host")
-	}
-	if val, ok := meta.Properties[consumerID]; ok && val != "" {
-		m.ConsumerID = val
-	} else {
-		return m, errors.New("Pulsar error: missing consumerID")
+		return nil, errors.New("Pulsar error: missing pulsar Host")
 	}
 	if val, ok := meta.Properties[subscriptionName]; ok && val != "" {
 		m.SubscriptionName = val
 	} else {
-		return m, errors.New("Pulsar error: missing subscriptionName")
+		return nil, errors.New("Pulsar error: missing subscriptionName")
 	}
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
 		tls, err := strconv.ParseBool(val)
 		if err != nil {
-			return m, fmt.Errorf("Pulsar error: can't parse enableTLS field: %s", err)
+			return nil, errors.New("Pulsar Error: invalid value for enableTLS")
 		}
 		m.EnableTLS = tls
 	}
 
-	return m, nil
+	return &m, nil
 }
 
 func (p *Pulsar) Init(metadata pubsub.Metadata) error {
@@ -76,7 +70,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	defer client.Close()
 
 	p.client = client
-	p.metadata = m
+	p.metadata = *m
 	return nil
 }
 

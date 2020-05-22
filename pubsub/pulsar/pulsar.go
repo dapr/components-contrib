@@ -31,20 +31,21 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m := pulsarMetadata{}
+
 	if val, ok := meta.Properties[host]; ok && val != "" {
 		m.Host = val
 	} else {
-		return nil, errors.New("Pulsar error: missing pulsar Host")
+		return nil, errors.New("pulsar error: missing pulsar host")
 	}
 	if val, ok := meta.Properties[subscriptionName]; ok && val != "" {
 		m.SubscriptionName = val
 	} else {
-		return nil, errors.New("Pulsar error: missing subscriptionName")
+		return nil, errors.New("pulsar error: missing subscriptionName")
 	}
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
 		tls, err := strconv.ParseBool(val)
 		if err != nil {
-			return nil, errors.New("Pulsar Error: invalid value for enableTLS")
+			return nil, errors.New("pulsar error: invalid value for enableTLS")
 		}
 		m.EnableTLS = tls
 	}
@@ -64,7 +65,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 		TLSAllowInsecureConnection: m.EnableTLS,
 	})
 	if err != nil {
-		return fmt.Errorf("Could not instantiate Pulsar client: %v", err)
+		return fmt.Errorf("could not instantiate pulsar client: %v", err)
 	}
 	defer client.Close()
 

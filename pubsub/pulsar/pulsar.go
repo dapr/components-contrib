@@ -17,7 +17,6 @@ const (
 	host             = "host"
 	subscriptionName = "subscriptionName"
 	consumerID       = "consumerID"
-	topics           = "topics"
 	enableTLS        = "enableTLS"
 )
 
@@ -25,14 +24,6 @@ type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
 	metadata pulsarMetadata
-}
-
-type pulsarMetadata struct {
-	Host             string   `json:"host"`
-	SubscriptionName string   `json:"subscriptionName"`
-	ConsumerID       string   `json:"consumerID"`
-	Topics           []string `json:"topics"`
-	EnableTLS        bool     `json:"enableTLS"`
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {

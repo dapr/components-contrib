@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	host             = "host"
-	subscriptionName = "subscriptionName"
-	enableTLS        = "enableTLS"
+	host      = "host"
+	enableTLS = "enableTLS"
 )
 
 type Pulsar struct {
@@ -31,16 +30,12 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m := pulsarMetadata{}
+	m.ConsumerID = meta.Properties["consumerID"]
 
 	if val, ok := meta.Properties[host]; ok && val != "" {
 		m.Host = val
 	} else {
 		return nil, errors.New("pulsar error: missing pulsar host")
-	}
-	if val, ok := meta.Properties[subscriptionName]; ok && val != "" {
-		m.SubscriptionName = val
-	} else {
-		return nil, errors.New("pulsar error: missing subscriptionName")
 	}
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
 		tls, err := strconv.ParseBool(val)
@@ -99,7 +94,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 
 	options := pulsar.ConsumerOptions{
 		Topic:            req.Topic,
-		SubscriptionName: p.metadata.SubscriptionName,
+		SubscriptionName: p.metadata.ConsumerID,
 		Type:             pulsar.Failover,
 	}
 

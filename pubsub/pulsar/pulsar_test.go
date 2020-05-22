@@ -10,11 +10,10 @@ import (
 
 func TestParsePulsarMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{"host": "a", "subscriptionName": "b", "enableTLS": "false"}
+	m.Properties = map[string]string{"host": "a", "enableTLS": "false"}
 	meta, err := parsePulsarMetadata(m)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "b", meta.SubscriptionName)
 	assert.Equal(t, "a", meta.Host)
 	assert.Equal(t, false, meta.EnableTLS)
 }
@@ -26,15 +25,15 @@ func TestMissingHost(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, meta)
-	assert.Equal(t, "Pulsar error: missing pulsar Host", err.Error())
+	assert.Equal(t, "pulsar error: missing pulsar host", err.Error())
 }
 
 func TestInvalidTLSInput(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{"host": "a", "subscriptionName": "b", "enableTLS": "honk"}
+	m.Properties = map[string]string{"host": "a", "enableTLS": "honk"}
 	meta, err := parsePulsarMetadata(m)
 
 	assert.Error(t, err)
 	assert.Nil(t, meta)
-	assert.Equal(t, "Pulsar Error: invalid value for enableTLS", err.Error())
+	assert.Equal(t, "pulsar error: invalid value for enableTLS", err.Error())
 }

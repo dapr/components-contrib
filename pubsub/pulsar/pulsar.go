@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -14,8 +15,10 @@ import (
 
 const (
 	host             = "host"
-	consumerID       = "consumerID"
 	subscriptionName = "subscriptionName"
+	consumerID       = "consumerID"
+	topics           = "topics"
+	enableTLS        = "enableTLS"
 )
 
 type Pulsar struct {
@@ -25,8 +28,11 @@ type Pulsar struct {
 }
 
 type pulsarMetadata struct {
-	Host       string `json:"host"`
-	ConsumerID string `json:"consumerID"`
+	Host             string   `json:"host"`
+	SubscriptionName string   `json:"subscriptionName"`
+	ConsumerID       string   `json:"consumerID"`
+	Topics           []string `json:"topics"`
+	EnableTLS        bool     `json:"enableTLS"`
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -45,6 +51,18 @@ func parsePulsarMetadata(meta pubsub.Metadata) (pulsarMetadata, error) {
 	} else {
 		return m, errors.New("Pulsar error: missing consumerID")
 	}
+	if val, ok := meta.Properties[subscriptionName]; ok && val != "" {
+		m.SubscriptionName = val
+	} else {
+		return m, errors.New("Pulsar error: missing subscriptionName")
+	}
+	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
+		tls, err := strconv.ParseBool(val)
+		if err != nil {
+			return m, fmt.Errorf("Pulsar error: can't parse enableTLS field: %s", err)
+		}
+		m.EnableTLS = tls
+	}
 
 	return m, nil
 }
@@ -58,13 +76,14 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 		URL:                        fmt.Sprintf("pulsar://%s", m.Host),
 		OperationTimeout:           30 * time.Second,
 		ConnectionTimeout:          30 * time.Second,
-		TLSAllowInsecureConnection: true,
+		TLSAllowInsecureConnection: m.EnableTLS,
 	})
 	if err != nil {
 		p.logger.Debugf("Could not instantiate Pulsar client: %v", err)
 		return fmt.Errorf("Nope")
 	}
 	defer client.Close()
+
 	p.client = client
 	p.metadata = m
 	return nil
@@ -92,26 +111,34 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 
 	options := pulsar.ConsumerOptions{
 		Topic:            req.Topic,
-		SubscriptionName: p.metadata.ConsumerID,
+		SubscriptionName: p.metadata.SubscriptionName,
 		Type:             pulsar.Shared,
 	}
 
 	options.MessageChannel = channel
-
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
-		p.logger.Error(err)
+		p.logger.Debugf("Could not subscribe %s", req.Topic)
 	}
 
-	defer consumer.Close()
+	go p.ListenMessage(consumer, req.Topic, handler)
 
-	for cm := range channel {
-		msg := cm.Message
-		handler(&pubsub.NewMessage{
-			Data:  msg.Payload(),
-			Topic: req.Topic,
-		})
-		consumer.Ack(msg)
-	}
 	return nil
+}
+
+func (p *Pulsar) ListenMessage(msgs pulsar.Consumer, topic string, handler func(msg *pubsub.NewMessage) error) {
+	for cm := range msgs.Chan() {
+		p.HandleMessage(cm, topic, handler)
+	}
+}
+
+func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler func(msg *pubsub.NewMessage) error) {
+	err := handler(&pubsub.NewMessage{
+		Data:  m.Payload(),
+		Topic: topic,
+	})
+	if err != nil {
+		p.logger.Debugf("Could not handle topic %s", topic)
+	}
+	m.Ack(m.Message)
 }

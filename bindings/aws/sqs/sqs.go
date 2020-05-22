@@ -8,11 +8,11 @@ package sqs
 import (
 	"encoding/json"
 	"github.com/aws/aws-sdk-go/aws"
-	"time"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/dapr/components-contrib/bindings"
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"time"
 )
 
 // AWSSQS allows receiving and sending data to/from AWS SQS

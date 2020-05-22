@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	jsoniterator "github.com/json-iterator/go"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -105,6 +106,14 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
 	for _, r := range req {
+		var reqValue string
+		b, ok := r.Value.([]byte)
+		if ok {
+			reqValue = string(b)
+		} else {
+			reqValue, _ = jsoniterator.MarshalToString(r.Value)
+		}
+
 		writeRequest := &dynamodb.WriteRequest{
 			PutRequest: &dynamodb.PutRequest{
 				Item: map[string]*dynamodb.AttributeValue{
@@ -112,7 +121,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 						S: aws.String(r.Key),
 					},
 					"value": {
-						S: aws.String(fmt.Sprintf("%v", r.Value)),
+						S: aws.String(reqValue),
 					},
 				},
 			},

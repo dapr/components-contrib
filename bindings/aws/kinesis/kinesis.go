@@ -46,6 +46,7 @@ type kinesisMetadata struct {
 	StreamName          string              `json:"streamName"`
 	ConsumerName        string              `json:"consumerName"`
 	Region              string              `json:"region"`
+	Endpoint            string              `json:"endpoint"`
 	AccessKey           string              `json:"accessKey"`
 	SecretKey           string              `json:"secretKey"`
 	KinesisConsumerMode kinesisConsumerMode `json:"mode"`
@@ -288,7 +289,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 }
 
 func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

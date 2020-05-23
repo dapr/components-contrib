@@ -28,6 +28,7 @@ type AWSS3 struct {
 
 type s3Metadata struct {
 	Region    string `json:"region"`
+	Endpoint  string `json:"endpoint"`
 	AccessKey string `json:"accessKey"`
 	SecretKey string `json:"secretKey"`
 	Bucket    string `json:"bucket"`
@@ -86,7 +87,7 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 }
 
 func (s *AWSS3) getClient(metadata *s3Metadata) (*s3manager.Uploader, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

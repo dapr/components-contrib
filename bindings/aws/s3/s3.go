@@ -8,6 +8,7 @@ package s3
 import (
 	"bytes"
 	"encoding/json"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"

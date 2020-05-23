@@ -7,6 +7,7 @@ package dynamodb
 
 import (
 	"encoding/json"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
 	"github.com/dapr/dapr/pkg/logger"

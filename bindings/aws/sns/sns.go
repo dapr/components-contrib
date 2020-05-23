@@ -8,6 +8,7 @@ package sns
 import (
 	"encoding/json"
 	"fmt"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
 	"github.com/dapr/dapr/pkg/logger"

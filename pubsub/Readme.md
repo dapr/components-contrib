@@ -12,6 +12,7 @@ Currently supported pub-subs are:
 * RabbitMQ
 * Azure Event Hubs
 * GCP Pub/Sub
+* MQTT
 
 ## Implementing a new Pub Sub
 

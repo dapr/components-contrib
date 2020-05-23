@@ -86,7 +86,7 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 }
 
 func (s *AWSS3) getClient(metadata *s3Metadata) (*s3manager.Uploader, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}

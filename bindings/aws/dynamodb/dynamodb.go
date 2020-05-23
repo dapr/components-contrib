@@ -94,7 +94,7 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 }
 
 func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}

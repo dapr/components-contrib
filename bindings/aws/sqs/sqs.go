@@ -124,7 +124,7 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}

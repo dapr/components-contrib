@@ -9,12 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -287,7 +288,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 }
 
 func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}

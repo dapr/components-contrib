@@ -8,12 +8,10 @@ package sns
 import (
 	"encoding/json"
 	"fmt"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/dapr/dapr/pkg/logger"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -73,10 +71,7 @@ func (a *AWSSNS) parseMetadata(metadata bindings.Metadata) (*snsMetadata, error)
 }
 
 func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(metadata.Region),
-		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""),
-	})
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
 	if err != nil {
 		return nil, err
 	}

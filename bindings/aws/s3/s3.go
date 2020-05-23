@@ -8,13 +8,12 @@ package s3
 import (
 	"bytes"
 	"encoding/json"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -86,10 +85,7 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 }
 
 func (s *AWSS3) getClient(metadata *s3Metadata) (*s3manager.Uploader, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(metadata.Region),
-		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""),
-	})
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
 	if err != nil {
 		return nil, err
 	}

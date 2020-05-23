@@ -7,12 +7,11 @@ package dynamodb
 
 import (
 	"encoding/json"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/dapr/components-contrib/bindings"
@@ -93,11 +92,8 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 	return &meta, nil
 }
 
-func (d *DynamoDB) getClient(meta *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(meta.Region),
-		Credentials: credentials.NewStaticCredentials(meta.AccessKey, meta.SecretKey, ""),
-	})
+func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
 	if err != nil {
 		return nil, err
 	}

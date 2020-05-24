@@ -22,7 +22,7 @@ Sample configuration in yaml:
 	  - name: containerName
 		value: <container Name>
 
-Concurrency is supported with ETags according to https://docs.microsoft.com/en-us/azure/storage/common/storage-concurrency#managing-concurrency-in-table-storage
+Concurrency is supported with ETags according to https://docs.microsoft.com/en-us/azure/storage/common/storage-concurrency#managing-concurrency-in-blob-storage
 */
 
 package blobstorage

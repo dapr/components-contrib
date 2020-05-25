@@ -13,7 +13,6 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
-	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,16 +30,16 @@ func TestPostgreSQLIntegration (t *testing.T) {
 		testInitConfiguration(t)
 	})
 
-	metadata := &state.Metadata{
+	metadata := state.Metadata{
 		Properties: map[string]string{connectionStringKey: connectionString,},
 	}
 	
-	pgs := NewPostgreSQLStateStore(NewPostgresDBAccess(logger.NewLogger("test")))
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"))
 	t.Cleanup(func () {
 		defer pgs.Close()
 	})
 	
-	error := pgs.Init(*metadata)
+	error := pgs.Init(metadata)
 	if error != nil {
 		t.Fatal(error)
 	}
@@ -76,7 +75,7 @@ func TestPostgreSQLIntegration (t *testing.T) {
 	})
 
 	// Updates with an etag are valid
-	t.Run("Update with old fails", func(t *testing.T){
+	t.Run("Update with old etag fails", func(t *testing.T){
 		t.Parallel()
 		updateWithOldEtagFails(t, pgs)
 	})
@@ -105,7 +104,6 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 	deleteReq := &state.DeleteRequest{
 		Key: key,
 		ETag: "1234",
-		Metadata: pgs.metadata.Properties,
 	}
 	err := pgs.Delete(deleteReq)
 	assert.NotNil(t, err)
@@ -119,7 +117,6 @@ func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 
 	setReq := &state.SetRequest{
 		Key: uuid.New().String(),
-		Metadata: pgs.metadata.Properties,
 		ETag: invalidEtag,
 		Value: value,
 	}
@@ -148,7 +145,6 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 	newValue = `{"newthing2": "newvalue2"}`
 	setReq := &state.SetRequest{
 		Key: key,
-		Metadata: pgs.metadata.Properties,
 		ETag: originalEtag,
 		Value: newValue,
 	}
@@ -176,6 +172,9 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *PostgreSQL) {
 
 	// Delete
 	deleteItem(t, pgs, key, updatedItem.ETag)
+
+	// Item is not in the data store
+	assert.False(t, storeItemExists(t, key))
 }
 
 // getSetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
@@ -231,12 +230,10 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	setReq := []state.SetRequest {
 		{
 			Key: uuid.New().String(),
-			Metadata: pgs.metadata.Properties,
 			Value: `{"request1": "value1"}`,
 		},
 		{
 			Key: uuid.New().String(),
-			Metadata: pgs.metadata.Properties,
 			Value: `{"request2": "value2"}`,
 		},
 	}
@@ -249,11 +246,9 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	deleteReq := []state.DeleteRequest {
 		{
 			Key: setReq[0].Key,
-			Metadata: pgs.metadata.Properties,
 		},
 		{
 			Key: setReq[1].Key,
-			Metadata: pgs.metadata.Properties,
 		},
 	}
 
@@ -287,14 +282,14 @@ func testInitConfiguration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			metadata := &state.Metadata{
+			p := NewPostgreSQLStateStore(logger)
+			defer p.Close()
+
+			metadata := state.Metadata{
 				Properties: tt.props,
 			}
 
-			p := NewPostgreSQLStateStore(NewPostgresDBAccess(logger))
-			defer p.Close()
-
-			err := p.Init(*metadata)
+			err := p.Init(metadata)
 			if tt.expectedErr == "" {
 				assert.Nil(t, err)
 			} else {
@@ -312,7 +307,6 @@ func getConnectionString() string {
 func setItem(t *testing.T, pgs *PostgreSQL, key string, value string, etag string) {
 	setReq := &state.SetRequest{
 		Key: key,
-		Metadata: pgs.metadata.Properties,
 		ETag: etag,
 		Value: value,
 	}
@@ -325,7 +319,6 @@ func setItem(t *testing.T, pgs *PostgreSQL, key string, value string, etag strin
 func getItem (t *testing.T, pgs *PostgreSQL, key string) *state.GetResponse {
 	getReq := &state.GetRequest{
 		Key: key,
-		Metadata: pgs.metadata.Properties,
 		Options: state.GetStateOption{},
 	}
 	
@@ -338,7 +331,6 @@ func getItem (t *testing.T, pgs *PostgreSQL, key string) *state.GetResponse {
 func deleteItem (t *testing.T, pgs *PostgreSQL, key string, etag string) {
 	deleteReq := &state.DeleteRequest{
 		Key: key,
-		Metadata: pgs.metadata.Properties,
 		ETag: etag,
 		Options: state.DeleteStateOption{},
 	}

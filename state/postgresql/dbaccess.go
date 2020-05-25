@@ -7,12 +7,11 @@ package postgresql
 
 import (
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	//"github.com/dapr/dapr/pkg/logger"
 )
 
+// dbAccess is a private interface which enables unit testing of PostgreSQL
 type dbAccess interface {
-	Logger() logger.Logger
-	Metadata() state.Metadata
 	Init(metadata state.Metadata) (error)
 	Set(req *state.SetRequest) (error)
 	Get(req *state.GetRequest) (*state.GetResponse, error)

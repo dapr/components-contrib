@@ -6,7 +6,6 @@
 package postgresql
 
 import (
-	//"fmt"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -15,14 +14,19 @@ import (
 type PostgreSQL struct {
 	logger		logger.Logger
 	dbaccess	dbAccess
-	metadata	state.Metadata
 }
 
-// NewPostgreSQLStateStore creates a new instance of a PostgreSQL state store banana
-func NewPostgreSQLStateStore(dba dbAccess) *PostgreSQL {
+// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store
+func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
+	dba := newPostgresDBAccess(logger)
+	return newPostgreSQLStateStore(logger, dba)
+}
+
+// newPostgreSQLStateStore creates a newPostgreSQLStateStore instance of a PostgreSQL state store.
+// This unexported constructor allows injecting a dbAccess instance for unit testing.
+func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
-		logger:		dba.Logger(),
-		metadata:   dba.Metadata(),
+		logger:		logger,
 		dbaccess:	dba,
 	}
 }

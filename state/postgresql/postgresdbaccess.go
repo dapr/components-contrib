@@ -4,15 +4,15 @@
 // ------------------------------------------------------------
 
 // PostgreSQL implementation notes:
-// - TODO: ETag for concurrency
 // - TODO: Implement consistency flags
 // - TODO: Implement transactions
 // - TODO: Rename the dbaccess interface and the variable that stores it
-// - TODO: Run linter
 // - TODO: Verify that postgresql naming conventions were followed
 // - TODO: Implement benchmark tests
 // - TODO: Find out constraints on key size
 // - TODO: Parameter validation for request structs
+// - TODO: Use logger where appropriate
+// - TODO: Verify that deletes with old etag should fail
 
 package postgresql
 
@@ -21,45 +21,36 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
+	
+	// Blank import for the underlying PostgreSQL driver
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 const (
 	connectionStringKey = "connectionString"
-
 	errMissingConnectionString = "missing connection string"
 	tableName = "state"
 )
 
-// PostgresDBAccess implements dbaccess
-type PostgresDBAccess struct {
+// postgresDBAccess implements dbaccess
+type postgresDBAccess struct {
 	logger				logger.Logger
 	metadata 			state.Metadata
 	db					*sql.DB
 	connectionString	string
 }
 
-// NewPostgresDBAccess creates a new instance of postgresAccess
-func NewPostgresDBAccess (logger logger.Logger) *PostgresDBAccess {
-	return &PostgresDBAccess{
+// newPostgresDBAccess creates a new instance of postgresAccess
+func newPostgresDBAccess (logger logger.Logger) *postgresDBAccess {
+	return &postgresDBAccess{
 		logger: logger,
 	}
 }
 
-// Logger returns an instance of logger.Logger
-func (p *PostgresDBAccess) Logger() logger.Logger {
-	return p.logger
-}
-
-// Metadata returns an instance of logger.Logger
-func (p *PostgresDBAccess) Metadata() state.Metadata {
-	return p.metadata
-}
-
 // Init sets up PostgreSQL connection and ensures that the state table exists
-func (p *PostgresDBAccess) Init(metadata state.Metadata) (error) {
+func (p *postgresDBAccess) Init(metadata state.Metadata) (error) {
 	p.metadata = metadata
 
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
@@ -89,7 +80,7 @@ func (p *PostgresDBAccess) Init(metadata state.Metadata) (error) {
 }
 
 // Set makes an insert or update to the database.
-func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
+func (p *postgresDBAccess) Set(req *state.SetRequest) (error) {
 	
 	var result sql.Result
 	var err error
@@ -119,7 +110,7 @@ func (p *PostgresDBAccess) Set(req *state.SetRequest) (error) {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	
 	var value string
 	var etag int
@@ -142,7 +133,7 @@ func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 }
 
 // Delete removes an item from the state store.
-func (p *PostgresDBAccess) Delete(req *state.DeleteRequest) (error) {
+func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (error) {
 
 	var result sql.Result
 	var err error
@@ -188,7 +179,7 @@ func returnSingleDbResult(result sql.Result, err error) error {
 }
 
 // Close implements io.Close
-func (p *PostgresDBAccess) Close() error {
+func (p *postgresDBAccess) Close() error {
 	if p.db != nil {
 		return p.db.Close()
 	}
@@ -196,7 +187,7 @@ func (p *PostgresDBAccess) Close() error {
 	return nil
 }
 
-func (p *PostgresDBAccess) ensureStateTable() (error) {
+func (p *postgresDBAccess) ensureStateTable() (error) {
 	var exists bool = false
 	err := p.db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
 	if err != nil {

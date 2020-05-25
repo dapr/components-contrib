@@ -78,7 +78,8 @@ func TestPostgreSQLImplementsStore(t *testing.T){
 
 // Creates a new instance of PostreSQL with fakes to prevent real database calls.
 func createNewStoreWithFakes() *PostgreSQL {
-	return NewPostgreSQLStateStore(&fakeDBaccess{
-		logger: logger.NewLogger("test"),
+	logger := logger.NewLogger("test")
+	return newPostgreSQLStateStore(logger, &fakeDBaccess{
+		logger: logger,
 	})
 }

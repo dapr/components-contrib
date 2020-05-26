@@ -8,12 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/dapr/dapr/pkg/logger"
 
-	//aws_client "github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/session"
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/dapr/components-contrib/pubsub"
@@ -211,22 +210,13 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.topics = make(map[string]string)
 	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
-	config := aws.NewConfig()
-	endpoint := md.awsEndpoint
 	s.awsAcctID = md.awsAccountID
-	config.Credentials = credentials.NewStaticCredentials(s.awsAcctID, md.awsSecret, md.awsToken)
-	config.Endpoint = &endpoint
-	config.Region = aws.String(md.awsRegion)
-	sesh, err := session.NewSession(config)
-
+	sess, err := aws_auth.GetClient(s.awsAcctID, md.awsSecret, md.awsRegion, md.awsEndpoint)
 	if err != nil {
-		// rather than using session.Must, defer pass the error up to the runtime
 		return err
 	}
-
-	s.snsClient = sns.New(sesh)
-	s.sqsClient = sqs.New(sesh)
-
+	s.snsClient = sns.New(sess)
+	s.sqsClient = sqs.New(sess)
 	return nil
 }
 

@@ -158,6 +158,7 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 		s.keyType = StringKeyType
 	}
 
+	//nolint:nestif
 	if s.keyType == StringKeyType {
 		if val, ok := metadata.Properties[keyLengthKey]; ok && val != "" {
 			var err error
@@ -183,6 +184,7 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 		s.schema = defaultSchema
 	}
 
+	//nolint:nestif
 	if val, ok := metadata.Properties[indexedPropertiesKey]; ok && val != "" {
 		var indexedProperties []IndexedProperty
 		err := json.Unmarshal([]byte(val), &indexedProperties)
@@ -300,8 +302,8 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 	}
 
 	if len(sets) > 0 {
-		for _, set := range sets {
-			err = s.executeSet(tx, &set)
+		for i := range sets {
+			err = s.executeSet(tx, &sets[i])
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -521,8 +523,8 @@ func (s *SQLServer) BulkSet(req []state.SetRequest) error {
 		return err
 	}
 
-	for _, r := range req {
-		err = s.executeSet(tx, &r)
+	for i := range req {
+		err = s.executeSet(tx, &req[i])
 		if err != nil {
 			tx.Rollback()
 			return err

@@ -174,8 +174,8 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // BulkSet performs a bulks save operation
 func (m *MongoDB) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := m.Set(&s)
+	for i := range req {
+		err := m.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -211,8 +211,8 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 
 // BulkDelete performs a bulk delete operation
 func (m *MongoDB) BulkDelete(req []state.DeleteRequest) error {
-	for _, r := range req {
-		err := m.Delete(&r)
+	for i := range req {
+		err := m.Delete(&req[i])
 		if err != nil {
 			return err
 		}

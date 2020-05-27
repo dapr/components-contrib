@@ -81,8 +81,8 @@ func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
 	return c, nil
 }
 
-func (a *AWSSNS) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AWSSNS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

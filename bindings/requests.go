@@ -9,16 +9,16 @@ package bindings
 type InvokeRequest struct {
 	Data      []byte            `json:"data"`
 	Metadata  map[string]string `json:"metadata"`
-	Operation OperationType     `json:"operation"`
+	Operation OperationKind     `json:"operation"`
 }
 
-// OperationType defines an output binding operation
-type OperationType string
+// OperationKind defines an output binding operation
+type OperationKind string
 
 // Non exhaustive list of operations. A binding can add operations that are not in this list.
 const (
-	GetOperation    OperationType = "get"
-	CreateOperation OperationType = "create"
-	DeleteOperation OperationType = "delete"
-	ListOperation   OperationType = "list"
+	GetOperation    OperationKind = "get"
+	CreateOperation OperationKind = "create"
+	DeleteOperation OperationKind = "delete"
+	ListOperation   OperationKind = "list"
 )

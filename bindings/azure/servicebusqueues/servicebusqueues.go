@@ -127,8 +127,8 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	return &m, nil
 }
 
-func (a *AzureServiceBusQueues) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

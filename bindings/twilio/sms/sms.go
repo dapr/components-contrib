@@ -75,8 +75,8 @@ func (t *SMS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (t *SMS) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (t *SMS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (t *SMS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

@@ -83,8 +83,8 @@ func (m *MQTT) getMQTTMetadata(metadata bindings.Metadata) (*mqttMetadata, error
 	return &mMetadata, nil
 }
 
-func (m *MQTT) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (m *MQTT) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

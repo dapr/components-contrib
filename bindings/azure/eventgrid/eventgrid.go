@@ -107,8 +107,8 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 	return nil
 }
 
-func (a *AzureEventGrid) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AzureEventGrid) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

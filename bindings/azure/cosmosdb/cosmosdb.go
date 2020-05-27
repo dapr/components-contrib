@@ -97,8 +97,8 @@ func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentia
 	return &creds, nil
 }
 
-func (c *CosmosDB) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (c *CosmosDB) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

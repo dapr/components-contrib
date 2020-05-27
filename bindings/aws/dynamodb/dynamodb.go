@@ -55,8 +55,8 @@ func (d *DynamoDB) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (d *DynamoDB) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (d *DynamoDB) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

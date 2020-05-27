@@ -90,8 +90,8 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 	return &m, nil
 }
 
-func (a *AzureBlobStorage) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

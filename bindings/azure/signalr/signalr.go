@@ -148,8 +148,8 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 	return nil
 }
 
-func (s *SignalR) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (s *SignalR) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (s *SignalR) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

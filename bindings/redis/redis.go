@@ -118,8 +118,8 @@ func (r *Redis) parseMetadata(meta bindings.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (r *Redis) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (r *Redis) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

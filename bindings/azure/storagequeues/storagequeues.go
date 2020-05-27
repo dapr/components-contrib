@@ -191,8 +191,8 @@ func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storage
 	return &m, nil
 }
 
-func (a *AzureStorageQueues) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

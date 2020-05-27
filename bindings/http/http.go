@@ -81,8 +81,8 @@ func (h *HTTPSource) Read(handler func(*bindings.ReadResponse) error) error {
 	return nil
 }
 
-func (h *HTTPSource) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (h *HTTPSource) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

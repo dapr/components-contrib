@@ -72,8 +72,8 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (r *RabbitMQ) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (r *RabbitMQ) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

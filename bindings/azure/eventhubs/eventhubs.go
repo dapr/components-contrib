@@ -138,8 +138,8 @@ func parseMetadata(meta bindings.Metadata) (*azureEventHubsMetadata, error) {
 	return m, nil
 }
 
-func (a *AzureEventHubs) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AzureEventHubs) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 // Write posts an event hubs message

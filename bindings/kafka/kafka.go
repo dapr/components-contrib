@@ -104,8 +104,8 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *Kafka) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (k *Kafka) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (k *Kafka) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

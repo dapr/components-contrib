@@ -50,8 +50,8 @@ func (s *AliCloudOSS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AliCloudOSS) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (s *AliCloudOSS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (s *AliCloudOSS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

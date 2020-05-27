@@ -31,7 +31,7 @@ Each output binding can decide which operations it supports. This information is
 type OutputBinding interface {
 	Init(metadata Metadata) error
 	Invoke(req *InvokeRequest) error
-	Operations() []bindings.OperationType
+	Operations() []OperationKind
 }
 ```
 A spec is also needed in [Dapr docs](https://github.com/dapr/docs/tree/master/reference/specs/bindings).

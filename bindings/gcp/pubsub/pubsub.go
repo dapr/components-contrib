@@ -92,8 +92,8 @@ func (g *GCPPubSub) Read(handler func(*bindings.ReadResponse) error) error {
 	return err
 }
 
-func (g *GCPPubSub) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (g *GCPPubSub) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (g *GCPPubSub) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

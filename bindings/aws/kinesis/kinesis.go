@@ -122,8 +122,8 @@ func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSKinesis) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AWSKinesis) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

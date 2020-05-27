@@ -74,8 +74,8 @@ func (g *GCPStorage) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	return b, nil
 }
 
-func (g *GCPStorage) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (g *GCPStorage) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

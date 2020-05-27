@@ -9,5 +9,5 @@ package bindings
 type OutputBinding interface {
 	Init(metadata Metadata) error
 	Invoke(req *InvokeRequest) (*InvokeResponse, error)
-	Operations() []OperationType
+	Operations() []OperationKind
 }

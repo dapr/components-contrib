@@ -62,8 +62,8 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSSQS) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (a *AWSSQS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

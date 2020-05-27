@@ -54,8 +54,8 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AWSS3) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (s *AWSS3) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

@@ -82,8 +82,8 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (sg *SendGrid) Operations() []bindings.OperationType {
-	return []bindings.OperationType{bindings.CreateOperation}
+func (sg *SendGrid) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
 // Write does the work of sending message to SendGrid API

@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	jsoniterator "github.com/json-iterator/go"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/dapr/components-contrib/state"
 )
@@ -23,6 +23,7 @@ type StateStore struct {
 
 type dynamoDBMetadata struct {
 	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
@@ -198,15 +199,11 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 	return &meta, nil
 }
 
-func (d *StateStore) getClient(meta *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(meta.Region),
-		Credentials: credentials.NewStaticCredentials(meta.AccessKey, meta.SecretKey, meta.SessionToken),
-	})
+func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
-
 	c := dynamodb.New(sess)
 	return c, nil
 }

@@ -8,11 +8,11 @@ package dynamodb
 import (
 	"encoding/json"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/dapr/components-contrib/bindings"
@@ -27,6 +27,7 @@ type DynamoDB struct {
 
 type dynamoDBMetadata struct {
 	Region    string `json:"region"`
+	Endpoint  string `json:"endpoint"`
 	AccessKey string `json:"accessKey"`
 	SecretKey string `json:"secretKey"`
 	Table     string `json:"table"`
@@ -54,16 +55,20 @@ func (d *DynamoDB) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (d *DynamoDB) Write(req *bindings.WriteRequest) error {
+func (d *DynamoDB) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	item, err := dynamodbattribute.MarshalMap(obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -73,10 +78,10 @@ func (d *DynamoDB) Write(req *bindings.WriteRequest) error {
 
 	_, err = d.client.PutItem(input)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {
@@ -93,11 +98,8 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 	return &meta, nil
 }
 
-func (d *DynamoDB) getClient(meta *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(meta.Region),
-		Credentials: credentials.NewStaticCredentials(meta.AccessKey, meta.SecretKey, ""),
-	})
+func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

@@ -24,10 +24,14 @@ type InputBinding interface {
 
 Output binding:
 
+An output binding can be used to invoke an external system and also to return data from it.
+Each output binding can decide which operations it supports. This information is communicated to the caller via the `Operations()` method.
+
 ```go
 type OutputBinding interface {
 	Init(metadata Metadata) error
-	Write(req *WriteRequest) error
+	Invoke(req *InvokeRequest) error
+	Operations() []OperationKind
 }
 ```
 A spec is also needed in [Dapr docs](https://github.com/dapr/docs/tree/master/reference/specs/bindings).

@@ -30,7 +30,7 @@ Each output binding can decide which operations it supports. This information is
 ```go
 type OutputBinding interface {
 	Init(metadata Metadata) error
-	Invoke(req *InvokeRequest) error
+	Invoke(req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind
 }
 ```

@@ -174,7 +174,7 @@ func TestSet(t *testing.T) {
 							S: aws.String("key"),
 						},
 						"value": {
-							S: aws.String("{value}"),
+							S: aws.String(`{"Value":"value"}`),
 						}}, input.Item)
 					return &dynamodb.PutItemOutput{
 						Attributes: map[string]*dynamodb.AttributeValue{
@@ -233,7 +233,7 @@ func TestBulkSet(t *testing.T) {
 										S: aws.String("key1"),
 									},
 									"value": {
-										S: aws.String("{value1}"),
+										S: aws.String(`{"Value":"value1"}`),
 									},
 								},
 							},
@@ -245,7 +245,7 @@ func TestBulkSet(t *testing.T) {
 										S: aws.String("key2"),
 									},
 									"value": {
-										S: aws.String("{value2}"),
+										S: aws.String(`{"Value":"value2"}`),
 									},
 								},
 							},

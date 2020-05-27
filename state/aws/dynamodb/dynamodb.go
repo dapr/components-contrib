@@ -83,12 +83,17 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves a dynamoDB item
 func (d *StateStore) Set(req *state.SetRequest) error {
+	value, err := d.marshalToString(req.Value)
+	if err != nil {
+		return fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
+	}
+
 	item := map[string]*dynamodb.AttributeValue{
 		"key": {
 			S: aws.String(req.Key),
 		},
 		"value": {
-			S: aws.String(fmt.Sprintf("%v", req.Value)),
+			S: aws.String(value),
 		},
 	}
 
@@ -106,12 +111,9 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
 	for _, r := range req {
-		var reqValue string
-		b, ok := r.Value.([]byte)
-		if ok {
-			reqValue = string(b)
-		} else {
-			reqValue, _ = jsoniterator.MarshalToString(r.Value)
+		value, err := d.marshalToString(r.Value)
+		if err != nil {
+			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
 		}
 
 		writeRequest := &dynamodb.WriteRequest{
@@ -121,7 +123,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 						S: aws.String(r.Key),
 					},
 					"value": {
-						S: aws.String(reqValue),
+						S: aws.String(value),
 					},
 				},
 			},
@@ -209,4 +211,12 @@ func (d *StateStore) getClient(meta *dynamoDBMetadata) (*dynamodb.DynamoDB, erro
 
 	c := dynamodb.New(sess)
 	return c, nil
+}
+
+func (d *StateStore) marshalToString(v interface{}) (string, error) {
+	if buf, ok := v.([]byte); ok {
+		return string(buf), nil
+	}
+
+	return jsoniterator.ConfigFastest.MarshalToString(v)
 }

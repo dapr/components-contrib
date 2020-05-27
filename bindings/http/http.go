@@ -81,7 +81,11 @@ func (h *HTTPSource) Read(handler func(*bindings.ReadResponse) error) error {
 	return nil
 }
 
-func (h *HTTPSource) Write(req *bindings.WriteRequest) error {
+func (h *HTTPSource) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) error {
 	client := http.Client{Timeout: time.Second * 5}
 	resp, err := client.Post(h.metadata.URL, "application/json; charset=utf-8", bytes.NewBuffer(req.Data))
 	if err != nil {

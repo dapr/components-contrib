@@ -63,7 +63,11 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSSQS) Write(req *bindings.WriteRequest) error {
+func (a *AWSSQS) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) error {
 	msgBody := string(req.Data)
 	_, err := a.Client.SendMessage(&sqs.SendMessageInput{
 		MessageBody: &msgBody,

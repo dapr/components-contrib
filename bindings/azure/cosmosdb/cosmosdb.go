@@ -97,7 +97,11 @@ func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentia
 	return &creds, nil
 }
 
-func (c *CosmosDB) Write(req *bindings.WriteRequest) error {
+func (c *CosmosDB) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) error {
 	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {

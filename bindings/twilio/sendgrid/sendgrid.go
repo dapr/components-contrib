@@ -82,8 +82,12 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
+func (sg *SendGrid) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
 // Write does the work of sending message to SendGrid API
-func (sg *SendGrid) Write(req *bindings.WriteRequest) error {
+func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present
 

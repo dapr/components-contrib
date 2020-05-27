@@ -72,7 +72,11 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (r *RabbitMQ) Write(req *bindings.WriteRequest) error {
+func (r *RabbitMQ) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) error {
 	pub := amqp.Publishing{
 		DeliveryMode: amqp.Persistent,
 		ContentType:  "text/plain",

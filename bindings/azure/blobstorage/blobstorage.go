@@ -90,7 +90,11 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 	return &m, nil
 }
 
-func (a *AzureBlobStorage) Write(req *bindings.WriteRequest) error {
+func (a *AzureBlobStorage) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) error {
 	name := ""
 	if val, ok := req.Metadata[blobName]; ok && val != "" {
 		name = val

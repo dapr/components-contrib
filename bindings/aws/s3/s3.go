@@ -53,7 +53,11 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AWSS3) Write(req *bindings.WriteRequest) error {
+func (s *AWSS3) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (s *AWSS3) Invoke(req *bindings.InvokeRequest) error {
 	key := ""
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key = val

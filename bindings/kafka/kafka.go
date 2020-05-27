@@ -104,7 +104,11 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *Kafka) Write(req *bindings.WriteRequest) error {
+func (k *Kafka) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (k *Kafka) Invoke(req *bindings.InvokeRequest) error {
 	msg := &sarama.ProducerMessage{
 		Topic: k.publishTopic,
 		Value: sarama.ByteEncoder(req.Data),

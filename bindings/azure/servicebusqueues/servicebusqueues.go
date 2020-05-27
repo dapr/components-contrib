@@ -127,7 +127,11 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	return &m, nil
 }
 
-func (a *AzureServiceBusQueues) Write(req *bindings.WriteRequest) error {
+func (a *AzureServiceBusQueues) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 

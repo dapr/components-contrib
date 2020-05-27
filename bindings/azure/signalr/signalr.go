@@ -95,7 +95,7 @@ func (s *SignalR) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *SignalR) resolveAPIURL(req *bindings.WriteRequest) (string, error) {
+func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 	hub := s.hub
 	if hub == "" {
 		hubFromRequest, ok := req.Metadata[hubKey]
@@ -148,7 +148,11 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 	return nil
 }
 
-func (s *SignalR) Write(req *bindings.WriteRequest) error {
+func (s *SignalR) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (s *SignalR) Invoke(req *bindings.InvokeRequest) error {
 	url, err := s.resolveAPIURL(req)
 	if err != nil {
 		return err

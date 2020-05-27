@@ -54,7 +54,11 @@ func (d *DynamoDB) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (d *DynamoDB) Write(req *bindings.WriteRequest) error {
+func (d *DynamoDB) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) error {
 	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {

@@ -75,7 +75,11 @@ func (t *SMS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (t *SMS) Write(req *bindings.WriteRequest) error {
+func (t *SMS) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (t *SMS) Invoke(req *bindings.InvokeRequest) error {
 	toNumberValue := t.metadata.toNumber
 	if toNumberValue == "" {
 		toNumberFromRequest, ok := req.Metadata[toNumber]

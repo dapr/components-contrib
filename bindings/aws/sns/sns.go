@@ -84,7 +84,11 @@ func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
 	return c, nil
 }
 
-func (a *AWSSNS) Write(req *bindings.WriteRequest) error {
+func (a *AWSSNS) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) error {
 	var payload dataPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {

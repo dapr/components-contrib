@@ -69,7 +69,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 	t.Run("Should succeed with expected url and headers", func(t *testing.T) {
 		httpTransport.reset()
-		err := tw.Write(&bindings.WriteRequest{
+		err := tw.Invoke(&bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -104,7 +104,7 @@ func TestWriteShouldFail(t *testing.T) {
 
 	t.Run("Missing 'to' should fail", func(t *testing.T) {
 		httpTransport.reset()
-		err := tw.Write(&bindings.WriteRequest{
+		err := tw.Invoke(&bindings.InvokeRequest{
 			Data:     []byte("hello world"),
 			Metadata: map[string]string{},
 		})
@@ -116,7 +116,7 @@ func TestWriteShouldFail(t *testing.T) {
 		httpTransport.reset()
 		httpErr := errors.New("twilio fake error")
 		httpTransport.errToReturn = httpErr
-		err := tw.Write(&bindings.WriteRequest{
+		err := tw.Invoke(&bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -130,7 +130,7 @@ func TestWriteShouldFail(t *testing.T) {
 	t.Run("Twilio call returns status not >=200 and <300", func(t *testing.T) {
 		httpTransport.reset()
 		httpTransport.response.StatusCode = 401
-		err := tw.Write(&bindings.WriteRequest{
+		err := tw.Invoke(&bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",

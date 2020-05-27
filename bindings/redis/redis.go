@@ -118,7 +118,11 @@ func (r *Redis) parseMetadata(meta bindings.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (r *Redis) Write(req *bindings.WriteRequest) error {
+func (r *Redis) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (r *Redis) Invoke(req *bindings.InvokeRequest) error {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
 		_, err := r.client.DoContext(context.Background(), "SET", key, req.Data).Result()

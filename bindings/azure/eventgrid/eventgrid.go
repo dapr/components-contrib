@@ -107,7 +107,11 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 	return nil
 }
 
-func (a *AzureEventGrid) Write(req *bindings.WriteRequest) error {
+func (a *AzureEventGrid) Operations() []string {
+	return []string{bindings.CreateOperation}
+}
+
+func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) error {
 	err := a.ensureOutputBindingMetadata()
 	if err != nil {
 		a.logger.Error(err.Error())

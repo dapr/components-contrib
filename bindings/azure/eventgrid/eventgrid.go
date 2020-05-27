@@ -107,15 +107,15 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 	return nil
 }
 
-func (a *AzureEventGrid) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (a *AzureEventGrid) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) error {
+func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	err := a.ensureOutputBindingMetadata()
 	if err != nil {
 		a.logger.Error(err.Error())
-		return err
+		return nil, err
 	}
 
 	request := fasthttp.AcquireRequest()
@@ -133,16 +133,16 @@ func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) error {
 	err = client.Do(request, response)
 	if err != nil {
 		a.logger.Error(err.Error())
-		return err
+		return nil, err
 	}
 
 	if response.StatusCode() != fasthttp.StatusOK {
 		body := response.Body()
 		a.logger.Error(string(body))
-		return errors.New(string(body))
+		return nil, errors.New(string(body))
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (a *AzureEventGrid) ensureInputBindingMetadata() error {

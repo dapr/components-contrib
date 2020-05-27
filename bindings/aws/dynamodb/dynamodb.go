@@ -54,20 +54,20 @@ func (d *DynamoDB) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (d *DynamoDB) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (d *DynamoDB) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) error {
+func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	item, err := dynamodbattribute.MarshalMap(obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -77,10 +77,10 @@ func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) error {
 
 	_, err = d.client.PutItem(input)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {

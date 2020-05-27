@@ -53,7 +53,7 @@ func TestWriteQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	err = a.Invoke(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 }
@@ -75,7 +75,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	err = a.Invoke(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 }
@@ -100,7 +100,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 		Metadata: map[string]string{bindings.TTLMetadataKey: "1"},
 	}
 
-	err = a.Invoke(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 }
@@ -137,7 +137,7 @@ func TestReadQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	err = a.Invoke(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 
@@ -171,7 +171,7 @@ func TestReadQueueDecode(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
 
-	err = a.Invoke(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 

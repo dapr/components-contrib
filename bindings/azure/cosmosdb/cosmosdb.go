@@ -97,28 +97,28 @@ func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentia
 	return &creds, nil
 }
 
-func (c *CosmosDB) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (c *CosmosDB) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) error {
+func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (interface{}, error) {

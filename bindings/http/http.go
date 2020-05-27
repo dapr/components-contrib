@@ -81,18 +81,18 @@ func (h *HTTPSource) Read(handler func(*bindings.ReadResponse) error) error {
 	return nil
 }
 
-func (h *HTTPSource) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (h *HTTPSource) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) error {
+func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	client := http.Client{Timeout: time.Second * 5}
 	resp, err := client.Post(h.metadata.URL, "application/json; charset=utf-8", bytes.NewBuffer(req.Data))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()
 	}
-	return nil
+	return nil, nil
 }

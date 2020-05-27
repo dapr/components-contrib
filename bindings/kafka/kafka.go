@@ -104,11 +104,11 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *Kafka) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (k *Kafka) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (k *Kafka) Invoke(req *bindings.InvokeRequest) error {
+func (k *Kafka) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	msg := &sarama.ProducerMessage{
 		Topic: k.publishTopic,
 		Value: sarama.ByteEncoder(req.Data),
@@ -119,10 +119,10 @@ func (k *Kafka) Invoke(req *bindings.InvokeRequest) error {
 
 	_, _, err := k.producer.SendMessage(msg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 // GetKafkaMetadata returns new Kafka metadata

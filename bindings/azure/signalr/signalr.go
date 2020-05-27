@@ -148,27 +148,27 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 	return nil
 }
 
-func (s *SignalR) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (s *SignalR) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (s *SignalR) Invoke(req *bindings.InvokeRequest) error {
+func (s *SignalR) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	url, err := s.resolveAPIURL(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	token, err := s.ensureValidToken(url)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = s.sendMessageToSignalR(url, token, req.Data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (s *SignalR) ensureValidToken(url string) (string, error) {

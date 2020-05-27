@@ -84,15 +84,15 @@ func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
 	return c, nil
 }
 
-func (a *AWSSNS) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (a *AWSSNS) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) error {
+func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload dataPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	msg := fmt.Sprintf("%v", payload.Message)
@@ -106,7 +106,7 @@ func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) error {
 
 	_, err = a.client.Publish(input)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return nil, nil
 }

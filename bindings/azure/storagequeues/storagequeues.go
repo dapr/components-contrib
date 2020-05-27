@@ -191,15 +191,15 @@ func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storage
 	return &m, nil
 }
 
-func (a *AzureStorageQueues) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (a *AzureStorageQueues) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) error {
+func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	ttlToUse := a.metadata.ttl
 	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if ok {
@@ -208,9 +208,9 @@ func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) error {
 
 	err = a.helper.Write(req.Data, ttlToUse)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return nil, nil
 }
 
 func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) error) error {

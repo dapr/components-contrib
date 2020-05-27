@@ -120,11 +120,11 @@ func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSKinesis) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (a *AWSKinesis) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) error {
+func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	partitionKey := req.Metadata[partitionKeyName]
 	if partitionKey == "" {
 		partitionKey = uuid.New().String()
@@ -134,7 +134,7 @@ func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) error {
 		Data:         req.Data,
 		PartitionKey: &partitionKey,
 	})
-	return err
+	return nil, err
 }
 
 func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) error) error {

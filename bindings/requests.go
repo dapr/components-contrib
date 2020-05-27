@@ -12,6 +12,9 @@ type InvokeRequest struct {
 	Operation string            `json:"operation"`
 }
 
+// OperationType defines an output binding operation
+type OperationType string
+
 // Non exhaustive list of operations. A binding can add operations that are not in this list.
 const (
 	GetOperation    = "get"

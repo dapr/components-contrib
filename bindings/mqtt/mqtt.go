@@ -83,14 +83,14 @@ func (m *MQTT) getMQTTMetadata(metadata bindings.Metadata) (*mqttMetadata, error
 	return &mMetadata, nil
 }
 
-func (m *MQTT) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (m *MQTT) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (m *MQTT) Invoke(req *bindings.InvokeRequest) error {
+func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	m.client.Publish(m.metadata.Topic, 0, false, string(req.Data))
 	m.client.Disconnect(0)
-	return nil
+	return nil, nil
 }
 
 func (m *MQTT) Read(handler func(*bindings.ReadResponse) error) error {

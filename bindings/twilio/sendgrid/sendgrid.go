@@ -82,12 +82,12 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (sg *SendGrid) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (sg *SendGrid) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
 // Write does the work of sending message to SendGrid API
-func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
+func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present
 
@@ -100,7 +100,7 @@ func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
 		fromAddress = mail.NewEmail("", req.Metadata["emailFrom"])
 	}
 	if fromAddress == nil {
-		return fmt.Errorf("error SendGrid from email not supplied")
+		return nil, fmt.Errorf("error SendGrid from email not supplied")
 	}
 
 	// Build email to address, this is required
@@ -112,7 +112,7 @@ func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
 		toAddress = mail.NewEmail("", req.Metadata["emailTo"])
 	}
 	if toAddress == nil {
-		return fmt.Errorf("error SendGrid to email not supplied")
+		return nil, fmt.Errorf("error SendGrid to email not supplied")
 	}
 
 	// Build email subject, this is required
@@ -124,7 +124,7 @@ func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
 		subject = req.Metadata["subject"]
 	}
 	if subject == "" {
-		return fmt.Errorf("error SendGrid subject not supplied")
+		return nil, fmt.Errorf("error SendGrid subject not supplied")
 	}
 
 	// Build email cc address, this is optional
@@ -169,7 +169,7 @@ func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
 	client := sendgrid.NewSendClient(sg.metadata.APIKey)
 	resp, err := client.Send(email)
 	if err != nil {
-		return fmt.Errorf("error from SendGrid, sending email failed: %+v", err)
+		return nil, fmt.Errorf("error from SendGrid, sending email failed: %+v", err)
 	}
 
 	// Check SendGrid response is OK
@@ -178,9 +178,9 @@ func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) error {
 		sendGridError := sendGridRestError{}
 		json.NewDecoder(strings.NewReader(resp.Body)).Decode(&sendGridError)
 		// Pass it back to the caller, so they have some idea what went wrong
-		return fmt.Errorf("error from SendGrid, sending email failed: %d %+v", resp.StatusCode, sendGridError)
+		return nil, fmt.Errorf("error from SendGrid, sending email failed: %d %+v", resp.StatusCode, sendGridError)
 	}
 
 	sg.logger.Info("sent email with SendGrid")
-	return nil
+	return nil, nil
 }

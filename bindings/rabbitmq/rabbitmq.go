@@ -72,11 +72,11 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (r *RabbitMQ) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (r *RabbitMQ) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) error {
+func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	pub := amqp.Publishing{
 		DeliveryMode: amqp.Persistent,
 		ContentType:  "text/plain",
@@ -85,7 +85,7 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) error {
 
 	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// The default time to live has been set in the queue
@@ -98,10 +98,10 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) error {
 	err = r.channel.Publish("", r.metadata.QueueName, false, false, pub)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {

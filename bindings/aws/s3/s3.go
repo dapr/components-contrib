@@ -53,11 +53,11 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AWSS3) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (s *AWSS3) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (s *AWSS3) Invoke(req *bindings.InvokeRequest) error {
+func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	key := ""
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key = val
@@ -72,7 +72,7 @@ func (s *AWSS3) Invoke(req *bindings.InvokeRequest) error {
 		Key:    aws.String(key),
 		Body:   r,
 	})
-	return err
+	return nil, err
 }
 
 func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {

@@ -75,16 +75,16 @@ func (t *SMS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (t *SMS) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (t *SMS) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (t *SMS) Invoke(req *bindings.InvokeRequest) error {
+func (t *SMS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	toNumberValue := t.metadata.toNumber
 	if toNumberValue == "" {
 		toNumberFromRequest, ok := req.Metadata[toNumber]
 		if !ok || toNumberFromRequest == "" {
-			return errors.New("twilio missing \"toNumber\" field")
+			return nil, errors.New("twilio missing \"toNumber\" field")
 		}
 		toNumberValue = toNumberFromRequest
 	}
@@ -98,7 +98,7 @@ func (t *SMS) Invoke(req *bindings.InvokeRequest) error {
 	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
 	httpReq, err := http.NewRequest("POST", twilioURL, &vDr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	httpReq.SetBasicAuth(t.metadata.accountSid, t.metadata.authToken)
 	httpReq.Header.Add("Accept", "application/json")
@@ -106,11 +106,11 @@ func (t *SMS) Invoke(req *bindings.InvokeRequest) error {
 
 	resp, err := t.httpClient.Do(httpReq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		return fmt.Errorf("error from Twilio: %s", resp.Status)
+		return nil, fmt.Errorf("error from Twilio: %s", resp.Status)
 	}
-	return nil
+	return nil, nil
 }

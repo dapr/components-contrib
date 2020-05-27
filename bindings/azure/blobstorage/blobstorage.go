@@ -90,11 +90,11 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 	return &m, nil
 }
 
-func (a *AzureBlobStorage) Operations() []string {
-	return []string{bindings.CreateOperation}
+func (a *AzureBlobStorage) Operations() []bindings.OperationType {
+	return []bindings.OperationType{bindings.CreateOperation}
 }
 
-func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) error {
+func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	name := ""
 	if val, ok := req.Metadata[blobName]; ok && val != "" {
 		name = val
@@ -112,7 +112,7 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) error {
 	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+			return nil, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.ContentMD5 = sDec
 		delete(req.Metadata, contentMD5)
@@ -142,5 +142,5 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) error {
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
-	return err
+	return nil, err
 }

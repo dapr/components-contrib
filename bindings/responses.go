@@ -23,3 +23,9 @@ type AppResponse struct {
 	State       []state.SetRequest `json:"state"`
 	Concurrency string             `json:"concurrency"`
 }
+
+// InvokeResponse is the response object returned from an output binding
+type InvokeResponse struct {
+	Data     []byte            `json:"data"`
+	Metadata map[string]string `json:"metadata"`
+}

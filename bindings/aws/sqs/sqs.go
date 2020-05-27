@@ -27,6 +27,7 @@ type AWSSQS struct {
 type sqsMetadata struct {
 	QueueName string `json:"queueName"`
 	Region    string `json:"region"`
+	Endpoint  string `json:"endpoint"`
 	AccessKey string `json:"accessKey"`
 	SecretKey string `json:"secretKey"`
 }
@@ -61,13 +62,17 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSSQS) Write(req *bindings.WriteRequest) error {
+func (a *AWSSQS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	msgBody := string(req.Data)
 	_, err := a.Client.SendMessage(&sqs.SendMessageInput{
 		MessageBody: &msgBody,
 		QueueUrl:    a.QueueURL,
 	})
-	return err
+	return nil, err
 }
 
 func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) error) error {
@@ -124,7 +129,7 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

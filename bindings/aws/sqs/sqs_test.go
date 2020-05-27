@@ -14,7 +14,7 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"QueueName": "a", "Region": "a", "AccessKey": "a", "SecretKey": "a"}
+	m.Properties = map[string]string{"QueueName": "a", "Region": "a", "AccessKey": "a", "SecretKey": "a", "Endpoint": "a"}
 	s := AWSSQS{}
 	sqsM, err := s.parseSQSMetadata(m)
 	assert.Nil(t, err)
@@ -22,4 +22,5 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "a", sqsM.Region)
 	assert.Equal(t, "a", sqsM.AccessKey)
 	assert.Equal(t, "a", sqsM.SecretKey)
+	assert.Equal(t, "a", sqsM.Endpoint)
 }

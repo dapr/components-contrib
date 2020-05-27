@@ -9,11 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/dapr/dapr/pkg/logger"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -29,6 +28,7 @@ type AWSSNS struct {
 type snsMetadata struct {
 	TopicArn  string `json:"topicArn"`
 	Region    string `json:"region"`
+	Endpoint  string `json:"endpoint"`
 	AccessKey string `json:"accessKey"`
 	SecretKey string `json:"secretKey"`
 }
@@ -73,10 +73,7 @@ func (a *AWSSNS) parseMetadata(metadata bindings.Metadata) (*snsMetadata, error)
 }
 
 func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(metadata.Region),
-		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""),
-	})
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -84,11 +81,15 @@ func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
 	return c, nil
 }
 
-func (a *AWSSNS) Write(req *bindings.WriteRequest) error {
+func (a *AWSSNS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload dataPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	msg := fmt.Sprintf("%v", payload.Message)
@@ -102,7 +103,7 @@ func (a *AWSSNS) Write(req *bindings.WriteRequest) error {
 
 	_, err = a.client.Publish(input)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return nil, nil
 }

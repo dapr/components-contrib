@@ -83,7 +83,7 @@ func TestQueueWithTTL(t *testing.T) {
 
 	// Assert that if waited too long, we won't see any message
 	const tooLateMsgContent = "too_late_msg"
-	err = a.Write(&bindings.WriteRequest{Data: []byte(tooLateMsgContent)})
+	err = a.Write(&bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second * 2)
@@ -97,7 +97,7 @@ func TestQueueWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	err = a.Write(&bindings.WriteRequest{Data: []byte(testMsgContent)})
+	err = a.Write(&bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(queue, maxGetDuration)
@@ -136,7 +136,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.Equal(t, defaultAzureServiceBusMessageTimeToLive, *queueEntity.DefaultMessageTimeToLive)
 
 	const tooLateMsgContent = "too_late_msg"
-	writeRequest := bindings.WriteRequest{
+	writeRequest := bindings.InvokeRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
 			bindings.TTLMetadataKey: "1",
@@ -160,7 +160,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.Nil(t, err)
 
 	const testMsgContent = "test_msg"
-	writeRequest = bindings.WriteRequest{
+	writeRequest = bindings.InvokeRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
 			bindings.TTLMetadataKey: "1",

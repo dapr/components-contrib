@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	jsoniterator "github.com/json-iterator/go"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -83,12 +84,17 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves a dynamoDB item
 func (d *StateStore) Set(req *state.SetRequest) error {
+	value, err := d.marshalToString(req.Value)
+	if err != nil {
+		return fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
+	}
+
 	item := map[string]*dynamodb.AttributeValue{
 		"key": {
 			S: aws.String(req.Key),
 		},
 		"value": {
-			S: aws.String(fmt.Sprintf("%v", req.Value)),
+			S: aws.String(value),
 		},
 	}
 
@@ -103,13 +109,37 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk set operation
 func (d *StateStore) BulkSet(req []state.SetRequest) error {
+	writeRequests := []*dynamodb.WriteRequest{}
+
 	for _, r := range req {
-		err := d.Set(&r)
+		value, err := d.marshalToString(r.Value)
 		if err != nil {
-			return err
+			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
 		}
+
+		writeRequest := &dynamodb.WriteRequest{
+			PutRequest: &dynamodb.PutRequest{
+				Item: map[string]*dynamodb.AttributeValue{
+					"key": {
+						S: aws.String(r.Key),
+					},
+					"value": {
+						S: aws.String(value),
+					},
+				},
+			},
+		}
+
+		writeRequests = append(writeRequests, writeRequest)
 	}
-	return nil
+
+	requestItems := map[string][]*dynamodb.WriteRequest{}
+	requestItems[d.table] = writeRequests
+
+	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
+	})
+	return e
 }
 
 // Delete performs a delete operation
@@ -128,13 +158,28 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
+	writeRequests := []*dynamodb.WriteRequest{}
+
 	for _, r := range req {
-		err := d.Delete(&r)
-		if err != nil {
-			return err
+		writeRequest := &dynamodb.WriteRequest{
+			DeleteRequest: &dynamodb.DeleteRequest{
+				Key: map[string]*dynamodb.AttributeValue{
+					"key": {
+						S: aws.String(r.Key),
+					},
+				},
+			},
 		}
+		writeRequests = append(writeRequests, writeRequest)
 	}
-	return nil
+
+	requestItems := map[string][]*dynamodb.WriteRequest{}
+	requestItems[d.table] = writeRequests
+
+	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
+	})
+	return e
 }
 
 func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMetadata, error) {
@@ -163,4 +208,12 @@ func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, 
 	}
 	c := dynamodb.New(sess)
 	return c, nil
+}
+
+func (d *StateStore) marshalToString(v interface{}) (string, error) {
+	if buf, ok := v.([]byte); ok {
+		return string(buf), nil
+	}
+
+	return jsoniterator.ConfigFastest.MarshalToString(v)
 }

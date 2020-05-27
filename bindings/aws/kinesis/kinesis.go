@@ -15,10 +15,11 @@ import (
 	"syscall"
 	"time"
 
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -45,6 +46,7 @@ type kinesisMetadata struct {
 	StreamName          string              `json:"streamName"`
 	ConsumerName        string              `json:"consumerName"`
 	Region              string              `json:"region"`
+	Endpoint            string              `json:"endpoint"`
 	AccessKey           string              `json:"accessKey"`
 	SecretKey           string              `json:"secretKey"`
 	KinesisConsumerMode kinesisConsumerMode `json:"mode"`
@@ -120,7 +122,11 @@ func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSKinesis) Write(req *bindings.WriteRequest) error {
+func (a *AWSKinesis) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	partitionKey := req.Metadata[partitionKeyName]
 	if partitionKey == "" {
 		partitionKey = uuid.New().String()
@@ -130,7 +136,7 @@ func (a *AWSKinesis) Write(req *bindings.WriteRequest) error {
 		Data:         req.Data,
 		PartitionKey: &partitionKey,
 	})
-	return err
+	return nil, err
 }
 
 func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) error) error {
@@ -287,10 +293,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 }
 
 func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(metadata.Region),
-		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, ""),
-	})
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

@@ -92,7 +92,11 @@ func (g *GCPPubSub) Read(handler func(*bindings.ReadResponse) error) error {
 	return err
 }
 
-func (g *GCPPubSub) Write(req *bindings.WriteRequest) error {
+func (g *GCPPubSub) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (g *GCPPubSub) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	topicName := g.metadata.Topic
 	if val, ok := req.Metadata[topic]; ok && val != "" {
 		topicName = val
@@ -103,5 +107,5 @@ func (g *GCPPubSub) Write(req *bindings.WriteRequest) error {
 	_, err := t.Publish(ctx, &pubsub.Message{
 		Data: req.Data,
 	}).Get(ctx)
-	return err
+	return nil, err
 }

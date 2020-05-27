@@ -138,8 +138,12 @@ func parseMetadata(meta bindings.Metadata) (*azureEventHubsMetadata, error) {
 	return m, nil
 }
 
+func (a *AzureEventHubs) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
 // Write posts an event hubs message
-func (a *AzureEventHubs) Write(req *bindings.WriteRequest) error {
+func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	event := &eventhub.Event{
 		Data: req.Data,
 	}
@@ -156,10 +160,10 @@ func (a *AzureEventHubs) Write(req *bindings.WriteRequest) error {
 
 	err := a.hub.Send(context.Background(), event)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 // Read gets messages from eventhubs in a non-blocking fashion

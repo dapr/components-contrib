@@ -19,16 +19,20 @@ const (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		connectionString:              "fakeConnectionString",
-		consumerID:                    "fakeConId",
-		disableEntityManagement:       "true",
-		timeoutInSec:                  "90",
-		handlerTimeoutInSec:           "30",
-		maxDeliveryCount:              "10",
-		autoDeleteOnIdleInSec:         "240",
-		defaultMessageTimeToLiveInSec: "2400",
-		lockDurationInSec:             "120",
-		numConcurrentHandlers:         "1",
+		connectionString:               "fakeConnectionString",
+		consumerID:                     "fakeConId",
+		disableEntityManagement:        "true",
+		timeoutInSec:                   "90",
+		handlerTimeoutInSec:            "30",
+		maxDeliveryCount:               "10",
+		autoDeleteOnIdleInSec:          "240",
+		defaultMessageTimeToLiveInSec:  "2400",
+		lockDurationInSec:              "120",
+		lockRenewalInSec:               "15",
+		maxConcurrentHandlers:          "1",
+		prefetchCount:                  "10",
+		maxActiveMessages:              "100",
+		maxActiveMessagesRecoveryInSec: "5",
 	}
 }
 
@@ -51,6 +55,12 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 90, m.TimeoutInSec)
 		assert.Equal(t, true, m.DisableEntityManagement)
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
+		assert.NotNil(t, m.LockRenewalInSec)
+		assert.Equal(t, 15, m.LockRenewalInSec)
+		assert.NotNil(t, m.MaxActiveMessages)
+		assert.Equal(t, 100, m.MaxActiveMessages)
+		assert.NotNil(t, m.MaxActiveMessagesRecoveryInSec)
+		assert.Equal(t, 5, m.MaxActiveMessagesRecoveryInSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
 		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
@@ -60,8 +70,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 2400, *m.DefaultMessageTimeToLiveInSec)
 		assert.NotNil(t, m.LockDurationInSec)
 		assert.Equal(t, 120, *m.LockDurationInSec)
-		assert.NotNil(t, m.NumConcurrentHandlers)
-		assert.Equal(t, 1, *m.NumConcurrentHandlers)
+		assert.NotNil(t, m.MaxConcurrentHandlers)
+		assert.Equal(t, 1, *m.MaxConcurrentHandlers)
+		assert.NotNil(t, m.PrefetchCount)
+		assert.Equal(t, 10, *m.PrefetchCount)
 	})
 
 	t.Run("missing required connectionString", func(t *testing.T) {
@@ -185,6 +197,102 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[handlerTimeoutInSec] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional lockRenewalInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[lockRenewalInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 20, m.LockRenewalInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional lockRenewalInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[lockRenewalInSec] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxActiveMessages", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessages] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 10000, m.MaxActiveMessages)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxActiveMessages", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessages] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxActiveMessagesRecoveryInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 2, m.MaxActiveMessagesRecoveryInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxActiveMessagesRecoveryInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
@@ -322,29 +430,61 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
-	t.Run("missing nullable numConcurrentHandlers", func(t *testing.T) {
+	t.Run("missing nullable maxConcurrentHandlers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[numConcurrentHandlers] = ""
+		fakeMetaData.Properties[maxConcurrentHandlers] = ""
 
 		// act
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert
-		assert.Nil(t, m.NumConcurrentHandlers)
+		assert.Nil(t, m.MaxConcurrentHandlers)
 		assert.Nil(t, err)
 	})
 
-	t.Run("invalid nullable numConcurrentHandlers", func(t *testing.T) {
+	t.Run("invalid nullable maxConcurrentHandlers", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[numConcurrentHandlers] = invalidNumber
+		fakeMetaData.Properties[maxConcurrentHandlers] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing nullable prefetchCount", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[prefetchCount] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Nil(t, m.PrefetchCount)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid nullable prefetchCount", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[prefetchCount] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

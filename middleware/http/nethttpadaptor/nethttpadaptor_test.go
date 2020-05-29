@@ -1,7 +1,6 @@
 package nethttpadaptor
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -419,10 +418,10 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 						gzip = true
 					}
 				}
-				assert.True(t, chunked, fmt.Sprintf("expected chunked to be true but was false"))
-				assert.True(t, compress, fmt.Sprintf("expected compress to be true but was false"))
-				assert.True(t, deflate, fmt.Sprintf("expected deflate to be true but was false"))
-				assert.True(t, gzip, fmt.Sprintf("expected gzip to be true but was false"))
+				assert.True(t, chunked, "expected chunked to be true but was false")
+				assert.True(t, compress, "expected compress to be true but was false")
+				assert.True(t, deflate, "expected deflate to be true but was false")
+				assert.True(t, gzip, "expected gzip to be true but was false")
 			},
 		},
 	}

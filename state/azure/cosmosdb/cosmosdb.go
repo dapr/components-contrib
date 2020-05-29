@@ -162,8 +162,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk set operation
 func (c *StateStore) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := c.Set(&s)
+	for i := range req {
+		err := c.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -199,8 +199,8 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (c *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	for _, r := range req {
-		err := c.Delete(&r)
+	for i := range req {
+		err := c.Delete(&req[i])
 		if err != nil {
 			return err
 		}

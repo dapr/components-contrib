@@ -97,6 +97,7 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.durableSubscriptionName = val
 	}
 
+	//nolint:nestif
 	// subscription options - only one can be used
 	if val, ok := meta.Properties[startAtSequence]; ok && val != "" {
 		// nats streaming accepts a uint64 as sequence
@@ -209,20 +210,20 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 		options = append(options, stan.DurableName(n.metadata.durableSubscriptionName))
 	}
 
-	if n.metadata.deliverNew == deliverNewTrue {
+	switch {
+	case n.metadata.deliverNew == deliverNewTrue:
 		options = append(options, stan.StartAt(pb.StartPosition_NewOnly))
-	} else if n.metadata.startAtSequence >= 1 { //messages index start from 1, this is a valid check
+	case n.metadata.startAtSequence >= 1: //messages index start from 1, this is a valid check
 		options = append(options, stan.StartAtSequence(n.metadata.startAtSequence))
-	} else if n.metadata.startWithLastReceived == startWithLastReceivedTrue {
+	case n.metadata.startWithLastReceived == startWithLastReceivedTrue:
 		options = append(options, stan.StartWithLastReceived())
-	} else if n.metadata.deliverAll == deliverAllTrue {
+	case n.metadata.deliverAll == deliverAllTrue:
 		options = append(options, stan.DeliverAllAvailable())
-	} else if n.metadata.startAtTimeDelta > (1 * time.Nanosecond) { //as long as its a valid time.Duration
+	case n.metadata.startAtTimeDelta > (1 * time.Nanosecond): //as long as its a valid time.Duration
 		options = append(options, stan.StartAtTimeDelta(n.metadata.startAtTimeDelta))
-	} else if n.metadata.startAtTime != "" {
+	case n.metadata.startAtTime != "":
 		if n.metadata.startAtTimeFormat != "" {
 			startTime, err := time.Parse(n.metadata.startAtTimeFormat, n.metadata.startAtTime)
-
 			if err != nil {
 				return nil, err
 			}

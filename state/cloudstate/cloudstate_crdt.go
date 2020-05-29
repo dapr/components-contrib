@@ -534,8 +534,8 @@ func (c *CRDT) BulkDelete(req []state.DeleteRequest) error {
 		return err
 	}
 
-	for _, r := range req {
-		err = c.Delete(&r)
+	for i := range req {
+		err = c.Delete(&req[i])
 		if err != nil {
 			return err
 		}
@@ -579,8 +579,8 @@ func (c *CRDT) BulkSet(req []state.SetRequest) error {
 		return err
 	}
 
-	for _, r := range req {
-		err = c.Set(&r)
+	for i := range req {
+		err = c.Set(&req[i])
 		if err != nil {
 			return err
 		}

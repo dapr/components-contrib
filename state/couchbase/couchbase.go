@@ -139,6 +139,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
 
+	//nolint:nestif
 	//key already exists (use Replace)
 	if req.ETag != "" {
 		//compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
@@ -169,8 +170,8 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (cbs *Couchbase) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := cbs.Set(&s)
+	for i := range req {
+		err := cbs.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -230,8 +231,8 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := cbs.Delete(&re)
+	for i := range req {
+		err := cbs.Delete(&req[i])
 		if err != nil {
 			return err
 		}

@@ -138,6 +138,7 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg
 		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}
 
+	//nolint:nestif
 	// if message is not auto acked we need to ack/nack
 	if !r.metadata.autoAck {
 		if err != nil {

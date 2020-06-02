@@ -6,40 +6,41 @@ package postgresql
 
 import (
 	"testing"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
-const(
+const (
 	fakeConnectionString = "not a real connection"
 )
 
 // Fake implementation of interface postgressql.dbaccess
 type fakeDBaccess struct {
-	logger logger.Logger
-	metadata state.Metadata
+	logger       logger.Logger
+	metadata     state.Metadata
 	initExecuted bool
-	setExecuted bool
-	getExecuted bool
+	setExecuted  bool
+	getExecuted  bool
 }
 
-func (m *fakeDBaccess) Init(metadata state.Metadata) (error){
+func (m *fakeDBaccess) Init(metadata state.Metadata) error {
 	m.initExecuted = true
-	return nil;
+	return nil
 }
 
-func (m *fakeDBaccess) Set(req *state.SetRequest) (error){
+func (m *fakeDBaccess) Set(req *state.SetRequest) error {
 	m.setExecuted = true
-	return nil;
+	return nil
 }
 
-func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error){
+func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	m.getExecuted = true
-	return nil, nil;
+	return nil, nil
 }
 
-func (m *fakeDBaccess) Delete(req *state.DeleteRequest) (error) {
+func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
@@ -57,14 +58,13 @@ func (m *fakeDBaccess) Close() error {
 
 // Proves that the Init method runs the init method
 func TestInitRunsDBAccessInit(t *testing.T) {
-
 	p := createNewStoreWithFakes()
 	metadata := &state.Metadata{
 		Properties: map[string]string{connectionStringKey: fakeConnectionString},
 	}
 
 	err := p.Init(*metadata)
-	
+
 	assert.Nil(t, err)
 	assert.NotNil(t, p.dbaccess)
 	fake := p.dbaccess.(*fakeDBaccess)
@@ -72,7 +72,7 @@ func TestInitRunsDBAccessInit(t *testing.T) {
 }
 
 // Proves that PostgreSQL implements state.Store.
-func TestPostgreSQLImplementsStore(t *testing.T){
+func TestPostgreSQLImplementsStore(t *testing.T) {
 	assert.NotNil(t, createNewStoreWithFakes())
 }
 

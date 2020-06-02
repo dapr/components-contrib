@@ -11,8 +11,8 @@ import (
 
 // dbAccess is a private interface which enables unit testing of PostgreSQL
 type dbAccess interface {
-	Init(metadata state.Metadata) (error)
-	Set(req *state.SetRequest) (error)
+	Init(metadata state.Metadata) error
+	Set(req *state.SetRequest) error
 	Get(req *state.GetRequest) (*state.GetResponse, error)
 	Delete(req *state.DeleteRequest) error
 	Close() error // io.Closer

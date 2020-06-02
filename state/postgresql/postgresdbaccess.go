@@ -7,39 +7,41 @@ package postgresql
 
 import (
 	"database/sql"
+
 	"errors"
 	"fmt"
 	"strconv"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	
+
 	// Blank import for the underlying PostgreSQL driver
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 const (
-	connectionStringKey = "connectionString"
+	connectionStringKey        = "connectionString"
 	errMissingConnectionString = "missing connection string"
-	tableName = "state"
+	tableName                  = "state"
 )
 
 // postgresDBAccess implements dbaccess
 type postgresDBAccess struct {
-	logger				logger.Logger
-	metadata 			state.Metadata
-	db					*sql.DB
-	connectionString	string
+	logger           logger.Logger
+	metadata         state.Metadata
+	db               *sql.DB
+	connectionString string
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess
-func newPostgresDBAccess (logger logger.Logger) *postgresDBAccess {
+func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 	return &postgresDBAccess{
 		logger: logger,
 	}
 }
 
 // Init sets up PostgreSQL connection and ensures that the state table exists
-func (p *postgresDBAccess) Init(metadata state.Metadata) (error) {
+func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 	p.metadata = metadata
 
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
@@ -47,16 +49,16 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) (error) {
 	} else {
 		return fmt.Errorf(errMissingConnectionString)
 	}
-	
+
 	db, err := sql.Open("pgx", p.connectionString)
 	if err != nil {
 		return err
 	}
 
 	p.db = db
-	
+
 	pingErr := db.Ping()
-	if(pingErr != nil) {
+	if pingErr != nil {
 		return pingErr
 	}
 
@@ -64,34 +66,33 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) (error) {
 	if err != nil {
 		return err
 	}
-			
-	return nil;
+
+	return nil
 }
 
 // Set makes an insert or update to the database.
-func (p *postgresDBAccess) Set(req *state.SetRequest) (error) {
-	
+func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 	var result sql.Result
 	var err error
 
-	// Sprintf is required for table name because sql.DB does not substitue parameters for table names.
+	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
 	if req.ETag == "" {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value) VALUES ($1, $2)
-			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`, 
+			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`,
 			tableName), req.Key, req.Value)
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
 		etag, conversionError := strconv.Atoi(req.ETag)
-		if(conversionError != nil) {
+		if conversionError != nil {
 			return conversionError
 		}
 
 		// When an etag is provided do an update - no insert
 		result, err = p.db.Exec(fmt.Sprintf(
 			`UPDATE %s SET value = $1, updatedate = NOW() 
-			 WHERE key = $2 AND xmin = $3;`, 
+			 WHERE key = $2 AND xmin = $3;`,
 			tableName), req.Value, req.Key, etag)
 	}
 
@@ -100,7 +101,6 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) (error) {
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	
 	var value string
 	var etag int
 	err := p.db.QueryRow(fmt.Sprintf("SELECT value, xmin as etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &etag)
@@ -111,10 +111,10 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 		}
 		return nil, err
 	}
-	
+
 	response := &state.GetResponse{
-		Data: []byte(value),
-		ETag: strconv.Itoa(etag),
+		Data:     []byte(value),
+		ETag:     strconv.Itoa(etag),
 		Metadata: req.Metadata,
 	}
 
@@ -122,18 +122,16 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 }
 
 // Delete removes an item from the state store.
-func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (error) {
-
+func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
 	var result sql.Result
 	var err error
 
-	if(req.ETag == "") {
+	if req.ETag == "" {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
 	} else {
-		
 		// Convert req.ETag to integer for postgres compatibility
 		etag, conversionError := strconv.Atoi(req.ETag)
-		if(conversionError != nil) {
+		if conversionError != nil {
 			return conversionError
 		}
 
@@ -141,21 +139,20 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (error) {
 	}
 
 	return returnSingleDbResult(result, err)
-} 
+}
 
 // Verifies that the sql.Result affected only one row and no errors exist
 func returnSingleDbResult(result sql.Result, err error) error {
-	
 	if err != nil {
 		return err
-	} 
+	}
 
 	rowsAffected, resultErr := result.RowsAffected()
-	
+
 	if resultErr != nil {
 		return resultErr
 	}
-	
+
 	if rowsAffected == 0 {
 		return errors.New("database operation failed: no rows match given key and etag")
 	}
@@ -176,7 +173,7 @@ func (p *postgresDBAccess) Close() error {
 	return nil
 }
 
-func (p *postgresDBAccess) ensureStateTable() (error) {
+func (p *postgresDBAccess) ensureStateTable() error {
 	var exists bool = false
 	err := p.db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
 	if err != nil {
@@ -192,7 +189,7 @@ func (p *postgresDBAccess) ensureStateTable() (error) {
 		_, err = p.db.Exec(createTable)
 		if err != nil {
 			return err
-		}	
+		}
 	}
 
 	return nil

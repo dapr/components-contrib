@@ -12,8 +12,8 @@ import (
 
 // PostgreSQL state store
 type PostgreSQL struct {
-	logger		logger.Logger
-	dbaccess	dbAccess
+	logger   logger.Logger
+	dbaccess dbAccess
 }
 
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store
@@ -26,8 +26,8 @@ func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
-		logger:		logger,
-		dbaccess:	dba,
+		logger:   logger,
+		dbaccess: dba,
 	}
 }
 
@@ -60,7 +60,7 @@ func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set adds/updates an entity on store
 func (p *PostgreSQL) Set(req *state.SetRequest) error {
-	return p.dbaccess.Set(req);
+	return p.dbaccess.Set(req)
 }
 
 // BulkSet adds/updates multiple entities on store

@@ -50,7 +50,11 @@ func (s *AliCloudOSS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AliCloudOSS) Write(req *bindings.WriteRequest) error {
+func (s *AliCloudOSS) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (s *AliCloudOSS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	key := ""
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key = val
@@ -63,16 +67,16 @@ func (s *AliCloudOSS) Write(req *bindings.WriteRequest) error {
 	bucket, err := s.client.Bucket(s.metadata.Bucket)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Upload a byte array.
 	err = bucket.PutObject(key, bytes.NewReader(req.Data))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return err
+	return nil, err
 }
 
 func (s *AliCloudOSS) parseMetadata(metadata bindings.Metadata) (*ossMetadata, error) {

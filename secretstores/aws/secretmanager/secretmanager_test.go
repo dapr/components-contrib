@@ -34,20 +34,12 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
 			"Region":       "a",
+			"Endpoint":     "a",
 			"SecretKey":    "a",
 			"SessionToken": "a",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)
-	})
-
-	t.Run("Init with missing metadata", func(t *testing.T) {
-		m.Properties = map[string]string{
-			"Dummy": "a",
-		}
-		err := s.Init(m)
-		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing aws credentials in metadata"))
 	})
 }
 

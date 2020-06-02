@@ -174,8 +174,8 @@ func (r *ETCD) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (r *ETCD) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := r.Delete(&re)
+	for i := range req {
+		err := r.Delete(&req[i])
 		if err != nil {
 			return err
 		}
@@ -217,8 +217,8 @@ func (r *ETCD) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (r *ETCD) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := r.Set(&s)
+	for i := range req {
+		err := r.Set(&req[i])
 		if err != nil {
 			return err
 		}

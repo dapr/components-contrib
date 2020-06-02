@@ -214,8 +214,8 @@ func (c *Cassandra) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (c *Cassandra) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := c.Delete(&re)
+	for i := range req {
+		err := c.Delete(&req[i])
 		if err != nil {
 			return err
 		}
@@ -300,8 +300,8 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 
 // BulkSet performs a bulks save operation
 func (c *Cassandra) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := c.Set(&s)
+	for i := range req {
+		err := c.Set(&req[i])
 		if err != nil {
 			return err
 		}

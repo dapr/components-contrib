@@ -9,13 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/dapr/dapr/pkg/logger"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/dapr/components-contrib/secretstores"
 )
 
@@ -87,10 +86,7 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 }
 
 func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmanager.SecretsManager, error) {
-	sess, err := session.NewSession(aws.NewConfig().
-		WithRegion(*aws.String(metadata.Region)).
-		WithCredentials(credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken)))
-
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}
@@ -107,9 +103,6 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 	err = json.Unmarshal(b, &meta)
 	if err != nil {
 		return nil, err
-	}
-	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" || meta.SessionToken == "" {
-		return nil, fmt.Errorf("missing aws credentials in metadata")
 	}
 	return &meta, nil
 }

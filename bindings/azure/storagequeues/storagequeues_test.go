@@ -51,9 +51,9 @@ func TestWriteQueue(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{Data: []byte("This is my message")}
+	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	err = a.Write(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 }
@@ -73,9 +73,9 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{Data: []byte("This is my message")}
+	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	err = a.Write(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 }
@@ -95,12 +95,12 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{
+	r := bindings.InvokeRequest{
 		Data:     []byte("This is my message"),
 		Metadata: map[string]string{bindings.TTLMetadataKey: "1"},
 	}
 
-	err = a.Write(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 }
@@ -116,7 +116,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{Data: []byte("This is my message")}
+	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	err = a.Write(&r)
 
@@ -135,9 +135,9 @@ func TestReadQueue(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{Data: []byte("This is my message")}
+	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	err = a.Write(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 
@@ -169,9 +169,9 @@ func TestReadQueueDecode(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
+	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
 
-	err = a.Write(&r)
+	_, err = a.Invoke(&r)
 
 	assert.Nil(t, err)
 
@@ -200,7 +200,7 @@ func TestReadQueueDecode(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	r := bindings.WriteRequest{Data: []byte("This is my message")}
+	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	err = a.Write(&r)
 

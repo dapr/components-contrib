@@ -141,7 +141,7 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
 
 	if err != nil {
-		if err == zk.ErrNoNode {
+		if errors.Is(err, zk.ErrNoNode) {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
@@ -162,7 +162,7 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 
 	return state.DeleteWithRetries(func(req *state.DeleteRequest) error {
 		err := s.conn.Delete(r.Path, r.Version)
-		if err == zk.ErrNoNode {
+		if errors.Is(err, zk.ErrNoNode) {
 			return nil
 		}
 		return err
@@ -173,8 +173,8 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 func (s *StateStore) BulkDelete(reqs []state.DeleteRequest) error {
 	ops := make([]interface{}, 0, len(reqs))
 
-	for _, req := range reqs {
-		req, err := s.newDeleteRequest(&req)
+	for i := range reqs {
+		req, err := s.newDeleteRequest(&reqs[i])
 		if err != nil {
 			return err
 		}
@@ -188,7 +188,7 @@ func (s *StateStore) BulkDelete(reqs []state.DeleteRequest) error {
 	}
 
 	for _, res := range res {
-		if res.Error != nil && res.Error != zk.ErrNoNode {
+		if res.Error != nil && !errors.Is(res.Error, zk.ErrNoNode) {
 			err = multierror.Append(err, res.Error)
 		}
 	}
@@ -206,7 +206,7 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 	return state.SetWithRetries(func(req *state.SetRequest) error {
 		_, err = s.conn.Set(r.Path, r.Data, r.Version)
 
-		if err == zk.ErrNoNode {
+		if errors.Is(err, zk.ErrNoNode) {
 			_, err = s.conn.Create(r.Path, r.Data, 0, nil)
 		}
 
@@ -218,8 +218,8 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 func (s *StateStore) BulkSet(reqs []state.SetRequest) error {
 	ops := make([]interface{}, 0, len(reqs))
 
-	for _, req := range reqs {
-		req, err := s.newSetDataRequest(&req)
+	for i := range reqs {
+		req, err := s.newSetDataRequest(&reqs[i])
 		if err != nil {
 			return err
 		}
@@ -236,7 +236,7 @@ func (s *StateStore) BulkSet(reqs []state.SetRequest) error {
 
 		for i, res := range res {
 			if res.Error != nil {
-				if res.Error == zk.ErrNoNode {
+				if errors.Is(res.Error, zk.ErrNoNode) {
 					if req, ok := ops[i].(*zk.SetDataRequest); ok {
 						retry = append(retry, s.newCreateRequest(req))
 						continue
@@ -315,7 +315,8 @@ func (s *StateStore) prefixedKey(key string) string {
 
 func (s *StateStore) parseETag(etag string) int32 {
 	if etag != "" {
-		version, err := strconv.Atoi(etag)
+		// Since the version is taken to be int32
+		version, err := strconv.ParseInt(etag, 10, 32)
 		if err == nil {
 			return int32(version)
 		}

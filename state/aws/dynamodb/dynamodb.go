@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	jsoniterator "github.com/json-iterator/go"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/dapr/components-contrib/state"
 )
@@ -22,6 +23,7 @@ type StateStore struct {
 
 type dynamoDBMetadata struct {
 	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
@@ -82,12 +84,17 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves a dynamoDB item
 func (d *StateStore) Set(req *state.SetRequest) error {
+	value, err := d.marshalToString(req.Value)
+	if err != nil {
+		return fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
+	}
+
 	item := map[string]*dynamodb.AttributeValue{
 		"key": {
 			S: aws.String(req.Key),
 		},
 		"value": {
-			S: aws.String(fmt.Sprintf("%v", req.Value)),
+			S: aws.String(value),
 		},
 	}
 
@@ -102,13 +109,37 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk set operation
 func (d *StateStore) BulkSet(req []state.SetRequest) error {
+	writeRequests := []*dynamodb.WriteRequest{}
+
 	for _, r := range req {
-		err := d.Set(&r)
+		value, err := d.marshalToString(r.Value)
 		if err != nil {
-			return err
+			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
 		}
+
+		writeRequest := &dynamodb.WriteRequest{
+			PutRequest: &dynamodb.PutRequest{
+				Item: map[string]*dynamodb.AttributeValue{
+					"key": {
+						S: aws.String(r.Key),
+					},
+					"value": {
+						S: aws.String(value),
+					},
+				},
+			},
+		}
+
+		writeRequests = append(writeRequests, writeRequest)
 	}
-	return nil
+
+	requestItems := map[string][]*dynamodb.WriteRequest{}
+	requestItems[d.table] = writeRequests
+
+	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
+	})
+	return e
 }
 
 // Delete performs a delete operation
@@ -127,13 +158,28 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
+	writeRequests := []*dynamodb.WriteRequest{}
+
 	for _, r := range req {
-		err := d.Delete(&r)
-		if err != nil {
-			return err
+		writeRequest := &dynamodb.WriteRequest{
+			DeleteRequest: &dynamodb.DeleteRequest{
+				Key: map[string]*dynamodb.AttributeValue{
+					"key": {
+						S: aws.String(r.Key),
+					},
+				},
+			},
 		}
+		writeRequests = append(writeRequests, writeRequest)
 	}
-	return nil
+
+	requestItems := map[string][]*dynamodb.WriteRequest{}
+	requestItems[d.table] = writeRequests
+
+	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
+	})
+	return e
 }
 
 func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMetadata, error) {
@@ -155,15 +201,19 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 	return &meta, nil
 }
 
-func (d *StateStore) getClient(meta *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(meta.Region),
-		Credentials: credentials.NewStaticCredentials(meta.AccessKey, meta.SecretKey, meta.SessionToken),
-	})
+func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
-
 	c := dynamodb.New(sess)
 	return c, nil
+}
+
+func (d *StateStore) marshalToString(v interface{}) (string, error) {
+	if buf, ok := v.([]byte); ok {
+		return string(buf), nil
+	}
+
+	return jsoniterator.ConfigFastest.MarshalToString(v)
 }

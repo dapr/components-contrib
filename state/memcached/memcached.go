@@ -118,8 +118,8 @@ func (m *Memcached) Delete(req *state.DeleteRequest) error {
 }
 
 func (m *Memcached) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := m.Delete(&re)
+	for i := range req {
+		err := m.Delete(&req[i])
 		if err != nil {
 			return err
 		}
@@ -131,7 +131,7 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	item, err := m.client.Get(req.Key)
 	if err != nil {
 		// Return nil for status 204
-		if err == memcache.ErrCacheMiss {
+		if errors.Is(err, memcache.ErrCacheMiss) {
 			return &state.GetResponse{}, nil
 		}
 		return &state.GetResponse{}, err
@@ -147,8 +147,8 @@ func (m *Memcached) Set(req *state.SetRequest) error {
 }
 
 func (m *Memcached) BulkSet(req []state.SetRequest) error {
-	for _, r := range req {
-		err := m.Set(&r)
+	for i := range req {
+		err := m.Set(&req[i])
 		if err != nil {
 			return err
 		}

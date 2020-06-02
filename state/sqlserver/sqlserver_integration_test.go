@@ -165,7 +165,7 @@ func assertLoadedUserIsEqual(t *testing.T, store *SQLServer, key string, expecte
 
 func assertUserDoesNotExist(t *testing.T, store *SQLServer, key string) {
 	_, err := store.Get(&state.GetRequest{Key: key})
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader func(t *testing.T, rows *sql.Rows)) {

@@ -83,7 +83,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	defer ch.Close()
 
 	const tooLateMsgContent = "too_late_msg"
-	err = r.Write(&bindings.WriteRequest{Data: []byte(tooLateMsgContent)})
+	err = r.Write(&bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -94,7 +94,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	err = r.Write(&bindings.WriteRequest{Data: []byte(testMsgContent)})
+	err = r.Write(&bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -140,7 +140,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	defer ch.Close()
 
 	const tooLateMsgContent = "too_late_msg"
-	writeRequest := bindings.WriteRequest{
+	writeRequest := bindings.InvokeRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
 			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds),
@@ -162,7 +162,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.Nil(t, err)
 
 	const testMsgContent = "test_msg"
-	writeRequest = bindings.WriteRequest{
+	writeRequest = bindings.InvokeRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
 			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),

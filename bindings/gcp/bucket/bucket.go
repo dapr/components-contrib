@@ -74,7 +74,11 @@ func (g *GCPStorage) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	return b, nil
 }
 
-func (g *GCPStorage) Write(req *bindings.WriteRequest) error {
+func (g *GCPStorage) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	name := ""
 	if val, ok := req.Metadata["name"]; ok && val != "" {
 		name = val
@@ -84,7 +88,7 @@ func (g *GCPStorage) Write(req *bindings.WriteRequest) error {
 	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(context.Background())
 	defer h.Close()
 	if _, err := h.Write(req.Data); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return nil, nil
 }

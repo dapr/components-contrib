@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.13
+go 1.14
 
 require (
 	cloud.google.com/go v0.52.0
@@ -21,6 +21,7 @@ require (
 	github.com/a8m/documentdb v1.2.0
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
+	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b

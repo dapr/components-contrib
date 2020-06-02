@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
@@ -23,7 +22,7 @@ const (
 func TestPostgreSQLIntegration (t *testing.T) {
 	connectionString := getConnectionString()
 	if connectionString == "" {
-		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
+		t.Skipf("PostgreSQL state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test\")", connectionStringEnvKey, connectionStringEnvKey)
 	}
 
 	t.Run("Test init configurations", func(t *testing.T) {

@@ -3,17 +3,6 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-// PostgreSQL implementation notes:
-// - TODO: Implement consistency flags
-// - TODO: Implement transactions
-// - TODO: Rename the dbaccess interface and the variable that stores it
-// - TODO: Verify that postgresql naming conventions were followed
-// - TODO: Implement benchmark tests
-// - TODO: Find out constraints on key size
-// - TODO: Parameter validation for request structs
-// - TODO: Use logger where appropriate
-// - TODO: Verify that deletes with old etag should fail
-
 package postgresql
 
 import (

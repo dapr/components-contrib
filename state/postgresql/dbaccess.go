@@ -15,5 +15,6 @@ type dbAccess interface {
 	Set(req *state.SetRequest) error
 	Get(req *state.GetRequest) (*state.GetResponse, error)
 	Delete(req *state.DeleteRequest) error
+	ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error
 	Close() error // io.Closer
 }

@@ -6,6 +6,8 @@
 package postgresql
 
 import (
+	"fmt"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -43,14 +45,7 @@ func (p *PostgreSQL) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete removes multiple entries from the store
 func (p *PostgreSQL) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := p.Delete(&re)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return p.dbaccess.ExecuteMulti(nil, req)
 }
 
 // Get returns an entity from store
@@ -65,11 +60,47 @@ func (p *PostgreSQL) Set(req *state.SetRequest) error {
 
 // BulkSet adds/updates multiple entities on store
 func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := p.Set(&s)
-		if err != nil {
-			return err
+	return p.dbaccess.ExecuteMulti(req, nil)
+}
+
+// Multi handles multiple transactions. Implements TransactionalStore.
+func (p *PostgreSQL) Multi(reqs []state.TransactionalRequest) error {
+	var deletes []state.DeleteRequest
+	var sets []state.SetRequest
+	for _, req := range reqs {
+		switch req.Operation {
+		case state.Upsert:
+			setReq, ok := req.Request.(state.SetRequest)
+			if !ok {
+				return fmt.Errorf("expecting set request")
+			}
+
+			if setReq.Key == "" {
+				return fmt.Errorf("missing key in upsert operation")
+			}
+
+			sets = append(sets, setReq)
+
+		case state.Delete:
+
+			delReq, ok := req.Request.(state.DeleteRequest)
+			if !ok {
+				return fmt.Errorf("expecting delete request")
+			}
+
+			if delReq.Key == "" {
+				return fmt.Errorf("missing key in upsert operation")
+			}
+
+			deletes = append(deletes, delReq)
+
+		default:
+			return fmt.Errorf("unsupported operation: %s", req.Operation)
 		}
+	}
+
+	if len(sets) > 0 || len(deletes) > 0 {
+		return p.dbaccess.ExecuteMulti(sets, deletes)
 	}
 
 	return nil

@@ -44,12 +44,8 @@ func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (m *fakeDBaccess) Logger() logger.Logger {
-	return m.logger
-}
-
-func (m *fakeDBaccess) Metadata() state.Metadata {
-	return m.metadata
+func (m *fakeDBaccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+	return nil
 }
 
 func (m *fakeDBaccess) Close() error {
@@ -58,28 +54,23 @@ func (m *fakeDBaccess) Close() error {
 
 // Proves that the Init method runs the init method
 func TestInitRunsDBAccessInit(t *testing.T) {
-	p := createNewStoreWithFakes()
+	logger := logger.NewLogger("test")
+
+	dba := &fakeDBaccess{
+		logger: logger,
+	}
+
+	store := newPostgreSQLStateStore(logger, dba)
+	assert.NotNil(t,store)
+
 	metadata := &state.Metadata{
 		Properties: map[string]string{connectionStringKey: fakeConnectionString},
 	}
 
-	err := p.Init(*metadata)
+	err := store.Init(*metadata)
 
 	assert.Nil(t, err)
-	assert.NotNil(t, p.dbaccess)
-	fake := p.dbaccess.(*fakeDBaccess)
+	assert.NotNil(t, store.dbaccess)
+	fake := store.dbaccess.(*fakeDBaccess)
 	assert.True(t, fake.initExecuted)
-}
-
-// Proves that PostgreSQL implements state.Store.
-func TestPostgreSQLImplementsStore(t *testing.T) {
-	assert.NotNil(t, createNewStoreWithFakes())
-}
-
-// Creates a new instance of PostreSQL with fakes to prevent real database calls.
-func createNewStoreWithFakes() *PostgreSQL {
-	logger := logger.NewLogger("test")
-	return newPostgreSQLStateStore(logger, &fakeDBaccess{
-		logger: logger,
-	})
 }

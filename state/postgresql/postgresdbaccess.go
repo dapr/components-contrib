@@ -141,6 +141,36 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
 	return returnSingleDbResult(result, err)
 }
 
+func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+	tx, err := p.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	if len(deletes) > 0 {
+		for _, d := range deletes {
+			err := p.Delete(&d)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	if len(sets) > 0 {
+		for _, s := range sets {
+			err := p.Set(&s)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	err = tx.Commit()
+	return err
+}
+
 // Verifies that the sql.Result affected only one row and no errors exist
 func returnSingleDbResult(result sql.Result, err error) error {
 	if err != nil {

@@ -60,10 +60,20 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		getItemThatDoesNotExist(t, pgs)
 	})
 
+	t.Run("Get item with no key fails", func(t *testing.T) {
+		t.Parallel()
+		getItemWithNoKey(t, pgs)
+	})
+
 	// Insert date and update date are correctly set and updated in the database
 	t.Run("Set updates the updatedate field", func(t *testing.T) {
 		t.Parallel()
 		setUpdatesTheUpdatedateField(t, pgs)
+	})
+
+	t.Run("Set item with no key fails", func(t *testing.T) {
+		t.Parallel()
+		setItemWithNoKey(t, pgs)
 	})
 
 	// Bulk set and delete work
@@ -96,10 +106,15 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		deleteWithInvalidEtagFails(t, pgs)
 	})
 
-	// t.Run("Delete an item that does not exist", func(t *testing.T){
-	// 	t.Parallel()
+	t.Run("Delete item with no key fails", func(t *testing.T) {
+		t.Parallel()
+		deleteWithNoKeyFails(t, pgs)
+	})
 
-	// })
+	t.Run("Delete an item that does not exist", func(t *testing.T) {
+		t.Parallel()
+		deleteItemThatDoesNotExist(t, pgs)
+	})
 
 	t.Run("Multi with delete and set", func(t *testing.T) {
 		t.Parallel()
@@ -123,6 +138,15 @@ func randomKey() string {
 
 func randomJSON() string {
 	return fmt.Sprintf(`{"%s": "%s"}`, uuid.New(), uuid.New())
+}
+
+func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
+	// Delete the item with a fake etag
+	deleteReq := &state.DeleteRequest{
+		Key: randomKey(),
+	}
+	err := pgs.Delete(deleteReq)
+	assert.NotNil(t, err)
 }
 
 func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
@@ -237,6 +261,14 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 	assert.NotNil(t, err)
 }
 
+func deleteWithNoKeyFails(t *testing.T, pgs *PostgreSQL) {
+	deleteReq := &state.DeleteRequest{
+		Key: "",
+	}
+	err := pgs.Delete(deleteReq)
+	assert.NotNil(t, err)
+}
+
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure
 func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 	value := `{"newthing2": "4xn7S2Dtberk"}`
@@ -320,11 +352,22 @@ func getSetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	deleteItem(t, pgs, key, "")
 }
 
-// getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist
+// getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist.
 func getItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	response := getItem(t, pgs, key)
 	assert.Nil(t, response.Data)
+}
+
+// getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
+func getItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
+	getReq := &state.GetRequest{
+		Key: "",
+	}
+
+	response, getErr := pgs.Get(getReq)
+	assert.NotNil(t, getErr)
+	assert.Nil(t, response)
 }
 
 // setUpdatesTheUpdatedateField proves that the updateddate is set for an update, and not set upon insert.
@@ -348,6 +391,15 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *PostgreSQL) {
 	assert.NotEqual(t, "", updatedate.String)
 
 	deleteItem(t, pgs, key, "")
+}
+
+func setItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
+	setReq := &state.SetRequest{
+		Key: "",
+	}
+
+	err := pgs.Set(setReq)
+	assert.NotNil(t, err)
 }
 
 // Tests valid bulk sets and deletes

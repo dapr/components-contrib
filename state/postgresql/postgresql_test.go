@@ -53,23 +53,126 @@ func (m *fakeDBaccess) Close() error {
 
 // Proves that the Init method runs the init method
 func TestInitRunsDBAccessInit(t *testing.T) {
+	t.Parallel()
+	_, fake := createPostgreSQLWithFake(t)
+	assert.True(t, fake.initExecuted)
+}
+
+func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
+	t.Parallel()
+	var multiRequest []state.TransactionalRequest
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(multiRequest)
+	assert.Nil(t, err)
+}
+
+func TestInvalidMultiAction(t *testing.T) {
+	t.Parallel()
+	var multiRequest []state.TransactionalRequest
+
+	multiRequest = append(multiRequest, state.TransactionalRequest{
+		Operation: "Something invalid",
+		Request:   createSetRequest(),
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(multiRequest)
+	assert.NotNil(t, err)
+}
+
+func TestValidSetRequest(t *testing.T) {
+	t.Parallel()
+	var multiRequest []state.TransactionalRequest
+
+	multiRequest = append(multiRequest, state.TransactionalRequest{
+		Operation: state.Upsert,
+		Request:   createSetRequest(),
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(multiRequest)
+	assert.Nil(t, err)
+}
+
+func TestInvalidMultiSetRequest(t *testing.T) {
+	t.Parallel()
+	var multiRequest []state.TransactionalRequest
+
+	multiRequest = append(multiRequest, state.TransactionalRequest{
+		Operation: state.Upsert,
+		Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(multiRequest)
+	assert.NotNil(t, err)
+}
+
+func TestValidMultiDeleteRequest(t *testing.T) {
+	t.Parallel()
+	var multiRequest []state.TransactionalRequest
+
+	multiRequest = append(multiRequest, state.TransactionalRequest{
+		Operation: state.Delete,
+		Request:   createDeleteRequest(),
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(multiRequest)
+	assert.Nil(t, err)
+}
+
+func TestInvalidMultiDeleteRequest(t *testing.T) {
+	t.Parallel()
+	var multiRequest []state.TransactionalRequest
+
+	multiRequest = append(multiRequest, state.TransactionalRequest{
+		Operation: state.Delete,
+		Request:   createSetRequest(), // Set request is not valid for Delete operation
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(multiRequest)
+	assert.NotNil(t, err)
+}
+
+func createSetRequest() state.SetRequest {
+	return state.SetRequest{
+		Key:   randomKey(),
+		Value: randomJSON(),
+	}
+}
+
+func createDeleteRequest() state.DeleteRequest {
+	return state.DeleteRequest{
+		Key: randomKey(),
+	}
+}
+
+func createPostgreSQLWithFake(t *testing.T) (*PostgreSQL, *fakeDBaccess) {
+	pgs := createPostgreSQL(t)
+	fake := pgs.dbaccess.(*fakeDBaccess)
+	return pgs, fake
+}
+
+func createPostgreSQL(t *testing.T) *PostgreSQL {
 	logger := logger.NewLogger("test")
 
 	dba := &fakeDBaccess{
 		logger: logger,
 	}
 
-	store := newPostgreSQLStateStore(logger, dba)
-	assert.NotNil(t, store)
+	pgs := newPostgreSQLStateStore(logger, dba)
+	assert.NotNil(t, pgs)
 
 	metadata := &state.Metadata{
 		Properties: map[string]string{connectionStringKey: fakeConnectionString},
 	}
 
-	err := store.Init(*metadata)
+	err := pgs.Init(*metadata)
 
 	assert.Nil(t, err)
-	assert.NotNil(t, store.dbaccess)
-	fake := store.dbaccess.(*fakeDBaccess)
-	assert.True(t, fake.initExecuted)
+	assert.NotNil(t, pgs.dbaccess)
+
+	return pgs
 }

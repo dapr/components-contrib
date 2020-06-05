@@ -72,6 +72,10 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 
 // Set makes an insert or update to the database.
 func (p *postgresDBAccess) Set(req *state.SetRequest) error {
+	if req.Key == "" {
+		return fmt.Errorf("missing key in set operation")
+	}
+
 	var result sql.Result
 	var err error
 
@@ -101,6 +105,10 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	if req.Key == "" {
+		return nil, fmt.Errorf("missing key in get operation")
+	}
+
 	var value string
 	var etag int
 	err := p.db.QueryRow(fmt.Sprintf("SELECT value, xmin as etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &etag)
@@ -123,6 +131,10 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 // Delete removes an item from the state store.
 func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
+	if req.Key == "" {
+		return fmt.Errorf("missing key in delete operation")
+	}
+
 	var result sql.Result
 	var err error
 

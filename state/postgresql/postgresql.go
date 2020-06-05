@@ -70,29 +70,18 @@ func (p *PostgreSQL) Multi(reqs []state.TransactionalRequest) error {
 	for _, req := range reqs {
 		switch req.Operation {
 		case state.Upsert:
-			setReq, ok := req.Request.(state.SetRequest)
-			if !ok {
+			if setReq, ok := req.Request.(state.SetRequest); ok {
+				sets = append(sets, setReq)
+			} else {
 				return fmt.Errorf("expecting set request")
 			}
 
-			if setReq.Key == "" {
-				return fmt.Errorf("missing key in upsert operation")
-			}
-
-			sets = append(sets, setReq)
-
 		case state.Delete:
-
-			delReq, ok := req.Request.(state.DeleteRequest)
-			if !ok {
+			if delReq, ok := req.Request.(state.DeleteRequest); ok {
+				deletes = append(deletes, delReq)
+			} else {
 				return fmt.Errorf("expecting delete request")
 			}
-
-			if delReq.Key == "" {
-				return fmt.Errorf("missing key in upsert operation")
-			}
-
-			deletes = append(deletes, delReq)
 
 		default:
 			return fmt.Errorf("unsupported operation: %s", req.Operation)

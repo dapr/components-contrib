@@ -101,17 +101,17 @@ func TestPostgreSQLIntegration(t *testing.T) {
 
 	// })
 
-	t.Run("Multi with delete and set", func(t *testing.T){
+	t.Run("Multi with delete and set", func(t *testing.T) {
 		t.Parallel()
 		multiWithDeleteAndSet(t, pgs)
 	})
 
-	t.Run("Multi with delete only", func(t *testing.T){
+	t.Run("Multi with delete only", func(t *testing.T) {
 		t.Parallel()
 		multiWithDeleteOnly(t, pgs)
 	})
 
-	t.Run("Multi with set only", func(t *testing.T){
+	t.Run("Multi with set only", func(t *testing.T) {
 		t.Parallel()
 		multiWithSetOnly(t, pgs)
 	})
@@ -130,13 +130,13 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 	var setRequests []state.SetRequest
 	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
-			Key: randomKey(),
+			Key:   randomKey(),
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		multiRequest = append(multiRequest, state.TransactionalRequest {
-			Operation: state.Upsert, 
-			Request: req,
+		multiRequest = append(multiRequest, state.TransactionalRequest{
+			Operation: state.Upsert,
+			Request:   req,
 		})
 	}
 
@@ -153,24 +153,24 @@ func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 	var multiRequest []state.TransactionalRequest
 	var deleteRequests []state.DeleteRequest
 	for i := 0; i < 3; i++ {
-		req := state.DeleteRequest {Key: randomKey()}
+		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
 		setItem(t, pgs, req.Key, randomJSON(), "") // Add the item to the database
-		
+
 		// Add the item to a slice of delete requests
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request
-		multiRequest = append(multiRequest, state.TransactionalRequest {
-			Operation: state.Delete, 
-			Request: req,
+		multiRequest = append(multiRequest, state.TransactionalRequest{
+			Operation: state.Delete,
+			Request:   req,
 		})
 	}
 
 	err := pgs.Multi(multiRequest)
 	assert.Nil(t, err)
-	
+
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
 	}
@@ -180,42 +180,42 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 	var multiRequest []state.TransactionalRequest
 	var deleteRequests []state.DeleteRequest
 	for i := 0; i < 3; i++ {
-		req := state.DeleteRequest {Key: randomKey()}
+		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
 		setItem(t, pgs, req.Key, randomJSON(), "") // Add the item to the database
-		
+
 		// Add the item to a slice of delete requests
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request
-		multiRequest = append(multiRequest, state.TransactionalRequest {
-			Operation: state.Delete, 
-			Request: req,
+		multiRequest = append(multiRequest, state.TransactionalRequest{
+			Operation: state.Delete,
+			Request:   req,
 		})
 	}
-	
+
 	// Create the set requests
 	var setRequests []state.SetRequest
 	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
-			Key: randomKey(),
+			Key:   randomKey(),
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		multiRequest = append(multiRequest, state.TransactionalRequest {
-			Operation: state.Upsert, 
-			Request: req,
+		multiRequest = append(multiRequest, state.TransactionalRequest{
+			Operation: state.Upsert,
+			Request:   req,
 		})
 	}
 
 	err := pgs.Multi(multiRequest)
 	assert.Nil(t, err)
-	
+
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
 	}
-	
+
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
 		deleteItem(t, pgs, set.Key, "")

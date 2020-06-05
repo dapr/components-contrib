@@ -96,7 +96,7 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 			tableName), req.Value, req.Key, etag)
 	}
 
-	return returnSingleDbResult(result, err)
+	return returnSingleDBResult(result, err)
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
@@ -138,7 +138,7 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
 	}
 
-	return returnSingleDbResult(result, err)
+	return returnSingleDBResult(result, err)
 }
 
 func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
@@ -149,7 +149,8 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 
 	if len(deletes) > 0 {
 		for _, d := range deletes {
-			err := p.Delete(&d)
+			da := d // Fix for gosec  G601: Implicit memory aliasing in for loop.
+			err = p.Delete(&da)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -159,7 +160,8 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 
 	if len(sets) > 0 {
 		for _, s := range sets {
-			err := p.Set(&s)
+			sa := s // Fix for gosec  G601: Implicit memory aliasing in for loop.
+			err = p.Set(&sa)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -172,7 +174,7 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 }
 
 // Verifies that the sql.Result affected only one row and no errors exist
-func returnSingleDbResult(result sql.Result, err error) error {
+func returnSingleDBResult(result sql.Result, err error) error {
 	if err != nil {
 		return err
 	}

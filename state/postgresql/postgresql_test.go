@@ -19,7 +19,6 @@ const (
 // Fake implementation of interface postgressql.dbaccess
 type fakeDBaccess struct {
 	logger       logger.Logger
-	metadata     state.Metadata
 	initExecuted bool
 	setExecuted  bool
 	getExecuted  bool
@@ -61,7 +60,7 @@ func TestInitRunsDBAccessInit(t *testing.T) {
 	}
 
 	store := newPostgreSQLStateStore(logger, dba)
-	assert.NotNil(t,store)
+	assert.NotNil(t, store)
 
 	metadata := &state.Metadata{
 		Properties: map[string]string{connectionStringKey: fakeConnectionString},

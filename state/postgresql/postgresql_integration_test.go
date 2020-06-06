@@ -20,10 +20,6 @@ const (
 	connectionStringEnvKey = "DAPR_TEST_POSTGRES_CONNSTRING" // Environment variable containing the connection string
 )
 
-// TODO: add tests for failure states for MULTI
-// TODO: implement test for Delete an item that does not exist
-// TODO: test for creating state table
-
 func TestPostgreSQLIntegration(t *testing.T) {
 	connectionString := getConnectionString()
 	if connectionString == "" {
@@ -47,6 +43,11 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	if error != nil {
 		t.Fatal(error)
 	}
+
+	t.Run("Create table succeeds", func(t *testing.T) {
+		t.Parallel()
+		testCreateTable(t, pgs.dbaccess.(*postgresDBAccess))
+	})
 
 	// Can set and get an item.
 	t.Run("Get Set Delete one item", func(t *testing.T) {
@@ -132,12 +133,31 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	})
 }
 
-func randomKey() string {
-	return uuid.New().String()
+// testCreateTable tests the ability to create the state table.
+func testCreateTable(t *testing.T, dba *postgresDBAccess) {
+	tableName := "test_state"
+
+	// Drop the table if it already exists
+	exists, err := tableExists(dba.db, tableName)
+	assert.Nil(t, err)
+	if exists {
+		dropTable(t, dba.db, tableName)
+	}
+
+	// Create the state table and test for its existence
+	err = dba.ensureStateTable(tableName)
+	assert.Nil(t, err)
+	exists, err = tableExists(dba.db, tableName)
+	assert.Nil(t, err)
+	assert.True(t, exists)
+
+	// Drop the state table
+	dropTable(t, dba.db, tableName)
 }
 
-func randomJSON() string {
-	return fmt.Sprintf(`{"%s": "%s"}`, uuid.New(), uuid.New())
+func dropTable(t *testing.T, db *sql.DB, tableName string) {
+	_, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName))
+	assert.Nil(t, err)
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
@@ -535,4 +555,12 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	err = db.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
 	return returnValue, insertdate, updatedate
+}
+
+func randomKey() string {
+	return uuid.New().String()
+}
+
+func randomJSON() string {
+	return fmt.Sprintf(`{"%s": "%s"}`, uuid.New(), uuid.New())
 }

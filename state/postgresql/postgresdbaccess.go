@@ -62,7 +62,7 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 		return pingErr
 	}
 
-	err = p.ensureStateTable()
+	err = p.ensureStateTable(tableName)
 	if err != nil {
 		return err
 	}
@@ -217,9 +217,8 @@ func (p *postgresDBAccess) Close() error {
 	return nil
 }
 
-func (p *postgresDBAccess) ensureStateTable() error {
-	var exists bool = false
-	err := p.db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
+	exists, err := tableExists(p.db, stateTableName)
 	if err != nil {
 		return err
 	}
@@ -229,7 +228,7 @@ func (p *postgresDBAccess) ensureStateTable() error {
 									key varchar(200) NOT NULL PRIMARY KEY,
 									value json NOT NULL,
 									insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-									updatedate TIMESTAMP WITH TIME ZONE NULL);`, tableName)
+									updatedate TIMESTAMP WITH TIME ZONE NULL);`, stateTableName)
 		_, err = p.db.Exec(createTable)
 		if err != nil {
 			return err
@@ -237,4 +236,10 @@ func (p *postgresDBAccess) ensureStateTable() error {
 	}
 
 	return nil
+}
+
+func tableExists(db *sql.DB, tableName string) (bool, error) {
+	var exists bool = false
+	err := db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+	return exists, err
 }

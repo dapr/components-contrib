@@ -7,6 +7,7 @@ package postgresql
 
 import (
 	"database/sql"
+	"encoding/json"
 
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ type postgresDBAccess struct {
 
 // newPostgresDBAccess creates a new instance of postgresAccess
 func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
+	logger.Debug("newPostgresDBAccess called")
 	return &postgresDBAccess{
 		logger: logger,
 	}
@@ -42,16 +44,19 @@ func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 
 // Init sets up PostgreSQL connection and ensures that the state table exists
 func (p *postgresDBAccess) Init(metadata state.Metadata) error {
+	p.logger.Debug("postgresDBAccess Init called")
 	p.metadata = metadata
 
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
 		p.connectionString = val
 	} else {
+		p.logger.Error("Missing postgreSQL connection string")
 		return fmt.Errorf(errMissingConnectionString)
 	}
 
 	db, err := sql.Open("pgx", p.connectionString)
 	if err != nil {
+		p.logger.Error(err)
 		return err
 	}
 
@@ -59,11 +64,13 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 
 	pingErr := db.Ping()
 	if pingErr != nil {
+		p.logger.Error(pingErr)
 		return pingErr
 	}
 
 	err = p.ensureStateTable(tableName)
 	if err != nil {
+		p.logger.Error(err)
 		return err
 	}
 
@@ -72,12 +79,18 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 
 // Set makes an insert or update to the database.
 func (p *postgresDBAccess) Set(req *state.SetRequest) error {
+	p.logger.Debug("Setting state value in PostgreSQL")
 	if req.Key == "" {
 		return fmt.Errorf("missing key in set operation")
 	}
 
+	valueJSON, err := json.Marshal(req.Value)
+	if err != nil {
+		p.logger.Error(err)
+		return err
+	}
+
 	var result sql.Result
-	var err error
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
@@ -85,7 +98,7 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value) VALUES ($1, $2)
 			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`,
-			tableName), req.Key, req.Value)
+			tableName), req.Key, valueJSON)
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
 		etag, conversionError := strconv.Atoi(req.ETag)
@@ -97,14 +110,15 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`UPDATE %s SET value = $1, updatedate = NOW() 
 			 WHERE key = $2 AND xmin = $3;`,
-			tableName), req.Value, req.Key, etag)
+			tableName), valueJSON, req.Key, etag)
 	}
 
-	return returnSingleDBResult(result, err)
+	return p.returnSingleDBResult(result, err)
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	p.logger.Debug("Getting state value from PostgreSQL")
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
 	}
@@ -131,6 +145,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 // Delete removes an item from the state store.
 func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
+	p.logger.Debug("Deleting state value from PostgreSQL")
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
 	}
@@ -150,10 +165,11 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
 	}
 
-	return returnSingleDBResult(result, err)
+	return p.returnSingleDBResult(result, err)
 }
 
 func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+	p.logger.Debug("Executing multiple PostgreSQL operations")
 	tx, err := p.db.Begin()
 	if err != nil {
 		return err
@@ -186,23 +202,29 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 }
 
 // Verifies that the sql.Result affected only one row and no errors exist
-func returnSingleDBResult(result sql.Result, err error) error {
+func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) error {
 	if err != nil {
+		p.logger.Error(err)
 		return err
 	}
 
 	rowsAffected, resultErr := result.RowsAffected()
 
 	if resultErr != nil {
+		p.logger.Error(resultErr)
 		return resultErr
 	}
 
 	if rowsAffected == 0 {
-		return errors.New("database operation failed: no rows match given key and etag")
+		noRowsErr := errors.New("database operation failed: no rows match given key and etag")
+		p.logger.Error(noRowsErr)
+		return noRowsErr
 	}
 
 	if rowsAffected > 1 {
-		return errors.New("database operation failed: more than one row affected, expected one")
+		tooManyRowsErr := errors.New("database operation failed: more than one row affected, expected one")
+		p.logger.Error(tooManyRowsErr)
+		return tooManyRowsErr
 	}
 
 	return nil

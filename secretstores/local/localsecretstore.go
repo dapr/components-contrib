@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package jsonsecretstore
+package localsecretstore
 
 import (
 	"encoding/json"
@@ -18,41 +18,31 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
-const (
-	/* #nosec */
-	enableSecretStoreVariable = "DAPR_ENABLE_JSON_SECRET_STORE"
-)
-
-type jsonSecretStoreMetaData struct {
+type localSecretStoreMetaData struct {
 	SecretsFile     string `json:"secretsFile"`
 	NestedSeparator string `json:"nestedSeparator"`
 }
 
-type jsonSecretStore struct {
+type localSecretStore struct {
 	secretsFile     string
 	nestedSeparator string
 	currenContext   []string
 	currentPath     string
 	secrets         map[string]string
-	readJSONFileFn  func(secretsFile string) (map[string]interface{}, error)
+	readLocalFileFn func(secretsFile string) (map[string]interface{}, error)
 	logger          logger.Logger
 }
 
-// NewJSONSecretStore returns a new JSON secret store
-func NewJSONSecretStore(logger logger.Logger) secretstores.SecretStore {
-	return &jsonSecretStore{
+// NewLocalSecretStore returns a new Local secret store
+func NewLocalSecretStore(logger logger.Logger) secretstores.SecretStore {
+	return &localSecretStore{
 		logger: logger,
 	}
 }
 
-// Init creates a JSON secret store
-func (j *jsonSecretStore) Init(metadata secretstores.Metadata) error {
-	enable := os.Getenv(enableSecretStoreVariable)
-	if enable != "1" {
-		return fmt.Errorf("jsonsecretstore must be explicitly enabled setting %s environment variable value to 1", enableSecretStoreVariable)
-	}
-
-	meta, err := j.getJSONSecretStoreMetadata(metadata)
+// Init creates a Local secret store
+func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
+	meta, err := j.getLocalSecretStoreMetadata(metadata)
 	if err != nil {
 		return err
 	}
@@ -61,13 +51,13 @@ func (j *jsonSecretStore) Init(metadata secretstores.Metadata) error {
 		j.nestedSeparator = ":"
 	}
 
-	if j.readJSONFileFn == nil {
-		j.readJSONFileFn = j.readJSONFile
+	if j.readLocalFileFn == nil {
+		j.readLocalFileFn = j.readLocalFile
 	}
 
 	j.secrets = map[string]string{}
 
-	jsonConfig, err := j.readJSONFileFn(meta.SecretsFile)
+	jsonConfig, err := j.readLocalFileFn(meta.SecretsFile)
 	if err != nil {
 		return err
 	}
@@ -78,7 +68,7 @@ func (j *jsonSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-func (j *jsonSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	secretValue, exists := j.secrets[req.Name]
 	if !exists {
 		return secretstores.GetSecretResponse{}, fmt.Errorf("secret %s not found", req.Name)
@@ -91,7 +81,7 @@ func (j *jsonSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretst
 	}, nil
 }
 
-func (j *jsonSecretStore) visitJSONObject(jsonConfig map[string]interface{}) error {
+func (j *localSecretStore) visitJSONObject(jsonConfig map[string]interface{}) error {
 	for key, element := range jsonConfig {
 		j.enterContext(key)
 		err := j.visitProperty(element)
@@ -103,12 +93,12 @@ func (j *jsonSecretStore) visitJSONObject(jsonConfig map[string]interface{}) err
 	return nil
 }
 
-func (j *jsonSecretStore) enterContext(context string) {
+func (j *localSecretStore) enterContext(context string) {
 	j.currenContext = append(j.currenContext, context)
 	j.currentPath = j.combine(j.currenContext)
 }
 
-func (j *jsonSecretStore) visitPrimitive(context string) error {
+func (j *localSecretStore) visitPrimitive(context string) error {
 	key := j.currentPath
 	_, exists := j.secrets[key]
 
@@ -121,7 +111,7 @@ func (j *jsonSecretStore) visitPrimitive(context string) error {
 	return nil
 }
 
-func (j *jsonSecretStore) visitArray(array []interface{}) error {
+func (j *localSecretStore) visitArray(array []interface{}) error {
 	for i := 0; i < len(array); i++ {
 		j.enterContext(strconv.Itoa(i))
 		err := j.visitProperty(array[i])
@@ -133,7 +123,7 @@ func (j *jsonSecretStore) visitArray(array []interface{}) error {
 	return nil
 }
 
-func (j *jsonSecretStore) visitProperty(property interface{}) error {
+func (j *localSecretStore) visitProperty(property interface{}) error {
 	switch v := property.(type) {
 	case map[string]interface{}:
 		return j.visitJSONObject(v)
@@ -146,39 +136,39 @@ func (j *jsonSecretStore) visitProperty(property interface{}) error {
 	}
 }
 
-func (j *jsonSecretStore) exitContext() {
+func (j *localSecretStore) exitContext() {
 	j.pop()
 	j.currentPath = j.combine(j.currenContext)
 }
 
-func (j *jsonSecretStore) pop() {
+func (j *localSecretStore) pop() {
 	n := len(j.currenContext) - 1 // Top element
 	j.currenContext[n] = ""
 	j.currenContext = j.currenContext[:n] // Pop
 }
 
-func (j *jsonSecretStore) combine(values []string) string {
+func (j *localSecretStore) combine(values []string) string {
 	return strings.Join(values, j.nestedSeparator)
 }
 
-func (j *jsonSecretStore) getJSONSecretStoreMetadata(spec secretstores.Metadata) (*jsonSecretStoreMetaData, error) {
+func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadata) (*localSecretStoreMetaData, error) {
 	b, err := json.Marshal(spec.Properties)
 	if err != nil {
 		return nil, err
 	}
 
-	var meta jsonSecretStoreMetaData
+	var meta localSecretStoreMetaData
 	err = json.Unmarshal(b, &meta)
 	if err != nil {
 		return nil, err
 	}
 	if meta.SecretsFile == "" {
-		return nil, fmt.Errorf("missing JSON secrets file in metadata")
+		return nil, fmt.Errorf("missing local secrets file in metadata")
 	}
 	return &meta, nil
 }
 
-func (j *jsonSecretStore) readJSONFile(secretsFile string) (map[string]interface{}, error) {
+func (j *localSecretStore) readLocalFile(secretsFile string) (map[string]interface{}, error) {
 	j.secretsFile = secretsFile
 	jsonFile, err := os.Open(secretsFile)
 	if err != nil {

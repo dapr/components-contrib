@@ -15,6 +15,9 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
+const browseTimeout = time.Second * 1
+
+// NewMDNSResolver creates the instance of mDNS service discovery resolver.
 func NewMDNSResolver(logger logger.Logger) servicediscovery.Resolver {
 	return &resolver{logger: logger}
 }
@@ -23,6 +26,7 @@ type resolver struct {
 	logger logger.Logger
 }
 
+// ResolveID discovers address by app ID.
 func (z *resolver) ResolveID(req servicediscovery.ResolveRequest) (string, error) {
 	address, err := lookupAddressMDNS(req.ID)
 	if err != nil {
@@ -42,6 +46,8 @@ func lookupAddressMDNS(id string) (string, error) {
 	var addr string
 	entries := make(chan *zeroconf.ServiceEntry)
 
+	ctx, cancel := context.WithTimeout(context.Background(), browseTimeout)
+
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
 			for _, text := range entry.Text {
@@ -54,23 +60,25 @@ func lookupAddressMDNS(id string) (string, error) {
 					} else {
 						addr = "localhost" // default
 					}
+
+					// cancel timeout because it found the service
+					cancel()
 					return
 				}
 			}
 		}
 	}(entries)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-	defer cancel()
-
-	err = resolver.Browse(ctx, id, "local.", entries)
-	if err != nil {
+	if err := resolver.Browse(ctx, id, "local.", entries); err != nil {
 		return "", fmt.Errorf("failed to browse: %s", err.Error())
 	}
 
+	// wait until context is cancelled or timeed out.
 	<-ctx.Done()
+
 	if port == -1 || addr == "" {
 		return "", fmt.Errorf("couldn't find service: %s", id)
 	}
+
 	return fmt.Sprintf("%s:%d", addr, port), nil
 }

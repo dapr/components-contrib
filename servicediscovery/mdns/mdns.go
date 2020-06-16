@@ -69,7 +69,9 @@ func lookupAddressMDNS(id string) (string, error) {
 		}
 	}(entries)
 
-	if err := resolver.Browse(ctx, id, "local.", entries); err != nil {
+	if err = resolver.Browse(ctx, id, "local.", entries); err != nil {
+		// cancel context
+		cancel()
 		return "", fmt.Errorf("failed to browse: %s", err.Error())
 	}
 

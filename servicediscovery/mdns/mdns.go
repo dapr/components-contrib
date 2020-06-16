@@ -47,6 +47,7 @@ func lookupAddressMDNS(id string) (string, error) {
 	entries := make(chan *zeroconf.ServiceEntry)
 
 	ctx, cancel := context.WithTimeout(context.Background(), browseTimeout)
+	defer cancel()
 
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {

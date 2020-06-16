@@ -6,6 +6,7 @@ package postgresql
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -19,6 +20,10 @@ import (
 const (
 	connectionStringEnvKey = "DAPR_TEST_POSTGRES_CONNSTRING" // Environment variable containing the connection string
 )
+
+type fakeItem struct {
+	Color	string
+}
 
 func TestPostgreSQLIntegration(t *testing.T) {
 	connectionString := getConnectionString()
@@ -49,13 +54,11 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		testCreateTable(t, pgs.dbaccess.(*postgresDBAccess))
 	})
 
-	// Can set and get an item.
 	t.Run("Get Set Delete one item", func(t *testing.T) {
 		t.Parallel()
-		getSetUpdateDeleteOneItem(t, pgs)
+		setGetUpdateDeleteOneItem(t, pgs)
 	})
 
-	// When an item does not exist, get should return a response with Data set to nil.
 	t.Run("Get item that does not exist", func(t *testing.T) {
 		t.Parallel()
 		getItemThatDoesNotExist(t, pgs)
@@ -66,7 +69,6 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		getItemWithNoKey(t, pgs)
 	})
 
-	// Insert date and update date are correctly set and updated in the database
 	t.Run("Set updates the updatedate field", func(t *testing.T) {
 		t.Parallel()
 		setUpdatesTheUpdatedateField(t, pgs)
@@ -77,31 +79,26 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		setItemWithNoKey(t, pgs)
 	})
 
-	// Bulk set and delete work
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
 		t.Parallel()
 		testBulkSetAndBulkDelete(t, pgs)
 	})
 
-	// Updates and deletes with an etag are valid
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
 		t.Parallel()
 		updateAndDeleteWithEtagSucceeds(t, pgs)
 	})
 
-	// Updates with an etag are valid
 	t.Run("Update with old etag fails", func(t *testing.T) {
 		t.Parallel()
 		updateWithOldEtagFails(t, pgs)
 	})
 
-	// Inserts should not have etags
 	t.Run("Insert with etag fails", func(t *testing.T) {
 		t.Parallel()
 		newItemWithEtagFails(t, pgs)
 	})
 
-	// Delete with invalid etag fails
 	t.Run("Delete with invalid etag fails", func(t *testing.T) {
 		t.Parallel()
 		deleteWithInvalidEtagFails(t, pgs)
@@ -131,6 +128,25 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		t.Parallel()
 		multiWithSetOnly(t, pgs)
 	})
+}
+
+// setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
+func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
+	key := randomKey()
+	//value := `{"something": "DKbLaZwrlCAZ"}`
+	value := &fakeItem{Color: "yellow",}
+
+	setItem(t, pgs, key, value, "")
+
+	getResponse, outputObject:= getItem(t, pgs, key)
+	assert.Equal(t, value, outputObject)
+
+	newValue := &fakeItem{Color: "green",}
+	setItem(t, pgs, key, newValue, getResponse.ETag)
+	getResponse, outputObject = getItem(t, pgs, key)
+	assert.Equal(t, newValue, outputObject)
+
+	deleteItem(t, pgs, key, getResponse.ETag)
 }
 
 // testCreateTable tests the ability to create the state table.
@@ -269,7 +285,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 	// Create new item
 	key := randomKey()
-	value := `{"something": "ZPRw7DYBLgYA"}`
+	value := &fakeItem{Color: "mauve"}
 	setItem(t, pgs, key, value, "")
 
 	// Delete the item with a fake etag
@@ -291,7 +307,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *PostgreSQL) {
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure
 func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
-	value := `{"newthing2": "4xn7S2Dtberk"}`
+	value := &fakeItem{Color: "teal"}
 	invalidEtag := "12345"
 
 	setReq := &state.SetRequest{
@@ -307,20 +323,20 @@ func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 	// Create and retrieve new item
 	key := randomKey()
-	value := `{"something": "kCIcMsw8hTm7"}`
+	value := &fakeItem{Color: "gray"}
 	setItem(t, pgs, key, value, "")
-	getResponse := getItem(t, pgs, key)
+	getResponse, _ := getItem(t, pgs, key)
 	assert.NotNil(t, getResponse.ETag)
 	originalEtag := getResponse.ETag
 
 	// Change the value and get the updated etag
-	newValue := `{"newthing": "Jh4K5bH9kogL"}`
+	newValue := &fakeItem{Color: "silver"}
 	setItem(t, pgs, key, newValue, originalEtag)
-	updatedItem := getItem(t, pgs, key)
-	assert.Equal(t, newValue, string(updatedItem.Data))
+	_, updatedItem := getItem(t, pgs, key)
+	assert.Equal(t, newValue, updatedItem)
 
 	// Update again with the original etag - expect udpate failure
-	newValue = `{"newthing2": "XEL2RuXSLZAu"}`
+	newValue = &fakeItem{Color: "maroon"}
 	setReq := &state.SetRequest{
 		Key:   key,
 		ETag:  originalEtag,
@@ -333,50 +349,33 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *PostgreSQL) {
 	// Create and retrieve new item
 	key := randomKey()
-	value := `{"something": "QJucVIDPCU1r"}`
+	value := &fakeItem{Color: "hazel"}
 	setItem(t, pgs, key, value, "")
-	getResponse := getItem(t, pgs, key)
+	getResponse, _ := getItem(t, pgs, key)
 	assert.NotNil(t, getResponse.ETag)
 
 	// Change the value and compare
-	newValue := `{"newthing": "eSg1q7RwbTuz"}`
-	setItem(t, pgs, key, newValue, getResponse.ETag)
-	updatedItem := getItem(t, pgs, key)
-	assert.Equal(t, newValue, string(updatedItem.Data))
+	value.Color = "purple"
+	setItem(t, pgs, key, value, getResponse.ETag)
+	updateResponse, updatedItem := getItem(t, pgs, key)
+	assert.Equal(t, value, updatedItem)
 
 	// ETag should change when item is updated
-	assert.NotEqual(t, getResponse.ETag, updatedItem.ETag)
+	assert.NotEqual(t, getResponse.ETag, updateResponse.ETag)
 
 	// Delete
-	deleteItem(t, pgs, key, updatedItem.ETag)
+	deleteItem(t, pgs, key, updateResponse.ETag)
 
 	// Item is not in the data store
 	assert.False(t, storeItemExists(t, key))
 }
 
-// getSetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
-func getSetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
-	key := randomKey()
-	value := `{"something": "DKbLaZwrlCAZ"}`
-
-	setItem(t, pgs, key, value, "")
-
-	getResponse := getItem(t, pgs, key)
-	assert.Equal(t, value, string(getResponse.Data))
-
-	newValue := `{"newthing": "bnfjSADNzspd"}`
-	setItem(t, pgs, key, newValue, getResponse.ETag)
-	newGetResponse := getItem(t, pgs, key)
-	assert.Equal(t, newValue, string(newGetResponse.Data))
-
-	deleteItem(t, pgs, key, "")
-}
-
 // getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist.
 func getItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
-	response := getItem(t, pgs, key)
+	response, outputObject := getItem(t, pgs, key)
 	assert.Nil(t, response.Data)
+	assert.Equal(t, "", outputObject.Color)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
@@ -393,20 +392,18 @@ func getItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 // setUpdatesTheUpdatedateField proves that the updateddate is set for an update, and not set upon insert.
 func setUpdatesTheUpdatedateField(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
-	value := `{"something": "FHKwv3jCX5Lc"}`
+	value := &fakeItem{Color: "orange"}
 	setItem(t, pgs, key, value, "")
 
 	// insertdate should have a value and updatedate should be nil
-	retrievedValue, insertdate, updatedate := getRowData(t, key)
-	assert.Equal(t, value, retrievedValue)
+	_, insertdate, updatedate := getRowData(t, key)
 	assert.NotNil(t, insertdate)
 	assert.Equal(t, "", updatedate.String)
 
 	// insertdate should not change, updatedate should have a value
-	value = `{"newthing": "bXuPvHltCXKL"}`
+	value = &fakeItem{Color: "aqua"}
 	setItem(t, pgs, key, value, "")
-	retrievedValue, newinsertdate, updatedate := getRowData(t, key)
-	assert.Equal(t, value, retrievedValue)
+	_, newinsertdate, updatedate := getRowData(t, key)
 	assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
 	assert.NotEqual(t, "", updatedate.String)
 
@@ -427,11 +424,11 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	setReq := []state.SetRequest{
 		{
 			Key:   randomKey(),
-			Value: `{"request1": "mSWIMIVlF5Gc"}`,
+			Value: &fakeItem{Color: "blue"},
 		},
 		{
 			Key:   randomKey(),
-			Value: `{"request2": "hc4Ay4ot8Gqm"}`,
+			Value: &fakeItem{Color: "red"},
 		},
 	}
 
@@ -499,7 +496,7 @@ func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
-func setItem(t *testing.T, pgs *PostgreSQL, key string, value string, etag string) {
+func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag string) {
 	setReq := &state.SetRequest{
 		Key:   key,
 		ETag:  etag,
@@ -508,10 +505,11 @@ func setItem(t *testing.T, pgs *PostgreSQL, key string, value string, etag strin
 
 	err := pgs.Set(setReq)
 	assert.Nil(t, err)
-	assert.True(t, storeItemExists(t, key))
+	itemExists := storeItemExists(t, key)
+	assert.True(t, itemExists)
 }
 
-func getItem(t *testing.T, pgs *PostgreSQL, key string) *state.GetResponse {
+func getItem(t *testing.T, pgs *PostgreSQL, key string) (*state.GetResponse, *fakeItem) {
 	getReq := &state.GetRequest{
 		Key:     key,
 		Options: state.GetStateOption{},
@@ -520,7 +518,9 @@ func getItem(t *testing.T, pgs *PostgreSQL, key string) *state.GetResponse {
 	response, getErr := pgs.Get(getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
-	return response
+	outputObject := &fakeItem{}
+	_ = json.Unmarshal(response.Data, outputObject)
+	return response, outputObject
 }
 
 func deleteItem(t *testing.T, pgs *PostgreSQL, key string, etag string) {
@@ -561,6 +561,6 @@ func randomKey() string {
 	return uuid.New().String()
 }
 
-func randomJSON() string {
-	return fmt.Sprintf(`{"%s": "%s"}`, uuid.New(), uuid.New())
+func randomJSON() *fakeItem {
+	return &fakeItem{Color: randomKey()}
 }

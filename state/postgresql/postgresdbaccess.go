@@ -36,7 +36,7 @@ type postgresDBAccess struct {
 
 // newPostgresDBAccess creates a new instance of postgresAccess
 func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
-	logger.Debug("newPostgresDBAccess called")
+	logger.Debug("PostgreSQL state store initializing")
 	return &postgresDBAccess{
 		logger: logger,
 	}
@@ -44,7 +44,6 @@ func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 
 // Init sets up PostgreSQL connection and ensures that the state table exists
 func (p *postgresDBAccess) Init(metadata state.Metadata) error {
-	p.logger.Debug("postgresDBAccess Init called")
 	p.metadata = metadata
 
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
@@ -84,11 +83,13 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
-	valueJSON, err := json.Marshal(req.Value)
+	// Convert to json string
+	valueBytes, err := json.Marshal(req.Value)
 	if err != nil {
 		p.logger.Error(err)
 		return err
 	}
+	value := string(valueBytes)
 
 	var result sql.Result
 
@@ -98,19 +99,19 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value) VALUES ($1, $2)
 			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`,
-			tableName), req.Key, valueJSON)
+			tableName), req.Key, value)
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
-		etag, conversionError := strconv.Atoi(req.ETag)
-		if conversionError != nil {
-			return conversionError
+		etag, err := strconv.Atoi(req.ETag)
+		if err != nil {
+			return err
 		}
 
 		// When an etag is provided do an update - no insert
 		result, err = p.db.Exec(fmt.Sprintf(
 			`UPDATE %s SET value = $1, updatedate = NOW() 
 			 WHERE key = $2 AND xmin = $3;`,
-			tableName), valueJSON, req.Key, etag)
+			tableName), value, req.Key, etag)
 	}
 
 	return p.returnSingleDBResult(result, err)

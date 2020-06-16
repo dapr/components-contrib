@@ -47,7 +47,6 @@ func lookupAddressMDNS(id string) (string, error) {
 	entries := make(chan *zeroconf.ServiceEntry)
 
 	ctx, cancel := context.WithTimeout(context.Background(), browseTimeout)
-	defer cancel()
 
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
@@ -70,7 +69,9 @@ func lookupAddressMDNS(id string) (string, error) {
 		}
 	}(entries)
 
-	if err := resolver.Browse(ctx, id, "local.", entries); err != nil {
+	if err = resolver.Browse(ctx, id, "local.", entries); err != nil {
+		// cancel context
+		cancel()
 		return "", fmt.Errorf("failed to browse: %s", err.Error())
 	}
 

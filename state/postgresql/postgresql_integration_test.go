@@ -22,7 +22,7 @@ const (
 )
 
 type fakeItem struct {
-	Color	string
+	Color string
 }
 
 func TestPostgreSQLIntegration(t *testing.T) {
@@ -134,14 +134,14 @@ func TestPostgreSQLIntegration(t *testing.T) {
 func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	//value := `{"something": "DKbLaZwrlCAZ"}`
-	value := &fakeItem{Color: "yellow",}
+	value := &fakeItem{Color: "yellow"}
 
 	setItem(t, pgs, key, value, "")
 
-	getResponse, outputObject:= getItem(t, pgs, key)
+	getResponse, outputObject := getItem(t, pgs, key)
 	assert.Equal(t, value, outputObject)
 
-	newValue := &fakeItem{Color: "green",}
+	newValue := &fakeItem{Color: "green"}
 	setItem(t, pgs, key, newValue, getResponse.ETag)
 	getResponse, outputObject = getItem(t, pgs, key)
 	assert.Equal(t, newValue, outputObject)

@@ -83,8 +83,11 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
+	var err error
+	var valueBytes []byte
+
 	// Convert to json string
-	valueBytes, err := json.Marshal(req.Value)
+	valueBytes, err = json.Marshal(req.Value)
 	if err != nil {
 		p.logger.Error(err)
 		return err
@@ -102,7 +105,8 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 			tableName), req.Key, value)
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
-		etag, err := strconv.Atoi(req.ETag)
+		var etag int
+		etag, err = strconv.Atoi(req.ETag)
 		if err != nil {
 			return err
 		}

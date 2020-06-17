@@ -52,7 +52,6 @@ type azureServiceBus struct {
 	metadata     metadata
 	namespace    *azservicebus.Namespace
 	topicManager *azservicebus.TopicManager
-	mu           sync.RWMutex
 	logger       logger.Logger
 }
 
@@ -63,10 +62,22 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
+type messageHandle struct {
+	msg    *azservicebus.Message
+	cancel context.CancelFunc
+}
+
+func newMessageHandle(msg *azservicebus.Message, cancel context.CancelFunc) *messageHandle {
+	return &messageHandle{
+		msg:    msg,
+		cancel: cancel,
+	}
+}
+
 type subscriptionManager struct {
 	topic          string
 	mu             sync.RWMutex
-	activeMessages map[string]*azservicebus.Message
+	activeMessages map[string]*messageHandle
 	sub            *azservicebus.Subscription
 	logger         logger.Logger
 }
@@ -74,7 +85,7 @@ type subscriptionManager struct {
 func newSubscriptionManager(topic string, sub *azservicebus.Subscription, logger logger.Logger) *subscriptionManager {
 	return &subscriptionManager{
 		topic:          topic,
-		activeMessages: make(map[string]*azservicebus.Message),
+		activeMessages: make(map[string]*messageHandle),
 		sub:            sub,
 		logger:         logger,
 	}
@@ -268,20 +279,20 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler fun
 	}
 
 	subManager := newSubscriptionManager(req.Topic, sub, a.logger)
-	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, daprHandler, subManager))
+	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(daprHandler, subManager))
 	go a.handleSubscriptionMessages(asbHandler, subManager)
 
 	return nil
 }
 
-func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pubsub.NewMessage) error, subManager *subscriptionManager) func(ctx context.Context, message *azservicebus.Message) error {
+func (a *azureServiceBus) getHandlerFunc(daprHandler func(msg *pubsub.NewMessage) error, subManager *subscriptionManager) func(ctx context.Context, message *azservicebus.Message) error {
 	return func(ctx context.Context, message *azservicebus.Message) error {
 		msg := &pubsub.NewMessage{
 			Data:  message.Data,
-			Topic: topic,
+			Topic: subManager.topic,
 		}
 
-		a.logger.Debugf("Calling app's handler for message %s", message.ID)
+		a.logger.Debugf("Calling app's handler for message %s from topic %s", message.ID, msg.Topic)
 		err := daprHandler(msg)
 		if err != nil {
 			a.logger.Debugf("Error in app's handler: %+v", err)
@@ -304,12 +315,23 @@ func (a *azureServiceBus) handleSubscriptionMessages(asbHandler azservicebus.Han
 		for i := 0; i < *a.metadata.MaxConcurrentHandlers; i++ {
 			handlers <- handler{}
 		}
-		defer close(handlers)
+		defer func() {
+			// Cancel all asynchronous message handles
+			// before closing the handlers channel
+			subManager.mu.RLock()
+			for _, msg := range subManager.activeMessages {
+				msg.cancel()
+			}
+			subManager.mu.Unlock()
+			close(handlers)
+		}()
 	}
 
 	// Async message handler
 	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
-		subManager.addActiveMessage(msg)
+		ctx, cancel := context.WithCancel(ctx)
+		msgHandle := newMessageHandle(msg, cancel)
+		subManager.addActiveMessage(msgHandle)
 
 		// Process messages asynchronously
 		go func() {
@@ -325,7 +347,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(asbHandler azservicebus.Han
 				}()
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
+			ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
 			defer cancel()
 
 			a.logger.Debugf("Handling message %s", msg.ID)
@@ -347,21 +369,25 @@ func (a *azureServiceBus) handleSubscriptionMessages(asbHandler azservicebus.Han
 		for {
 			time.Sleep(time.Second * time.Duration(a.metadata.LockRenewalInSec))
 
-			if len(subManager.activeMessages) == 0 {
+			subManager.mu.RLock()
+			activeMessageLen := len(subManager.activeMessages)
+			subManager.mu.RUnlock()
+			if activeMessageLen == 0 {
 				a.logger.Debugf("No active messages require lock renewal for topic %s", topic)
 				continue
 			}
 
 			msgs := make([]*azservicebus.Message, 0)
-			a.mu.RLock()
+			subManager.mu.RLock()
 			for _, m := range subManager.activeMessages {
-				msgs = append(msgs, m)
+				msgs = append(msgs, m.msg)
 			}
-			a.mu.RUnlock()
+			subManager.mu.RUnlock()
 			a.logger.Debugf("Renewing %d active message lock(s) for topic %s", len(msgs), topic)
 			err := subManager.sub.RenewLocks(context.Background(), msgs...)
 			if err != nil {
-				a.logger.Errorf("%s error renewing active message lock(s) for topic %s, ", errorMessagePrefix, topic, err)
+				// We cannot guarentee messages aren't finalized after we took a snapshot so this may occur.
+				a.logger.Warnf("%s error renewing active message lock(s) for topic %s, ", errorMessagePrefix, topic, err)
 			}
 		}
 	}()
@@ -369,7 +395,10 @@ func (a *azureServiceBus) handleSubscriptionMessages(asbHandler azservicebus.Han
 	// Receiver loop
 	for {
 		// If we have too many active messages don't receive any more for a while.
-		if len(subManager.activeMessages) < a.metadata.MaxActiveMessages {
+		subManager.mu.RLock()
+		activeMessageLen := len(subManager.activeMessages)
+		subManager.mu.RUnlock()
+		if activeMessageLen < a.metadata.MaxActiveMessages {
 			a.logger.Debugf("Waiting to receive message from topic %s", topic)
 			if err := subManager.sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
 				a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
@@ -500,22 +529,20 @@ func (a *azureServiceBus) createSubscriptionManagementOptions() ([]azservicebus.
 
 func (s *subscriptionManager) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
 	s.removeActiveMessage(m.ID)
-
 	s.logger.Debugf("Abandoning message %s on topic %s", m.ID, s.topic)
 	return m.Abandon(ctx)
 }
 
 func (s *subscriptionManager) completeMessage(ctx context.Context, m *azservicebus.Message) error {
 	s.removeActiveMessage(m.ID)
-
 	s.logger.Debugf("Completing message %s on topic %s", m.ID, s.topic)
 	return m.Complete(ctx)
 }
 
-func (s *subscriptionManager) addActiveMessage(m *azservicebus.Message) {
-	s.logger.Debugf("Adding message %s to active messages on topic %s", m.ID, s.topic)
+func (s *subscriptionManager) addActiveMessage(m *messageHandle) {
+	s.logger.Debugf("Adding message %s to active messages on topic %s", m.msg.ID, s.topic)
 	s.mu.Lock()
-	s.activeMessages[m.ID] = m
+	s.activeMessages[m.msg.ID] = m
 	s.mu.Unlock()
 }
 

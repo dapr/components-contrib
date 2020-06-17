@@ -49,18 +49,33 @@ const (
 type handler = struct{}
 
 type azureServiceBus struct {
-	metadata       metadata
-	namespace      *azservicebus.Namespace
-	topicManager   *azservicebus.TopicManager
-	activeMessages map[string]*azservicebus.Message
-	mu             sync.RWMutex
-	logger         logger.Logger
+	metadata     metadata
+	namespace    *azservicebus.Namespace
+	topicManager *azservicebus.TopicManager
+	mu           sync.RWMutex
+	logger       logger.Logger
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
+		logger: logger,
+	}
+}
+
+type subscriptionManager struct {
+	topic          string
+	mu             sync.RWMutex
+	activeMessages map[string]*azservicebus.Message
+	sub            *azservicebus.Subscription
+	logger         logger.Logger
+}
+
+func newSubscriptionManager(topic string, sub *azservicebus.Subscription, logger logger.Logger) *subscriptionManager {
+	return &subscriptionManager{
+		topic:          topic,
 		activeMessages: make(map[string]*azservicebus.Message),
+		sub:            sub,
 		logger:         logger,
 	}
 }
@@ -252,13 +267,14 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler fun
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
 
-	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, daprHandler))
-	go a.handleSubscriptionMessages(req.Topic, sub, asbHandler)
+	subManager := newSubscriptionManager(req.Topic, sub, a.logger)
+	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, daprHandler, subManager))
+	go a.handleSubscriptionMessages(asbHandler, subManager)
 
 	return nil
 }
 
-func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pubsub.NewMessage) error) func(ctx context.Context, message *azservicebus.Message) error {
+func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pubsub.NewMessage) error, subManager *subscriptionManager) func(ctx context.Context, message *azservicebus.Message) error {
 	return func(ctx context.Context, message *azservicebus.Message) error {
 		msg := &pubsub.NewMessage{
 			Data:  message.Data,
@@ -269,13 +285,15 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 		err := daprHandler(msg)
 		if err != nil {
 			a.logger.Debugf("Error in app's handler: %+v", err)
-			return a.abandonMessage(ctx, message)
+			return subManager.abandonMessage(ctx, message)
 		}
-		return a.completeMessage(ctx, message)
+		return subManager.completeMessage(ctx, message)
 	}
 }
 
-func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
+func (a *azureServiceBus) handleSubscriptionMessages(asbHandler azservicebus.HandlerFunc, subManager *subscriptionManager) {
+	topic := subManager.topic
+
 	// Limiting the number of concurrent handlers will throttle
 	// how many messages are processed concurrently.
 	limitConcurrentHandlers := a.metadata.MaxConcurrentHandlers != nil
@@ -291,7 +309,7 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 	// Async message handler
 	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
-		a.addActiveMessage(msg)
+		subManager.addActiveMessage(msg)
 
 		// Process messages asynchronously
 		go func() {
@@ -322,26 +340,26 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 	// Lock renewal loop
 	go func() {
 		if !a.lockRenewalEnabled() {
-			a.logger.Debugf("lock renewal disabled")
+			a.logger.Debugf("Lock renewal disabled")
 			return
 		}
 
 		for {
 			time.Sleep(time.Second * time.Duration(a.metadata.LockRenewalInSec))
 
-			if len(a.activeMessages) == 0 {
-				a.logger.Debugf("No active messages to renew lock for")
+			if len(subManager.activeMessages) == 0 {
+				a.logger.Debugf("No active messages require lock renewal for topic %s", topic)
 				continue
 			}
 
 			msgs := make([]*azservicebus.Message, 0)
 			a.mu.RLock()
-			for _, m := range a.activeMessages {
+			for _, m := range subManager.activeMessages {
 				msgs = append(msgs, m)
 			}
 			a.mu.RUnlock()
-			a.logger.Debugf("Renewing %d active message lock(s)", len(msgs))
-			err := sub.RenewLocks(context.Background(), msgs...)
+			a.logger.Debugf("Renewing %d active message lock(s) for topic %s", len(msgs), topic)
+			err := subManager.sub.RenewLocks(context.Background(), msgs...)
 			if err != nil {
 				a.logger.Errorf("%s error renewing active message lock(s) for topic %s, ", errorMessagePrefix, topic, err)
 			}
@@ -351,19 +369,19 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 	// Receiver loop
 	for {
 		// If we have too many active messages don't receive any more for a while.
-		if len(a.activeMessages) < a.metadata.MaxActiveMessages {
-			a.logger.Debugf("Waiting to receive message from topic")
-			if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
+		if len(subManager.activeMessages) < a.metadata.MaxActiveMessages {
+			a.logger.Debugf("Waiting to receive message from topic %s", topic)
+			if err := subManager.sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
 				a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
 				// Must close to reset sub's receiver
-				if err := sub.Close(context.Background()); err != nil {
+				if err := subManager.sub.Close(context.Background()); err != nil {
 					a.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
 					return
 				}
 			}
 		} else {
 			// Sleep to allow the current active messages to be processed before getting more.
-			a.logger.Debugf("Max active messages %d reached, recovering for %d seconds", a.metadata.MaxActiveMessages, a.metadata.MaxActiveMessagesRecoveryInSec)
+			a.logger.Debugf("Max active messages %d reached for topic %s, recovering for %d seconds", a.metadata.MaxActiveMessages, topic, a.metadata.MaxActiveMessagesRecoveryInSec)
 			time.Sleep(time.Second * time.Duration(a.metadata.MaxActiveMessagesRecoveryInSec))
 		}
 	}
@@ -371,34 +389,6 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 
 func (a *azureServiceBus) lockRenewalEnabled() bool {
 	return a.metadata.LockRenewalInSec > 0
-}
-
-func (a *azureServiceBus) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
-	a.removeActiveMessage(m.ID)
-
-	a.logger.Debugf("Abandoning message %s", m.ID)
-	return m.Abandon(ctx)
-}
-
-func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.Message) error {
-	a.removeActiveMessage(m.ID)
-
-	a.logger.Debugf("Completing message %s", m.ID)
-	return m.Complete(ctx)
-}
-
-func (a *azureServiceBus) addActiveMessage(m *azservicebus.Message) {
-	a.logger.Debugf("Adding message %s to active messages", m.ID)
-	a.mu.Lock()
-	a.activeMessages[m.ID] = m
-	a.mu.Unlock()
-}
-
-func (a *azureServiceBus) removeActiveMessage(messageID string) {
-	a.logger.Debugf("Removing message %s from active messages", messageID)
-	a.mu.Lock()
-	delete(a.activeMessages, messageID)
-	a.mu.Unlock()
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {
@@ -506,6 +496,34 @@ func (a *azureServiceBus) createSubscriptionManagementOptions() ([]azservicebus.
 		opts = append(opts, subscriptionManagementOptionsWithAutoDeleteOnIdle(a.metadata.AutoDeleteOnIdleInSec))
 	}
 	return opts, nil
+}
+
+func (s *subscriptionManager) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
+	s.removeActiveMessage(m.ID)
+
+	s.logger.Debugf("Abandoning message %s on topic %s", m.ID, s.topic)
+	return m.Abandon(ctx)
+}
+
+func (s *subscriptionManager) completeMessage(ctx context.Context, m *azservicebus.Message) error {
+	s.removeActiveMessage(m.ID)
+
+	s.logger.Debugf("Completing message %s on topic %s", m.ID, s.topic)
+	return m.Complete(ctx)
+}
+
+func (s *subscriptionManager) addActiveMessage(m *azservicebus.Message) {
+	s.logger.Debugf("Adding message %s to active messages on topic %s", m.ID, s.topic)
+	s.mu.Lock()
+	s.activeMessages[m.ID] = m
+	s.mu.Unlock()
+}
+
+func (s *subscriptionManager) removeActiveMessage(messageID string) {
+	s.logger.Debugf("Removing message %s from active messages on topic", messageID, s.topic)
+	s.mu.Lock()
+	delete(s.activeMessages, messageID)
+	s.mu.Unlock()
 }
 
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) azservicebus.SubscriptionManagementOption {

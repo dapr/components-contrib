@@ -54,8 +54,10 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 }
 
 // ReceiveMessages is a blocking call to receive messages on an Azure Service Bus subscription from a topic
-func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) {
+func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
 	defer s.close(timeoutInSec)
+
+	done := make(chan struct{}, 1)
 
 	// Lock renewal loop
 	go func() {
@@ -65,6 +67,11 @@ func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) e
 			return
 		}
 		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
 			time.Sleep(time.Second * time.Duration(lockRenewalInSec))
 			s.tryRenewLocks()
 		}
@@ -83,11 +90,8 @@ func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) e
 			continue
 		}
 		if err := s.receiveMessage(context.Background(), asyncHandler); err != nil {
-			// Error receiving message from link, try to reset connection
-			if err := s.entity.Close(context.Background()); err != nil {
-				s.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, s.topic, err)
-				return
-			}
+			done <- struct{}{}
+			return err
 		}
 	}
 }
@@ -99,13 +103,15 @@ func (s *subscription) close(timeoutInSec int) {
 		msg.cancel()
 	}
 	s.mu.RUnlock()
-	close(s.handlerChan)
+	if s.limitConcurrentHandlers {
+		close(s.handlerChan)
+	}
 
 	// Ensure subscription entity is closed
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*time.Duration(timeoutInSec))
 	defer cancel()
 	if err := s.entity.Close(ctx); err != nil {
-		s.logger.Errorf("%s closing subscription entity: %+v", errorMessagePrefix, err)
+		s.logger.Errorf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
 	}
 }
 
@@ -188,7 +194,7 @@ func (s *subscription) tryRenewLocks() {
 func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.HandlerFunc) error {
 	s.logger.Debugf("Waiting to receive message from topic %s", s.topic)
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
-		return fmt.Errorf("%s error receiving message from topic %s, %s", errorMessagePrefix, s.topic, err)
+		return fmt.Errorf("error receiving message from topic %s, %s", s.topic, err)
 	}
 	return nil
 }

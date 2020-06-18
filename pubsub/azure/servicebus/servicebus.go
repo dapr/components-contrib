@@ -249,12 +249,18 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 	}
 
 	sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
-	go sub.ReceiveMessages(appHandler,
-		a.metadata.LockRenewalInSec,
-		a.metadata.HandlerTimeoutInSec,
-		a.metadata.TimeoutInSec,
-		a.metadata.MaxActiveMessages,
-		a.metadata.MaxActiveMessagesRecoveryInSec)
+	go func() {
+		err := sub.ReceiveMessages(appHandler,
+			a.metadata.LockRenewalInSec,
+			a.metadata.HandlerTimeoutInSec,
+			a.metadata.TimeoutInSec,
+			a.metadata.MaxActiveMessages,
+			a.metadata.MaxActiveMessagesRecoveryInSec)
+		// ReceiveMessages will only ever return with a fatal
+		// error that it cannot recover from.
+		a.logger.Error(err)
+		// TODO: Handle fatal errors
+	}()
 
 	return nil
 }

@@ -141,7 +141,7 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 			// TODO: * This context is used to control the execution of the async message handler
 			// 		 including the app's handler and the message finalization (complete/abandon).
 			//		 Currently the app handler does not accept a context so cannot be safely cancelled.
-			ctx, cancel := context.WithCancel(ctx)
+			ctxWithCancel, cancel := context.WithCancel(ctx)
 			s.addActiveMessage(newActiveMessage(msg, cancel))
 			defer cancel()
 			defer s.removeActiveMessage(msg.ID)
@@ -158,7 +158,7 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 				}()
 			}
 
-			err := handlerFunc(ctx, msg)
+			err := handlerFunc(ctxWithCancel, msg)
 			if err != nil {
 				s.logger.Errorf("%s error handling message %s from topic '%s', %s", errorMessagePrefix, msg.ID, s.topic, err)
 			}
@@ -184,7 +184,7 @@ func (s *subscription) tryRenewLocks() {
 	}
 	s.mu.RUnlock()
 
-	// Lock renewal is best effort and not guarenteed to succeed, warnings are expected.
+	// Lock renewal is best effort and not guaranteed to succeed, warnings are expected.
 	s.logger.Debugf("Trying to renew %d active message lock(s) for topic %s", len(msgs), s.topic)
 	err := s.entity.RenewLocks(context.Background(), msgs...)
 	if err != nil {

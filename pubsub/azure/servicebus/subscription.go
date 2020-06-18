@@ -143,6 +143,7 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 			//		 Currently the app handler does not accept a context so cannot be safely cancelled.
 			ctx, cancel := context.WithCancel(ctx)
 			s.addActiveMessage(newActiveMessage(msg, cancel))
+			defer cancel()
 			defer s.removeActiveMessage(msg.ID)
 
 			if s.limitConcurrentHandlers {

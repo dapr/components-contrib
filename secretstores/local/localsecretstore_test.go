@@ -2,11 +2,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
-package jsonsecretstore
+package localsecretstore
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/dapr/components-contrib/secretstores"
@@ -17,11 +16,10 @@ import (
 const secretValue = "secret"
 
 func TestInit(t *testing.T) {
-	os.Setenv(enableSecretStoreVariable, "1")
 	m := secretstores.Metadata{}
-	s := jsonSecretStore{
+	s := localSecretStore{
 		logger: logger.NewLogger("test"),
-		readJSONFileFn: func(secretsFile string) (map[string]interface{}, error) {
+		readLocalFileFn: func(secretsFile string) (map[string]interface{}, error) {
 			return nil, nil
 		},
 	}
@@ -40,30 +38,19 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(m)
 		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing JSON secrets file in metadata"))
-	})
-
-	t.Run("Init with disabled store", func(t *testing.T) {
-		os.Setenv(enableSecretStoreVariable, "0")
-		m.Properties = map[string]string{
-			"Dummy": "a",
-		}
-		err := s.Init(m)
-		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("jsonsecretstore must be explicitly enabled setting %s environment variable value to 1", enableSecretStoreVariable))
+		assert.Equal(t, err, fmt.Errorf("missing local secrets file in metadata"))
 	})
 }
 
 func TestGetSecret(t *testing.T) {
-	os.Setenv(enableSecretStoreVariable, "1")
 	m := secretstores.Metadata{}
 	m.Properties = map[string]string{
 		"SecretsFile":     "a",
 		"NestedSeparator": "a",
 	}
-	s := jsonSecretStore{
+	s := localSecretStore{
 		logger: logger.NewLogger("test"),
-		readJSONFileFn: func(secretsFile string) (map[string]interface{}, error) {
+		readLocalFileFn: func(secretsFile string) (map[string]interface{}, error) {
 			secrets := make(map[string]interface{})
 			secrets["secret"] = secretValue
 			return secrets, nil

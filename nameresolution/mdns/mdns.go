@@ -56,7 +56,12 @@ func (m *resolver) Init(metadata nameresolution.Metadata) error {
 		return errors.New("port is invalid")
 	}
 
-	return m.registerMDNS(id, []string{hostAddress}, int(port))
+	err = m.registerMDNS(id, []string{hostAddress}, int(port))
+	if err == nil {
+		m.logger.Infof("local service entry announced: %s -> %s:%d", id, hostAddress, port)
+	}
+
+	return err
 }
 
 func (m *resolver) registerMDNS(id string, ips []string, port int) error {

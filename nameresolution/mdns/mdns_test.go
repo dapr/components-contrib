@@ -73,11 +73,14 @@ func TestResolver(t *testing.T) {
 		nr.MDNSInstancePort:    "1234",
 	}}
 
+	// act
 	err := resolver.Init(md)
 	require.NoError(t, err)
 
 	request := nr.ResolveRequest{ID: "testAppID", Port: 1234}
 	pt, err := resolver.ResolveID(request)
+
+	// assert
 	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:1234", pt)
 }

@@ -78,5 +78,6 @@ func TestResolver(t *testing.T) {
 
 	request := nr.ResolveRequest{ID: "testAppID", Port: 1234}
 	pt, err := resolver.ResolveID(request)
+	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:1234", pt)
 }

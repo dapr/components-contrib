@@ -44,7 +44,10 @@ const (
 	defaultCollectionName = "daprCollection"
 
 	// mongodb://<username>:<password@<host>/<database><params>
-	connectionURIFormat = "mongodb://%s:%s@%s/%s%s"
+	connectionURIFormatWithAuthentication = "mongodb://%s:%s@%s/%s%s"
+
+	// mongodb://<host>/<database><params>
+	connectionURIFormat = "mongodb://%s/%s%s"
 )
 
 // MongoDB is a state store implementation for MongoDB
@@ -262,15 +265,14 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 }
 
 func getMongoURI(metadata *mongoDBMetadata) string {
-	return fmt.Sprintf(connectionURIFormat, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
+	if metadata.username != "" && metadata.password != "" {
+		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
+	}
+	return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
 }
 
 func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
-	var uri string
-
-	if metadata.username != "" && metadata.password != "" {
-		uri = getMongoURI(metadata)
-	}
+	uri := getMongoURI(metadata)
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)

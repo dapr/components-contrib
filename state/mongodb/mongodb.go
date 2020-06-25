@@ -267,15 +267,12 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 func getMongoURI(metadata *mongoDBMetadata) string {
 	if metadata.username != "" && metadata.password != "" {
 		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
-	} else {
-		return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
 	}
+	return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
 }
 
 func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
-	var uri string
-
-	uri = getMongoURI(metadata)
+	uri := getMongoURI(metadata)
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)

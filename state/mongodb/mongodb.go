@@ -89,10 +89,16 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 		return err
 	}
 
+	m.operationTimeout = meta.operationTimeout
+
 	client, err := getMongoDBClient(meta)
 
 	if err != nil {
 		return fmt.Errorf("error in creating mongodb client: %s", err)
+	}
+
+	if err = client.Ping(context.Background(), nil); err != nil {
+		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", meta.host, err)
 	}
 
 	m.client = client
@@ -278,7 +284,7 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), metadata.operationTimeout)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, clientOptions)
@@ -332,16 +338,12 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 	}
 
 	var err error
-	var t time.Duration
 	if val, ok := metadata.Properties[operationTimeout]; ok && val != "" {
-		t, err = time.ParseDuration(val)
+		meta.operationTimeout, err = time.ParseDuration(val)
+		if err != nil {
+			return nil, errors.New("incorrect operationTimeout field from metadata")
+		}
 	}
-
-	if err != nil {
-		return nil, errors.New("incorrect operationTimeout field from metadata")
-	}
-
-	meta.operationTimeout = t
 
 	return &meta, nil
 }

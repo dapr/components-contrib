@@ -47,8 +47,7 @@ function sample(upserts, deletes) {
         var isAccepted = container.upsertDocument(collectionLink, doc, callback);
         
         // fail if we hit execution bounds
-        if (!isAccepted) {            
-            // TODO log here for diagnostics, 0 commited
+        if (!isAccepted) {                        
             throw new Error("upsertDocument() not accepted, please retry");
         }
     }

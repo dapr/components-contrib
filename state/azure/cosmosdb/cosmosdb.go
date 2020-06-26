@@ -283,7 +283,6 @@ func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
 				PartitionKey: partitionKey}
 
 			upserts = append(upserts, upsertOperation)
-
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 

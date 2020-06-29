@@ -32,7 +32,7 @@ const (
 	prefetchCount                  = "prefetchCount"
 	maxActiveMessages              = "maxActiveMessages"
 	maxActiveMessagesRecoveryInSec = "maxActiveMessagesRecoveryInSec"
-	errorMessagePrefix             = "azure service bus:"
+	errorMessagePrefix             = "azure service bus error:"
 
 	// Defaults
 	defaultTimeoutInSec        = 60
@@ -43,6 +43,9 @@ const (
 	defaultMaxActiveMessages              = 10000
 	defaultMaxActiveMessagesRecoveryInSec = 2
 	defaultDisableEntityManagement        = false
+
+	maxReconnAttempts       = 10
+	connectionRecoveryInSec = 2
 )
 
 type handler = struct{}
@@ -234,32 +237,80 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			return err
 		}
 	}
-	topic, err := a.namespace.NewTopic(req.Topic)
-	if err != nil {
-		return fmt.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
-	}
 
-	var opts []azservicebus.SubscriptionOption
-	if a.metadata.PrefetchCount != nil {
-		opts = append(opts, azservicebus.SubscriptionWithPrefetchCount(uint32(*a.metadata.PrefetchCount)))
-	}
-	subEntity, err := topic.NewSubscription(subID, opts...)
-	if err != nil {
-		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
-	}
-
-	sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
 	go func() {
-		err := sub.ReceiveMessages(appHandler,
-			a.metadata.LockRenewalInSec,
-			a.metadata.HandlerTimeoutInSec,
-			a.metadata.TimeoutInSec,
-			a.metadata.MaxActiveMessages,
-			a.metadata.MaxActiveMessagesRecoveryInSec)
-		// ReceiveMessages will only ever return with a fatal
-		// error that it cannot recover from.
-		a.logger.Error(err)
-		// TODO: Handle fatal errors
+		reconnCtx, reconnCancel := context.WithCancel(context.TODO())
+
+		// Limit the number of attempted reconnects we make
+		reconnAttempts := make(chan struct{}, maxReconnAttempts)
+		for i := 0; i < maxReconnAttempts; i++ {
+			reconnAttempts <- struct{}{}
+		}
+		go func() {
+			// Refill the chan every 2 mins to avoid intermittent issues
+			// over a longer period of time stopping reconnect attempts.
+			for {
+				select {
+				case <-reconnCtx.Done():
+					return
+				case <-time.After(2 * time.Minute):
+					// len(reconnAttempts) should be considered stale but we can afford a little error
+					if len(reconnAttempts) < maxReconnAttempts {
+						reconnAttempts <- struct{}{}
+					}
+					a.logger.Debugf("Number of reconnect attempts remaining: %d", len(reconnAttempts))
+				}
+			}
+		}()
+
+		// Reconnect loop
+		for {
+			topic, err := a.namespace.NewTopic(req.Topic)
+			if err != nil {
+				a.logger.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
+				reconnCancel()
+				return
+			}
+
+			var opts []azservicebus.SubscriptionOption
+			if a.metadata.PrefetchCount != nil {
+				opts = append(opts, azservicebus.SubscriptionWithPrefetchCount(uint32(*a.metadata.PrefetchCount)))
+			}
+			subEntity, err := topic.NewSubscription(subID, opts...)
+			if err != nil {
+				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+				reconnCancel()
+				return
+			}
+			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
+
+			// ReceiveAndBlock will only ever return with a fatal
+			// error that it cannot handle internally.
+			// If that occurs, we will log the error and attempt
+			// to re-establish the subscription connection until
+			// we exhaust the number of reconnect attempts.
+			innerErr := sub.ReceiveAndBlock(appHandler,
+				a.metadata.LockRenewalInSec,
+				a.metadata.HandlerTimeoutInSec,
+				a.metadata.TimeoutInSec,
+				a.metadata.MaxActiveMessages,
+				a.metadata.MaxActiveMessagesRecoveryInSec)
+			if innerErr != nil {
+				a.logger.Error(innerErr)
+			}
+
+			// len(reconnAttempts) should be considered stale but we can afford a little error
+			attemptsRemaning := len(reconnAttempts)
+			if attemptsRemaning == 0 {
+				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, maxReconnAttempts)
+				reconnCancel()
+				return
+			}
+
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, maxReconnAttempts-attemptsRemaning, maxReconnAttempts)
+			time.Sleep(time.Second * connectionRecoveryInSec)
+			<-reconnAttempts
+		}
 	}()
 
 	return nil

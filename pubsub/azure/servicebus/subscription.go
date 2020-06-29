@@ -53,13 +53,12 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 	return s
 }
 
-// ReceiveMessages is a blocking call to receive messages on an Azure Service Bus subscription from a topic
-func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
+// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic
+func (s *subscription) ReceiveAndBlock(appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
 	defer s.close(timeoutInSec)
 
-	done := make(chan struct{}, 1)
-
 	// Lock renewal loop
+	lockCtx, lockCancel := context.WithCancel(context.TODO())
 	go func() {
 		shouldRenewLocks := lockRenewalInSec > 0
 		if !shouldRenewLocks {
@@ -68,12 +67,11 @@ func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) e
 		}
 		for {
 			select {
-			case <-done:
+			case <-lockCtx.Done():
 				return
-			default:
+			case <-time.After(time.Second * time.Duration(lockRenewalInSec)):
+				s.tryRenewLocks()
 			}
-			time.Sleep(time.Second * time.Duration(lockRenewalInSec))
-			s.tryRenewLocks()
 		}
 	}()
 
@@ -90,7 +88,7 @@ func (s *subscription) ReceiveMessages(appHandler func(msg *pubsub.NewMessage) e
 			continue
 		}
 		if err := s.receiveMessage(context.Background(), asyncHandler); err != nil {
-			done <- struct{}{}
+			lockCancel()
 			return err
 		}
 	}
@@ -125,7 +123,7 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 		s.logger.Debugf("Calling app's handler for message %s from topic %s", message.ID, s.topic)
 		ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		defer cancel()
-		err := appHandler(msg) // TODO (*cont.): The context should be propogated here.
+		err := appHandler(msg) // TODO(#1721): The context should be propogated here.
 		if err != nil {
 			s.logger.Debugf("Error in app's handler: %+v", err)
 			return s.abandonMessage(ctx, message)
@@ -138,7 +136,7 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 	return func(ctx context.Context, msg *azservicebus.Message) error {
 		// Process messages asynchronously
 		go func() {
-			// TODO: * This context is used to control the execution of the async message handler
+			// TODO(#1721): This context is used to control the execution of the async message handler
 			// 		 including the app's handler and the message finalization (complete/abandon).
 			//		 Currently the app handler does not accept a context so cannot be safely cancelled.
 			ctxWithCancel, cancel := context.WithCancel(ctx)
@@ -195,7 +193,7 @@ func (s *subscription) tryRenewLocks() {
 func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.HandlerFunc) error {
 	s.logger.Debugf("Waiting to receive message from topic %s", s.topic)
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
-		return fmt.Errorf("error receiving message from topic %s, %s", s.topic, err)
+		return fmt.Errorf("%s error receiving message from topic %s, %s", errorMessagePrefix, s.topic, err)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ package cosmosdb
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -50,6 +51,7 @@ type storedProcedureDefinition struct {
 const (
 	storedProcedureName  = "__dapr__"
 	metadataPartitionKey = "partitionkey"
+	unknownPartitionKey  = "__UNKNOWN__"
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
@@ -116,6 +118,7 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	for i := 0; i < len(sps); i++ {
 		if sps[i].Id == storedProcedureName {
 			c.sp = &sps[i]
+			break
 		}
 	}
 
@@ -271,12 +274,20 @@ func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
 	upserts := []CosmosItem{}
 	deletes := []CosmosItem{}
 
-	partitionKey := "UNKNOWN"
+	partitionKey := unknownPartitionKey
+	previousPartitionKey := unknownPartitionKey
+
 	for _, o := range operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
 			partitionKey = populatePartitionMetadata(req.Key, req.Metadata)
+			if previousPartitionKey != unknownPartitionKey &&
+				partitionKey != previousPartitionKey {
+				return errors.New("all objects used in Multi() must have the same partition key")
+			}
+
+			previousPartitionKey = partitionKey
 			upsertOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        req.Value,
@@ -287,7 +298,12 @@ func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
 			req := o.Request.(state.DeleteRequest)
 
 			partitionKey = populatePartitionMetadata(req.Key, req.Metadata)
+			if previousPartitionKey != unknownPartitionKey &&
+				partitionKey != previousPartitionKey {
+				return errors.New("all objects used in Multi() must have the same partition key")
+			}
 
+			previousPartitionKey = partitionKey
 			deleteOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        "", // Value does not need to be specified

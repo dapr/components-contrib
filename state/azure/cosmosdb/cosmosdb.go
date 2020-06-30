@@ -40,7 +40,7 @@ type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
-	PartitionKey string      `json:"partitionkey"`
+	PartitionKey string      `json:"partitionKey"`
 }
 
 type storedProcedureDefinition struct {
@@ -50,7 +50,7 @@ type storedProcedureDefinition struct {
 
 const (
 	storedProcedureName  = "__dapr__"
-	metadataPartitionKey = "partitionkey"
+	metadataPartitionKey = "partitionKey"
 	unknownPartitionKey  = "__UNKNOWN__"
 )
 
@@ -61,7 +61,7 @@ func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 
 // Init does metadata and connection parsing
 func (c *StateStore) Init(metadata state.Metadata) error {
-	c.logger.Debugf("Cosmos init start")
+	c.logger.Debugf("CosmosDB init start")
 
 	connInfo := metadata.Properties
 	b, err := json.Marshal(connInfo)
@@ -278,16 +278,20 @@ func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
 	previousPartitionKey := unknownPartitionKey
 
 	for _, o := range operations {
+		t := o.Request.(state.KeyInt)
+		key := t.GetKey()
+		metadata := t.GetMetadata()
+
+		partitionKey = populatePartitionMetadata(key, metadata)
+		if previousPartitionKey != unknownPartitionKey &&
+			partitionKey != previousPartitionKey {
+			return errors.New("all objects used in Multi() must have the same partition key")
+		}
+		previousPartitionKey = partitionKey
+
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			partitionKey = populatePartitionMetadata(req.Key, req.Metadata)
-			if previousPartitionKey != unknownPartitionKey &&
-				partitionKey != previousPartitionKey {
-				return errors.New("all objects used in Multi() must have the same partition key")
-			}
-
-			previousPartitionKey = partitionKey
 			upsertOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        req.Value,
@@ -297,13 +301,6 @@ func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 
-			partitionKey = populatePartitionMetadata(req.Key, req.Metadata)
-			if previousPartitionKey != unknownPartitionKey &&
-				partitionKey != previousPartitionKey {
-				return errors.New("all objects used in Multi() must have the same partition key")
-			}
-
-			previousPartitionKey = partitionKey
 			deleteOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        "", // Value does not need to be specified

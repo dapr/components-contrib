@@ -8,7 +8,7 @@ package cosmosdb
 const spDefinition string = `// upserts - an array of objects to upsert
 // deletes - an array of objects to delete
 
-function sample(upserts, deletes) {
+function dapr_multi(upserts, deletes) {
     var context = getContext();
     var container = context.getCollection();
     var response = context.getResponse();
@@ -68,9 +68,8 @@ function sample(upserts, deletes) {
         }
     }
 
-    function tryQueryAndDelete(continuation) {        
-        var requestOptions = { continuation: continuation };
-        
+    function tryQueryAndDelete() {    
+		var requestOptions = {};            
         var isAccepted = container.queryDocuments(collectionLink, query, requestOptions, function (err, retrievedDocs, responseOptions) {
             if (err) {
                 throw err;
@@ -79,9 +78,7 @@ function sample(upserts, deletes) {
             if (retrievedDocs == null) {                
                 response.setBody(JSON.stringify("success"));
             } else if (retrievedDocs.length > 0) {                
-                tryDelete(retrievedDocs);
-            } else if (responseOptions.continuation) {                
-                tryQueryAndDelete(responseOptions.continuation);
+                tryDelete(retrievedDocs);			
             } else {                
                 // done with all deletes                
                 response.setBody(JSON.stringify("success"));

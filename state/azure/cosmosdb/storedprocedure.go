@@ -21,16 +21,18 @@ function dapr_multi(upserts, deletes) {
         throw new Error("second arg is a string, expected array of objects");
     }
 
-    // create the query string used to look up deletes
-    var query = "select * from n where n.id = ";
-    if (deletes.length > 0) {
-        query += ("'" + deletes[0].id + "'");
+    // create the query string used to look up deletes    
+    var query = "select * from n where n.id in ";
+    if (deletes.length > 0) {        
+        query += ("('" + deletes[0].id + "'");
 
-        for (let j = 1; j < deletes.length; j++) {
-            query += (" or n.id = '" + deletes[j].id + "'");
+        for (let j = 1; j < deletes.length; j++) {            
+            query += ", '" + deletes[j].id + "'" 
         }
     }
-    
+
+    query += ')'
+    console.log("query" + query)
     var upsertCount = 0;
     var deleteCount = 0;
       

@@ -7,12 +7,13 @@ package cosmosdb
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-
-	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
+	"strings"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/a8m/documentdb"
 )
@@ -22,6 +23,7 @@ type StateStore struct {
 	client     *documentdb.DocumentDB
 	collection *documentdb.Collection
 	db         *documentdb.Database
+	sp         *documentdb.Sproc
 
 	logger logger.Logger
 }
@@ -36,9 +38,21 @@ type credentials struct {
 // CosmosItem is a wrapper around a CosmosDB document
 type CosmosItem struct {
 	documentdb.Document
-	ID    string      `json:"id"`
-	Value interface{} `json:"value"`
+	ID           string      `json:"id"`
+	Value        interface{} `json:"value"`
+	PartitionKey string      `json:"partitionKey"`
 }
+
+type storedProcedureDefinition struct {
+	ID   string `json:"id"`
+	Body string `json:"body"`
+}
+
+const (
+	storedProcedureName  = "__dapr__"
+	metadataPartitionKey = "partitionKey"
+	unknownPartitionKey  = "__UNKNOWN__"
+)
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
@@ -47,6 +61,8 @@ func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 
 // Init does metadata and connection parsing
 func (c *StateStore) Init(metadata state.Metadata) error {
+	c.logger.Debugf("CosmosDB init start")
+
 	connInfo := metadata.Properties
 	b, err := json.Marshal(connInfo)
 	if err != nil {
@@ -87,12 +103,38 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	} else if len(colls) == 0 {
-		return fmt.Errorf("collection %s for CosmosDB state store not found", creds.Collection)
+		return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", creds.Collection)
 	}
 
 	c.collection = &colls[0]
 	c.client = client
 
+	sps, err := c.client.ReadStoredProcedures(c.collection.Self)
+	if err != nil {
+		return err
+	}
+
+	// get a link to the sp
+	for _, proc := range sps {
+		if proc.Id == storedProcedureName {
+			c.sp = &proc
+			break
+		}
+	}
+
+	if c.sp == nil {
+		// register the stored procedure
+		createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
+		c.sp, err = c.client.CreateStoredProcedure(c.collection.Self, createspBody)
+		if err != nil {
+			// if it already exists that is success
+			if !strings.HasPrefix(err.Error(), "Conflict") {
+				return err
+			}
+		}
+	}
+
+	c.logger.Debug("cosmos Init done")
 	return nil
 }
 
@@ -100,8 +142,10 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
+	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
+
 	items := []CosmosItem{}
-	options := []documentdb.CallOption{documentdb.PartitionKey(req.Key)}
+	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
 	}
@@ -139,7 +183,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
-	options := []documentdb.CallOption{documentdb.PartitionKey(req.Key)}
+	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
+	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != "" {
 		options = append(options, documentdb.IfMatch((req.ETag)))
@@ -151,7 +196,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value}, options...)
+	_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
 
 	if err != nil {
 		return err
@@ -179,9 +224,21 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	selfLink := fmt.Sprintf("dbs/%s/colls/%s/docs/%s", c.db.Id, c.collection.Id, req.Key)
+	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
+	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
-	options := []documentdb.CallOption{documentdb.PartitionKey(req.Key)}
+	items := []CosmosItem{}
+	_, err = c.client.QueryDocuments(
+		c.collection.Self,
+		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: req.Key}),
+		&items,
+		options...,
+	)
+	if err != nil {
+		return err
+	} else if len(items) == 0 {
+		return nil
+	}
 
 	if req.ETag != "" {
 		options = append(options, documentdb.IfMatch((req.ETag)))
@@ -193,7 +250,10 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	_, err = c.client.DeleteDocument(selfLink, options...)
+	_, err = c.client.DeleteDocument(items[0].Self, options...)
+	if err != nil {
+		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
+	}
 	return err
 }
 
@@ -207,4 +267,68 @@ func (c *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	}
 
 	return nil
+}
+
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
+	upserts := []CosmosItem{}
+	deletes := []CosmosItem{}
+
+	partitionKey := unknownPartitionKey
+	previousPartitionKey := unknownPartitionKey
+
+	for _, o := range operations {
+		t := o.Request.(state.KeyInt)
+		key := t.GetKey()
+		metadata := t.GetMetadata()
+
+		partitionKey = populatePartitionMetadata(key, metadata)
+		if previousPartitionKey != unknownPartitionKey &&
+			partitionKey != previousPartitionKey {
+			return errors.New("all objects used in Multi() must have the same partition key")
+		}
+		previousPartitionKey = partitionKey
+
+		if o.Operation == state.Upsert {
+			req := o.Request.(state.SetRequest)
+
+			upsertOperation := CosmosItem{
+				ID:           req.Key,
+				Value:        req.Value,
+				PartitionKey: partitionKey}
+
+			upserts = append(upserts, upsertOperation)
+		} else if o.Operation == state.Delete {
+			req := o.Request.(state.DeleteRequest)
+
+			deleteOperation := CosmosItem{
+				ID:           req.Key,
+				Value:        "", // Value does not need to be specified
+				PartitionKey: partitionKey}
+			deletes = append(deletes, deleteOperation)
+		}
+	}
+
+	c.logger.Debugf("#upserts=%d,#deletes=%d, partitionkey=%s", len(upserts), len(deletes), partitionKey)
+
+	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
+	var retString string
+
+	// The stored procedure throws if it failed, which sets err to non-nil.  It doesn't return anything else.
+	err := c.client.ExecuteStoredProcedure(c.sp.Self, [...]interface{}{upserts, deletes}, &retString, options...)
+	if err != nil {
+		c.logger.Debugf("error=%e", err)
+		return err
+	}
+
+	return nil
+}
+
+// This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,
+// use that, otherwise use what's in "key".
+func populatePartitionMetadata(key string, requestMetadata map[string]string) string {
+	if val, found := requestMetadata[metadataPartitionKey]; found {
+		return val
+	}
+	return key
 }

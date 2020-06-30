@@ -27,6 +27,16 @@ type DeleteRequest struct {
 	Options  DeleteStateOption `json:"options,omitempty"`
 }
 
+// Key gets the Key on a DeleteRequest
+func (r DeleteRequest) GetKey() string {
+	return r.Key
+}
+
+// Metadata gets the Metadata on a DeleteRequest
+func (r DeleteRequest) GetMetadata() map[string]string {
+	return r.Metadata
+}
+
 // DeleteStateOption controls how a state store reacts to a delete request
 type DeleteStateOption struct {
 	Concurrency string      `json:"concurrency,omitempty"` //"concurrency"
@@ -41,6 +51,16 @@ type SetRequest struct {
 	ETag     string            `json:"etag,omitempty"`
 	Metadata map[string]string `json:"metadata"`
 	Options  SetStateOption    `json:"options,omitempty"`
+}
+
+// Key gets the Key on a SetRequest
+func (r SetRequest) GetKey() string {
+	return r.Key
+}
+
+// Metadata gets the Key on a SetRequest
+func (r SetRequest) GetMetadata() map[string]string {
+	return r.Metadata
 }
 
 //RetryPolicy describes how retries should be handled
@@ -71,4 +91,10 @@ const Delete OperationType = "delete"
 type TransactionalRequest struct {
 	Operation OperationType `json:"operation"`
 	Request   interface{}   `json:"request"`
+}
+
+// KeyInt is an interface that allows gets of the Key and Metadata inside requests
+type KeyInt interface {
+	GetKey() string
+	GetMetadata() map[string]string
 }

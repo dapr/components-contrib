@@ -11,22 +11,10 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
-type activeMessage struct {
-	msg    *azservicebus.Message
-	cancel context.CancelFunc
-}
-
-func newActiveMessage(msg *azservicebus.Message, cancel context.CancelFunc) *activeMessage {
-	return &activeMessage{
-		msg:    msg,
-		cancel: cancel,
-	}
-}
-
 type subscription struct {
 	topic                   string
 	mu                      sync.RWMutex
-	activeMessages          map[string]*activeMessage
+	activeMessages          map[string]*azservicebus.Message
 	entity                  *azservicebus.Subscription
 	limitConcurrentHandlers bool
 	handlerChan             chan handler
@@ -36,13 +24,13 @@ type subscription struct {
 func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrentHandlers *int, logger logger.Logger) *subscription {
 	s := &subscription{
 		topic:          topic,
-		activeMessages: make(map[string]*activeMessage),
+		activeMessages: make(map[string]*azservicebus.Message),
 		entity:         sub,
 		logger:         logger,
 	}
 
 	if maxConcurrentHandlers != nil {
-		s.logger.Debugf("Limited to %d message handler(s)", *maxConcurrentHandlers)
+		s.logger.Debugf("Subscription to topic %s is limited to %d message handler(s)", topic, *maxConcurrentHandlers)
 		s.limitConcurrentHandlers = true
 		s.handlerChan = make(chan handler, *maxConcurrentHandlers)
 		for i := 0; i < *maxConcurrentHandlers; i++ {
@@ -54,11 +42,15 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 }
 
 // ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic
-func (s *subscription) ReceiveAndBlock(appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
-	defer s.close(timeoutInSec)
+func (s *subscription) ReceiveAndBlock(ctx context.Context, appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
+	// Close subscription
+	defer func() {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(timeoutInSec))
+		defer closeCancel()
+		s.close(closeCtx)
+	}()
 
 	// Lock renewal loop
-	lockCtx, lockCancel := context.WithCancel(context.TODO())
 	go func() {
 		shouldRenewLocks := lockRenewalInSec > 0
 		if !shouldRenewLocks {
@@ -67,7 +59,8 @@ func (s *subscription) ReceiveAndBlock(appHandler func(msg *pubsub.NewMessage) e
 		}
 		for {
 			select {
-			case <-lockCtx.Done():
+			case <-ctx.Done():
+				s.logger.Debugf("Lock renewal context done")
 				return
 			case <-time.After(time.Second * time.Duration(lockRenewalInSec)):
 				s.tryRenewLocks()
@@ -75,8 +68,9 @@ func (s *subscription) ReceiveAndBlock(appHandler func(msg *pubsub.NewMessage) e
 		}
 	}()
 
-	// Receiver loop
 	asyncHandler := s.asyncWrapper(s.getHandlerFunc(appHandler, handlerTimeoutInSec, timeoutInSec))
+
+	// Receiver loop
 	for {
 		s.mu.RLock()
 		activeMessageLen := len(s.activeMessages)
@@ -84,30 +78,26 @@ func (s *subscription) ReceiveAndBlock(appHandler func(msg *pubsub.NewMessage) e
 		if activeMessageLen >= maxActiveMessages {
 			// Max active messages reached, sleep to allow the current active messages to be processed before getting more
 			s.logger.Debugf("Max active messages %d reached for topic %s, recovering for %d seconds", maxActiveMessages, s.topic, maxActiveMessagesRecoveryInSec)
-			time.Sleep(time.Second * time.Duration(maxActiveMessagesRecoveryInSec))
-			continue
+
+			select {
+			case <-ctx.Done():
+				s.logger.Debugf("receiver context done")
+				return ctx.Err()
+			case <-time.After(time.Second * time.Duration(maxActiveMessagesRecoveryInSec)):
+				continue
+			}
 		}
-		if err := s.receiveMessage(context.Background(), asyncHandler); err != nil {
-			lockCancel()
+
+		if err := s.receiveMessage(ctx, asyncHandler); err != nil {
 			return err
 		}
 	}
 }
 
-func (s *subscription) close(timeoutInSec int) {
-	// Cancel all active messages before closing the handlers channel
-	s.mu.RLock()
-	for _, msg := range s.activeMessages {
-		msg.cancel()
-	}
-	s.mu.RUnlock()
-	if s.limitConcurrentHandlers {
-		close(s.handlerChan)
-	}
+func (s *subscription) close(ctx context.Context) {
+	s.logger.Debugf("Closing subscription to topic %s", s.topic)
 
 	// Ensure subscription entity is closed
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*time.Duration(timeoutInSec))
-	defer cancel()
 	if err := s.entity.Close(ctx); err != nil {
 		s.logger.Errorf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
 	}
@@ -120,43 +110,61 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 			Topic: s.topic,
 		}
 
+		// TODO(#1721): Context should be propogated to the app handler call for timeout and cancellation.
+		//
+		// handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
+		// defer handleCancel()
 		s.logger.Debugf("Calling app's handler for message %s from topic %s", message.ID, s.topic)
-		ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
-		defer cancel()
-		err := appHandler(msg) // TODO(#1721): The context should be propogated here.
+		err := appHandler(msg)
+
+		// The context isn't handled downstream so we time out these
+		// operations here to avoid getting stuck waiting for a message
+		// to finalize (abandon/complete) if the connection has dropped.
+		errs := make(chan error, 1)
 		if err != nil {
-			s.logger.Debugf("Error in app's handler: %+v", err)
-			return s.abandonMessage(ctx, message)
+			s.logger.Warnf("Error in app's handler: %+v", err)
+			go func() {
+				errs <- s.abandonMessage(ctx, message)
+			}()
 		}
-		return s.completeMessage(ctx, message)
+		go func() {
+			errs <- s.completeMessage(ctx, message)
+		}()
+		select {
+		case err := <-errs:
+			return err
+		case <-time.After(time.Second * time.Duration(timeoutInSec)):
+			return fmt.Errorf("%s call to finalize message %s has timedout", errorMessagePrefix, message.ID)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
 
 func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azservicebus.HandlerFunc {
 	return func(ctx context.Context, msg *azservicebus.Message) error {
-		// Process messages asynchronously
 		go func() {
-			// TODO(#1721): This context is used to control the execution of the async message handler
-			// 		 including the app's handler and the message finalization (complete/abandon).
-			//		 Currently the app handler does not accept a context so cannot be safely cancelled.
-			ctxWithCancel, cancel := context.WithCancel(ctx)
-			s.addActiveMessage(newActiveMessage(msg, cancel))
-			defer cancel()
+			s.addActiveMessage(msg)
 			defer s.removeActiveMessage(msg.ID)
 
 			if s.limitConcurrentHandlers {
-				s.logger.Debugf("Attempting to take message handler...")
-				<-s.handlerChan // Take or wait on a free handler before getting a new message
-				s.logger.Debugf("Taken message handler")
+				s.logger.Debugf("Taking message handler for %s", msg.ID)
+				select {
+				case <-ctx.Done():
+					s.logger.Debugf("Message context done for %s", msg.ID)
+					return
+				case <-s.handlerChan: // Take or wait on a free handler before getting a new message
+					s.logger.Debugf("Taken message handler for %s", msg.ID)
+				}
 
 				defer func() {
-					s.logger.Debugf("Releasing message handler...")
+					s.logger.Debugf("Releasing message handler for %s", msg.ID)
 					s.handlerChan <- handler{} // Release a handler when complete
-					s.logger.Debugf("Released message handler")
+					s.logger.Debugf("Released message handler for %s", msg.ID)
 				}()
 			}
 
-			err := handlerFunc(ctxWithCancel, msg)
+			err := handlerFunc(ctx, msg)
 			if err != nil {
 				s.logger.Errorf("%s error handling message %s from topic '%s', %s", errorMessagePrefix, msg.ID, s.topic, err)
 			}
@@ -178,7 +186,7 @@ func (s *subscription) tryRenewLocks() {
 	msgs := make([]*azservicebus.Message, 0)
 	s.mu.RLock()
 	for _, m := range s.activeMessages {
-		msgs = append(msgs, m.msg)
+		msgs = append(msgs, m)
 	}
 	s.mu.RUnlock()
 
@@ -208,10 +216,10 @@ func (s *subscription) completeMessage(ctx context.Context, m *azservicebus.Mess
 	return m.Complete(ctx)
 }
 
-func (s *subscription) addActiveMessage(m *activeMessage) {
-	s.logger.Debugf("Adding message %s to active messages on topic %s", m.msg.ID, s.topic)
+func (s *subscription) addActiveMessage(m *azservicebus.Message) {
+	s.logger.Debugf("Adding message %s to active messages on topic %s", m.ID, s.topic)
 	s.mu.Lock()
-	s.activeMessages[m.msg.ID] = m
+	s.activeMessages[m.ID] = m
 	s.mu.Unlock()
 }
 

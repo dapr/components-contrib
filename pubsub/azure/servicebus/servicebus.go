@@ -240,25 +240,30 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 
 	go func() {
 		reconnCtx, reconnCancel := context.WithCancel(context.TODO())
+		defer reconnCancel()
 
 		// Limit the number of attempted reconnects we make
 		reconnAttempts := make(chan struct{}, maxReconnAttempts)
 		for i := 0; i < maxReconnAttempts; i++ {
 			reconnAttempts <- struct{}{}
 		}
+		// len(reconnAttempts) should be considered stale but we can afford a little error here
+		readAttemptsStale := func() int { return len(reconnAttempts) }
+
 		go func() {
 			// Refill the chan every 2 mins to avoid intermittent issues
 			// over a longer period of time stopping reconnect attempts.
 			for {
 				select {
 				case <-reconnCtx.Done():
+					a.logger.Debugf("Reconnect context is done")
 					return
 				case <-time.After(2 * time.Minute):
-					// len(reconnAttempts) should be considered stale but we can afford a little error
-					if len(reconnAttempts) < maxReconnAttempts {
+					attempts := readAttemptsStale()
+					if attempts < maxReconnAttempts {
 						reconnAttempts <- struct{}{}
 					}
-					a.logger.Debugf("Number of reconnect attempts remaining: %d", len(reconnAttempts))
+					a.logger.Debugf("Number of reconnect attempts remaining: %d", attempts)
 				}
 			}
 		}()
@@ -268,7 +273,6 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			topic, err := a.namespace.NewTopic(req.Topic)
 			if err != nil {
 				a.logger.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
-				reconnCancel()
 				return
 			}
 
@@ -279,35 +283,39 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			subEntity, err := topic.NewSubscription(subID, opts...)
 			if err != nil {
 				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
-				reconnCancel()
 				return
 			}
 			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
 
-			// ReceiveAndBlock will only ever return with a fatal
-			// error that it cannot handle internally.
-			// If that occurs, we will log the error and attempt
-			// to re-establish the subscription connection until
-			// we exhaust the number of reconnect attempts.
-			innerErr := sub.ReceiveAndBlock(appHandler,
-				a.metadata.LockRenewalInSec,
-				a.metadata.HandlerTimeoutInSec,
-				a.metadata.TimeoutInSec,
-				a.metadata.MaxActiveMessages,
-				a.metadata.MaxActiveMessagesRecoveryInSec)
-			if innerErr != nil {
-				a.logger.Error(innerErr)
-			}
+			func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
 
-			// len(reconnAttempts) should be considered stale but we can afford a little error
-			attemptsRemaning := len(reconnAttempts)
-			if attemptsRemaning == 0 {
+				// ReceiveAndBlock will only return with an error
+				// that it cannot handle internally. The subscription
+				// connection is closed when this method returns.
+				// If that occurs, we will log the error and attempt
+				// to re-establish the subscription connection until
+				// we exhaust the number of reconnect attempts.
+				innerErr := sub.ReceiveAndBlock(ctx,
+					appHandler,
+					a.metadata.LockRenewalInSec,
+					a.metadata.HandlerTimeoutInSec,
+					a.metadata.TimeoutInSec,
+					a.metadata.MaxActiveMessages,
+					a.metadata.MaxActiveMessagesRecoveryInSec)
+				if innerErr != nil {
+					a.logger.Error(innerErr)
+				}
+			}()
+
+			attempts := readAttemptsStale()
+			if attempts == 0 {
 				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, maxReconnAttempts)
-				reconnCancel()
 				return
 			}
 
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, maxReconnAttempts-attemptsRemaning, maxReconnAttempts)
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, maxReconnAttempts-attempts, maxReconnAttempts)
 			time.Sleep(time.Second * connectionRecoveryInSec)
 			<-reconnAttempts
 		}

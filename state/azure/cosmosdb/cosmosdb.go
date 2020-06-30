@@ -115,7 +115,6 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	// get a link to the sp
-	//for i := 0; i < len(sps); i++ {
 	for _, proc := range sps {
 		if proc.Id == storedProcedureName {
 			c.sp = &proc

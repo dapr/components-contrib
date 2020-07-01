@@ -239,31 +239,32 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 	}
 
 	go func() {
-		reconnCtx, reconnCancel := context.WithCancel(context.TODO())
-		defer reconnCancel()
-
 		// Limit the number of attempted reconnects we make
 		reconnAttempts := make(chan struct{}, maxReconnAttempts)
 		for i := 0; i < maxReconnAttempts; i++ {
 			reconnAttempts <- struct{}{}
 		}
+
 		// len(reconnAttempts) should be considered stale but we can afford a little error here
 		readAttemptsStale := func() int { return len(reconnAttempts) }
 
+		// Periodically refill the reconnect attempts channel to avoid
+		// exhausting all the refill attempts due to intermittent issues
+		// ocurring over a longer period of time.
+		reconnCtx, reconnCancel := context.WithCancel(context.TODO())
+		defer reconnCancel()
 		go func() {
-			// Refill the chan every 2 mins to avoid intermittent issues
-			// over a longer period of time stopping reconnect attempts.
 			for {
 				select {
 				case <-reconnCtx.Done():
-					a.logger.Debugf("Reconnect context is done")
+					a.logger.Debugf("Reconnect context for topic %s is done", req.Topic)
 					return
 				case <-time.After(2 * time.Minute):
 					attempts := readAttemptsStale()
 					if attempts < maxReconnAttempts {
 						reconnAttempts <- struct{}{}
 					}
-					a.logger.Debugf("Number of reconnect attempts remaining: %d", attempts)
+					a.logger.Debugf("Number of reconnect attempts remaining for topic %s: %d", req.Topic, attempts)
 				}
 			}
 		}()
@@ -287,27 +288,24 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			}
 			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
 
-			func() {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-
-				// ReceiveAndBlock will only return with an error
-				// that it cannot handle internally. The subscription
-				// connection is closed when this method returns.
-				// If that occurs, we will log the error and attempt
-				// to re-establish the subscription connection until
-				// we exhaust the number of reconnect attempts.
-				innerErr := sub.ReceiveAndBlock(ctx,
-					appHandler,
-					a.metadata.LockRenewalInSec,
-					a.metadata.HandlerTimeoutInSec,
-					a.metadata.TimeoutInSec,
-					a.metadata.MaxActiveMessages,
-					a.metadata.MaxActiveMessagesRecoveryInSec)
-				if innerErr != nil {
-					a.logger.Error(innerErr)
-				}
-			}()
+			// ReceiveAndBlock will only return with an error
+			// that it cannot handle internally. The subscription
+			// connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt
+			// to re-establish the subscription connection until
+			// we exhaust the number of reconnect attempts.
+			ctx, cancel := context.WithCancel(context.Background())
+			innerErr := sub.ReceiveAndBlock(ctx,
+				appHandler,
+				a.metadata.LockRenewalInSec,
+				a.metadata.HandlerTimeoutInSec,
+				a.metadata.TimeoutInSec,
+				a.metadata.MaxActiveMessages,
+				a.metadata.MaxActiveMessagesRecoveryInSec)
+			if innerErr != nil {
+				a.logger.Error(innerErr)
+			}
+			cancel() // Cancel receive context
 
 			attempts := readAttemptsStale()
 			if attempts == 0 {

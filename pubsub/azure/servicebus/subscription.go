@@ -114,7 +114,7 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 		//
 		// handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		// defer handleCancel()
-		s.logger.Debugf("Calling app's handler for message %s from topic %s", message.ID, s.topic)
+		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
 		err := appHandler(msg)
 
 		// The context isn't handled downstream so we time out these
@@ -148,25 +148,25 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 			defer s.removeActiveMessage(msg.ID)
 
 			if s.limitConcurrentHandlers {
-				s.logger.Debugf("Taking message handler for %s", msg.ID)
+				s.logger.Debugf("Taking message handler for %s on topic %s", msg.ID, s.topic)
 				select {
 				case <-ctx.Done():
-					s.logger.Debugf("Message context done for %s", msg.ID)
+					s.logger.Debugf("Message context done for %s on topic %s", msg.ID, s.topic)
 					return
 				case <-s.handlerChan: // Take or wait on a free handler before getting a new message
-					s.logger.Debugf("Taken message handler for %s", msg.ID)
+					s.logger.Debugf("Taken message handler for %s on topic %s", msg.ID, s.topic)
 				}
 
 				defer func() {
-					s.logger.Debugf("Releasing message handler for %s", msg.ID)
+					s.logger.Debugf("Releasing message handler for %s on topic %s", msg.ID, s.topic)
 					s.handlerChan <- handler{} // Release a handler when complete
-					s.logger.Debugf("Released message handler for %s", msg.ID)
+					s.logger.Debugf("Released message handler for %s on topic %s", msg.ID, s.topic)
 				}()
 			}
 
 			err := handlerFunc(ctx, msg)
 			if err != nil {
-				s.logger.Errorf("%s error handling message %s from topic '%s', %s", errorMessagePrefix, msg.ID, s.topic, err)
+				s.logger.Errorf("%s error handling message %s on topic '%s', %s", errorMessagePrefix, msg.ID, s.topic, err)
 			}
 		}()
 		return nil
@@ -199,9 +199,9 @@ func (s *subscription) tryRenewLocks() {
 }
 
 func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.HandlerFunc) error {
-	s.logger.Debugf("Waiting to receive message from topic %s", s.topic)
+	s.logger.Debugf("Waiting to receive message on topic %s", s.topic)
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
-		return fmt.Errorf("%s error receiving message from topic %s, %s", errorMessagePrefix, s.topic, err)
+		return fmt.Errorf("%s error receiving message on topic %s, %s", errorMessagePrefix, s.topic, err)
 	}
 	return nil
 }

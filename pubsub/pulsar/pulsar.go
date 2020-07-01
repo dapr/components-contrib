@@ -57,7 +57,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 		URL:                        fmt.Sprintf("pulsar://%s", m.Host),
 		OperationTimeout:           30 * time.Second,
 		ConnectionTimeout:          30 * time.Second,
-		TLSAllowInsecureConnection: m.EnableTLS,
+		TLSAllowInsecureConnection: !m.EnableTLS,
 	})
 	if err != nil {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)

@@ -54,13 +54,13 @@ func (s *subscription) ReceiveAndBlock(ctx context.Context, appHandler func(msg 
 	go func() {
 		shouldRenewLocks := lockRenewalInSec > 0
 		if !shouldRenewLocks {
-			s.logger.Debugf("Lock renewal disabled")
+			s.logger.Debugf("Lock renewal for topic %s disabled", s.topic)
 			return
 		}
 		for {
 			select {
 			case <-ctx.Done():
-				s.logger.Debugf("Lock renewal context done")
+				s.logger.Debugf("Lock renewal context for topic %s done", s.topic)
 				return
 			case <-time.After(time.Second * time.Duration(lockRenewalInSec)):
 				s.tryRenewLocks()
@@ -81,7 +81,7 @@ func (s *subscription) ReceiveAndBlock(ctx context.Context, appHandler func(msg 
 
 			select {
 			case <-ctx.Done():
-				s.logger.Debugf("receiver context done")
+				s.logger.Debugf("Receive context for topic %s done", s.topic)
 				return ctx.Err()
 			case <-time.After(time.Second * time.Duration(maxActiveMessagesRecoveryInSec)):
 				continue
@@ -224,7 +224,7 @@ func (s *subscription) addActiveMessage(m *azservicebus.Message) {
 }
 
 func (s *subscription) removeActiveMessage(messageID string) {
-	s.logger.Debugf("Removing message %s from active messages on topic", messageID, s.topic)
+	s.logger.Debugf("Removing message %s from active messages on topic %s", messageID, s.topic)
 	s.mu.Lock()
 	delete(s.activeMessages, messageID)
 	s.mu.Unlock()

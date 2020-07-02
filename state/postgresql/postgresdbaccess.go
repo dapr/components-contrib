@@ -36,7 +36,7 @@ type postgresDBAccess struct {
 
 // newPostgresDBAccess creates a new instance of postgresAccess
 func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
-	logger.Debug("PostgreSQL state store initializing")
+	logger.Debug("Instantiating new PostgreSQL state store")
 	return &postgresDBAccess{
 		logger: logger,
 	}
@@ -44,6 +44,7 @@ func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 
 // Init sets up PostgreSQL connection and ensures that the state table exists
 func (p *postgresDBAccess) Init(metadata state.Metadata) error {
+	p.logger.Debug("Initializing PostgreSQL state store")
 	p.metadata = metadata
 
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
@@ -266,6 +267,7 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 	}
 
 	if !exists {
+		p.logger.Info("Creating PostgreSQL state table")
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 									key text NOT NULL PRIMARY KEY,
 									value json NOT NULL,

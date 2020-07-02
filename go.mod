@@ -11,10 +11,11 @@ require (
 	contrib.go.opencensus.io/exporter/zipkin v0.1.1
 	github.com/Azure/azure-event-hubs-go v1.3.1
 	github.com/Azure/azure-sdk-for-go v42.0.0+incompatible
-	github.com/Azure/azure-service-bus-go v0.9.1
+	github.com/Azure/azure-service-bus-go v0.10.2
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
-	github.com/Azure/go-autorest/autorest v0.10.0
+	github.com/Azure/go-amqp v0.12.7 // indirect
+	github.com/Azure/go-autorest/autorest v0.10.2
 	github.com/Azure/go-autorest/autorest/adal v0.8.3
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/Shopify/sarama v1.23.1
@@ -46,13 +47,14 @@ require (
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.8
 	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
+	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/nats-io/gnatsd v1.4.1
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
 	github.com/openzipkin/zipkin-go v0.1.6
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/satori/go.uuid v1.2.0
 	github.com/sendgrid/rest v2.4.1+incompatible // indirect
@@ -67,8 +69,8 @@ require (
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.3
-	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
+	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
+	golang.org/x/net v0.0.0-20200602114024-627f9648deb9
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/api v0.15.0
 	google.golang.org/genproto v0.0.0-20200122232147-0452cf42e150

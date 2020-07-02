@@ -169,9 +169,13 @@ func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 // Read gets messages from eventhubs in a non-blocking fashion
 func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error {
 	if !a.metadata.partitioned() {
-		a.RegisterEventProcessor(handler)
+		if err := a.RegisterEventProcessor(handler); err != nil {
+			return err
+		}
 	} else {
-		a.RegisterPartitionedEventProcessor(handler)
+		if err := a.RegisterPartitionedEventProcessor(handler); err != nil {
+			return err
+		}
 	}
 
 	// close Event Hubs when application exits

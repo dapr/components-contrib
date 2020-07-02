@@ -267,7 +267,7 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 
 	if !exists {
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
-									key varchar(200) NOT NULL PRIMARY KEY,
+									key text NOT NULL PRIMARY KEY,
 									value json NOT NULL,
 									insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 									updatedate TIMESTAMP WITH TIME ZONE NULL);`, stateTableName)

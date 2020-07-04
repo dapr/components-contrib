@@ -54,7 +54,6 @@ require (
 	github.com/nats-io/stan.go v0.6.0
 	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/pkg/errors v0.9.1
-	github.com/robfig/cron/v3 v3.0.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/satori/go.uuid v1.2.0
 	github.com/sendgrid/rest v2.4.1+incompatible // indirect
@@ -83,6 +82,6 @@ require (
 )
 
 replace (
-	k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+incompatible
+	k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
 )

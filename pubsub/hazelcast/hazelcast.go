@@ -67,7 +67,7 @@ func (p *Hazelcast) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	topic, err := p.client.GetTopic(req.Topic)
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to get topic for %s", req.Topic)
@@ -83,7 +83,7 @@ func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pub
 
 type hazelcastMessageListener struct {
 	topicName     string
-	pubsubHandler func(msg *pubsub.NewMessage) error
+	pubsubHandler pubsub.Handler
 }
 
 func (l *hazelcastMessageListener) OnMessage(message hazelcastCore.Message) error {
@@ -99,5 +99,5 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		Data:  message,
 		Topic: l.topicName,
 	}
-	return l.pubsubHandler(pubsubMsg)
+	return l.pubsubHandler(nil, pubsubMsg)
 }

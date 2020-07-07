@@ -82,7 +82,7 @@ func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	err := r.ensureExchangeDeclared(req.Topic)
 	if err != nil {
 		return err
@@ -121,19 +121,19 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubs
 	return nil
 }
 
-func (r *rabbitMQ) listenMessages(msgs <-chan amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) {
+func (r *rabbitMQ) listenMessages(msgs <-chan amqp.Delivery, topic string, handler pubsub.Handler) {
 	for d := range msgs {
 		r.handleMessage(d, topic, handler)
 	}
 }
 
-func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) {
+func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler pubsub.Handler) {
 	pubsubMsg := &pubsub.NewMessage{
 		Data:  d.Body,
 		Topic: topic,
 	}
 
-	err := handler(pubsubMsg)
+	err := handler(nil, pubsubMsg)
 	if err != nil {
 		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}

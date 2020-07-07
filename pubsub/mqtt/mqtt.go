@@ -129,12 +129,12 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe to the mqtt pub sub topic.
-func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	token := m.client.Subscribe(
 		req.Topic,
 		m.metadata.qos,
 		func(client mqtt.Client, mqttMsg mqtt.Message) {
-			handler(&pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
+			handler(nil, &pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
 		})
 	if err := token.Error(); err != nil {
 		return fmt.Errorf("mqtt error from subscribe: %v", err)

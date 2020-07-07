@@ -46,7 +46,7 @@ const (
 	defaultDisableEntityManagement        = false
 )
 
-type handler = struct{}
+type handle = struct{}
 
 type azureServiceBus struct {
 	metadata       metadata
@@ -230,7 +230,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg *pubsub.NewMessage) error) error {
+func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
 		err := a.ensureSubscription(subID, req.Topic)
@@ -252,13 +252,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, daprHandler fun
 		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 	}
 
-	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, daprHandler))
+	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
 	go a.handleSubscriptionMessages(req.Topic, sub, asbHandler)
 
 	return nil
 }
 
-func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pubsub.NewMessage) error) func(ctx context.Context, message *azservicebus.Message) error {
+func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) func(ctx context.Context, message *azservicebus.Message) error {
 	return func(ctx context.Context, message *azservicebus.Message) error {
 		msg := &pubsub.NewMessage{
 			Data:  message.Data,
@@ -266,7 +266,7 @@ func (a *azureServiceBus) getHandlerFunc(topic string, daprHandler func(msg *pub
 		}
 
 		a.logger.Debugf("Calling app's handler for message %s", message.ID)
-		err := daprHandler(msg)
+		err := handler(ctx, msg)
 		if err != nil {
 			a.logger.Debugf("Error in app's handler: %+v", err)
 			return a.abandonMessage(ctx, message)
@@ -279,14 +279,14 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 	// Limiting the number of concurrent handlers will throttle
 	// how many messages are processed concurrently.
 	limitConcurrentHandlers := a.metadata.MaxConcurrentHandlers != nil
-	var handlers chan handler
+	var handles chan handle
 	if limitConcurrentHandlers {
 		a.logger.Debugf("Limited to %d message handler(s)", *a.metadata.MaxConcurrentHandlers)
-		handlers = make(chan handler, *a.metadata.MaxConcurrentHandlers)
+		handles = make(chan handle, *a.metadata.MaxConcurrentHandlers)
 		for i := 0; i < *a.metadata.MaxConcurrentHandlers; i++ {
-			handlers <- handler{}
+			handles <- handle{}
 		}
-		defer close(handlers)
+		defer close(handles)
 	}
 
 	// Async message handler
@@ -296,14 +296,14 @@ func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservic
 		// Process messages asynchronously
 		go func() {
 			if limitConcurrentHandlers {
-				a.logger.Debugf("Attempting to take message handler...")
-				<-handlers // Take or wait on a free handler before getting a new message
-				a.logger.Debugf("Taken message handler")
+				a.logger.Debugf("Attempting to take message handle...")
+				<-handles // Take or wait on a free handle before getting a new message
+				a.logger.Debugf("Taken message handle")
 
 				defer func() {
-					a.logger.Debugf("Releasing message handler...")
-					handlers <- handler{} // Release a handler
-					a.logger.Debugf("Released message handler")
+					a.logger.Debugf("Releasing message handle...")
+					handles <- handle{} // Release a handle
+					a.logger.Debugf("Released message handle")
 				}()
 			}
 

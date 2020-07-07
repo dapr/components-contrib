@@ -17,7 +17,7 @@ type subscription struct {
 	activeMessages          map[string]*azservicebus.Message
 	entity                  *azservicebus.Subscription
 	limitConcurrentHandlers bool
-	handlerChan             chan handler
+	handleChan              chan handle
 	logger                  logger.Logger
 }
 
@@ -32,9 +32,9 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 	if maxConcurrentHandlers != nil {
 		s.logger.Debugf("Subscription to topic %s is limited to %d message handler(s)", topic, *maxConcurrentHandlers)
 		s.limitConcurrentHandlers = true
-		s.handlerChan = make(chan handler, *maxConcurrentHandlers)
+		s.handleChan = make(chan handle, *maxConcurrentHandlers)
 		for i := 0; i < *maxConcurrentHandlers; i++ {
-			s.handlerChan <- handler{}
+			s.handleChan <- handle{}
 		}
 	}
 
@@ -42,7 +42,7 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 }
 
 // ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic
-func (s *subscription) ReceiveAndBlock(ctx context.Context, appHandler func(msg *pubsub.NewMessage) error, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
+func (s *subscription) ReceiveAndBlock(ctx context.Context, handler pubsub.Handler, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
 	// Close subscription
 	defer func() {
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(timeoutInSec))
@@ -68,7 +68,7 @@ func (s *subscription) ReceiveAndBlock(ctx context.Context, appHandler func(msg 
 		}
 	}()
 
-	asyncHandler := s.asyncWrapper(s.getHandlerFunc(appHandler, handlerTimeoutInSec, timeoutInSec))
+	asyncHandler := s.asyncWrapper(s.getHandlerFunc(handler, handlerTimeoutInSec, timeoutInSec))
 
 	// Receiver loop
 	for {
@@ -103,7 +103,7 @@ func (s *subscription) close(ctx context.Context) {
 	}
 }
 
-func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) error, handlerTimeoutInSec int, timeoutInSec int) azservicebus.HandlerFunc {
+func (s *subscription) getHandlerFunc(handler pubsub.Handler, handlerTimeoutInSec int, timeoutInSec int) azservicebus.HandlerFunc {
 	return func(ctx context.Context, message *azservicebus.Message) error {
 		msg := &pubsub.NewMessage{
 			Data:  message.Data,
@@ -115,7 +115,7 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 		// handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		// defer handleCancel()
 		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
-		err := appHandler(msg)
+		err := handler(nil, msg)
 
 		// The context isn't handled downstream so we time out these
 		// operations here to avoid getting stuck waiting for a message
@@ -148,19 +148,19 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 			defer s.removeActiveMessage(msg.ID)
 
 			if s.limitConcurrentHandlers {
-				s.logger.Debugf("Taking message handler for %s on topic %s", msg.ID, s.topic)
+				s.logger.Debugf("Taking message handle for %s on topic %s", msg.ID, s.topic)
 				select {
 				case <-ctx.Done():
 					s.logger.Debugf("Message context done for %s on topic %s", msg.ID, s.topic)
 					return
-				case <-s.handlerChan: // Take or wait on a free handler before getting a new message
-					s.logger.Debugf("Taken message handler for %s on topic %s", msg.ID, s.topic)
+				case <-s.handleChan: // Take or wait on a free handle before getting a new message
+					s.logger.Debugf("Taken message handle for %s on topic %s", msg.ID, s.topic)
 				}
 
 				defer func() {
-					s.logger.Debugf("Releasing message handler for %s on topic %s", msg.ID, s.topic)
-					s.handlerChan <- handler{} // Release a handler when complete
-					s.logger.Debugf("Released message handler for %s on topic %s", msg.ID, s.topic)
+					s.logger.Debugf("Releasing message handle for %s on topic %s", msg.ID, s.topic)
+					s.handleChan <- handle{} // Release a handle when complete
+					s.logger.Debugf("Released message handle for %s on topic %s", msg.ID, s.topic)
 				}()
 			}
 

@@ -176,14 +176,14 @@ func (n *natsStreamingPubSub) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	natStreamingsubscriptionOptions, err := n.subscriptionOptions()
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error getting subscription options %s", err)
 	}
 
 	natsMsgHandler := func(natsMsg *stan.Msg) {
-		herr := handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
+		herr := handler(nil, &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 		if herr != nil {
 		} else {
 			// we only send a successful ACK if there is no error from Dapr runtime

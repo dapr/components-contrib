@@ -6,6 +6,7 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -88,7 +89,7 @@ func TestProcessStreams(t *testing.T) {
 	messageCount := 0
 	expectedData := "testData"
 
-	fakeHandler := func(msg *pubsub.NewMessage) error {
+	fakeHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		messageCount++
 		if topicCount == 0 && messageCount >= 3 {
 			topicCount = 1

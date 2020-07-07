@@ -1,6 +1,7 @@
 package rabbitmq
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -28,7 +29,7 @@ func TestProcessSubscriberMessage(t *testing.T) {
 
 	messageCount := 0
 
-	fakeHandler := func(msg *pubsub.NewMessage) error {
+	fakeHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		messageCount++
 
 		assert.Equal(t, topic, msg.Topic)

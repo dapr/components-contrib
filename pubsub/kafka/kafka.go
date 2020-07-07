@@ -44,14 +44,14 @@ type kafkaMetadata struct {
 
 type consumer struct {
 	ready    chan bool
-	callback func(msg *pubsub.NewMessage) error
+	callback pubsub.Handler
 	once     sync.Once
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
-			err := consumer.callback(&pubsub.NewMessage{
+			err := consumer.callback(nil, &pubsub.NewMessage{
 				Topic: claim.Topic(),
 				Data:  message.Value,
 			})
@@ -168,7 +168,7 @@ func (k *Kafka) closeSubscripionResources() {
 
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
-func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	topics := k.addTopic(req.Topic)
 
 	// Close resources and reset synchronization primitives

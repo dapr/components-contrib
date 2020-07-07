@@ -111,7 +111,7 @@ func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	err := r.client.XGroupCreateMkStream(req.Topic, r.metadata.consumerID, "0").Err()
 	if err != nil {
 		r.logger.Warnf("redis streams: %s", err)
@@ -134,7 +134,7 @@ func (r *redisStreams) readFromStream(stream, consumerID, start string) ([]redis
 	return res, nil
 }
 
-func (r *redisStreams) processStreams(consumerID string, streams []redis.XStream, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) processStreams(consumerID string, streams []redis.XStream, handler pubsub.Handler) {
 	for _, s := range streams {
 		for _, m := range s.Messages {
 			go func(stream string, message redis.XMessage) {
@@ -146,7 +146,7 @@ func (r *redisStreams) processStreams(consumerID string, streams []redis.XStream
 					msg.Data = []byte(data.(string))
 				}
 
-				err := handler(&msg)
+				err := handler(nil, &msg)
 				if err == nil {
 					r.client.XAck(stream, consumerID, message.ID).Result()
 				}
@@ -155,7 +155,7 @@ func (r *redisStreams) processStreams(consumerID string, streams []redis.XStream
 	}
 }
 
-func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler pubsub.Handler) {
 	// first read pending items in case of recovering from crash
 	start := "0"
 

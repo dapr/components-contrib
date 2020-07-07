@@ -73,9 +73,9 @@ func (n *natsPubSub) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub, err := n.natsConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, func(natsMsg *nats.Msg) {
-		handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
+		handler(nil, &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 	})
 	if err != nil {
 		n.logger.Warnf("nats: error subscribe: %s", err)

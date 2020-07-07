@@ -89,7 +89,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
 	options := pulsar.ConsumerOptions{
@@ -109,14 +109,14 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	return nil
 }
 
-func (p *Pulsar) ListenMessage(msgs pulsar.Consumer, topic string, handler func(msg *pubsub.NewMessage) error) {
+func (p *Pulsar) ListenMessage(msgs pulsar.Consumer, topic string, handler pubsub.Handler) {
 	for cm := range msgs.Chan() {
 		p.HandleMessage(cm, topic, handler)
 	}
 }
 
-func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler func(msg *pubsub.NewMessage) error) {
-	err := handler(&pubsub.NewMessage{
+func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler pubsub.Handler) {
+	err := handler(nil, &pubsub.NewMessage{
 		Data:  m.Payload(),
 		Topic: topic,
 	})

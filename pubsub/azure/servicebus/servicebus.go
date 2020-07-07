@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
@@ -44,24 +43,24 @@ const (
 	defaultMaxActiveMessages              = 10000
 	defaultMaxActiveMessagesRecoveryInSec = 2
 	defaultDisableEntityManagement        = false
+
+	maxReconnAttempts       = 10
+	connectionRecoveryInSec = 2
 )
 
 type handle = struct{}
 
 type azureServiceBus struct {
-	metadata       metadata
-	namespace      *azservicebus.Namespace
-	topicManager   *azservicebus.TopicManager
-	activeMessages map[string]*azservicebus.Message
-	mu             sync.RWMutex
-	logger         logger.Logger
+	metadata     metadata
+	namespace    *azservicebus.Namespace
+	topicManager *azservicebus.TopicManager
+	logger       logger.Logger
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		activeMessages: make(map[string]*azservicebus.Message),
-		logger:         logger,
+		logger: logger,
 	}
 }
 
@@ -238,167 +237,89 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 			return err
 		}
 	}
-	topic, err := a.namespace.NewTopic(req.Topic)
-	if err != nil {
-		return fmt.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
-	}
 
-	var opts []azservicebus.SubscriptionOption
-	if a.metadata.PrefetchCount != nil {
-		opts = append(opts, azservicebus.SubscriptionWithPrefetchCount(uint32(*a.metadata.PrefetchCount)))
-	}
-	sub, err := topic.NewSubscription(subID, opts...)
-	if err != nil {
-		return fmt.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
-	}
-
-	asbHandler := azservicebus.HandlerFunc(a.getHandlerFunc(req.Topic, handler))
-	go a.handleSubscriptionMessages(req.Topic, sub, asbHandler)
-
-	return nil
-}
-
-func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) func(ctx context.Context, message *azservicebus.Message) error {
-	return func(ctx context.Context, message *azservicebus.Message) error {
-		msg := &pubsub.NewMessage{
-			Data:  message.Data,
-			Topic: topic,
+	go func() {
+		// Limit the number of attempted reconnects we make
+		reconnAttempts := make(chan struct{}, maxReconnAttempts)
+		for i := 0; i < maxReconnAttempts; i++ {
+			reconnAttempts <- struct{}{}
 		}
 
-		a.logger.Debugf("Calling app's handler for message %s", message.ID)
-		err := handler(ctx, msg)
-		if err != nil {
-			a.logger.Debugf("Error in app's handler: %+v", err)
-			return a.abandonMessage(ctx, message)
-		}
-		return a.completeMessage(ctx, message)
-	}
-}
+		// len(reconnAttempts) should be considered stale but we can afford a little error here
+		readAttemptsStale := func() int { return len(reconnAttempts) }
 
-func (a *azureServiceBus) handleSubscriptionMessages(topic string, sub *azservicebus.Subscription, asbHandler azservicebus.HandlerFunc) {
-	// Limiting the number of concurrent handlers will throttle
-	// how many messages are processed concurrently.
-	limitConcurrentHandlers := a.metadata.MaxConcurrentHandlers != nil
-	var handles chan handle
-	if limitConcurrentHandlers {
-		a.logger.Debugf("Limited to %d message handler(s)", *a.metadata.MaxConcurrentHandlers)
-		handles = make(chan handle, *a.metadata.MaxConcurrentHandlers)
-		for i := 0; i < *a.metadata.MaxConcurrentHandlers; i++ {
-			handles <- handle{}
-		}
-		defer close(handles)
-	}
-
-	// Async message handler
-	var asyncAsbHandler azservicebus.HandlerFunc = func(ctx context.Context, msg *azservicebus.Message) error {
-		a.addActiveMessage(msg)
-
-		// Process messages asynchronously
+		// Periodically refill the reconnect attempts channel to avoid
+		// exhausting all the refill attempts due to intermittent issues
+		// ocurring over a longer period of time.
+		reconnCtx, reconnCancel := context.WithCancel(context.TODO())
+		defer reconnCancel()
 		go func() {
-			if limitConcurrentHandlers {
-				a.logger.Debugf("Attempting to take message handle...")
-				<-handles // Take or wait on a free handle before getting a new message
-				a.logger.Debugf("Taken message handle")
-
-				defer func() {
-					a.logger.Debugf("Releasing message handle...")
-					handles <- handle{} // Release a handle
-					a.logger.Debugf("Released message handle")
-				}()
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.HandlerTimeoutInSec))
-			defer cancel()
-
-			a.logger.Debugf("Handling message %s", msg.ID)
-			err := asbHandler(ctx, msg)
-			if err != nil {
-				a.logger.Errorf("%s error handling message %s from topic '%s', %s", errorMessagePrefix, msg.ID, topic, err)
+			for {
+				select {
+				case <-reconnCtx.Done():
+					a.logger.Debugf("Reconnect context for topic %s is done", req.Topic)
+					return
+				case <-time.After(2 * time.Minute):
+					attempts := readAttemptsStale()
+					if attempts < maxReconnAttempts {
+						reconnAttempts <- struct{}{}
+					}
+					a.logger.Debugf("Number of reconnect attempts remaining for topic %s: %d", req.Topic, attempts)
+				}
 			}
 		}()
-		return nil
-	}
 
-	// Lock renewal loop
-	go func() {
-		if !a.lockRenewalEnabled() {
-			a.logger.Debugf("lock renewal disabled")
-			return
-		}
-
+		// Reconnect loop
 		for {
-			time.Sleep(time.Second * time.Duration(a.metadata.LockRenewalInSec))
-
-			if len(a.activeMessages) == 0 {
-				a.logger.Debugf("No active messages to renew lock for")
-				continue
-			}
-
-			msgs := make([]*azservicebus.Message, 0)
-			a.mu.RLock()
-			for _, m := range a.activeMessages {
-				msgs = append(msgs, m)
-			}
-			a.mu.RUnlock()
-			a.logger.Debugf("Renewing %d active message lock(s)", len(msgs))
-			err := sub.RenewLocks(context.Background(), msgs...)
+			topic, err := a.namespace.NewTopic(req.Topic)
 			if err != nil {
-				a.logger.Errorf("%s error renewing active message lock(s) for topic %s, ", errorMessagePrefix, topic, err)
+				a.logger.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
+				return
 			}
+
+			var opts []azservicebus.SubscriptionOption
+			if a.metadata.PrefetchCount != nil {
+				opts = append(opts, azservicebus.SubscriptionWithPrefetchCount(uint32(*a.metadata.PrefetchCount)))
+			}
+			subEntity, err := topic.NewSubscription(subID, opts...)
+			if err != nil {
+				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+				return
+			}
+			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
+
+			// ReceiveAndBlock will only return with an error
+			// that it cannot handle internally. The subscription
+			// connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt
+			// to re-establish the subscription connection until
+			// we exhaust the number of reconnect attempts.
+			ctx, cancel := context.WithCancel(context.Background())
+			innerErr := sub.ReceiveAndBlock(ctx,
+				handler,
+				a.metadata.LockRenewalInSec,
+				a.metadata.HandlerTimeoutInSec,
+				a.metadata.TimeoutInSec,
+				a.metadata.MaxActiveMessages,
+				a.metadata.MaxActiveMessagesRecoveryInSec)
+			if innerErr != nil {
+				a.logger.Error(innerErr)
+			}
+			cancel() // Cancel receive context
+
+			attempts := readAttemptsStale()
+			if attempts == 0 {
+				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, maxReconnAttempts)
+				return
+			}
+
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, maxReconnAttempts-attempts, maxReconnAttempts)
+			time.Sleep(time.Second * connectionRecoveryInSec)
+			<-reconnAttempts
 		}
 	}()
 
-	// Receiver loop
-	for {
-		// If we have too many active messages don't receive any more for a while.
-		if len(a.activeMessages) < a.metadata.MaxActiveMessages {
-			a.logger.Debugf("Waiting to receive message from topic")
-			if err := sub.ReceiveOne(context.Background(), asyncAsbHandler); err != nil {
-				a.logger.Errorf("%s error receiving from topic %s, %s", errorMessagePrefix, topic, err)
-				// Must close to reset sub's receiver
-				if err := sub.Close(context.Background()); err != nil {
-					a.logger.Errorf("%s error closing subscription to topic %s, %s", errorMessagePrefix, topic, err)
-					return
-				}
-			}
-		} else {
-			// Sleep to allow the current active messages to be processed before getting more.
-			a.logger.Debugf("Max active messages %d reached, recovering for %d seconds", a.metadata.MaxActiveMessages, a.metadata.MaxActiveMessagesRecoveryInSec)
-			time.Sleep(time.Second * time.Duration(a.metadata.MaxActiveMessagesRecoveryInSec))
-		}
-	}
-}
-
-func (a *azureServiceBus) lockRenewalEnabled() bool {
-	return a.metadata.LockRenewalInSec > 0
-}
-
-func (a *azureServiceBus) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
-	a.removeActiveMessage(m.ID)
-
-	a.logger.Debugf("Abandoning message %s", m.ID)
-	return m.Abandon(ctx)
-}
-
-func (a *azureServiceBus) completeMessage(ctx context.Context, m *azservicebus.Message) error {
-	a.removeActiveMessage(m.ID)
-
-	a.logger.Debugf("Completing message %s", m.ID)
-	return m.Complete(ctx)
-}
-
-func (a *azureServiceBus) addActiveMessage(m *azservicebus.Message) {
-	a.logger.Debugf("Adding message %s to active messages", m.ID)
-	a.mu.Lock()
-	a.activeMessages[m.ID] = m
-	a.mu.Unlock()
-}
-
-func (a *azureServiceBus) removeActiveMessage(messageID string) {
-	a.logger.Debugf("Removing message %s from active messages", messageID)
-	a.mu.Lock()
-	delete(a.activeMessages, messageID)
-	a.mu.Unlock()
+	return nil
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {

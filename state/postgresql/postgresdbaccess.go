@@ -64,13 +64,11 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 
 	pingErr := db.Ping()
 	if pingErr != nil {
-		p.logger.Error(pingErr)
 		return pingErr
 	}
 
 	err = p.ensureStateTable(tableName)
 	if err != nil {
-		p.logger.Error(err)
 		return err
 	}
 
@@ -100,7 +98,6 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	// Convert to json string
 	valueBytes, err = json.Marshal(req.Value)
 	if err != nil {
-		p.logger.Error(err)
 		return err
 	}
 	value := string(valueBytes)
@@ -225,7 +222,7 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 // Verifies that the sql.Result affected only one row and no errors exist
 func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) error {
 	if err != nil {
-		p.logger.Error(err)
+		p.logger.Debug(err)
 		return err
 	}
 

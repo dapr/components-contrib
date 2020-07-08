@@ -91,3 +91,10 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		},
 	}, nil
 }
+
+// Operations method returns the supported operations by this binding
+func (b *Binding) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{
+		bindings.DeleteOperation,
+	}
+}

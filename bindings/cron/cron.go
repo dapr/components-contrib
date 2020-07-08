@@ -79,9 +79,11 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 // Invoke exposes way to stop previously started cron
 func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	b.logger.Debugf("operation: %v", req.Operation)
-	if req.Operation == bindings.DeleteOperation {
-		b.stopCh <- true
+	if req.Operation != bindings.DeleteOperation {
+		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
+			req.Operation, bindings.DeleteOperation)
 	}
+	b.stopCh <- true
 	return &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			"schedule":    b.schedule,

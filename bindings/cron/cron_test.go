@@ -34,19 +34,19 @@ func getNewCron() *Binding {
 func TestCronInitSuccess(t *testing.T) {
 	c := getNewCron()
 	err := c.Init(getTestMetadata("@every 1h"))
-	assert.Nilf(t, err, "error initializing valid schedule")
+	assert.NoErrorf(t, err, "error initializing valid schedule")
 }
 
 func TestCronInitWithSeconds(t *testing.T) {
 	c := getNewCron()
 	err := c.Init(getTestMetadata("15 * * * * *"))
-	assert.Nilf(t, err, "error initializing schedule with seconds")
+	assert.NoErrorf(t, err, "error initializing schedule with seconds")
 }
 
 func TestCronInitFailure(t *testing.T) {
 	c := getNewCron()
 	err := c.Init(getTestMetadata("invalid schedule"))
-	assert.NotNilf(t, err, "no error while initializing invalid schedule")
+	assert.Errorf(t, err, "no error while initializing invalid schedule")
 }
 
 // TestLongRead
@@ -54,7 +54,7 @@ func TestCronInitFailure(t *testing.T) {
 func TestCronReadWithDeleteInvoke(t *testing.T) {
 	c := getNewCron()
 	schedule := "@every 1s"
-	assert.Nilf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
+	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
 	testsNum := 3
 	i := 0
 	err := c.Read(func(res *bindings.ReadResponse) error {
@@ -65,12 +65,22 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 			resp, err := c.Invoke(&bindings.InvokeRequest{
 				Operation: bindings.DeleteOperation,
 			})
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			scheduleVal, exists := resp.Metadata["schedule"]
 			assert.Truef(t, exists, "Response metadata doesn't include the expected 'schedule' key")
 			assert.Equal(t, schedule, scheduleVal)
 		}
 		return nil
 	})
-	assert.Nilf(t, err, "error on read")
+	assert.NoErrorf(t, err, "error on read")
+}
+
+func TestCronInvokeInvalidOperation(t *testing.T) {
+	c := getNewCron()
+	initErr := c.Init(getTestMetadata("@every 1s"))
+	assert.NoErrorf(t, initErr, "Error on Init")
+	_, err := c.Invoke(&bindings.InvokeRequest{
+		Operation: bindings.CreateOperation,
+	})
+	assert.Error(t, err)
 }

@@ -6,6 +6,7 @@
 package pubsub
 
 import (
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -15,7 +16,9 @@ const (
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
 	CloudEventsSpecVersion = "0.3"
 	//ContentType is the Cloud Events HTTP content type
-	ContentType = "application/json"
+	ContentType = "application/cloudevents+json"
+	// DefaultCloudEventSource is the default event source
+	DefaultCloudEventSource = "Dapr"
 )
 
 // CloudEventsEnvelope describes the Dapr implementation of the Cloud Events spec
@@ -39,45 +42,37 @@ type CloudEventsEnvelope struct {
 func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) *CloudEventsEnvelope {
 	var ce CloudEventsEnvelope
 	err := jsoniter.Unmarshal(data, &ce)
+	if err == nil && ce.ID != "" {
+		// data was already CloudEvent
+		// return envelope as is (ID is a required field in CE)
+		return &ce
+	}
+
+	// ensure valid input parameters
+	if id == "" {
+		id = uuid.New().String()
+	}
+	if source == "" {
+		source = DefaultCloudEventSource
+	}
+	if eventType == "" {
+		eventType = DefaultCloudEventType
+	}
+
+	// create new envelope
+	ce = CloudEventsEnvelope{
+		ID:              id,
+		SpecVersion:     CloudEventsSpecVersion,
+		DataContentType: "application/json",
+		Source:          source,
+		Type:            eventType,
+		Subject:         subject,
+	}
+
+	// if content was not JSON, set tata and its type to text
 	if err != nil {
-		// data content is not JSON
-		ce = CloudEventsEnvelope{
-			Data:            string(data),
-			DataContentType: "text/plain",
-		}
-	}
-
-	// populate the values where CloudEvent has none
-	if ce.ID == "" {
-		ce.ID = id
-	}
-
-	if ce.Source == "" {
-		ce.Source = source
-	}
-
-	if ce.Type == "" {
-		if eventType == "" {
-			ce.Type = DefaultCloudEventType
-		} else {
-			ce.Type = eventType
-		}
-	}
-
-	if ce.SpecVersion == "" {
-		ce.SpecVersion = CloudEventsSpecVersion
-	}
-
-	if ce.DataContentType == "" {
-		ce.DataContentType = ContentType
-	}
-
-	if ce.Data == nil {
-		ce.Data = data
-	}
-
-	if ce.Subject == "" {
-		ce.Subject = subject
+		ce.Data = string(data)
+		ce.DataContentType = "text/plain"
 	}
 
 	return &ce

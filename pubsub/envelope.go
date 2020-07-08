@@ -37,9 +37,11 @@ type CloudEventsEnvelope struct {
 func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) *CloudEventsEnvelope {
 	var ce CloudEventsEnvelope
 	err := jsoniter.Unmarshal(data, &ce)
-	if err == nil && ce.ID != "" {
+
+	if err == nil && ce.ID != "" && ce.SpecVersion != "" && ce.Type != "" && ce.Source != "" && ce.DataContentType != "" {
 		// data was already CloudEvent
-		// return envelope as is (ID is a required field in CE)
+		// assuming the likelihood of other structures having all these
+		//CloudEvent-specific fields is very unlikely
 		return &ce
 	}
 

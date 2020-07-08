@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -159,6 +160,7 @@ func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	if !f || l == "" {
 		l = "en"
 	}
+
 	r, f := req.Metadata["result"]
 	if !f || r == "" {
 		// mixed : Include both popular and real time results in the response
@@ -167,9 +169,19 @@ func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		r = "recent"
 	}
 
+	var sinceID int64
+	s, f := req.Metadata["since_id"]
+	if f && s != "" {
+		i, err := strconv.ParseInt(s, 10, 64)
+		if err == nil {
+			sinceID = i
+		}
+	}
+
 	sq := &twitter.SearchTweetParams{
 		Count:           100, // max
 		Lang:            l,
+		SinceID:         sinceID,
 		Query:           q,
 		ResultType:      r,
 		IncludeEntities: twitter.Bool(true),
@@ -194,9 +206,9 @@ func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		return nil, errors.Wrapf(err, "error parsing response from: %+v", sq)
 	}
 
-	req.Metadata["max-tweet-id"] = search.Metadata.MaxIDStr
-	req.Metadata["tweet-count"] = string(search.Metadata.Count)
-	req.Metadata["search-ts"] = time.Now().UTC().String()
+	req.Metadata["max_tweet_id"] = search.Metadata.MaxIDStr
+	req.Metadata["tweet_count"] = string(search.Metadata.Count)
+	req.Metadata["search_ts"] = time.Now().UTC().String()
 
 	ir := &bindings.InvokeResponse{
 		Data:     data,

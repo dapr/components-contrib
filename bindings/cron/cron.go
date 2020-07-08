@@ -69,26 +69,23 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 		return errors.Wrapf(err, "error scheduling %s", b.schedule)
 	}
 	c.Start()
-	b.logger.Debugf("next run: %v", c.Entry(id).Next.Sub(time.Now()))
-	for {
-		select {
-		case stop := <-b.stopCh:
-			if stop {
-				c.Stop()
-				return nil
-			}
-		}
-	}
+	b.logger.Debugf("next run: %v", time.Until(c.Entry(id).Next))
+	<-b.stopCh
+	b.logger.Debugf("stopping schedule: %s", b.schedule)
+	c.Stop()
+	return nil
 }
 
 // Invoke exposes way to stop previously started cron
 func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	b.logger.Debugf("operation: %v", req.Operation)
 	if req.Operation == bindings.DeleteOperation {
-		b.logger.Debugf("stopping schedule: %s", b.schedule)
 		b.stopCh <- true
 	}
 	return &bindings.InvokeResponse{
-		Metadata: req.Metadata,
+		Metadata: map[string]string{
+			"schedule":    b.schedule,
+			"stopTimeUTC": time.Now().UTC().String(),
+		},
 	}, nil
 }

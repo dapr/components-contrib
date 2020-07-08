@@ -34,11 +34,6 @@ type CloudEventsEnvelope struct {
 }
 
 // NewCloudEventsEnvelope returns CloudEventsEnvelope from data or a new one when data content was not
-// already an existing CE. Invoked by either the HTTP or gRPC pug handles where:
-//  id = new UUID
-// 	source = handling app ID
-//  eventType = const DefaultCloudEventType from this package ("com.dapr.event.sent")
-//  subject = diagnostics span context W3C as string
 func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) *CloudEventsEnvelope {
 	var ce CloudEventsEnvelope
 	err := jsoniter.Unmarshal(data, &ce)
@@ -69,7 +64,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) 
 		Subject:         subject,
 	}
 
-	// if content was not JSON, set tata and its type to text
+	// if content was not JSON, set data and its type to text
 	if err != nil {
 		ce.Data = string(data)
 		ce.DataContentType = "text/plain"

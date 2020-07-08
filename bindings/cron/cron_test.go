@@ -22,34 +22,55 @@ func getTestMetadata(schedule string) bindings.Metadata {
 	return m
 }
 
+func getNewCron() *Binding {
+	l := logger.NewLogger("cron")
+	if os.Getenv("DEBUG") != "" {
+		l.SetOutputLevel(logger.DebugLevel)
+	}
+	return NewCron(l)
+}
+
 // go test -v -timeout 15s -count=1 ./bindings/cron/
-func TestInitSuccess(t *testing.T) {
-	c := NewCron(logger.NewLogger("test"))
+func TestCronInitSuccess(t *testing.T) {
+	c := getNewCron()
 	err := c.Init(getTestMetadata("@every 1h"))
 	assert.Nilf(t, err, "error initializing valid schedule")
 }
 
-func TestInitFailure(t *testing.T) {
-	c := NewCron(logger.NewLogger("test"))
+func TestCronInitWithSeconds(t *testing.T) {
+	c := getNewCron()
+	err := c.Init(getTestMetadata("15 * * * * *"))
+	assert.Nilf(t, err, "error initializing schedule with seconds")
+}
+
+func TestCronInitFailure(t *testing.T) {
+	c := getNewCron()
 	err := c.Init(getTestMetadata("invalid schedule"))
 	assert.NotNilf(t, err, "no error while initializing invalid schedule")
 }
 
-// TestRead excutes the Read method
-// go test -v -count=1 -timeout 15s -run TestRead ./bindings/cron/
-func TestRead(t *testing.T) {
-	l := logger.NewLogger("test")
-	l.SetOutputLevel(logger.DebugLevel)
-	c := NewCron(l)
-	err := c.Init(getTestMetadata("@every 1s"))
-	assert.Nilf(t, err, "error initializing valid schedule")
-
-	h := func(res *bindings.ReadResponse) error {
+// TestLongRead
+// go test -v -count=1 -timeout 15s -run TestLongRead ./bindings/cron/
+func TestCronReadWithDeleteInvoke(t *testing.T) {
+	c := getNewCron()
+	schedule := "@every 1s"
+	assert.Nilf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
+	testsNum := 3
+	i := 0
+	err := c.Read(func(res *bindings.ReadResponse) error {
 		assert.NotNil(t, res)
-		os.Exit(0)
+		assert.LessOrEqualf(t, i, testsNum, "Invoke didn't stop the schedule")
+		i++
+		if i == testsNum {
+			resp, err := c.Invoke(&bindings.InvokeRequest{
+				Operation: bindings.DeleteOperation,
+			})
+			assert.Nil(t, err)
+			scheduleVal, exists := resp.Metadata["schedule"]
+			assert.Truef(t, exists, "Response metadata doesn't include the expected 'schedule' key")
+			assert.Equal(t, schedule, scheduleVal)
+		}
 		return nil
-	}
-
-	err = c.Read(h)
+	})
 	assert.Nilf(t, err, "error on read")
 }

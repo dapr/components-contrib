@@ -8,7 +8,6 @@ package twitter
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -188,12 +187,9 @@ func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	}
 
 	t.logger.Debug("starting stream for: %+v", sq)
-	search, resp, err := t.client.Search.Tweets(sq)
+	search, _, err := t.client.Search.Tweets(sq)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing search filter: %+v", sq)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Wrapf(err, "invalid search API response status code: %d", resp.StatusCode)
 	}
 	if search == nil || search.Statuses == nil {
 		return nil, errors.Wrapf(err, "nil search result from: %+v", sq)

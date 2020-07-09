@@ -31,7 +31,6 @@ func getTestMetadata() bindings.Metadata {
 		"consumerSecret": testTwitterConsumerSecret,
 		"accessToken":    testTwitterAccessToken,
 		"accessSecret":   testTwitterAccessSecret,
-		"query":          testTwitterQuery,
 	}
 	return m
 }
@@ -56,8 +55,8 @@ func TestInit(t *testing.T) {
 // TestReadError excutes the Read method and fails before the Twitter API call
 // go test -v -count=1 -run TestReadError ./bindings/twitter/
 func TestReadError(t *testing.T) {
-	m := getTestMetadata()
 	tw := NewTwitter(logger.NewLogger("test"))
+	m := getTestMetadata()
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 
@@ -70,9 +69,9 @@ func TestReadError(t *testing.T) {
 
 // TestRead executes the Read method which calls Twiter API
 // test tokens must be set
-// env RUN_LIVE_TW_TEST=1 go test -v -count=1 -run TestReed ./bindings/twitter/
+// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestReed ./bindings/twitter/
 func TestReed(t *testing.T) {
-	if os.Getenv("RUN_LIVE_TW_TEST") == "" {
+	if os.Getenv("RUN_LIVE_TW_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra
 	}
 	m := bindings.Metadata{}
@@ -91,6 +90,7 @@ func TestReed(t *testing.T) {
 		var tweet twitter.Tweet
 		json.Unmarshal(res.Data, &tweet)
 		assert.NotEmpty(t, tweet.IDStr, "tweet should have an ID")
+		os.Exit(0)
 		return nil
 	})
 	assert.Nilf(t, err, "error on read")
@@ -98,9 +98,9 @@ func TestReed(t *testing.T) {
 
 // TestInvoke executes the Invoke method which calls Twiter API
 // test tokens must be set
-// env RUN_LIVE_TW_TEST=1 go test -v -count=1 -run TestInvoke ./bindings/twitter/
+// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestInvoke ./bindings/twitter/
 func TestInvoke(t *testing.T) {
-	if os.Getenv("RUN_LIVE_TW_TEST") == "" {
+	if os.Getenv("RUN_LIVE_TW_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra
 	}
 	m := bindings.Metadata{}

@@ -55,10 +55,10 @@ func (t *Binding) Init(metadata bindings.Metadata) error {
 		return fmt.Errorf("accessSecret not set")
 	}
 
-	// query set only on input binding
-	// in output binding scenario the query is provided on create
+	// set query only in an input binding case
+	// in an output binding scenario the query is provided on create
 	q, f := metadata.Properties["query"]
-	if !f && q != "" {
+	if f {
 		t.query = q
 	}
 

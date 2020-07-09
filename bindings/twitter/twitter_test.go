@@ -67,7 +67,6 @@ func TestReadError(t *testing.T) {
 }
 
 // TestRead executes the Read method which calls Twiter API
-// test tokens must be set
 // env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestReed ./bindings/twitter/
 func TestReed(t *testing.T) {
 	if os.Getenv("RUN_LIVE_TW_TEST") != "true" {

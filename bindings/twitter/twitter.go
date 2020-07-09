@@ -56,7 +56,6 @@ func (t *Binding) Init(metadata bindings.Metadata) error {
 	}
 
 	// set query only in an input binding case
-	// in an output binding scenario the query is provided on create
 	q, f := metadata.Properties["query"]
 	if f {
 		t.query = q

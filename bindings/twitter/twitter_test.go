@@ -21,7 +21,6 @@ const (
 	testTwitterConsumerSecret = "test-consumerSecret"
 	testTwitterAccessToken    = "test-accessToken"
 	testTwitterAccessSecret   = "test-accessSecret"
-	testTwitterQuery          = "test-query"
 )
 
 func getTestMetadata() bindings.Metadata {

@@ -66,7 +66,6 @@ func (t *Binding) Init(metadata bindings.Metadata) error {
 	token := oauth1.NewToken(at, as)
 
 	httpClient := config.Client(oauth1.NoContext, token)
-	httpClient.Timeout = time.Duration(time.Second * 10)
 
 	t.client = twitter.NewClient(httpClient)
 	return nil

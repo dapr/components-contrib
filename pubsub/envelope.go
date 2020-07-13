@@ -93,7 +93,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) 
 		Source:          source,
 		Type:            eventType,
 		Subject:         subject,
-		Data:            string(data),
+		Data:            j,
 	}
 }
 

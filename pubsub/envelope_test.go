@@ -6,6 +6,7 @@
 package pubsub
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -40,18 +41,26 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 
 func TestCreateFromJSON(t *testing.T) {
 	t.Run("has JSON object", func(t *testing.T) {
-		data := `{ "data": ["v1", "v2", "v3"] }`
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", []byte(data))
+		obj1 := struct {
+			Val1 string
+			Val2 int
+		}{
+			"test",
+			1,
+		}
+		data, _ := json.Marshal(obj1)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", data)
 		t.Logf("data: %v", envelope.Data)
 		assert.Equal(t, "application/json", envelope.DataContentType)
-		assert.Equal(t, data, envelope.Data.(string))
-	})
-	t.Run("has JSON list", func(t *testing.T) {
-		data := `["v1", "v2", "v3"]`
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", []byte(data))
-		t.Logf("data: %v", envelope.Data)
-		assert.Equal(t, "application/json", envelope.DataContentType)
-		assert.Equal(t, data, envelope.Data.(string))
+
+		obj2 := struct {
+			Val1 string
+			Val2 int
+		}{}
+		err := json.Unmarshal(data, &obj2)
+		assert.NoError(t, err)
+		assert.Equal(t, obj1.Val1, obj2.Val1)
+		assert.Equal(t, obj1.Val2, obj2.Val2)
 	})
 }
 

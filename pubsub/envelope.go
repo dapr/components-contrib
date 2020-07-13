@@ -95,7 +95,6 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) 
 		Subject:         subject,
 		Data:            string(data),
 	}
-
 }
 
 func getStrVal(m map[string]interface{}, key string) string {

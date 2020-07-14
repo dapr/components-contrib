@@ -211,7 +211,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	if ok {
 		// data arrived in bytes and already json.  Don't marshal the Value field again.
 		item := CosmosItemWithRawMessage{ID: req.Key, Value: b, PartitionKey: partitionKey}
-		marshalled, err := jsoniter.ConfigFastest.Marshal(item)
+		var marshalled []byte
+		marshalled, err = convertToJSONWithoutEscapes(item)
 		if err != nil {
 			return err
 		}

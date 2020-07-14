@@ -151,7 +151,6 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 		}
 		data = decoded
 	} else {
-
 		data = []byte(unescapedData)
 	}
 

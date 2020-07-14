@@ -165,6 +165,15 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, nil
 	}
 
+	s, ok := items[0].Value.(string)
+	if ok {
+		bytes := []uint8(s)
+		return &state.GetResponse{
+			Data: bytes,
+			ETag: items[0].Etag,
+		}, nil
+	}
+
 	b, err := jsoniter.ConfigFastest.Marshal(&items[0].Value)
 	if err != nil {
 		return nil, err
@@ -196,7 +205,13 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
+	b, ok := req.Value.([]uint8)
+	if ok {
+		s := string(b)
+		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: s, PartitionKey: partitionKey}, options...)
+	} else {
+		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
+	}
 
 	if err != nil {
 		return err

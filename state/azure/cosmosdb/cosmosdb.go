@@ -6,6 +6,7 @@
 package cosmosdb
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,6 +42,16 @@ type CosmosItem struct {
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
 	PartitionKey string      `json:"partitionKey"`
+}
+
+// CosmosItemWithRawMessage is a version of CosmosItem with a Value of RawMessage so this field
+// is not marshalled.  If it is marshalled it will end up in a form that
+// cannot be unmarshalled.  This type is used when SetRequest.Value arrives as bytes.
+type CosmosItemWithRawMessage struct {
+	documentdb.Document
+	ID           string              `json:"id"`
+	Value        jsoniter.RawMessage `json:"value"`
+	PartitionKey string              `json:"partitionKey"`
 }
 
 type storedProcedureDefinition struct {
@@ -165,15 +176,6 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, nil
 	}
 
-	s, ok := items[0].Value.(string)
-	if ok {
-		bytes := []uint8(s)
-		return &state.GetResponse{
-			Data: bytes,
-			ETag: items[0].Etag,
-		}, nil
-	}
-
 	b, err := jsoniter.ConfigFastest.Marshal(&items[0].Value)
 	if err != nil {
 		return nil, err
@@ -207,9 +209,15 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 
 	b, ok := req.Value.([]uint8)
 	if ok {
-		s := string(b)
-		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: s, PartitionKey: partitionKey}, options...)
+		// data arrived in bytes and already json.  Don't marshal the Value field again.
+		item := CosmosItemWithRawMessage{ID: req.Key, Value: b, PartitionKey: partitionKey}
+		marshalled, err := jsoniter.ConfigFastest.Marshal(item)
+		if err != nil {
+			return err
+		}
+		_, err = c.client.UpsertDocument(c.collection.Self, marshalled, options...)
 	} else {
+		// data arrived as non-bytes, just pass it through.
 		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
 	}
 
@@ -346,4 +354,12 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 		return val
 	}
 	return key
+}
+
+func convertToJSONWithoutEscapes(t interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := jsoniter.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(t)
+	return buffer.Bytes(), err
 }

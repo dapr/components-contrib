@@ -98,8 +98,8 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 
 func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	r.logger.Debugf("bulk delete %v key(s)", len(req))
-	for _, s := range req {
-		err := r.Delete(&s)
+	for i := range req {
+		err := r.Delete(&req[i])
 		if err != nil {
 			return err
 		}
@@ -137,8 +137,8 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 func (r *StateStore) BulkSet(req []state.SetRequest) error {
 	r.logger.Debugf("bulk set %v key(s)", len(req))
 
-	for _, s := range req {
-		err := r.Set(&s)
+	for i := range req {
+		err := r.Set(&req[i])
 		if err != nil {
 			return err
 		}

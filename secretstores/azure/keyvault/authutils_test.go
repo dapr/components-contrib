@@ -46,6 +46,7 @@ func TestGetClientCert(t *testing.T) {
 	assert.Equal(t, "https://login.microsoftonline.com/", testCertConfig.ClientCertificateConfig.AADEndpoint)
 }
 
+//nolint:gosec
 func TestAuthorizorWithCertFile(t *testing.T) {
 	testCertFileName := "./.cert.pfx"
 	certBytes := getTestCert()

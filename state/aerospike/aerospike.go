@@ -137,8 +137,8 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (aspike *Aerospike) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := aspike.Set(&s)
+	for i := range req {
+		err := aspike.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -219,8 +219,8 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (aspike *Aerospike) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := aspike.Delete(&re)
+	for i := range req {
+		err := aspike.Delete(&req[i])
 		if err != nil {
 			return err
 		}

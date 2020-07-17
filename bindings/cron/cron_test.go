@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package twitter
+package cron
 
 import (
 	"os"

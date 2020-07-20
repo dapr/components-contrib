@@ -26,7 +26,7 @@ type Influx struct {
 }
 
 type influxMetadata struct {
-	Url    string `json:"url"`
+	URL    string `json:"url"`
 	Token  string `json:"token"`
 	Org    string `json:"org"`
 	Bucket string `json:"bucket"`
@@ -45,7 +45,7 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 	}
 
 	i.metadata = influxMeta
-	if i.metadata.Url == "" {
+	if i.metadata.URL == "" {
 		return errors.New("Influx Error: URL required")
 	}
 
@@ -61,7 +61,7 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 		return errors.New("Influx Error: Bucket required")
 	}
 
-	client := influxdb2.NewClient(i.metadata.Url, i.metadata.Token)
+	client := influxdb2.NewClient(i.metadata.URL, i.metadata.Token)
 	i.client = client
 	i.writeAPI = i.client.WriteAPIBlocking(i.metadata.Org, i.metadata.Bucket)
 	return nil
@@ -82,12 +82,13 @@ func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata,
 	return &iMetadata, nil
 }
 
+// Operations returns supported operations
 func (i *Influx) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
+// Invoke called on supported operations
 func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	var jsonPoint map[string]interface{}
 	err := json.Unmarshal(req.Data, &jsonPoint)
 	if err != nil {

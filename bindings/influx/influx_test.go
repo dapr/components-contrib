@@ -19,9 +19,8 @@ func TestParseMetadata(t *testing.T) {
 	influx := Influx{logger: logger.NewLogger("test")}
 	im, err := influx.getInfluxMetadata(m)
 	assert.Nil(t, err)
-	assert.Equal(t, "a", im.Url)
+	assert.Equal(t, "a", im.URL)
 	assert.Equal(t, "a", im.Token)
 	assert.Equal(t, "a", im.Org)
 	assert.Equal(t, "a", im.Bucket)
-
 }

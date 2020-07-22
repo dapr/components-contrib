@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package servicediscovery
+package nameresolution
 
 // DefaultNamespace is the default kubernetes namespace.
 const DefaultNamespace = "default"

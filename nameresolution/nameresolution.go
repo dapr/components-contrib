@@ -3,9 +3,12 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package servicediscovery
+package nameresolution
 
-// Resolver is the interface of service discovery resolver.
+// Resolver is the interface of name resolver.
 type Resolver interface {
+	// Init initializes name resolver.
+	Init(metadata Metadata) error
+	// ResolveID resolves name to address.
 	ResolveID(req ResolveRequest) (string, error)
 }

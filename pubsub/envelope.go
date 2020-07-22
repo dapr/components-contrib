@@ -31,10 +31,11 @@ type CloudEventsEnvelope struct {
 	DataContentType string      `json:"datacontenttype"`
 	Data            interface{} `json:"data"`
 	Subject         string      `json:"subject"`
+	Topic           string      `json:"topic"`
 }
 
 // NewCloudEventsEnvelope returns CloudEventsEnvelope from data or a new one when data content was not
-func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) *CloudEventsEnvelope {
+func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, data []byte) *CloudEventsEnvelope {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -61,6 +62,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) 
 			Source:          source,
 			Type:            eventType,
 			Subject:         subject,
+			Topic:           topic,
 			Data:            string(data),
 		}
 	}
@@ -76,6 +78,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) 
 				Source:          getStrVal(m, "source"),
 				Type:            getStrVal(m, "type"),
 				Subject:         getStrVal(m, "subject"),
+				Topic:           topic,
 				Data:            m["data"],
 			}
 			// check if CE is valid
@@ -93,6 +96,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, data []byte) 
 		Source:          source,
 		Type:            eventType,
 		Subject:         subject,
+		Topic:           topic,
 		Data:            j,
 	}
 }

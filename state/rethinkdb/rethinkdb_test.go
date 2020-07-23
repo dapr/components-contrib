@@ -1,0 +1,253 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
+package rethinkdb
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+)
+
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestGetRethinkDBMetadata$
+func TestGetRethinkDBMetadata(t *testing.T) {
+	t.Run("With required connect configuration", func(t *testing.T) {
+		p := getTestMetadata()
+		m, err := metadataToConfig(p)
+		assert.Nil(t, err)
+		assert.Equal(t, p["address"], m.Address)
+		assert.Equal(t, p["database"], m.Database)
+	})
+
+	t.Run("With optional table configuration", func(t *testing.T) {
+		p := getTestMetadata()
+
+		timeout := time.Duration(15 * time.Second)
+		p["timeout"] = fmt.Sprintf("%v", timeout)
+
+		maxOpen := 30
+		p["max_open"] = fmt.Sprintf("%v", maxOpen)
+
+		discoverHosts := true
+		p["discover_hosts"] = fmt.Sprintf("%v", discoverHosts)
+
+		m, err := metadataToConfig(p)
+		assert.Nil(t, err)
+		assert.Equal(t, maxOpen, m.MaxOpen)
+		assert.Equal(t, discoverHosts, m.DiscoverHosts)
+	})
+}
+
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestRethinkDBStateStore$
+func TestRethinkDBStateStore(t *testing.T) {
+	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
+		t.SkipNow() // skip this test until able to read credentials in test infra
+	}
+
+	m := state.Metadata{Properties: getTestMetadata()}
+	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	if err := db.Init(m); err != nil {
+		t.Fatalf("error initializing db: %v", err)
+	}
+
+	t.Run("With struct data", func(t *testing.T) {
+		// create and set data
+		d := &testObj{F1: "test", F2: 1}
+		k := fmt.Sprintf("ids-%d", time.Now().UnixNano())
+
+		if err := db.Set(&state.SetRequest{Key: k, Value: d}); err != nil {
+			t.Fatalf("error setting data to db: %v", err)
+		}
+
+		// get set data and compare
+		resp, err := db.Get(&state.GetRequest{Key: k})
+		assert.Nil(t, err)
+		d2 := testGetTestObj(t, resp)
+		assert.NotNil(t, d2)
+		assert.Equal(t, d.F1, d2.F1)
+		assert.Equal(t, d.F2, d2.F2)
+
+		// update data and set it again
+		d2.F2 = 2
+		tag := fmt.Sprintf("hash-%d", time.Now().UnixNano())
+		if err := db.Set(&state.SetRequest{Key: k, Value: d2, ETag: tag}); err != nil {
+			t.Fatalf("error setting data to db: %v", err)
+		}
+
+		// get updated data and compare
+		resp2, err := db.Get(&state.GetRequest{Key: k})
+		assert.Nil(t, err)
+		d3 := testGetTestObj(t, resp2)
+		assert.NotNil(t, d3)
+		assert.Equal(t, d2.F1, d3.F1)
+		assert.Equal(t, d2.F2, d3.F2)
+
+		// delete data
+		if err := db.Delete(&state.DeleteRequest{Key: k}); err != nil {
+			t.Fatalf("error on data deletion: %v", err)
+		}
+	})
+
+	t.Run("With byte data", func(t *testing.T) {
+		// create and set data
+		d := []byte("test")
+		k := fmt.Sprintf("idb-%d", time.Now().UnixNano())
+
+		if err := db.Set(&state.SetRequest{Key: k, Value: d}); err != nil {
+			t.Fatalf("error setting data to db: %v", err)
+		}
+
+		// get set data and compare
+		resp, err := db.Get(&state.GetRequest{Key: k})
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.NotNil(t, resp.Data)
+		assert.Equal(t, string(d), string(resp.Data))
+
+		// delete data
+		if err := db.Delete(&state.DeleteRequest{Key: k}); err != nil {
+			t.Fatalf("error on data deletion: %v", err)
+		}
+	})
+
+	t.Run("With bulk", func(t *testing.T) {
+		// create data list
+		deleteList := make([]state.DeleteRequest, 0)
+		setList := make([]state.SetRequest, 3)
+		for i := range setList {
+			d := []byte("test")
+			k := fmt.Sprintf("test-id-%d", i)
+			deleteList = append(deleteList, state.DeleteRequest{Key: k})
+			setList[i] = state.SetRequest{Key: k, Value: d}
+		}
+
+		// bulk set it
+		if err := db.BulkSet(setList); err != nil {
+			t.Fatalf("error setting data to db: %v", err)
+		}
+
+		// check for the data
+		for _, v := range deleteList {
+			resp, err := db.Get(&state.GetRequest{Key: v.Key})
+			assert.Nil(t, err)
+			assert.NotNil(t, resp)
+			assert.NotNil(t, resp.Data)
+		}
+
+		// delete data
+		if err := db.BulkDelete(deleteList); err != nil {
+			t.Fatalf("error on data deletion: %v", err)
+		}
+
+		// check for the data NOT being there
+		for _, v := range deleteList {
+			resp, err := db.Get(&state.GetRequest{Key: v.Key})
+			assert.Nil(t, err)
+			assert.NotNil(t, resp)
+			assert.Nil(t, resp.Data)
+		}
+
+	})
+}
+
+func TestRethinkDBStateStoreMulti(t *testing.T) {
+	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
+		t.SkipNow() // skip this test until able to read credentials in test infra
+	}
+
+	m := state.Metadata{Properties: getTestMetadata()}
+	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	if err := db.Init(m); err != nil {
+		t.Fatalf("error initializing db: %v", err)
+	}
+
+	numOfRecords := 4
+	recordIDFormat := "multi-%d"
+	t.Run("With multi", func(t *testing.T) {
+		// create data list
+		d := []byte("test")
+		list := make([]state.SetRequest, numOfRecords)
+		for i := 0; i < numOfRecords; i++ {
+			list[i] = state.SetRequest{Key: fmt.Sprintf(recordIDFormat, i), Value: d}
+		}
+		if err := db.BulkSet(list); err != nil {
+			t.Fatalf("error setting multi to db: %v", err)
+		}
+
+		// test multi
+		d2 := []byte("test")
+		list2 := make([]state.TransactionalRequest, numOfRecords)
+		list2[0] = state.TransactionalRequest{
+			Operation: state.Upsert,
+			Request: state.SetRequest{
+				Key:   fmt.Sprintf(recordIDFormat, 0),
+				Value: d2},
+		}
+		list2[1] = state.TransactionalRequest{
+			Operation: state.Upsert,
+			Request: state.SetRequest{
+				Key:   fmt.Sprintf(recordIDFormat, 1),
+				Value: d2},
+		}
+		list2[2] = state.TransactionalRequest{
+			Operation: state.Delete,
+			Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 2)},
+		}
+		list2[3] = state.TransactionalRequest{
+			Operation: state.Delete,
+			Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 3)},
+		}
+
+		// execute multi
+		if err := db.Multi(list2); err != nil {
+			t.Fatalf("error setting multi to db: %v", err)
+		}
+
+		// the one not deleted should be still there
+		m1, err := db.Get(&state.GetRequest{Key: fmt.Sprintf(recordIDFormat, 1)})
+		assert.Nil(t, err)
+		assert.NotNil(t, m1)
+		assert.NotNil(t, m1.Data)
+		assert.Equal(t, string(d2), string(m1.Data))
+
+		// the one deleted should not
+		m2, err := db.Get(&state.GetRequest{Key: fmt.Sprintf(recordIDFormat, 3)})
+		assert.Nil(t, err)
+		assert.NotNil(t, m2)
+		assert.Nil(t, m2.Data)
+
+	})
+}
+
+type testObj struct {
+	F1 string
+	F2 int
+}
+
+func testGetTestObj(t *testing.T, resp *state.GetResponse) *testObj {
+	if resp == nil || resp.Data == nil {
+		t.Fatal("invalid response")
+	}
+
+	var d testObj
+	if err := json.Unmarshal(resp.Data, &d); err != nil {
+		t.Fatalf("invalid data: %v", err)
+	}
+
+	return &d
+}
+
+func getTestMetadata() map[string]string {
+	return map[string]string{
+		"address":  "127.0.0.1:28015",
+		"database": "dapr",
+	}
+}

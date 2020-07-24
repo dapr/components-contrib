@@ -14,7 +14,7 @@ const (
 	// DefaultCloudEventType is the default event type for an Dapr published event
 	DefaultCloudEventType = "com.dapr.event.sent"
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
-	CloudEventsSpecVersion = "0.3"
+	CloudEventsSpecVersion = "1.0"
 	//ContentType is the Cloud Events HTTP content type
 	ContentType = "application/cloudevents+json"
 	// DefaultCloudEventSource is the default event source

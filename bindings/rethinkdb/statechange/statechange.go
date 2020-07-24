@@ -15,6 +15,7 @@ import (
 
 	r "github.com/dancannon/gorethink"
 	"github.com/dapr/components-contrib/bindings"
+	db "github.com/dapr/components-contrib/state/rethinkdb"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/pkg/errors"
 )
@@ -36,12 +37,6 @@ type ActorBinding struct {
 type BindingConfig struct {
 	r.ConnectOpts
 	Table string `json:"table"`
-}
-
-type dbItem struct {
-	ID   string      `json:"id"`
-	Data interface{} `json:"data,omitempty"`
-	Hash string      `json:"hash,omitempty"`
 }
 
 var _ = bindings.InputBinding(&ActorBinding{})
@@ -85,27 +80,11 @@ func (b *ActorBinding) Read(handler func(*bindings.ReadResponse) error) error {
 
 	go func() {
 		var change struct {
-			NewState   *dbItem `gorethink:"new_val"`
-			OldState   *dbItem `gorethink:"old_val"`
-			ChangeType string  `gorethink:"type"`
+			NewState   *db.StateRecord `rethinkdb:"new_val" json:"new_val"`
+			OldState   *db.StateRecord `rethinkdb:"old_val" json:"old_val"`
+			ChangeType string          `rethinkdb:"type" json:"change_type"`
+			ChangeTime int64           `rethinkdb:"-" json:"change_time"`
 		}
-		/*
-			{
-				new_val: {
-					ETag:v1
-					Key:id-1595425785039672000
-					Metadata:map[k1:v1 k2:v2]
-					Value:test8
-				}
-				old_val: {
-					ETag:v1
-					Key:id-1595425785039672000
-					Metadata:map[k1:v1 k2:v2]
-					Value:test7
-				}
-				type:change
-			}
-		*/
 
 		for {
 			ok := cursor.Next(&change)
@@ -115,6 +94,7 @@ func (b *ActorBinding) Read(handler func(*bindings.ReadResponse) error) error {
 			}
 
 			if change.NewState != nil {
+				change.ChangeTime = time.Now().UTC().UnixNano()
 				data, err := json.Marshal(change)
 				if err != nil {
 					b.logger.Errorf("error detecting change: %v", err)
@@ -123,8 +103,9 @@ func (b *ActorBinding) Read(handler func(*bindings.ReadResponse) error) error {
 				resp := &bindings.ReadResponse{
 					Data: data,
 					Metadata: map[string]string{
-						"database": b.config.Database,
-						"table":    b.config.Table,
+						"database":    b.config.Database,
+						"table":       b.config.Table,
+						"change-type": change.ChangeType,
 					},
 				}
 

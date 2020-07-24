@@ -30,10 +30,12 @@ type RethinkDB struct {
 	logger  logger.Logger
 }
 
-type dbItem struct {
-	ID   string      `json:"id"`
-	Data interface{} `json:"data,omitempty"`
-	Hash string      `json:"hash,omitempty"`
+// StateRecord represents a single state record
+type StateRecord struct {
+	ID   string      `json:"id" rethinkdb:"id"`
+	Ts   int64       `json:"timestamp" rethinkdb:"timestamp"`
+	Hash string      `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
+	Data interface{} `json:"data,omitempty" rethinkdb:"data,omitempty"`
 }
 
 func init() {
@@ -104,7 +106,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, nil
 	}
 
-	var doc dbItem
+	var doc StateRecord
 	err = c.One(&doc)
 	if err != nil {
 		return nil, errors.Wrap(err, "error parsing database content")
@@ -134,12 +136,13 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk save operation
 func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
-	docs := make([]*dbItem, len(req))
+	docs := make([]*StateRecord, len(req))
 	for i, v := range req {
-		docs[i] = &dbItem{
+		docs[i] = &StateRecord{
 			ID:   v.Key,
-			Data: v.Value,
+			Ts:   time.Now().UTC().UnixNano(),
 			Hash: v.ETag,
+			Data: v.Value,
 		}
 	}
 
@@ -176,7 +179,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 
 // Multi performs multiple operations
 func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
-	upserts := make([]*dbItem, 0)
+	upserts := make([]*StateRecord, 0)
 	deletes := make([]string, 0)
 
 	for _, v := range reqs {
@@ -189,7 +192,7 @@ func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
 			if r.Key == "" || r.Value == nil {
 				return errors.Errorf("invalid request data: %v", r)
 			}
-			d := &dbItem{ID: r.Key, Data: r.Value, Hash: r.ETag}
+			d := &StateRecord{ID: r.Key, Ts: time.Now().UTC().UnixNano(), Hash: r.ETag, Data: r.Value}
 			upserts = append(upserts, d)
 		case state.Delete:
 			r, ok := v.Request.(state.DeleteRequest)

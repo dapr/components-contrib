@@ -32,7 +32,7 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 	t.Run("With optional table configuration", func(t *testing.T) {
 		p := getTestMetadata()
 
-		timeout := time.Duration(15 * time.Second)
+		timeout := 15 * time.Second
 		p["timeout"] = fmt.Sprintf("%v", timeout)
 
 		maxOpen := 30
@@ -82,7 +82,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 		d2.F2 = 2
 		d2.F3 = time.Now().UTC()
 		tag := fmt.Sprintf("hash-%d", time.Now().UnixNano())
-		if err := db.Set(&state.SetRequest{Key: k, Value: d2, ETag: tag}); err != nil {
+		if err = db.Set(&state.SetRequest{Key: k, Value: d2, ETag: tag}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
 		}
 
@@ -159,7 +159,6 @@ func TestRethinkDBStateStore(t *testing.T) {
 			assert.NotNil(t, resp)
 			assert.Nil(t, resp.Data)
 		}
-
 	})
 }
 
@@ -230,7 +229,6 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotNil(t, m2)
 		assert.Nil(t, m2.Data)
-
 	})
 }
 

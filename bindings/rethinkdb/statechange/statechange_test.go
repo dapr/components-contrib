@@ -8,26 +8,23 @@ package statechange
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	testTableName = "daprstate"
-)
-
 func getTestMetadata() map[string]string {
 	return map[string]string{
 		"address":  "127.0.0.1:28015",
 		"database": "dapr",
-		"table":    testTableName,
+		"table":    "daprstate",
 	}
 }
 
 func getNewRethinkActorBinding() *Binding {
-	l := logger.NewLogger("cron")
+	l := logger.NewLogger("test")
 	if os.Getenv("DEBUG") != "" {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
@@ -43,6 +40,15 @@ func TestBinding(t *testing.T) {
 	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra
 	}
+	testDuration := 10 * time.Second
+	testDurationStr := os.Getenv("RETHINKDB_TEST_DURATION")
+	if testDurationStr != "" {
+		d, err := time.ParseDuration(testDurationStr)
+		if err != nil {
+			t.Fatalf("invalid test duration: %s, expected time.Duration", testDurationStr)
+		}
+		testDuration = d
+	}
 
 	m := bindings.Metadata{
 		Name:       "test",
@@ -54,11 +60,19 @@ func TestBinding(t *testing.T) {
 	err := b.Init(m)
 	assert.NoErrorf(t, err, "error initializing")
 
-	// this will be blocking hence the stop channel above
-	err = b.Read(func(res *bindings.ReadResponse) error {
-		assert.NotNil(t, res)
-		t.Logf("state change event:\n%s", string(res.Data))
-		return nil
+	go func() {
+		err = b.Read(func(res *bindings.ReadResponse) error {
+			assert.NotNil(t, res)
+			t.Logf("state change event:\n%s", string(res.Data))
+			return nil
+		})
+		assert.NoErrorf(t, err, "error on read")
+	}()
+
+	testTimer := time.AfterFunc(testDuration, func() {
+		t.Log("done")
+		b.stopCh <- true
 	})
-	assert.NoErrorf(t, err, "error on read")
+	defer testTimer.Stop()
+	<-b.stopCh
 }

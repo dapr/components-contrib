@@ -27,10 +27,9 @@ const (
 
 // RethinkDB is a state store implementation for RethinkDB.
 type RethinkDB struct {
-	session     *r.Session
-	config      *StateConfig
-	logger      logger.Logger
-	stopArchive chan bool
+	session *r.Session
+	config  *StateConfig
+	logger  logger.Logger
 }
 
 // StateConfig represents configuration for RethinkDB
@@ -42,14 +41,9 @@ type StateConfig struct {
 // StateRecord represents a single state record
 type StateRecord struct {
 	ID   string      `json:"id" rethinkdb:"id"`
-	Ts   int64       `json:"timestamp" rethinkdb:"timestamp"`
+	TS   int64       `json:"timestamp" rethinkdb:"timestamp"`
 	Hash string      `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
 	Data interface{} `json:"data,omitempty" rethinkdb:"data,omitempty"`
-}
-
-func init() {
-	r.Log.Out = ioutil.Discard
-	r.SetTags("rethinkdb", "json")
 }
 
 // NewRethinkDBStateStore returns a new RethinkDB state store.
@@ -59,6 +53,8 @@ func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists
 func (s *RethinkDB) Init(metadata state.Metadata) error {
+	r.Log.Out = ioutil.Discard
+	r.SetTags("rethinkdb", "json")
 	cfg, err := metadataToConfig(metadata.Properties, s.logger)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse metadata properties")
@@ -138,40 +134,6 @@ func tableExists(arr []string, table string) bool {
 	return false
 }
 
-// SubscribeToStateChanges notifies of state changes
-func (s *RethinkDB) SubscribeToStateChanges(handler func(data []byte) error) error {
-	if err := s.checkConnection(); err != nil {
-		return err
-	}
-	s.logger.Infof("starting change notifier for %s", stateTableName)
-	cursor, err := r.DB(s.config.Database).Table(stateTableName).Changes(r.ChangesOpts{
-		IncludeTypes: true,
-	}).Run(s.session)
-	if err != nil {
-		errors.Wrapf(err, "error connecting to table %s", stateTableName)
-	}
-	defer cursor.Close()
-
-	for {
-		var change interface{}
-		ok := cursor.Next(&change)
-		if !ok {
-			s.logger.Errorf("error detecting change: %v", cursor.Err())
-			continue
-		}
-
-		b, err := json.Marshal(change)
-		if err != nil {
-			s.logger.Errorf("error marshalling change handler: %v", err)
-		}
-
-		if err := handler(b); err != nil {
-			s.logger.Errorf("error invoking change handler: %v", err)
-			continue
-		}
-	}
-}
-
 // Get retrieves a RethinkDB KV item
 func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if req == nil || req.Key == "" {
@@ -183,7 +145,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	c, err := r.Table(stateTableName).Get(req.Key).Run(s.session)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting recrod from the database")
+		return nil, errors.Wrap(err, "error getting record from the database")
 	}
 
 	if c == nil || c.IsNil() {
@@ -227,7 +189,7 @@ func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 	for i, v := range req {
 		docs[i] = &StateRecord{
 			ID:   v.Key,
-			Ts:   time.Now().UTC().UnixNano(),
+			TS:   time.Now().UTC().UnixNano(),
 			Hash: v.ETag,
 			Data: v.Value,
 		}
@@ -241,26 +203,31 @@ func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 		return errors.Wrap(err, "error saving records to the database")
 	}
 
-	if resp.Changes != nil && s.config.Archive {
-		changes := make([]map[string]interface{}, 0)
-		for _, c := range resp.Changes {
-			if c.NewValue != nil {
-				record, ok := c.NewValue.(map[string]interface{})
-				if !ok {
-					s.logger.Infof("invalid state DB change type: %T", c.NewValue)
-					continue
-				}
-				changes = append(changes, record)
-			}
-		}
-		if len(changes) > 0 {
-			_, err = r.Table(stateArchiveTableName).Insert(changes).RunWrite(s.session)
-			if err != nil {
-				return errors.Wrap(err, "error archiving records to the database")
-			}
-		}
+	if s.config.Archive && len(resp.Changes) > 0 {
+		s.archive(resp.Changes)
 	}
 
+	return nil
+}
+
+func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
+	list := make([]map[string]interface{}, 0)
+	for _, c := range changes {
+		if c.NewValue != nil {
+			record, ok := c.NewValue.(map[string]interface{})
+			if !ok {
+				s.logger.Infof("invalid state DB change type: %T", c.NewValue)
+				continue
+			}
+			list = append(list, record)
+		}
+	}
+	if len(list) > 0 {
+		_, err := r.Table(stateArchiveTableName).Insert(list).RunWrite(s.session)
+		if err != nil {
+			return errors.Wrap(err, "error archiving records to the database")
+		}
+	}
 	return nil
 }
 
@@ -317,7 +284,7 @@ func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
 		}
 	}
 
-	// note, no transactional support so this is best effort
+	// best effort, no transacts supported
 	if err := s.BulkSet(upserts); err != nil {
 		return errors.Wrap(err, "error saving records to the database")
 	}
@@ -330,7 +297,6 @@ func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
 }
 
 func metadataToConfig(cfg map[string]string, logger logger.Logger) (*StateConfig, error) {
-
 	c := StateConfig{}
 	for k, v := range cfg {
 		switch k {
@@ -400,18 +366,12 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*StateConfig
 				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
 			}
 			c.Archive = b
-		case "node_refresh_interval": //time.Duration
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid keep node refresh interval format: %v", v)
-			}
-			c.NodeRefreshInterval = d
 		case "max_idle": //int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid keep max idle format: %v", v)
 			}
-			c.MaxIdle = i
+			c.InitialCap = i
 		default:
 			logger.Infof("unrecognized metadata: %s", k)
 		}

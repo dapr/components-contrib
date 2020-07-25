@@ -19,12 +19,14 @@ import (
 
 // go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestGetRethinkDBMetadata$
 func TestGetRethinkDBMetadata(t *testing.T) {
+	testLogger := logger.NewLogger("test")
 	t.Run("With required connect configuration", func(t *testing.T) {
 		p := getTestMetadata()
-		m, err := metadataToConfig(p)
+		m, err := metadataToConfig(p, testLogger)
 		assert.Nil(t, err)
 		assert.Equal(t, p["address"], m.Address)
 		assert.Equal(t, p["database"], m.Database)
+		assert.True(t, m.Archive)
 	})
 
 	t.Run("With optional table configuration", func(t *testing.T) {
@@ -39,14 +41,14 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 		discoverHosts := true
 		p["discover_hosts"] = fmt.Sprintf("%v", discoverHosts)
 
-		m, err := metadataToConfig(p)
+		m, err := metadataToConfig(p, testLogger)
 		assert.Nil(t, err)
 		assert.Equal(t, maxOpen, m.MaxOpen)
 		assert.Equal(t, discoverHosts, m.DiscoverHosts)
 	})
 }
 
-// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestRethinkDBStateStore$
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestRethinkDBStateStore$ -v
 func TestRethinkDBStateStore(t *testing.T) {
 	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra
@@ -60,7 +62,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 
 	t.Run("With struct data", func(t *testing.T) {
 		// create and set data
-		d := &testObj{F1: "test", F2: 1}
+		d := &testObj{F1: "test", F2: 1, F3: time.Now().UTC()}
 		k := fmt.Sprintf("ids-%d", time.Now().UnixNano())
 
 		if err := db.Set(&state.SetRequest{Key: k, Value: d}); err != nil {
@@ -74,9 +76,11 @@ func TestRethinkDBStateStore(t *testing.T) {
 		assert.NotNil(t, d2)
 		assert.Equal(t, d.F1, d2.F1)
 		assert.Equal(t, d.F2, d2.F2)
+		assert.Equal(t, d.F3.Format(time.RFC3339), d2.F3.Format(time.RFC3339))
 
 		// update data and set it again
 		d2.F2 = 2
+		d2.F3 = time.Now().UTC()
 		tag := fmt.Sprintf("hash-%d", time.Now().UnixNano())
 		if err := db.Set(&state.SetRequest{Key: k, Value: d2, ETag: tag}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
@@ -89,6 +93,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 		assert.NotNil(t, d3)
 		assert.Equal(t, d2.F1, d3.F1)
 		assert.Equal(t, d2.F2, d3.F2)
+		assert.Equal(t, d2.F3.Format(time.RFC3339), d3.F3.Format(time.RFC3339))
 
 		// delete data
 		if err := db.Delete(&state.DeleteRequest{Key: k}); err != nil {
@@ -157,6 +162,8 @@ func TestRethinkDBStateStore(t *testing.T) {
 
 	})
 }
+
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1
 
 func TestRethinkDBStateStoreMulti(t *testing.T) {
 	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
@@ -228,8 +235,9 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 }
 
 type testObj struct {
-	F1 string
-	F2 int
+	F1 string    `json:"f1"`
+	F2 int       `json:"f2"`
+	F3 time.Time `json:"f3"`
 }
 
 func testGetTestObj(t *testing.T, resp *state.GetResponse) *testObj {
@@ -249,5 +257,6 @@ func getTestMetadata() map[string]string {
 	return map[string]string{
 		"address":  "127.0.0.1:28015",
 		"database": "dapr",
+		"archive":  "true",
 	}
 }

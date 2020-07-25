@@ -7,7 +7,7 @@ package rethinkdb
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"strconv"
 	"strings"
 	"time"
@@ -19,15 +19,24 @@ import (
 )
 
 const (
-	stateTableName   = "daprstate"
-	stateTablePKName = "id"
+	stateTableName          = "daprstate"
+	stateTablePKName        = "id"
+	stateArchiveTableName   = "daprstate_archive"
+	stateArchiveTablePKName = "key"
 )
 
 // RethinkDB is a state store implementation for RethinkDB.
 type RethinkDB struct {
-	session *r.Session
-	config  *r.ConnectOpts
-	logger  logger.Logger
+	session     *r.Session
+	config      *StateConfig
+	logger      logger.Logger
+	stopArchive chan bool
+}
+
+// StateConfig represents configuration for RethinkDB
+type StateConfig struct {
+	r.ConnectOpts
+	Archive bool `json:"archive"`
 }
 
 // StateRecord represents a single state record
@@ -39,7 +48,7 @@ type StateRecord struct {
 }
 
 func init() {
-	r.Log.Out = os.Stderr
+	r.Log.Out = ioutil.Discard
 	r.SetTags("rethinkdb", "json")
 }
 
@@ -50,12 +59,12 @@ func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists
 func (s *RethinkDB) Init(metadata state.Metadata) error {
-	cfg, err := metadataToConfig(metadata.Properties)
+	cfg, err := metadataToConfig(metadata.Properties, s.logger)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse metadata properties")
 	}
 
-	ses, err := r.Connect(*cfg)
+	ses, err := r.Connect(cfg.ConnectOpts)
 	if err != nil {
 		return errors.Wrap(err, "error connecting to the database")
 	}
@@ -64,7 +73,7 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	s.config = cfg
 
 	// check if table already exists
-	c, err := r.DB(s.config.Database).TableList().Contains(stateTableName).Run(s.session)
+	c, err := r.DB(s.config.Database).TableList().Run(s.session)
 	if err != nil {
 		return errors.Wrap(err, "error checking for state table existence in DB")
 	}
@@ -73,28 +82,103 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 		return errors.Wrap(err, "invalid database response, cursor required")
 	}
 
-	var exists bool
-	err = c.One(&exists)
+	var list []string
+	err = c.All(&list)
 	if err != nil {
-		return errors.Wrap(err, "invalid database response, data not bool")
+		return errors.Wrap(err, "invalid database responsewhile listing tables")
 	}
 
-	if !exists {
+	if !tableExists(list, stateTableName) {
 		_, err = r.DB(s.config.Database).TableCreate(stateTableName, r.TableCreateOpts{
 			PrimaryKey: stateTablePKName,
 		}).RunWrite(s.session)
 		if err != nil {
-			return errors.Wrap(err, "error ensuring the state table exists in DB")
+			return errors.Wrap(err, "error creating state table in DB")
+		}
+	}
+
+	if s.config.Archive && !tableExists(list, stateArchiveTableName) {
+		// create archive table with autokey to preserve state id
+		_, err = r.DB(s.config.Database).TableCreate(stateArchiveTableName,
+			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session)
+		if err != nil {
+			return errors.Wrap(err, "error creating state archive table in DB")
+		}
+		// index archive table for id and timestamp
+		_, err = r.DB(s.config.Database).Table(stateArchiveTableName).
+			IndexCreateFunc("state_index", func(row r.Term) interface{} {
+				return []interface{}{row.Field("id"), row.Field("timestamp")}
+			}).RunWrite(s.session)
+		if err != nil {
+			return errors.Wrap(err, "error creating state archive index in DB")
 		}
 	}
 
 	return nil
 }
 
+func (s *RethinkDB) checkConnection() error {
+	if s.session == nil {
+		return errors.New("state store has not been initialized")
+	}
+	if !s.session.IsConnected() {
+		if err := s.session.Reconnect(r.CloseOpts{NoReplyWait: true}); err != nil {
+			return errors.Wrap(err, "error reconnecting to the database")
+		}
+	}
+	return nil
+}
+
+func tableExists(arr []string, table string) bool {
+	for _, a := range arr {
+		if a == table {
+			return true
+		}
+	}
+	return false
+}
+
+// SubscribeToStateChanges notifies of state changes
+func (s *RethinkDB) SubscribeToStateChanges(handler func(data []byte) error) error {
+	if err := s.checkConnection(); err != nil {
+		return err
+	}
+	s.logger.Infof("starting change notifier for %s", stateTableName)
+	cursor, err := r.DB(s.config.Database).Table(stateTableName).Changes(r.ChangesOpts{
+		IncludeTypes: true,
+	}).Run(s.session)
+	if err != nil {
+		errors.Wrapf(err, "error connecting to table %s", stateTableName)
+	}
+	defer cursor.Close()
+
+	for {
+		var change interface{}
+		ok := cursor.Next(&change)
+		if !ok {
+			s.logger.Errorf("error detecting change: %v", cursor.Err())
+			continue
+		}
+
+		b, err := json.Marshal(change)
+		if err != nil {
+			s.logger.Errorf("error marshalling change handler: %v", err)
+		}
+
+		if err := handler(b); err != nil {
+			s.logger.Errorf("error invoking change handler: %v", err)
+			continue
+		}
+	}
+}
+
 // Get retrieves a RethinkDB KV item
 func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if req == nil || req.Key == "" {
 		return nil, errors.New("invalid state request, missing key")
+	}
+	if err := s.checkConnection(); err != nil {
+		return nil, err
 	}
 
 	c, err := r.Table(stateTableName).Get(req.Key).Run(s.session)
@@ -136,6 +220,9 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk save operation
 func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
+	if err := s.checkConnection(); err != nil {
+		return err
+	}
 	docs := make([]*StateRecord, len(req))
 	for i, v := range req {
 		docs[i] = &StateRecord{
@@ -146,9 +233,32 @@ func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 		}
 	}
 
-	_, err := r.Table(stateTableName).Insert(docs, r.InsertOpts{Conflict: "replace"}).RunWrite(s.session)
+	resp, err := r.Table(stateTableName).Insert(docs, r.InsertOpts{
+		Conflict:      "replace",
+		ReturnChanges: true,
+	}).RunWrite(s.session)
 	if err != nil {
 		return errors.Wrap(err, "error saving records to the database")
+	}
+
+	if resp.Changes != nil && s.config.Archive {
+		changes := make([]map[string]interface{}, 0)
+		for _, c := range resp.Changes {
+			if c.NewValue != nil {
+				record, ok := c.NewValue.(map[string]interface{})
+				if !ok {
+					s.logger.Infof("invalid state DB change type: %T", c.NewValue)
+					continue
+				}
+				changes = append(changes, record)
+			}
+		}
+		if len(changes) > 0 {
+			_, err = r.Table(stateArchiveTableName).Insert(changes).RunWrite(s.session)
+			if err != nil {
+				return errors.Wrap(err, "error archiving records to the database")
+			}
+		}
 	}
 
 	return nil
@@ -156,6 +266,9 @@ func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 
 // Delete performes a RethinkDB KV delete operation
 func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
+	if err := s.checkConnection(); err != nil {
+		return err
+	}
 	if req == nil || req.Key == "" {
 		return errors.New("invalid request, missing key")
 	}
@@ -164,6 +277,9 @@ func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
+	if err := s.checkConnection(); err != nil {
+		return err
+	}
 	list := make([]string, 0)
 	for _, d := range req {
 		list = append(list, d.Key)
@@ -179,8 +295,8 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 
 // Multi performs multiple operations
 func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
-	upserts := make([]*StateRecord, 0)
-	deletes := make([]string, 0)
+	upserts := make([]state.SetRequest, 0)
+	deletes := make([]state.DeleteRequest, 0)
 
 	for _, v := range reqs {
 		switch v.Operation {
@@ -189,43 +305,33 @@ func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
 			if !ok {
 				return errors.Errorf("invalid request type (expected SetRequest, got %t)", v.Request)
 			}
-			if r.Key == "" || r.Value == nil {
-				return errors.Errorf("invalid request data: %v", r)
-			}
-			d := &StateRecord{ID: r.Key, Ts: time.Now().UTC().UnixNano(), Hash: r.ETag, Data: r.Value}
-			upserts = append(upserts, d)
+			upserts = append(upserts, r)
 		case state.Delete:
 			r, ok := v.Request.(state.DeleteRequest)
 			if !ok {
 				return errors.Errorf("invalid request type (expected DeleteRequest, got %t)", v.Request)
 			}
-			if r.Key == "" {
-				return errors.Errorf("invalid request data: %v", r)
-			}
-			deletes = append(deletes, r.Key)
+			deletes = append(deletes, r)
 		default:
 			return errors.Errorf("invalid operation type: %s", v.Operation)
 		}
 	}
 
 	// note, no transactional support so this is best effort
-	tbl := r.Table(stateTableName)
-	_, err := tbl.Insert(upserts, r.InsertOpts{Conflict: "replace"}).RunWrite(s.session)
-	if err != nil {
+	if err := s.BulkSet(upserts); err != nil {
 		return errors.Wrap(err, "error saving records to the database")
 	}
 
-	_, err = tbl.GetAll(r.Args(deletes)).Delete().Run(s.session)
-	if err != nil {
+	if err := s.BulkDelete(deletes); err != nil {
 		return errors.Wrap(err, "error saving records to the database")
 	}
 
 	return nil
 }
 
-func metadataToConfig(cfg map[string]string) (*r.ConnectOpts, error) {
+func metadataToConfig(cfg map[string]string, logger logger.Logger) (*StateConfig, error) {
 
-	c := r.ConnectOpts{}
+	c := StateConfig{}
 	for k, v := range cfg {
 		switch k {
 		case "address": //string
@@ -288,6 +394,12 @@ func metadataToConfig(cfg map[string]string) (*r.ConnectOpts, error) {
 				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
 			}
 			c.UseOpentracing = b
+		case "archive": //bool
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
+			}
+			c.Archive = b
 		case "node_refresh_interval": //time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
@@ -301,7 +413,7 @@ func metadataToConfig(cfg map[string]string) (*r.ConnectOpts, error) {
 			}
 			c.MaxIdle = i
 		default:
-			return nil, errors.Errorf("unrecognized metadata: %s", k)
+			logger.Infof("unrecognized metadata: %s", k)
 		}
 	}
 

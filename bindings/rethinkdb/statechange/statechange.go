@@ -60,14 +60,13 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 
 // Read triggers the RethinkDB scheduler
 func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
-	b.logger.Info("subscribing to state changes...")
+	b.logger.Infof("subscribing to state changes in %s.%s...", b.config.Database, b.config.Table)
 	cursor, err := r.DB(b.config.Database).Table(b.config.Table).Changes(r.ChangesOpts{
 		IncludeTypes: true,
 	}).Run(b.session)
 	if err != nil {
 		errors.Wrapf(err, "error connecting to table %s", b.config.Table)
 	}
-	defer cursor.Close()
 
 	go func() {
 		for {
@@ -75,7 +74,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 			ok := cursor.Next(&change)
 			if !ok {
 				b.logger.Errorf("error detecting change: %v", cursor.Err())
-				continue
+				break
 			}
 
 			data, err := json.Marshal(change)
@@ -84,15 +83,12 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 			}
 			b.logger.Debugf("event: %s", string(data))
 
-			addr := b.config.Addresses
-			addr = append(addr, b.config.Address)
 			resp := &bindings.ReadResponse{
 				Data: data,
 				Metadata: map[string]string{
-					"provider":  "RethinkDB",
-					"addresses": strings.Join(addr, ","),
-					"database":  b.config.Database,
-					"table":     b.config.Table,
+					"store-address":  b.config.Address,
+					"store-database": b.config.Database,
+					"store-table":    b.config.Table,
 				},
 			}
 
@@ -105,6 +101,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 
 	done := <-b.stopCh
 	b.logger.Errorf("done: %b", done)
+	defer cursor.Close()
 	return nil
 }
 

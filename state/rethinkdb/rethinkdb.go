@@ -60,6 +60,10 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 		return errors.Wrap(err, "unable to parse metadata properties")
 	}
 
+	// in case someone runs Init multiple times
+	if s.session != nil && s.session.IsConnected() {
+		s.session.Close()
+	}
 	ses, err := r.Connect(cfg.ConnectOpts)
 	if err != nil {
 		return errors.Wrap(err, "error connecting to the database")
@@ -77,6 +81,7 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	if c == nil {
 		return errors.Wrap(err, "invalid database response, cursor required")
 	}
+	defer c.Close()
 
 	var list []string
 	err = c.All(&list)
@@ -139,9 +144,6 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if req == nil || req.Key == "" {
 		return nil, errors.New("invalid state request, missing key")
 	}
-	if err := s.checkConnection(); err != nil {
-		return nil, err
-	}
 
 	c, err := r.Table(stateTableName).Get(req.Key).Run(s.session)
 	if err != nil {
@@ -150,6 +152,10 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	if c == nil || c.IsNil() {
 		return &state.GetResponse{}, nil
+	}
+
+	if c != nil {
+		defer c.Close()
 	}
 
 	var doc StateRecord
@@ -182,9 +188,6 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk save operation
 func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
-	if err := s.checkConnection(); err != nil {
-		return err
-	}
 	docs := make([]*StateRecord, len(req))
 	for i, v := range req {
 		docs[i] = &StateRecord{
@@ -233,9 +236,6 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 
 // Delete performes a RethinkDB KV delete operation
 func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
-	if err := s.checkConnection(); err != nil {
-		return err
-	}
 	if req == nil || req.Key == "" {
 		return errors.New("invalid request, missing key")
 	}
@@ -244,19 +244,16 @@ func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
-	if err := s.checkConnection(); err != nil {
-		return err
-	}
 	list := make([]string, 0)
 	for _, d := range req {
 		list = append(list, d.Key)
 	}
 
-	_, err := r.Table(stateTableName).GetAll(r.Args(list)).Delete().Run(s.session)
+	c, err := r.Table(stateTableName).GetAll(r.Args(list)).Delete().Run(s.session)
 	if err != nil {
 		return errors.Wrap(err, "error deleting record from the database")
 	}
-
+	defer c.Close()
 	return nil
 }
 

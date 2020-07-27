@@ -124,45 +124,65 @@ func TestRethinkDBStateStore(t *testing.T) {
 	})
 
 	t.Run("With bulk", func(t *testing.T) {
-		// create data list
-		deleteList := make([]state.DeleteRequest, 0)
-		setList := make([]state.SetRequest, 3)
-		for i := range setList {
-			d := []byte("test")
-			k := fmt.Sprintf("test-id-%d", i)
-			deleteList = append(deleteList, state.DeleteRequest{Key: k})
-			setList[i] = state.SetRequest{Key: k, Value: d}
-		}
-
-		// bulk set it
-		if err := db.BulkSet(setList); err != nil {
-			t.Fatalf("error setting data to db: %v", err)
-		}
-
-		// check for the data
-		for _, v := range deleteList {
-			resp, err := db.Get(&state.GetRequest{Key: v.Key})
-			assert.Nil(t, err)
-			assert.NotNil(t, resp)
-			assert.NotNil(t, resp.Data)
-		}
-
-		// delete data
-		if err := db.BulkDelete(deleteList); err != nil {
-			t.Fatalf("error on data deletion: %v", err)
-		}
-
-		// check for the data NOT being there
-		for _, v := range deleteList {
-			resp, err := db.Get(&state.GetRequest{Key: v.Key})
-			assert.Nil(t, err)
-			assert.NotNil(t, resp)
-			assert.Nil(t, resp.Data)
-		}
+		testBulk(t, db, 0)
 	})
 }
 
-// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1
+func TestRethinkDBStateStoreRongRun(t *testing.T) {
+	if os.Getenv("RUN_LIVE_RETHINKDB_LONG_TEST") != "true" {
+		t.SkipNow() // skip this test until able to read credentials in test infra
+	}
+
+	m := state.Metadata{Properties: getTestMetadata()}
+	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	if err := db.Init(m); err != nil {
+		t.Fatalf("error initializing db: %v", err)
+	}
+
+	for i := 0; i < 1000; i++ {
+		testBulk(t, db, i)
+	}
+}
+
+func testBulk(t *testing.T, db *RethinkDB, i int) {
+	// create data list
+	deleteList := make([]state.DeleteRequest, 0)
+	setList := make([]state.SetRequest, 3)
+	for i := range setList {
+		d := []byte("test")
+		k := fmt.Sprintf("test-id-%d", i)
+		deleteList = append(deleteList, state.DeleteRequest{Key: k})
+		setList[i] = state.SetRequest{Key: k, Value: d}
+	}
+
+	// bulk set it
+	if err := db.BulkSet(setList); err != nil {
+		t.Fatalf("error setting data to db: %v -- run %d", err, i)
+	}
+
+	// check for the data
+	for _, v := range deleteList {
+		resp, err := db.Get(&state.GetRequest{Key: v.Key})
+		assert.Nilf(t, err, " -- run %d", i)
+		assert.NotNil(t, resp)
+		assert.NotNil(t, resp.Data)
+	}
+
+	// delete data
+	if err := db.BulkDelete(deleteList); err != nil {
+		t.Fatalf("error on data deletion: %v -- run %d", err, i)
+	}
+
+	// check for the data NOT being there
+	for _, v := range deleteList {
+		resp, err := db.Get(&state.GetRequest{Key: v.Key})
+		assert.Nilf(t, err, " -- run %d", i)
+		assert.NotNil(t, resp)
+		assert.Nil(t, resp.Data)
+	}
+}
+
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1 -v
 
 func TestRethinkDBStateStoreMulti(t *testing.T) {
 	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
@@ -255,6 +275,9 @@ func getTestMetadata() map[string]string {
 	return map[string]string{
 		"address":  "127.0.0.1:28015",
 		"database": "dapr",
+		"username": "admin",
+		"password": "rethinkdb",
 		"archive":  "true",
+		"max_open": "2",
 	}
 }

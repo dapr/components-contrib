@@ -19,6 +19,8 @@ func getTestMetadata() map[string]string {
 	return map[string]string{
 		"address":  "127.0.0.1:28015",
 		"database": "dapr",
+		"username": "admin",
+		"password": "rethinkdb",
 		"table":    "daprstate",
 	}
 }

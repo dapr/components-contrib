@@ -9,6 +9,7 @@ Package natsstreaming implements NATS Streaming pubsub component
 package natsstreaming
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -183,7 +184,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 	}
 
 	natsMsgHandler := func(natsMsg *stan.Msg) {
-		herr := handler(nil, &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
+		herr := handler(context.Background(), &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 		if herr != nil {
 		} else {
 			// we only send a successful ACK if there is no error from Dapr runtime

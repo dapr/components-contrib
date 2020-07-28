@@ -6,6 +6,7 @@
 package nats
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -75,7 +76,7 @@ func (n *natsPubSub) Publish(req *pubsub.PublishRequest) error {
 
 func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub, err := n.natsConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, func(natsMsg *nats.Msg) {
-		handler(nil, &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
+		handler(context.Background(), &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 	})
 	if err != nil {
 		n.logger.Warnf("nats: error subscribe: %s", err)

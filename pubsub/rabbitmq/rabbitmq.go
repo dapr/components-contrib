@@ -1,6 +1,7 @@
 package rabbitmq
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -133,7 +134,7 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler pubsub.H
 		Topic: topic,
 	}
 
-	err := handler(nil, pubsubMsg)
+	err := handler(context.Background(), pubsubMsg)
 	if err != nil {
 		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}

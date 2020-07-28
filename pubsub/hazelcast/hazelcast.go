@@ -1,6 +1,7 @@
 package hazelcast
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -99,5 +100,5 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		Data:  message,
 		Topic: l.topicName,
 	}
-	return l.pubsubHandler(nil, pubsubMsg)
+	return l.pubsubHandler(context.Background(), pubsubMsg)
 }

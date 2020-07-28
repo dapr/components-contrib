@@ -6,6 +6,7 @@
 package mqtt
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -134,7 +135,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 		req.Topic,
 		m.metadata.qos,
 		func(client mqtt.Client, mqttMsg mqtt.Message) {
-			handler(nil, &pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
+			handler(context.Background(), &pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
 		})
 	if err := token.Error(); err != nil {
 		return fmt.Errorf("mqtt error from subscribe: %v", err)

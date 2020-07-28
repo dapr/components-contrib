@@ -110,16 +110,15 @@ func (s *subscription) getHandlerFunc(handler pubsub.Handler, handlerTimeoutInSe
 			Topic: s.topic,
 		}
 
-		// TODO(#1721): Context should be propogated to the app handler call for timeout and cancellation.
-		//
-		// handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
-		// defer handleCancel()
+		handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
+		defer handleCancel()
 		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
-		err := handler(nil, msg)
+		err := handler(handleCtx, msg)
 
 		// The context isn't handled downstream so we time out these
 		// operations here to avoid getting stuck waiting for a message
 		// to finalize (abandon/complete) if the connection has dropped.
+		// Warning, this can cause goroutine to be leaked.
 		errs := make(chan error, 1)
 		if err != nil {
 			s.logger.Warnf("Error in app's handler: %+v", err)

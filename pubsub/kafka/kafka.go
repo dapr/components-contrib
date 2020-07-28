@@ -51,7 +51,7 @@ type consumer struct {
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
-			err := consumer.callback(nil, &pubsub.NewMessage{
+			err := consumer.callback(context.Background(), &pubsub.NewMessage{
 				Topic: claim.Topic(),
 				Data:  message.Value,
 			})

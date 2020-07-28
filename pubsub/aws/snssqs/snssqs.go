@@ -1,6 +1,7 @@
 package snssqs
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -401,7 +402,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 
 	topic := parseTopicArn(messageBody.TopicArn)
 	topic = s.topicHash[topic]
-	err = handler(nil, &pubsub.NewMessage{
+	err = handler(context.Background(), &pubsub.NewMessage{
 		Data:  []byte(messageBody.Message),
 		Topic: topic,
 	})

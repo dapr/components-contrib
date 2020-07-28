@@ -116,7 +116,7 @@ func (p *Pulsar) ListenMessage(msgs pulsar.Consumer, topic string, handler pubsu
 }
 
 func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler pubsub.Handler) {
-	err := handler(nil, &pubsub.NewMessage{
+	err := handler(context.Background(), &pubsub.NewMessage{
 		Data:  m.Payload(),
 		Topic: topic,
 	})

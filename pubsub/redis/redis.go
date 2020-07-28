@@ -6,6 +6,7 @@
 package redis
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -146,7 +147,7 @@ func (r *redisStreams) processStreams(consumerID string, streams []redis.XStream
 					msg.Data = []byte(data.(string))
 				}
 
-				err := handler(nil, &msg)
+				err := handler(context.Background(), &msg)
 				if err == nil {
 					r.client.XAck(stream, consumerID, message.ID).Result()
 				}

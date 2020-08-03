@@ -25,21 +25,19 @@ const (
 	stateArchiveTablePKName = "key"
 )
 
-// RethinkDB is a state store implementation for RethinkDB.
+// RethinkDB is a state store implementation with transactional support for RethinkDB.
 type RethinkDB struct {
 	session *r.Session
-	config  *StateConfig
+	config  *stateConfig
 	logger  logger.Logger
 }
 
-// StateConfig represents configuration for RethinkDB
-type StateConfig struct {
+type stateConfig struct {
 	r.ConnectOpts
 	Archive bool `json:"archive"`
 }
 
-// StateRecord represents a single state record
-type StateRecord struct {
+type stateRecord struct {
 	ID   string      `json:"id" rethinkdb:"id"`
 	TS   int64       `json:"timestamp" rethinkdb:"timestamp"`
 	Hash string      `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
@@ -118,18 +116,6 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (s *RethinkDB) checkConnection() error {
-	if s.session == nil {
-		return errors.New("state store has not been initialized")
-	}
-	if !s.session.IsConnected() {
-		if err := s.session.Reconnect(r.CloseOpts{NoReplyWait: true}); err != nil {
-			return errors.Wrap(err, "error reconnecting to the database")
-		}
-	}
-	return nil
-}
-
 func tableExists(arr []string, table string) bool {
 	for _, a := range arr {
 		if a == table {
@@ -158,7 +144,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		defer c.Close()
 	}
 
-	var doc StateRecord
+	var doc stateRecord
 	err = c.One(&doc)
 	if err != nil {
 		return nil, errors.Wrap(err, "error parsing database content")
@@ -188,9 +174,9 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk save operation
 func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
-	docs := make([]*StateRecord, len(req))
+	docs := make([]*stateRecord, len(req))
 	for i, v := range req {
-		docs[i] = &StateRecord{
+		docs[i] = &stateRecord{
 			ID:   v.Key,
 			TS:   time.Now().UTC().UnixNano(),
 			Hash: v.ETag,
@@ -293,8 +279,8 @@ func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
 	return nil
 }
 
-func metadataToConfig(cfg map[string]string, logger logger.Logger) (*StateConfig, error) {
-	c := StateConfig{}
+func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig, error) {
+	c := stateConfig{}
 	for k, v := range cfg {
 		switch k {
 		case "address": //string

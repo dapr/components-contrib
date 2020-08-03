@@ -40,7 +40,7 @@ go test github.com/dapr/components-contrib/bindings/rethinkdb/statechange \
 
 func TestBinding(t *testing.T) {
 	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
-		t.SkipNow() // skip this test until able to read credentials in test infra
+		t.SkipNow()
 	}
 	testDuration := 10 * time.Second
 	testDurationStr := os.Getenv("RETHINKDB_TEST_DURATION")

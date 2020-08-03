@@ -50,8 +50,8 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 
 // go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestRethinkDBStateStore$ -v
 func TestRethinkDBStateStore(t *testing.T) {
-	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
-		t.SkipNow() // skip this test until able to read credentials in test infra
+	if !isLiveTest() {
+		t.SkipNow()
 	}
 
 	m := state.Metadata{Properties: getTestMetadata()}
@@ -129,8 +129,8 @@ func TestRethinkDBStateStore(t *testing.T) {
 }
 
 func TestRethinkDBStateStoreRongRun(t *testing.T) {
-	if os.Getenv("RUN_LIVE_RETHINKDB_LONG_TEST") != "true" {
-		t.SkipNow() // skip this test until able to read credentials in test infra
+	if !isLiveTest() {
+		t.SkipNow()
 	}
 
 	m := state.Metadata{Properties: getTestMetadata()}
@@ -183,10 +183,9 @@ func testBulk(t *testing.T, db *RethinkDB, i int) {
 }
 
 // go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1 -v
-
 func TestRethinkDBStateStoreMulti(t *testing.T) {
-	if os.Getenv("RUN_LIVE_RETHINKDB_TEST") != "true" {
-		t.SkipNow() // skip this test until able to read credentials in test infra
+	if !isLiveTest() {
+		t.SkipNow()
 	}
 
 	m := state.Metadata{Properties: getTestMetadata()}
@@ -271,13 +270,16 @@ func testGetTestObj(t *testing.T, resp *state.GetResponse) *testObj {
 	return &d
 }
 
+func isLiveTest() bool {
+	return os.Getenv("RUN_LIVE_RETHINKDB_TEST") == "true"
+}
+
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"address":  "127.0.0.1:28015",
+		"address":  "127.0.0.1:28015", // default
 		"database": "dapr",
-		"username": "admin",
-		"password": "rethinkdb",
+		"username": "admin",     // default
+		"password": "rethinkdb", // default
 		"archive":  "true",
-		"max_open": "2",
 	}
 }

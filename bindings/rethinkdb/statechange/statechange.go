@@ -17,7 +17,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Binding represents RethinkDB change change state binding
+// Binding represents RethinkDB change change state input binding which fires handler with
+// both the previous and current state store content each time there is a change.
 type Binding struct {
 	logger  logger.Logger
 	session *r.Session

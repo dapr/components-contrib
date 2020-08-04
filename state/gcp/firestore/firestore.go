@@ -122,7 +122,7 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 
 // Set saves state into Firestore with retry
 func (f *Firestore) Set(req *state.SetRequest) error {
-	return state.SetWithRetries(f.setValue, req)
+	return state.SetWithOptions(f.setValue, req)
 }
 
 // BulkSet performs a bulk set operation
@@ -150,7 +150,7 @@ func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
 
 // Delete performs a delete operation
 func (f *Firestore) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithRetries(f.deleteValue, req)
+	return state.DeleteWithOptions(f.deleteValue, req)
 }
 
 // BulkDelete performs a bulk delete operation

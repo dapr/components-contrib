@@ -160,7 +160,7 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	return state.DeleteWithRetries(func(req *state.DeleteRequest) error {
+	return state.DeleteWithOptions(func(req *state.DeleteRequest) error {
 		err := s.conn.Delete(r.Path, r.Version)
 		if errors.Is(err, zk.ErrNoNode) {
 			return nil
@@ -203,7 +203,7 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
-	return state.SetWithRetries(func(req *state.SetRequest) error {
+	return state.SetWithOptions(func(req *state.SetRequest) error {
 		_, err = s.conn.Set(r.Path, r.Data, r.Version)
 
 		if errors.Is(err, zk.ErrNoNode) {

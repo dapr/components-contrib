@@ -191,7 +191,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions()
 	opts.SetClientID(m.metadata.clientID)
 	opts.SetCleanSession(m.metadata.cleanSession)
-	opts.AddBroker(uri.Host)
+	opts.AddBroker(uri.Scheme + "://" + uri.Host)
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)

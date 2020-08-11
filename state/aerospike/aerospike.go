@@ -90,7 +90,7 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 
 // Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings
 func (aspike *Aerospike) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 // Delete performs a delete operation
 func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

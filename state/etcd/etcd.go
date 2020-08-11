@@ -148,7 +148,7 @@ func (r *ETCD) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Delete performs a delete operation
 func (r *ETCD) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (r *ETCD) BulkDelete(req []state.DeleteRequest) error {
 
 // Set saves state into ETCD
 func (r *ETCD) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

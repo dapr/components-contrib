@@ -123,7 +123,7 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 
 //Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
 func (cbs *Couchbase) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Delete performs a delete operation
 func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

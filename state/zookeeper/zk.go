@@ -260,7 +260,7 @@ func (s *StateStore) newCreateRequest(req *zk.SetDataRequest) *zk.CreateRequest 
 }
 
 func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteRequest, error) {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteReque
 }
 
 func (s *StateStore) newSetDataRequest(req *state.SetRequest) (*zk.SetDataRequest, error) {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return nil, err
 	}

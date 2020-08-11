@@ -93,7 +93,7 @@ func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (f *Firestore) setValue(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

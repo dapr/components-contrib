@@ -84,7 +84,7 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in PostgreSQL")
 
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

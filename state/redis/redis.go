@@ -179,7 +179,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 
 // Delete performs a delete operation
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (r *StateStore) setValue(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

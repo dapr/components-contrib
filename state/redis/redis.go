@@ -179,11 +179,11 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 
 // Delete performs a delete operation
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
-	return state.DeleteWithRetries(r.deleteValue, req)
+	return state.DeleteWithOptions(r.deleteValue, req)
 }
 
 // BulkDelete performs a bulk delete operation
@@ -239,7 +239,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (r *StateStore) setValue(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 // Set saves state into redis
 func (r *StateStore) Set(req *state.SetRequest) error {
-	return state.SetWithRetries(r.setValue, req)
+	return state.SetWithOptions(r.setValue, req)
 }
 
 // BulkSet performs a bulks save operation

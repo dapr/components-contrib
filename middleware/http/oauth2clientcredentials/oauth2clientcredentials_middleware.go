@@ -45,15 +45,19 @@ type TokenProviderInterface interface {
 
 // NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware
 func NewOAuth2ClientCredentialsMiddleware() *Middleware {
-	return &Middleware{
+	m := &Middleware{
 		tokenCache: cache.New(1*time.Hour, 10*time.Minute),
 	}
+	m.SetTokenProvider(m)
+	return m
 }
 
 // Middleware is an oAuth2 authentication middleware
 type Middleware struct {
 	// Token Cache
 	tokenCache *cache.Cache
+	// Token provider
+	tokenProvider TokenProviderInterface
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware
@@ -66,27 +70,27 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-			var endpointParams, err = url.ParseQuery(meta.EndpointParamsQuery)
-			if err != nil {
-				log.Errorf("Error parsing endpoint parameters, %s", err)
-				endpointParams, _ = url.ParseQuery("")
-			}
-			conf := &clientcredentials.Config{
-				ClientID:       meta.ClientID,
-				ClientSecret:   meta.ClientSecret,
-				Scopes:         strings.Split(meta.Scopes, ","),
-				TokenURL:       meta.TokenURL,
-				EndpointParams: endpointParams,
-				AuthStyle:      oauth2.AuthStyle(meta.AuthStyle),
-			}
 
 			var cacheKey = m.getCacheKey(meta)
-
+			var headerValue string
 			cachedToken, found := m.tokenCache.Get(cacheKey)
 			if !found {
 				log.Debugf("Cached token not found, try get one")
-				tokenProvider := TokenProviderInterface(m)
-				token, tokenError := tokenProvider.GetToken(conf)
+				var endpointParams, err = url.ParseQuery(meta.EndpointParamsQuery)
+				if err != nil {
+					log.Errorf("Error parsing endpoint parameters, %s", err)
+					endpointParams, _ = url.ParseQuery("")
+				}
+				conf := &clientcredentials.Config{
+					ClientID:       meta.ClientID,
+					ClientSecret:   meta.ClientSecret,
+					Scopes:         strings.Split(meta.Scopes, ","),
+					TokenURL:       meta.TokenURL,
+					EndpointParams: endpointParams,
+					AuthStyle:      oauth2.AuthStyle(meta.AuthStyle),
+				}
+
+				token, tokenError := m.tokenProvider.GetToken(conf)
 				if tokenError != nil {
 					log.Errorf("Error acquiring token, %s", tokenError)
 					return
@@ -99,13 +103,14 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 					return
 				}
 
-				m.tokenCache.Set(cacheKey, token.AccessToken, tokenExpirationDuration)
-				ctx.Request.Header.Add(meta.AuthHeaderName, token.AccessToken)
+				headerValue = token.Type() + " " + token.AccessToken
+				m.tokenCache.Set(cacheKey, headerValue, tokenExpirationDuration)
 			} else {
 				log.Debugf("Cached token found for key %s", cacheKey)
-				ctx.Request.Header.Add(meta.AuthHeaderName, cachedToken.(string))
+				headerValue = cachedToken.(string)
 			}
 
+			ctx.Request.Header.Add(meta.AuthHeaderName, headerValue)
 			h(ctx)
 		}
 	}, nil
@@ -143,6 +148,11 @@ func (m *Middleware) getCacheKey(meta *oAuth2ClientCredentialsMiddlewareMetadata
 	// Return the hashed key as string
 	hashedKey.Write([]byte(key))
 	return fmt.Sprintf("%x", hashedKey.Sum(nil))
+}
+
+// SetTokenProvider will enable to change the tokenProvider used after instanciation (needed for mocking)
+func (m *Middleware) SetTokenProvider(tokenProvider TokenProviderInterface) {
+	m.tokenProvider = tokenProvider
 }
 
 // GetToken returns a token from the current OAuth2 ClientCredentials Configuration

@@ -186,7 +186,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 }
 
 func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 	var setRequests []state.SetRequest
 	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
@@ -194,13 +194,15 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		multiRequest = append(multiRequest, state.TransactionalRequest{
+		operations = append(operations, state.TransactionalStateOperation{
 			Operation: state.Upsert,
 			Request:   req,
 		})
 	}
 
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.Nil(t, err)
 
 	for _, set := range setRequests {
@@ -210,7 +212,7 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 }
 
 func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 	var deleteRequests []state.DeleteRequest
 	for i := 0; i < 3; i++ {
 		req := state.DeleteRequest{Key: randomKey()}
@@ -222,13 +224,15 @@ func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request
-		multiRequest = append(multiRequest, state.TransactionalRequest{
+		operations = append(operations, state.TransactionalStateOperation{
 			Operation: state.Delete,
 			Request:   req,
 		})
 	}
 
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.Nil(t, err)
 
 	for _, delete := range deleteRequests {
@@ -237,7 +241,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 }
 
 func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 	var deleteRequests []state.DeleteRequest
 	for i := 0; i < 3; i++ {
 		req := state.DeleteRequest{Key: randomKey()}
@@ -249,7 +253,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request
-		multiRequest = append(multiRequest, state.TransactionalRequest{
+		operations = append(operations, state.TransactionalStateOperation{
 			Operation: state.Delete,
 			Request:   req,
 		})
@@ -263,13 +267,15 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		multiRequest = append(multiRequest, state.TransactionalRequest{
+		operations = append(operations, state.TransactionalStateOperation{
 			Operation: state.Upsert,
 			Request:   req,
 		})
 	}
 
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.Nil(t, err)
 
 	for _, delete := range deleteRequests {

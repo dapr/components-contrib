@@ -244,10 +244,10 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 }
 
 // Multi performs multiple updates on a Sql server store
-func (s *SQLServer) Multi(reqs []state.TransactionalRequest) error {
+func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
-	for _, req := range reqs {
+	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
 			setReq, ok := req.Request.(state.SetRequest)

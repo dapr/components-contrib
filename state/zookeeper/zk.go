@@ -160,7 +160,7 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	return state.DeleteWithRetries(func(req *state.DeleteRequest) error {
+	return state.DeleteWithOptions(func(req *state.DeleteRequest) error {
 		err := s.conn.Delete(r.Path, r.Version)
 		if errors.Is(err, zk.ErrNoNode) {
 			return nil
@@ -203,7 +203,7 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
-	return state.SetWithRetries(func(req *state.SetRequest) error {
+	return state.SetWithOptions(func(req *state.SetRequest) error {
 		_, err = s.conn.Set(r.Path, r.Data, r.Version)
 
 		if errors.Is(err, zk.ErrNoNode) {
@@ -260,7 +260,7 @@ func (s *StateStore) newCreateRequest(req *zk.SetDataRequest) *zk.CreateRequest 
 }
 
 func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteRequest, error) {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteReque
 }
 
 func (s *StateStore) newSetDataRequest(req *state.SetRequest) (*zk.SetDataRequest, error) {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return nil, err
 	}

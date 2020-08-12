@@ -189,7 +189,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves a CosmosDB item
 func (c *StateStore) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func (c *StateStore) BulkSet(req []state.SetRequest) error {
 
 // Delete performs a delete operation
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

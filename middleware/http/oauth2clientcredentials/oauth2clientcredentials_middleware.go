@@ -29,7 +29,7 @@ type oAuth2ClientCredentialsMiddlewareMetadata struct {
 	ClientSecret        string `json:"clientSecret"`
 	Scopes              string `json:"scopes"`
 	TokenURL            string `json:"tokenURL"`
-	AuthHeaderName      string `json:"authHeaderName"`
+	HeaderName          string `json:"headerName"`
 	EndpointParamsQuery string `json:"endpointParamsQuery,omitempty"`
 	AuthStyleString     string `json:"authStyle"`
 	AuthStyle           int    `json:"-"`
@@ -112,7 +112,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				headerValue = cachedToken.(string)
 			}
 
-			ctx.Request.Header.Add(meta.AuthHeaderName, headerValue)
+			ctx.Request.Header.Add(meta.HeaderName, headerValue)
 			h(ctx)
 		}
 	}, nil
@@ -132,7 +132,7 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Cli
 	// Do input validation checks
 	errorString := ""
 	// Check if values are present
-	m.checkMetadataValueExists(&errorString, &middlewareMetadata.AuthHeaderName, "authHeaderName")
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.HeaderName, "headerName")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientID, "clientID")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientSecret, "clientSecret")
 	m.checkMetadataValueExists(&errorString, &middlewareMetadata.Scopes, "scopes")

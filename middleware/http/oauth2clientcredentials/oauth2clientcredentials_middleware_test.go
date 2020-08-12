@@ -31,16 +31,16 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	metadata.Properties = map[string]string{}
 
 	_, err := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
-	assert.EqualError(t, err, "Parameter 'authHeaderName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. Parameter 'authStyle' needs to be set. Parameter 'authStyle' can only have the values 0,1,2. Received: ''. ")
+	assert.EqualError(t, err, "Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. Parameter 'authStyle' needs to be set. Parameter 'authStyle' can only have the values 0,1,2. Received: ''. ")
 
 	// Invalid authStyle (non int)
 	metadata.Properties = map[string]string{
-		"clientID":       "testId",
-		"clientSecret":   "testSecret",
-		"scopes":         "ascope",
-		"tokenURL":       "https://localhost:9999",
-		"authHeaderName": "someHeader",
-		"authStyle":      "asdf", // This is the value to test
+		"clientID":     "testId",
+		"clientSecret": "testSecret",
+		"scopes":       "ascope",
+		"tokenURL":     "https://localhost:9999",
+		"headerName":   "someHeader",
+		"authStyle":    "asdf", // This is the value to test
 	}
 	_, err2 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
 	assert.EqualError(t, err2, "Parameter 'authStyle' can only have the values 0,1,2. Received: 'asdf'. ")
@@ -83,12 +83,12 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	// Specify components metadata
 	var metadata middleware.Metadata
 	metadata.Properties = map[string]string{
-		"clientID":       "testId",
-		"clientSecret":   "testSecret",
-		"scopes":         "ascope",
-		"tokenURL":       "https://localhost:9999",
-		"authHeaderName": "someHeader",
-		"authStyle":      "1",
+		"clientID":     "testId",
+		"clientSecret": "testSecret",
+		"scopes":       "ascope",
+		"tokenURL":     "https://localhost:9999",
+		"headerName":   "someHeader",
+		"authStyle":    "1",
 	}
 
 	// Initialize middleware component and inject mocked TokenProvider
@@ -140,12 +140,12 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	// Specify components metadata
 	var metadata middleware.Metadata
 	metadata.Properties = map[string]string{
-		"clientID":       "testId",
-		"clientSecret":   "testSecret",
-		"scopes":         "ascope",
-		"tokenURL":       "https://localhost:9999",
-		"authHeaderName": "someHeader",
-		"authStyle":      "1",
+		"clientID":     "testId",
+		"clientSecret": "testSecret",
+		"scopes":       "ascope",
+		"tokenURL":     "https://localhost:9999",
+		"headerName":   "someHeader",
+		"authStyle":    "1",
 	}
 
 	// Initialize middleware component and inject mocked TokenProvider

@@ -8,6 +8,7 @@ package mqtt
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -51,6 +52,12 @@ type mqttPubSub struct {
 // NewMQTTPubSub returns a new mqttPubSub instance.
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{logger: logger}
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+	return block != nil
 }
 
 func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
@@ -97,12 +104,21 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 	}
 
 	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid ca certificate", errorMsgPrefix)
+		}
 		m.tlsCfg.caCert = val
 	}
 	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid client certificate", errorMsgPrefix)
+		}
 		m.tlsCfg.clientCert = val
 	}
 	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid client certificate key", errorMsgPrefix)
+		}
 		m.tlsCfg.clientKey = val
 	}
 
@@ -171,17 +187,21 @@ func (m *mqttPubSub) connect(uri *url.URL) (mqtt.Client, error) {
 
 func (m *mqttPubSub) NewTLSConfig() *tls.Config {
 	tlsConfig := new(tls.Config)
-	tlsConfig.RootCAs = x509.NewCertPool()
 
-	cert, err := tls.X509KeyPair([]byte(m.metadata.clientCert), []byte(m.metadata.clientKey))
-	if err != nil {
-		m.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
-		return tlsConfig
+	if m.metadata.clientCert != "" && m.metadata.clientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(m.metadata.clientCert), []byte(m.metadata.clientKey))
+		if err != nil {
+			m.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
+			return tlsConfig
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
-	tlsConfig.Certificates = []tls.Certificate{cert}
 
-	if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.caCert)); !ok {
-		m.logger.Warnf("unable to load ca certificate. Err: %v", err)
+	if m.metadata.caCert != "" {
+		tlsConfig.RootCAs = x509.NewCertPool()
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.caCert)); !ok {
+			m.logger.Warnf("unable to load ca certificate.")
+		}
 	}
 
 	return tlsConfig

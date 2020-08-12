@@ -30,9 +30,9 @@ type oAuth2ClientCredentialsMiddlewareMetadata struct {
 	Scopes              string `json:"scopes"`
 	TokenURL            string `json:"tokenURL"`
 	AuthHeaderName      string `json:"authHeaderName"`
-	EndpointParamsQuery string `json:"endpointParamsQuery"`
+	EndpointParamsQuery string `json:"endpointParamsQuery,omitempty"`
 	AuthStyleString     string `json:"authStyle"`
-	AuthStyle           int
+	AuthStyle           int    `json:"-"`
 }
 
 // dapr logger
@@ -48,15 +48,14 @@ func NewOAuth2ClientCredentialsMiddleware() *Middleware {
 	m := &Middleware{
 		tokenCache: cache.New(1*time.Hour, 10*time.Minute),
 	}
+	// Default: set Token Provider to real implementation (we will overwrite it for unit testing)
 	m.SetTokenProvider(m)
 	return m
 }
 
 // Middleware is an oAuth2 authentication middleware
 type Middleware struct {
-	// Token Cache
-	tokenCache *cache.Cache
-	// Token provider
+	tokenCache    *cache.Cache
 	tokenProvider TokenProviderInterface
 }
 
@@ -70,17 +69,20 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-
-			var cacheKey = m.getCacheKey(meta)
 			var headerValue string
+			// Check if valid Token is in the cache
+			var cacheKey = m.getCacheKey(meta)
 			cachedToken, found := m.tokenCache.Get(cacheKey)
+
 			if !found {
 				log.Debugf("Cached token not found, try get one")
+
 				var endpointParams, err = url.ParseQuery(meta.EndpointParamsQuery)
 				if err != nil {
 					log.Errorf("Error parsing endpoint parameters, %s", err)
 					endpointParams, _ = url.ParseQuery("")
 				}
+
 				conf := &clientcredentials.Config{
 					ClientID:       meta.ClientID,
 					ClientSecret:   meta.ClientSecret,
@@ -127,25 +129,44 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Cli
 		return nil, err
 	}
 
+	// Do input validation checks
+	errorString := ""
+	// Check if values are present
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.AuthHeaderName, "authHeaderName")
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientID, "clientID")
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.ClientSecret, "clientSecret")
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.Scopes, "scopes")
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.TokenURL, "tokenURL")
+	m.checkMetadataValueExists(&errorString, &middlewareMetadata.AuthStyleString, "authStyle")
+
 	// Converting AuthStyle to int and do a value check
 	authStyle, err := strconv.Atoi(middlewareMetadata.AuthStyleString)
 	if err != nil {
-		return nil, fmt.Errorf("AuthStyle can only have the values 0,1,2. Received: '%s'", middlewareMetadata.AuthStyleString)
+		errorString += fmt.Sprintf("Parameter 'authStyle' can only have the values 0,1,2. Received: '%s'. ", middlewareMetadata.AuthStyleString)
+	} else if authStyle < 0 || authStyle > 2 {
+		errorString += fmt.Sprintf("Parameter 'authStyle' can only have the values 0,1,2. Received: '%d'. ", authStyle)
+	} else {
+		middlewareMetadata.AuthStyle = authStyle
 	}
-	if authStyle < 0 || authStyle > 2 {
-		return nil, fmt.Errorf("AuthStyle can only have the values 0,1,2. Received: '%d'", authStyle)
+
+	// Return errors if any found
+	if errorString != "" {
+		return nil, fmt.Errorf("%s", errorString)
 	}
-	middlewareMetadata.AuthStyle = authStyle
 
 	return &middlewareMetadata, nil
 }
 
+func (m *Middleware) checkMetadataValueExists(errorString *string, metadataValue *string, metadataName string) {
+	if *metadataValue == "" {
+		*errorString += fmt.Sprintf("Parameter '%s' needs to be set. ", metadataName)
+	}
+}
+
 func (m *Middleware) getCacheKey(meta *oAuth2ClientCredentialsMiddlewareMetadata) string {
-	// we will hash the key components
+	// we will hash the key components ClientID + Scopes is a unique composite key/identifier for a token
 	hashedKey := sha256.New()
-	// ClientID + Scopes is a unique composite key/identifier for a token
 	key := strings.Join([]string{meta.ClientID, meta.Scopes}, "")
-	// Return the hashed key as string
 	hashedKey.Write([]byte(key))
 	return fmt.Sprintf("%x", hashedKey.Sum(nil))
 }

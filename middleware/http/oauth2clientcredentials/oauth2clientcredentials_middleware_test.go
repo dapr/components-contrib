@@ -19,14 +19,94 @@ import (
 	oauth2 "golang.org/x/oauth2"
 )
 
-func mockedRequestHandler(ctx *fh.RequestCtx) {
-	// mockedRequestContext = *ctx
+func mockedRequestHandler(ctx *fh.RequestCtx) {}
+
+// TestOAuth2ClientCredentialsMetadata will check
+// - if the metadata checks are correct in place
+func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
+	// Specify components metadata
+	var metadata middleware.Metadata
+
+	// Missing all
+	metadata.Properties = map[string]string{}
+
+	_, err := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	assert.EqualError(t, err, "Parameter 'authHeaderName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. Parameter 'authStyle' needs to be set. Parameter 'authStyle' can only have the values 0,1,2. Received: ''. ")
+
+	// Invalid authStyle (non int)
+	metadata.Properties = map[string]string{
+		"clientID":       "testId",
+		"clientSecret":   "testSecret",
+		"scopes":         "ascope",
+		"tokenURL":       "https://localhost:9999",
+		"authHeaderName": "someHeader",
+		"authStyle":      "asdf", // This is the value to test
+	}
+	_, err2 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	assert.EqualError(t, err2, "Parameter 'authStyle' can only have the values 0,1,2. Received: 'asdf'. ")
+
+	// Invalid authStyle (int > 2)
+	metadata.Properties["authStyle"] = "3"
+	_, err3 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	assert.EqualError(t, err3, "Parameter 'authStyle' can only have the values 0,1,2. Received: '3'. ")
+
+	// Invalid authStyle (int < 0)
+	metadata.Properties["authStyle"] = "-1"
+	_, err4 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	assert.EqualError(t, err4, "Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
+
 }
 
 // TestOAuth2ClientCredentialsToken will check
-// 1. If the Token was added to the RequestHeader value specified
-// 2. If the Cache is working
+// - if the Token was added to the RequestHeader value specified
 func TestOAuth2ClientCredentialsToken(t *testing.T) {
+	// Setup
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	// Mock mockTokenProvider
+	mockTokenProvider := mock.NewMockTokenProviderInterface(mockCtrl)
+
+	gomock.InOrder(
+		// First call returning abc and Bearer, expires within 1 second
+		mockTokenProvider.
+			EXPECT().
+			GetToken(gomock.Any()).
+			Return(&oauth2.Token{
+				AccessToken: "abcd",
+				TokenType:   "Bearer",
+				Expiry:      time.Now().In(time.UTC).Add(1 * time.Second),
+			}, nil).
+			Times(1),
+	)
+
+	// Specify components metadata
+	var metadata middleware.Metadata
+	metadata.Properties = map[string]string{
+		"clientID":       "testId",
+		"clientSecret":   "testSecret",
+		"scopes":         "ascope",
+		"tokenURL":       "https://localhost:9999",
+		"authHeaderName": "someHeader",
+		"authStyle":      "1",
+	}
+
+	// Initialize middleware component and inject mocked TokenProvider
+	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware()
+	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
+	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
+	require.NoError(t, err)
+
+	// First handler call should return abc Token
+	var requestContext1 fh.RequestCtx
+	handler(mockedRequestHandler)(&requestContext1)
+	// Assertion
+	assert.Equal(t, "Bearer abcd", string(requestContext1.Request.Header.Peek("someHeader")))
+}
+
+// TestOAuth2ClientCredentialsCache will check
+// - if the Cache is working
+func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	// Setup
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -62,6 +142,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	metadata.Properties = map[string]string{
 		"clientID":       "testId",
 		"clientSecret":   "testSecret",
+		"scopes":         "ascope",
 		"tokenURL":       "https://localhost:9999",
 		"authHeaderName": "someHeader",
 		"authStyle":      "1",

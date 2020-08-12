@@ -293,9 +293,9 @@ func (r *StateStore) BulkSet(req []state.SetRequest) error {
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
-func (r *StateStore) Multi(operations []state.TransactionalRequest) error {
+func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	pipe := r.client.TxPipeline()
-	for _, o := range operations {
+	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			b, _ := r.json.Marshal(req.Value)

@@ -14,7 +14,7 @@ import (
 )
 
 func TestCreateCloudEventsEnvelope(t *testing.T) {
-	envelope := NewCloudEventsEnvelope("a", "source", "eventType", "", "", nil)
+	envelope := NewCloudEventsEnvelope("a", "source", "eventType", "", "", "", nil)
 	assert.NotNil(t, envelope)
 }
 
@@ -32,11 +32,12 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 			"datacontenttype" : "text/xml",
 			"data" : "<much wow=\"xml\"/>"
 		}`
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", []byte(str))
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", []byte(str))
 		assert.Equal(t, "A234-1234-1234", envelope.ID)
 		assert.Equal(t, "text/xml", envelope.DataContentType)
 		assert.Equal(t, "1.0", envelope.SpecVersion)
 		assert.Equal(t, "routed.topic", envelope.Topic)
+		assert.Equal(t, "mypubsub", envelope.PubsubName)
 	})
 }
 
@@ -50,7 +51,7 @@ func TestCreateFromJSON(t *testing.T) {
 			1,
 		}
 		data, _ := json.Marshal(obj1)
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", data)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", data)
 		t.Logf("data: %v", envelope.Data)
 		assert.Equal(t, "application/json", envelope.DataContentType)
 
@@ -67,31 +68,31 @@ func TestCreateFromJSON(t *testing.T) {
 
 func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	t.Run("default event type", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", nil)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", nil)
 		assert.Equal(t, DefaultCloudEventType, envelope.Type)
 	})
 
 	t.Run("non-default event type", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "e1", "", "", nil)
+		envelope := NewCloudEventsEnvelope("a", "source", "e1", "", "", "mypubsub", nil)
 		assert.Equal(t, "e1", envelope.Type)
 	})
 
 	t.Run("spec version", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", nil)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", nil)
 		assert.Equal(t, CloudEventsSpecVersion, envelope.SpecVersion)
 	})
 
 	t.Run("quoted data", func(t *testing.T) {
 		list := []string{"v1", "v2", "v3"}
 		data := strings.Join(list, ",")
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", []byte(data))
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", []byte(data))
 		t.Logf("data: %v", envelope.Data)
 		assert.Equal(t, "text/plain", envelope.DataContentType)
 		assert.Equal(t, data, envelope.Data.(string))
 	})
 
 	t.Run("string data content type", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", []byte("data"))
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", []byte("data"))
 		assert.Equal(t, "text/plain", envelope.DataContentType)
 	})
 }

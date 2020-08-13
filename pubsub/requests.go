@@ -8,7 +8,7 @@ package pubsub
 // PublishRequest is the request to publish a message
 type PublishRequest struct {
 	Data       []byte `json:"data"`
-	PubsubName string `json:"pubsubname`
+	PubsubName string `json:"pubsubname"`
 	Topic      string `json:"topic"`
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	mock "github.com/dapr/components-contrib/middleware/http/oauth2clientcredentials/mocks"
+	"github.com/dapr/dapr/pkg/logger"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/golang/mock/gomock"
@@ -30,7 +31,8 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	// Missing all
 	metadata.Properties = map[string]string{}
 
-	_, err := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
 	assert.EqualError(t, err, "Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. Parameter 'authStyle' needs to be set. Parameter 'authStyle' can only have the values 0,1,2. Received: ''. ")
 
 	// Invalid authStyle (non int)
@@ -42,17 +44,17 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 		"headerName":   "someHeader",
 		"authStyle":    "asdf", // This is the value to test
 	}
-	_, err2 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
 	assert.EqualError(t, err2, "Parameter 'authStyle' can only have the values 0,1,2. Received: 'asdf'. ")
 
 	// Invalid authStyle (int > 2)
 	metadata.Properties["authStyle"] = "3"
-	_, err3 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	_, err3 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
 	assert.EqualError(t, err3, "Parameter 'authStyle' can only have the values 0,1,2. Received: '3'. ")
 
 	// Invalid authStyle (int < 0)
 	metadata.Properties["authStyle"] = "-1"
-	_, err4 := NewOAuth2ClientCredentialsMiddleware().GetHandler(metadata)
+	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
 	assert.EqualError(t, err4, "Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
 
 }
@@ -92,7 +94,8 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	}
 
 	// Initialize middleware component and inject mocked TokenProvider
-	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware()
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware(log)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
 	require.NoError(t, err)
@@ -149,7 +152,8 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	}
 
 	// Initialize middleware component and inject mocked TokenProvider
-	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware()
+	log := logger.NewLogger("oauth2clientcredentials.test")
+	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware(log)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
 	require.NoError(t, err)

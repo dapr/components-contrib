@@ -35,17 +35,15 @@ type oAuth2ClientCredentialsMiddlewareMetadata struct {
 	AuthStyle           int    `json:"-"`
 }
 
-// dapr logger
-var log = logger.NewLogger("dapr.components-contrib.middleware.http.oauth2clientcredentials")
-
 // TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests
 type TokenProviderInterface interface {
 	GetToken(conf *clientcredentials.Config) (*oauth2.Token, error)
 }
 
 // NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware
-func NewOAuth2ClientCredentialsMiddleware() *Middleware {
+func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) *Middleware {
 	m := &Middleware{
+		log:        logger,
 		tokenCache: cache.New(1*time.Hour, 10*time.Minute),
 	}
 	// Default: set Token Provider to real implementation (we will overwrite it for unit testing)
@@ -55,6 +53,7 @@ func NewOAuth2ClientCredentialsMiddleware() *Middleware {
 
 // Middleware is an oAuth2 authentication middleware
 type Middleware struct {
+	log           logger.Logger
 	tokenCache    *cache.Cache
 	tokenProvider TokenProviderInterface
 }
@@ -63,7 +62,7 @@ type Middleware struct {
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
-		log.Errorf("getNativeMetadata error, %s", err)
+		m.log.Errorf("getNativeMetadata error, %s", err)
 		return nil, err
 	}
 
@@ -75,11 +74,11 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			cachedToken, found := m.tokenCache.Get(cacheKey)
 
 			if !found {
-				log.Debugf("Cached token not found, try get one")
+				m.log.Debugf("Cached token not found, try get one")
 
 				var endpointParams, err = url.ParseQuery(meta.EndpointParamsQuery)
 				if err != nil {
-					log.Errorf("Error parsing endpoint parameters, %s", err)
+					m.log.Errorf("Error parsing endpoint parameters, %s", err)
 					endpointParams, _ = url.ParseQuery("")
 				}
 
@@ -94,21 +93,21 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 				token, tokenError := m.tokenProvider.GetToken(conf)
 				if tokenError != nil {
-					log.Errorf("Error acquiring token, %s", tokenError)
+					m.log.Errorf("Error acquiring token, %s", tokenError)
 					return
 				}
 
 				tokenExpirationDuration := token.Expiry.Sub(time.Now().In(time.UTC))
-				log.Debugf("Duration in seconds %s, Expiry Time %s", tokenExpirationDuration, token.Expiry)
+				m.log.Debugf("Duration in seconds %s, Expiry Time %s", tokenExpirationDuration, token.Expiry)
 				if err != nil {
-					log.Errorf("Error parsing duration string, %s", fmt.Sprintf("%ss", token.Expiry))
+					m.log.Errorf("Error parsing duration string, %s", fmt.Sprintf("%ss", token.Expiry))
 					return
 				}
 
 				headerValue = token.Type() + " " + token.AccessToken
 				m.tokenCache.Set(cacheKey, headerValue, tokenExpirationDuration)
 			} else {
-				log.Debugf("Cached token found for key %s", cacheKey)
+				m.log.Debugf("Cached token found for key %s", cacheKey)
 				headerValue = cachedToken.(string)
 			}
 

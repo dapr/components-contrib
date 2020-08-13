@@ -56,7 +56,6 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	metadata.Properties["authStyle"] = "-1"
 	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
 	assert.EqualError(t, err4, "Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
-
 }
 
 // TestOAuth2ClientCredentialsToken will check

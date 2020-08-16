@@ -60,79 +60,91 @@ func TestInitRunsDBAccessInit(t *testing.T) {
 
 func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	t.Parallel()
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 	pgs := createPostgreSQL(t)
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.Nil(t, err)
 }
 
 func TestInvalidMultiAction(t *testing.T) {
 	t.Parallel()
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 
-	multiRequest = append(multiRequest, state.TransactionalRequest{
+	operations = append(operations, state.TransactionalStateOperation{
 		Operation: "Something invalid",
 		Request:   createSetRequest(),
 	})
 
 	pgs := createPostgreSQL(t)
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.NotNil(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 
-	multiRequest = append(multiRequest, state.TransactionalRequest{
+	operations = append(operations, state.TransactionalStateOperation{
 		Operation: state.Upsert,
 		Request:   createSetRequest(),
 	})
 
 	pgs := createPostgreSQL(t)
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.Nil(t, err)
 }
 
 func TestInvalidMultiSetRequest(t *testing.T) {
 	t.Parallel()
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 
-	multiRequest = append(multiRequest, state.TransactionalRequest{
+	operations = append(operations, state.TransactionalStateOperation{
 		Operation: state.Upsert,
 		Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation
 	})
 
 	pgs := createPostgreSQL(t)
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.NotNil(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 
-	multiRequest = append(multiRequest, state.TransactionalRequest{
+	operations = append(operations, state.TransactionalStateOperation{
 		Operation: state.Delete,
 		Request:   createDeleteRequest(),
 	})
 
 	pgs := createPostgreSQL(t)
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.Nil(t, err)
 }
 
 func TestInvalidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
-	var multiRequest []state.TransactionalRequest
+	var operations []state.TransactionalStateOperation
 
-	multiRequest = append(multiRequest, state.TransactionalRequest{
+	operations = append(operations, state.TransactionalStateOperation{
 		Operation: state.Delete,
 		Request:   createSetRequest(), // Set request is not valid for Delete operation
 	})
 
 	pgs := createPostgreSQL(t)
-	err := pgs.Multi(multiRequest)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
 	assert.NotNil(t, err)
 }
 

@@ -6,6 +6,9 @@
 package mqtt
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -25,6 +28,9 @@ const (
 	mqttRetain       = "retain"
 	mqttClientID     = "consumerID"
 	mqttCleanSession = "cleanSession"
+	mqttCACert       = "caCert"
+	mqttClientCert   = "clientCert"
+	mqttClientKey    = "clientKey"
 
 	// errors
 	errorMsgPrefix = "mqtt pub sub error:"
@@ -46,6 +52,12 @@ type mqttPubSub struct {
 // NewMQTTPubSub returns a new mqttPubSub instance.
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{logger: logger}
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+	return block != nil
 }
 
 func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
@@ -89,6 +101,25 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 		if err != nil {
 			return &m, fmt.Errorf("%s invalid clean session %s, %s", errorMsgPrefix, val, err)
 		}
+	}
+
+	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid ca certificate", errorMsgPrefix)
+		}
+		m.tlsCfg.caCert = val
+	}
+	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid client certificate", errorMsgPrefix)
+		}
+		m.tlsCfg.clientCert = val
+	}
+	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid client certificate key", errorMsgPrefix)
+		}
+		m.tlsCfg.clientKey = val
 	}
 
 	return &m, nil
@@ -154,13 +185,37 @@ func (m *mqttPubSub) connect(uri *url.URL) (mqtt.Client, error) {
 	return client, nil
 }
 
+func (m *mqttPubSub) NewTLSConfig() *tls.Config {
+	tlsConfig := new(tls.Config)
+
+	if m.metadata.clientCert != "" && m.metadata.clientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(m.metadata.clientCert), []byte(m.metadata.clientKey))
+		if err != nil {
+			m.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
+			return tlsConfig
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	if m.metadata.caCert != "" {
+		tlsConfig.RootCAs = x509.NewCertPool()
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.caCert)); !ok {
+			m.logger.Warnf("unable to load ca certificate.")
+		}
+	}
+
+	return tlsConfig
+}
+
 func (m *mqttPubSub) createClientOptions(uri *url.URL) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions()
 	opts.SetClientID(m.metadata.clientID)
 	opts.SetCleanSession(m.metadata.cleanSession)
-	opts.AddBroker(uri.Host)
+	opts.AddBroker(uri.Scheme + "://" + uri.Host)
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)
+	// tls config
+	opts.SetTLSConfig(m.NewTLSConfig())
 	return opts
 }

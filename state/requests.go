@@ -46,16 +46,16 @@ type SetRequest struct {
 	Key      string            `json:"key"`
 	Value    interface{}       `json:"value"`
 	ETag     string            `json:"etag,omitempty"`
-	Metadata map[string]string `json:"metadata"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 	Options  SetStateOption    `json:"options,omitempty"`
 }
 
-// Key gets the Key on a SetRequest
+// GetKey gets the Key on a SetRequest
 func (r SetRequest) GetKey() string {
 	return r.Key
 }
 
-// Metadata gets the Key on a SetRequest
+// GetMetadata gets the Key on a SetRequest
 func (r SetRequest) GetMetadata() map[string]string {
 	return r.Metadata
 }
@@ -75,9 +75,15 @@ const Upsert OperationType = "upsert"
 // Delete is a delete operation
 const Delete OperationType = "delete"
 
-// TransactionalRequest describes a transactional operation against a state store that comprises multiple types of operations
+// TransactionalStateRequest describes a transactional operation against a state store that comprises multiple types of operations
 // The Request field is either a DeleteRequest or SetRequest
-type TransactionalRequest struct {
+type TransactionalStateRequest struct {
+	Operations []TransactionalStateOperation `json:"operations"`
+	Metadata   map[string]string             `json:"metadata,omitempty"`
+}
+
+// TransactionalStateOperation describes operation type, key, and value for transactional operation.
+type TransactionalStateOperation struct {
 	Operation OperationType `json:"operation"`
 	Request   interface{}   `json:"request"`
 }

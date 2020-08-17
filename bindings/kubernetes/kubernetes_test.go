@@ -6,72 +6,99 @@
 package kubernetes
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/kubernetes-client/go/kubernetes/client"
 	"github.com/stretchr/testify/assert"
 )
 
-type staticHandler struct {
-	Code        int
-	Body        string
-	QueryParams url.Values
-}
-
-func (s *staticHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(s.Code)
-	res.Write([]byte(s.Body))
-	s.QueryParams = req.URL.Query()
-}
-
 func TestParseMetadata(t *testing.T) {
 	nsName := "fooNamespace"
+	resyncPeriod := time.Second * 15
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"namespace": nsName}
+	m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "15"}
 
 	i := kubernetesInput{logger: logger.NewLogger("test")}
 	i.parseMetadata(m)
 
 	assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
+	assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
 }
 
-func TestReadItem(t *testing.T) {
-	server := httptest.NewServer(&staticHandler{
-		Code: 200,
-		Body: `{"type":"ADDED","object":{"kind":"Event","apiVersion":"v1","metadata":{"name":"kube-system","selfLink":"/api/v1/namespaces/default/test","uid":"164931a7-3d75-11e9-a0a0-2683b9459238","resourceVersion":"227","creationTimestamp":"2019-03-03T05:27:50Z","annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"annotations\":{},\"name\":\"kube-system\",\"namespace\":\"\"}}\n"}},"spec":{"finalizers":["kubernetes"]},"status":{"phase":"Active"}}}\n`,
-	})
-	defer server.Close()
+func TestParseMetadataNoNamespace(t *testing.T) {
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"resyncPeriodInSec": "15"}
 
-	u, err := url.Parse(server.URL)
-	if !assert.NoError(t, err, "URL Parsing failed!") {
-		t.FailNow()
-	}
+	i := kubernetesInput{logger: logger.NewLogger("test")}
+	err := i.parseMetadata(m)
 
-	cfg := &client.Configuration{}
-	cfg.Host = u.Host
-	cfg.Scheme = u.Scheme
-
-	i := &kubernetesInput{
-		config: cfg,
-		client: client.NewAPIClient(cfg),
-		logger: logger.NewLogger("test"),
-	}
-	count := 0
-	i.Read(func(res *bindings.ReadResponse) error {
-		count++
-
-		result := client.Result{}
-		json.Unmarshal(res.Data, &result)
-
-		assert.Equal(t, "ADDED", result.Type, "Unexpected watch event type: %v", result.Type)
-		return nil
-	})
-
-	assert.Equal(t, 1, count, "Expected 1 item, saw %v\n", count)
+	assert.NotNil(t, err, "Expected err to be returned.")
+	assert.Equal(t, "namespace is missing in metadata", err.Error(), "Error message not same.")
 }
+
+func TestParseMetadataInvalidResyncPeriod(t *testing.T) {
+	nsName := "fooNamespace"
+	resyncPeriod := time.Second * 10
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "invalid"}
+
+	i := kubernetesInput{logger: logger.NewLogger("test")}
+	err := i.parseMetadata(m)
+
+	assert.Nil(t, err, "Expected err to be nil.")
+	assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
+	assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+}
+
+// func TestReadItem(t *testing.T) {
+// 	fakeClient := ktesting.NewFakeControllerSource()
+
+// 	i := &kubernetesInput{
+// 		kubeClient:        fakeClient,
+// 		resyncPeriodInSec: time.Millisecond,
+// 		namespace:         "foo",
+// 		logger:            logger.NewLogger("test"),
+// 	}
+// 	er := EventResponse{}
+// 	data := []byte(`{"event":"add","oldVal":{"metadata":{"creationTimestamp":null},"involvedObject":{},"source":{},"firstTimestamp":null,"lastTimestamp":null,"eventTime":null,"reportingComponent":"","reportingInstance":""},"newVal":{"metadata":{"name":"redis-slave.162c1a8e548e0c99","namespace":"default","selfLink":"/api/v1/namespaces/default/events/redis-slave.162c1a8e548e0c99","uid":"70cf7cf8-18cc-45c5-bcab-68776ad5efa3","resourceVersion":"662947","creationTimestamp":"2020-08-17T16:19:26Z","managedFields":[{"manager":"kube-controller-manager","operation":"Update","apiVersion":"v1","time":"2020-08-17T16:19:26Z","fieldsType":"FieldsV1","fieldsV1":{"f:count":{},"f:firstTimestamp":{},"f:involvedObject":{"f:apiVersion":{},"f:kind":{},"f:name":{},"f:namespace":{},"f:resourceVersion":{},"f:uid":{}},"f:lastTimestamp":{},"f:message":{},"f:reason":{},"f:source":{"f:component":{}},"f:type":{}}}]},"involvedObject":{"kind":"Service","namespace":"default","name":"redis-slave","uid":"5d79e7fd-45b2-47a9-9b49-89e694fb7e9a","apiVersion":"v1","resourceVersion":"233622"},"reason":"FailedToUpdateEndpointSlices","message":"Error updating Endpoint Slices for Service default/redis-slave: Error deleting redis-slave-679x4 EndpointSlice for Service default/redis-slave: endpointslices.discovery.k8s.io \"redis-slave-679x4\" not found","source":{"component":"endpoint-slice-controller"},"firstTimestamp":"2020-08-17T16:19:26Z","lastTimestamp":"2020-08-17T16:19:26Z","count":1,"type":"Warning","eventTime":null,"reportingComponent":"","reportingInstance":""}}`)
+// 	err := json.Unmarshal(data, &er)
+// 	assert.Nil(t, err, "Unexpected err")
+
+// 	ev := er.NewVal
+// 	fakeClient.Add(ev)
+// 	// ev.ObjectMeta.Namespace = "defaul"
+// 	assert.NotNil(t, fakeClient, "fakeClient not nil")
+// 	cv1 := fakeClient.CoreV1()
+// 	assert.NotNil(t, cv1, "Unexpected err cv1")
+
+// 	eapi := cv1.Events("default")
+// 	assert.NotNil(t, eapi, "Unexpected err eapi")
+
+// 	_, err = eapi.Create(&ev)
+
+// 	assert.Nil(t, err)
+
+// 	// // count := 0
+// 	stopCh := make(chan struct{})
+// 	var handler = func(res *bindings.ReadResponse) error {
+// 		fmt.Println("In Response Handler")
+// 		result := EventResponse{}
+// 		assert.NotNil(t, res, "Expected read response to be not nil")
+// 		assert.NotNil(t, res.Data, "Expected read response data to be not nil")
+// 		json.Unmarshal(res.Data, &result)
+
+// 		assert.Equal(t, "add", result.Event, "Unexpected watch event type: %v", result.Event)
+// 		stopCh <- struct{}{}
+// 		return nil
+// 	}
+
+// 	go i.Read(handler)
+// 	<-stopCh
+// 	// time.Sleep(5 * time.Second)
+// 	// pid := syscall.Getpid()
+// 	// proc, _ := os.FindProcess(pid)
+// 	// proc.Signal(os.Interrupt)
+// 	// assert.Equal(t, 1, count, "Expected 1 item, saw %v\n", count)
+// }

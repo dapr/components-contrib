@@ -81,7 +81,9 @@ require (
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.16 // indirect
 	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4 // indirect
+	k8s.io/api v0.17.0
 	k8s.io/apimachinery v0.17.0
+	k8s.io/client v0.0.0-00010101000000-000000000000
 	k8s.io/client-go v0.17.0
 )
 

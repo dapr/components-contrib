@@ -16,40 +16,38 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	nsName := "fooNamespace"
-	resyncPeriod := time.Second * 15
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "15"}
+	t.Run("parse metadata", func(t *testing.T) {
+		resyncPeriod := time.Second * 15
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "15"}
 
-	i := kubernetesInput{logger: logger.NewLogger("test")}
-	i.parseMetadata(m)
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		i.parseMetadata(m)
 
-	assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-	assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
-}
+		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
+		assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+	})
+	t.Run("parse metadata no namespace", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"resyncPeriodInSec": "15"}
 
-func TestParseMetadataNoNamespace(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"resyncPeriodInSec": "15"}
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
 
-	i := kubernetesInput{logger: logger.NewLogger("test")}
-	err := i.parseMetadata(m)
+		assert.NotNil(t, err, "Expected err to be returned.")
+		assert.Equal(t, "namespace is missing in metadata", err.Error(), "Error message not same.")
+	})
+	t.Run("parse metadata invalid resync period", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "invalid"}
 
-	assert.NotNil(t, err, "Expected err to be returned.")
-	assert.Equal(t, "namespace is missing in metadata", err.Error(), "Error message not same.")
-}
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
 
-func TestParseMetadataInvalidResyncPeriod(t *testing.T) {
-	nsName := "fooNamespace"
-	resyncPeriod := time.Second * 10
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "invalid"}
-
-	i := kubernetesInput{logger: logger.NewLogger("test")}
-	err := i.parseMetadata(m)
-
-	assert.Nil(t, err, "Expected err to be nil.")
-	assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-	assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+		assert.Nil(t, err, "Expected err to be nil.")
+		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
+		assert.Equal(t, time.Second*10, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+	})
 }
 
 // func TestReadItem(t *testing.T) {

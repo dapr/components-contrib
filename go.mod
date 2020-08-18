@@ -47,7 +47,6 @@ require (
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.8
-	github.com/kubernetes-client/go v0.0.0-20190625181339-cd8e39e789c7
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/nats-io/gnatsd v1.4.1
 	github.com/nats-io/go-nats v1.7.2
@@ -81,6 +80,7 @@ require (
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.16 // indirect
 	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4 // indirect
+	k8s.io/api v0.17.0
 	k8s.io/apimachinery v0.17.0
 	k8s.io/client-go v0.17.0
 )

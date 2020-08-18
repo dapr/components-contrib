@@ -126,10 +126,11 @@ func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) error) error
 			data, err := json.Marshal(obj)
 			if err != nil {
 				k.logger.Errorf("Error marshalling event %w", err)
+			} else {
+				handler(&bindings.ReadResponse{
+					Data: data,
+				})
 			}
-			handler(&bindings.ReadResponse{
-				Data: data,
-			})
 		case <-sigterm:
 			done = true
 			close(stopCh)

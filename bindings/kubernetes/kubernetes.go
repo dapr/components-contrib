@@ -72,7 +72,10 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 }
 
 func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) error) error {
-	watchlist := cache.NewListWatchFromClient(k.kubeClient.CoreV1().RESTClient(), "events", k.namespace,
+	watchlist := cache.NewListWatchFromClient(
+		k.kubeClient.CoreV1().RESTClient(),
+		"events",
+		k.namespace,
 		fields.Everything())
 	var resultChan chan EventResponse = make(chan EventResponse)
 	_, controller := cache.NewInformer(

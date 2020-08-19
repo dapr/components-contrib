@@ -6,72 +6,46 @@
 package kubernetes
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/kubernetes-client/go/kubernetes/client"
 	"github.com/stretchr/testify/assert"
 )
 
-type staticHandler struct {
-	Code        int
-	Body        string
-	QueryParams url.Values
-}
-
-func (s *staticHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(s.Code)
-	res.Write([]byte(s.Body))
-	s.QueryParams = req.URL.Query()
-}
-
 func TestParseMetadata(t *testing.T) {
 	nsName := "fooNamespace"
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"namespace": nsName}
+	t.Run("parse metadata", func(t *testing.T) {
+		resyncPeriod := time.Second * 15
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "15"}
 
-	i := kubernetesInput{logger: logger.NewLogger("test")}
-	i.parseMetadata(m)
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		i.parseMetadata(m)
 
-	assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-}
-
-func TestReadItem(t *testing.T) {
-	server := httptest.NewServer(&staticHandler{
-		Code: 200,
-		Body: `{"type":"ADDED","object":{"kind":"Event","apiVersion":"v1","metadata":{"name":"kube-system","selfLink":"/api/v1/namespaces/default/test","uid":"164931a7-3d75-11e9-a0a0-2683b9459238","resourceVersion":"227","creationTimestamp":"2019-03-03T05:27:50Z","annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"annotations\":{},\"name\":\"kube-system\",\"namespace\":\"\"}}\n"}},"spec":{"finalizers":["kubernetes"]},"status":{"phase":"Active"}}}\n`,
+		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
+		assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
 	})
-	defer server.Close()
+	t.Run("parse metadata no namespace", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"resyncPeriodInSec": "15"}
 
-	u, err := url.Parse(server.URL)
-	if !assert.NoError(t, err, "URL Parsing failed!") {
-		t.FailNow()
-	}
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
 
-	cfg := &client.Configuration{}
-	cfg.Host = u.Host
-	cfg.Scheme = u.Scheme
-
-	i := &kubernetesInput{
-		config: cfg,
-		client: client.NewAPIClient(cfg),
-		logger: logger.NewLogger("test"),
-	}
-	count := 0
-	i.Read(func(res *bindings.ReadResponse) error {
-		count++
-
-		result := client.Result{}
-		json.Unmarshal(res.Data, &result)
-
-		assert.Equal(t, "ADDED", result.Type, "Unexpected watch event type: %v", result.Type)
-		return nil
+		assert.NotNil(t, err, "Expected err to be returned.")
+		assert.Equal(t, "namespace is missing in metadata", err.Error(), "Error message not same.")
 	})
+	t.Run("parse metadata invalid resync period", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "invalid"}
 
-	assert.Equal(t, 1, count, "Expected 1 item, saw %v\n", count)
+		i := kubernetesInput{logger: logger.NewLogger("test")}
+		err := i.parseMetadata(m)
+
+		assert.Nil(t, err, "Expected err to be nil.")
+		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
+		assert.Equal(t, time.Second*10, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+	})
 }

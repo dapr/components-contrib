@@ -143,7 +143,7 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (m *Memcached) Set(req *state.SetRequest) error {
-	return state.SetWithRetries(m.setValue, req)
+	return state.SetWithOptions(m.setValue, req)
 }
 
 func (m *Memcached) BulkSet(req []state.SetRequest) error {

@@ -371,9 +371,11 @@ func testMultiOperations(t *testing.T) {
 				modified := original.user
 				modified.FavoriteBeverage = beverageTea
 
-				localErr := store.Multi([]state.TransactionalRequest{
-					{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+				localErr := store.Multi(&state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+					},
 				})
 				assert.Nil(t, localErr)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
@@ -392,10 +394,12 @@ func testMultiOperations(t *testing.T) {
 				modified := toModify.user
 				modified.FavoriteBeverage = beverageTea
 
-				err = store.Multi([]state.TransactionalRequest{
-					{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: toDelete.etag}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: toModify.etag}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+				err = store.Multi(&state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: toDelete.etag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: toModify.etag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+					},
 				})
 				assert.Nil(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
@@ -414,10 +418,11 @@ func testMultiOperations(t *testing.T) {
 				modified := toModify.user
 				modified.FavoriteBeverage = beverageTea
 
-				err = store.Multi([]state.TransactionalRequest{
-					{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: toDelete.etag}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: toModify.etag}},
-				})
+				err = store.Multi(&state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: toDelete.etag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: toModify.etag}},
+					}})
 				assert.Nil(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertUserDoesNotExist(t, store, toDelete.ID)
@@ -432,10 +437,11 @@ func testMultiOperations(t *testing.T) {
 				toDelete := loadedUsers[userIndex]
 				toInsert := user{keyGen.NextKey(), "Wont-be-inserted", "Beer"}
 
-				err = store.Multi([]state.TransactionalRequest{
-					{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: invalidEtag}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
-				})
+				err = store.Multi(&state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: invalidEtag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+					}})
 
 				assert.NotNil(t, err)
 				assertUserDoesNotExist(t, store, toInsert.ID)
@@ -450,10 +456,11 @@ func testMultiOperations(t *testing.T) {
 				modified := toModify.user
 				modified.FavoriteBeverage = beverageTea
 
-				err = store.Multi([]state.TransactionalRequest{
-					{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: invalidEtag}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
-				})
+				err = store.Multi(&state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: invalidEtag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+					}})
 				assert.NotNil(t, err)
 				assertLoadedUserIsEqual(t, store, toDelete.ID, toDelete.user)
 				assertLoadedUserIsEqual(t, store, toModify.ID, toModify.user)
@@ -467,10 +474,11 @@ func testMultiOperations(t *testing.T) {
 				modified := toModify.user
 				modified.FavoriteBeverage = beverageTea
 
-				err = store.Multi([]state.TransactionalRequest{
-					{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
-					{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: invalidEtag}},
-				})
+				err = store.Multi(&state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: invalidEtag}},
+					}})
 
 				assert.NotNil(t, err)
 				assertLoadedUserIsEqual(t, store, toDelete.ID, toDelete.user)

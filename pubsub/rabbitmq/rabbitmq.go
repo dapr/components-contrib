@@ -16,7 +16,6 @@ const (
 
 	metadataHostKey             = "host"
 	metadataConsumerIDKey       = "consumerID"
-	metadataDurableKey          = "durable"
 	metadataDeleteWhenUnusedKey = "deletedWhenUnused"
 	metadataAutoAckKey          = "autoAck"
 	metadataDeliveryModeKey     = "deliveryMode"
@@ -92,7 +91,7 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
 
 	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
-	q, err := r.channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, true, false, nil)
+	q, err := r.channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, nil)
 	if err != nil {
 		return err
 	}
@@ -105,11 +104,11 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 
 	msgs, err := r.channel.Consume(
 		q.Name,
-		queueName,           // consumerId
-		r.metadata.autoAck,  // autoAck
-		!r.metadata.durable, // exclusive
-		false,               // noLocal
-		false,               // noWait
+		queueName,          // consumerId
+		r.metadata.autoAck, // autoAck
+		false,
+		false, // noLocal
+		false, // noWait
 		nil,
 	)
 

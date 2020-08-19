@@ -34,4 +34,11 @@ type OutputBinding interface {
 	Operations() []OperationKind
 }
 ```
-A spec is also needed in [Dapr docs](https://github.com/dapr/docs/tree/master/reference/specs/bindings).
+
+When creating an Output Binding, a list of `OperationKind` items needs to be returned.
+For example, if running a component that takes in a SQL query and returns a result set, the `OperationKind` can be `query`.
+
+While components are not restricted to a list of supported operations, it's best to use common ones if the operation kind falls under that operation definition.
+The list of common operations can be found [here](./requests.go).
+
+After implementing a binding, the specification docs need to be updated via a PR: [Dapr docs](https://github.com/dapr/docs/tree/master/reference/specs/bindings).

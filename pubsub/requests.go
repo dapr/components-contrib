@@ -10,6 +10,7 @@ type PublishRequest struct {
 	Data       []byte `json:"data"`
 	PubsubName string `json:"pubsubname"`
 	Topic      string `json:"topic"`
+	Key        string `json:"key"`
 }
 
 // SubscribeRequest is the request to subscribe to a topic
@@ -19,7 +20,7 @@ type SubscribeRequest struct {
 
 // NewMessage is an event arriving from a message bus instance
 type NewMessage struct {
-	Data  []byte `json:"data"`
-	Topic string `json:"topic"`
+	Data     []byte            `json:"data"`
+	Topic    string            `json:"topic"`
 	Metadata map[string]string `json:"metadata"`
 }

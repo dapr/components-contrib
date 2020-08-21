@@ -124,6 +124,7 @@ func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	partition, offset, err := k.producer.SendMessage(&sarama.ProducerMessage{
 		Topic: req.Topic,
 		Value: sarama.ByteEncoder(req.Data),
+		Key:   sarama.ByteEncoder(req.Key),
 	})
 
 	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)

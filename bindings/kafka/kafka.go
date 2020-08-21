@@ -57,7 +57,8 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
 			err := consumer.callback(&bindings.ReadResponse{
-				Data: message.Value,
+				Data:     message.Value,
+				Metadata: extractHeader(message),
 			})
 			if err == nil {
 				session.MarkMessage(message, "")
@@ -250,4 +251,19 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 		//InsecureSkipVerify: true,
 		ClientAuth: 0,
 	}
+}
+
+func extractHeader(message *sarama.ConsumerMessage) map[string]string {
+	meta := make(map[string]string)
+	for _, header := range message.Headers {
+		meta[replaceUnderlineWithStrike(string(header.Key))] = string(header.Value)
+	}
+	return meta
+}
+
+func replaceUnderlineWithStrike(key string) string {
+	if strings.Contains(key, "_") {
+		return strings.Replace(key, "_", "-", 1)
+	}
+	return key
 }

@@ -7,11 +7,11 @@ package kafka
 
 import (
 	"errors"
-	"testing"
-
+	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -240,5 +240,49 @@ func TestParseMetadata(t *testing.T) {
 		meta, err := k.getKafkaMetadata(m)
 		assert.Error(t, errors.New("kafka error: missing SASL Password"), err)
 		assert.Nil(t, meta)
+	})
+
+
+	t.Run("test extract kafka message header", func(t *testing.T) {
+
+		testMessages := sarama.ConsumerMessage{
+			Headers: []*sarama.RecordHeader{
+				{
+					Key:   []byte("ce_actiontype"),
+					Value: []byte("actiontype"),
+				},
+				{
+					Key:   []byte("ce_traceid"),
+					Value: []byte("traceid"),
+				},
+				{
+					Key:   []byte("ce_source"),
+					Value: []byte("source"),
+				},
+				{
+					Key:   []byte("X-MQ-ADDRESS"),
+					Value: []byte("pkc-43n10.us-central1.gcp.confluent.cloud:9092"),
+				},
+				{
+					Key:   []byte("ce_mqaddress"),
+					Value: []byte("pkc-43n10.us-central1.gcp.confluent.cloud:9092"),
+				},
+			},
+		}
+		result := extractHeader(&testMessages)
+
+		expected := []string{"ce-actiontype", "ce-traceid", "ce-source", "X-MQ-ADDRESS","ce-mqaddress"}
+		var keys []string
+		for key, _ := range result {
+			keys = append(keys, key)
+		}
+
+		assert.Subset(t, expected, keys)
+	})
+
+	t.Run("handle cloud event header", func(t *testing.T) {
+		key := "ce_traceid"
+		handledKey := replaceUnderlineWithStrike(key)
+		assert.Equal(t, handledKey, "ce-traceid")
 	})
 }

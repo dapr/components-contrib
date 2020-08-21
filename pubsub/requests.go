@@ -21,4 +21,5 @@ type SubscribeRequest struct {
 type NewMessage struct {
 	Data  []byte `json:"data"`
 	Topic string `json:"topic"`
+	Metadata map[string]string `json:"metadata"`
 }

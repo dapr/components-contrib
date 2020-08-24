@@ -64,10 +64,10 @@ func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
-func (p *PostgreSQL) Multi(reqs []state.TransactionalRequest) error {
+func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
-	for _, req := range reqs {
+	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
 			if setReq, ok := req.Request.(state.SetRequest); ok {

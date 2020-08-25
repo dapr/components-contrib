@@ -32,7 +32,7 @@ func (s *envSecretStore) Init(metadata secretstores.Metadata) error {
 func (s *envSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{
-			req.Name: os.Getenv("req.Name"),
+			req.Name: os.Getenv(req.Name),
 		},
 	}, nil
 }

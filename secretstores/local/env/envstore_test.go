@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const secretValue = "secret"
-
 func TestInit(t *testing.T) {
 	secret := "secret1"
 	key := "TEST_SECRET"

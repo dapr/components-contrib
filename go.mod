@@ -25,6 +25,7 @@ require (
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
+	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dapr/dapr v0.4.1-0.20200228055659-71892bc0111e
@@ -52,6 +53,7 @@ require (
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
+	github.com/open-policy-agent/opa v0.23.2
 	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1

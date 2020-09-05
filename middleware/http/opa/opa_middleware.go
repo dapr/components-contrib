@@ -55,66 +55,71 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-
-			headers := map[string]string{}
-			var allowedHeaders = strings.Split(meta.IncludedHeaders, ",")
-			ctx.Request.Header.VisitAll(func(key, value []byte) {
-				for _, allowed := range allowedHeaders {
-					if string(key) == allowed {
-						headers[string(key)] = string(value)
-					}
-				}
-			})
-
-			queryArgs := map[string][]string{}
-			ctx.QueryArgs().VisitAll(func(key, value []byte) {
-				if val, ok := queryArgs[string(key)]; ok {
-					queryArgs[string(key)] = append(val, string(value))
-				} else {
-					queryArgs[string(key)] = []string{string(value)}
-				}
-			})
-
-			input := map[string]interface{}{
-				"request": map[string]interface{}{
-					"method":    string(ctx.Method()),
-					"path":      string(ctx.Path()),
-					"raw_query": string(ctx.QueryArgs().QueryString()),
-					"query":     queryArgs,
-					"headers":   headers,
-					"scheme":    string(ctx.Request.URI().Scheme()),
-					//TODO: allow opting into body support? Reading body isn't efficient
-					//TODO: flow parsed token from other http middlewares?
-				},
-			}
-
-			results, err := query.Eval(context.TODO(), rego.EvalInput(input))
-
-			if err != nil {
-				m.opaError(ctx, err)
+			if handled := m.evalRequest(ctx, meta, &query); handled {
 				return
-			} else if len(results) == 0 {
-				m.opaError(ctx, errors.New("Got no result back from rego policy. Are you setting data.http.allow?"))
-				return
-			} else {
-				if allowed, ok := results[0].Bindings["result"].(bool); ok {
-					if !allowed {
-						ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
-						return
-					}
-				} else if overrideResult, ok := results[0].Bindings["result"].(map[string]interface{}); ok {
-					if allowed := m.handleRegoResult(ctx, overrideResult); !allowed {
-						return
-					}
-				} else {
-					m.opaError(ctx, errors.New("Got an invalid type back from repo policy. Only a boolean or map is valid"))
-					return
-				}
 			}
-
 			h(ctx)
 		}
 	}, nil
+}
+
+func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *opaMiddlewareMetadata, query *rego.PreparedEvalQuery) bool {
+	headers := map[string]string{}
+	var allowedHeaders = strings.Split(meta.IncludedHeaders, ",")
+	ctx.Request.Header.VisitAll(func(key, value []byte) {
+		for _, allowed := range allowedHeaders {
+			if string(key) == allowed {
+				headers[string(key)] = string(value)
+			}
+		}
+	})
+
+	queryArgs := map[string][]string{}
+	ctx.QueryArgs().VisitAll(func(key, value []byte) {
+		if val, ok := queryArgs[string(key)]; ok {
+			queryArgs[string(key)] = append(val, string(value))
+		} else {
+			queryArgs[string(key)] = []string{string(value)}
+		}
+	})
+
+	input := map[string]interface{}{
+		"request": map[string]interface{}{
+			"method":    string(ctx.Method()),
+			"path":      string(ctx.Path()),
+			"raw_query": string(ctx.QueryArgs().QueryString()),
+			"query":     queryArgs,
+			"headers":   headers,
+			"scheme":    string(ctx.Request.URI().Scheme()),
+			//TODO: allow opting into body support? Reading body isn't efficient
+			//TODO: flow parsed token from other http middlewares?
+		},
+	}
+
+	results, err := query.Eval(context.TODO(), rego.EvalInput(input))
+
+	if err != nil {
+		m.opaError(ctx, err)
+		return false
+	} else if len(results) == 0 {
+		m.opaError(ctx, errors.New("got no result back from rego policy. Are you setting data.http.allow?"))
+		return false
+	} else {
+		if allowed, ok := results[0].Bindings["result"].(bool); ok {
+			if !allowed {
+				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
+				return false
+			}
+		} else if overrideResult, ok := results[0].Bindings["result"].(map[string]interface{}); ok {
+			if allowed := m.handleRegoResult(ctx, overrideResult); !allowed {
+				return false
+			}
+		} else {
+			m.opaError(ctx, errors.New("got an invalid type back from repo policy. Only a boolean or map is valid"))
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, result map[string]interface{}) bool {
@@ -155,7 +160,6 @@ func (m *Middleware) opaError(ctx *fasthttp.RequestCtx, err error) {
 	ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
 	ctx.Response.Header.Set("x-dapr-opa-error", "1")
 	m.logger.Warnf("Error procesing rego policy: %v", err)
-	return
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*opaMiddlewareMetadata, error) {

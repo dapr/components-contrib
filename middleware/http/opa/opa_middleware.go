@@ -102,7 +102,7 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *opaMiddlewareMe
 		m.opaError(ctx, err)
 		return false
 	} else if len(results) == 0 {
-		m.opaError(ctx, errors.New("recieved no results back from rego policy. Are you setting data.http.allow?"))
+		m.opaError(ctx, errors.New("received no results back from rego policy. Are you setting data.http.allow?"))
 		return false
 	} else if allowed := m.handleRegoResult(ctx, results[0].Bindings["result"]); !allowed {
 		return false

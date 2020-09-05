@@ -102,27 +102,28 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *opaMiddlewareMe
 		m.opaError(ctx, err)
 		return false
 	} else if len(results) == 0 {
-		m.opaError(ctx, errors.New("got no result back from rego policy. Are you setting data.http.allow?"))
+		m.opaError(ctx, errors.New("recieved no results back from rego policy. Are you setting data.http.allow?"))
 		return false
-	} else {
-		if allowed, ok := results[0].Bindings["result"].(bool); ok {
-			if !allowed {
-				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
-				return false
-			}
-		} else if overrideResult, ok := results[0].Bindings["result"].(map[string]interface{}); ok {
-			if allowed := m.handleRegoResult(ctx, overrideResult); !allowed {
-				return false
-			}
-		} else {
-			m.opaError(ctx, errors.New("got an invalid type back from repo policy. Only a boolean or map is valid"))
-			return false
-		}
+	} else if allowed := m.handleRegoResult(ctx, results[0].Bindings["result"]); !allowed {
+		return false
 	}
 	return true
 }
 
-func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, result map[string]interface{}) bool {
+func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, result interface{}) bool {
+	if allowed, ok := result.(bool); ok {
+		if !allowed {
+			ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
+			return false
+		}
+		return true
+	}
+
+	if _, ok := result.(map[string]interface{}); !ok {
+		m.opaError(ctx, errors.New("got an invalid type back from repo policy. Only a boolean or map is valid"))
+		return false
+	}
+
 	// Is it expensive to marshal back and forth? Should we just manually pull out properties?
 	marshaled, err := json.Marshal(result)
 	if err != nil {

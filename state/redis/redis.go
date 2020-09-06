@@ -32,6 +32,7 @@ const (
 	enableTLS                = "enableTLS"
 	maxRetries               = "maxRetries"
 	maxRetryBackoff          = "maxRetryBackoff"
+	failover                 = "failover"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
@@ -39,6 +40,7 @@ const (
 	defaultMaxRetries        = 3
 	defaultMaxRetryBackoff   = time.Second * 2
 	defaultEnableTLS         = false
+	defaultFailover          = false
 )
 
 // StateStore is a Redis state store
@@ -97,6 +99,15 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
 		}
 		m.maxRetryBackoff = time.Duration(parsedVal)
+	}
+
+	m.failover = defaultFailover
+	if val, ok := meta.Properties[failover]; ok && val != "" {
+		tls, err := strconv.ParseBool(val)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
+		}
+		m.enableTLS = tls
 	}
 
 	return m, nil

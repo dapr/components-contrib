@@ -34,7 +34,7 @@ type rabbitMQMetadata struct {
 	Host             string `json:"host"`
 	Durable          bool   `json:"durable,string"`
 	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
-	PrefetchCount    int    `json:"prefetchCount,string"`
+	PrefetchCount    int    `json:"prefetchCount"`
 	defaultQueueTTL  *time.Duration
 }
 

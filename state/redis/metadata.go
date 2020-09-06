@@ -13,5 +13,7 @@ type metadata struct {
 	enableTLS       bool
 	maxRetries      int
 	maxRetryBackoff time.Duration
-	failover        bool
+
+	failover           bool
+	sentinelMatserName string
 }

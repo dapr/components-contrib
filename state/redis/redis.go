@@ -33,6 +33,7 @@ const (
 	maxRetries               = "maxRetries"
 	maxRetryBackoff          = "maxRetryBackoff"
 	failover                 = "failover"
+	sentinelMatserName       = "sentinelMatserName"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
@@ -103,11 +104,20 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 
 	m.failover = defaultFailover
 	if val, ok := meta.Properties[failover]; ok && val != "" {
-		tls, err := strconv.ParseBool(val)
+		failover, err := strconv.ParseBool(val)
 		if err != nil {
 			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
 		}
-		m.enableTLS = tls
+		m.failover = failover
+	}
+
+	// set the sentinelMatserName only with failover == true.
+	if m.failover {
+		if val, ok := meta.Properties[sentinelMatserName]; ok && val != "" {
+			m.sentinelMatserName = val
+		} else {
+			return m, errors.New("redis store error: missing sentinelMatserName")
+		}
 	}
 
 	return m, nil
@@ -120,23 +130,45 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 	r.metadata = m
+	var redisClient *redis.Client
 
-	opts := &redis.Options{
-		Addr:            m.host,
-		Password:        m.password,
-		DB:              defaultDB,
-		MaxRetries:      m.maxRetries,
-		MaxRetryBackoff: m.maxRetryBackoff,
-	}
-
-	/* #nosec */
-	if m.enableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.enableTLS,
+	if r.metadata.failover == true {
+		opts := &redis.FailoverOptions{
+			MasterName:      r.metadata.sentinelMatserName,
+			SentinelAddrs:   []string{r.metadata.host},
+			DB:              defaultDB,
+			MaxRetries:      m.maxRetries,
+			MaxRetryBackoff: m.maxRetryBackoff,
 		}
+
+		/* #nosec */
+		if m.enableTLS {
+			opts.TLSConfig = &tls.Config{
+				InsecureSkipVerify: m.enableTLS,
+			}
+		}
+
+		redisClient = redis.NewFailoverClient(opts)
+	} else {
+		opts := &redis.Options{
+			Addr:            m.host,
+			Password:        m.password,
+			DB:              defaultDB,
+			MaxRetries:      m.maxRetries,
+			MaxRetryBackoff: m.maxRetryBackoff,
+		}
+
+		/* #nosec */
+		if m.enableTLS {
+			opts.TLSConfig = &tls.Config{
+				InsecureSkipVerify: m.enableTLS,
+			}
+		}
+
+		redisClient = redis.NewClient(opts)
 	}
 
-	r.client = redis.NewClient(opts)
+	r.client = redisClient
 	_, err = r.client.Ping().Result()
 	if err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)

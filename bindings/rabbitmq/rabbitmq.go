@@ -12,6 +12,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
 )
 
@@ -121,7 +122,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	if m.PrefetchCount != "" {
 		m.prefetchCount, err = strconv.Atoi(m.PrefetchCount)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", "prefetchCount", m.prefetchCount)
 		}
 	}
 

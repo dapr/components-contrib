@@ -34,8 +34,9 @@ type rabbitMQMetadata struct {
 	Host             string `json:"host"`
 	Durable          bool   `json:"durable,string"`
 	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
-	PrefetchCount    int    `json:"prefetchCount"`
+	PrefetchCount    string `json:"prefetchCount"`
 	defaultQueueTTL  *time.Duration
+	prefetchCount    int
 }
 
 // NewRabbitMQ returns a new rabbitmq instance
@@ -59,7 +60,7 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	ch.Qos(r.metadata.PrefetchCount, 0, true)
+	ch.Qos(r.metadata.prefetchCount, 0, true)
 	r.connection = conn
 	r.channel = ch
 
@@ -115,6 +116,13 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return err
+	}
+
+	if m.PrefetchCount != "" {
+		m.prefetchCount, err = strconv.Atoi(m.PrefetchCount)
+		if err != nil {
+			return err
+		}
 	}
 
 	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)

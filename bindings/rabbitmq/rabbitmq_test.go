@@ -20,11 +20,13 @@ func TestParseMetadata(t *testing.T) {
 	var oneSecondTTL time.Duration = time.Second
 
 	testCases := []struct {
-		name                     string
-		properties               map[string]string
-		expectedDeleteWhenUnused bool
-		expectedDurable          bool
-		expectedTTL              *time.Duration
+		name                        string
+		properties                  map[string]string
+		expectedDeleteWhenUnused    bool
+		expectedDurable             bool
+		expectedTTL                 *time.Duration
+		expectedStringPrefetchCount string
+		expectedIntPrefetchCount    int
 	}{
 		{
 			name:                     "Delete / Durable",
@@ -51,6 +53,14 @@ func TestParseMetadata(t *testing.T) {
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 		},
+		{
+			name:                        "With one PrefetchCount",
+			properties:                  map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", "PrefetchCount": "1"},
+			expectedDeleteWhenUnused:    false,
+			expectedDurable:             false,
+			expectedStringPrefetchCount: "1",
+			expectedIntPrefetchCount:    1,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -65,6 +75,8 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
 			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
+			assert.Equal(t, tt.expectedStringPrefetchCount, r.metadata.PrefetchCount)
+			assert.Equal(t, tt.expectedIntPrefetchCount, r.metadata.prefetchCount)
 		})
 	}
 }

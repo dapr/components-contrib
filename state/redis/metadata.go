@@ -8,12 +8,11 @@ package redis
 import "time"
 
 type metadata struct {
-	host            string
-	password        string
-	enableTLS       bool
-	maxRetries      int
-	maxRetryBackoff time.Duration
-
-	failover           bool
+	host               string
+	password           string
 	sentinelMatserName string
+	maxRetries         int
+	maxRetryBackoff    time.Duration
+	enableTLS          bool
+	failover           bool
 }

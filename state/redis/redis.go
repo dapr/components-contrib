@@ -132,7 +132,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.metadata = m
 	var redisClient *redis.Client
 
-	if r.metadata.failover == true {
+	if r.metadata.failover {
 		opts := &redis.FailoverOptions{
 			MasterName:      r.metadata.sentinelMatserName,
 			SentinelAddrs:   []string{r.metadata.host},

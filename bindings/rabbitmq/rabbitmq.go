@@ -6,18 +6,25 @@
 package rabbitmq
 
 import (
-	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
 )
 
 const (
+	host                       = "host"
+	queueName                  = "queueName"
+	durable                    = "durable"
+	deleteWhenUnused           = "deleteWhenUnused"
+	prefetchCount              = "prefetchCount"
 	rabbitMQQueueMessageTTLKey = "x-message-ttl"
+	defaultBase                = 10
+	defaultBitSize             = 0
 )
 
 // RabbitMQ allows sending/receiving data to/from RabbitMQ
@@ -31,13 +38,12 @@ type RabbitMQ struct {
 
 // Metadata is the rabbitmq config
 type rabbitMQMetadata struct {
-	QueueName        string `json:"queueName"`
 	Host             string `json:"host"`
+	QueueName        string `json:"queueName"`
 	Durable          bool   `json:"durable,string"`
 	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
-	PrefetchCount    string `json:"prefetchCount"`
+	PrefetchCount    int    `json:"prefetchCount"`
 	defaultQueueTTL  *time.Duration
-	prefetchCount    int
 }
 
 // NewRabbitMQ returns a new rabbitmq instance
@@ -61,7 +67,7 @@ func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	ch.Qos(r.metadata.prefetchCount, 0, true)
+	ch.Qos(r.metadata.PrefetchCount, 0, true)
 	r.connection = conn
 	r.channel = ch
 
@@ -108,22 +114,42 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 }
 
 func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return err
+	m := rabbitMQMetadata{}
+
+	if val, ok := metadata.Properties[host]; ok && val != "" {
+		m.Host = val
+	} else {
+		return errors.New("rabbitMQ binding error: missing host address")
 	}
 
-	var m rabbitMQMetadata
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return err
+	if val, ok := metadata.Properties[queueName]; ok && val != "" {
+		m.QueueName = val
+	} else {
+		return errors.New("rabbitMQ binding error: missing queue Name")
 	}
 
-	if m.PrefetchCount != "" {
-		m.prefetchCount, err = strconv.Atoi(m.PrefetchCount)
+	if val, ok := metadata.Properties[durable]; ok && val != "" {
+		d, err := strconv.ParseBool(val)
 		if err != nil {
-			return errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", "prefetchCount", m.PrefetchCount)
+			return fmt.Errorf("rabbitMQ binding error: can't parse durable field: %s", err)
 		}
+		m.Durable = d
+	}
+
+	if val, ok := metadata.Properties[deleteWhenUnused]; ok && val != "" {
+		d, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("rabbitMQ binding error: can't parse deleteWhenUnused field: %s", err)
+		}
+		m.DeleteWhenUnused = d
+	}
+
+	if val, ok := metadata.Properties[prefetchCount]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return fmt.Errorf("rabbitMQ binding error: can't parse prefetchCount field: %s", err)
+		}
+		m.PrefetchCount = int(parsedVal)
 	}
 
 	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)

@@ -298,8 +298,16 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
-			b, _ := r.json.Marshal(req.Value)
-			pipe.Set(req.Key, b, defaultExpirationTime)
+
+			var bt []byte
+			b, ok := req.Value.([]byte)
+			if ok {
+				bt = b
+			} else {
+				bt, _ = r.json.Marshal(req.Value)
+			}
+
+			pipe.Set(req.Key, bt, defaultExpirationTime)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			pipe.Del(req.Key)

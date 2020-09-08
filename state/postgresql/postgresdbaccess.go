@@ -93,14 +93,15 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
-	var valueBytes []byte
-
 	// Convert to json string
-	valueBytes, err = json.Marshal(req.Value)
-	if err != nil {
-		return err
+	var bt []byte
+	b, ok := req.Value.([]byte)
+	if ok {
+		bt = b
+	} else {
+		bt, _ = json.Marshal(req.Value)
 	}
-	value := string(valueBytes)
+	value := string(bt)
 
 	var result sql.Result
 

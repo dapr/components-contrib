@@ -25,7 +25,6 @@ require (
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.25.0
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
-	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dapr/dapr v0.4.1-0.20200228055659-71892bc0111e

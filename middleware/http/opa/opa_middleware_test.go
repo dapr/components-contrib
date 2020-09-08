@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bmizerany/assert"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fh "github.com/valyala/fasthttp"
 )

@@ -41,7 +41,6 @@ const (
 	defaultMaxRetries        = 3
 	defaultMaxRetryBackoff   = time.Second * 2
 	defaultEnableTLS         = false
-	defaultFailover          = false
 )
 
 // StateStore is a Redis state store
@@ -102,7 +101,6 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
 
-	m.failover = defaultFailover
 	if val, ok := meta.Properties[failover]; ok && val != "" {
 		failover, err := strconv.ParseBool(val)
 		if err != nil {

@@ -33,7 +33,7 @@ const (
 	maxRetries               = "maxRetries"
 	maxRetryBackoff          = "maxRetryBackoff"
 	failover                 = "failover"
-	sentinelMatserName       = "sentinelMatserName"
+	sentinelMasterName       = "sentinelMasterName"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
@@ -111,12 +111,12 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.failover = failover
 	}
 
-	// set the sentinelMatserName only with failover == true.
+	// set the sentinelMasterName only with failover == true.
 	if m.failover {
-		if val, ok := meta.Properties[sentinelMatserName]; ok && val != "" {
-			m.sentinelMatserName = val
+		if val, ok := meta.Properties[sentinelMasterName]; ok && val != "" {
+			m.sentinelMasterName = val
 		} else {
-			return m, errors.New("redis store error: missing sentinelMatserName")
+			return m, errors.New("redis store error: missing sentinelMasterName")
 		}
 	}
 
@@ -134,7 +134,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	if r.metadata.failover {
 		opts := &redis.FailoverOptions{
-			MasterName:      r.metadata.sentinelMatserName,
+			MasterName:      r.metadata.sentinelMasterName,
 			SentinelAddrs:   []string{r.metadata.host},
 			DB:              defaultDB,
 			MaxRetries:      m.maxRetries,

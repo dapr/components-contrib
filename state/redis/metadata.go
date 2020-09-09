@@ -10,7 +10,7 @@ import "time"
 type metadata struct {
 	host               string
 	password           string
-	sentinelMatserName string
+	sentinelMasterName string
 	maxRetries         int
 	maxRetryBackoff    time.Duration
 	enableTLS          bool

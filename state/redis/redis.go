@@ -128,45 +128,13 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 	r.metadata = m
-	var redisClient *redis.Client
 
 	if r.metadata.failover {
-		opts := &redis.FailoverOptions{
-			MasterName:      r.metadata.sentinelMasterName,
-			SentinelAddrs:   []string{r.metadata.host},
-			DB:              defaultDB,
-			MaxRetries:      m.maxRetries,
-			MaxRetryBackoff: m.maxRetryBackoff,
-		}
-
-		/* #nosec */
-		if m.enableTLS {
-			opts.TLSConfig = &tls.Config{
-				InsecureSkipVerify: m.enableTLS,
-			}
-		}
-
-		redisClient = redis.NewFailoverClient(opts)
+		r.client = r.newFailoverClient(m)
 	} else {
-		opts := &redis.Options{
-			Addr:            m.host,
-			Password:        m.password,
-			DB:              defaultDB,
-			MaxRetries:      m.maxRetries,
-			MaxRetryBackoff: m.maxRetryBackoff,
-		}
-
-		/* #nosec */
-		if m.enableTLS {
-			opts.TLSConfig = &tls.Config{
-				InsecureSkipVerify: m.enableTLS,
-			}
-		}
-
-		redisClient = redis.NewClient(opts)
+		r.client = r.newClient(m)
 	}
 
-	r.client = redisClient
 	_, err = r.client.Ping().Result()
 	if err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
@@ -175,6 +143,44 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.replicas, err = r.getConnectedSlaves()
 
 	return err
+}
+
+func (r *StateStore) newClient(m metadata) *redis.Client {
+	opts := &redis.Options{
+		Addr:            m.host,
+		Password:        m.password,
+		DB:              defaultDB,
+		MaxRetries:      m.maxRetries,
+		MaxRetryBackoff: m.maxRetryBackoff,
+	}
+
+	/* #nosec */
+	if m.enableTLS {
+		opts.TLSConfig = &tls.Config{
+			InsecureSkipVerify: m.enableTLS,
+		}
+	}
+
+	return redis.NewClient(opts)
+}
+
+func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
+	opts := &redis.FailoverOptions{
+		MasterName:      r.metadata.sentinelMasterName,
+		SentinelAddrs:   []string{r.metadata.host},
+		DB:              defaultDB,
+		MaxRetries:      m.maxRetries,
+		MaxRetryBackoff: m.maxRetryBackoff,
+	}
+
+	/* #nosec */
+	if m.enableTLS {
+		opts.TLSConfig = &tls.Config{
+			InsecureSkipVerify: m.enableTLS,
+		}
+	}
+
+	return redis.NewFailoverClient(opts)
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {

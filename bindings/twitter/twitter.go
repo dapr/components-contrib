@@ -203,7 +203,7 @@ func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	}
 
 	req.Metadata["max_tweet_id"] = search.Metadata.MaxIDStr
-	req.Metadata["tweet_count"] = string(search.Metadata.Count)
+	req.Metadata["tweet_count"] = strconv.Itoa(search.Metadata.Count)
 	req.Metadata["search_ts"] = time.Now().UTC().String()
 
 	ir := &bindings.InvokeResponse{

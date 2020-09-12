@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/nats-io/gnatsd/logger"
+	"github.com/dapr/dapr/pkg/logger"
 	nats "github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
@@ -164,6 +164,8 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error connecting to nats streaming server %s: %s", m.natsStreamingClusterID, err)
 	}
+	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
+
 	n.natStreamingConn = natStreamingConn
 	return nil
 }
@@ -198,6 +200,11 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler fun
 	}
 	if err != nil {
 		return fmt.Errorf("nats-streaming: subscribe error %s", err)
+	}
+	if n.metadata.subscriptionType == subscriptionTypeTopic {
+		n.logger.Debugf("nats: subscribed to subject %s", req.Topic)
+	} else if n.metadata.subscriptionType == subscriptionTypeQueueGroup {
+		n.logger.Debugf("nats: subscribed to subject %s with queue group %s", req.Topic, n.metadata.natsQueueGroupName)
 	}
 
 	return nil

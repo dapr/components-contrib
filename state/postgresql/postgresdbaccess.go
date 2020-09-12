@@ -77,14 +77,14 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 
 // Set makes an insert or update to the database.
 func (p *postgresDBAccess) Set(req *state.SetRequest) error {
-	return state.SetWithRetries(p.setValue, req)
+	return state.SetWithOptions(p.setValue, req)
 }
 
 // setValue is an internal implementation of set to enable passing the logic to state.SetWithRetries as a func.
 func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in PostgreSQL")
 
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 // Delete removes an item from the state store.
 func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithRetries(p.deleteValue, req)
+	return state.DeleteWithOptions(p.deleteValue, req)
 }
 
 // deleteValue is an internal implementation of delete to enable passing the logic to state.DeleteWithRetries as a func.

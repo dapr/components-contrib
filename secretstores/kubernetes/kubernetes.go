@@ -8,6 +8,7 @@ package kubernetes
 import (
 	"errors"
 
+	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/dapr/pkg/logger"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +27,7 @@ func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
 
 // Init creates a Kubernetes client
 func (k *kubernetesSecretStore) Init(metadata secretstores.Metadata) error {
-	client, err := GetKubeClient()
+	client, err := kubeclient.GetKubeClient()
 	if err != nil {
 		return err
 	}

@@ -69,7 +69,7 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 
 //Set stores value for a key to Hazelcast
 func (store *Hazelcast) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Delete performs a delete operation
 func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}

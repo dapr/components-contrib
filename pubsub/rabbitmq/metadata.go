@@ -10,7 +10,6 @@ import (
 type metadata struct {
 	consumerID       string
 	host             string
-	durable          bool
 	deleteWhenUnused bool
 	autoAck          bool
 	requeueInFailure bool
@@ -39,12 +38,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 				return &result, fmt.Errorf("%s invalid RabbitMQ delivery mode, accepted values are between 0 and 2", errorMessagePrefix)
 			}
 			result.deliveryMode = uint8(intVal)
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataDurableKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.durable = boolVal
 		}
 	}
 

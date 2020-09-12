@@ -135,8 +135,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		r.client = r.newClient(m)
 	}
 
-	_, err = r.client.Ping().Result()
-	if err != nil {
+	if _, err = r.client.Ping().Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
 	}
 

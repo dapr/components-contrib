@@ -154,6 +154,7 @@ func (r *StateStore) newClient(m metadata) *redis.Client {
 		MaxRetryBackoff: m.maxRetryBackoff,
 	}
 
+	// tell the linter to skip a check here.
 	/* #nosec */
 	if m.enableTLS {
 		opts.TLSConfig = &tls.Config{

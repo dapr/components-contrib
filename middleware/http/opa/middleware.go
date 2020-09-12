@@ -1,6 +1,7 @@
 package opa
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,8 +75,11 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 	headers := map[string]string{}
 	var allowedHeaders = strings.Split(meta.IncludedHeaders, ",")
 	ctx.Request.Header.VisitAll(func(key, value []byte) {
-		for _, allowed := range allowedHeaders {
-			if string(key) == allowed {
+		for _, allowedHeader := range allowedHeaders {
+			buf := []byte("")
+			result := fasthttp.AppendNormalizedHeaderKeyBytes(buf, []byte(allowedHeader))
+			normalizedHeader := result[0:]
+			if bytes.Equal(key, normalizedHeader) {
 				headers[string(key)] = string(value)
 			}
 		}

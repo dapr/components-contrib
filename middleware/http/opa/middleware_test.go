@@ -127,6 +127,45 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			status: 403,
 		},
+		"allow when header not included": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = true
+
+						allow = { "status_code": 403 } {
+							input.request.headers["x-bad-header"] = "1"
+						}
+						`,
+				},
+			},
+			req: func(ctx *fh.RequestCtx) {
+				ctx.Request.SetHost("https://my.site")
+				ctx.Request.Header.Add("x-bad-header", "1")
+			},
+			status: 200,
+		},
+		"deny when header included": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = true
+
+						allow = { "status_code": 403 } {
+							input.request.headers["X-Bad-Header"] = "1"
+						}
+						`,
+					"includedHeaders": "x-bad-header",
+				},
+			},
+			req: func(ctx *fh.RequestCtx) {
+				ctx.Request.SetHost("https://my.site")
+				ctx.Request.Header.Add("x-bad-header", "1")
+			},
+			status: 403,
+		},
 	}
 
 	for name, test := range tests {

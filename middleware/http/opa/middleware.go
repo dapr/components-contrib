@@ -12,13 +12,14 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-type opaMiddlewareMetadata struct {
+type middlewareMetadata struct {
 	Rego            string `json:"rego"`
-	IncludedHeaders string `json:"includedHeaders"`
+	DefaultStatus   int    `json:"defaultStatus,omitempty"`
+	IncludedHeaders string `json:"includedHeaders,omitempty"`
 }
 
-// NewOpaMiddleware returns a new Open Policy Agent middleware
-func NewOpaMiddleware(logger logger.Logger) *Middleware {
+// NewMiddleware returns a new Open Policy Agent middleware
+func NewMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
@@ -34,7 +35,13 @@ type RegoResult struct {
 	StatusCode        int               `json:"status_code,omitempty"`
 }
 
-// GetHandler retruns the HTTP handler provided by the middleware
+const (
+	opaErrorHeaderKey         = "x-dapr-opa-error"
+	opaErrorNoResult          = "received no results back from rego policy. Are you setting data.http.allow?"
+	opaErrorInvalidResultType = "got an invalid type back from repo policy. Only a boolean or map is valid"
+)
+
+// GetHandler returns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 
@@ -63,7 +70,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	}, nil
 }
 
-func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *opaMiddlewareMetadata, query *rego.PreparedEvalQuery) bool {
+func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, query *rego.PreparedEvalQuery) bool {
 	headers := map[string]string{}
 	var allowedHeaders = strings.Split(meta.IncludedHeaders, ",")
 	ctx.Request.Header.VisitAll(func(key, value []byte) {
@@ -83,16 +90,17 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *opaMiddlewareMe
 		}
 	})
 
+	path := string(ctx.Path())
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
 	input := map[string]interface{}{
 		"request": map[string]interface{}{
-			"method":    string(ctx.Method()),
-			"path":      string(ctx.Path()),
-			"raw_query": string(ctx.QueryArgs().QueryString()),
-			"query":     queryArgs,
-			"headers":   headers,
-			"scheme":    string(ctx.Request.URI().Scheme()),
-			//TODO: allow opting into body support? Reading body isn't efficient
-			//TODO: flow parsed token from other http middlewares?
+			"method":     string(ctx.Method()),
+			"path":       path,
+			"path_parts": pathParts,
+			"raw_query":  string(ctx.QueryArgs().QueryString()),
+			"query":      queryArgs,
+			"headers":    headers,
+			"scheme":     string(ctx.Request.URI().Scheme()),
 		},
 	}
 
@@ -101,26 +109,29 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *opaMiddlewareMe
 	if err != nil {
 		m.opaError(ctx, err)
 		return false
-	} else if len(results) == 0 {
-		m.opaError(ctx, errors.New("received no results back from rego policy. Are you setting data.http.allow?"))
-		return false
-	} else if allowed := m.handleRegoResult(ctx, results[0].Bindings["result"]); !allowed {
+	}
+
+	if len(results) == 0 {
+		m.opaError(ctx, errors.New(opaErrorNoResult))
 		return false
 	}
-	return true
+
+	return m.handleRegoResult(ctx, meta, results[0].Bindings["result"])
 }
 
-func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, result interface{}) bool {
+// handleRegoResult takes the in process request and open policy agent evaluation result
+// and maps it the appropriate response or headers.
+// It returns true if the request should continue, or false if a response should be immediately returned.
+func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, result interface{}) bool {
 	if allowed, ok := result.(bool); ok {
 		if !allowed {
-			ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
-			return false
+			ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
 		}
-		return true
+		return allowed
 	}
 
 	if _, ok := result.(map[string]interface{}); !ok {
-		m.opaError(ctx, errors.New("got an invalid type back from repo policy. Only a boolean or map is valid"))
+		m.opaError(ctx, errors.New(opaErrorInvalidResultType))
 		return false
 	}
 
@@ -132,7 +143,8 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, result interface
 	}
 
 	regoResult := RegoResult{
-		StatusCode:        -1,
+		// By default, a non-allowed request with return a 403 response.
+		StatusCode:        meta.DefaultStatus,
 		AdditionalHeaders: make(map[string]string),
 	}
 
@@ -141,38 +153,40 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, result interface
 		return false
 	}
 
+	// If the result isn't allowed, set the response status and
+	// apply the additional headers to the response.
+	// Otherwise, set the headers on the ongoing request (overriding as necessary)
 	if !regoResult.Allow {
-		if regoResult.StatusCode >= 100 {
-			ctx.Response.SetStatusCode(regoResult.StatusCode)
-		}
+		ctx.Error(fasthttp.StatusMessage(regoResult.StatusCode), regoResult.StatusCode)
 		for key, value := range regoResult.AdditionalHeaders {
 			ctx.Response.Header.Set(key, value)
 		}
-		return false
+	} else {
+		for key, value := range regoResult.AdditionalHeaders {
+			ctx.Request.Header.Set(key, value)
+		}
 	}
-
-	for key, value := range regoResult.AdditionalHeaders {
-		ctx.Request.Header.Set(key, value)
-	}
-	return true
+	return regoResult.Allow
 }
 
 func (m *Middleware) opaError(ctx *fasthttp.RequestCtx, err error) {
 	ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
-	ctx.Response.Header.Set("x-dapr-opa-error", "1")
+	ctx.Response.Header.Set(opaErrorHeaderKey, "true")
 	m.logger.Warnf("Error procesing rego policy: %v", err)
 }
 
-func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*opaMiddlewareMetadata, error) {
+func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
 
-	var middlewareMetadata opaMiddlewareMetadata
-	err = json.Unmarshal(b, &middlewareMetadata)
+	meta := middlewareMetadata{
+		DefaultStatus: 403,
+	}
+	err = json.Unmarshal(b, &meta)
 	if err != nil {
 		return nil, err
 	}
-	return &middlewareMetadata, nil
+	return &meta, nil
 }

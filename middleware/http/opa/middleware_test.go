@@ -16,11 +16,12 @@ type RequestConfiguator func(*fh.RequestCtx)
 
 func TestOpaPolicy(t *testing.T) {
 	tests := map[string]struct {
-		meta        middleware.Metadata
-		req         RequestConfiguator
-		status      int
-		headers     *[][]string
-		shouldError *bool
+		meta               middleware.Metadata
+		req                RequestConfiguator
+		status             int
+		headers            *[][]string
+		shouldHandlerError bool
+		shouldRegoError    bool
 	}{
 		"allow": {
 			meta: middleware.Metadata{
@@ -166,6 +167,32 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			status: 403,
 		},
+		"err on no rego": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{},
+			},
+			shouldHandlerError: true,
+		},
+		"err on bad allow": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						allow = 1`,
+				},
+			},
+			shouldRegoError: true,
+		},
+		"err on bad package": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http.authz
+						allow = true`,
+				},
+			},
+			shouldRegoError: true,
+		},
 	}
 
 	for name, test := range tests {
@@ -174,17 +201,25 @@ func TestOpaPolicy(t *testing.T) {
 			opaMiddleware := NewMiddleware(log)
 			handler, err := opaMiddleware.GetHandler(test.meta)
 
-			if test.shouldError != nil && *test.shouldError {
+			if test.shouldHandlerError {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+
+			require.NoError(t, err)
 
 			var reqCtx fh.RequestCtx
 			if test.req != nil {
 				test.req(&reqCtx)
 			}
 			handler(mockedRequestHandler)(&reqCtx)
+
+			if test.shouldRegoError {
+				assert.Equal(t, 403, reqCtx.Response.StatusCode())
+				assert.Equal(t, "true", string(reqCtx.Response.Header.Peek(opaErrorHeaderKey)))
+				return
+			}
+
 			assert.Equal(t, test.status, reqCtx.Response.StatusCode())
 
 			if test.headers != nil {

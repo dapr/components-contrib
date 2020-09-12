@@ -36,10 +36,11 @@ type RegoResult struct {
 	StatusCode        int               `json:"status_code,omitempty"`
 }
 
-const (
-	opaErrorHeaderKey         = "x-dapr-opa-error"
-	opaErrorNoResult          = "received no results back from rego policy. Are you setting data.http.allow?"
-	opaErrorInvalidResultType = "got an invalid type back from repo policy. Only a boolean or map is valid"
+const opaErrorHeaderKey = "x-dapr-opa-error"
+
+var (
+	errOpaNoResult          = errors.New("received no results back from rego policy. Are you setting data.http.allow?")
+	errOpaInvalidResultType = errors.New("got an invalid type back from repo policy. Only a boolean or map is valid")
 )
 
 // GetHandler returns the HTTP handler provided by the middleware
@@ -111,12 +112,12 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 	results, err := query.Eval(context.TODO(), rego.EvalInput(input))
 
 	if err != nil {
-		m.opaError(ctx, err)
+		m.opaError(ctx, meta, err)
 		return false
 	}
 
 	if len(results) == 0 {
-		m.opaError(ctx, errors.New(opaErrorNoResult))
+		m.opaError(ctx, meta, errOpaNoResult)
 		return false
 	}
 
@@ -135,14 +136,14 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 	}
 
 	if _, ok := result.(map[string]interface{}); !ok {
-		m.opaError(ctx, errors.New(opaErrorInvalidResultType))
+		m.opaError(ctx, meta, errOpaInvalidResultType)
 		return false
 	}
 
 	// Is it expensive to marshal back and forth? Should we just manually pull out properties?
 	marshaled, err := json.Marshal(result)
 	if err != nil {
-		m.opaError(ctx, err)
+		m.opaError(ctx, meta, err)
 		return false
 	}
 
@@ -153,7 +154,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 	}
 
 	if err = json.Unmarshal(marshaled, &regoResult); err != nil {
-		m.opaError(ctx, err)
+		m.opaError(ctx, meta, err)
 		return false
 	}
 
@@ -173,8 +174,8 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 	return regoResult.Allow
 }
 
-func (m *Middleware) opaError(ctx *fasthttp.RequestCtx, err error) {
-	ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
+func (m *Middleware) opaError(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, err error) {
+	ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
 	ctx.Response.Header.Set(opaErrorHeaderKey, "true")
 	m.logger.Warnf("Error procesing rego policy: %v", err)
 }

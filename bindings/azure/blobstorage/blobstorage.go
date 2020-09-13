@@ -142,7 +142,7 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 		return nil, unescapeError
 	}
 
-	var data []byte
+	data := []byte(unescapedData)
 
 	if a.metadata.DecodeBase64 == "true" {
 		decoded, decodeError := b64.StdEncoding.DecodeString(unescapedData)
@@ -150,8 +150,6 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 			return nil, decodeError
 		}
 		data = decoded
-	} else {
-		data = []byte(unescapedData)
 	}
 
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), data, blobURL, azblob.UploadToBlockBlobOptions{

@@ -144,6 +144,7 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 
 	data := []byte(unescapedData)
 
+	// The "true" is the only allowed positive value. Other positive variations like "True" not acceptable.
 	if a.metadata.DecodeBase64 == "true" {
 		decoded, decodeError := b64.StdEncoding.DecodeString(unescapedData)
 		if decodeError != nil {

@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package utils
 
 func Marshal(val interface{}, marshaler func(interface{}) ([]byte, error)) ([]byte, error) {

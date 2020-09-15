@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 
 	// Blank import for the underlying PostgreSQL driver
@@ -94,13 +95,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	}
 
 	// Convert to json string
-	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = json.Marshal(req.Value)
-	}
+	bt, _ := utils.Marshal(req.Value, json.Marshal)
 	value := string(bt)
 
 	var result sql.Result

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 
 	jsoniter "github.com/json-iterator/go"
@@ -299,13 +300,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		ver = 0
 	}
 
-	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = r.json.Marshal(req.Value)
-	}
+	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
 	_, err = r.client.DoContext(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt).Result()
 	if err != nil {
@@ -345,8 +340,10 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
-			b, _ := r.json.Marshal(req.Value)
-			pipe.Set(req.Key, b, defaultExpirationTime)
+
+			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
+
+			pipe.Set(req.Key, bt, defaultExpirationTime)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			pipe.Del(req.Key)

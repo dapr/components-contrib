@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 	mssql "github.com/denisenkom/go-mssqldb"
 )
@@ -452,16 +453,10 @@ type dbExecutor interface {
 func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	var err error
 	var bytes []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bytes = b
-	} else {
-		bytes, err = json.Marshal(req.Value)
-		if err != nil {
-			return err
-		}
+	bytes, err = utils.Marshal(req.Value, json.Marshal)
+	if err != nil {
+		return err
 	}
-
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.ETag != "" {
 		var b []byte

@@ -306,6 +306,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
+			// Value need not be marshaled here. It is handled by cosmosdb client.
 			upsertOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        req.Value,

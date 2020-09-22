@@ -6,10 +6,16 @@
 package redis
 
 import (
+	"context"
 	"testing"
 
+	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
+
+	redis "github.com/go-redis/redis/v7"
+	jsoniter "github.com/json-iterator/go"
 )
 
 func TestGetKeyVersion(t *testing.T) {
@@ -47,18 +53,34 @@ func TestGetKeyVersion(t *testing.T) {
 func TestParseEtag(t *testing.T) {
 	store := NewRedisStateStore(logger.NewLogger("test"))
 	t.Run("Empty ETag", func(t *testing.T) {
-		ver, err := store.parseETag("")
+		ver, err := store.parseETag(&state.SetRequest{
+			ETag: "",
+		})
 		assert.Equal(t, nil, err, "failed to parse ETag")
 		assert.Equal(t, 0, ver, "default version should be 0")
 	})
 	t.Run("Number ETag", func(t *testing.T) {
-		ver, err := store.parseETag("354")
+		ver, err := store.parseETag(&state.SetRequest{
+			ETag: "354",
+		})
 		assert.Equal(t, nil, err, "failed to parse ETag")
 		assert.Equal(t, 354, ver, "version should be 254")
 	})
 	t.Run("String ETag", func(t *testing.T) {
-		_, err := store.parseETag("dragon")
+		_, err := store.parseETag(&state.SetRequest{
+			ETag: "dragon",
+		})
 		assert.NotNil(t, err, "shouldn't recognize string ETag")
+	})
+	t.Run("Concurrency=LastWrite", func(t *testing.T) {
+		ver, err := store.parseETag(&state.SetRequest{
+			Options: state.SetStateOption{
+				Concurrency: state.LastWrite,
+			},
+			ETag: "dragon",
+		})
+		assert.Equal(t, nil, err, "failed to parse ETag")
+		assert.Equal(t, 0, ver, "version should be 0")
 	})
 }
 
@@ -84,4 +106,81 @@ func TestParseConnectedSlavs(t *testing.T) {
 		slaves := store.parseConnectedSlaves("# Replication\r\nrole:master\r\nconnected_slaves:1")
 		assert.Equal(t, 1, slaves, "connected slaves must be 1")
 	})
+}
+
+func TestTransactionalUpsert(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	err := ss.Multi(&state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{{
+			Operation: state.Upsert,
+			Request: state.SetRequest{
+				Key:   "weapon",
+				Value: "deathstar",
+			},
+		}},
+	})
+	assert.Equal(t, nil, err)
+
+	res, err := c.DoContext(context.Background(), "HGETALL", "weapon").Result()
+	assert.Equal(t, nil, err)
+
+	vals := res.([]interface{})
+	data, version, err := ss.getKeyVersion(vals)
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "1", version)
+	assert.Equal(t, `"deathstar"`, data)
+}
+
+func TestTransactionalDelete(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	// Insert a record first.
+	ss.Set(&state.SetRequest{
+		Key:   "weapon",
+		Value: "deathstar",
+	})
+
+	err := ss.Multi(&state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{{
+			Operation: state.Delete,
+			Request: state.DeleteRequest{
+				Key:  "weapon",
+				ETag: "1",
+			},
+		}},
+	})
+	assert.Equal(t, nil, err)
+
+	res, err := c.DoContext(context.Background(), "HGETALL", "weapon").Result()
+	assert.Equal(t, nil, err)
+
+	vals := res.([]interface{})
+	assert.Equal(t, 0, len(vals))
+}
+
+func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
+	s, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	opts := &redis.Options{
+		Addr: s.Addr(),
+		DB:   defaultDB,
+	}
+	return s, redis.NewClient(opts)
 }

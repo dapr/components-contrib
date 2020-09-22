@@ -38,7 +38,6 @@ const (
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
-	defaultExpirationTime    = 0
 	defaultMaxRetries        = 3
 	defaultMaxRetryBackoff   = time.Second * 2
 	defaultEnableTLS         = false
@@ -266,7 +265,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.DoContext(context.Background(), "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
-		return r.directGet(req) //Falls back to original get
+		return r.directGet(req) // Falls back to original get for backward compats.
 	}
 	if res == nil {
 		return &state.GetResponse{}, nil
@@ -291,13 +290,9 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	ver, err := r.parseETag(req.ETag)
+	ver, err := r.parseETag(req)
 	if err != nil {
 		return err
-	}
-
-	if req.Options.Concurrency == state.LastWrite {
-		ver = 0
 	}
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
@@ -340,13 +335,15 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
-
+			ver, err := r.parseETag(&req)
+			if err != nil {
+				return err
+			}
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
-
-			pipe.Set(req.Key, bt, defaultExpirationTime)
+			pipe.Do("EVAL", setQuery, 1, req.Key, ver, bt)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
-			pipe.Del(req.Key)
+			pipe.Do("EVAL", delQuery, 1, req.Key, req.ETag)
 		}
 	}
 
@@ -374,14 +371,13 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version str
 	return data, version, nil
 }
 
-func (r *StateStore) parseETag(etag string) (int, error) {
-	ver := 0
-	var err error
-	if etag != "" {
-		ver, err = strconv.Atoi(etag)
-		if err != nil {
-			return -1, err
-		}
+func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
+	if req.Options.Concurrency == state.LastWrite || req.ETag == "" {
+		return 0, nil
+	}
+	ver, err := strconv.Atoi(req.ETag)
+	if err != nil {
+		return -1, err
 	}
 	return ver, nil
 }

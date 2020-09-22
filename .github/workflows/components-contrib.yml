@@ -60,5 +60,10 @@ jobs:
         if: matrix.target_arch != 'arm'
         run: make go.mod check-diff
       - name: Run make test
+        env:
+          COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
         if: matrix.target_arch != 'arm'
         run: make test
+      - name: Codecov
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
+        uses: codecov/codecov-action@v1

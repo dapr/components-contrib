@@ -71,13 +71,13 @@ type mongoDBMetadata struct {
 	operationTimeout time.Duration
 }
 
-// Mongodb document wrapper
+// Item is Mongodb document wrapper
 type Item struct {
 	Key   string `bson:"_id"`
 	Value string `bson:"value"`
 }
 
-// NewMongoDBStateStore returns a new MongoDB state store
+// NewMongoDB returns a new MongoDB state store
 func NewMongoDB(logger logger.Logger) *MongoDB {
 	return &MongoDB{logger: logger}
 }
@@ -231,7 +231,7 @@ func (m *MongoDB) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
-func (m *MongoDB) Multi(operations []state.TransactionalRequest) error {
+func (m *MongoDB) Multi(request *state.TransactionalStateRequest) error {
 	sess, err := m.client.StartSession()
 	txnOpts := options.Transaction().SetReadConcern(readconcern.Snapshot()).
 		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
@@ -243,14 +243,14 @@ func (m *MongoDB) Multi(operations []state.TransactionalRequest) error {
 	}
 
 	sess.WithTransaction(context.Background(), func(sessCtx mongo.SessionContext) (interface{}, error) {
-		err = m.doTransaction(sessCtx, operations)
+		err = m.doTransaction(sessCtx, request.Operations)
 		return nil, err
 	}, txnOpts)
 
 	return err
 }
 
-func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state.TransactionalRequest) error {
+func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state.TransactionalStateOperation) error {
 	for _, o := range operations {
 		var err error
 		if o.Operation == state.Upsert {

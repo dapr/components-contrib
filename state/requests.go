@@ -5,8 +5,6 @@
 
 package state
 
-import "time"
-
 // GetRequest is the object describing a state fetch request
 type GetRequest struct {
 	Key      string            `json:"key"`
@@ -39,9 +37,8 @@ func (r DeleteRequest) GetMetadata() map[string]string {
 
 // DeleteStateOption controls how a state store reacts to a delete request
 type DeleteStateOption struct {
-	Concurrency string      `json:"concurrency,omitempty"` //"concurrency"
-	Consistency string      `json:"consistency"`           //"eventual, strong"
-	RetryPolicy RetryPolicy `json:"retryPolicy,omitempty"`
+	Concurrency string `json:"concurrency,omitempty"` //"concurrency"
+	Consistency string `json:"consistency"`           //"eventual, strong"
 }
 
 // SetRequest is the object describing an upsert request
@@ -49,32 +46,24 @@ type SetRequest struct {
 	Key      string            `json:"key"`
 	Value    interface{}       `json:"value"`
 	ETag     string            `json:"etag,omitempty"`
-	Metadata map[string]string `json:"metadata"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 	Options  SetStateOption    `json:"options,omitempty"`
 }
 
-// Key gets the Key on a SetRequest
+// GetKey gets the Key on a SetRequest
 func (r SetRequest) GetKey() string {
 	return r.Key
 }
 
-// Metadata gets the Key on a SetRequest
+// GetMetadata gets the Key on a SetRequest
 func (r SetRequest) GetMetadata() map[string]string {
 	return r.Metadata
 }
 
-//RetryPolicy describes how retries should be handled
-type RetryPolicy struct {
-	Interval  time.Duration `json:"interval"`
-	Threshold int           `json:"threshold"`
-	Pattern   string        `json:"pattern,omitempty"` //linear, exponential
-}
-
 // SetStateOption controls how a state store reacts to a set request
 type SetStateOption struct {
-	Concurrency string      `json:"concurrency,omitempty"` //first-write, last-write
-	Consistency string      `json:"consistency"`           //"eventual, strong"
-	RetryPolicy RetryPolicy `json:"retryPolicy,omitempty"`
+	Concurrency string `json:"concurrency,omitempty"` //first-write, last-write
+	Consistency string `json:"consistency"`           //"eventual, strong"
 }
 
 // OperationType describes a CRUD operation performed against a state store
@@ -86,9 +75,15 @@ const Upsert OperationType = "upsert"
 // Delete is a delete operation
 const Delete OperationType = "delete"
 
-// TransactionalRequest describes a transactional operation against a state store that comprises multiple types of operations
+// TransactionalStateRequest describes a transactional operation against a state store that comprises multiple types of operations
 // The Request field is either a DeleteRequest or SetRequest
-type TransactionalRequest struct {
+type TransactionalStateRequest struct {
+	Operations []TransactionalStateOperation `json:"operations"`
+	Metadata   map[string]string             `json:"metadata,omitempty"`
+}
+
+// TransactionalStateOperation describes operation type, key, and value for transactional operation.
+type TransactionalStateOperation struct {
 	Operation OperationType `json:"operation"`
 	Request   interface{}   `json:"request"`
 }

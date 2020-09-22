@@ -25,31 +25,39 @@ func TestParseMetadata(t *testing.T) {
 		expectedDeleteWhenUnused bool
 		expectedDurable          bool
 		expectedTTL              *time.Duration
+		expectedPrefetchCount    int
 	}{
 		{
 			name:                     "Delete / Durable",
-			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "true", "Durable": "true"},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "true", "durable": "true"},
 			expectedDeleteWhenUnused: true,
 			expectedDurable:          true,
 		},
 		{
-			name:                     "Not Delete / Not Durable",
-			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false"},
+			name:                     "Not Delete / Not durable",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 		},
 		{
 			name:                     "With one second TTL",
-			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", bindings.TTLMetadataKey: "1"},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: "1"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedTTL:              &oneSecondTTL,
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"QueueName": queueName, "Host": host, "DeleteWhenUnused": "false", "Durable": "false", bindings.TTLMetadataKey: ""},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
+		},
+		{
+			name:                     "With one prefetchCount",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "prefetchCount": "1"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedPrefetchCount:    1,
 		},
 	}
 
@@ -65,6 +73,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
 			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
+			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
 		})
 	}
 }
@@ -79,15 +88,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "  "},
+			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "-1"},
+			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"QueueName": queueName, "Host": host, bindings.TTLMetadataKey: "abc"},
+			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "abc"},
 		},
 	}
 

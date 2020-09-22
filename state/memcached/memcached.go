@@ -9,6 +9,7 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -94,12 +95,7 @@ func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 
 func (m *Memcached) setValue(req *state.SetRequest) error {
 	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = m.json.Marshal(req.Value)
-	}
+	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
 	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt})
 
 	if err != nil {
@@ -143,7 +139,7 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (m *Memcached) Set(req *state.SetRequest) error {
-	return state.SetWithRetries(m.setValue, req)
+	return state.SetWithOptions(m.setValue, req)
 }
 
 func (m *Memcached) BulkSet(req []state.SetRequest) error {

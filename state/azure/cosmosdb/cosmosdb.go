@@ -8,7 +8,6 @@ package cosmosdb
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -154,7 +153,6 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
-
 	items := []CosmosItem{}
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 	if req.Options.Consistency == state.Strong {
@@ -189,7 +187,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves a CosmosDB item
 func (c *StateStore) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -243,7 +241,7 @@ func (c *StateStore) BulkSet(req []state.SetRequest) error {
 
 // Delete performs a delete operation
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -294,28 +292,21 @@ func (c *StateStore) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
-func (c *StateStore) Multi(operations []state.TransactionalRequest) error {
+func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	upserts := []CosmosItem{}
 	deletes := []CosmosItem{}
 
 	partitionKey := unknownPartitionKey
-	previousPartitionKey := unknownPartitionKey
 
-	for _, o := range operations {
+	for _, o := range request.Operations {
 		t := o.Request.(state.KeyInt)
 		key := t.GetKey()
-		metadata := t.GetMetadata()
 
-		partitionKey = populatePartitionMetadata(key, metadata)
-		if previousPartitionKey != unknownPartitionKey &&
-			partitionKey != previousPartitionKey {
-			return errors.New("all objects used in Multi() must have the same partition key")
-		}
-		previousPartitionKey = partitionKey
-
+		partitionKey = populatePartitionMetadata(key, request.Metadata)
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
+			// Value need not be marshaled here. It is handled by cosmosdb client.
 			upsertOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        req.Value,

@@ -209,30 +209,33 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 
 		// test multi
 		d2 := []byte("test")
-		list2 := make([]state.TransactionalRequest, numOfRecords)
-		list2[0] = state.TransactionalRequest{
-			Operation: state.Upsert,
-			Request: state.SetRequest{
-				Key:   fmt.Sprintf(recordIDFormat, 0),
-				Value: d2},
-		}
-		list2[1] = state.TransactionalRequest{
-			Operation: state.Upsert,
-			Request: state.SetRequest{
-				Key:   fmt.Sprintf(recordIDFormat, 1),
-				Value: d2},
-		}
-		list2[2] = state.TransactionalRequest{
-			Operation: state.Delete,
-			Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 2)},
-		}
-		list2[3] = state.TransactionalRequest{
-			Operation: state.Delete,
-			Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 3)},
+		req := state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   fmt.Sprintf(recordIDFormat, 0),
+						Value: d2},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   fmt.Sprintf(recordIDFormat, 1),
+						Value: d2},
+				},
+				{
+					Operation: state.Delete,
+					Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 2)},
+				},
+				{
+					Operation: state.Delete,
+					Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 3)},
+				},
+			},
 		}
 
 		// execute multi
-		if err := db.Multi(list2); err != nil {
+		if err := db.Multi(req); err != nil {
 			t.Fatalf("error setting multi to db: %v", err)
 		}
 

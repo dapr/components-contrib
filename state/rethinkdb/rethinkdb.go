@@ -244,11 +244,11 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs multiple operations
-func (s *RethinkDB) Multi(reqs []state.TransactionalRequest) error {
+func (s *RethinkDB) Multi(req state.TransactionalStateRequest) error {
 	upserts := make([]state.SetRequest, 0)
 	deletes := make([]state.DeleteRequest, 0)
 
-	for _, v := range reqs {
+	for _, v := range req.Operations {
 		switch v.Operation {
 		case state.Upsert:
 			r, ok := v.Request.(state.SetRequest)

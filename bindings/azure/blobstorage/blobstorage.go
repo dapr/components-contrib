@@ -42,6 +42,7 @@ type blobStorageMetadata struct {
 	StorageAccount   string `json:"storageAccount"`
 	StorageAccessKey string `json:"storageAccessKey"`
 	Container        string `json:"container"`
+	DecodeBase64     string `json:"decodeBase64"`
 }
 
 // NewAzureBlobStorage returns a new Azure Blob Storage instance
@@ -135,9 +136,24 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 	}
 
 	// Unescape data which will still be a JSON string
-	unescapedData, _ := strconv.Unquote(string(req.Data))
+	unescapedData, unescapeError := strconv.Unquote(string(req.Data))
 
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), []byte(unescapedData), blobURL, azblob.UploadToBlockBlobOptions{
+	if unescapeError != nil {
+		return nil, unescapeError
+	}
+
+	data := []byte(unescapedData)
+
+	// The "true" is the only allowed positive value. Other positive variations like "True" not acceptable.
+	if a.metadata.DecodeBase64 == "true" {
+		decoded, decodeError := b64.StdEncoding.DecodeString(unescapedData)
+		if decodeError != nil {
+			return nil, decodeError
+		}
+		data = decoded
+	}
+
+	_, err := azblob.UploadBufferToBlockBlob(context.Background(), data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,

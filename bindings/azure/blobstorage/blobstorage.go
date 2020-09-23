@@ -29,7 +29,7 @@ const (
 	contentLanguage    = "ContentLanguage"
 	contentDisposition = "ContentDisposition"
 	cacheControl       = "CacheControl"
-	getBlogRetryCount  = 10
+	getBlobRetryCount  = 10
 )
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account
@@ -160,7 +160,7 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 		return nil, fmt.Errorf("error downloading az blob: %s", err)
 	}
 
-	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: 10})
+	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: getBlobRetryCount})
 
 	b := bytes.Buffer{}
 	_, err = b.ReadFrom(bodyStream)

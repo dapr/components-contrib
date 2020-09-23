@@ -41,7 +41,7 @@ func NewPostgres(logger logger.Logger) *Postgres {
 	return &Postgres{logger: logger}
 }
 
-// Init initializes the Twitter binding
+// Init initializes the PostgreSql binding
 func (p *Postgres) Init(metadata bindings.Metadata) error {
 	url, ok := metadata.Properties[connectionURLKey]
 	if !ok || url == "" {
@@ -61,7 +61,7 @@ func (p *Postgres) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Operations returns list of operations supported by twitter binding
+// Operations returns list of operations supported by PostgreSql binding
 func (p *Postgres) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		execOperation,

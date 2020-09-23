@@ -20,74 +20,73 @@ import (
 
 // List of operations.
 const (
-	ExecOperation  bindings.OperationKind = "exec"
-	QueryOperation bindings.OperationKind = "query"
-	CloseOperation bindings.OperationKind = "close"
+	execOperation  bindings.OperationKind = "exec"
+	queryOperation bindings.OperationKind = "query"
+	closeOperation bindings.OperationKind = "close"
 
-	ConnectionURLKey = "url"
-	CommandSQLKey    = "sql"
-
-	CommandTimeoutDefault = 5
+	connectionURLKey = "url"
+	commandSQLKey    = "sql"
 )
 
-// Binding represents PostgreSQL output binding
-type Binding struct {
-	logger logger.Logger
-	db     *pgxpool.Pool
+// Postgres represents PostgreSQL output binding
+type Postgres struct {
+	logger     logger.Logger
+	db         *pgxpool.Pool
+	cmdTimeout time.Duration
 }
 
-var _ = bindings.OutputBinding(&Binding{})
+var _ = bindings.OutputBinding(&Postgres{})
 
-// NewBinding returns a new PostgreSQL output binding
-func NewBinding(logger logger.Logger) *Binding {
-	return &Binding{logger: logger}
+// NewPostgres returns a new PostgreSQL output binding
+func NewPostgres(logger logger.Logger) *Postgres {
+	return &Postgres{logger: logger}
 }
 
 // Init initializes the Twitter binding
-func (b *Binding) Init(metadata bindings.Metadata) error {
-	url, ok := metadata.Properties[ConnectionURLKey]
+func (p *Postgres) Init(metadata bindings.Metadata) error {
+	url, ok := metadata.Properties[connectionURLKey]
 	if !ok || url == "" {
-		return errors.Errorf("required metadata not set: %s", ConnectionURLKey)
+		return errors.Errorf("required metadata not set: %s", connectionURLKey)
 	}
 
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		errors.Wrap(err, "error opening DB connection")
+		return errors.Wrap(err, "error opening DB connection")
 	}
 
-	b.db, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
+	p.db, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
 	if err != nil {
-		errors.Wrap(err, "unable to ping the DB")
+		return errors.Wrap(err, "unable to ping the DB")
 	}
 
 	return nil
 }
 
 // Operations returns list of operations supported by twitter binding
-func (b *Binding) Operations() []bindings.OperationKind {
+func (p *Postgres) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
-		ExecOperation,
-		QueryOperation,
-		CloseOperation,
+		execOperation,
+		queryOperation,
+		closeOperation,
 	}
 }
 
 // Invoke handles all invoke operations
-func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
-	b.logger.Debugf("operation: %v", req.Operation)
+func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
+	p.logger.Debugf("operation: %v", req.Operation)
 
-	if req.Operation == CloseOperation {
-		b.db.Close()
-		return nil, nil
-	}
-
-	if req.Metadata == nil {
+	if req == nil || req.Metadata == nil {
 		return nil, errors.Errorf("metadata required")
 	}
 
-	sql, ok := req.Metadata[CommandSQLKey]
+	if req.Operation == closeOperation {
+		p.db.Close()
+		return nil, nil
+	}
+
+	sql, ok := req.Metadata[commandSQLKey]
 	if !ok || sql == "" {
-		return nil, errors.Errorf("required metadata not set: %s", CommandSQLKey)
+		return nil, errors.Errorf("required metadata not set: %s", commandSQLKey)
 	}
 
 	startTime := time.Now().UTC()
@@ -100,15 +99,15 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	}
 
 	switch req.Operation {
-	case ExecOperation:
-		r, err := b.exec(sql)
+	case execOperation:
+		r, err := p.exec(sql)
 		if err != nil {
 			resp.Metadata["error"] = err.Error()
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
-	case QueryOperation:
-		d, err := b.query(sql)
+	case queryOperation:
+		d, err := p.query(sql)
 		if err != nil {
 			resp.Metadata["error"] = err.Error()
 		}
@@ -117,7 +116,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	default:
 		return nil, errors.Errorf(
 			"invalid operation type: %s. Expected %s, %s, or %s",
-			ExecOperation, QueryOperation, CloseOperation, req.Operation,
+			req.Operation, execOperation, queryOperation, closeOperation,
 		)
 	}
 
@@ -128,19 +127,10 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	return resp, nil
 }
 
-// QueryResults is
-type QueryResults struct {
-	Columns []interface{}
-	Rows    [][]interface{}
-}
+func (p *Postgres) query(sql string) (result []byte, err error) {
+	p.logger.Debugf("select: %s", sql)
 
-func (b *Binding) query(sql string) (result []byte, err error) {
-	b.logger.Debugf("select: %s", sql)
-
-	ctx, cancel := context.WithTimeout(context.Background(), CommandTimeoutDefault*time.Second)
-	defer cancel()
-
-	rows, err := b.db.Query(ctx, sql)
+	rows, err := p.db.Query(context.Background(), sql)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing query: %s", sql)
 	}
@@ -160,13 +150,10 @@ func (b *Binding) query(sql string) (result []byte, err error) {
 	return
 }
 
-func (b *Binding) exec(sql string) (result int64, err error) {
-	b.logger.Debugf("exec: %s", sql)
+func (p *Postgres) exec(sql string) (result int64, err error) {
+	p.logger.Debugf("exec: %s", sql)
 
-	ctx, cancel := context.WithTimeout(context.Background(), CommandTimeoutDefault*time.Second)
-	defer cancel()
-
-	res, err := b.db.Exec(ctx, sql)
+	res, err := p.db.Exec(context.Background(), sql)
 	if err != nil {
 		return 0, errors.Wrapf(err, "error executing query: %s", sql)
 	}

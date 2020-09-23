@@ -27,78 +27,74 @@ const (
 	testSelect = "SELECT * FROM foo WHERE id < 3"
 )
 
+func TestOperations(t *testing.T) {
+	t.Parallel()
+	b := NewPostgres(logger.NewLogger("test"))
+	assert.NotNil(t, b)
+	l := b.Operations()
+	assert.Equal(t, 3, len(l))
+}
+
 // SETUP TESTS
-// 1. createdb daprtest
-// 2. createuser daprtest
-// 3. psql=# grant all privileges on database daprtest to daprtest;
-// 4. export POSTGRES_TEST_CONN_URL="postgres://daprtest@localhost:5432/daprtest?application_name=test&connect_timeout=5"
+// 1. `createdb daprtest`
+// 2. `createuser daprtest`
+// 3. `psql=# grant all privileges on database daprtest to daprtest;``
+// 4. `export POSTGRES_TEST_CONN_URL="postgres://daprtest@localhost:5432/daprtest?application_name=test&connect_timeout=5"``
+// 5. `go test -v -count=1 ./bindings/postgres -run ^TestPostgresIntegration`
 
-// TO STEST
-// go test -v -count=1 ./bindings/postgres -run ^TestCRUD
-
-func TestCRUD(t *testing.T) {
-	// skip this test unless the PG DB is available
-	if os.Getenv("POSTGRES_RUN_LIVE_TEST") != "true" {
-		t.Log("POSTGRES_RUN_LIVE_TEST not set, skipping test")
+func TestPostgresIntegration(t *testing.T) {
+	url := os.Getenv("POSTGRES_TEST_CONN_URL")
+	if url == "" {
 		t.SkipNow()
 	}
-	t.Log("POSTGRES_RUN_LIVE_TEST set, running live DB test")
 
 	// live DB test
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{
-		ConnectionURLKey: os.Getenv("POSTGRES_TEST_CONN_URL"),
-	}
-
-	logger := logger.NewLogger("test")
-	// logger.SetOutputLevel("debug")
-	b := NewBinding(logger)
-
-	err := b.Init(m)
+	b := NewPostgres(logger.NewLogger("test"))
+	err := b.Init(bindings.Metadata{Properties: map[string]string{connectionURLKey: url}})
 	assert.NoError(t, err)
 
 	// create table
 	req := &bindings.InvokeRequest{
-		Operation: ExecOperation,
-		Metadata:  map[string]string{CommandSQLKey: testTableDDL},
+		Operation: execOperation,
+		Metadata:  map[string]string{commandSQLKey: testTableDDL},
 	}
 	res, err := b.Invoke(req)
 	assertResponse(t, res, err)
 
 	// delete all previous records if any
-	req.Metadata[CommandSQLKey] = testDelete
+	req.Metadata[commandSQLKey] = testDelete
 	res, err = b.Invoke(req)
 	assertResponse(t, res, err)
 
 	// insert recrods
 	for i := 0; i < 10; i++ {
-		req.Metadata[CommandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
+		req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
 		res, err = b.Invoke(req)
 		assertResponse(t, res, err)
 	}
 
 	// update recrods
 	for i := 0; i < 10; i++ {
-		req.Metadata[CommandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
+		req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
 		res, err = b.Invoke(req)
 		assertResponse(t, res, err)
 	}
 
 	// select records
-	req.Operation = QueryOperation
-	req.Metadata[CommandSQLKey] = testSelect
+	req.Operation = queryOperation
+	req.Metadata[commandSQLKey] = testSelect
 	res, err = b.Invoke(req)
 	assertResponse(t, res, err)
 	t.Logf("result data: %v", string(res.Data))
 
 	// delete records
-	req.Operation = ExecOperation
-	req.Metadata[CommandSQLKey] = testDelete
+	req.Operation = execOperation
+	req.Metadata[commandSQLKey] = testDelete
 	res, err = b.Invoke(req)
 	assertResponse(t, res, err)
 
 	// close connection
-	req.Operation = CloseOperation
+	req.Operation = closeOperation
 	_, err = b.Invoke(req)
 	assert.NoError(t, err)
 }

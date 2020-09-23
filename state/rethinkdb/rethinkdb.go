@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	stateTableName          = "daprstate"
+	stateTableNameDefault   = "daprstate"
 	stateTablePKName        = "id"
 	stateArchiveTableName   = "daprstate_archive"
 	stateArchiveTablePKName = "key"
@@ -34,7 +34,8 @@ type RethinkDB struct {
 
 type stateConfig struct {
 	r.ConnectOpts
-	Archive bool `json:"archive"`
+	Archive bool   `json:"archive"`
+	Table   string `json:"table"`
 }
 
 type stateRecord struct {
@@ -46,7 +47,9 @@ type stateRecord struct {
 
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
-	return &RethinkDB{logger: logger}
+	return &RethinkDB{
+		logger: logger,
+	}
 }
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists
@@ -87,8 +90,8 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 		return errors.Wrap(err, "invalid database responsewhile listing tables")
 	}
 
-	if !tableExists(list, stateTableName) {
-		_, err = r.DB(s.config.Database).TableCreate(stateTableName, r.TableCreateOpts{
+	if !tableExists(list, s.config.Table) {
+		_, err = r.DB(s.config.Database).TableCreate(s.config.Table, r.TableCreateOpts{
 			PrimaryKey: stateTablePKName,
 		}).RunWrite(s.session)
 		if err != nil {
@@ -131,7 +134,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, errors.New("invalid state request, missing key")
 	}
 
-	c, err := r.Table(stateTableName).Get(req.Key).Run(s.session)
+	c, err := r.Table(s.config.Table).Get(req.Key).Run(s.session)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting record from the database")
 	}
@@ -184,7 +187,7 @@ func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 		}
 	}
 
-	resp, err := r.Table(stateTableName).Insert(docs, r.InsertOpts{
+	resp, err := r.Table(s.config.Table).Insert(docs, r.InsertOpts{
 		Conflict:      "replace",
 		ReturnChanges: true,
 	}).RunWrite(s.session)
@@ -235,7 +238,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 		list = append(list, d.Key)
 	}
 
-	c, err := r.Table(stateTableName).GetAll(r.Args(list)).Delete().Run(s.session)
+	c, err := r.Table(s.config.Table).GetAll(r.Args(list)).Delete().Run(s.session)
 	if err != nil {
 		return errors.Wrap(err, "error deleting record from the database")
 	}
@@ -280,9 +283,16 @@ func (s *RethinkDB) Multi(req state.TransactionalStateRequest) error {
 }
 
 func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig, error) {
-	c := stateConfig{}
+	// defaults
+	c := stateConfig{
+		Table: stateTableNameDefault,
+	}
+
+	// runtime
 	for k, v := range cfg {
 		switch k {
+		case "table": //string
+			c.Table = v
 		case "address": //string
 			c.Address = v
 		case "addresses": // []string

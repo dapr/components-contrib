@@ -48,7 +48,8 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 	})
 }
 
-// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestRethinkDBStateStore$ -v
+// go test -timeout 30s ./state/rethinkdb -run ^TestRethinkDBStateStore
+
 func TestRethinkDBStateStore(t *testing.T) {
 	if !isLiveTest() {
 		t.SkipNow()
@@ -56,9 +57,19 @@ func TestRethinkDBStateStore(t *testing.T) {
 
 	m := state.Metadata{Properties: getTestMetadata()}
 	db := NewRethinkDBStateStore(logger.NewLogger("test"))
-	if err := db.Init(m); err != nil {
-		t.Fatalf("error initializing db: %v", err)
-	}
+
+	t.Run("With init", func(t *testing.T) {
+		if err := db.Init(m); err != nil {
+			t.Fatalf("error initializing db: %v", err)
+		}
+		assert.Equal(t, stateTableNameDefault, db.config.Table)
+
+		m.Properties["table"] = "test"
+		if err := db.Init(m); err != nil {
+			t.Fatalf("error initializing db: %v", err)
+		}
+		assert.Equal(t, "test", db.config.Table)
+	})
 
 	t.Run("With struct data", func(t *testing.T) {
 		// create and set data

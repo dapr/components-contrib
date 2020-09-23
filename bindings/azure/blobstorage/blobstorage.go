@@ -160,6 +160,10 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("error uploading az blob: %s", err)
+	}
+
 	resp := createResponse{
 		BlobURL: blobURL.String(),
 	}

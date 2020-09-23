@@ -20,7 +20,7 @@ import (
 // 1. createdb daprtest
 // 2. createuser daprtest
 // 3. psql=# grant all privileges on database daprtest to daprtest;
-// 4. export POSTGRES_TEST_CONN_URL="host=localhost user=daprtest dbname=daprtest sslmode=disable"
+// 4. export POSTGRES_TEST_CONN_URL="postgres://daprtest@localhost:5432/daprtest?application_name=test&connect_timeout=5"
 
 // TO STEST
 // go test -v -count=1 ./bindings/postgres -run ^TestCRUD
@@ -47,10 +47,10 @@ func TestCRUD(t *testing.T) {
 
 	// create table
 	ddl := `CREATE TABLE IF NOT EXISTS foo (
-		id bigint NOT NULL,
-		v1 character varying(50) NOT NULL,
-		ts TIMESTAMP
-	)`
+			id bigint NOT NULL,
+			v1 character varying(50) NOT NULL,
+			ts TIMESTAMP
+		)`
 
 	req := &bindings.InvokeRequest{
 		Operation: ExecOperation,

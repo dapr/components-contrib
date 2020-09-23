@@ -6,7 +6,7 @@
 package postgres
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"strconv"
 	"time"
@@ -15,7 +15,7 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/pkg/errors"
 
-	_ "github.com/lib/pq" // postgres golang driver
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 // List of operations.
@@ -26,12 +26,14 @@ const (
 
 	ConnectionURLKey = "url"
 	CommandSQLKey    = "sql"
+
+	CommandTimeoutDefault = 5
 )
 
 // Binding represents PostgreSQL output binding
 type Binding struct {
 	logger logger.Logger
-	db     *sql.DB
+	db     *pgxpool.Pool
 }
 
 var _ = bindings.OutputBinding(&Binding{})
@@ -48,12 +50,13 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 		return errors.Errorf("required metadata not set: %s", ConnectionURLKey)
 	}
 
-	var err error
-	if b.db, err = sql.Open("postgres", url); err != nil {
+	poolConfig, err := pgxpool.ParseConfig(url)
+	if err != nil {
 		errors.Wrap(err, "error opening DB connection")
 	}
 
-	if err := b.db.Ping(); err != nil {
+	b.db, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
+	if err != nil {
 		errors.Wrap(err, "unable to ping the DB")
 	}
 
@@ -90,6 +93,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	startTime := time.Now().UTC()
 	resp = &bindings.InvokeResponse{
 		Metadata: map[string]string{
+			"operation":  string(req.Operation),
 			"sql":        sql,
 			"start-time": startTime.Format(time.RFC3339Nano),
 		},
@@ -98,14 +102,14 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	switch req.Operation {
 	case ExecOperation:
 		r, err := b.exec(sql)
-		if err == nil {
+		if err != nil {
 			resp.Metadata["error"] = err.Error()
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case QueryOperation:
 		d, err := b.query(sql)
-		if err == nil {
+		if err != nil {
 			resp.Metadata["error"] = err.Error()
 		}
 		resp.Data = d
@@ -124,20 +128,31 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	return
 }
 
+// QueryResults is
+type QueryResults struct {
+	Columns []interface{}
+	Rows    [][]interface{}
+}
+
 func (b *Binding) query(sql string) (result []byte, err error) {
 	b.logger.Debugf("select: %s", sql)
 
-	rows, err := b.db.Query(sql)
+	ctx, cancel := context.WithTimeout(context.Background(), CommandTimeoutDefault*time.Second)
+	defer cancel()
+
+	rows, err := b.db.Query(ctx, sql)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing query: %s", sql)
 	}
 
-	rs := make([]map[string]interface{}, 0)
-
+	rs := make([]interface{}, 0)
 	for rows.Next() {
-		var row map[string]interface{}
-		rows.Scan(row)
-		rs = append(rs, row)
+		val, err := rows.Values()
+		if err != nil {
+			return nil, errors.Wrapf(err, "error parsing result: %v", rows.Err())
+		}
+
+		rs = append(rs, val)
 	}
 
 	if result, err = json.Marshal(rs); err != nil {
@@ -149,14 +164,14 @@ func (b *Binding) query(sql string) (result []byte, err error) {
 func (b *Binding) exec(sql string) (result int64, err error) {
 	b.logger.Debugf("exec: %s", sql)
 
-	res, err := b.db.Exec(sql)
+	ctx, cancel := context.WithTimeout(context.Background(), CommandTimeoutDefault*time.Second)
+	defer cancel()
+
+	res, err := b.db.Exec(ctx, sql)
 	if err != nil {
 		return 0, errors.Wrapf(err, "error executing query: %s", sql)
 	}
 
-	if result, err = res.RowsAffected(); err != nil {
-		return 0, errors.Wrap(err, "error parsing result")
-	}
-
+	result = res.RowsAffected()
 	return
 }

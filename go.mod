@@ -21,6 +21,7 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.0
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
+	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.25.0
@@ -49,11 +50,11 @@ require (
 	github.com/json-iterator/go v1.1.8
 	github.com/lib/pq v1.8.0
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
-	github.com/nats-io/gnatsd v1.4.1
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
+	github.com/open-policy-agent/opa v0.23.2
 	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1

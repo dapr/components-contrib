@@ -30,9 +30,8 @@ const (
 
 // Postgres represents PostgreSQL output binding
 type Postgres struct {
-	logger     logger.Logger
-	db         *pgxpool.Pool
-	cmdTimeout time.Duration
+	logger logger.Logger
+	db     *pgxpool.Pool
 }
 
 var _ = bindings.OutputBinding(&Postgres{})
@@ -73,11 +72,10 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 
 // Invoke handles all invoke operations
 func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
-	p.logger.Debugf("operation: %v", req.Operation)
-
 	if req == nil || req.Metadata == nil {
 		return nil, errors.Errorf("metadata required")
 	}
+	p.logger.Debugf("operation: %v", req.Operation)
 
 	if req.Operation == closeOperation {
 		p.db.Close()

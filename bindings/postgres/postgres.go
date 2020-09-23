@@ -125,7 +125,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResp
 	resp.Metadata["end-time"] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata["duration"] = endTime.Sub(startTime).String()
 
-	return
+	return resp, nil
 }
 
 // QueryResults is
@@ -147,9 +147,9 @@ func (b *Binding) query(sql string) (result []byte, err error) {
 
 	rs := make([]interface{}, 0)
 	for rows.Next() {
-		val, err := rows.Values()
-		if err != nil {
-			return nil, errors.Wrapf(err, "error parsing result: %v", rows.Err())
+		val, rowErr := rows.Values()
+		if rowErr != nil {
+			return nil, errors.Wrapf(rowErr, "error parsing result: %v", rows.Err())
 		}
 		rs = append(rs, val)
 	}

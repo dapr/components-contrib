@@ -39,7 +39,7 @@ func TestCRUD(t *testing.T) {
 	}
 
 	logger := logger.NewLogger("test")
-	logger.SetOutputLevel("debug")
+	// logger.SetOutputLevel("debug")
 	b := NewBinding(logger)
 
 	err := b.Init(m)
@@ -101,7 +101,6 @@ func TestCRUD(t *testing.T) {
 	req.Operation = CloseOperation
 	_, err = b.Invoke(req)
 	assert.NoError(t, err)
-
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {

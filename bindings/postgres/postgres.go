@@ -151,12 +151,11 @@ func (b *Binding) query(sql string) (result []byte, err error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "error parsing result: %v", rows.Err())
 		}
-
 		rs = append(rs, val)
 	}
 
 	if result, err = json.Marshal(rs); err != nil {
-		return nil, errors.Wrap(err, "error serializing results")
+		err = errors.Wrap(err, "error serializing results")
 	}
 	return
 }

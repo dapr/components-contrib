@@ -17,12 +17,14 @@ import (
 )
 
 // SETUP TESTS
-
 // 1. createdb daprtest
 // 2. createuser daprtest
 // 3. psql=# grant all privileges on database daprtest to daprtest;
-// 2. export POSTGRES_TEST_CONN_URL="host=localhost user=daprtest dbname=daprtest sslmode=disable"
-// 3. go test -v -count=1 ./bindings/postgres -run ^TestCRUD
+// 4. export POSTGRES_TEST_CONN_URL="host=localhost user=daprtest dbname=daprtest sslmode=disable"
+
+// TO STEST
+// go test -v -count=1 ./bindings/postgres -run ^TestCRUD
+
 func TestCRUD(t *testing.T) {
 	if os.Getenv("POSTGRES_RUN_LIVE_TEST") != "true" {
 		t.Log("POSTGRES_RUN_LIVE_TEST not set, skipping test")

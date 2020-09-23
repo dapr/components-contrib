@@ -72,15 +72,19 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 
 // Invoke handles all invoke operations
 func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
-	if req == nil || req.Metadata == nil {
-		return nil, errors.Errorf("metadata required")
+	if req == nil {
+		return nil, errors.Errorf("invoke request required")
 	}
-	p.logger.Debugf("operation: %v", req.Operation)
 
 	if req.Operation == closeOperation {
 		p.db.Close()
 		return nil, nil
 	}
+
+	if req.Metadata == nil {
+		return nil, errors.Errorf("metadata required")
+	}
+	p.logger.Debugf("operation: %v", req.Operation)
 
 	sql, ok := req.Metadata[commandSQLKey]
 	if !ok || sql == "" {

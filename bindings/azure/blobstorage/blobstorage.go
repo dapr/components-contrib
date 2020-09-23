@@ -22,14 +22,14 @@ import (
 )
 
 const (
-	blobName           = "blobName"
-	contentType        = "ContentType"
-	contentMD5         = "ContentMD5"
-	contentEncoding    = "ContentEncoding"
-	contentLanguage    = "ContentLanguage"
-	contentDisposition = "ContentDisposition"
-	cacheControl       = "CacheControl"
-	getBlobRetryCount  = 10
+	blobName                 = "blobName"
+	contentType              = "ContentType"
+	contentMD5               = "ContentMD5"
+	contentEncoding          = "ContentEncoding"
+	contentLanguage          = "ContentLanguage"
+	contentDisposition       = "ContentDisposition"
+	cacheControl             = "CacheControl"
+	defaultGetBlobRetryCount = 10
 )
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account
@@ -41,10 +41,11 @@ type AzureBlobStorage struct {
 }
 
 type blobStorageMetadata struct {
-	StorageAccount   string `json:"storageAccount"`
-	StorageAccessKey string `json:"storageAccessKey"`
-	Container        string `json:"container"`
-	DecodeBase64     string `json:"decodeBase64"`
+	StorageAccount    string `json:"storageAccount"`
+	StorageAccessKey  string `json:"storageAccessKey"`
+	Container         string `json:"container"`
+	DecodeBase64      string `json:"decodeBase64"`
+	GetBlobRetryCount int    `json:"getBlobRetryCount"`
 }
 
 // NewAzureBlobStorage returns a new Azure Blob Storage instance
@@ -89,6 +90,10 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return nil, err
+	}
+
+	if m.GetBlobRetryCount == 0 {
+		m.GetBlobRetryCount = defaultGetBlobRetryCount
 	}
 	return &m, nil
 }
@@ -160,7 +165,7 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 		return nil, fmt.Errorf("error downloading az blob: %s", err)
 	}
 
-	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: getBlobRetryCount})
+	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: a.metadata.GetBlobRetryCount})
 
 	b := bytes.Buffer{}
 	_, err = b.ReadFrom(bodyStream)

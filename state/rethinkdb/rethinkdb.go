@@ -276,7 +276,7 @@ func (s *RethinkDB) Multi(req state.TransactionalStateRequest) error {
 	}
 
 	if err := s.BulkDelete(deletes); err != nil {
-		return errors.Wrap(err, "error saving records to the database")
+		return errors.Wrap(err, "error deleting records to the database")
 	}
 
 	return nil

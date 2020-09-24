@@ -29,17 +29,19 @@ const (
 
 func TestOperations(t *testing.T) {
 	t.Parallel()
-	b := NewPostgres(logger.NewLogger("test"))
-	assert.NotNil(t, b)
-	l := b.Operations()
-	assert.Equal(t, 3, len(l))
+	t.Run("Get operation list", func(t *testing.T) {
+		b := NewPostgres(nil)
+		assert.NotNil(t, b)
+		l := b.Operations()
+		assert.Equal(t, 3, len(l))
+	})
 }
 
 // SETUP TESTS
 // 1. `createdb daprtest`
 // 2. `createuser daprtest`
 // 3. `psql=# grant all privileges on database daprtest to daprtest;``
-// 4. `export POSTGRES_TEST_CONN_URL="postgres://daprtest@localhost:5432/daprtest?application_name=test&connect_timeout=5"``
+// 4. `export POSTGRES_TEST_CONN_URL="postgres://daprtest@localhost:5432/daprtest"``
 // 5. `go test -v -count=1 ./bindings/postgres -run ^TestPostgresIntegration`
 
 func TestPostgresIntegration(t *testing.T) {
@@ -50,58 +52,70 @@ func TestPostgresIntegration(t *testing.T) {
 
 	// live DB test
 	b := NewPostgres(logger.NewLogger("test"))
-	err := b.Init(bindings.Metadata{Properties: map[string]string{connectionURLKey: url}})
-	assert.NoError(t, err)
+	m := bindings.Metadata{Properties: map[string]string{connectionURLKey: url}}
+	if err := b.Init(m); err != nil {
+		t.Fatal(err)
+	}
 
 	// create table
 	req := &bindings.InvokeRequest{
 		Operation: execOperation,
 		Metadata:  map[string]string{commandSQLKey: testTableDDL},
 	}
-	res, err := b.Invoke(req)
-	assertResponse(t, res, err)
 
-	// delete all previous records if any
-	req.Metadata[commandSQLKey] = testDelete
-	res, err = b.Invoke(req)
-	assertResponse(t, res, err)
-
-	// insert recrods
-	for i := 0; i < 10; i++ {
-		req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
-		res, err = b.Invoke(req)
+	t.Run("Invoke create table", func(t *testing.T) {
+		res, err := b.Invoke(req)
 		assertResponse(t, res, err)
-	}
+	})
 
-	// update recrods
-	for i := 0; i < 10; i++ {
-		req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
-		res, err = b.Invoke(req)
+	t.Run("Invoke delete", func(t *testing.T) {
+		req.Metadata[commandSQLKey] = testDelete
+		res, err := b.Invoke(req)
 		assertResponse(t, res, err)
-	}
+	})
 
-	// select records
-	req.Operation = queryOperation
-	req.Metadata[commandSQLKey] = testSelect
-	res, err = b.Invoke(req)
-	assertResponse(t, res, err)
-	t.Logf("result data: %v", string(res.Data))
+	t.Run("Invoke insert", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
+			res, err := b.Invoke(req)
+			assertResponse(t, res, err)
+		}
+	})
 
-	// delete records
-	req.Operation = execOperation
-	req.Metadata[commandSQLKey] = testDelete
-	res, err = b.Invoke(req)
-	assertResponse(t, res, err)
+	t.Run("Invoke update", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
+			res, err := b.Invoke(req)
+			assertResponse(t, res, err)
+		}
+	})
 
-	// close connection
-	req.Operation = closeOperation
-	_, err = b.Invoke(req)
-	assert.NoError(t, err)
+	t.Run("Invoke select", func(t *testing.T) {
+		req.Operation = queryOperation
+		req.Metadata[commandSQLKey] = testSelect
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Invoke delete", func(t *testing.T) {
+		req.Operation = execOperation
+		req.Metadata[commandSQLKey] = testDelete
+		req.Data = nil
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Invoke close", func(t *testing.T) {
+		req.Operation = closeOperation
+		req.Metadata = nil
+		req.Data = nil
+		_, err := b.Invoke(req)
+		assert.NoError(t, err)
+	})
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	assert.NotNil(t, res.Metadata)
-	t.Logf("result meta: %v", res.Metadata)
 }

@@ -104,14 +104,14 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 	case execOperation:
 		r, err := p.exec(sql)
 		if err != nil {
-			resp.Metadata["error"] = err.Error()
+			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case queryOperation:
 		d, err := p.query(sql)
 		if err != nil {
-			resp.Metadata["error"] = err.Error()
+			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
 		}
 		resp.Data = d
 
@@ -130,11 +130,11 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 }
 
 func (p *Postgres) query(sql string) (result []byte, err error) {
-	p.logger.Debugf("select: %s", sql)
+	p.logger.Debugf("query: %s", sql)
 
 	rows, err := p.db.Query(context.Background(), sql)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing query: %s", sql)
+		return nil, errors.Wrapf(err, "error executing %s", sql)
 	}
 
 	rs := make([]interface{}, 0)
@@ -157,7 +157,7 @@ func (p *Postgres) exec(sql string) (result int64, err error) {
 
 	res, err := p.db.Exec(context.Background(), sql)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error executing query: %s", sql)
+		return 0, errors.Wrapf(err, "error executing %s", sql)
 	}
 
 	result = res.RowsAffected()

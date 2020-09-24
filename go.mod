@@ -19,7 +19,7 @@ require (
 	github.com/Azure/go-autorest/autorest/adal v0.8.3
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/Shopify/sarama v1.23.1
-	github.com/a8m/documentdb v1.2.0
+	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
@@ -49,6 +49,7 @@ require (
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.8
+	github.com/lib/pq v1.8.0 // indirect
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect

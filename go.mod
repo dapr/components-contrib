@@ -48,6 +48,7 @@ require (
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.8
+	github.com/lib/pq v1.8.0 // indirect
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect

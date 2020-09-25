@@ -132,33 +132,6 @@ func TestDelete(t *testing.T) {
 		err := s.Delete(&state.DeleteRequest{Key: "foo"})
 		assert.NoError(t, err, "Delete must be successful")
 	})
-
-	t.Run("With delete error and retry", func(t *testing.T) {
-		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrUnknown).Times(2)
-		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
-
-		err := s.Delete(&state.DeleteRequest{Key: "foo",
-			Options: state.DeleteStateOption{RetryPolicy: state.RetryPolicy{
-				Pattern:   state.Linear,
-				Threshold: 3,
-				Interval:  time.Millisecond,
-			}},
-		})
-		assert.NoError(t, err, "Delete must be successful")
-	})
-
-	t.Run("With delete error and retry failed", func(t *testing.T) {
-		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrUnknown).Times(3)
-
-		err := s.Delete(&state.DeleteRequest{Key: "foo",
-			Options: state.DeleteStateOption{RetryPolicy: state.RetryPolicy{
-				Pattern:   state.Linear,
-				Threshold: 3,
-				Interval:  time.Millisecond,
-			}},
-		})
-		assert.EqualError(t, err, "failed to set value after 3 retries")
-	})
 }
 
 // BulkDelete
@@ -249,35 +222,6 @@ func TestSet(t *testing.T) {
 
 		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
 		assert.NoError(t, err, "Key must be create")
-	})
-	t.Run("With delete error and retry", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(2)
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
-
-		err := s.Set(&state.SetRequest{
-			Key:   "foo",
-			Value: "bar",
-			Options: state.SetStateOption{RetryPolicy: state.RetryPolicy{
-				Pattern:   state.Linear,
-				Threshold: 3,
-				Interval:  time.Millisecond,
-			}},
-		})
-		assert.NoError(t, err, "Set must be successful")
-	})
-	t.Run("With delete error and retry failed", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(3)
-
-		err := s.Set(&state.SetRequest{
-			Key:   "foo",
-			Value: "bar",
-			Options: state.SetStateOption{RetryPolicy: state.RetryPolicy{
-				Pattern:   state.Linear,
-				Threshold: 3,
-				Interval:  time.Millisecond,
-			}},
-		})
-		assert.EqualError(t, err, "failed to set value after 3 retries")
 	})
 }
 

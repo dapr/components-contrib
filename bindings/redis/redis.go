@@ -118,14 +118,18 @@ func (r *Redis) parseMetadata(meta bindings.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (r *Redis) Write(req *bindings.WriteRequest) error {
+func (r *Redis) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
 		_, err := r.client.DoContext(context.Background(), "SET", key, req.Data).Result()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return nil
+		return nil, nil
 	}
-	return errors.New("redis binding: missing key on write request metadata")
+	return nil, errors.New("redis binding: missing key on write request metadata")
 }

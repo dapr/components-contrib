@@ -90,7 +90,7 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 
 // Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings
 func (aspike *Aerospike) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -137,8 +137,8 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (aspike *Aerospike) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := aspike.Set(&s)
+	for i := range req {
+		err := aspike.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -181,7 +181,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 // Delete performs a delete operation
 func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -219,8 +219,8 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (aspike *Aerospike) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := aspike.Delete(&re)
+	for i := range req {
+		err := aspike.Delete(&req[i])
 		if err != nil {
 			return err
 		}

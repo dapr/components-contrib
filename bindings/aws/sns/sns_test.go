@@ -14,7 +14,7 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"TopicArn": "a", "Region": "a", "AccessKey": "a", "SecretKey": "a"}
+	m.Properties = map[string]string{"TopicArn": "a", "Region": "a", "AccessKey": "a", "SecretKey": "a", "Endpoint": "a"}
 	s := AWSSNS{}
 	snsM, err := s.parseMetadata(m)
 	assert.Nil(t, err)
@@ -22,4 +22,5 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "a", snsM.Region)
 	assert.Equal(t, "a", snsM.AccessKey)
 	assert.Equal(t, "a", snsM.SecretKey)
+	assert.Equal(t, "a", snsM.Endpoint)
 }

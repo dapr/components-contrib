@@ -128,8 +128,8 @@ func (c *Consul) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulk save operation
 func (c *Consul) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := c.Set(&s)
+	for i := range req {
+		err := c.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -151,8 +151,8 @@ func (c *Consul) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (c *Consul) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := c.Delete(&re)
+	for i := range req {
+		err := c.Delete(&req[i])
 		if err != nil {
 			return err
 		}

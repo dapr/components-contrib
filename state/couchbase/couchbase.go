@@ -123,7 +123,7 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 
 //Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
 func (cbs *Couchbase) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -139,6 +139,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
 
+	//nolint:nestif
 	//key already exists (use Replace)
 	if req.ETag != "" {
 		//compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
@@ -169,8 +170,8 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (cbs *Couchbase) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := cbs.Set(&s)
+	for i := range req {
+		err := cbs.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -203,7 +204,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Delete performs a delete operation
 func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -230,8 +231,8 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := cbs.Delete(&re)
+	for i := range req {
+		err := cbs.Delete(&req[i])
 		if err != nil {
 			return err
 		}

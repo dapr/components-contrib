@@ -69,7 +69,7 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 
 //Set stores value for a key to Hazelcast
 func (store *Hazelcast) Set(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req)
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func (store *Hazelcast) Set(req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation
 func (store *Hazelcast) BulkSet(req []state.SetRequest) error {
-	for _, s := range req {
-		err := store.Set(&s)
+	for i := range req {
+		err := store.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Delete performs a delete operation
 func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
-	err := state.CheckDeleteRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -141,8 +141,8 @@ func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete performs a bulk delete operation
 func (store *Hazelcast) BulkDelete(req []state.DeleteRequest) error {
-	for _, re := range req {
-		err := store.Delete(&re)
+	for i := range req {
+		err := store.Delete(&req[i])
 		if err != nil {
 			return err
 		}

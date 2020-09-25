@@ -8,6 +8,7 @@ package firestore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"cloud.google.com/go/datastore"
@@ -80,9 +81,9 @@ func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var entity StateEntity
 	err := f.client.Get(context.Background(), entityKey, &entity)
 
-	if err != nil && err != datastore.ErrNoSuchEntity {
+	if err != nil && !errors.Is(err, datastore.ErrNoSuchEntity) {
 		return nil, err
-	} else if err == datastore.ErrNoSuchEntity {
+	} else if errors.Is(err, datastore.ErrNoSuchEntity) {
 		return &state.GetResponse{}, nil
 	}
 
@@ -92,7 +93,7 @@ func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (f *Firestore) setValue(req *state.SetRequest) error {
-	err := state.CheckSetRequestOptions(req)
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
@@ -121,13 +122,13 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 
 // Set saves state into Firestore with retry
 func (f *Firestore) Set(req *state.SetRequest) error {
-	return state.SetWithRetries(f.setValue, req)
+	return state.SetWithOptions(f.setValue, req)
 }
 
 // BulkSet performs a bulk set operation
 func (f *Firestore) BulkSet(req []state.SetRequest) error {
-	for _, r := range req {
-		err := f.Set(&r)
+	for i := range req {
+		err := f.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -149,13 +150,13 @@ func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
 
 // Delete performs a delete operation
 func (f *Firestore) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithRetries(f.deleteValue, req)
+	return state.DeleteWithOptions(f.deleteValue, req)
 }
 
 // BulkDelete performs a bulk delete operation
 func (f *Firestore) BulkDelete(req []state.DeleteRequest) error {
-	for _, r := range req {
-		err := f.Delete(&r)
+	for i := range req {
+		err := f.Delete(&req[i])
 		if err != nil {
 			return err
 		}

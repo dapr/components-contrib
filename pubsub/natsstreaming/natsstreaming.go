@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/nats-io/gnatsd/logger"
+	"github.com/dapr/dapr/pkg/logger"
 	nats "github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
@@ -97,6 +97,7 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.durableSubscriptionName = val
 	}
 
+	//nolint:nestif
 	// subscription options - only one can be used
 	if val, ok := meta.Properties[startAtSequence]; ok && val != "" {
 		// nats streaming accepts a uint64 as sequence
@@ -163,6 +164,8 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error connecting to nats streaming server %s: %s", m.natsStreamingClusterID, err)
 	}
+	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
+
 	n.natStreamingConn = natStreamingConn
 	return nil
 }
@@ -198,6 +201,11 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler fun
 	if err != nil {
 		return fmt.Errorf("nats-streaming: subscribe error %s", err)
 	}
+	if n.metadata.subscriptionType == subscriptionTypeTopic {
+		n.logger.Debugf("nats: subscribed to subject %s", req.Topic)
+	} else if n.metadata.subscriptionType == subscriptionTypeQueueGroup {
+		n.logger.Debugf("nats: subscribed to subject %s with queue group %s", req.Topic, n.metadata.natsQueueGroupName)
+	}
 
 	return nil
 }
@@ -209,20 +217,20 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 		options = append(options, stan.DurableName(n.metadata.durableSubscriptionName))
 	}
 
-	if n.metadata.deliverNew == deliverNewTrue {
+	switch {
+	case n.metadata.deliverNew == deliverNewTrue:
 		options = append(options, stan.StartAt(pb.StartPosition_NewOnly))
-	} else if n.metadata.startAtSequence >= 1 { //messages index start from 1, this is a valid check
+	case n.metadata.startAtSequence >= 1: //messages index start from 1, this is a valid check
 		options = append(options, stan.StartAtSequence(n.metadata.startAtSequence))
-	} else if n.metadata.startWithLastReceived == startWithLastReceivedTrue {
+	case n.metadata.startWithLastReceived == startWithLastReceivedTrue:
 		options = append(options, stan.StartWithLastReceived())
-	} else if n.metadata.deliverAll == deliverAllTrue {
+	case n.metadata.deliverAll == deliverAllTrue:
 		options = append(options, stan.DeliverAllAvailable())
-	} else if n.metadata.startAtTimeDelta > (1 * time.Nanosecond) { //as long as its a valid time.Duration
+	case n.metadata.startAtTimeDelta > (1 * time.Nanosecond): //as long as its a valid time.Duration
 		options = append(options, stan.StartAtTimeDelta(n.metadata.startAtTimeDelta))
-	} else if n.metadata.startAtTime != "" {
+	case n.metadata.startAtTime != "":
 		if n.metadata.startAtTimeFormat != "" {
 			startTime, err := time.Parse(n.metadata.startAtTimeFormat, n.metadata.startAtTime)
-
 			if err != nil {
 				return nil, err
 			}

@@ -71,6 +71,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				return
 			}
 			state := string(ctx.FormValue(stateParam))
+			//nolint:nestif
 			if state == "" {
 				id, _ := uuid.NewUUID()
 				session.Set(savedState, id.String())

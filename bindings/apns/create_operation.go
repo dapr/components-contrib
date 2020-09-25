@@ -96,7 +96,8 @@ func (op *createOperation) sendPushNotification() {
 	}
 
 	op.logger.Debugf("Sending notification to device %v", op.deviceToken)
-	op.httpResponse, op.err = op.client.Do(op.httpRequest)
+
+	op.httpResponse, op.err = op.client.Do(op.httpRequest) //nolint:bodyclose // Body.Close() is called later in the pipeline by the closeResponseBody function
 }
 
 func (op *createOperation) makeSuccessResponse() {
@@ -132,11 +133,11 @@ func (op *createOperation) makeErrorResponse() {
 		return
 	}
 
-	var errorResponse errorResponse
+	var reply errorResponse
 	decoder := json.NewDecoder(op.httpResponse.Body)
-	op.err = decoder.Decode(&errorResponse)
+	op.err = decoder.Decode(&reply)
 	if op.err == nil {
-		op.err = errors.New(errorResponse.Reason)
+		op.err = errors.New(reply.Reason)
 	}
 }
 

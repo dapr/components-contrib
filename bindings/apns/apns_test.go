@@ -173,7 +173,7 @@ func TestOperations(t *testing.T) {
 func TestInvoke(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
-	var successRequest = &bindings.InvokeRequest{
+	successRequest := &bindings.InvokeRequest{
 		Operation: bindings.CreateOperation,
 		Metadata: map[string]string{
 			deviceTokenKey: "1234567890",

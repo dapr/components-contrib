@@ -343,6 +343,9 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			pipe.Do("EVAL", setQuery, 1, req.Key, ver, bt)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
+			if req.ETag == "" {
+				req.ETag = "0"
+			}
 			pipe.Do("EVAL", delQuery, 1, req.Key, req.ETag)
 		}
 	}

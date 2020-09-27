@@ -173,6 +173,39 @@ func TestTransactionalDelete(t *testing.T) {
 	assert.Equal(t, 0, len(vals))
 }
 
+func TestTransactionalDeleteNoEtag(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	// Insert a record first.
+	ss.Set(&state.SetRequest{
+		Key:   "weapon100",
+		Value: "deathstar100",
+	})
+
+	err := ss.Multi(&state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{{
+			Operation: state.Delete,
+			Request: state.DeleteRequest{
+				Key: "weapon100",
+			},
+		}},
+	})
+	assert.Equal(t, nil, err)
+
+	res, err := c.DoContext(context.Background(), "HGETALL", "weapon100").Result()
+	assert.Equal(t, nil, err)
+
+	vals := res.([]interface{})
+	assert.Equal(t, 0, len(vals))
+}
+
 func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
 	s, err := miniredis.Run()
 	if err != nil {

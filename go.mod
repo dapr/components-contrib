@@ -19,7 +19,7 @@ require (
 	github.com/Azure/go-autorest/autorest/adal v0.8.3
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/Shopify/sarama v1.23.1
-	github.com/a8m/documentdb v1.2.0
+	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
@@ -28,6 +28,7 @@ require (
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.1.0+incompatible
+	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/dapr v0.4.1-0.20200228055659-71892bc0111e
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
@@ -48,6 +49,7 @@ require (
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.8
+	github.com/lib/pq v1.8.0 // indirect
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect
@@ -81,6 +83,7 @@ require (
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.16 // indirect
 	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4 // indirect
+	gopkg.in/gorethink/gorethink.v4 v4.1.0 // indirect
 	k8s.io/api v0.17.0
 	k8s.io/apimachinery v0.17.0
 	k8s.io/client-go v0.17.0

@@ -48,6 +48,10 @@ type blobStorageMetadata struct {
 	GetBlobRetryCount int    `json:"getBlobRetryCount"`
 }
 
+type createResponse struct {
+	BlobURL string `json:"blobURL"`
+}
+
 // NewAzureBlobStorage returns a new Azure Blob Storage instance
 func NewAzureBlobStorage(logger logger.Logger) *AzureBlobStorage {
 	return &AzureBlobStorage{logger: logger}
@@ -156,7 +160,21 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
-	return nil, err
+	if err != nil {
+		return nil, fmt.Errorf("error uploading az blob: %s", err)
+	}
+
+	resp := createResponse{
+		BlobURL: blobURL.String(),
+	}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling create response for azure blob: %s", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: b,
+	}, nil
 }
 
 func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

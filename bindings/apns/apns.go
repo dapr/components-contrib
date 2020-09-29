@@ -122,11 +122,10 @@ func (a *APNS) makeURLPrefix(metadata bindings.Metadata) error {
 func (a *APNS) extractKeyID(metadata bindings.Metadata) error {
 	if value, ok := metadata.Properties[keyIDKey]; ok && value != "" {
 		a.authorizationBuilder.keyID = value
-	} else {
-		return errors.New("the key-id parameter is required")
+		return nil
 	}
 
-	return nil
+	return errors.New("the key-id parameter is required")
 }
 
 func (a *APNS) extractTeamID(metadata bindings.Metadata) error {

@@ -27,6 +27,7 @@ type oAuth2MiddlewareMetadata struct {
 	TokenURL       string `json:"tokenURL"`
 	AuthHeaderName string `json:"authHeaderName"`
 	RedirectURL    string `json:"redirectURL"`
+	ForceHTTPS     string `json:"forceHTTPS"`
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware
@@ -81,6 +82,9 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			} else {
 				authState := session.GetString(savedState)
 				redirectURL := session.GetString(redirectPath)
+				if meta.ForceHTTPS == "true" {
+					redirectURL = "https://" + string(ctx.Request.Host()) + redirectURL
+				}
 				if state != authState {
 					ctx.Error("invalid state", fasthttp.StatusBadRequest)
 				} else {

@@ -50,7 +50,7 @@ const (
 )
 
 const (
-	consumerID       = "consumerID" //passed in by Dapr runtime
+	consumerID       = "consumerID" // passed in by Dapr runtime
 	subscriptionType = "subscriptionType"
 )
 
@@ -167,6 +167,7 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
 
 	n.natStreamingConn = natStreamingConn
+
 	return nil
 }
 
@@ -175,6 +176,7 @@ func (n *natsStreamingPubSub) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error from publish: %s", err)
 	}
+
 	return nil
 }
 
@@ -220,13 +222,13 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 	switch {
 	case n.metadata.deliverNew == deliverNewTrue:
 		options = append(options, stan.StartAt(pb.StartPosition_NewOnly))
-	case n.metadata.startAtSequence >= 1: //messages index start from 1, this is a valid check
+	case n.metadata.startAtSequence >= 1: // messages index start from 1, this is a valid check
 		options = append(options, stan.StartAtSequence(n.metadata.startAtSequence))
 	case n.metadata.startWithLastReceived == startWithLastReceivedTrue:
 		options = append(options, stan.StartWithLastReceived())
 	case n.metadata.deliverAll == deliverAllTrue:
 		options = append(options, stan.DeliverAllAvailable())
-	case n.metadata.startAtTimeDelta > (1 * time.Nanosecond): //as long as its a valid time.Duration
+	case n.metadata.startAtTimeDelta > (1 * time.Nanosecond): // as long as its a valid time.Duration
 		options = append(options, stan.StartAtTimeDelta(n.metadata.startAtTimeDelta))
 	case n.metadata.startAtTime != "":
 		if n.metadata.startAtTimeFormat != "" {

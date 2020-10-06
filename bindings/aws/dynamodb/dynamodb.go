@@ -8,17 +8,15 @@ package dynamodb
 import (
 	"encoding/json"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
-//DynamoDB allows performing stateful operations on AWS DynamoDB
+// DynamoDB allows performing stateful operations on AWS DynamoDB
 type DynamoDB struct {
 	client *dynamodb.DynamoDB
 	table  string
@@ -52,6 +50,7 @@ func (d *DynamoDB) Init(metadata bindings.Metadata) error {
 
 	d.client = client
 	d.table = meta.Table
+
 	return nil
 }
 
@@ -95,6 +94,7 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 	if err != nil {
 		return nil, err
 	}
+
 	return &meta, nil
 }
 
@@ -105,5 +105,6 @@ func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, er
 	}
 
 	c := dynamodb.New(sess)
+
 	return c, nil
 }

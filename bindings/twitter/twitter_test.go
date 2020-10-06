@@ -31,6 +31,7 @@ func getTestMetadata() bindings.Metadata {
 		"accessToken":    testTwitterAccessToken,
 		"accessSecret":   testTwitterAccessSecret,
 	}
+
 	return m
 }
 
@@ -62,6 +63,7 @@ func TestReadError(t *testing.T) {
 	tw.Read(func(res *bindings.ReadResponse) error {
 		t.Logf("result: %+v", res)
 		assert.NotNilf(t, err, "no error on read with invalid credentials")
+
 		return nil
 	})
 }
@@ -89,6 +91,7 @@ func TestReed(t *testing.T) {
 		json.Unmarshal(res.Data, &tweet)
 		assert.NotEmpty(t, tweet.IDStr, "tweet should have an ID")
 		os.Exit(0)
+
 		return nil
 	})
 	assert.Nilf(t, err, "error on read")

@@ -9,7 +9,6 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,6 +22,7 @@ type mockMigrator struct {
 
 func (m *mockMigrator) executeMigrations() (migrationResult, error) {
 	r := migrationResult{}
+
 	return r, nil
 }
 

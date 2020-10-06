@@ -79,6 +79,7 @@ func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 
 	// Um, yeah that's about it!
 	sg.metadata = meta
+
 	return nil
 }
 
@@ -182,5 +183,6 @@ func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	}
 
 	sg.logger.Info("sent email with SendGrid")
+
 	return nil, nil
 }

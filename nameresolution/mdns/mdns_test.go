@@ -15,7 +15,7 @@ import (
 )
 
 func TestInit(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		missingProp string
 		props       map[string]string
 	}{

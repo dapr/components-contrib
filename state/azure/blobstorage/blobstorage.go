@@ -91,18 +91,20 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 // Delete the state
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
+
 	return r.deleteFile(req)
 }
 
 // BulkDelete the state
 func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	r.logger.Debugf("bulk delete %v key(s)", len(req))
-	for _, s := range req {
-		err := r.Delete(&s)
+	for i := range req {
+		err := r.Delete(&req[i])
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -129,6 +131,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 // Set the state
 func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
+
 	return r.writeFile(req)
 }
 
@@ -136,8 +139,8 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 func (r *StateStore) BulkSet(req []state.SetRequest) error {
 	r.logger.Debugf("bulk set %v key(s)", len(req))
 
-	for _, s := range req {
-		err := r.Set(&s)
+	for i := range req {
+		err := r.Set(&req[i])
 		if err != nil {
 			return err
 		}
@@ -184,6 +187,7 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
 	resp, err := blobURL.Download(context.Background(), 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
+
 		return nil, "", err
 	}
 
@@ -193,8 +197,10 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
 
 	if err != nil {
 		r.logger.Debugf("read file %s, err %s", req.Key, err)
+
 		return nil, "", err
 	}
+
 	return data.Bytes(), string(resp.ETag()), nil
 }
 
@@ -212,9 +218,9 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 		Metadata:         req.Metadata,
 		AccessConditions: accessConditions,
 	})
-
 	if err != nil {
 		r.logger.Debugf("write file %s, err %s", req.Key, err)
+
 		return err
 	}
 
@@ -230,11 +236,12 @@ func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
 	}
 
 	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionNone, accessConditions)
-
 	if err != nil {
 		r.logger.Debugf("delete file %s, err %s", req.Key, err)
+
 		return err
 	}
+
 	return nil
 }
 
@@ -243,6 +250,7 @@ func getFileName(key string) string {
 	if len(pr) != 2 {
 		return pr[0]
 	}
+
 	return pr[1]
 }
 
@@ -254,10 +262,12 @@ func (r *StateStore) marshal(req *state.SetRequest) []byte {
 	} else {
 		v, _ = jsoniter.MarshalToString(req.Value)
 	}
+
 	return []byte(v)
 }
 
 func isNotFoundError(err error) bool {
 	azureError, ok := err.(azblob.StorageError)
+
 	return ok && azureError.ServiceCode() == azblob.ServiceCodeBlobNotFound
 }

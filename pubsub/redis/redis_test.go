@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/go-redis/redis/v7"
+	"github.com/stretchr/testify/assert"
 )
 
 func getFakeProperties() map[string]string {
@@ -136,5 +135,6 @@ func generateRedisStreamTestData(topicCount, messageCount int, data string) []re
 			Messages: xmessageArray,
 		}
 	}
+
 	return redisStreams
 }

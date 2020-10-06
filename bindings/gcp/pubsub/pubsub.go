@@ -70,11 +70,13 @@ func (g *GCPPubSub) Init(metadata bindings.Metadata) error {
 
 	g.client = pubsubClient
 	g.metadata = &pubsubMeta
+
 	return nil
 }
 
 func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	b, err := json.Marshal(metadata.Properties)
+
 	return b, err
 }
 
@@ -89,6 +91,7 @@ func (g *GCPPubSub) Read(handler func(*bindings.ReadResponse) error) error {
 			m.Ack()
 		}
 	})
+
 	return err
 }
 
@@ -107,5 +110,6 @@ func (g *GCPPubSub) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	_, err := t.Publish(ctx, &pubsub.Message{
 		Data: req.Data,
 	}).Get(ctx)
+
 	return nil, err
 }

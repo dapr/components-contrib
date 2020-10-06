@@ -15,7 +15,7 @@ const (
 	DefaultCloudEventType = "com.dapr.event.sent"
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
 	CloudEventsSpecVersion = "1.0"
-	//ContentType is the Cloud Events HTTP content type
+	// ContentType is the Cloud Events HTTP content type
 	ContentType = "application/cloudevents+json"
 	// DefaultCloudEventSource is the default event source
 	DefaultCloudEventSource = "Dapr"
@@ -111,5 +111,6 @@ func getStrVal(m map[string]interface{}, key string) string {
 			return s
 		}
 	}
+
 	return ""
 }

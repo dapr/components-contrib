@@ -17,6 +17,7 @@ func TestSetRequestWithOptions(t *testing.T) {
 		counter := 0
 		SetWithOptions(func(req *SetRequest) error {
 			counter++
+
 			return nil
 		}, &SetRequest{})
 		assert.Equal(t, 1, counter, "should execute only once")
@@ -26,6 +27,7 @@ func TestSetRequestWithOptions(t *testing.T) {
 		counter := 0
 		SetWithOptions(func(req *SetRequest) error {
 			counter++
+
 			return nil
 		}, &SetRequest{
 			Options: SetStateOption{},

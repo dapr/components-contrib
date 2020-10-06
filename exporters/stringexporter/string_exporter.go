@@ -39,6 +39,7 @@ func (se *Exporter) Init(daprID string, hostAddress string, metadata exporters.M
 	se.Buffer = metadata.Buffer
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	trace.RegisterExporter(se)
+
 	return nil
 }
 

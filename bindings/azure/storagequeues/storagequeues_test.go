@@ -24,11 +24,13 @@ type MockHelper struct {
 
 func (m *MockHelper) Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error {
 	retvals := m.Called(accountName, accountKey, queueName, decodeBase64)
+
 	return retvals.Error(0)
 }
 
 func (m *MockHelper) Write(data []byte, ttl *time.Duration) error {
 	retvals := m.Called(data, ttl)
+
 	return retvals.Error(0)
 }
 
@@ -141,9 +143,10 @@ func TestReadQueue(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	var handler = func(data *bindings.ReadResponse) error {
+	handler := func(data *bindings.ReadResponse) error {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
+
 		return nil
 	}
 
@@ -175,9 +178,10 @@ func TestReadQueueDecode(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	var handler = func(data *bindings.ReadResponse) error {
+	handler := func(data *bindings.ReadResponse) error {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
+
 		return nil
 	}
 
@@ -231,9 +235,10 @@ func TestReadQueueNoMessage(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	var handler = func(data *bindings.ReadResponse) error {
+	handler := func(data *bindings.ReadResponse) error {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
+
 		return nil
 	}
 

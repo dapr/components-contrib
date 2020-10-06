@@ -259,6 +259,7 @@ func (c *CRDT) Init(metadata state.Metadata) error {
 
 	c.metadata = m
 	go c.startServer()
+
 	return nil
 }
 
@@ -273,6 +274,7 @@ func (c *CRDT) startServer() error {
 	if err := s.Serve(lis); err != nil {
 		c.logger.Fatalf("failed to serve: %v", err)
 	}
+
 	return nil
 }
 
@@ -298,6 +300,7 @@ func (c *CRDT) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, 
 
 func (c *CRDT) ReportError(ctx context.Context, in *pb.UserFunctionError) (*empty.Empty, error) {
 	c.logger.Errorf("error from CloudState: %s", in.GetMessage())
+
 	return &empty.Empty{}, nil
 }
 
@@ -314,6 +317,7 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 		if err != nil {
 			c.logger.Debugf("error from src.Recv(): %s", err)
 			srv.Context().Done()
+
 			return err
 		}
 
@@ -391,6 +395,7 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 					err := ptypes.UnmarshalAny(vAny, &saveState)
 					if err != nil {
 						c.logger.Error(err)
+
 						break
 					}
 
@@ -442,6 +447,7 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -457,6 +463,7 @@ func (c *CRDT) createConnectionOnce() error {
 			c.connection = conn
 		}
 	})
+
 	return connError
 }
 
@@ -477,6 +484,7 @@ func (c *CRDT) parseMetadata(metadata state.Metadata) (*crdtMetadata, error) {
 	} else {
 		return nil, fmt.Errorf("serverPort field required")
 	}
+
 	return &m, nil
 }
 
@@ -506,6 +514,7 @@ func (c *CRDT) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if resp.Data != nil {
 		stateResp.Data = resp.Data.Value
 	}
+
 	return stateResp, nil
 }
 
@@ -524,6 +533,7 @@ func (c *CRDT) Delete(req *state.DeleteRequest) error {
 		Key:  req.Key,
 		Etag: req.ETag,
 	})
+
 	return err
 }
 
@@ -540,6 +550,7 @@ func (c *CRDT) BulkDelete(req []state.DeleteRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -569,6 +580,7 @@ func (c *CRDT) Set(req *state.SetRequest) error {
 			Value: bt,
 		},
 	})
+
 	return err
 }
 
@@ -585,5 +597,6 @@ func (c *CRDT) BulkSet(req []state.SetRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }

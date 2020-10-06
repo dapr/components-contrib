@@ -160,6 +160,7 @@ func (t *mockTransport) reset() {
 func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	atomic.AddInt32(&t.requestCount, 1)
 	t.request = req
+
 	return t.response, t.errToReturn
 }
 

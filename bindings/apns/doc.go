@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 // Package apns implements an output binding for Dapr that allows services to
 // send push notifications to Apple devices and Mac computers using Apple's
 // Push Notification Service (APNS).

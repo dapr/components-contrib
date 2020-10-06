@@ -136,11 +136,10 @@ func (a *APNS) extractKeyID(metadata bindings.Metadata) error {
 func (a *APNS) extractTeamID(metadata bindings.Metadata) error {
 	if value, ok := metadata.Properties[teamIDKey]; ok && value != "" {
 		a.authorizationBuilder.teamID = value
-	} else {
-		return errors.New("the team-id parameter is required")
+		return nil
 	}
 
-	return nil
+	return errors.New("the team-id parameter is required")
 }
 
 func (a *APNS) extractPrivateKey(metadata bindings.Metadata) error {

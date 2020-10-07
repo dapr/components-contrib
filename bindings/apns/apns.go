@@ -7,6 +7,7 @@ package apns
 
 import (
 	"bytes"
+	"context"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -93,13 +94,11 @@ func (a *APNS) Operations() []bindings.OperationKind {
 // Invoke is called by Dapr to send a push notification to the APNS output
 // binding.
 func (a *APNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	switch req.Operation {
-	case bindings.CreateOperation:
-		return a.sendPushNotification(req)
-
-	default:
+	if req.Operation != bindings.CreateOperation {
 		return nil, fmt.Errorf("operation not supported: %v", req.Operation)
 	}
+
+	return a.sendPushNotification(req)
 }
 
 func (a *APNS) sendPushNotification(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -124,11 +123,15 @@ func (a *APNS) sendPushNotification(req *bindings.InvokeRequest) (*bindings.Invo
 
 func (a *APNS) sendPushNotificationToAPNS(deviceToken string, req *bindings.InvokeRequest) (*http.Response, error) {
 	url := a.urlPrefix + deviceToken
-	httpRequest, err := http.NewRequest(
+	httpRequest, err := http.NewRequestWithContext(
+		context.Background(),
 		http.MethodPost,
 		url,
 		bytes.NewReader(req.Data),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	authorizationHeader, err := a.authorizationBuilder.getAuthorizationHeader()
 	if err != nil {

@@ -6,7 +6,9 @@
 package apns
 
 import (
+	"bytes"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -51,8 +53,7 @@ type APNS struct {
 	authorizationBuilder *authorizationBuilder
 }
 
-// Creates a new output binding instance for the Apple Push Notification
-// Service.
+// NewAPNS will create a new APNS output binding.
 func NewAPNS(logger logger.Logger) *APNS {
 	return &APNS{
 		logger: logger,
@@ -64,6 +65,8 @@ func NewAPNS(logger logger.Logger) *APNS {
 	}
 }
 
+// Init will configure the APNS output binding using the metadata specified
+// in the binding's configuration.
 func (a *APNS) Init(metadata bindings.Metadata) error {
 	if err := a.makeURLPrefix(metadata); err != nil {
 		return err
@@ -80,23 +83,67 @@ func (a *APNS) Init(metadata bindings.Metadata) error {
 	return a.extractPrivateKey(metadata)
 }
 
+// Operations will return the set of operations supported by the APNS output
+// binding. The APNS output binding only supports the "create" operation for
+// sending new push notifications to the APNS service.
 func (a *APNS) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
+// Invoke is called by Dapr to send a push notification to the APNS output
+// binding.
 func (a *APNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	if req.Operation != bindings.CreateOperation {
+	switch req.Operation {
+	case bindings.CreateOperation:
+		return a.sendPushNotification(req)
+
+	default:
 		return nil, fmt.Errorf("operation not supported: %v", req.Operation)
 	}
+}
 
-	op := &createOperation{
-		authorizationBuilder: a.authorizationBuilder,
-		client:               a.client,
-		logger:               a.logger,
-		req:                  req,
-		urlPrefix:            a.urlPrefix,
+func (a *APNS) sendPushNotification(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	deviceToken, ok := req.Metadata[deviceTokenKey]
+	if !ok || deviceToken == "" {
+		return nil, errors.New("the device-token parameter is required")
 	}
-	return op.run()
+
+	httpResponse, err := a.sendPushNotificationToAPNS(deviceToken, req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer httpResponse.Body.Close()
+
+	if httpResponse.StatusCode == http.StatusOK {
+		return makeSuccessResponse(httpResponse)
+	}
+
+	return makeErrorResponse(httpResponse)
+}
+
+func (a *APNS) sendPushNotificationToAPNS(deviceToken string, req *bindings.InvokeRequest) (*http.Response, error) {
+	url := a.urlPrefix + deviceToken
+	httpRequest, err := http.NewRequest(
+		http.MethodPost,
+		url,
+		bytes.NewReader(req.Data),
+	)
+
+	authorizationHeader, err := a.authorizationBuilder.getAuthorizationHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	httpRequest.Header.Add("authorization", authorizationHeader)
+	addRequestHeader(pushTypeKey, req.Metadata, httpRequest)
+	addRequestHeader(messageIDKey, req.Metadata, httpRequest)
+	addRequestHeader(expirationKey, req.Metadata, httpRequest)
+	addRequestHeader(priorityKey, req.Metadata, httpRequest)
+	addRequestHeader(topicKey, req.Metadata, httpRequest)
+	addRequestHeader(collapseIDKey, req.Metadata, httpRequest)
+
+	return a.client.Do(httpRequest)
 }
 
 func (a *APNS) makeURLPrefix(metadata bindings.Metadata) error {
@@ -160,4 +207,34 @@ func (a *APNS) extractPrivateKey(metadata bindings.Metadata) error {
 	}
 
 	return nil
+}
+
+func addRequestHeader(key string, metadata map[string]string, httpRequest *http.Request) {
+	if value, ok := metadata[key]; ok && value != "" {
+		httpRequest.Header.Add(key, value)
+	}
+}
+
+func makeSuccessResponse(httpResponse *http.Response) (*bindings.InvokeResponse, error) {
+	messageID := httpResponse.Header.Get(messageIDKey)
+	output := notificationResponse{MessageID: messageID}
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(output)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bindings.InvokeResponse{Data: data.Bytes()}, nil
+}
+
+func makeErrorResponse(httpResponse *http.Response) (*bindings.InvokeResponse, error) {
+	var errorReply errorResponse
+	decoder := json.NewDecoder(httpResponse.Body)
+	err := decoder.Decode(&errorReply)
+	if err == nil {
+		err = errors.New(errorReply.Reason)
+	}
+
+	return nil, err
 }

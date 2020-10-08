@@ -41,3 +41,8 @@ func (se *Exporter) Init(daprID string, hostAddress string, metadata exporters.M
 	trace.RegisterExporter(se)
 	return nil
 }
+
+// Unregister removes the exporter
+func (se *Exporter) Unregister() {
+	trace.UnregisterExporter(se)
+}

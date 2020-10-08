@@ -83,7 +83,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			} else {
 				authState := session.GetString(savedState)
 				redirectURL := session.GetString(redirectPath)
-				if strings.ToLower(meta.ForceHTTPS) == "true" {
+				if strings.EqualFold(meta.ForceHTTPS, "true") {
 					redirectURL = https + string(ctx.Request.Host()) + redirectURL
 				}
 				if state != authState {

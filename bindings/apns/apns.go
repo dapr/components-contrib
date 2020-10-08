@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -222,7 +222,7 @@ func makeSuccessResponse(httpResponse *http.Response) (*bindings.InvokeResponse,
 	messageID := httpResponse.Header.Get(messageIDKey)
 	output := notificationResponse{MessageID: messageID}
 	var data bytes.Buffer
-	encoder := json.NewEncoder(&data)
+	encoder := jsoniter.NewEncoder(&data)
 	err := encoder.Encode(output)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func makeSuccessResponse(httpResponse *http.Response) (*bindings.InvokeResponse,
 
 func makeErrorResponse(httpResponse *http.Response) (*bindings.InvokeResponse, error) {
 	var errorReply errorResponse
-	decoder := json.NewDecoder(httpResponse.Body)
+	decoder := jsoniter.NewDecoder(httpResponse.Body)
 	err := decoder.Decode(&errorReply)
 	if err == nil {
 		err = errors.New(errorReply.Reason)

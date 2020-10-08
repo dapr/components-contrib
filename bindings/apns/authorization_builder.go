@@ -13,6 +13,12 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
+// The "issued at" timestamp in the JWT must be within one hour from the
+// APNS server time. I set the expiration time at 55 minutes to ensure that
+// a new certificate gets generated before it gets too close and risking a
+// failure.
+const expirationMinutes = time.Minute * 55
+
 type authorizationBuilder struct {
 	logger              logger.Logger
 	mutex               sync.RWMutex
@@ -62,7 +68,7 @@ func (a *authorizationBuilder) generateAuthorizationHeader() (string, error) {
 	}
 
 	a.authorizationHeader = "bearer " + signedToken
-	a.tokenExpiresAt = now.Add(time.Minute * 55)
+	a.tokenExpiresAt = now.Add(expirationMinutes)
 
 	return a.authorizationHeader, nil
 }

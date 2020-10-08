@@ -7,7 +7,6 @@ package apns
 
 import (
 	"bytes"
-	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -286,7 +286,7 @@ func TestInvoke(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotNil(t, response.Data)
 		var body notificationResponse
-		decoder := json.NewDecoder(bytes.NewReader(response.Data))
+		decoder := jsoniter.NewDecoder(bytes.NewReader(response.Data))
 		err = decoder.Decode(&body)
 		assert.Nil(t, err)
 		assert.Equal(t, "12345", body.MessageID)

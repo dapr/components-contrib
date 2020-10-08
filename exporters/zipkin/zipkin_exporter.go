@@ -30,7 +30,8 @@ func NewZipkinExporter(logger logger.Logger) *Exporter {
 
 // Exporter is an OpenCensus zipkin exporter
 type Exporter struct {
-	logger logger.Logger
+	logger        logger.Logger
+	traceExporter trace.Exporter
 }
 
 // Init creates a new zipkin endpoint and reporter
@@ -50,8 +51,8 @@ func (z *Exporter) Init(daprID string, hostAddress string, metadata exporters.Me
 		return err
 	}
 	reporter := zipkinHTTP.NewReporter(meta.ExporterAddress)
-	ze := zipkin.NewExporter(reporter, localEndpoint)
-	trace.RegisterExporter(ze)
+	z.traceExporter = zipkin.NewExporter(reporter, localEndpoint)
+	trace.RegisterExporter(z.traceExporter)
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 	return nil
 }
@@ -68,4 +69,9 @@ func (z *Exporter) getZipkinMetadata(metadata exporters.Metadata) (*zipkinMetada
 		return nil, err
 	}
 	return &zipkinMeta, nil
+}
+
+// Unregister removes the exporter
+func (z *Exporter) Unregister() {
+	trace.UnregisterExporter(z.traceExporter)
 }

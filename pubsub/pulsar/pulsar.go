@@ -126,3 +126,8 @@ func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler f
 		m.Ack(m.Message)
 	}
 }
+
+func (p *Pulsar) Close() error {
+	p.client.Close()
+	return nil
+}

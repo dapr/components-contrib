@@ -81,6 +81,11 @@ func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pub
 	return nil
 }
 
+func (p *Hazelcast) Close() error {
+	p.client.Shutdown()
+	return nil
+}
+
 type hazelcastMessageListener struct {
 	topicName     string
 	pubsubHandler func(msg *pubsub.NewMessage) error

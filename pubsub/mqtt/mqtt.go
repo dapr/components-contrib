@@ -252,3 +252,9 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	opts.SetTLSConfig(m.newTLSConfig())
 	return opts
 }
+
+func (m *mqttPubSub) Close() error {
+	m.consumer.Disconnect(0)
+	m.producer.Disconnect(0)
+	return nil
+}

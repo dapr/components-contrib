@@ -50,6 +50,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 		return errors.Wrapf(err, "invalid schedule format: %s", s)
 	}
 	b.schedule = s
+
 	return nil
 }
 
@@ -73,6 +74,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 	<-b.stopCh
 	b.logger.Debugf("stopping schedule: %s", b.schedule)
 	c.Stop()
+
 	return nil
 }
 
@@ -84,6 +86,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 			req.Operation, bindings.DeleteOperation)
 	}
 	b.stopCh <- true
+
 	return &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			"schedule":    b.schedule,

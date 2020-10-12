@@ -51,6 +51,7 @@ func (l *Exporter) Init(daprID string, hostAddress string, metadata exporters.Me
 
 	trace.RegisterExporter(l.traceExporter)
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+
 	return nil
 }
 
@@ -65,6 +66,7 @@ func (l *Exporter) getNativeMetadata(metadata exporters.Metadata) (*nativeExport
 	if err != nil {
 		return nil, err
 	}
+
 	return &nExporterMetadata, nil
 }
 

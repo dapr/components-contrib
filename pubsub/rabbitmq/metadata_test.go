@@ -17,7 +17,7 @@ func getFakeProperties() map[string]string {
 }
 
 func TestCreateMetadata(t *testing.T) {
-	var booleanFlagTests = []struct {
+	booleanFlagTests := []struct {
 		in       string
 		expected bool
 	}{
@@ -82,7 +82,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Empty(t, m.consumerID)
 	})
 
-	var invalidDeliveryModes = []string{"3", "10", "-1"}
+	invalidDeliveryModes := []string{"3", "10", "-1"}
 
 	for _, deliveryMode := range invalidDeliveryModes {
 		t.Run(fmt.Sprintf("deliveryMode value=%s", deliveryMode), func(t *testing.T) {

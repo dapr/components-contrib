@@ -70,6 +70,7 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 
 	f.client = client
 	f.entityKind = meta.EntityKind
+
 	return nil
 }
 
@@ -117,6 +118,7 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -133,6 +135,7 @@ func (f *Firestore) BulkSet(req []state.SetRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -141,10 +144,10 @@ func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
 	key := datastore.NameKey(f.entityKind, req.Key, nil)
 
 	err := f.client.Delete(ctx, key)
-
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -161,6 +164,7 @@ func (f *Firestore) BulkDelete(req []state.DeleteRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -168,9 +172,10 @@ func getFirestoreMetadata(metadata state.Metadata) (*firestoreMetadata, error) {
 	meta := firestoreMetadata{
 		EntityKind: defaultEntityKind,
 	}
-	var requiredMetaProperties = []string{
+	requiredMetaProperties := []string{
 		"type", "project_id", "private_key_id", "private_key", "client_email", "client_id",
-		"auth_uri", "token_uri", "auth_provider_x509_cert_url", "client_x509_cert_url"}
+		"auth_uri", "token_uri", "auth_provider_x509_cert_url", "client_x509_cert_url",
+	}
 
 	for _, k := range requiredMetaProperties {
 		if val, ok := metadata.Properties[k]; !ok || len(val) < 1 {

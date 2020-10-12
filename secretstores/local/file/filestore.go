@@ -90,6 +90,7 @@ func (j *localSecretStore) visitJSONObject(jsonConfig map[string]interface{}) er
 		}
 		j.exitContext()
 	}
+
 	return nil
 }
 
@@ -120,6 +121,7 @@ func (j *localSecretStore) visitArray(array []interface{}) error {
 		}
 		j.exitContext()
 	}
+
 	return nil
 }
 
@@ -165,6 +167,7 @@ func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadat
 	if meta.SecretsFile == "" {
 		return nil, fmt.Errorf("missing local secrets file in metadata")
 	}
+
 	return &meta, nil
 }
 

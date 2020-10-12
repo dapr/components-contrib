@@ -8,14 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/dapr/dapr/pkg/logger"
-
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 type snsSqs struct {
@@ -74,10 +72,10 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 
 func parseInt64(input string, propertyName string) (int64, error) {
 	number, err := strconv.Atoi(input)
-
 	if err != nil {
 		return -1, fmt.Errorf("parsing %s failed with: %v", propertyName, err)
 	}
+
 	return int64(number), nil
 }
 
@@ -86,6 +84,7 @@ func parseInt64(input string, propertyName string) (int64, error) {
 func nameToHash(name string) string {
 	h := sha256.New()
 	h.Write([]byte(name))
+
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
@@ -132,7 +131,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageVisibilityTimeout = 10
 	} else {
 		timeout, err := parseInt64(val, "messageVisibilityTimeout")
-
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +146,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageRetryLimit = 10
 	} else {
 		retryLimit, err := parseInt64(val, "messageRetryLimit")
-
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +161,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageWaitTimeSeconds = 1
 	} else {
 		waitTime, err := parseInt64(val, "messageWaitTimeSeconds")
-
 		if err != nil {
 			return nil, err
 		}
@@ -180,7 +176,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageMaxNumber = 10
 	} else {
 		maxNumber, err := parseInt64(val, "messageMaxNumber")
-
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +194,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 
 func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	md, err := s.getSnsSqsMetatdata(metadata)
-
 	if err != nil {
 		return err
 	}
@@ -218,6 +212,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	}
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)
+
 	return nil
 }
 
@@ -227,7 +222,6 @@ func (s *snsSqs) createTopic(topic string) (string, string, error) {
 		Name: aws.String(hashedName),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
 	})
-
 	if err != nil {
 		return "", "", err
 	}
@@ -242,15 +236,16 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 
 	if ok {
 		s.logger.Debugf("Found existing topic ARN for topic %s: %s", topic, topicArn)
+
 		return topicArn, nil
 	}
 
 	s.logger.Debugf("No topic ARN found for %s\n Creating topic instead.", topic)
 
 	topicArn, hashedName, err := s.createTopic(topic)
-
 	if err != nil {
 		s.logger.Errorf("error creating new topic %s: %v", topic, err)
+
 		return "", err
 	}
 
@@ -266,7 +261,6 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		QueueName: aws.String(nameToHash(queueName)),
 		Tags:      map[string]*string{awsSqsQueueNameKey: aws.String(queueName)},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +269,6 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		AttributeNames: []*string{aws.String("QueueArn")},
 		QueueUrl:       createQueueResponse.QueueUrl,
 	})
-
 	if err != nil {
 		s.logger.Errorf("error fetching queue attributes for %s: %v", queueName, err)
 	}
@@ -310,15 +303,16 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 
 	if ok {
 		s.logger.Debugf("Found queue arn for %s: %s", queueName, queueArn)
+
 		return queueArn, nil
 	}
 	// creating queues is idempotent, the names serve as unique keys among a given region
 	s.logger.Debugf("No queue arn found for %s\nCreating queue", queueName)
 
 	queueInfo, err := s.createQueue(queueName)
-
 	if err != nil {
 		s.logger.Errorf("Error creating queue %s: %v", queueName, err)
+
 		return nil, err
 	}
 
@@ -329,7 +323,6 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 
 func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	topicArn, err := s.getOrCreateTopic(req.Topic)
-
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
 	}
@@ -342,6 +335,7 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 
 	if err != nil {
 		s.logger.Errorf("error publishing topic %s with topic ARN %s: %v", req.Topic, topicArn, err)
+
 		return err
 	}
 
@@ -376,7 +370,6 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	}
 
 	recvCountInt, err := strconv.ParseInt(*recvCount, 10, 32)
-
 	if err != nil {
 		return fmt.Errorf("error parsing ApproximateReceiveCount from message: %v", message)
 	}
@@ -428,15 +421,16 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 				VisibilityTimeout:   aws.Int64(s.metadata.messageVisibilityTimeout),
 				WaitTimeSeconds:     aws.Int64(s.metadata.messageWaitTimeSeconds),
 			})
-
 			if err != nil {
 				s.logger.Errorf("error consuming topic: %v", err)
+
 				continue
 			}
 
 			// retry receiving messages
 			if len(messageResponse.Messages) < 1 {
 				s.logger.Debug("No messages received, requesting again")
+
 				continue
 			}
 
@@ -457,17 +451,17 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	// these should be idempotent
 	// queues should not be created if they exist
 	topicArn, err := s.getOrCreateTopic(req.Topic)
-
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
+
 		return err
 	}
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID"
 	queueInfo, err := s.getOrCreateQueue(s.metadata.sqsQueueName)
-
 	if err != nil {
 		s.logger.Errorf("error retrieving SQS queue: %v", err)
+
 		return err
 	}
 
@@ -481,6 +475,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	})
 	if err != nil {
 		s.logger.Errorf("error subscribing to topic %s: %v", req.Topic, err)
+
 		return err
 	}
 

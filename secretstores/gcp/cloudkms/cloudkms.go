@@ -65,13 +65,11 @@ func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
 	clientOptions := option.WithCredentialsJSON(b)
 	ctx := context.Background()
 	cloudkmsClient, err := cloudkms.NewKeyManagementClient(ctx, clientOptions)
-
 	if err != nil {
 		return fmt.Errorf("error creating cloudkms client: %s", err)
 	}
 
 	storageClient, err := storage.NewClient(ctx, clientOptions)
-
 	if err != nil {
 		return fmt.Errorf("error creating cloud storage client: %s", err)
 	}
@@ -79,6 +77,7 @@ func (c *cloudkmsSecretStore) Init(metadata secretstores.Metadata) error {
 	c.cloudkmsclient = cloudkmsClient
 	c.storageclient = storageClient
 	c.metadata = &cloudkmsMeta
+
 	return nil
 }
 
@@ -111,10 +110,9 @@ func (c *cloudkmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 
 func (c *cloudkmsSecretStore) getCipherTextFromSecretObject(gcpStorageBucket string, secretObject string) ([]byte, error) {
 	ctx := context.Background()
-	var client = c.storageclient
+	client := c.storageclient
 
 	rc, err := client.Bucket(gcpStorageBucket).Object(secretObject).NewReader(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("creation of read client failed: %s", err)
 	}
@@ -122,7 +120,6 @@ func (c *cloudkmsSecretStore) getCipherTextFromSecretObject(gcpStorageBucket str
 	defer rc.Close()
 
 	data, err := ioutil.ReadAll(rc)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed while reading secret file: %s", err)
 	}
@@ -139,7 +136,6 @@ func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) (
 	}
 
 	resp, err := c.cloudkmsclient.Decrypt(ctx, req)
-
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %v", err)
 	}
@@ -149,5 +145,6 @@ func (c *cloudkmsSecretStore) decryptSymmetric(name string, ciphertext []byte) (
 
 func (c *cloudkmsSecretStore) parseMetadata(metadata secretstores.Metadata) ([]byte, error) {
 	b, err := json.Marshal(metadata.Properties)
+
 	return b, err
 }

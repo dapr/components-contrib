@@ -114,6 +114,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.topics = make(map[string]bool)
 
 	k.logger.Debug("Kafka message bus initialization complete")
+
 	return nil
 }
 
@@ -154,7 +155,6 @@ func (k *Kafka) closeSubscripionResources() {
 	if k.cg != nil {
 		k.cancel()
 		err := k.cg.Close()
-
 		if err != nil {
 			k.logger.Errorf("Error closing consumer group: %v", err)
 		}
@@ -175,7 +175,6 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	k.closeSubscripionResources()
 
 	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
-
 	if err != nil {
 		return err
 	}
@@ -195,7 +194,6 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 		defer func() {
 			k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
 			err := k.cg.Close()
-
 			if err != nil {
 				k.logger.Errorf("Error closing consumer group: %v", err)
 			}
@@ -219,6 +217,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 	}()
 
 	<-ready
+
 	return nil
 }
 
@@ -245,13 +244,12 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		return nil, errors.New("kafka error: 'authRequired' attribute was empty")
 	}
 	validAuthRequired, err := strconv.ParseBool(val)
-
 	if err != nil {
 		return nil, errors.New("kafka error: invalid value for 'authRequired' attribute")
 	}
 	meta.AuthRequired = validAuthRequired
 
-	//ignore SASL properties if authRequired is false
+	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
 		if val, ok := metadata.Properties["saslUsername"]; ok && val != "" {
 			meta.SaslUsername = val
@@ -283,6 +281,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	if err != nil {
 		return nil, err
 	}
+
 	return producer, nil
 }
 
@@ -293,8 +292,9 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 
 	config.Net.TLS.Enable = true
+	// nolint: gosec
 	config.Net.TLS.Config = &tls.Config{
-		//InsecureSkipVerify: true,
+		// InsecureSkipVerify: true,
 		ClientAuth: 0,
 	}
 }

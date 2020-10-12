@@ -204,6 +204,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 	}
 
 	a.topicManager = a.namespace.NewTopicManager()
+
 	return nil
 }
 
@@ -228,6 +229,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -260,6 +262,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 				select {
 				case <-reconnCtx.Done():
 					a.logger.Debugf("Reconnect context for topic %s is done", req.Topic)
+
 					return
 				case <-time.After(2 * time.Minute):
 					attempts := readAttemptsStale()
@@ -276,6 +279,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			topic, err := a.namespace.NewTopic(req.Topic)
 			if err != nil {
 				a.logger.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
+
 				return
 			}
 
@@ -286,6 +290,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			subEntity, err := topic.NewSubscription(subID, opts...)
 			if err != nil {
 				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+
 				return
 			}
 			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
@@ -312,6 +317,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			attempts := readAttemptsStale()
 			if attempts == 0 {
 				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, maxReconnAttempts)
+
 				return
 			}
 
@@ -336,6 +342,7 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -361,6 +368,7 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -375,6 +383,7 @@ func (a *azureServiceBus) getTopicEntity(topic string) (*azservicebus.TopicEntit
 	if err != nil && !azservicebus.IsErrNotFound(err) {
 		return nil, fmt.Errorf("%s could not get topic %s, %s", errorMessagePrefix, topic, err)
 	}
+
 	return topicEntity, nil
 }
 
@@ -385,6 +394,7 @@ func (a *azureServiceBus) createTopicEntity(topic string) error {
 	if err != nil {
 		return fmt.Errorf("%s could not put topic %s, %s", errorMessagePrefix, topic, err)
 	}
+
 	return nil
 }
 
@@ -395,6 +405,7 @@ func (a *azureServiceBus) getSubscriptionEntity(mgr *azservicebus.SubscriptionMa
 	if err != nil && !azservicebus.IsErrNotFound(err) {
 		return nil, fmt.Errorf("%s could not get subscription %s, %s", errorMessagePrefix, subscription, err)
 	}
+
 	return entity, nil
 }
 
@@ -411,6 +422,7 @@ func (a *azureServiceBus) createSubscriptionEntity(mgr *azservicebus.Subscriptio
 	if err != nil {
 		return fmt.Errorf("%s could not put subscription %s, %s", errorMessagePrefix, subscription, err)
 	}
+
 	return nil
 }
 
@@ -428,6 +440,7 @@ func (a *azureServiceBus) createSubscriptionManagementOptions() ([]azservicebus.
 	if a.metadata.AutoDeleteOnIdleInSec != nil {
 		opts = append(opts, subscriptionManagementOptionsWithAutoDeleteOnIdle(a.metadata.AutoDeleteOnIdleInSec))
 	}
+
 	return opts, nil
 }
 
@@ -442,6 +455,7 @@ func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) az
 	return func(d *azservicebus.SubscriptionDescription) error {
 		mdc := int32(*maxDeliveryCount)
 		d.MaxDeliveryCount = &mdc
+
 		return nil
 	}
 }
@@ -450,6 +464,7 @@ func subscriptionManagementOptionsWithAutoDeleteOnIdle(durationInSec *int) azser
 	return func(d *azservicebus.SubscriptionDescription) error {
 		duration := fmt.Sprintf("PT%dS", *durationInSec)
 		d.AutoDeleteOnIdle = &duration
+
 		return nil
 	}
 }
@@ -458,6 +473,7 @@ func subscriptionManagementOptionsWithDefaultMessageTimeToLive(durationInSec *in
 	return func(d *azservicebus.SubscriptionDescription) error {
 		duration := fmt.Sprintf("PT%dS", *durationInSec)
 		d.DefaultMessageTimeToLive = &duration
+
 		return nil
 	}
 }
@@ -466,6 +482,7 @@ func subscriptionManagementOptionsWithLockDuration(durationInSec *int) azservice
 	return func(d *azservicebus.SubscriptionDescription) error {
 		duration := fmt.Sprintf("PT%dS", *durationInSec)
 		d.LockDuration = &duration
+
 		return nil
 	}
 }

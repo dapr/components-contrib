@@ -14,11 +14,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/google/uuid"
-
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/google/uuid"
 )
 
 const (
@@ -80,6 +79,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	// Don't return error, container might already exist
 	a.logger.Debugf("error creating container: %s", err)
 	a.containerURL = containerURL
+
 	return nil
 }
 
@@ -99,6 +99,7 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 	if m.GetBlobRetryCount == 0 {
 		m.GetBlobRetryCount = defaultGetBlobRetryCount
 	}
+
 	return &m, nil
 }
 
@@ -190,6 +191,7 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 	if err != nil {
 		return nil, fmt.Errorf("error reading az blob body: %s", err)
 	}
+
 	return &bindings.InvokeResponse{
 		Data: b.Bytes(),
 	}, nil
@@ -210,6 +212,8 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 		return a.create(blobURL, req)
 	case bindings.GetOperation:
 		return a.get(blobURL, req)
+	case bindings.DeleteOperation, bindings.ListOperation:
+		fallthrough
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

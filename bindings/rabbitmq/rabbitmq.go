@@ -162,6 +162,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	}
 
 	r.metadata = m
+
 	return nil
 }
 
@@ -204,5 +205,6 @@ func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {
 	}()
 
 	<-forever
+
 	return nil
 }

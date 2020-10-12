@@ -21,6 +21,7 @@ type PostgreSQL struct {
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store
 func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
 	dba := newPostgresDBAccess(logger)
+
 	return newPostgreSQLStateStore(logger, dba)
 }
 

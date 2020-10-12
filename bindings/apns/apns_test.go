@@ -212,6 +212,7 @@ func TestInvoke(t *testing.T) {
 		testBinding := makeTestBinding(t, testLogger)
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Authorization")
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -222,6 +223,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Apns-Push-Type")
 			assert.Equal(t, "alert", req.Header.Get(pushTypeKey))
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -232,6 +234,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Apns-Id")
 			assert.Equal(t, "123", req.Header.Get(messageIDKey))
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -242,6 +245,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Apns-Expiration")
 			assert.Equal(t, "1234567890", req.Header.Get(expirationKey))
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -252,6 +256,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Apns-Priority")
 			assert.Equal(t, "10", req.Header.Get(priorityKey))
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -262,6 +267,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Apns-Topic")
 			assert.Equal(t, "test", req.Header.Get(topicKey))
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -272,6 +278,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			assert.Contains(t, req.Header, "Apns-Collapse-Id")
 			assert.Equal(t, "1234567", req.Header.Get(collapseIDKey))
+
 			return successResponse()
 		})
 		_, _ = testBinding.Invoke(successRequest)
@@ -296,6 +303,7 @@ func TestInvoke(t *testing.T) {
 		testBinding := makeTestBinding(t, testLogger)
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			body := "{\"reason\":\"BadDeviceToken\"}"
+
 			return &http.Response{
 				StatusCode: http.StatusBadRequest,
 				Body:       ioutil.NopCloser(strings.NewReader(body)),
@@ -328,6 +336,7 @@ func successResponse() *http.Response {
 		Header:     http.Header{},
 	}
 	response.Header.Add(messageIDKey, "12345")
+
 	return response
 }
 

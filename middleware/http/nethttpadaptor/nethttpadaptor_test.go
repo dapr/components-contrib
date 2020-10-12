@@ -1,6 +1,7 @@
 package nethttpadaptor
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -111,6 +112,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			"Body is handled",
 			func() *http.Request {
 				body := strings.NewReader("test body!")
+
 				return httptest.NewRequest("GET", "http://localhost:8080/test/sub", body)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -137,6 +139,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 				req.Header.Add("testHeaderKey1", "testHeaderValue1")
 				req.Header.Add("testHeaderKey2", "testHeaderValue2")
 				req.Header.Add("testHeaderKey3", "testHeaderValue3")
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -167,6 +170,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 				req.Header.Add("testHeaderKey1", "testHeaderValue1")
 				req.Header.Add("testHeaderKey1", "testHeaderValue2")
 				req.Header.Add("testHeaderKey1", "testHeaderValue3")
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -208,6 +212,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.Header.Add("Content-Type", "application/json")
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -221,6 +226,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.Header.Add("Content-Type", "multipart/form-data; boundary=test-boundary")
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -234,6 +240,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36")
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -247,6 +254,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.Header.Add("Referer", "testReferer")
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -260,6 +268,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.Header.Add("Authorization", "Basic YWxhZGRpbjpvcGVuc2VzYW1l") // b64(aladdin:opensesame)
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -279,6 +288,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
 				req.RemoteAddr = "1.1.1.1"
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -290,7 +300,8 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"nil body is handled",
 			func() *http.Request {
-				req, _ := http.NewRequest("GET", "https://localhost:8080", nil)
+				req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://localhost:8080", nil)
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
@@ -302,7 +313,8 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"proto headers are handled",
 			func() *http.Request {
-				req, _ := http.NewRequest("GET", "https://localhost:8080", nil)
+				req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://localhost:8080", nil)
+
 				return req
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {

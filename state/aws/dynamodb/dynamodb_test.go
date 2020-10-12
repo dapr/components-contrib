@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/dapr/components-contrib/state"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -175,7 +174,9 @@ func TestSet(t *testing.T) {
 						},
 						"value": {
 							S: aws.String(`{"Value":"value"}`),
-						}}, input.Item)
+						},
+					}, input.Item)
+
 					return &dynamodb.PutItemOutput{
 						Attributes: map[string]*dynamodb.AttributeValue{
 							"key": {
@@ -252,6 +253,7 @@ func TestBulkSet(t *testing.T) {
 						},
 					}
 					assert.Equal(t, expected, input.RequestItems)
+
 					return &dynamodb.BatchWriteItemOutput{
 						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
 					}, nil
@@ -311,6 +313,7 @@ func TestDelete(t *testing.T) {
 							S: aws.String(req.Key),
 						},
 					}, input.Key)
+
 					return nil, nil
 				},
 			},
@@ -363,6 +366,7 @@ func TestBulkDelete(t *testing.T) {
 						},
 					}
 					assert.Equal(t, expected, input.RequestItems)
+
 					return &dynamodb.BatchWriteItemOutput{
 						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
 					}, nil

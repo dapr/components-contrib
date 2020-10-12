@@ -9,13 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/dapr/dapr/pkg/logger"
-
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -52,6 +50,7 @@ func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
 		return err
 	}
 	s.client = client
+
 	return nil
 }
 
@@ -71,7 +70,6 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 		VersionId:    versionID,
 		VersionStage: versionStage,
 	})
-
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)
 	}
@@ -82,6 +80,7 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 	if output.Name != nil && output.SecretString != nil {
 		resp.Data[*output.Name] = *output.SecretString
 	}
+
 	return resp, nil
 }
 
@@ -90,6 +89,7 @@ func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmana
 	if err != nil {
 		return nil, err
 	}
+
 	return secretsmanager.New(sess), nil
 }
 
@@ -104,5 +104,6 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 	if err != nil {
 		return nil, err
 	}
+
 	return &meta, nil
 }

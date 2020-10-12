@@ -20,11 +20,15 @@ import (
 	"google.golang.org/grpc"
 )
 
-const defaultOperationTimeout = 10 * time.Second
-const defaultSeparator = ","
+const (
+	defaultOperationTimeout = 10 * time.Second
+	defaultSeparator        = ","
+)
 
-var errMissingEndpoints = errors.New("endpoints are required")
-var errInvalidDialTimeout = errors.New("DialTimeout is invalid")
+var (
+	errMissingEndpoints   = errors.New("endpoints are required")
+	errInvalidDialTimeout = errors.New("DialTimeout is invalid")
+)
 
 // ETCD is a state store
 type ETCD struct {
@@ -157,7 +161,7 @@ func (r *ETCD) Delete(req *state.DeleteRequest) error {
 	defer cancelFn()
 
 	version := req.ETag
-	//honor client etag
+	// honor client etag
 	if version != "" {
 		txn := r.client.KV.Txn(ctx)
 		_, err = txn.If(clientv3.Compare(clientv3.Version(req.Key), "=", version)).Then(clientv3.OpDelete(req.Key)).Commit()
@@ -201,7 +205,7 @@ func (r *ETCD) Set(req *state.SetRequest) error {
 	}
 
 	version := req.ETag
-	//honor client etag
+	// honor client etag
 	if version != "" {
 		txn := r.client.KV.Txn(ctx)
 		_, err = txn.If(clientv3.Compare(clientv3.Version(req.Key), "=", version)).Then(clientv3.OpPut(req.Key, vStr)).Commit()
@@ -212,6 +216,7 @@ func (r *ETCD) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

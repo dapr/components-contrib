@@ -53,6 +53,7 @@ func TestGetSecret(t *testing.T) {
 		readLocalFileFn: func(secretsFile string) (map[string]interface{}, error) {
 			secrets := make(map[string]interface{})
 			secrets["secret"] = secretValue
+
 			return secrets, nil
 		},
 	}

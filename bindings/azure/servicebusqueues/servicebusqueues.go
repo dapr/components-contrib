@@ -69,6 +69,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	for _, q := range queues {
 		if q.Name == a.metadata.QueueName {
 			entity = q
+
 			break
 		}
 	}
@@ -97,6 +98,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	a.client = client
+
 	return nil
 }
 
@@ -164,11 +166,13 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) error)
 		if err == nil {
 			return msg.Complete(ctx)
 		}
+
 		return msg.Abandon(ctx)
 	}
 
 	if err := a.client.Receive(context.Background(), sbHandler); err != nil {
 		return err
 	}
+
 	return nil
 }

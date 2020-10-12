@@ -41,6 +41,7 @@ require (
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.0
 	github.com/golang/protobuf v1.3.3
+	github.com/google/go-cmp v0.5.1 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.2.0
@@ -74,9 +75,10 @@ require (
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.3
-	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
-	golang.org/x/net v0.0.0-20200602114024-627f9648deb9
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	golang.org/x/tools v0.0.0-20200731060945-b5fad4ed8dd6 // indirect
 	google.golang.org/api v0.15.0
 	google.golang.org/genproto v0.0.0-20200122232147-0452cf42e150
 	google.golang.org/grpc v1.26.0

@@ -177,6 +177,7 @@ func (a *APNS) makeURLPrefix(metadata bindings.Metadata) error {
 func (a *APNS) extractKeyID(metadata bindings.Metadata) error {
 	if value, ok := metadata.Properties[keyIDKey]; ok && value != "" {
 		a.authorizationBuilder.keyID = value
+
 		return nil
 	}
 
@@ -186,6 +187,7 @@ func (a *APNS) extractKeyID(metadata bindings.Metadata) error {
 func (a *APNS) extractTeamID(metadata bindings.Metadata) error {
 	if value, ok := metadata.Properties[teamIDKey]; ok && value != "" {
 		a.authorizationBuilder.teamID = value
+
 		return nil
 	}
 

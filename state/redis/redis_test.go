@@ -12,10 +12,9 @@ import (
 	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
-
 	redis "github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetKeyVersion(t *testing.T) {
@@ -215,5 +214,6 @@ func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
 		Addr: s.Addr(),
 		DB:   defaultDB,
 	}
+
 	return s, redis.NewClient(opts)
 }

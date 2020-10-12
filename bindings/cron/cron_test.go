@@ -19,6 +19,7 @@ func getTestMetadata(schedule string) bindings.Metadata {
 	m.Properties = map[string]string{
 		"schedule": schedule,
 	}
+
 	return m
 }
 
@@ -27,6 +28,7 @@ func getNewCron() *Binding {
 	if os.Getenv("DEBUG") != "" {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
+
 	return NewCron(l)
 }
 
@@ -70,6 +72,7 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 			assert.Truef(t, exists, "Response metadata doesn't include the expected 'schedule' key")
 			assert.Equal(t, schedule, scheduleVal)
 		}
+
 		return nil
 	})
 	assert.NoErrorf(t, err, "error on read")

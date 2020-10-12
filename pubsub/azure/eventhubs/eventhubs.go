@@ -103,12 +103,12 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	}
 	aeh.metadata = m
 	hub, err := eventhub.NewHubFromConnectionString(aeh.metadata.connectionString)
-
 	if err != nil {
 		return fmt.Errorf("unable to connect to azure event hubs: %v", err)
 	}
 
 	aeh.hub = hub
+
 	return nil
 }
 
@@ -118,6 +118,7 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return fmt.Errorf("error from publish: %s", err)
 	}
+
 	return nil
 }
 
@@ -134,7 +135,6 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler func(m
 	}
 
 	processor, err := eph.NewFromConnectionString(context.Background(), aeh.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.consumerGroup))
-
 	if err != nil {
 		return err
 	}

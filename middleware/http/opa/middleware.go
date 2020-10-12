@@ -46,7 +46,6 @@ var (
 // GetHandler returns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
-
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +56,6 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		rego.Query("result = data.http.allow"),
 		rego.Module("inline.rego", meta.Rego),
 	).PrepareForEval(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +72,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, query *rego.PreparedEvalQuery) bool {
 	headers := map[string]string{}
-	var allowedHeaders = strings.Split(meta.IncludedHeaders, ",")
+	allowedHeaders := strings.Split(meta.IncludedHeaders, ",")
 	ctx.Request.Header.VisitAll(func(key, value []byte) {
 		for _, allowedHeader := range allowedHeaders {
 			buf := []byte("")
@@ -110,14 +108,15 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 	}
 
 	results, err := query.Eval(context.TODO(), rego.EvalInput(input))
-
 	if err != nil {
 		m.opaError(ctx, meta, err)
+
 		return false
 	}
 
 	if len(results) == 0 {
 		m.opaError(ctx, meta, errOpaNoResult)
+
 		return false
 	}
 
@@ -132,11 +131,13 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 		if !allowed {
 			ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
 		}
+
 		return allowed
 	}
 
 	if _, ok := result.(map[string]interface{}); !ok {
 		m.opaError(ctx, meta, errOpaInvalidResultType)
+
 		return false
 	}
 
@@ -144,6 +145,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 	marshaled, err := json.Marshal(result)
 	if err != nil {
 		m.opaError(ctx, meta, err)
+
 		return false
 	}
 
@@ -155,6 +157,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 
 	if err = json.Unmarshal(marshaled, &regoResult); err != nil {
 		m.opaError(ctx, meta, err)
+
 		return false
 	}
 
@@ -171,6 +174,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 			ctx.Request.Header.Set(key, value)
 		}
 	}
+
 	return regoResult.Allow
 }
 
@@ -193,5 +197,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewar
 	if err != nil {
 		return nil, err
 	}
+
 	return &meta, nil
 }

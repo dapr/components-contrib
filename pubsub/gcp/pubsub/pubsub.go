@@ -55,15 +55,17 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 
 	g.client = pubsubClient
 	g.metadata = &pubsubMeta
+
 	return nil
 }
 
 func (g *GCPPubSub) parseMetadata(metadata pubsub.Metadata) ([]byte, error) {
 	b, err := json.Marshal(metadata.Properties)
+
 	return b, err
 }
 
-//Publish the topic to GCP Pubsub
+// Publish the topic to GCP Pubsub
 func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
 	if !g.metadata.DisableEntityManagement {
 		err := g.ensureTopic(req.Topic)
@@ -100,6 +102,7 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg 
 	sub := g.getSubscription(g.metadata.ConsumerID)
 
 	go g.handleSubscriptionMessages(topic, sub, daprHandler)
+
 	return nil
 }
 
@@ -116,6 +119,7 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 			m.Ack()
 		}
 	})
+
 	return err
 }
 
@@ -125,6 +129,7 @@ func (g *GCPPubSub) ensureTopic(topic string) error {
 	if !exists {
 		_, err = g.client.CreateTopic(context.Background(), topic)
 	}
+
 	return err
 }
 
@@ -144,6 +149,7 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error 
 		_, subErr = g.client.CreateSubscription(context.Background(), g.metadata.ConsumerID,
 			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic)})
 	}
+
 	return subErr
 }
 

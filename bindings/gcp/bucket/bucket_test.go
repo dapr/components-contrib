@@ -16,8 +16,10 @@ import (
 
 func TestInit(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"auth_provider_x509_cert_url": "a", "auth_uri": "a", "Bucket": "a", "client_x509_cert_url": "a", "client_email": "a", "client_id": "a", "private_key": "a",
-		"private_key_id": "a", "project_id": "a", "token_uri": "a", "type": "a"}
+	m.Properties = map[string]string{
+		"auth_provider_x509_cert_url": "a", "auth_uri": "a", "Bucket": "a", "client_x509_cert_url": "a", "client_email": "a", "client_id": "a", "private_key": "a",
+		"private_key_id": "a", "project_id": "a", "token_uri": "a", "type": "a",
+	}
 	gs := GCPStorage{logger: logger.NewLogger("test")}
 	b, err := gs.parseMetadata(m)
 	assert.Nil(t, err)

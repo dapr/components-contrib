@@ -3,9 +3,8 @@ package pulsar
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParsePulsarMetadata(t *testing.T) {

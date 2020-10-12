@@ -24,5 +24,6 @@ func GetClient(accessKey string, secretKey string, region string, endpoint strin
 	if err != nil {
 		return nil, err
 	}
+
 	return awsSession, nil
 }

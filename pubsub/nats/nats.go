@@ -62,6 +62,7 @@ func (n *natsPubSub) Init(metadata pubsub.Metadata) error {
 	n.logger.Debugf("connected to nats at %s", m.natsURL)
 
 	n.natsConn = natsConn
+
 	return nil
 }
 
@@ -70,6 +71,7 @@ func (n *natsPubSub) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return fmt.Errorf("nats: error from publish: %s", err)
 	}
+
 	return nil
 }
 

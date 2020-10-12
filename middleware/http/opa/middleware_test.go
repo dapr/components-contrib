@@ -203,6 +203,7 @@ func TestOpaPolicy(t *testing.T) {
 
 			if test.shouldHandlerError {
 				require.Error(t, err)
+
 				return
 			}
 
@@ -217,6 +218,7 @@ func TestOpaPolicy(t *testing.T) {
 			if test.shouldRegoError {
 				assert.Equal(t, 403, reqCtx.Response.StatusCode())
 				assert.Equal(t, "true", string(reqCtx.Response.Header.Peek(opaErrorHeaderKey)))
+
 				return
 			}
 

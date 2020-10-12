@@ -79,6 +79,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 
 	c.collection = &colls[0]
 	c.client = client
+
 	return nil
 }
 
@@ -94,6 +95,7 @@ func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentia
 	if err != nil {
 		return nil, err
 	}
+
 	return &creds, nil
 }
 

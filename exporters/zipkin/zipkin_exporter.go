@@ -54,6 +54,7 @@ func (z *Exporter) Init(daprID string, hostAddress string, metadata exporters.Me
 	z.traceExporter = zipkin.NewExporter(reporter, localEndpoint)
 	trace.RegisterExporter(z.traceExporter)
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+
 	return nil
 }
 
@@ -68,6 +69,7 @@ func (z *Exporter) getZipkinMetadata(metadata exporters.Metadata) (*zipkinMetada
 	if err != nil {
 		return nil, err
 	}
+
 	return &zipkinMeta, nil
 }
 

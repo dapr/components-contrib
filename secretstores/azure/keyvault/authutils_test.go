@@ -183,5 +183,6 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 
 func getTestCert() []byte {
 	certBytes, _ := base64.StdEncoding.DecodeString(testCert)
+
 	return certBytes
 }

@@ -1,6 +1,7 @@
 package sms
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -96,7 +97,7 @@ func (t *SMS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 	vDr := *strings.NewReader(v.Encode())
 
 	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
-	httpReq, err := http.NewRequest("POST", twilioURL, &vDr)
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", twilioURL, &vDr)
 	if err != nil {
 		return nil, err
 	}
@@ -112,5 +113,6 @@ func (t *SMS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
 		return nil, fmt.Errorf("error from Twilio: %s", resp.Status)
 	}
+
 	return nil, nil
 }

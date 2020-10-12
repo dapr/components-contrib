@@ -72,6 +72,7 @@ func (c CertConfig) Authorizer() (autorest.Authorizer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get oauth token from certificate auth: %v", err)
 		}
+
 		return autorest.NewBearerAuthorizer(spToken), nil
 	}
 
@@ -89,6 +90,7 @@ func (c CertConfig) ServicePrincipalTokenByCertBytes() (*adal.ServicePrincipalTo
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode pkcs12 certificate while creating spt: %v", err)
 	}
+
 	return adal.NewServicePrincipalTokenFromCertificate(*oauthConfig, c.ClientID, certificate, rsaPrivateKey, c.Resource)
 }
 
@@ -110,6 +112,7 @@ func (s EnvironmentSettings) GetMSI() MSIConfig {
 	config := NewMSIConfig()
 	config.Resource = azure.PublicCloud.ResourceIdentifiers.KeyVault
 	config.ClientID = s.Values[componentSPNClientID]
+
 	return config
 }
 

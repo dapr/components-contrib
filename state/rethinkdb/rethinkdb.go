@@ -125,6 +125,7 @@ func tableExists(arr []string, table string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -164,6 +165,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		}
 		resp.Data = data
 	}
+
 	return resp, nil
 }
 
@@ -172,6 +174,7 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
 		return errors.New("invalid state request, key and value required")
 	}
+
 	return s.BulkSet([]state.SetRequest{*req})
 }
 
@@ -209,6 +212,7 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 			record, ok := c.NewValue.(map[string]interface{})
 			if !ok {
 				s.logger.Infof("invalid state DB change type: %T", c.NewValue)
+
 				continue
 			}
 			list = append(list, record)
@@ -220,6 +224,7 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 			return errors.Wrap(err, "error archiving records to the database")
 		}
 	}
+
 	return nil
 }
 
@@ -228,6 +233,7 @@ func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
 	if req == nil || req.Key == "" {
 		return errors.New("invalid request, missing key")
 	}
+
 	return s.BulkDelete([]state.DeleteRequest{*req})
 }
 
@@ -243,6 +249,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 		return errors.Wrap(err, "error deleting record from the database")
 	}
 	defer c.Close()
+
 	return nil
 }
 
@@ -291,75 +298,75 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig
 	// runtime
 	for k, v := range cfg {
 		switch k {
-		case "table": //string
+		case "table": // string
 			c.Table = v
-		case "address": //string
+		case "address": // string
 			c.Address = v
 		case "addresses": // []string
 			c.Addresses = strings.Split(v, ",")
-		case "database": //string
+		case "database": // string
 			c.Database = v
-		case "username": //string
+		case "username": // string
 			c.Username = v
-		case "password": //string
+		case "password": // string
 			c.Password = v
-		case "authkey": //string
+		case "authkey": // string
 			c.AuthKey = v
-		case "timeout": //time.Duration
+		case "timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid timeout format: %v", v)
 			}
 			c.Timeout = d
-		case "write_timeout": //time.Duration
+		case "write_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid write timeout format: %v", v)
 			}
 			c.WriteTimeout = d
-		case "read_timeout": //time.Duration
+		case "read_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid read timeout format: %v", v)
 			}
 			c.ReadTimeout = d
-		case "keep_alive_timeout": //time.Duration
+		case "keep_alive_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid keep alive timeout format: %v", v)
 			}
 			c.KeepAlivePeriod = d
-		case "initial_cap": //int
+		case "initial_cap": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid keep initial cap format: %v", v)
 			}
 			c.InitialCap = i
-		case "max_open": //int
+		case "max_open": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid keep max open format: %v", v)
 			}
 			c.MaxOpen = i
-		case "discover_hosts": //bool
+		case "discover_hosts": // bool
 			b, err := strconv.ParseBool(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid discover hosts format: %v", v)
 			}
 			c.DiscoverHosts = b
-		case "use-open-tracing": //bool
+		case "use-open-tracing": // bool
 			b, err := strconv.ParseBool(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
 			}
 			c.UseOpentracing = b
-		case "archive": //bool
+		case "archive": // bool
 			b, err := strconv.ParseBool(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
 			}
 			c.Archive = b
-		case "max_idle": //int
+		case "max_idle": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid keep max idle format: %v", v)

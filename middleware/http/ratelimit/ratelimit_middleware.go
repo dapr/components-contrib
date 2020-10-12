@@ -51,6 +51,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		limitHandler := tollbooth.LimitFuncHandler(limiter, nethttpadaptor.NewNetHTTPHandlerFunc(m.logger, h))
 		wrappedHandler := fasthttpadaptor.NewFastHTTPHandlerFunc(limitHandler.ServeHTTP)
+
 		return func(ctx *fasthttp.RequestCtx) {
 			wrappedHandler(ctx)
 		}

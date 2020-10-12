@@ -17,7 +17,6 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 )
@@ -66,6 +65,7 @@ func (m *MQTT) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	m.client = client
+
 	return nil
 }
 
@@ -80,6 +80,7 @@ func (m *MQTT) getMQTTMetadata(metadata bindings.Metadata) (*mqttMetadata, error
 	if err != nil {
 		return nil, err
 	}
+
 	return &mMetadata, nil
 }
 
@@ -90,6 +91,7 @@ func (m *MQTT) Operations() []bindings.OperationKind {
 func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	m.client.Publish(m.metadata.Topic, 0, false, string(req.Data))
 	m.client.Disconnect(0)
+
 	return nil, nil
 }
 
@@ -103,6 +105,7 @@ func (m *MQTT) Read(handler func(*bindings.ReadResponse) error) error {
 		})
 	})
 	<-c
+
 	return nil
 }
 
@@ -115,6 +118,7 @@ func (m *MQTT) connect(clientID string, uri *url.URL) (mqtt.Client, error) {
 	if err := token.Error(); err != nil {
 		return nil, err
 	}
+
 	return client, nil
 }
 
@@ -125,5 +129,6 @@ func (m *MQTT) createClientOptions(clientID string, uri *url.URL) *mqtt.ClientOp
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)
 	opts.SetClientID(clientID)
+
 	return opts
 }

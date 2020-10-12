@@ -59,6 +59,7 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 
 	a.QueueURL = resultURL.QueueUrl
 	a.Client = client
+
 	return nil
 }
 
@@ -72,6 +73,7 @@ func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		MessageBody: &msgBody,
 		QueueUrl:    a.QueueURL,
 	})
+
 	return nil, err
 }
 
@@ -125,6 +127,7 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 

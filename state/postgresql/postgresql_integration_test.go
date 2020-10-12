@@ -133,7 +133,6 @@ func TestPostgreSQLIntegration(t *testing.T) {
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
 func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
-	//value := `{"something": "DKbLaZwrlCAZ"}`
 	value := &fakeItem{Color: "yellow"}
 
 	setItem(t, pgs, key, value, "")
@@ -526,6 +525,7 @@ func getItem(t *testing.T, pgs *PostgreSQL, key string) (*state.GetResponse, *fa
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
 	_ = json.Unmarshal(response.Data, outputObject)
+
 	return response, outputObject
 }
 
@@ -550,6 +550,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	statement := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %s WHERE key = $1)`, tableName)
 	err = db.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)
+
 	return exists
 }
 
@@ -560,6 +561,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 
 	err = db.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
+
 	return returnValue, insertdate, updatedate
 }
 

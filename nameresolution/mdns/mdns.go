@@ -37,7 +37,7 @@ func (m *resolver) Init(metadata nameresolution.Metadata) error {
 	var hostAddress string
 	var ok bool
 
-	var props = metadata.Properties
+	props := metadata.Properties
 
 	if id, ok = props[nameresolution.MDNSInstanceName]; !ok {
 		return errors.New("name is missing")
@@ -83,6 +83,7 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 		if err != nil {
 			started <- false
 			m.logger.Errorf("error from zeroconf register: %s", err)
+
 			return
 		}
 		started <- true
@@ -96,6 +97,7 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 	}()
 
 	<-started
+
 	return err
 }
 
@@ -127,6 +129,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 
 					// cancel timeout because it found the service
 					cancel()
+
 					return
 				}
 			}
@@ -136,6 +139,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	if err = resolver.Browse(ctx, req.ID, "local.", entries); err != nil {
 		// cancel context
 		cancel()
+
 		return "", fmt.Errorf("failed to browse: %s", err.Error())
 	}
 

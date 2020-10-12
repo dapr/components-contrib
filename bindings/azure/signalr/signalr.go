@@ -7,6 +7,7 @@ package signalr
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -119,7 +120,7 @@ func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 }
 
 func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) error {
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}

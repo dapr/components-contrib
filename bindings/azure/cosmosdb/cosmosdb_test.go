@@ -58,7 +58,7 @@ func TestPartitionKeyValue(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "earth", val)
 
-	//Invalid nested partition key
+	// Invalid nested partition key
 	_, err = cosmosDB.getPartitionKeyValue("address.notexists", obj)
 	assert.NotNil(t, err)
 

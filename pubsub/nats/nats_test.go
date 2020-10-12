@@ -9,9 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseNATSMetadata(t *testing.T) {

@@ -57,6 +57,7 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 
 	r.connection = conn
 	r.channel = ch
+
 	return nil
 }
 
@@ -110,7 +111,6 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubs
 		false, // noWait
 		nil,
 	)
-
 	if err != nil {
 		return err
 	}

@@ -48,6 +48,7 @@ func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) *Middleware {
 	}
 	// Default: set Token Provider to real implementation (we will overwrite it for unit testing)
 	m.SetTokenProvider(m)
+
 	return m
 }
 
@@ -63,6 +64,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		m.log.Errorf("getNativeMetadata error, %s", err)
+
 		return nil, err
 	}
 
@@ -70,13 +72,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		return func(ctx *fasthttp.RequestCtx) {
 			var headerValue string
 			// Check if valid Token is in the cache
-			var cacheKey = m.getCacheKey(meta)
+			cacheKey := m.getCacheKey(meta)
 			cachedToken, found := m.tokenCache.Get(cacheKey)
 
 			if !found {
 				m.log.Debugf("Cached token not found, try get one")
 
-				var endpointParams, err = url.ParseQuery(meta.EndpointParamsQuery)
+				endpointParams, err := url.ParseQuery(meta.EndpointParamsQuery)
 				if err != nil {
 					m.log.Errorf("Error parsing endpoint parameters, %s", err)
 					endpointParams, _ = url.ParseQuery("")
@@ -94,6 +96,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				token, tokenError := m.tokenProvider.GetToken(conf)
 				if tokenError != nil {
 					m.log.Errorf("Error acquiring token, %s", tokenError)
+
 					return
 				}
 
@@ -101,6 +104,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				m.log.Debugf("Duration in seconds %s, Expiry Time %s", tokenExpirationDuration, token.Expiry)
 				if err != nil {
 					m.log.Errorf("Error parsing duration string, %s", fmt.Sprintf("%ss", token.Expiry))
+
 					return
 				}
 
@@ -167,6 +171,7 @@ func (m *Middleware) getCacheKey(meta *oAuth2ClientCredentialsMiddlewareMetadata
 	hashedKey := sha256.New()
 	key := strings.Join([]string{meta.ClientID, meta.Scopes}, "")
 	hashedKey.Write([]byte(key))
+
 	return fmt.Sprintf("%x", hashedKey.Sum(nil))
 }
 
@@ -178,5 +183,6 @@ func (m *Middleware) SetTokenProvider(tokenProvider TokenProviderInterface) {
 // GetToken returns a token from the current OAuth2 ClientCredentials Configuration
 func (m *Middleware) GetToken(conf *clientcredentials.Config) (*oauth2.Token, error) {
 	tokenSource := conf.TokenSource(context.Background())
+
 	return tokenSource.Token()
 }

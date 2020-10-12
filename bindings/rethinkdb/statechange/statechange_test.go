@@ -30,6 +30,7 @@ func getNewRethinkActorBinding() *Binding {
 	if os.Getenv("DEBUG") != "" {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
+
 	return NewRethinkDBStateChangeBinding(l)
 }
 
@@ -66,6 +67,7 @@ func TestBinding(t *testing.T) {
 		err = b.Read(func(res *bindings.ReadResponse) error {
 			assert.NotNil(t, res)
 			t.Logf("state change event:\n%s", string(res.Data))
+
 			return nil
 		})
 		assert.NoErrorf(t, err, "error on read")

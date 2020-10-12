@@ -48,11 +48,13 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	}
 
 	h.metadata = m
+
 	return nil
 }
 
 func (h *HTTPSource) get(url string) ([]byte, error) {
 	client := http.Client{Timeout: time.Second * 60}
+	// nolint: noctx
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
@@ -66,6 +68,7 @@ func (h *HTTPSource) get(url string) ([]byte, error) {
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()
 	}
+
 	return b, nil
 }
 
@@ -78,6 +81,7 @@ func (h *HTTPSource) Read(handler func(*bindings.ReadResponse) error) error {
 	handler(&bindings.ReadResponse{
 		Data: b,
 	})
+
 	return nil
 }
 
@@ -87,6 +91,7 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 
 func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	client := http.Client{Timeout: time.Second * 5}
+	// nolint: noctx
 	resp, err := client.Post(h.metadata.URL, "application/json; charset=utf-8", bytes.NewBuffer(req.Data))
 	if err != nil {
 		return nil, err
@@ -94,5 +99,6 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()
 	}
+
 	return nil, nil
 }

@@ -25,7 +25,7 @@ jobs:
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: v1.26.0
+      GOLANGCI_LINT_VER: v1.31
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -49,13 +49,11 @@ jobs:
           go-version: ${{ env.GOVER }}
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
-      - name: Install golangci-lint ${{ env.GOLANGCI_LINT_VER }}
-        if: matrix.target_arch != 'arm'
-        run: |
-          curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "${{ env.GOROOT }}/bin" "${{ env.GOLANGCI_LINT_VER }}"
-      - name: Run make lint
-        if: matrix.target_arch != 'arm' && matrix.target_os != 'windows'
-        run: make lint
+      - name: Run golangci-lint
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
+        uses: golangci/golangci-lint-action@v2.2.1
+        with:
+          version: ${{ env.GOLANGCI_LINT_VER }}
       - name: Run make go.mod check-diff
         if: matrix.target_arch != 'arm'
         run: make go.mod check-diff

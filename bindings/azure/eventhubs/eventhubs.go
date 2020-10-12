@@ -91,6 +91,7 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	}
 
 	a.hub = hub
+
 	return nil
 }
 
@@ -203,6 +204,7 @@ func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*binding
 				Data: event.Data,
 			})
 		}
+
 		return nil
 	}
 
@@ -233,6 +235,7 @@ func contains(arr []string, str string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -250,7 +253,6 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 	}
 
 	processor, err := eph.NewFromConnectionString(context.Background(), a.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
-
 	if err != nil {
 		return err
 	}

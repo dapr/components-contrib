@@ -100,6 +100,7 @@ func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSe
 	if err != nil {
 		return res, fmt.Errorf("failed to access secret version: %v", err)
 	}
+
 	return secretstores.GetSecretResponse{Data: map[string]string{req.Name: string(result.Payload.Data)}}, nil
 }
 
@@ -127,5 +128,6 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 	if meta.ClientEmail == "" {
 		return nil, fmt.Errorf("missing property `client_email` in metadata")
 	}
+
 	return &meta, nil
 }

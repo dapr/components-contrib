@@ -13,9 +13,8 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/pkg/errors"
-
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 )
 
 // List of operations.
@@ -78,6 +77,7 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 
 	if req.Operation == closeOperation {
 		p.db.Close()
+
 		return nil, nil
 	}
 
@@ -100,7 +100,7 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 		},
 	}
 
-	switch req.Operation {
+	switch req.Operation { // nolint: exhaustive
 	case execOperation:
 		r, err := p.exec(sql)
 		if err != nil {
@@ -149,6 +149,7 @@ func (p *Postgres) query(sql string) (result []byte, err error) {
 	if result, err = json.Marshal(rs); err != nil {
 		err = errors.Wrap(err, "error serializing results")
 	}
+
 	return
 }
 
@@ -161,5 +162,6 @@ func (p *Postgres) exec(sql string) (result int64, err error) {
 	}
 
 	result = res.RowsAffected()
+
 	return
 }

@@ -6,10 +6,9 @@
 package oauth2
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
-
-	"context"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/fasthttp-contrib/sessions"
@@ -70,6 +69,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			if session.GetString(meta.AuthHeaderName) != "" {
 				ctx.Request.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				h(ctx)
+
 				return
 			}
 			state := string(ctx.FormValue(stateParam))
@@ -118,5 +118,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 	if err != nil {
 		return nil, err
 	}
+
 	return &middlewareMetadata, nil
 }

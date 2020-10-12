@@ -8,7 +8,6 @@ package postgresql
 import (
 	"database/sql"
 	"encoding/json"
-
 	"errors"
 	"fmt"
 	"strconv"
@@ -38,6 +37,7 @@ type postgresDBAccess struct {
 // newPostgresDBAccess creates a new instance of postgresAccess
 func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 	logger.Debug("Instantiating new PostgreSQL state store")
+
 	return &postgresDBAccess{
 		logger: logger,
 	}
@@ -52,12 +52,14 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 		p.connectionString = val
 	} else {
 		p.logger.Error("Missing postgreSQL connection string")
+
 		return fmt.Errorf(errMissingConnectionString)
 	}
 
 	db, err := sql.Open("pgx", p.connectionString)
 	if err != nil {
 		p.logger.Error(err)
+
 		return err
 	}
 
@@ -140,6 +142,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 		if err == sql.ErrNoRows {
 			return &state.GetResponse{}, nil
 		}
+
 		return nil, err
 	}
 
@@ -195,6 +198,7 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 			err = p.Delete(&da)
 			if err != nil {
 				tx.Rollback()
+
 				return err
 			}
 		}
@@ -206,12 +210,14 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 			err = p.Set(&sa)
 			if err != nil {
 				tx.Rollback()
+
 				return err
 			}
 		}
 	}
 
 	err = tx.Commit()
+
 	return err
 }
 
@@ -219,6 +225,7 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) error {
 	if err != nil {
 		p.logger.Debug(err)
+
 		return err
 	}
 
@@ -226,18 +233,21 @@ func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) er
 
 	if resultErr != nil {
 		p.logger.Error(resultErr)
+
 		return resultErr
 	}
 
 	if rowsAffected == 0 {
 		noRowsErr := errors.New("database operation failed: no rows match given key and etag")
 		p.logger.Error(noRowsErr)
+
 		return noRowsErr
 	}
 
 	if rowsAffected > 1 {
 		tooManyRowsErr := errors.New("database operation failed: more than one row affected, expected one")
 		p.logger.Error(tooManyRowsErr)
+
 		return tooManyRowsErr
 	}
 
@@ -278,5 +288,6 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 func tableExists(db *sql.DB, tableName string) (bool, error) {
 	var exists bool = false
 	err := db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+
 	return exists, err
 }

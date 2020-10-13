@@ -84,6 +84,7 @@ func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pub
 
 func (p *Hazelcast) Close() error {
 	p.client.Shutdown()
+
 	return nil
 }
 

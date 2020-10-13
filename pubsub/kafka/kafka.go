@@ -301,5 +301,6 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 
 func (k *Kafka) Close() error {
 	k.closeSubscripionResources()
+
 	return k.producer.Close()
 }

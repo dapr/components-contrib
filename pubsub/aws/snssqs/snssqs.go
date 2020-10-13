@@ -493,5 +493,6 @@ func (s *snsSqs) Close() error {
 			SubscriptionArn: sub,
 		})
 	}
+
 	return nil
 }

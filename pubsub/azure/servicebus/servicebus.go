@@ -448,6 +448,7 @@ func (a *azureServiceBus) Close() error {
 	for _, s := range a.subscriptions {
 		s.close(context.TODO())
 	}
+
 	return nil
 }
 

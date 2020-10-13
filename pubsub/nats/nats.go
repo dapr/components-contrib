@@ -89,5 +89,6 @@ func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 
 func (n *natsPubSub) Close() error {
 	n.natsConn.Close()
+
 	return nil
 }

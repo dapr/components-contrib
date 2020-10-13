@@ -22,12 +22,13 @@ type snsSqs struct {
 	// key is the hashed topic name, value is the actual topic name
 	topicHash map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url
-	queues    map[string]*sqsQueueInfo
-	awsAcctID string
-	snsClient *sns.SNS
-	sqsClient *sqs.SQS
-	metadata  *snsSqsMetadata
-	logger    logger.Logger
+	queues        map[string]*sqsQueueInfo
+	awsAcctID     string
+	snsClient     *sns.SNS
+	sqsClient     *sqs.SQS
+	metadata      *snsSqsMetadata
+	logger        logger.Logger
+	subscriptions []*string
 }
 
 type sqsQueueInfo struct {
@@ -66,7 +67,7 @@ const (
 )
 
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
-	return &snsSqs{logger: l}
+	return &snsSqs{logger: l, subscriptions: []*string{}}
 }
 
 func parseInt64(input string, propertyName string) (int64, error) {
@@ -478,9 +479,20 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 		return err
 	}
 
+	s.subscriptions = append(s.subscriptions, subscribeOutput.SubscriptionArn)
 	s.logger.Debugf("Subscribed to topic %s: %v", req.Topic, subscribeOutput)
 
 	s.consumeSubscription(queueInfo, handler)
+
+	return nil
+}
+
+func (s *snsSqs) Close() error {
+	for _, sub := range s.subscriptions {
+		s.snsClient.Unsubscribe(&sns.UnsubscribeInput{
+			SubscriptionArn: sub,
+		})
+	}
 
 	return nil
 }

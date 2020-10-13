@@ -169,3 +169,7 @@ func (r *rabbitMQ) ensureExchangeDeclared(exchange string) error {
 
 	return nil
 }
+
+func (r *rabbitMQ) Close() error {
+	return r.connection.Close()
+}

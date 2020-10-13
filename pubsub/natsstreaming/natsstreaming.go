@@ -259,3 +259,7 @@ func genRandomString(n int) string {
 
 	return clientID
 }
+
+func (n *natsStreamingPubSub) Close() error {
+	return n.natStreamingConn.Close()
+}

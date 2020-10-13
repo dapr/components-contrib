@@ -257,3 +257,10 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 
 	return opts
 }
+
+func (m *mqttPubSub) Close() error {
+	m.consumer.Disconnect(0)
+	m.producer.Disconnect(0)
+
+	return nil
+}

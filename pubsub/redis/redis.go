@@ -173,3 +173,7 @@ func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler
 		start = ">"
 	}
 }
+
+func (r *redisStreams) Close() error {
+	return r.client.Close()
+}

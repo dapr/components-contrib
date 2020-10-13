@@ -51,16 +51,18 @@ const (
 type handler = struct{}
 
 type azureServiceBus struct {
-	metadata     metadata
-	namespace    *azservicebus.Namespace
-	topicManager *azservicebus.TopicManager
-	logger       logger.Logger
+	metadata      metadata
+	namespace     *azservicebus.Namespace
+	topicManager  *azservicebus.TopicManager
+	logger        logger.Logger
+	subscriptions []*subscription
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger: logger,
+		logger:        logger,
+		subscriptions: []*subscription{},
 	}
 }
 
@@ -292,7 +294,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 				return
 			}
 			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
-
+			a.subscriptions = append(a.subscriptions, sub)
 			// ReceiveAndBlock will only return with an error
 			// that it cannot handle internally. The subscription
 			// connection is closed when this method returns.
@@ -440,6 +442,14 @@ func (a *azureServiceBus) createSubscriptionManagementOptions() ([]azservicebus.
 	}
 
 	return opts, nil
+}
+
+func (a *azureServiceBus) Close() error {
+	for _, s := range a.subscriptions {
+		s.close(context.TODO())
+	}
+
+	return nil
 }
 
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) azservicebus.SubscriptionManagementOption {

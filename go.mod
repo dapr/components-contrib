@@ -3,10 +3,10 @@ module github.com/dapr/components-contrib
 go 1.14
 
 require (
-	cloud.google.com/go v0.52.0
-	cloud.google.com/go/datastore v1.0.0
-	cloud.google.com/go/pubsub v1.0.1
-	cloud.google.com/go/storage v1.0.0
+	cloud.google.com/go v0.65.0
+	cloud.google.com/go/datastore v1.1.0
+	cloud.google.com/go/pubsub v1.3.1
+	cloud.google.com/go/storage v1.10.0
 	contrib.go.opencensus.io/exporter/ocagent v0.6.0
 	contrib.go.opencensus.io/exporter/zipkin v0.1.1
 	github.com/Azure/azure-event-hubs-go v1.3.1
@@ -39,9 +39,8 @@ require (
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/go-redis/redis/v7 v7.0.1
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
-	github.com/golang/mock v1.4.0
-	github.com/golang/protobuf v1.3.3
-	github.com/google/go-cmp v0.5.1 // indirect
+	github.com/golang/mock v1.4.4
+	github.com/golang/protobuf v1.4.2
 	github.com/google/uuid v1.1.1
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.2.0
@@ -72,14 +71,13 @@ require (
 	github.com/valyala/fasthttp v1.6.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2
-	go.opencensus.io v0.22.3
+	go.opencensus.io v0.22.4
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200625001655-4c5254603344
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/tools v0.0.0-20200731060945-b5fad4ed8dd6 // indirect
-	google.golang.org/api v0.15.0
-	google.golang.org/genproto v0.0.0-20200122232147-0452cf42e150
-	google.golang.org/grpc v1.26.0
+	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
+	google.golang.org/api v0.32.0
+	google.golang.org/genproto v0.0.0-20200904004341-0bd0a958aa1d
+	google.golang.org/grpc v1.32.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.16 // indirect
 	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4 // indirect

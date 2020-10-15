@@ -154,3 +154,7 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler func(m
 
 	return nil
 }
+
+func (aeh *AzureEventHubs) Close() error {
+	return aeh.hub.Close(context.TODO())
+}

@@ -39,7 +39,7 @@ func NewDaprCloudEventWithRequest(req *PublishRequest) *CloudEventsEnvelope {
 	return NewCloudEventsEnvelope("", "", "", "", "", req.Topic, req.PubsubName, req.Data)
 }
 
-// NewCloudEventsEnvelope
+// NewCloudEventsEnvelope new a CloudEventsEnvelope wrap with raw data.
 func NewCloudEventsEnvelope(id, source, eventType, contentType, subject string, topic, pubsubName string, data []byte) *CloudEventsEnvelope {
 	// defaults
 	if id == "" {

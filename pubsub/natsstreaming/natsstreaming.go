@@ -38,7 +38,6 @@ const (
 	startAtTimeDelta        = "startAtTimeDelta"
 	startAtTime             = "startAtTime"
 	startAtTimeFormat       = "startAtTimeFormat"
-	manualAck               = "manualAck"
 	ackWaitTime             = "ackWaitTime"
 	maxInFlight             = "maxInFlight"
 )

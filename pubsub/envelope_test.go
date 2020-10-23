@@ -48,6 +48,7 @@ func TestEnvelopeWrapExistingCloudEvents(t *testing.T) {
 		assert.Equal(t, "mypubsub", envelope.PubsubName)
 	})
 }
+
 func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	t.Run("default event type", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "", "mypubsub", nil)

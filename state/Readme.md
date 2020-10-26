@@ -50,4 +50,4 @@ type TransactionalStore interface {
 }
 ```
 
-See the [documentation repo](https://github.com/dapr/docs/tree/master/howto) for examples.  
+See the [documentation site](https://docs.dapr.io/developing-applications/building-blocks/state-management/) for examples.  

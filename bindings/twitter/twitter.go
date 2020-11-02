@@ -16,10 +16,9 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/pkg/errors"
-
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
+	"github.com/pkg/errors"
 )
 
 // Binding represents Twitter input/output binding
@@ -67,6 +66,7 @@ func (t *Binding) Init(metadata bindings.Metadata) error {
 	httpClient := config.Client(oauth1.NoContext, token)
 
 	t.client = twitter.NewClient(httpClient)
+
 	return nil
 }
 
@@ -87,6 +87,7 @@ func (t *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 		data, marshalErr := json.Marshal(tweet)
 		if marshalErr != nil {
 			t.logger.Errorf("error marshaling tweet: %+v", tweet)
+
 			return
 		}
 		handler(&bindings.ReadResponse{
@@ -139,6 +140,7 @@ func (t *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 			done = true
 		}
 	}
+
 	return nil
 }
 
@@ -199,6 +201,7 @@ func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	data, marshalErr := json.Marshal(search.Statuses)
 	if marshalErr != nil {
 		t.logger.Errorf("error marshaling tweet: %v", marshalErr)
+
 		return nil, errors.Wrapf(err, "error parsing response from: %+v", sq)
 	}
 

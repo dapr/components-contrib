@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
@@ -52,6 +51,7 @@ func TestGetSecret(t *testing.T) {
 						assert.Nil(t, input.VersionId)
 						assert.Nil(t, input.VersionStage)
 						secret := secretValue
+
 						return &secretsmanager.GetSecretValueOutput{
 							Name:         input.SecretId,
 							SecretString: &secret,
@@ -75,6 +75,7 @@ func TestGetSecret(t *testing.T) {
 					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.NotNil(t, input.VersionId)
 						secret := secretValue
+
 						return &secretsmanager.GetSecretValueOutput{
 							Name:         input.SecretId,
 							SecretString: &secret,
@@ -100,6 +101,7 @@ func TestGetSecret(t *testing.T) {
 					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.NotNil(t, input.VersionStage)
 						secret := secretValue
+
 						return &secretsmanager.GetSecretValueOutput{
 							Name:         input.SecretId,
 							SecretString: &secret,

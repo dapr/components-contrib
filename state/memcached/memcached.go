@@ -9,6 +9,7 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -94,14 +95,8 @@ func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 
 func (m *Memcached) setValue(req *state.SetRequest) error {
 	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = m.json.Marshal(req.Value)
-	}
+	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
 	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt})
-
 	if err != nil {
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
@@ -114,6 +109,7 @@ func (m *Memcached) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -124,6 +120,7 @@ func (m *Memcached) BulkDelete(req []state.DeleteRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -134,6 +131,7 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if errors.Is(err, memcache.ErrCacheMiss) {
 			return &state.GetResponse{}, nil
 		}
+
 		return &state.GetResponse{}, err
 	}
 
@@ -153,5 +151,6 @@ func (m *Memcached) BulkSet(req []state.SetRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }

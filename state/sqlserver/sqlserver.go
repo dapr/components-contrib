@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 	mssql "github.com/denisenkom/go-mssqldb"
 )
@@ -43,10 +44,10 @@ const (
 	// UUIDKeyType defines a key of type UUID/GUID
 	UUIDKeyType KeyType = "uuid"
 
-	//IntegerKeyType defines a key of type integer
+	// IntegerKeyType defines a key of type integer
 	IntegerKeyType KeyType = "integer"
 
-	//InvalidKeyType defines an invalid key type
+	// InvalidKeyType defines an invalid key type
 	InvalidKeyType KeyType = "invalid"
 )
 
@@ -110,6 +111,7 @@ func isValidSQLName(s string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -119,6 +121,7 @@ func isValidIndexedPropertyName(s string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -128,6 +131,7 @@ func isValidIndexedPropertyType(s string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -296,6 +300,7 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 		err = s.executeBulkDelete(tx, deletes)
 		if err != nil {
 			tx.Rollback()
+
 			return err
 		}
 	}
@@ -305,6 +310,7 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 			err = s.executeSet(tx, &sets[i])
 			if err != nil {
 				tx.Rollback()
+
 				return err
 			}
 		}
@@ -361,6 +367,7 @@ func (s *SQLServer) BulkDelete(req []state.DeleteRequest) error {
 	err = s.executeBulkDelete(tx, req)
 	if err != nil {
 		tx.Rollback()
+
 		return err
 	}
 
@@ -400,6 +407,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 
 	if int(rows) != len(req) {
 		err = fmt.Errorf("delete affected only %d rows, expected %d", rows, len(req))
+
 		return err
 	}
 
@@ -409,7 +417,6 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 // Get returns an entity from store
 func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	rows, err := s.db.Query(s.getCommand, sql.Named(keyColumnName, req.Key))
-
 	if err != nil {
 		return nil, err
 	}
@@ -452,16 +459,10 @@ type dbExecutor interface {
 func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	var err error
 	var bytes []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bytes = b
-	} else {
-		bytes, err = json.Marshal(req.Value)
-		if err != nil {
-			return err
-		}
+	bytes, err = utils.Marshal(req.Value, json.Marshal)
+	if err != nil {
+		return err
 	}
-
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.ETag != "" {
 		var b []byte
@@ -499,10 +500,12 @@ func (s *SQLServer) BulkSet(req []state.SetRequest) error {
 		err = s.executeSet(tx, &req[i])
 		if err != nil {
 			tx.Rollback()
+
 			return err
 		}
 	}
 
 	err = tx.Commit()
+
 	return err
 }

@@ -28,7 +28,8 @@ func NewNativeExporter(logger logger.Logger) *Exporter {
 
 // Exporter is an OpenCensus native exporter
 type Exporter struct {
-	logger logger.Logger
+	logger        logger.Logger
+	traceExporter trace.Exporter
 }
 
 // Init creates a new native endpoint and reporter
@@ -43,13 +44,14 @@ func (l *Exporter) Init(daprID string, hostAddress string, metadata exporters.Me
 		return nil
 	}
 
-	exporter, err := ocagent.NewExporter(ocagent.WithInsecure(), ocagent.WithServiceName(daprID), ocagent.WithAddress(meta.AgentEndpoint))
+	l.traceExporter, err = ocagent.NewExporter(ocagent.WithInsecure(), ocagent.WithServiceName(daprID), ocagent.WithAddress(meta.AgentEndpoint))
 	if err != nil {
 		return err
 	}
 
-	trace.RegisterExporter(exporter)
+	trace.RegisterExporter(l.traceExporter)
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+
 	return nil
 }
 
@@ -64,5 +66,11 @@ func (l *Exporter) getNativeMetadata(metadata exporters.Metadata) (*nativeExport
 	if err != nil {
 		return nil, err
 	}
+
 	return &nExporterMetadata, nil
+}
+
+// Unregister removes the exporter
+func (l *Exporter) Unregister() {
+	trace.UnregisterExporter(l.traceExporter)
 }

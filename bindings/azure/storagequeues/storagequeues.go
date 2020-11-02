@@ -62,6 +62,7 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -75,6 +76,7 @@ func (d *AzureQueueHelper) Write(data []byte, ttl *time.Duration) error {
 		ttl = &ttlToUse
 	}
 	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, *ttl)
+
 	return err
 }
 
@@ -87,6 +89,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	if res.NumMessages() == 0 {
 		// Queue was empty so back off by 10 seconds before trying again
 		time.Sleep(10 * time.Second)
+
 		return nil
 	}
 	mt := res.Message(0).Text
@@ -116,6 +119,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -165,6 +169,7 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -210,6 +215,7 @@ func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.Invo
 	if err != nil {
 		return nil, err
 	}
+
 	return nil, nil
 }
 

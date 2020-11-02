@@ -64,6 +64,7 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 	client := influxdb2.NewClient(i.metadata.URL, i.metadata.Token)
 	i.client = client
 	i.writeAPI = i.client.WriteAPIBlocking(i.metadata.Org, i.metadata.Bucket)
+
 	return nil
 }
 
@@ -79,6 +80,7 @@ func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata,
 	if err != nil {
 		return nil, err
 	}
+
 	return &iMetadata, nil
 }
 
@@ -103,5 +105,6 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		return nil, errors.New("Influx Error: Cannot write point")
 	}
 	i.client.Close()
+
 	return nil, nil
 }

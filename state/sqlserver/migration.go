@@ -50,6 +50,7 @@ func (m *migration) executeMigrations() (migrationResult, error) {
 	r.bulkDeleteProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.bulkDeleteProcName)
 	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.upsertProcName)
 
+	// nolint: exhaustive
 	switch m.store.keyType {
 	case StringKeyType:
 		r.pkColumnType = fmt.Sprintf("NVARCHAR(%d)", m.store.keyLength)
@@ -157,6 +158,7 @@ func (m *migration) ensureTableExists(db *sql.DB, r migrationResult) error {
 	tsql += `
 		[RowVersion] 	ROWVERSION NOT NULL)
 	`
+
 	return runCommand(tsql, db)
 }
 

@@ -55,12 +55,14 @@ func (s *subscription) ReceiveAndBlock(ctx context.Context, handler pubsub.Handl
 		shouldRenewLocks := lockRenewalInSec > 0
 		if !shouldRenewLocks {
 			s.logger.Debugf("Lock renewal for topic %s disabled", s.topic)
+
 			return
 		}
 		for {
 			select {
 			case <-ctx.Done():
 				s.logger.Debugf("Lock renewal context for topic %s done", s.topic)
+
 				return
 			case <-time.After(time.Second * time.Duration(lockRenewalInSec)):
 				s.tryRenewLocks()
@@ -82,6 +84,7 @@ func (s *subscription) ReceiveAndBlock(ctx context.Context, handler pubsub.Handl
 			select {
 			case <-ctx.Done():
 				s.logger.Debugf("Receive context for topic %s done", s.topic)
+
 				return ctx.Err()
 			case <-time.After(time.Second * time.Duration(maxActiveMessagesRecoveryInSec)):
 				continue
@@ -151,6 +154,7 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 				select {
 				case <-ctx.Done():
 					s.logger.Debugf("Message context done for %s on topic %s", msg.ID, s.topic)
+
 					return
 				case <-s.handleChan: // Take or wait on a free handle before getting a new message
 					s.logger.Debugf("Taken message handle for %s on topic %s", msg.ID, s.topic)
@@ -168,6 +172,7 @@ func (s *subscription) asyncWrapper(handlerFunc azservicebus.HandlerFunc) azserv
 				s.logger.Errorf("%s error handling message %s on topic '%s', %s", errorMessagePrefix, msg.ID, s.topic, err)
 			}
 		}()
+
 		return nil
 	}
 }
@@ -178,6 +183,7 @@ func (s *subscription) tryRenewLocks() {
 	s.mu.RUnlock()
 	if activeMessageLen == 0 {
 		s.logger.Debugf("No active messages require lock renewal for topic %s", s.topic)
+
 		return
 	}
 
@@ -202,16 +208,19 @@ func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
 		return fmt.Errorf("%s error receiving message on topic %s, %s", errorMessagePrefix, s.topic, err)
 	}
+
 	return nil
 }
 
 func (s *subscription) abandonMessage(ctx context.Context, m *azservicebus.Message) error {
 	s.logger.Debugf("Abandoning message %s on topic %s", m.ID, s.topic)
+
 	return m.Abandon(ctx)
 }
 
 func (s *subscription) completeMessage(ctx context.Context, m *azservicebus.Message) error {
 	s.logger.Debugf("Completing message %s on topic %s", m.ID, s.topic)
+
 	return m.Complete(ctx)
 }
 

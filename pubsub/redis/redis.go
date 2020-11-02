@@ -13,9 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-redis/redis/v7"
 )
 
@@ -97,6 +96,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	}
 
 	r.client = client
+
 	return nil
 }
 
@@ -118,6 +118,7 @@ func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Han
 		r.logger.Warnf("redis streams: %s", err)
 	}
 	go r.beginReadingFromStream(req.Topic, r.metadata.consumerID, handler)
+
 	return nil
 }
 
@@ -164,11 +165,16 @@ func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler
 		streams, err := r.readFromStream(stream, consumerID, start)
 		if err != nil {
 			r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+
 			return
 		}
 		r.processStreams(consumerID, streams, handler)
 
-		//continue with new non received items
+		// continue with new non received items
 		start = ">"
 	}
+}
+
+func (r *redisStreams) Close() error {
+	return r.client.Close()
 }

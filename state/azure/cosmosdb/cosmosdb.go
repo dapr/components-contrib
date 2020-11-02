@@ -8,15 +8,13 @@ package cosmosdb
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/a8m/documentdb"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/a8m/documentdb"
 )
 
 // StateStore is a CosmosDB state store
@@ -126,9 +124,10 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	// get a link to the sp
-	for _, proc := range sps {
-		if proc.Id == storedProcedureName {
-			c.sp = &proc
+	for i := range sps {
+		if sps[i].Id == storedProcedureName {
+			c.sp = &sps[i]
+
 			break
 		}
 	}
@@ -146,6 +145,7 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	c.logger.Debug("cosmos Init done")
+
 	return nil
 }
 
@@ -154,7 +154,6 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
-
 	items := []CosmosItem{}
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 	if req.Options.Consistency == state.Strong {
@@ -278,6 +277,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 	}
+
 	return err
 }
 
@@ -299,27 +299,21 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	deletes := []CosmosItem{}
 
 	partitionKey := unknownPartitionKey
-	previousPartitionKey := unknownPartitionKey
 
 	for _, o := range request.Operations {
 		t := o.Request.(state.KeyInt)
 		key := t.GetKey()
-		metadata := t.GetMetadata()
 
-		partitionKey = populatePartitionMetadata(key, metadata)
-		if previousPartitionKey != unknownPartitionKey &&
-			partitionKey != previousPartitionKey {
-			return errors.New("all objects used in Multi() must have the same partition key")
-		}
-		previousPartitionKey = partitionKey
-
+		partitionKey = populatePartitionMetadata(key, request.Metadata)
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
+			// Value need not be marshaled here. It is handled by cosmosdb client.
 			upsertOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        req.Value,
-				PartitionKey: partitionKey}
+				PartitionKey: partitionKey,
+			}
 
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
@@ -328,7 +322,8 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			deleteOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        "", // Value does not need to be specified
-				PartitionKey: partitionKey}
+				PartitionKey: partitionKey,
+			}
 			deletes = append(deletes, deleteOperation)
 		}
 	}
@@ -342,6 +337,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	err := c.client.ExecuteStoredProcedure(c.sp.Self, [...]interface{}{upserts, deletes}, &retString, options...)
 	if err != nil {
 		c.logger.Debugf("error=%e", err)
+
 		return err
 	}
 
@@ -354,6 +350,7 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	if val, found := requestMetadata[metadataPartitionKey]; found {
 		return val
 	}
+
 	return key
 }
 
@@ -362,5 +359,6 @@ func convertToJSONWithoutEscapes(t interface{}) ([]byte, error) {
 	encoder := jsoniter.NewEncoder(buffer)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(t)
+
 	return buffer.Bytes(), err
 }

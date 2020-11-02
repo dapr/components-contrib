@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/nats-io/gnatsd/logger"
+	"github.com/dapr/dapr/pkg/logger"
 	nats "github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
@@ -51,7 +51,7 @@ const (
 )
 
 const (
-	consumerID       = "consumerID" //passed in by Dapr runtime
+	consumerID       = "consumerID" // passed in by Dapr runtime
 	subscriptionType = "subscriptionType"
 )
 
@@ -165,7 +165,10 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error connecting to nats streaming server %s: %s", m.natsStreamingClusterID, err)
 	}
+	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
+
 	n.natStreamingConn = natStreamingConn
+
 	return nil
 }
 
@@ -174,6 +177,7 @@ func (n *natsStreamingPubSub) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error from publish: %s", err)
 	}
+
 	return nil
 }
 
@@ -200,6 +204,11 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 	if err != nil {
 		return fmt.Errorf("nats-streaming: subscribe error %s", err)
 	}
+	if n.metadata.subscriptionType == subscriptionTypeTopic {
+		n.logger.Debugf("nats: subscribed to subject %s", req.Topic)
+	} else if n.metadata.subscriptionType == subscriptionTypeQueueGroup {
+		n.logger.Debugf("nats: subscribed to subject %s with queue group %s", req.Topic, n.metadata.natsQueueGroupName)
+	}
 
 	return nil
 }
@@ -214,13 +223,13 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 	switch {
 	case n.metadata.deliverNew == deliverNewTrue:
 		options = append(options, stan.StartAt(pb.StartPosition_NewOnly))
-	case n.metadata.startAtSequence >= 1: //messages index start from 1, this is a valid check
+	case n.metadata.startAtSequence >= 1: // messages index start from 1, this is a valid check
 		options = append(options, stan.StartAtSequence(n.metadata.startAtSequence))
 	case n.metadata.startWithLastReceived == startWithLastReceivedTrue:
 		options = append(options, stan.StartWithLastReceived())
 	case n.metadata.deliverAll == deliverAllTrue:
 		options = append(options, stan.DeliverAllAvailable())
-	case n.metadata.startAtTimeDelta > (1 * time.Nanosecond): //as long as its a valid time.Duration
+	case n.metadata.startAtTimeDelta > (1 * time.Nanosecond): // as long as its a valid time.Duration
 		options = append(options, stan.StartAtTimeDelta(n.metadata.startAtTimeDelta))
 	case n.metadata.startAtTime != "":
 		if n.metadata.startAtTimeFormat != "" {
@@ -250,4 +259,8 @@ func genRandomString(n int) string {
 	clientID := string(b)
 
 	return clientID
+}
+
+func (n *natsStreamingPubSub) Close() error {
+	return n.natStreamingConn.Close()
 }

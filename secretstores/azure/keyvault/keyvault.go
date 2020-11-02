@@ -9,10 +9,9 @@ import (
 	"context"
 	"fmt"
 
+	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/dapr/pkg/logger"
-
-	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 )
 
 // Keyvault secret store component metadata properties

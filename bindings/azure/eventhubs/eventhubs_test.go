@@ -58,7 +58,8 @@ func TestParseMetadata(t *testing.T) {
 			"missing storageContainerName",
 			map[string]string{consumerGroup: "fake", connectionString: "fake", storageAccountName: "name", storageAccountKey: "key"},
 			missingStorageContainerNameErrorMsg,
-		}}
+		},
+	}
 
 	for _, c := range invalidConfigTestCases {
 		t.Run(c.name, func(t *testing.T) {

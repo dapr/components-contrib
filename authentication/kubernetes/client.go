@@ -9,11 +9,10 @@ import (
 	"flag"
 	"path/filepath"
 
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/homedir"
-
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 // nolint:gochecknoglobals
@@ -42,5 +41,6 @@ func GetKubeClient() (*kubernetes.Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return clientset, nil
 }

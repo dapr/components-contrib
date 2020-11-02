@@ -15,7 +15,6 @@ import (
 	"time"
 
 	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	v1 "k8s.io/api/core/v1"
@@ -50,6 +49,7 @@ func (k *kubernetesInput) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	k.kubeClient = client
+
 	return k.parseMetadata(metadata)
 }
 
@@ -68,6 +68,7 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 			k.resyncPeriodInSec = time.Second * time.Duration(intval)
 		}
 	}
+
 	return nil
 }
 
@@ -139,5 +140,6 @@ func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) error) error
 			close(stopCh)
 		}
 	}
+
 	return nil
 }

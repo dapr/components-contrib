@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,6 +74,7 @@ func TestValidateMetadataForInvalidInputs(t *testing.T) {
 		})
 	}
 }
+
 func TestParseHostsForValidInputs(t *testing.T) {
 	type testCase struct {
 		name      string

@@ -22,6 +22,7 @@ func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http
 			reqBody, err := ioutil.ReadAll(r.Body)
 			if err != nil {
 				logger.Errorf("error reading request body, %+v", err)
+
 				return
 			}
 			c.Request.SetBody(reqBody)

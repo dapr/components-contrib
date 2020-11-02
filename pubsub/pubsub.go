@@ -11,7 +11,7 @@ import "context"
 type PubSub interface {
 	Init(metadata Metadata) error
 	Publish(req *PublishRequest) error
-	Subscribe(req SubscribeRequest, handler pubsub.Handler) error
+	Subscribe(req SubscribeRequest, handler Handler) error
 	Close() error
 }
 

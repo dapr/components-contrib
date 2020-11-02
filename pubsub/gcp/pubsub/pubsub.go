@@ -102,6 +102,7 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 	sub := g.getSubscription(g.metadata.ConsumerID)
 
 	go g.handleSubscriptionMessages(topic, sub, handler)
+
 	return nil
 }
 

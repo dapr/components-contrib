@@ -20,4 +20,6 @@ type metadata struct {
 	startAtTimeDelta        time.Duration
 	startAtTime             string
 	startAtTimeFormat       string
+	ackWaitTime             time.Duration
+	maxInFlight             uint64
 }

@@ -38,6 +38,8 @@ const (
 	startAtTimeDelta        = "startAtTimeDelta"
 	startAtTime             = "startAtTime"
 	startAtTimeFormat       = "startAtTimeFormat"
+	ackWaitTime             = "ackWaitTime"
+	maxInFlight             = "maxInFlight"
 )
 
 // valid values for subscription options
@@ -95,6 +97,24 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 
 	if val, ok := meta.Properties[durableSubscriptionName]; ok && val != "" {
 		m.durableSubscriptionName = val
+	}
+
+	if val, ok := meta.Properties[ackWaitTime]; ok && val != "" {
+		dur, err := time.ParseDuration(meta.Properties[ackWaitTime])
+		if err != nil {
+			return m, fmt.Errorf("nats-streaming error %s ", err)
+		}
+		m.ackWaitTime = dur
+	}
+	if val, ok := meta.Properties[maxInFlight]; ok && val != "" {
+		max, err := strconv.ParseUint(meta.Properties[maxInFlight], 10, 64)
+		if err != nil {
+			return m, fmt.Errorf("nats-streaming error in parsemetadata for maxInFlight: %s ", err)
+		}
+		if max < 1 {
+			return m, errors.New("nats-streaming error: maxInFlight should be equal to or more than 1")
+		}
+		m.maxInFlight = max
 	}
 
 	//nolint:nestif
@@ -200,6 +220,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler fun
 	} else if n.metadata.subscriptionType == subscriptionTypeQueueGroup {
 		_, err = n.natStreamingConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, natsMsgHandler, natStreamingsubscriptionOptions...)
 	}
+
 	if err != nil {
 		return fmt.Errorf("nats-streaming: subscribe error %s", err)
 	}
@@ -242,6 +263,14 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 
 	// default is auto ACK. switching to manual ACK since processing errors need to be handled
 	options = append(options, stan.SetManualAckMode())
+
+	// check if set the ack options.
+	if n.metadata.ackWaitTime > (1 * time.Nanosecond) {
+		options = append(options, stan.AckWait(n.metadata.ackWaitTime))
+	}
+	if n.metadata.maxInFlight >= 1 {
+		options = append(options, stan.MaxInflight(int(n.metadata.maxInFlight)))
+	}
 
 	return options, nil
 }

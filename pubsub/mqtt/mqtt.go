@@ -190,7 +190,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 		token := m.consumer.SubscribeMultiple(
 			m.topics,
 			func(client mqtt.Client, mqttMsg mqtt.Message) {
-				handler(&pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
+				handler(ctx, &pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
 			})
 		if err := token.Error(); err != nil {
 			m.logger.Errorf("mqtt error from subscribe: %v", err)

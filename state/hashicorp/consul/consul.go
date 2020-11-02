@@ -117,8 +117,8 @@ func (c *Consul) Set(req *state.SetRequest) error {
 
 	_, err := c.client.KV().Put(&api.KVPair{
 		Key:   keyWithPath,
-		Value: reqValByte}, nil)
-
+		Value: reqValByte,
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("couldn't set key %s: %s", keyWithPath, err)
 	}

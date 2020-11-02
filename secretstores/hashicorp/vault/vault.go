@@ -7,6 +7,7 @@ package vault
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -18,10 +19,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/net/http2"
-
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/dapr/pkg/logger"
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -141,7 +141,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	// TODO: Add support for versioned secrets when the secretstore request has support for it
 	vaultSecretPathAddr := fmt.Sprintf("%s/v1/secret/data/%s/%s?version=0", v.vaultAddress, v.vaultKVPrefix, req.Name)
 
-	httpReq, err := http.NewRequest(http.MethodGet, vaultSecretPathAddr, nil)
+	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
 	// Set vault token.
 	httpReq.Header.Set(vaultHTTPHeader, token)
 	// Set X-Vault-Request header
@@ -160,6 +160,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't to get successful response: %#v, %s",
 			httpresp, b.String())
 	}
@@ -235,6 +236,7 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 		if ok := certPool.AppendCertsFromPEM(cert); !ok {
 			return nil, fmt.Errorf("couldn't read PEM")
 		}
+
 		return certPool, nil
 	}
 
@@ -243,6 +245,7 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 		if err := readCertificateFolder(certPool, vaultCAPath); err != nil {
 			return nil, err
 		}
+
 		return certPool, nil
 	}
 
@@ -251,6 +254,7 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 		if err := readCertificateFile(certPool, vaultCACert); err != nil {
 			return nil, err
 		}
+
 		return certPool, nil
 	}
 
@@ -286,9 +290,9 @@ func readCertificateFolder(certPool *x509.CertPool, path string) error {
 
 		return readCertificateFile(certPool, p)
 	})
-
 	if err != nil {
 		return fmt.Errorf("couldn't read certificates at %s: %s", path, err)
 	}
+
 	return nil
 }

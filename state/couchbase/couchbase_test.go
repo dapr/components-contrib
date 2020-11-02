@@ -9,9 +9,8 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
-	"gopkg.in/couchbase/gocb.v1"
-
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/couchbase/gocb.v1"
 )
 
 func TestValidateMetadata(t *testing.T) {

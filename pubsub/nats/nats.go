@@ -63,6 +63,7 @@ func (n *natsPubSub) Init(metadata pubsub.Metadata) error {
 	n.logger.Debugf("connected to nats at %s", m.natsURL)
 
 	n.natsConn = natsConn
+
 	return nil
 }
 
@@ -71,6 +72,7 @@ func (n *natsPubSub) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return fmt.Errorf("nats: error from publish: %s", err)
 	}
+
 	return nil
 }
 
@@ -82,6 +84,12 @@ func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 		n.logger.Warnf("nats: error subscribe: %s", err)
 	}
 	n.logger.Debugf("nats: subscribed to subject %s with queue group %s", sub.Subject, sub.Queue)
+
+	return nil
+}
+
+func (n *natsPubSub) Close() error {
+	n.natsConn.Close()
 
 	return nil
 }

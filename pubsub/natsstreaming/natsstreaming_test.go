@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseNATSStreamingForMetadataMandatoryOptionsMissing(t *testing.T) {
@@ -127,50 +126,65 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 
 	tests := []test{
 
-		{"using startWithLastReceived", map[string]string{
-			natsURL:                "nats://foo.bar:4222",
-			natsStreamingClusterID: "testcluster",
-			consumerID:             "consumer1",
-			subscriptionType:       "topic",
-			startWithLastReceived:  "true",
+		{
+			"using startWithLastReceived",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				startWithLastReceived:  "true",
+			},
+			"startWithLastReceived", "true",
 		},
-			"startWithLastReceived", "true"},
 
-		{"using deliverAll", map[string]string{
-			natsURL:                "nats://foo.bar:4222",
-			natsStreamingClusterID: "testcluster",
-			consumerID:             "consumer1",
-			subscriptionType:       "topic",
-			deliverAll:             "true",
+		{
+			"using deliverAll",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				deliverAll:             "true",
+			},
+			"deliverAll", "true",
 		},
-			"deliverAll", "true"},
 
-		{"using deliverNew", map[string]string{
-			natsURL:                "nats://foo.bar:4222",
-			natsStreamingClusterID: "testcluster",
-			consumerID:             "consumer1",
-			subscriptionType:       "topic",
-			deliverNew:             "true",
+		{
+			"using deliverNew",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				deliverNew:             "true",
+			},
+			"deliverNew", "true",
 		},
-			"deliverNew", "true"},
 
-		{"using startAtSequence", map[string]string{
-			natsURL:                "nats://foo.bar:4222",
-			natsStreamingClusterID: "testcluster",
-			consumerID:             "consumer1",
-			subscriptionType:       "topic",
-			startAtSequence:        "42",
+		{
+			"using startAtSequence",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				startAtSequence:        "42",
+			},
+			"startAtSequence", "42",
 		},
-			"startAtSequence", "42"},
 
-		{"using startAtTimeDelta", map[string]string{
-			natsURL:                "nats://foo.bar:4222",
-			natsStreamingClusterID: "testcluster",
-			consumerID:             "consumer1",
-			subscriptionType:       "topic",
-			startAtTimeDelta:       "1h",
+		{
+			"using startAtTimeDelta",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				startAtTimeDelta:       "1h",
+			},
+			"startAtTimeDelta", "1h",
 		},
-			"startAtTimeDelta", "1h"},
 	}
 
 	for _, _test := range tests {
@@ -196,6 +210,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 		})
 	}
 }
+
 func TestParseNATSStreamingMetadata(t *testing.T) {
 	t.Run("mandatory metadata provided", func(t *testing.T) {
 		fakeProperties := map[string]string{
@@ -262,9 +277,9 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 		assert.NotEmpty(t, m.subscriptionType)
 		assert.NotEmpty(t, m.natsQueueGroupName)
 		assert.NotEmpty(t, m.startAtSequence)
-		//startWithLastReceived ignored
+		// startWithLastReceived ignored
 		assert.Empty(t, m.startWithLastReceived)
-		//deliverAll will be ignored
+		// deliverAll will be ignored
 		assert.Empty(t, m.deliverAll)
 
 		assert.Equal(t, fakeProperties[natsURL], m.natsURL)
@@ -330,7 +345,7 @@ func TestSubscriptionOptionsForInvalidOptions(t *testing.T) {
 }
 
 func TestSubscriptionOptions(t *testing.T) {
-	//general
+	// general
 	t.Run("manual ACK option is present by default", func(t *testing.T) {
 		natsStreaming := natsStreamingPubSub{metadata: metadata{}}
 		opts, err := natsStreaming.subscriptionOptions()

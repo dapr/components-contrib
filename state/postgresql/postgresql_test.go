@@ -26,16 +26,19 @@ type fakeDBaccess struct {
 
 func (m *fakeDBaccess) Init(metadata state.Metadata) error {
 	m.initExecuted = true
+
 	return nil
 }
 
 func (m *fakeDBaccess) Set(req *state.SetRequest) error {
 	m.setExecuted = true
+
 	return nil
 }
 
 func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	m.getExecuted = true
+
 	return nil, nil
 }
 
@@ -164,6 +167,7 @@ func createDeleteRequest() state.DeleteRequest {
 func createPostgreSQLWithFake(t *testing.T) (*PostgreSQL, *fakeDBaccess) {
 	pgs := createPostgreSQL(t)
 	fake := pgs.dbaccess.(*fakeDBaccess)
+
 	return pgs, fake
 }
 

@@ -9,11 +9,10 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
-
-	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
 // AliCloudOSS is a binding for an AliCloud OSS storage bucket
@@ -47,6 +46,7 @@ func (s *AliCloudOSS) Init(metadata bindings.Metadata) error {
 	}
 	s.metadata = m
 	s.client = client
+
 	return nil
 }
 
@@ -63,9 +63,7 @@ func (s *AliCloudOSS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespo
 		s.logger.Debugf("key not found. generating key %s", key)
 	}
 
-	//r := bytes.NewReader(req.Data)
 	bucket, err := s.client.Bucket(s.metadata.Bucket)
-
 	if err != nil {
 		return nil, err
 	}
@@ -90,12 +88,12 @@ func (s *AliCloudOSS) parseMetadata(metadata bindings.Metadata) (*ossMetadata, e
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 
 func (s *AliCloudOSS) getClient(metadata *ossMetadata) (*oss.Client, error) {
 	client, err := oss.New(metadata.Endpoint, metadata.AccessKeyID, metadata.AccessKey)
-
 	if err != nil {
 		return nil, err
 	}

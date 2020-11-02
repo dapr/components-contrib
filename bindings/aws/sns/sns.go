@@ -9,12 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/aws/aws-sdk-go/service/sns"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // AWSSNS is an AWS SNS binding
@@ -55,6 +53,7 @@ func (a *AWSSNS) Init(metadata bindings.Metadata) error {
 	}
 	a.client = client
 	a.topicARN = m.TopicArn
+
 	return nil
 }
 
@@ -69,6 +68,7 @@ func (a *AWSSNS) parseMetadata(metadata bindings.Metadata) (*snsMetadata, error)
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 
@@ -78,6 +78,7 @@ func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
 		return nil, err
 	}
 	c := sns.New(sess)
+
 	return c, nil
 }
 
@@ -105,5 +106,6 @@ func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	if err != nil {
 		return nil, err
 	}
+
 	return nil, nil
 }

@@ -39,6 +39,7 @@ func CheckRequestOptions(options interface{}) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -46,6 +47,7 @@ func validateConcurrencyOption(c string) error {
 	if c != "" && c != FirstWrite && c != LastWrite {
 		return fmt.Errorf("unrecognized concurrency model '%s'", c)
 	}
+
 	return nil
 }
 
@@ -53,6 +55,7 @@ func validateConsistencyOption(c string) error {
 	if c != "" && c != Strong && c != Eventual {
 		return fmt.Errorf("unrecognized consistency model '%s'", c)
 	}
+
 	return nil
 }
 

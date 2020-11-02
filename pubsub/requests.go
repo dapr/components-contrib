@@ -19,6 +19,7 @@ type SubscribeRequest struct {
 
 // NewMessage is an event arriving from a message bus instance
 type NewMessage struct {
-	Data  []byte `json:"data"`
-	Topic string `json:"topic"`
+	Data     []byte            `json:"data"`
+	Topic    string            `json:"topic"`
+	Metadata map[string]string `json:"metadata"`
 }

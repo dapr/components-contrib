@@ -64,11 +64,13 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			}
 		}
 	}
+
 	return nil
 }
 
 func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	close(consumer.ready)
+
 	return nil
 }
 
@@ -96,11 +98,12 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
 
-	//ignore SASL properties if authRequired is false
+	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
 		k.saslUsername = meta.SaslUsername
 		k.saslPassword = meta.SaslPassword
 	}
+
 	return nil
 }
 
@@ -146,13 +149,12 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 		return nil, errors.New("kafka error: 'authRequired' attribute was empty")
 	}
 	validAuthRequired, err := strconv.ParseBool(val)
-
 	if err != nil {
 		return nil, errors.New("kafka error: invalid value for 'authRequired' attribute")
 	}
 	meta.AuthRequired = validAuthRequired
 
-	//ignore SASL properties if authRequired is false
+	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
 		if val, ok := metadata.Properties["saslUsername"]; ok && val != "" {
 			meta.SaslUsername = val
@@ -166,6 +168,7 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 			return nil, errors.New("kafka error: missing SASL Password")
 		}
 	}
+
 	return &meta, nil
 }
 
@@ -176,7 +179,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	config.Producer.Return.Successes = true
 	config.Version = sarama.V1_0_0_0
 
-	//ignore SASL properties if authRequired is false
+	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
 		updateAuthInfo(config, meta.SaslUsername, meta.SaslPassword)
 	}
@@ -185,13 +188,14 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	if err != nil {
 		return nil, err
 	}
+
 	return producer, nil
 }
 
 func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
-	//ignore SASL properties if authRequired is false
+	// ignore SASL properties if authRequired is false
 	if k.authRequired {
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
 	}
@@ -233,12 +237,14 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
 	if err = client.Close(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
+
 func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 	config.Net.SASL.Enable = true
 	config.Net.SASL.User = saslUsername
@@ -246,8 +252,9 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 
 	config.Net.TLS.Enable = true
+	// nolint: gosec
 	config.Net.TLS.Config = &tls.Config{
-		//InsecureSkipVerify: true,
+		// InsecureSkipVerify: true,
 		ClientAuth: 0,
 	}
 }

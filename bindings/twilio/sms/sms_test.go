@@ -33,6 +33,7 @@ func (t *mockTransport) reset() {
 func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	atomic.AddInt32(&t.requestCount, 1)
 	t.request = req
+
 	return t.response, t.errToReturn
 }
 
@@ -46,8 +47,10 @@ func TestInit(t *testing.T) {
 
 func TestParseDuration(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber",
-		"accountSid": "accountSid", "authToken": "authToken", "timeout": "badtimeout"}
+	m.Properties = map[string]string{
+		"toNumber": "toNumber", "fromNumber": "fromNumber",
+		"accountSid": "accountSid", "authToken": "authToken", "timeout": "badtimeout",
+	}
 	tw := NewSMS(logger.NewLogger("test"))
 	err := tw.Init(m)
 	assert.NotNil(t, err)
@@ -58,8 +61,10 @@ func TestWriteShouldSucceed(t *testing.T) {
 		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber",
-		"accountSid": "accountSid", "authToken": "authToken"}
+	m.Properties = map[string]string{
+		"toNumber": "toNumber", "fromNumber": "fromNumber",
+		"accountSid": "accountSid", "authToken": "authToken",
+	}
 	tw := NewSMS(logger.NewLogger("test"))
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
@@ -93,8 +98,10 @@ func TestWriteShouldFail(t *testing.T) {
 		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"fromNumber": "fromNumber",
-		"accountSid": "accountSid", "authToken": "authToken"}
+	m.Properties = map[string]string{
+		"fromNumber": "fromNumber",
+		"accountSid": "accountSid", "authToken": "authToken",
+	}
 	tw := NewSMS(logger.NewLogger("test"))
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,

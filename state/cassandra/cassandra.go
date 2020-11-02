@@ -91,6 +91,7 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 	}
 
 	c.table = fmt.Sprintf("%s.%s", meta.keyspace, meta.table)
+
 	return nil
 }
 
@@ -115,6 +116,7 @@ func (c *Cassandra) createClusterConfig(metadata *cassandraMetadata) (*gocql.Clu
 	}
 
 	clusterConfig.Consistency = cons
+
 	return clusterConfig, nil
 }
 
@@ -141,6 +143,7 @@ func (c *Cassandra) getConsistency(consistency string) (gocql.Consistency, error
 	case "":
 		return defaultConsistency, nil
 	}
+
 	return 0, fmt.Errorf("consistency mode %s not found", consistency)
 }
 
@@ -252,6 +255,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if len(results) == 0 {
 		return &state.GetResponse{}, nil
 	}
+
 	return &state.GetResponse{
 		Data: results[0]["value"].([]byte),
 	}, nil
@@ -295,6 +299,7 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	}
 
 	session.SetConsistency(consistency)
+
 	return session, nil
 }
 
@@ -306,5 +311,6 @@ func (c *Cassandra) BulkSet(req []state.SetRequest) error {
 			return err
 		}
 	}
+
 	return nil
 }

@@ -8,9 +8,8 @@ package kafka
 import (
 	"testing"
 
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 

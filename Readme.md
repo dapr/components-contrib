@@ -19,8 +19,12 @@ Available component types:
 * [Secret Stores](secretstores/Readme.md)
 * [Tracing Exporters](exporters/Readme.md)
 
-For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://github.com/dapr/docs).
+For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://docs.dapr.io).
 
 ## Contribution
 
 * [Developing new component](docs/developing-component.md)
+
+## Code of Conduct
+
+Please refer to our [Dapr Community Code of Conduct](https://github.com/dapr/community/blob/master/CODE-OF-CONDUCT.md)

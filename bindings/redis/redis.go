@@ -15,7 +15,6 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-
 	redis "github.com/go-redis/redis/v7"
 )
 
@@ -129,7 +128,9 @@ func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		if err != nil {
 			return nil, err
 		}
+
 		return nil, nil
 	}
+
 	return nil, errors.New("redis binding: missing key on write request metadata")
 }

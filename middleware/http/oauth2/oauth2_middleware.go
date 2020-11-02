@@ -6,10 +6,9 @@
 package oauth2
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
-
-	"context"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/fasthttp-contrib/sessions"
@@ -27,6 +26,7 @@ type oAuth2MiddlewareMetadata struct {
 	TokenURL       string `json:"tokenURL"`
 	AuthHeaderName string `json:"authHeaderName"`
 	RedirectURL    string `json:"redirectURL"`
+	ForceHTTPS     string `json:"forceHTTPS"`
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware
@@ -43,6 +43,7 @@ const (
 	savedState   = "auth-state"
 	redirectPath = "redirect-url"
 	codeParam    = "code"
+	https        = "https://"
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware
@@ -68,6 +69,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			if session.GetString(meta.AuthHeaderName) != "" {
 				ctx.Request.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				h(ctx)
+
 				return
 			}
 			state := string(ctx.FormValue(stateParam))
@@ -81,6 +83,9 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			} else {
 				authState := session.GetString(savedState)
 				redirectURL := session.GetString(redirectPath)
+				if strings.EqualFold(meta.ForceHTTPS, "true") {
+					redirectURL = https + string(ctx.Request.Host()) + redirectURL
+				}
 				if state != authState {
 					ctx.Error("invalid state", fasthttp.StatusBadRequest)
 				} else {
@@ -113,5 +118,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 	if err != nil {
 		return nil, err
 	}
+
 	return &middlewareMetadata, nil
 }

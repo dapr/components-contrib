@@ -19,13 +19,16 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 )
 
-const defaultMaxBufferSize = 1024 * 1024
-const defaultMaxConnBufferSize = 1024 * 1024
+const (
+	anyVersion               = -1
+	defaultMaxBufferSize     = 1024 * 1024
+	defaultMaxConnBufferSize = 1024 * 1024
+)
 
-const anyVersion = -1
-
-var errMissingServers = errors.New("servers are required")
-var errInvalidSessionTimeout = errors.New("sessionTimeout is invalid")
+var (
+	errMissingServers        = errors.New("servers are required")
+	errInvalidSessionTimeout = errors.New("sessionTimeout is invalid")
+)
 
 type properties struct {
 	Servers           string `json:"servers"`
@@ -109,8 +112,10 @@ type StateStore struct {
 	logger logger.Logger
 }
 
-var _ Conn = (*zk.Conn)(nil)
-var _ state.Store = (*StateStore)(nil)
+var (
+	_ Conn        = (*zk.Conn)(nil)
+	_ state.Store = (*StateStore)(nil)
+)
 
 // NewZookeeperStateStore returns a new Zookeeper state store
 func NewZookeeperStateStore(logger logger.Logger) *StateStore {
@@ -139,11 +144,11 @@ func (s *StateStore) Init(metadata state.Metadata) (err error) {
 // Get retrieves state from Zookeeper with a key
 func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
-
 	if err != nil {
 		if errors.Is(err, zk.ErrNoNode) {
 			return &state.GetResponse{}, nil
 		}
+
 		return nil, err
 	}
 
@@ -165,6 +170,7 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 		if errors.Is(err, zk.ErrNoNode) {
 			return nil
 		}
+
 		return err
 	}, req)
 }
@@ -239,6 +245,7 @@ func (s *StateStore) BulkSet(reqs []state.SetRequest) error {
 				if errors.Is(res.Error, zk.ErrNoNode) {
 					if req, ok := ops[i].(*zk.SetDataRequest); ok {
 						retry = append(retry, s.newCreateRequest(req))
+
 						continue
 					}
 				}
@@ -321,6 +328,7 @@ func (s *StateStore) parseETag(etag string) int32 {
 			return int32(version)
 		}
 	}
+
 	return anyVersion
 }
 

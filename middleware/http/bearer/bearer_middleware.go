@@ -6,9 +6,8 @@
 package bearer
 
 import (
-	"encoding/json"
-
 	"context"
+	"encoding/json"
 	"strings"
 
 	oidc "github.com/coreos/go-oidc"
@@ -40,7 +39,6 @@ const (
 // GetHandler retruns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
-
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +57,14 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 			authHeader := string(ctx.Request.Header.Peek(fasthttp.HeaderAuthorization))
 			if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
+
 				return
 			}
 			rawToken := authHeader[bearerPrefixLength:]
 			_, err := verifier.Verify(ctx, rawToken)
 			if err != nil {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
+
 				return
 			}
 
@@ -84,5 +84,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*bearerMid
 	if err != nil {
 		return nil, err
 	}
+
 	return &middlewareMetadata, nil
 }

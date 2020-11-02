@@ -63,6 +63,7 @@ func (g *GCPStorage) Init(metadata bindings.Metadata) error {
 
 	g.metadata = gm
 	g.client = client
+
 	return nil
 }
 
@@ -71,6 +72,7 @@ func (g *GCPStorage) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return b, nil
 }
 
@@ -90,5 +92,6 @@ func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	if _, err := h.Write(req.Data); err != nil {
 		return nil, err
 	}
+
 	return nil, nil
 }

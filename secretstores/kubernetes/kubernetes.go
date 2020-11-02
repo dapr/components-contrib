@@ -32,6 +32,7 @@ func (k *kubernetesSecretStore) Init(metadata secretstores.Metadata) error {
 		return err
 	}
 	k.kubeClient = client
+
 	return nil
 }
 
@@ -53,6 +54,7 @@ func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (se
 	for k, v := range secret.Data {
 		resp.Data[k] = string(v)
 	}
+
 	return resp, nil
 }
 
@@ -60,5 +62,6 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 	if val, ok := metadata["namespace"]; ok && val != "" {
 		return val, nil
 	}
+
 	return "", errors.New("namespace is missing on metadata")
 }

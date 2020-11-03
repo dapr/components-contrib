@@ -141,7 +141,7 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 
 	_, err = processor.RegisterHandler(context.Background(),
 		func(c context.Context, e *eventhub.Event) error {
-			return handler(nil, &pubsub.NewMessage{Data: e.Data, Topic: req.Topic})
+			return handler(context.Background(), &pubsub.NewMessage{Data: e.Data, Topic: req.Topic})
 		})
 	if err != nil {
 		return err

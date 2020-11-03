@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
@@ -137,6 +138,11 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		delete(req.Metadata, cacheControl)
 	}
 
+	d, err := strconv.Unquote(string(req.Data))
+	if err == nil {
+		req.Data = []byte(d)
+	}
+
 	// The "true" is the only allowed positive value. Other positive variations like "True" not acceptable.
 	if a.metadata.DecodeBase64 == "true" {
 		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
@@ -146,7 +152,7 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		req.Data = decoded
 	}
 
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
+	_, err = azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,

@@ -305,6 +305,8 @@ func TestSubscriptionOptionsForValidOptions(t *testing.T) {
 		{"using deliverAll", metadata{deliverAll: deliverAllTrue}, 2},
 		{"using startAtTimeDelta", metadata{startAtTimeDelta: 1 * time.Hour}, 2},
 		{"using startAtTime and startAtTimeFormat", metadata{startAtTime: "Feb 3, 2013 at 7:54pm (PST)", startAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}, 2},
+		{"using manual ack with ackWaitTime", metadata{ackWaitTime: 30 * time.Second}, 2},
+		{"using manual ack with maxInFlight", metadata{maxInFlight: uint64(42)}, 2},
 	}
 
 	for _, _test := range tests {

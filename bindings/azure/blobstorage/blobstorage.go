@@ -138,25 +138,21 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		delete(req.Metadata, cacheControl)
 	}
 
-	// Unescape data which will still be a JSON string
-	unescapedData, unescapeError := strconv.Unquote(string(req.Data))
-
-	if unescapeError != nil {
-		return nil, unescapeError
+	d, err := strconv.Unquote(string(req.Data))
+	if err == nil {
+		req.Data = []byte(d)
 	}
-
-	data := []byte(unescapedData)
 
 	// The "true" is the only allowed positive value. Other positive variations like "True" not acceptable.
 	if a.metadata.DecodeBase64 == "true" {
-		decoded, decodeError := b64.StdEncoding.DecodeString(unescapedData)
+		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
 		if decodeError != nil {
 			return nil, decodeError
 		}
-		data = decoded
+		req.Data = decoded
 	}
 
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), data, blobURL, azblob.UploadToBlockBlobOptions{
+	_, err = azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,

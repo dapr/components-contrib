@@ -11,4 +11,6 @@ type SecretStore interface {
 	Init(metadata Metadata) error
 	// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 	GetSecret(req GetSecretRequest) (GetSecretResponse, error)
+	// BulkGetSecrets retrieves all secrets in the store and returns a map of decrypted string/string values
+	BulkGetSecret(req BulkGetSecretRequest) (GetSecretResponse, error)
 }

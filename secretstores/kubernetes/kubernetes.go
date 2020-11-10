@@ -58,6 +58,30 @@ func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (se
 	return resp, nil
 }
 
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (k *kubernetesSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	resp := secretstores.GetSecretResponse{
+		Data: map[string]string{},
+	}
+	namespace, err := k.getNamespaceFromMetadata(req.Metadata)
+	if err != nil {
+		return resp, err
+	}
+
+	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(meta_v1.ListOptions{})
+	if err != nil {
+		return resp, err
+	}
+
+	for _, s := range secrets.Items {
+		for k, v := range s.Data {
+			resp.Data[k] = string(v)
+		}
+	}
+
+	return resp, nil
+}
+
 func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]string) (string, error) {
 	if val, ok := metadata["namespace"]; ok && val != "" {
 		return val, nil

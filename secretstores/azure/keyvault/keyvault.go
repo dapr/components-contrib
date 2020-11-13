@@ -24,6 +24,7 @@ const (
 	componentSPNClientID            = "spnClientId"
 	componentSPNTenantID            = "spnTenantId"
 	componentVaultName              = "vaultName"
+	VersionID                       = "version_id"
 )
 
 type keyvaultSecretStore struct {
@@ -60,7 +61,12 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
-	secretResp, err := k.vaultClient.GetSecret(context.Background(), k.getVaultURI(), req.Name, "")
+	versionID := ""
+	if value, ok := req.Metadata[VersionID]; ok {
+		versionID = value
+	}
+
+	secretResp, err := k.vaultClient.GetSecret(context.Background(), k.getVaultURI(), req.Name, versionID)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}

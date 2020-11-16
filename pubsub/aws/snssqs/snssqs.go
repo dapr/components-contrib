@@ -48,6 +48,8 @@ type snsSqsMetadata struct {
 	awsSecret string
 	// aws token to use. Required
 	awsToken string
+	// aws sessino token to use.
+	awsSessionToken string
 	// aws region in which SNS/SQS should create resources. Required
 	awsRegion string
 
@@ -118,6 +120,13 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.awsToken = ""
 	} else {
 		md.awsToken = val
+	}
+
+	val, ok = props["awsSessionToken"]
+	if !ok {
+		md.awsSessionToken = ""
+	} else {
+		md.awsSessionToken = val
 	}
 
 	val, ok = props["awsRegion"]
@@ -206,7 +215,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
 	s.awsAcctID = md.awsAccountID
-	sess, err := aws_auth.GetClient(s.awsAcctID, md.awsSecret, md.awsRegion, md.awsEndpoint)
+	sess, err := aws_auth.GetClient(s.awsAcctID, md.awsSecret, md.awsSessionToken, md.awsRegion, md.awsEndpoint)
 	if err != nil {
 		return err
 	}

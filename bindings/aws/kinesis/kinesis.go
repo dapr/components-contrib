@@ -48,6 +48,7 @@ type kinesisMetadata struct {
 	Endpoint            string              `json:"endpoint"`
 	AccessKey           string              `json:"accessKey"`
 	SecretKey           string              `json:"secretKey"`
+	SessionToken        string              `json:"sessionToken"`
 	KinesisConsumerMode kinesisConsumerMode `json:"mode"`
 }
 

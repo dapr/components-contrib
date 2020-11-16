@@ -25,11 +25,12 @@ type AWSSQS struct {
 }
 
 type sqsMetadata struct {
-	QueueName string `json:"queueName"`
-	Region    string `json:"region"`
-	Endpoint  string `json:"endpoint"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
+	QueueName     string `json:"queueName"`
+	Region        string `json:"region"`
+	Endpoint      string `json:"endpoint"`
+	AccessKey     string `json:"accessKey"`
+	SecretKey     string `json:"secretKey"`
+	SessionToken  string `json:"sessionToken"`
 }
 
 // NewAWSSQS returns a new AWS SQS instance

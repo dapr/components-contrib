@@ -6,14 +6,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 )
 
-func GetClient(accessKey string, secretKey string, region string, endpoint string) (*session.Session, error) {
+func GetClient(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (*session.Session, error) {
 	awsConfig := aws.NewConfig()
 
 	if region != "" {
 		awsConfig = awsConfig.WithRegion(region)
 	}
+
 	if accessKey != "" && secretKey != "" {
-		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(accessKey, secretKey, ""))
+		awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(accessKey, secretKey, sessionToken))
 	}
 
 	if endpoint != "" {

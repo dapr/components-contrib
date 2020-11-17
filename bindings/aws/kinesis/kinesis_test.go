@@ -22,7 +22,7 @@ func TestParseMetadata(t *testing.T) {
 		"StreamName":   "stream",
 		"Mode":         "extended",
 		"Endpoint":     "endpoint",
-		"SessionToken":  "token",
+		"SessionToken": "token",
 	}
 	kinesis := AWSKinesis{}
 	meta, err := kinesis.parseMetadata(m)

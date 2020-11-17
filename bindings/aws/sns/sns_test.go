@@ -16,7 +16,7 @@ func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
 		"TopicArn": "a", "Region": "a", "AccessKey": "a", "SecretKey": "a", "Endpoint": "a", "SessionToken": "t",
-		}
+	}
 	s := AWSSNS{}
 	snsM, err := s.parseMetadata(m)
 	assert.Nil(t, err)

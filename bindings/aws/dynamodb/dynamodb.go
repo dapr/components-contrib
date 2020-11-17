@@ -24,12 +24,12 @@ type DynamoDB struct {
 }
 
 type dynamoDBMetadata struct {
-	Region        string `json:"region"`
-	Endpoint      string `json:"endpoint"`
-	AccessKey     string `json:"accessKey"`
-	SecretKey     string `json:"secretKey"`
-	SessionToken  string `json:"sessionToken"`
-	Table         string `json:"table"`
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
+	Table        string `json:"table"`
 }
 
 // NewDynamoDB returns a new DynamoDB instance

@@ -24,12 +24,12 @@ type AWSSNS struct {
 }
 
 type snsMetadata struct {
-	TopicArn      string `json:"topicArn"`
-	Region        string `json:"region"`
-	Endpoint      string `json:"endpoint"`
-	AccessKey     string `json:"accessKey"`
-	SecretKey     string `json:"secretKey"`
-	SessionToken  string `json:"sessionToken"`
+	TopicArn     string `json:"topicArn"`
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
 }
 
 type dataPayload struct {

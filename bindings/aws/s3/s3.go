@@ -25,12 +25,12 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region        string `json:"region"`
-	Endpoint      string `json:"endpoint"`
-	AccessKey     string `json:"accessKey"`
-	SecretKey     string `json:"secretKey"`
-	SessionToken  string `json:"sessionToken"`
-	Bucket        string `json:"bucket"`
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
+	Bucket       string `json:"bucket"`
 }
 
 // NewAWSS3 returns a new AWSS3 instance

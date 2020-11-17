@@ -23,7 +23,7 @@ type snsSqs struct {
 	topicHash map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url
 	queues        map[string]*sqsQueueInfo
-	awsAcctID     string
+	// awsAcctID     string
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
 	metadata      *snsSqsMetadata

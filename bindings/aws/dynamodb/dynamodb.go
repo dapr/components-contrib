@@ -104,7 +104,6 @@ func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, er
 	if err != nil {
 		return nil, err
 	}
-
 	c := dynamodb.New(sess)
 
 	return c, nil

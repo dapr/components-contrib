@@ -300,7 +300,6 @@ func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, err
 	if err != nil {
 		return nil, err
 	}
-
 	k := kinesis.New(sess)
 
 	return k, nil

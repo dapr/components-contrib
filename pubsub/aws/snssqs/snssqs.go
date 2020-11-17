@@ -22,7 +22,7 @@ type snsSqs struct {
 	// key is the hashed topic name, value is the actual topic name
 	topicHash map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url
-	queues map[string]*sqsQueueInfo
+	queues        map[string]*sqsQueueInfo
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
 	metadata      *snsSqsMetadata

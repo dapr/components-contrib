@@ -141,7 +141,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if c == nil || c.IsNil() {
-		return &state.GetResponse{}, nil
+		return &state.GetResponse{Key: req.Key}, nil
 	}
 
 	if c != nil {
@@ -155,6 +155,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	resp := &state.GetResponse{ETag: doc.Hash}
+	resp.Key = req.Key
 	b, ok := doc.Data.([]byte)
 	if ok {
 		resp.Data = b
@@ -167,6 +168,21 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return resp, nil
+}
+
+// BulkGet performs a bulks get operations
+func (s *RethinkDB) BulkGet(req []state.GetRequest)  ([]state.GetResponse, error)  {
+	// TODO: replace with bulk get for performance
+	var response []state.GetResponse
+	for i := range req {
+		r, err := s.Get(&req[i])
+		if err != nil {
+			return nil, err
+		}
+		response = append(response, *r)
+	}
+
+	return response, nil
 }
 
 // Set saves a state KV item

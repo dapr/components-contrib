@@ -146,16 +146,32 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
 	if err != nil {
 		if errors.Is(err, zk.ErrNoNode) {
-			return &state.GetResponse{}, nil
+			return &state.GetResponse{Key: req.Key}, nil
 		}
 
 		return nil, err
 	}
 
 	return &state.GetResponse{
+		Key:  req.Key,
 		Data: value,
 		ETag: strconv.Itoa(int(stat.Version)),
 	}, nil
+}
+
+// BulkGet performs a bulks get operations
+func (s *StateStore) BulkGet(req []state.GetRequest) ([]state.GetResponse, error) {
+	// TODO: replace with Multi for performance
+	var response []state.GetResponse
+	for i := range req {
+		r, err := s.Get(&req[i])
+		if err != nil {
+			return nil, err
+		}
+		response = append(response, *r)
+	}
+
+	return response, nil
 }
 
 // Delete performs a delete operation

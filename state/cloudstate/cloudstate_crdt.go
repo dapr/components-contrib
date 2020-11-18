@@ -510,12 +510,31 @@ func (c *CRDT) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, err
 	}
 
-	stateResp := &state.GetResponse{}
+	stateResp := &state.GetResponse{Key: req.Key}
 	if resp.Data != nil {
 		stateResp.Data = resp.Data.Value
 	}
 
 	return stateResp, nil
+}
+
+// BulkGet performs a bulks get operations
+func (c *CRDT) BulkGet(req []state.GetRequest) ([]state.GetResponse, error) {
+	err := c.createConnectionOnce()
+	if err != nil {
+		return nil, err
+	}
+
+	var response []state.GetResponse
+	for i := range req {
+		r, err := c.Get(&req[i])
+		if err != nil {
+			return nil, err
+		}
+		response = append(response, *r)
+	}
+
+	return response, nil
 }
 
 // Delete performs a delete operation

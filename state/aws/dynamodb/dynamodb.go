@@ -29,7 +29,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store
-func NewDynamoDBStateStore() *StateStore {
+func NewDynamoDBStateStore() state.Store {
 	return &StateStore{}
 }
 
@@ -69,7 +69,7 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if len(result.Item) == 0 {
-		return &state.GetResponse{}, nil
+		return &state.GetResponse{Key: req.Key}, nil
 	}
 
 	var output string
@@ -78,8 +78,24 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
+		Key:  req.Key,
 		Data: []byte(output),
 	}, nil
+}
+
+// BulkGet performs a bulks get operations
+func (d *StateStore) BulkGet(req []state.GetRequest) ([]state.GetResponse, error) {
+	// TODO: replace with dynamodb.BatchGetItem for performance
+	var response []state.GetResponse
+	for i := range req {
+		r, err := d.Get(&req[i])
+		if err != nil {
+			return nil, err
+		}
+		response = append(response, *r)
+	}
+
+	return response, nil
 }
 
 // Set saves a dynamoDB item

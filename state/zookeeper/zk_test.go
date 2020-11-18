@@ -81,7 +81,7 @@ func TestGet(t *testing.T) {
 		conn.EXPECT().Get("foo").Return(nil, nil, zk.ErrNoNode).Times(1)
 
 		res, err := s.Get(&state.GetRequest{Key: "foo"})
-		assert.Equal(t, &state.GetResponse{}, res, "Response must be empty")
+		assert.Equal(t, &state.GetResponse{Key: "foo"}, res, "Response must be empty")
 		assert.NoError(t, err, "Non-existent key must not be treated as error")
 	})
 }

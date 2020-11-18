@@ -428,7 +428,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	defer rows.Close()
 
 	if !rows.Next() {
-		return &state.GetResponse{}, nil
+		return &state.GetResponse{Key: req.Key}, nil
 	}
 
 	var data string
@@ -441,9 +441,25 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	etag := hex.EncodeToString(rowVersion)
 
 	return &state.GetResponse{
+		Key:  req.Key,
 		Data: []byte(data),
 		ETag: etag,
 	}, nil
+}
+
+// BulkGet performs a bulks get operations
+func (s *SQLServer) BulkGet(req []state.GetRequest) ([]state.GetResponse, error) {
+	// TODO: replace with bulk get for performance
+	var response []state.GetResponse
+	for i := range req {
+		r, err := s.Get(&req[i])
+		if err != nil {
+			return nil, err
+		}
+		response = append(response, *r)
+	}
+
+	return response, nil
 }
 
 // Set adds/updates an entity on store

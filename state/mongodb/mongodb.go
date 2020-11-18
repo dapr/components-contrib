@@ -50,6 +50,7 @@ const (
 
 // MongoDB is a state store implementation for MongoDB
 type MongoDB struct {
+	state.DefaultBulkStore
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -77,7 +78,9 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store
 func NewMongoDB(logger logger.Logger) *MongoDB {
-	return &MongoDB{logger: logger}
+	s := &MongoDB{logger: logger}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init establishes connection to the store based on the metadata
@@ -163,26 +166,15 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
-		return &state.GetResponse{}, err
+		return &state.GetResponse{Key: req.Key}, err
 	}
 
 	value := []byte(result.Value)
 
 	return &state.GetResponse{
+		Key:  req.Key,
 		Data: value,
 	}, nil
-}
-
-// BulkSet performs a bulks save operation
-func (m *MongoDB) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := m.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Delete performs a delete operation
@@ -203,18 +195,6 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	_, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (m *MongoDB) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := m.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

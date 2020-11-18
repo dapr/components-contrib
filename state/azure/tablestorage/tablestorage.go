@@ -51,6 +51,7 @@ const (
 )
 
 type StateStore struct {
+	state.DefaultBulkStore
 	table *storage.Table
 	json  jsoniter.API
 
@@ -97,18 +98,6 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	return r.deleteRow(req)
 }
 
-func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	r.logger.Debugf("bulk delete %v key(s)", len(req))
-	for i := range req {
-		err := r.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key)
@@ -116,15 +105,16 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	err := entity.Get(operationTimeout, storage.FullMetadata, nil)
 	if err != nil {
 		if isNotFoundError(err) {
-			return &state.GetResponse{}, nil
+			return &state.GetResponse{Key: req.Key}, nil
 		}
 
-		return &state.GetResponse{}, err
+		return &state.GetResponse{Key: req.Key}, err
 	}
 
 	data, etag, err := r.unmarshal(entity)
 
 	return &state.GetResponse{
+		Key:  req.Key,
 		Data: data,
 		ETag: etag,
 	}, err
@@ -136,24 +126,13 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return r.writeRow(req)
 }
 
-func (r *StateStore) BulkSet(req []state.SetRequest) error {
-	r.logger.Debugf("bulk set %v key(s)", len(req))
-
-	for i := range req {
-		err := r.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{
+	s := &StateStore{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {

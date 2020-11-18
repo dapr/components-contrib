@@ -29,6 +29,7 @@ const (
 
 // Couchbase is a couchbase state store
 type Couchbase struct {
+	state.DefaultBulkStore
 	bucket                        *gocb.Bucket
 	bucketName                    string // TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
 	numReplicasDurableReplication uint
@@ -40,10 +41,12 @@ type Couchbase struct {
 
 // NewCouchbaseStateStore returns a new couchbase state store
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
-	return &Couchbase{
+	s := &Couchbase{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -168,25 +171,13 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulks save operation
-func (cbs *Couchbase) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := cbs.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get retrieves state from couchbase with a key
 func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var data interface{}
 	cas, err := cbs.bucket.Get(req.Key, &data)
 	if err != nil {
 		if gocb.IsKeyNotFoundError(err) {
-			return &state.GetResponse{}, nil
+			return &state.GetResponse{Key: req.Key}, nil
 		}
 
 		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
@@ -197,6 +188,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
+		Key:  req.Key,
 		Data: value,
 		ETag: fmt.Sprintf("%d", cas),
 	}, nil
@@ -224,18 +216,6 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	}
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := cbs.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

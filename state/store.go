@@ -17,7 +17,7 @@ type Store interface {
 // BulkStore is an interface to perform bulk operations on store
 type BulkStore interface {
 	BulkDelete(req []DeleteRequest) error
-	BulkGet(req []GetRequest) ([]GetResponse, error)
+	BulkGet(req []GetRequest) (bool, []GetResponse, error)
 	BulkSet(req []SetRequest) error
 }
 
@@ -34,17 +34,10 @@ func NewDefaultBulkStore(store Store) DefaultBulkStore  {
 }
 
 // BulkGet performs a bulks get operations
-func (b *DefaultBulkStore) BulkGet(req []GetRequest)  ([]GetResponse, error)  {
-	var response []GetResponse
-	for i := range req {
-		r, err := b.s.Get(&req[i])
-		if err != nil {
-			return nil, err
-		}
-		response = append(response, *r)
-	}
-
-	return response, nil
+func (b *DefaultBulkStore) BulkGet(req []GetRequest)  (bool, []GetResponse, error)  {
+	// by default, the store doesn't support bulk get
+	// return false so daprd will fallback to call get() method one by one
+	return false, nil, nil
 }
 
 // BulkSet performs a bulks save operation

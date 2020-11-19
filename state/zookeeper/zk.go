@@ -160,18 +160,9 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations
-func (s *StateStore) BulkGet(req []state.GetRequest) ([]state.GetResponse, error) {
+func (s *StateStore) BulkGet(req []state.GetRequest) (bool, []state.GetResponse, error) {
 	// TODO: replace with Multi for performance
-	var response []state.GetResponse
-	for i := range req {
-		r, err := s.Get(&req[i])
-		if err != nil {
-			return nil, err
-		}
-		response = append(response, *r)
-	}
-
-	return response, nil
+	return false, nil, nil
 }
 
 // Delete performs a delete operation

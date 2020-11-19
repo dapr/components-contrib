@@ -171,18 +171,9 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations
-func (s *RethinkDB) BulkGet(req []state.GetRequest)  ([]state.GetResponse, error)  {
+func (s *RethinkDB) BulkGet(req []state.GetRequest)  (bool, []state.GetResponse, error)  {
 	// TODO: replace with bulk get for performance
-	var response []state.GetResponse
-	for i := range req {
-		r, err := s.Get(&req[i])
-		if err != nil {
-			return nil, err
-		}
-		response = append(response, *r)
-	}
-
-	return response, nil
+	return false, nil, nil
 }
 
 // Set saves a state KV item

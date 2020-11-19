@@ -18,19 +18,22 @@ func TestStore_withDefaultBulkImpl(t *testing.T) {
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	store.BulkGet([]GetRequest{GetRequest{}, GetRequest{}, GetRequest{}})
-	require.Equal(t, 3 + 3, s.count)
+	bulkGet, responses, err := store.BulkGet([]GetRequest{GetRequest{}, GetRequest{}, GetRequest{}})
+	require.Equal(t, false, bulkGet)
+	require.Equal(t, 0, len(responses))
+	require.NoError(t, err)
+	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 	store.BulkSet([]SetRequest{SetRequest{}, SetRequest{}, SetRequest{}, SetRequest{}})
-	require.Equal(t, 3 + 3 +4, s.count)
+	require.Equal(t, 3 +4, s.count)
 	require.Equal(t, 0, s.bulkCount)
 	store.BulkDelete([]DeleteRequest{DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}})
-	require.Equal(t, 3 + 3 + 4 + 5, s.count)
+	require.Equal(t, 3 + 4 + 5, s.count)
 	require.Equal(t, 0, s.bulkCount)
 }
 
-func TestStore_withCustomisedBulkImpl(t *testing.T) {
-	s := &Store2{}
+func TestStore_withCustomisedBulkImpl_notSupportBulkGet(t *testing.T) {
+	s := &Store2{supportBulkGet: false}
 	var store Store = s
 	require.Equal(t, s.count, 0)
 	require.Equal(t, s.bulkCount, 0)
@@ -41,15 +44,40 @@ func TestStore_withCustomisedBulkImpl(t *testing.T) {
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	store.BulkGet([]GetRequest{GetRequest{}, GetRequest{}, GetRequest{}})
+	bulkGet, _, _ := store.BulkGet([]GetRequest{GetRequest{}, GetRequest{}, GetRequest{}})
+	require.Equal(t, false, bulkGet)
+	require.Equal(t, 6, s.count)
+	require.Equal(t, 0, s.bulkCount)
+	store.BulkSet([]SetRequest{SetRequest{}, SetRequest{}, SetRequest{}, SetRequest{}})
+	require.Equal(t, 6, s.count)
+	require.Equal(t, 1, s.bulkCount)
+	store.BulkDelete([]DeleteRequest{DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}})
+	require.Equal(t, 6, s.count)
+	require.Equal(t, 2, s.bulkCount)
+}
+
+func TestStore_withCustomisedBulkImpl_supportBulkGet(t *testing.T) {
+	s := &Store2{supportBulkGet: true}
+	var store Store = s
+	require.Equal(t, s.count, 0)
+	require.Equal(t, s.bulkCount, 0)
+
+	store.Get(&GetRequest{})
+	store.Set(&SetRequest{})
+	store.Delete(&DeleteRequest{})
 	require.Equal(t, 3, s.count)
-	require.Equal(t, 3, s.bulkCount)
+	require.Equal(t, 0, s.bulkCount)
+
+	bulkGet, _, _ := store.BulkGet([]GetRequest{GetRequest{}, GetRequest{}, GetRequest{}})
+	require.Equal(t, true, bulkGet)
+	require.Equal(t, 3, s.count)
+	require.Equal(t, 1, s.bulkCount)
 	store.BulkSet([]SetRequest{SetRequest{}, SetRequest{}, SetRequest{}, SetRequest{}})
 	require.Equal(t, 3, s.count)
-	require.Equal(t, 3 +4, s.bulkCount)
+	require.Equal(t, 2, s.bulkCount)
 	store.BulkDelete([]DeleteRequest{DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}})
 	require.Equal(t, 3, s.count)
-	require.Equal(t, 3 + 4 + 5, s.bulkCount)
+	require.Equal(t, 3, s.bulkCount)
 }
 
 var _ Store = &Store1{}
@@ -86,6 +114,8 @@ type Store2 struct {
 	//DefaultBulkStore
 	count int
 	bulkCount int
+
+	supportBulkGet bool
 }
 
 func (s *Store2) Init(metadata Metadata) error  {
@@ -107,18 +137,23 @@ func (s *Store2) Set(req *SetRequest) error  {
 	return nil
 }
 
-func (s *Store2) BulkGet(req []GetRequest)  ([]GetResponse, error)  {
-	s.bulkCount = s.bulkCount + len(req)
-	return nil, nil
+func (s *Store2) BulkGet(req []GetRequest)  (bool, []GetResponse, error)  {
+	if s.supportBulkGet {
+		s.bulkCount++
+		return true, nil, nil
+	} else {
+		s.count = s.count + len(req)
+		return false, nil, nil
+	}
 }
 
 func (s *Store2) BulkSet(req []SetRequest) error {
-	s.bulkCount = s.bulkCount + len(req)
+	s.bulkCount++
 	return nil
 }
 
 func (s *Store2) BulkDelete(req []DeleteRequest) error {
-	s.bulkCount = s.bulkCount + len(req)
+	s.bulkCount++
 	return nil
 }
 

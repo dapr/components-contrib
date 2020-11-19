@@ -117,30 +117,18 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 		//
 		// handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		// defer handleCancel()
+
+		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+		finalizerCtx, finalizerCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+		defer finalizerCancel()
+
 		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
 		err := appHandler(msg)
-
-		// The context isn't handled downstream so we time out these
-		// operations here to avoid getting stuck waiting for a message
-		// to finalize (abandon/complete) if the connection has dropped.
-		errs := make(chan error, 1)
 		if err != nil {
 			s.logger.Warnf("Error in app's handler: %+v", err)
-			go func() {
-				errs <- s.abandonMessage(ctx, message)
-			}()
+			return s.abandonMessage(finalizerCtx, message)
 		}
-		go func() {
-			errs <- s.completeMessage(ctx, message)
-		}()
-		select {
-		case err := <-errs:
-			return err
-		case <-time.After(time.Second * time.Duration(timeoutInSec)):
-			return fmt.Errorf("%s call to finalize message %s has timedout", errorMessagePrefix, message.ID)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		return s.completeMessage(finalizerCtx, message)
 	}
 }
 

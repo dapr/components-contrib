@@ -122,7 +122,7 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 		appErr := appHandler(msg)
 
 		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-		// If we fail to finalize the message, this message will eventually expire in service bus and be reprocessed.
+		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
 		finalizeCtx, finalizeCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
 		defer finalizeCancel()
 

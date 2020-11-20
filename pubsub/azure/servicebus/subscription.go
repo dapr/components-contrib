@@ -118,17 +118,25 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 		// handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		// defer handleCancel()
 
-		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-		finalizerCtx, finalizerCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
-		defer finalizerCancel()
-
 		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
-		err := appHandler(msg)
-		if err != nil {
-			s.logger.Warnf("Error in app's handler: %+v", err)
-			return s.abandonMessage(finalizerCtx, message)
+		appErr := appHandler(msg)
+
+		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+		// If we fail to finalize the message, this message will eventually expire in service bus and be reprocessed.
+		finalizeCtx, finalizeCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+		defer finalizeCancel()
+
+		if appErr != nil {
+			s.logger.Warnf("Error in app's handler: %+v", appErr)
+			if abandonErr := s.abandonMessage(finalizeCtx, message); abandonErr != nil {
+				return fmt.Errorf("Failed to abandon: %+v", abandonErr)
+			}
+			return nil
 		}
-		return s.completeMessage(finalizerCtx, message)
+		if completeErr := s.completeMessage(finalizeCtx, message); completeErr != nil {
+			return fmt.Errorf("Failed to complete: %+v", completeErr)
+		}
+		return nil
 	}
 }
 

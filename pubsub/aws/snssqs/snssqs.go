@@ -23,7 +23,6 @@ type snsSqs struct {
 	topicHash map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url
 	queues        map[string]*sqsQueueInfo
-	awsAcctID     string
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
 	metadata      *snsSqsMetadata
@@ -41,15 +40,15 @@ type snsSqsMetadata struct {
 	sqsQueueName string
 
 	// aws endpoint for the component to use.
-	awsEndpoint string
-	// aws account ID to use for SNS/SQS. Required
-	awsAccountID string
-	// aws secret corresponding to the account ID. Required
-	awsSecret string
-	// aws token to use. Required
-	awsToken string
-	// aws region in which SNS/SQS should create resources. Required
-	awsRegion string
+	Endpoint string
+	// access key to use for accessing sqs/sns
+	AccessKey string
+	// secret key to use for accessing sqs/sns
+	SecretKey string
+	// aws session token to use.
+	SessionToken string
+	// aws region in which SNS/SQS should create resources
+	Region string
 
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10
 	messageVisibilityTimeout int64
@@ -57,7 +56,7 @@ type snsSqsMetadata struct {
 	messageRetryLimit int64
 	// amount of time to await receipt of a message before making another request. Default: 1
 	messageWaitTimeSeconds int64
-	// maximum number of messsages to receive from the queue at a time. Default: 10, Maximum: 10
+	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10
 	messageMaxNumber int64
 }
 
@@ -68,6 +67,17 @@ const (
 
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{logger: l, subscriptions: []*string{}}
+}
+
+func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
+	props := metadata.Properties
+	for _, s := range aliases {
+		if val, ok := props[s]; ok {
+			return val, true
+		}
+	}
+
+	return "", false
 }
 
 func parseInt64(input string, propertyName string) (int64, error) {
@@ -94,38 +104,28 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 	md.sqsQueueName = metadata.Properties["consumerID"]
 	s.logger.Debugf("Setting queue name to %s", md.sqsQueueName)
 
-	if val, ok := props["awsEndpoint"]; ok {
-		md.awsEndpoint = val
+	if val, ok := getAliasedProperty([]string{"Endpoint", "endpoint"}, metadata); ok {
+		s.logger.Debugf("endpoint: %s", val)
+		md.Endpoint = val
 	}
 
-	val, ok := props["awsAccountID"]
-
-	if !ok {
-		return nil, errors.New("missing required property: awsAccountID")
+	if val, ok := getAliasedProperty([]string{"awsAccountID", "accessKey"}, metadata); ok {
+		s.logger.Debugf("AccessKey: %s", val)
+		md.AccessKey = val
 	}
 
-	md.awsAccountID = val
-
-	val, ok = props["awsSecret"]
-	if !ok {
-		return nil, errors.New("missing required property: awsSecret")
+	if val, ok := getAliasedProperty([]string{"awsSecret", "secretKey"}, metadata); ok {
+		s.logger.Debugf("awsToken: %s", val)
+		md.SecretKey = val
 	}
 
-	md.awsSecret = val
-
-	val, ok = props["awsToken"]
-	if !ok {
-		md.awsToken = ""
-	} else {
-		md.awsToken = val
+	if val, ok := getAliasedProperty([]string{"sessionToken"}, metadata); ok {
+		md.SessionToken = val
 	}
 
-	val, ok = props["awsRegion"]
-	if !ok {
-		return nil, errors.New("missing required property: awsRegion")
+	if val, ok := getAliasedProperty([]string{"awsRegion", "region"}, metadata); ok {
+		md.Region = val
 	}
-
-	md.awsRegion = val
 
 	if val, ok := props["messageVisibilityTimeout"]; !ok {
 		md.messageVisibilityTimeout = 10
@@ -205,8 +205,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.topics = make(map[string]string)
 	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
-	s.awsAcctID = md.awsAccountID
-	sess, err := aws_auth.GetClient(s.awsAcctID, md.awsSecret, md.awsRegion, md.awsEndpoint)
+	sess, err := aws_auth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
 		return err
 	}

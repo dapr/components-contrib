@@ -170,7 +170,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations
-func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.GetResponse, error) {
+func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with bulk get for performance
 	return false, nil, nil
 }

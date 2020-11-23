@@ -447,7 +447,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations
-func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.GetResponse, error) {
+func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 

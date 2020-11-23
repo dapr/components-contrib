@@ -55,7 +55,7 @@ func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations
-func (p *PostgreSQL) BulkGet(req []state.GetRequest)  (bool, []state.GetResponse, error)  {
+func (p *PostgreSQL) BulkGet(req []state.GetRequest)  (bool, []state.BulkGetResponse, error)  {
 	// TODO: replace with ExecuteMulti for performance
 	return false, nil, nil
 }

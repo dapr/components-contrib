@@ -49,6 +49,7 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

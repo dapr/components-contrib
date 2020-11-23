@@ -35,6 +35,7 @@ type consulConfig struct {
 func NewConsulStateStore(logger logger.Logger) *Consul {
 	s := &Consul{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

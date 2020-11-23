@@ -32,6 +32,7 @@ func NewHazelcastStore(logger logger.Logger) *Hazelcast {
 		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

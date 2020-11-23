@@ -68,6 +68,7 @@ const (
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

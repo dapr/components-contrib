@@ -80,6 +80,7 @@ type Item struct {
 func NewMongoDB(logger logger.Logger) *MongoDB {
 	s := &MongoDB{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

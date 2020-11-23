@@ -42,6 +42,7 @@ func NewMemCacheStateStore(logger logger.Logger) *Memcached {
 		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

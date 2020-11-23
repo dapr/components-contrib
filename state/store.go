@@ -30,6 +30,7 @@ type DefaultBulkStore struct {
 func NewDefaultBulkStore(store Store) DefaultBulkStore {
 	defaultBulkStore := DefaultBulkStore{}
 	defaultBulkStore.s = store
+
 	return defaultBulkStore
 }
 

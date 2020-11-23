@@ -131,6 +131,7 @@ func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
 		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

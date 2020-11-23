@@ -61,6 +61,7 @@ type cassandraMetadata struct {
 func NewCassandraStateStore(logger logger.Logger) *Cassandra {
 	s := &Cassandra{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

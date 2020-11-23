@@ -46,6 +46,7 @@ func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
 		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
 	return s
 }
 

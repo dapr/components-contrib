@@ -2,6 +2,7 @@ package state
 
 import (
 	"github.com/stretchr/testify/require"
+
 	"testing"
 )
 
@@ -25,10 +26,10 @@ func TestStore_withDefaultBulkImpl(t *testing.T) {
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 	store.BulkSet([]SetRequest{SetRequest{}, SetRequest{}, SetRequest{}, SetRequest{}})
-	require.Equal(t, 3 +4, s.count)
+	require.Equal(t, 3+4, s.count)
 	require.Equal(t, 0, s.bulkCount)
 	store.BulkDelete([]DeleteRequest{DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}, DeleteRequest{}})
-	require.Equal(t, 3 + 4 + 5, s.count)
+	require.Equal(t, 3+4+5, s.count)
 	require.Equal(t, 0, s.bulkCount)
 }
 
@@ -86,65 +87,65 @@ var _ Store = &Store2{}
 // example of store which doesn't support bulk method
 type Store1 struct {
 	DefaultBulkStore
-	count int
+	count     int
 	bulkCount int
 }
 
-func (s *Store1) Init(metadata Metadata) error  {
+func (s *Store1) Init(metadata Metadata) error {
 	return nil
 }
 
-func (s *Store1) Delete(req *DeleteRequest) error  {
+func (s *Store1) Delete(req *DeleteRequest) error {
 	s.count++
 	return nil
 }
 
-func (s *Store1) Get(req *GetRequest) (*GetResponse, error)  {
+func (s *Store1) Get(req *GetRequest) (*GetResponse, error) {
 	s.count++
-	return &GetResponse{},nil
+	return &GetResponse{}, nil
 }
 
-func (s *Store1) Set(req *SetRequest) error  {
+func (s *Store1) Set(req *SetRequest) error {
 	s.count++
 	return nil
 }
 
 // example of store which supports bulk method
 type Store2 struct {
-	//DefaultBulkStore
-	count int
+	// DefaultBulkStore
+	count     int
 	bulkCount int
 
 	supportBulkGet bool
 }
 
-func (s *Store2) Init(metadata Metadata) error  {
+func (s *Store2) Init(metadata Metadata) error {
 	return nil
 }
 
-func (s *Store2) Delete(req *DeleteRequest) error  {
+func (s *Store2) Delete(req *DeleteRequest) error {
 	s.count++
 	return nil
 }
 
-func (s *Store2) Get(req *GetRequest) (*GetResponse, error)  {
+func (s *Store2) Get(req *GetRequest) (*GetResponse, error) {
 	s.count++
-	return &GetResponse{},nil
+	return &GetResponse{}, nil
 }
 
-func (s *Store2) Set(req *SetRequest) error  {
+func (s *Store2) Set(req *SetRequest) error {
 	s.count++
 	return nil
 }
 
-func (s *Store2) BulkGet(req []GetRequest)  (bool, []BulkGetResponse, error)  {
+func (s *Store2) BulkGet(req []GetRequest) (bool, []BulkGetResponse, error) {
 	if s.supportBulkGet {
 		s.bulkCount++
 		return true, nil, nil
-	} else {
-		s.count = s.count + len(req)
-		return false, nil, nil
 	}
+
+	s.count += len(req)
+	return false, nil, nil
 }
 
 func (s *Store2) BulkSet(req []SetRequest) error {
@@ -156,7 +157,3 @@ func (s *Store2) BulkDelete(req []DeleteRequest) error {
 	s.bulkCount++
 	return nil
 }
-
-
-
-

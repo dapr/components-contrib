@@ -1,9 +1,9 @@
 package state
 
 import (
-	"github.com/stretchr/testify/require"
-
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestStore_withDefaultBulkImpl(t *testing.T) {
@@ -81,8 +81,10 @@ func TestStore_withCustomisedBulkImpl_supportBulkGet(t *testing.T) {
 	require.Equal(t, 3, s.bulkCount)
 }
 
-var _ Store = &Store1{}
-var _ Store = &Store2{}
+var (
+	_ Store = &Store1{}
+	_ Store = &Store2{}
+)
 
 // example of store which doesn't support bulk method
 type Store1 struct {

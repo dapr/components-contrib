@@ -177,7 +177,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	cas, err := cbs.bucket.Get(req.Key, &data)
 	if err != nil {
 		if gocb.IsKeyNotFoundError(err) {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
 		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
@@ -188,7 +188,6 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: value,
 		ETag: fmt.Sprintf("%d", cas),
 	}, nil

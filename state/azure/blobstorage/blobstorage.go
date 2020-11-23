@@ -104,14 +104,13 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		r.logger.Debugf("error %s", err)
 
 		if isNotFoundError(err) {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
-		return &state.GetResponse{Key: req.Key}, err
+		return &state.GetResponse{}, err
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: data,
 		ETag: etag,
 	}, err

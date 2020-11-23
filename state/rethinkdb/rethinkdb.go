@@ -141,7 +141,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if c == nil || c.IsNil() {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	if c != nil {
@@ -155,7 +155,6 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	resp := &state.GetResponse{ETag: doc.Hash}
-	resp.Key = req.Key
 	b, ok := doc.Data.([]byte)
 	if ok {
 		resp.Data = b
@@ -171,7 +170,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations
-func (s *RethinkDB) BulkGet(req []state.GetRequest)  (bool, []state.GetResponse, error)  {
+func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.GetResponse, error) {
 	// TODO: replace with bulk get for performance
 	return false, nil, nil
 }

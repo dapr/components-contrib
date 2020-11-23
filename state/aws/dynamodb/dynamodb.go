@@ -69,7 +69,7 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if len(result.Item) == 0 {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	var output string
@@ -78,13 +78,12 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: []byte(output),
 	}, nil
 }
 
 // BulkGet performs a bulk get operations
-func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.GetResponse, error) {
+func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with dynamodb.BatchGetItem for performance
 	return false, nil, nil
 }

@@ -146,21 +146,20 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
 	if err != nil {
 		if errors.Is(err, zk.ErrNoNode) {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
 		return nil, err
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: value,
 		ETag: strconv.Itoa(int(stat.Version)),
 	}, nil
 }
 
 // BulkGet performs a bulks get operations
-func (s *StateStore) BulkGet(req []state.GetRequest) (bool, []state.GetResponse, error) {
+func (s *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with Multi for performance
 	return false, nil, nil
 }

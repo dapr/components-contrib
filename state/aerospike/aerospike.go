@@ -155,7 +155,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
 		if err == types.ErrKeyNotFound {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
@@ -166,7 +166,6 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: value,
 		ETag: fmt.Sprintf("%d", record.Generation),
 	}, nil

@@ -166,13 +166,12 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
-		return &state.GetResponse{Key: req.Key}, err
+		return &state.GetResponse{}, err
 	}
 
 	value := []byte(result.Value)
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: value,
 	}, nil
 }

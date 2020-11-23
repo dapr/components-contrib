@@ -137,7 +137,7 @@ func (s *Store2) Set(req *SetRequest) error  {
 	return nil
 }
 
-func (s *Store2) BulkGet(req []GetRequest)  (bool, []GetResponse, error)  {
+func (s *Store2) BulkGet(req []GetRequest)  (bool, []BulkGetResponse, error)  {
 	if s.supportBulkGet {
 		s.bulkCount++
 		return true, nil, nil

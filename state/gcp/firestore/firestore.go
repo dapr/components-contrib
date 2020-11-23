@@ -88,11 +88,10 @@ func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if err != nil && !errors.Is(err, datastore.ErrNoSuchEntity) {
 		return nil, err
 	} else if errors.Is(err, datastore.ErrNoSuchEntity) {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: []byte(entity.Value),
 	}, nil
 }

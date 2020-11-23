@@ -121,14 +121,13 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if err != nil {
 		// Return nil for status 204
 		if errors.Is(err, memcache.ErrCacheMiss) {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
-		return &state.GetResponse{Key: req.Key}, err
+		return &state.GetResponse{}, err
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: item.Value,
 	}, nil
 }
@@ -136,4 +135,3 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 func (m *Memcached) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
 }
-

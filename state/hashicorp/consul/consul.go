@@ -97,11 +97,10 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if resp == nil {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: resp.Value,
 		ETag: queryMeta.LastContentHash,
 	}, nil

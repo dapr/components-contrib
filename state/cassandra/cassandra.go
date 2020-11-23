@@ -244,11 +244,10 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if len(results) == 0 {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: results[0]["value"].([]byte),
 	}, nil
 }
@@ -294,4 +293,3 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 
 	return session, nil
 }
-

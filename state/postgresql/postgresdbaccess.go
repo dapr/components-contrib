@@ -140,14 +140,13 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
 		return nil, err
 	}
 
 	response := &state.GetResponse{
-		Key:      req.Key,
 		Data:     []byte(value),
 		ETag:     strconv.Itoa(etag),
 		Metadata: req.Metadata,

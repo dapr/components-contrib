@@ -242,13 +242,12 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 	}
 
 	if res == nil {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	s, _ := strconv.Unquote(fmt.Sprintf("%q", res))
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: []byte(s),
 	}, nil
 }
@@ -260,11 +259,11 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
 	if res == nil {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 	vals := res.([]interface{})
 	if len(vals) == 0 {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	data, version, err := r.getKeyVersion(vals)
@@ -273,7 +272,6 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: []byte(data),
 		ETag: version,
 	}, nil

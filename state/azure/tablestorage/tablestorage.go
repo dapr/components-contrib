@@ -105,16 +105,15 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	err := entity.Get(operationTimeout, storage.FullMetadata, nil)
 	if err != nil {
 		if isNotFoundError(err) {
-			return &state.GetResponse{Key: req.Key}, nil
+			return &state.GetResponse{}, nil
 		}
 
-		return &state.GetResponse{Key: req.Key}, err
+		return &state.GetResponse{}, err
 	}
 
 	data, etag, err := r.unmarshal(entity)
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: data,
 		ETag: etag,
 	}, err

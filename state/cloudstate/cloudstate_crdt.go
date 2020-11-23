@@ -510,7 +510,7 @@ func (c *CRDT) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, err
 	}
 
-	stateResp := &state.GetResponse{Key: req.Key}
+	stateResp := &state.GetResponse{}
 	if resp.Data != nil {
 		stateResp.Data = resp.Data.Value
 	}

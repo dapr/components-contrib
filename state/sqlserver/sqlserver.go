@@ -428,7 +428,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	defer rows.Close()
 
 	if !rows.Next() {
-		return &state.GetResponse{Key: req.Key}, nil
+		return &state.GetResponse{}, nil
 	}
 
 	var data string
@@ -441,7 +441,6 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	etag := hex.EncodeToString(rowVersion)
 
 	return &state.GetResponse{
-		Key:  req.Key,
 		Data: []byte(data),
 		ETag: etag,
 	}, nil

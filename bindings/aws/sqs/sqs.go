@@ -34,7 +34,7 @@ type sqsMetadata struct {
 
 // NewAWSSQS returns a new AWS SQS instance
 func NewAWSSQS(logger logger.Logger) *AWSSQS {
-	return &AWSSQS{}
+	return &AWSSQS{logger: logger}
 }
 
 // Init does metadata parsing and connection creation

@@ -27,11 +27,11 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 
 	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
 		"consumerID":               "consumer",
-		"awsEndpoint":              "endpoint",
-		"awsAccountID":             "acctId",
-		"awsSecret":                "secret",
-		"awsToken":                 "token",
-		"awsRegion":                "region",
+		"Endpoint":                 "endpoint",
+		"accessKey":                "a",
+		"secretKey":                "s",
+		"sessionToken":             "t",
+		"region":                   "r",
 		"messageVisibilityTimeout": "2",
 		"messageRetryLimit":        "3",
 		"messageWaitTimeSeconds":   "4",
@@ -41,11 +41,11 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	r.NoError(err)
 
 	r.Equal("consumer", md.sqsQueueName)
-	r.Equal("endpoint", md.awsEndpoint)
-	r.Equal("acctId", md.awsAccountID)
-	r.Equal("secret", md.awsSecret)
-	r.Equal("token", md.awsToken)
-	r.Equal("region", md.awsRegion)
+	r.Equal("endpoint", md.Endpoint)
+	r.Equal("a", md.AccessKey)
+	r.Equal("s", md.SecretKey)
+	r.Equal("t", md.SessionToken)
+	r.Equal("r", md.Region)
 	r.Equal(int64(2), md.messageVisibilityTimeout)
 	r.Equal(int64(3), md.messageRetryLimit)
 	r.Equal(int64(4), md.messageWaitTimeSeconds)
@@ -53,6 +53,35 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
+	r := require.New(t)
+	l := logger.NewLogger("SnsSqs unit test")
+	l.SetOutputLevel(logger.DebugLevel)
+	ps := snsSqs{
+		logger: l,
+	}
+
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+		"consumerID": "c",
+		"accessKey":  "a",
+		"secretKey":  "s",
+		"region":     "r",
+	}})
+
+	r.NoError(err)
+
+	r.Equal("c", md.sqsQueueName)
+	r.Equal("", md.Endpoint)
+	r.Equal("a", md.AccessKey)
+	r.Equal("s", md.SecretKey)
+	r.Equal("", md.SessionToken)
+	r.Equal("r", md.Region)
+	r.Equal(int64(10), md.messageVisibilityTimeout)
+	r.Equal(int64(10), md.messageRetryLimit)
+	r.Equal(int64(1), md.messageWaitTimeSeconds)
+	r.Equal(int64(10), md.messageMaxNumber)
+}
+
+func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -70,11 +99,10 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.NoError(err)
 
 	r.Equal("consumer", md.sqsQueueName)
-	r.Equal("", md.awsEndpoint)
-	r.Equal("acctId", md.awsAccountID)
-	r.Equal("secret", md.awsSecret)
-	r.Equal("", md.awsToken)
-	r.Equal("region", md.awsRegion)
+	r.Equal("", md.Endpoint)
+	r.Equal("acctId", md.AccessKey)
+	r.Equal("secret", md.SecretKey)
+	r.Equal("region", md.Region)
 	r.Equal(int64(10), md.messageVisibilityTimeout)
 	r.Equal(int64(10), md.messageRetryLimit)
 	r.Equal(int64(1), md.messageWaitTimeSeconds)
@@ -91,11 +119,11 @@ func Test_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
 
 	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
 		"consumerID":               "consumer",
-		"awsEndpoint":              "endpoint",
-		"awsAccountID":             "acctId",
-		"awsSecret":                "secret",
+		"Endpoint":                 "endpoint",
+		"AccessKey":                "acctId",
+		"SecretKey":                "secret",
 		"awsToken":                 "token",
-		"awsRegion":                "region",
+		"Region":                   "region",
 		"messageVisibilityTimeout": "-100",
 	}})
 
@@ -113,11 +141,11 @@ func Test_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
 
 	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
 		"consumerID":        "consumer",
-		"awsEndpoint":       "endpoint",
-		"awsAccountID":      "acctId",
-		"awsSecret":         "secret",
+		"Endpoint":          "endpoint",
+		"AccessKey":         "acctId",
+		"SecretKey":         "secret",
 		"awsToken":          "token",
-		"awsRegion":         "region",
+		"Region":            "region",
 		"messageRetryLimit": "-100",
 	}})
 
@@ -135,11 +163,11 @@ func Test_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
 
 	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
 		"consumerID":             "consumer",
-		"awsEndpoint":            "endpoint",
-		"awsAccountID":           "acctId",
-		"awsSecret":              "secret",
+		"Endpoint":               "endpoint",
+		"AccessKey":              "acctId",
+		"SecretKey":              "secret",
 		"awsToken":               "token",
-		"awsRegion":              "region",
+		"Region":                 "region",
 		"messageWaitTimeSeconds": "0",
 	}})
 
@@ -157,11 +185,11 @@ func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T) {
 
 	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
 		"consumerID":       "consumer",
-		"awsEndpoint":      "endpoint",
-		"awsAccountID":     "acctId",
-		"awsSecret":        "secret",
+		"Endpoint":         "endpoint",
+		"AccessKey":        "acctId",
+		"SecretKey":        "secret",
 		"awsToken":         "token",
-		"awsRegion":        "region",
+		"Region":           "region",
 		"messageMaxNumber": "100",
 	}})
 
@@ -179,11 +207,11 @@ func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) {
 
 	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
 		"consumerID":       "consumer",
-		"awsEndpoint":      "endpoint",
-		"awsAccountID":     "acctId",
-		"awsSecret":        "secret",
+		"Endpoint":         "endpoint",
+		"AccessKey":        "acctId",
+		"SecretKey":        "secret",
 		"awsToken":         "token",
-		"awsRegion":        "region",
+		"Region":           "region",
 		"messageMaxNumber": "-100",
 	}})
 

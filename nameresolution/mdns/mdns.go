@@ -9,9 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,14 +23,95 @@ import (
 )
 
 const browseTimeout = time.Second * 1
+const periodicBrowseTimeout = time.Second * 2
+const browsePeriod = time.Second * 30
+const addressTTL = time.Second * 60
+
+type address struct {
+	ip        string
+	expiresAt time.Time
+}
+
+type addressList struct {
+	addresses []address
+	counter   uint32
+	mu        sync.Mutex
+}
+
+func (a *addressList) expire() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	i := 0
+	for _, addr := range a.addresses[:] {
+		if time.Now().Before(addr.expiresAt) {
+			a.addresses[i] = addr
+			i++
+		}
+	}
+}
+
+func (a *addressList) add(ip string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for _, addr := range a.addresses {
+		if addr.ip == ip {
+			// ip exists, renew expiration.
+			addr.expiresAt = time.Now().Add(addressTTL)
+			return
+		}
+	}
+	// ip is new.
+	a.addresses = append(a.addresses, address{
+		ip:        ip,
+		expiresAt: time.Now().Add(addressTTL),
+	})
+}
+
+func (a *addressList) next() *string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if len(a.addresses) == 0 {
+		return nil
+	}
+
+	index := a.counter % uint32(len(a.addresses))
+	addr := a.addresses[index]
+	if a.counter == math.MaxUint32-1 {
+		a.counter = 0
+	}
+	a.counter++
+	return &addr.ip
+}
 
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
-	return &resolver{logger: logger}
+	r := &resolver{
+		ipv4Addresses: make(map[string]*addressList),
+		ipv6Addresses: make(map[string]*addressList),
+		logger:        logger,
+	}
+
+	go func() {
+		for {
+			// Periodically refresh all app addresses.
+			r.browseAll()
+
+			time.Sleep(browsePeriod)
+		}
+	}()
+
+	return r
 }
 
 type resolver struct {
-	logger logger.Logger
+	ipv4Mu        sync.RWMutex
+	ipv4Addresses map[string]*addressList
+	ipv6Mu        sync.RWMutex
+	ipv6Addresses map[string]*addressList
+	logger        logger.Logger
 }
 
 // Init registers service for mDNS.
@@ -103,52 +186,157 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 
 // ResolveID resolves name to address via mDNS.
 func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	resolver, err := zeroconf.NewResolver(nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to initialize resolver: %e", err)
+	// Attempt to get next ipv4 address for app id.
+	m.ipv4Mu.RLock()
+	if ipv4AddrList, ok := m.ipv4Addresses[req.ID]; ok {
+		ipv4Addr := ipv4AddrList.next()
+		if ipv4Addr != nil {
+			return *ipv4Addr, nil
+		}
 	}
+	m.ipv4Mu.Unlock()
 
-	port := -1
+	m.ipv6Mu.RLock()
+	// Attempt to get next ipv6 address for app id.
+	if ipv6AddrList, ok := m.ipv6Addresses[req.ID]; ok {
+		ipv6Addr := ipv6AddrList.next()
+		if ipv6Addr != nil {
+			return *ipv6Addr, nil
+		}
+	}
+	m.ipv6Mu.Unlock()
+
+	// No cached addresses, browse the network for the app id.
+	return m.browseFirstOnly(req.ID)
+}
+
+func (m *resolver) browseFirstOnly(appID string) (string, error) {
 	var addr string
-	entries := make(chan *zeroconf.ServiceEntry)
 
 	ctx, cancel := context.WithTimeout(context.Background(), browseTimeout)
+	defer cancel()
 
+	err := m.browse(ctx, appID, func(ip string) bool { // on address.
+		addr = ip
+
+		// cancel timeout because we found the service.
+		cancel()
+
+		// true indicates an early exit.
+		return true
+	}, func(_ error) { // on error.
+		cancel()
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// wait until context is cancelled or timed out.
+	<-ctx.Done()
+
+	if addr == "" {
+		return "", fmt.Errorf("couldn't find service: %s", appID)
+	}
+
+	return addr, nil
+}
+
+func (m *resolver) browseAll() error {
+	// Get a list of all known app ids.
+	appIDKeys := make(map[string]struct{})
+	for appID, addr := range m.ipv4Addresses {
+		addr.expire() // Remove expired ipv4 addresses.
+
+		appIDKeys[appID] = struct{}{}
+	}
+	for appID, addr := range m.ipv6Addresses {
+		addr.expire() // Remove expired ipv6 addresses.
+
+		appIDKeys[appID] = struct{}{}
+	}
+	appIDs := make([]string, 0, len(appIDKeys))
+	for appID := range appIDKeys {
+		appIDs = append(appIDs, appID)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), periodicBrowseTimeout)
+	defer cancel()
+
+	// Refresh each known app id.
+	for _, appID := range appIDs {
+		err := m.browse(ctx, appID, func(_ string) bool { // on address.
+			// false indicates continue browsing.
+			return false
+		}, func(_ error) {
+			// on error.
+			cancel()
+		})
+		if err != nil {
+			m.logger.Warn("Error refreshing app id %s, error: %+v", appID, err)
+		}
+	}
+
+	// wait until context is cancelled or timed out.
+	<-ctx.Done()
+
+	return nil
+}
+
+func (m *resolver) browse(ctx context.Context, appID string, onAddress func(ip string) bool, onErr func(error)) error {
+	resolver, err := zeroconf.NewResolver(nil)
+	if err != nil {
+		return fmt.Errorf("failed to initialize resolver: %e", err)
+	}
+	entries := make(chan *zeroconf.ServiceEntry)
+
+	// Browse the network and find the addresses for this app id.
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
 			for _, text := range entry.Text {
-				if text == req.ID {
-					port = entry.Port
+				if text == appID {
+					// on app id match.
+					var addr string
+					port := entry.Port
 					if len(entry.AddrIPv4) > 0 {
-						addr = entry.AddrIPv4[0].String() // entry has IPv4
+						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
+
+						m.ipv4Mu.Lock()
+						if _, ok := m.ipv4Addresses[appID]; !ok {
+							m.ipv4Addresses[appID] = &addressList{} // new app id.
+						}
+						m.ipv4Addresses[appID].add(addr)
+						m.ipv4Mu.Unlock()
 					} else if len(entry.AddrIPv6) > 0 {
-						addr = entry.AddrIPv6[0].String() // entry has IPv6
+						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
+
+						m.ipv6Mu.Lock()
+						if _, ok := m.ipv6Addresses[appID]; !ok {
+							m.ipv6Addresses[appID] = &addressList{} // new app id.
+						}
+						m.ipv6Addresses[appID].add(addr)
+						m.ipv6Mu.Unlock()
 					} else {
-						addr = "localhost" // default
+						// Default to localhost.
+						addr = fmt.Sprintf("localhost:%d", port)
+
+						m.ipv4Mu.Lock()
+						m.ipv4Addresses[appID].add(addr)
+						m.ipv4Mu.Unlock()
 					}
-
-					// cancel timeout because it found the service
-					cancel()
-
-					return
+					shouldReturn := onAddress(addr)
+					if shouldReturn {
+						return
+					}
 				}
 			}
 		}
 	}(entries)
 
-	if err = resolver.Browse(ctx, req.ID, "local.", entries); err != nil {
-		// cancel context
-		cancel()
+	if err = resolver.Browse(ctx, appID, "local.", entries); err != nil {
+		onErr(err)
 
-		return "", fmt.Errorf("failed to browse: %s", err.Error())
+		return fmt.Errorf("failed to browse: %s", err.Error())
 	}
 
-	// wait until context is cancelled or timeed out.
-	<-ctx.Done()
-
-	if port == -1 || addr == "" {
-		return "", fmt.Errorf("couldn't find service: %s", req.ID)
-	}
-
-	return fmt.Sprintf("%s:%d", addr, port), nil
+	return nil
 }

@@ -23,8 +23,8 @@ import (
 )
 
 const browseTimeout = time.Second * 1
-const periodicBrowseTimeout = time.Second * 2
-const browsePeriod = time.Second * 30
+const browseRefreshTimeout = time.Second * 2
+const browseRefreshInterval = time.Second * 30
 const addressTTL = time.Second * 60
 
 type address struct {
@@ -38,6 +38,7 @@ type addressList struct {
 	mu        sync.Mutex
 }
 
+// expire removes any expired addresses from the address list.
 func (a *addressList) expire() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -51,6 +52,7 @@ func (a *addressList) expire() {
 	}
 }
 
+// add adds or updates a new address to the list.
 func (a *addressList) add(ip string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -69,6 +71,7 @@ func (a *addressList) add(ip string) {
 	})
 }
 
+// next gets the next address from the list.
 func (a *addressList) next() *string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -94,12 +97,12 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 		logger:        logger,
 	}
 
+	// periodically refresh all app addresses in the background.
 	go func() {
 		for {
-			// Periodically refresh all app addresses.
 			r.browseAll()
 
-			time.Sleep(browsePeriod)
+			time.Sleep(browseRefreshInterval)
 		}
 	}()
 
@@ -186,7 +189,7 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 
 // ResolveID resolves name to address via mDNS.
 func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	// Attempt to get next ipv4 address for app id.
+	// Attempt to get next ipv4 address for app id first.
 	m.ipv4Mu.RLock()
 	if ipv4AddrList, ok := m.ipv4Addresses[req.ID]; ok {
 		ipv4Addr := ipv4AddrList.next()
@@ -196,8 +199,8 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	}
 	m.ipv4Mu.Unlock()
 
-	m.ipv6Mu.RLock()
 	// Attempt to get next ipv6 address for app id.
+	m.ipv6Mu.RLock()
 	if ipv6AddrList, ok := m.ipv6Addresses[req.ID]; ok {
 		ipv6Addr := ipv6AddrList.next()
 		if ipv6Addr != nil {
@@ -216,17 +219,22 @@ func (m *resolver) browseFirstOnly(appID string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), browseTimeout)
 	defer cancel()
 
-	err := m.browse(ctx, appID, func(ip string) bool { // on address.
+	// onFirst will be executed for each address received
+	// for the provided app id. Cancelling the context will
+	// stop any further browsing so this will only actually
+	// be invoked on the first address.
+	onFirst := func(ip string) {
 		addr = ip
-
-		// cancel timeout because we found the service.
 		cancel()
+	}
 
-		// true indicates an early exit.
-		return true
-	}, func(_ error) { // on error.
+	// onErr will be called only when we receive a browsing
+	// error. We cancel the context to stop browsing.
+	onErr := func(_ error) {
 		cancel()
-	})
+	}
+
+	err := m.browse(ctx, appID, onFirst, onErr)
 	if err != nil {
 		return "", err
 	}
@@ -259,30 +267,30 @@ func (m *resolver) browseAll() error {
 		appIDs = append(appIDs, appID)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), periodicBrowseTimeout)
+	browseCtx, cancel := context.WithTimeout(context.Background(), browseRefreshTimeout)
 	defer cancel()
+
+	// onErr will be called only when we receive a browsing
+	// error. We cancel the context to stop browsing.
+	onErr := func(_ error) {
+		cancel()
+	}
 
 	// Refresh each known app id.
 	for _, appID := range appIDs {
-		err := m.browse(ctx, appID, func(_ string) bool { // on address.
-			// false indicates continue browsing.
-			return false
-		}, func(_ error) {
-			// on error.
-			cancel()
-		})
+		err := m.browse(browseCtx, appID, nil, onErr)
 		if err != nil {
 			m.logger.Warn("Error refreshing app id %s, error: %+v", appID, err)
 		}
 	}
 
-	// wait until context is cancelled or timed out.
-	<-ctx.Done()
+	// wait until browsing context is cancelled (i.e. on error) or timed out.
+	<-browseCtx.Done()
 
 	return nil
 }
 
-func (m *resolver) browse(ctx context.Context, appID string, onAddress func(ip string) bool, onErr func(error)) error {
+func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip string), onErr func(error)) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
 		return fmt.Errorf("failed to initialize resolver: %e", err)
@@ -291,41 +299,48 @@ func (m *resolver) browse(ctx context.Context, appID string, onAddress func(ip s
 
 	// Browse the network and find the addresses for this app id.
 	go func(results <-chan *zeroconf.ServiceEntry) {
-		for entry := range results {
+		select {
+		case <-ctx.Done():
+			return
+		case entry := <-results:
 			for _, text := range entry.Text {
 				if text == appID {
-					// on app id match.
+					// On app id match.
 					var addr string
 					port := entry.Port
+
 					if len(entry.AddrIPv4) > 0 {
+						// Update the cache with a IPv4 address.
 						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
 
 						m.ipv4Mu.Lock()
 						if _, ok := m.ipv4Addresses[appID]; !ok {
-							m.ipv4Addresses[appID] = &addressList{} // new app id.
+							m.ipv4Addresses[appID] = &addressList{}
 						}
 						m.ipv4Addresses[appID].add(addr)
 						m.ipv4Mu.Unlock()
 					} else if len(entry.AddrIPv6) > 0 {
+						// Update the cache with a IPv6 address.
 						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
 
 						m.ipv6Mu.Lock()
 						if _, ok := m.ipv6Addresses[appID]; !ok {
-							m.ipv6Addresses[appID] = &addressList{} // new app id.
+							m.ipv6Addresses[appID] = &addressList{}
 						}
 						m.ipv6Addresses[appID].add(addr)
 						m.ipv6Mu.Unlock()
 					} else {
-						// Default to localhost.
+						// Default: add a localhost IPv4 entry.
 						addr = fmt.Sprintf("localhost:%d", port)
 
 						m.ipv4Mu.Lock()
 						m.ipv4Addresses[appID].add(addr)
 						m.ipv4Mu.Unlock()
 					}
-					shouldReturn := onAddress(addr)
-					if shouldReturn {
-						return
+
+					// On each address, invoke a custom callback.
+					if onEach != nil {
+						onEach(addr)
 					}
 				}
 			}
@@ -333,7 +348,10 @@ func (m *resolver) browse(ctx context.Context, appID string, onAddress func(ip s
 	}(entries)
 
 	if err = resolver.Browse(ctx, appID, "local.", entries); err != nil {
-		onErr(err)
+		// On error, invoke a custom callback.
+		if onErr != nil {
+			onErr(err)
+		}
 
 		return fmt.Errorf("failed to browse: %s", err.Error())
 	}

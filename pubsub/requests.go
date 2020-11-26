@@ -14,7 +14,8 @@ type PublishRequest struct {
 
 // SubscribeRequest is the request to subscribe to a topic
 type SubscribeRequest struct {
-	Topic string `json:"topic"`
+	Topic    string            `json:"topic"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 // NewMessage is an event arriving from a message bus instance

@@ -131,11 +131,13 @@ func (s *subscription) getHandlerFunc(appHandler func(msg *pubsub.NewMessage) er
 			if abandonErr := s.abandonMessage(finalizeCtx, message); abandonErr != nil {
 				return fmt.Errorf("failed to abandon: %+v", abandonErr)
 			}
+
 			return nil
 		}
 		if completeErr := s.completeMessage(finalizeCtx, message); completeErr != nil {
 			return fmt.Errorf("failed to complete: %+v", completeErr)
 		}
+
 		return nil
 	}
 }

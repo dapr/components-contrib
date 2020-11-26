@@ -86,6 +86,4 @@ require (
 	k8s.io/client-go v0.17.0
 )
 
-replace (
-	k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
-)
+replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

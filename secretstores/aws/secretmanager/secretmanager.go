@@ -125,7 +125,7 @@ func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (se
 }
 
 func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmanager.SecretsManager, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, "")
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}

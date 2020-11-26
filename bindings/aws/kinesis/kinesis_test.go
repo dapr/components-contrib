@@ -22,6 +22,7 @@ func TestParseMetadata(t *testing.T) {
 		"StreamName":   "stream",
 		"Mode":         "extended",
 		"Endpoint":     "endpoint",
+		"SessionToken": "token",
 	}
 	kinesis := AWSKinesis{}
 	meta, err := kinesis.parseMetadata(m)
@@ -32,5 +33,6 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "test", meta.ConsumerName)
 	assert.Equal(t, "stream", meta.StreamName)
 	assert.Equal(t, "endpoint", meta.Endpoint)
+	assert.Equal(t, "token", meta.SessionToken)
 	assert.Equal(t, kinesisConsumerMode("extended"), meta.KinesisConsumerMode)
 }

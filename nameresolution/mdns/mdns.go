@@ -22,10 +22,12 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const browseTimeout = time.Second * 1
-const browseRefreshTimeout = time.Second * 2
-const browseRefreshInterval = time.Second * 30
-const addressTTL = time.Second * 60
+const (
+	browseTimeout         = time.Second * 1
+	browseRefreshTimeout  = time.Second * 2
+	browseRefreshInterval = time.Second * 30
+	addressTTL            = time.Second * 60
+)
 
 type address struct {
 	ip        string
@@ -68,6 +70,7 @@ func (a *addressList) add(ip string) {
 		if addr.ip == ip {
 			// ip exists, renew expiration.
 			addr.expiresAt = time.Now().Add(addressTTL)
+
 			return
 		}
 	}
@@ -93,6 +96,7 @@ func (a *addressList) next() *string {
 		a.counter = 0
 	}
 	a.counter++
+
 	return &addr.ip
 }
 
@@ -311,44 +315,46 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 			return
 		case entry := <-results:
 			for _, text := range entry.Text {
-				if text == appID {
-					// On app id match.
-					var addr string
-					port := entry.Port
+				if text != appID {
+					continue
+				}
 
-					if len(entry.AddrIPv4) > 0 {
-						// Update the cache with a IPv4 address.
-						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
+				// On app id match.
+				var addr string
+				port := entry.Port
 
-						m.ipv4Mu.Lock()
-						if _, ok := m.ipv4Addresses[appID]; !ok {
-							m.ipv4Addresses[appID] = &addressList{}
-						}
-						m.ipv4Addresses[appID].add(addr)
-						m.ipv4Mu.Unlock()
-					} else if len(entry.AddrIPv6) > 0 {
-						// Update the cache with a IPv6 address.
-						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
+				if len(entry.AddrIPv4) > 0 {
+					// Update the cache with a IPv4 address.
+					addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
 
-						m.ipv6Mu.Lock()
-						if _, ok := m.ipv6Addresses[appID]; !ok {
-							m.ipv6Addresses[appID] = &addressList{}
-						}
-						m.ipv6Addresses[appID].add(addr)
-						m.ipv6Mu.Unlock()
-					} else {
-						// Default: add a localhost IPv4 entry.
-						addr = fmt.Sprintf("localhost:%d", port)
-
-						m.ipv4Mu.Lock()
-						m.ipv4Addresses[appID].add(addr)
-						m.ipv4Mu.Unlock()
+					m.ipv4Mu.Lock()
+					if _, ok := m.ipv4Addresses[appID]; !ok {
+						m.ipv4Addresses[appID] = &addressList{}
 					}
+					m.ipv4Addresses[appID].add(addr)
+					m.ipv4Mu.Unlock()
+				} else if len(entry.AddrIPv6) > 0 {
+					// Update the cache with a IPv6 address.
+					addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
 
-					// On each address, invoke a custom callback.
-					if onEach != nil {
-						onEach(addr)
+					m.ipv6Mu.Lock()
+					if _, ok := m.ipv6Addresses[appID]; !ok {
+						m.ipv6Addresses[appID] = &addressList{}
 					}
+					m.ipv6Addresses[appID].add(addr)
+					m.ipv6Mu.Unlock()
+				} else {
+					// Default: add a localhost IPv4 entry.
+					addr = fmt.Sprintf("localhost:%d", port)
+
+					m.ipv4Mu.Lock()
+					m.ipv4Addresses[appID].add(addr)
+					m.ipv4Mu.Unlock()
+				}
+
+				// On each address, invoke a custom callback.
+				if onEach != nil {
+					onEach(addr)
 				}
 			}
 		}

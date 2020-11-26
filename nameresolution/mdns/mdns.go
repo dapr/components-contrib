@@ -33,7 +33,7 @@ type address struct {
 }
 
 type addressList struct {
-	addresses []address
+	addresses []*address
 	counter   uint32
 	mu        sync.Mutex
 }
@@ -43,16 +43,23 @@ func (a *addressList) expire() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	// remove expired addresses
 	i := 0
-	for _, addr := range a.addresses[:] {
+	for _, addr := range a.addresses {
 		if time.Now().Before(addr.expiresAt) {
 			a.addresses[i] = addr
 			i++
 		}
 	}
+	for j := i; j < len(a.addresses); j++ {
+		// clear truncated pointers
+		a.addresses[j] = nil
+	}
+	// resize slice
+	a.addresses = a.addresses[:i]
 }
 
-// add adds or updates a new address to the list.
+// add adds or updates an address to the address list.
 func (a *addressList) add(ip string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -65,7 +72,7 @@ func (a *addressList) add(ip string) {
 		}
 	}
 	// ip is new.
-	a.addresses = append(a.addresses, address{
+	a.addresses = append(a.addresses, &address{
 		ip:        ip,
 		expiresAt: time.Now().Add(addressTTL),
 	})
@@ -197,7 +204,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 			return *ipv4Addr, nil
 		}
 	}
-	m.ipv4Mu.Unlock()
+	m.ipv4Mu.RUnlock()
 
 	// Attempt to get next ipv6 address for app id.
 	m.ipv6Mu.RLock()
@@ -207,7 +214,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 			return *ipv6Addr, nil
 		}
 	}
-	m.ipv6Mu.Unlock()
+	m.ipv6Mu.RUnlock()
 
 	// No cached addresses, browse the network for the app id.
 	return m.browseFirstOnly(req.ID)

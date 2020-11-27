@@ -19,6 +19,7 @@ const (
 
 // Hazelcast state store
 type Hazelcast struct {
+	state.DefaultBulkStore
 	hzMap  core.Map
 	json   jsoniter.API
 	logger logger.Logger
@@ -26,10 +27,13 @@ type Hazelcast struct {
 
 // NewHazelcastStore returns a new hazelcast backed state store
 func NewHazelcastStore(logger logger.Logger) *Hazelcast {
-	return &Hazelcast{
+	s := &Hazelcast{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -93,18 +97,6 @@ func (store *Hazelcast) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulks save operation
-func (store *Hazelcast) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := store.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get retrieves state from Hazelcast with a key
 func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	resp, err := store.hzMap.Get(req.Key)
@@ -135,18 +127,6 @@ func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
 	err = store.hzMap.Delete(req.Key)
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to delete key - %s", req.Key)
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (store *Hazelcast) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := store.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

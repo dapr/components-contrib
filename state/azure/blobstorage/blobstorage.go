@@ -49,6 +49,7 @@ const (
 
 // StateStore Type
 type StateStore struct {
+	state.DefaultBulkStore
 	containerURL azblob.ContainerURL
 	json         jsoniter.API
 
@@ -95,19 +96,6 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	return r.deleteFile(req)
 }
 
-// BulkDelete the state
-func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	r.logger.Debugf("bulk delete %v key(s)", len(req))
-	for i := range req {
-		err := r.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get the state
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
@@ -135,26 +123,15 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return r.writeFile(req)
 }
 
-// BulkSet the state
-func (r *StateStore) BulkSet(req []state.SetRequest) error {
-	r.logger.Debugf("bulk set %v key(s)", len(req))
-
-	for i := range req {
-		err := r.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // NewAzureBlobStorageStore instance
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
-	return &StateStore{
+	s := &StateStore{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, error) {

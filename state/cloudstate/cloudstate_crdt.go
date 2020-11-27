@@ -518,6 +518,11 @@ func (c *CRDT) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return stateResp, nil
 }
 
+// BulkGet performs a bulks get operations
+func (c *CRDT) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	return false, nil, nil
+}
+
 // Delete performs a delete operation
 func (c *CRDT) Delete(req *state.DeleteRequest) error {
 	err := c.createConnectionOnce()

@@ -358,6 +358,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 
 				if !hasIPv4Address && !hasIPv6Address {
 					m.logger.Debugf("mdns response doesn't contain any addresses for app id %s", appID)
+					continue
 				}
 
 				var addr string

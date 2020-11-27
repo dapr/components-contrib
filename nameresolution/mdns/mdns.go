@@ -212,6 +212,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		ipv4Addr := ipv4AddrList.next()
 		if ipv4Addr != nil {
 			m.logger.Debugf("found mdns ipv4 address in cache: %s", *ipv4Addr)
+
 			return *ipv4Addr, nil
 		}
 	}
@@ -224,12 +225,14 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		ipv6Addr := ipv6AddrList.next()
 		if ipv6Addr != nil {
 			m.logger.Debugf("found mdns ipv6 address in cache: %s", *ipv6Addr)
+
 			return *ipv6Addr, nil
 		}
 	}
 
 	// No cached addresses, browse the network for the app id.
 	m.logger.Debugf("no mdns address found in cache, browsing for app %s", req.ID)
+
 	return m.browseFirstOnly(req.ID)
 }
 
@@ -283,6 +286,7 @@ func (m *resolver) browseAll() error {
 	numApps := numIPv4Addr + numIPv6Addr
 	if numApps == 0 {
 		m.logger.Debugf("no mdns app's to refresh")
+
 		return nil
 	}
 
@@ -351,6 +355,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 			for _, text := range entry.Text {
 				if text != appID {
 					m.logger.Debugf("mdns response doesn't match app id %s", appID)
+
 					continue
 				}
 				hasIPv4Address := len(entry.AddrIPv4) > 0
@@ -358,6 +363,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 
 				if !hasIPv4Address && !hasIPv6Address {
 					m.logger.Debugf("mdns response doesn't contain any addresses for app id %s", appID)
+
 					continue
 				}
 
@@ -369,7 +375,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 				// address in entry's AddrIPv4 and AddrIPv6
 				// arrays. These addresses will be added to
 				// the internal address cache for this appid.
-				// NOTE: We use write locks here to read and
+				// TODO: We use write locks here to read and
 				// modify the address cache. We could use more
 				// granular read and write locks but this would
 				// increasse the code complexity.

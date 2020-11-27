@@ -251,6 +251,16 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	require.Equal(t, "addr2", *addressList.next())
 }
 
+func TestAddressListNextNoAddress(t *testing.T) {
+	// arrange
+	addressList := &addressList{
+		addresses: []*address{},
+	}
+
+	// act & assert
+	require.Nil(t, addressList.next())
+}
+
 func TestAddressListNextWithAdd(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)

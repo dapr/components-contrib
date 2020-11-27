@@ -37,7 +37,7 @@ type address struct {
 type addressList struct {
 	addresses []*address
 	counter   uint32
-	mu        sync.Mutex
+	mu        sync.RWMutex
 }
 
 // expire removes any expired addresses from the address list.
@@ -83,8 +83,8 @@ func (a *addressList) add(ip string) {
 
 // next gets the next address from the list.
 func (a *addressList) next() *string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
 	if len(a.addresses) == 0 {
 		return nil
@@ -202,25 +202,30 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
 	// Attempt to get next ipv4 address for app id first.
 	m.ipv4Mu.RLock()
-	if ipv4AddrList, ok := m.ipv4Addresses[req.ID]; ok {
+	ipv4AddrList, exists := m.ipv4Addresses[req.ID]
+	m.ipv4Mu.RUnlock()
+	if exists {
 		ipv4Addr := ipv4AddrList.next()
 		if ipv4Addr != nil {
+			m.logger.Debugf("found mdns ipv4 address in cache: %s", *ipv4Addr)
 			return *ipv4Addr, nil
 		}
 	}
-	m.ipv4Mu.RUnlock()
 
 	// Attempt to get next ipv6 address for app id.
 	m.ipv6Mu.RLock()
-	if ipv6AddrList, ok := m.ipv6Addresses[req.ID]; ok {
+	ipv6AddrList, exists := m.ipv6Addresses[req.ID]
+	m.ipv6Mu.RUnlock()
+	if exists {
 		ipv6Addr := ipv6AddrList.next()
 		if ipv6Addr != nil {
+			m.logger.Debugf("found mdns ipv6 address in cache: %s", *ipv6Addr)
 			return *ipv6Addr, nil
 		}
 	}
-	m.ipv6Mu.RUnlock()
 
 	// No cached addresses, browse the network for the app id.
+	m.logger.Debugf("no mdns address found in cache, browsing for app %s", req.ID)
 	return m.browseFirstOnly(req.ID)
 }
 
@@ -261,15 +266,26 @@ func (m *resolver) browseFirstOnly(appID string) (string, error) {
 }
 
 func (m *resolver) browseAll() error {
+	m.logger.Debugf("refreshing mdns cache")
+
+	if len(m.ipv4Addresses)+len(m.ipv6Addresses) == 0 {
+		m.logger.Debugf("no mdns app's to refresh")
+		return nil
+	}
+
 	// Get a list of all known app ids.
 	appIDKeys := make(map[string]struct{})
 	for appID, addr := range m.ipv4Addresses {
+		old := len(addr.addresses)
 		addr.expire() // Remove expired ipv4 addresses.
+		m.logger.Debugf("%d ipv4 addresses expired from the mdns cache", old-len(addr.addresses))
 
 		appIDKeys[appID] = struct{}{}
 	}
 	for appID, addr := range m.ipv6Addresses {
+		old := len(addr.addresses)
 		addr.expire() // Remove expired ipv6 addresses.
+		m.logger.Debugf("%d ipv6 addresses expired from the mdns cache", old-len(addr.addresses))
 
 		appIDKeys[appID] = struct{}{}
 	}
@@ -310,12 +326,11 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 
 	// Browse the network and find the addresses for this app id.
 	go func(results <-chan *zeroconf.ServiceEntry) {
-		select {
-		case <-ctx.Done():
-			return
-		case entry := <-results:
+		for entry := range results {
+			m.logger.Debugf("mdns response for app %s", appID)
 			for _, text := range entry.Text {
 				if text != appID {
+					m.logger.Debugf("mdns response doesn't match app id %s", appID)
 					continue
 				}
 
@@ -326,30 +341,31 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 				if len(entry.AddrIPv4) > 0 {
 					// Update the cache with a IPv4 address.
 					addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
+					m.logger.Debugf("mdns response for app %s has ipv4 address %s.", appID, addr)
 
 					m.ipv4Mu.Lock()
 					if _, ok := m.ipv4Addresses[appID]; !ok {
 						m.ipv4Addresses[appID] = &addressList{}
 					}
-					m.ipv4Addresses[appID].add(addr)
 					m.ipv4Mu.Unlock()
+					m.ipv4Addresses[appID].add(addr)
 				} else if len(entry.AddrIPv6) > 0 {
 					// Update the cache with a IPv6 address.
 					addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
+					m.logger.Debugf("mdns response for app %s has ipv6 address %s.", appID, addr)
 
 					m.ipv6Mu.Lock()
 					if _, ok := m.ipv6Addresses[appID]; !ok {
 						m.ipv6Addresses[appID] = &addressList{}
 					}
-					m.ipv6Addresses[appID].add(addr)
 					m.ipv6Mu.Unlock()
+					m.ipv6Addresses[appID].add(addr)
 				} else {
 					// Default: add a localhost IPv4 entry.
 					addr = fmt.Sprintf("localhost:%d", port)
+					m.logger.Debugf("mdns response for app %s missing ipv4 or ipv6 address, defaulting to localhost.", appID)
 
-					m.ipv4Mu.Lock()
 					m.ipv4Addresses[appID].add(addr)
-					m.ipv4Mu.Unlock()
 				}
 
 				// On each address, invoke a custom callback.

@@ -6,6 +6,7 @@
 package mdns
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -205,6 +206,49 @@ func TestAddressListNext(t *testing.T) {
 	require.Equal(t, "addr5", *addressList.next())
 	require.Equal(t, "addr0", *addressList.next())
 	require.Equal(t, "addr1", *addressList.next())
+}
+
+func TestAddressListNextMaxCounter(t *testing.T) {
+	// arrange
+	expiry := time.Now().Add(10 * time.Second)
+	addressList := &addressList{
+		addresses: []*address{
+			{
+				ip:        "addr0",
+				expiresAt: expiry,
+			},
+			{
+				ip:        "addr1",
+				expiresAt: expiry,
+			},
+			{
+				ip:        "addr2",
+				expiresAt: expiry,
+			},
+			{
+				ip:        "addr3",
+				expiresAt: expiry,
+			},
+			{
+				ip:        "addr4",
+				expiresAt: expiry,
+			},
+			{
+				ip:        "addr5",
+				expiresAt: expiry,
+			},
+		},
+	}
+
+	// act & assert
+	require.Equal(t, "addr0", *addressList.next())
+	require.Equal(t, "addr1", *addressList.next())
+	require.Equal(t, "addr2", *addressList.next())
+	require.Equal(t, "addr3", *addressList.next())
+	addressList.counter = math.MaxUint32
+	require.Equal(t, "addr0", *addressList.next())
+	require.Equal(t, "addr1", *addressList.next())
+	require.Equal(t, "addr2", *addressList.next())
 }
 
 func TestAddressListNextWithAdd(t *testing.T) {

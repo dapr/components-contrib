@@ -24,7 +24,7 @@ import (
 
 const (
 	browseTimeout         = time.Second * 1
-	browseRefreshTimeout  = time.Second * 2
+	browseRefreshTimeout  = time.Second * 10
 	browseRefreshInterval = time.Second * 30
 	addressTTL            = time.Second * 60
 )
@@ -90,11 +90,11 @@ func (a *addressList) next() *string {
 		return nil
 	}
 
-	index := a.counter % uint32(len(a.addresses))
-	addr := a.addresses[index]
-	if a.counter == math.MaxUint32-1 {
+	if a.counter == math.MaxUint32 {
 		a.counter = 0
 	}
+	index := a.counter % uint32(len(a.addresses))
+	addr := a.addresses[index]
 	a.counter++
 
 	return &addr.ip
@@ -171,10 +171,14 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 		host, _ := os.Hostname()
 		info := []string{id}
 
+		// Register as a unique instance
+		pid := syscall.Getpid()
+		instance := fmt.Sprintf("%s-%d", host, pid)
+
 		if len(ips) > 0 {
-			server, err = zeroconf.RegisterProxy(host, id, "local.", port, host, ips, info, nil)
+			server, err = zeroconf.RegisterProxy(instance, id, "local.", port, host, ips, info, nil)
 		} else {
-			server, err = zeroconf.Register(host, id, "local.", port, info, nil)
+			server, err = zeroconf.Register(instance, id, "local.", port, info, nil)
 		}
 
 		if err != nil {
@@ -268,13 +272,20 @@ func (m *resolver) browseFirstOnly(appID string) (string, error) {
 func (m *resolver) browseAll() error {
 	m.logger.Debugf("refreshing mdns cache")
 
-	if len(m.ipv4Addresses)+len(m.ipv6Addresses) == 0 {
+	m.ipv4Mu.RLock()
+	m.ipv6Mu.RLock()
+	numApps := len(m.ipv4Addresses) + len(m.ipv6Addresses)
+	m.ipv4Mu.RUnlock()
+	m.ipv6Mu.RUnlock()
+	if numApps == 0 {
 		m.logger.Debugf("no mdns app's to refresh")
 		return nil
 	}
 
 	// Get a list of all known app ids.
 	appIDKeys := make(map[string]struct{})
+
+	m.ipv4Mu.RLock()
 	for appID, addr := range m.ipv4Addresses {
 		old := len(addr.addresses)
 		addr.expire() // Remove expired ipv4 addresses.
@@ -282,6 +293,9 @@ func (m *resolver) browseAll() error {
 
 		appIDKeys[appID] = struct{}{}
 	}
+	m.ipv4Mu.RUnlock()
+
+	m.ipv6Mu.RLock()
 	for appID, addr := range m.ipv6Addresses {
 		old := len(addr.addresses)
 		addr.expire() // Remove expired ipv6 addresses.
@@ -289,6 +303,8 @@ func (m *resolver) browseAll() error {
 
 		appIDKeys[appID] = struct{}{}
 	}
+	m.ipv6Mu.RUnlock()
+
 	appIDs := make([]string, 0, len(appIDKeys))
 	for appID := range appIDKeys {
 		appIDs = append(appIDs, appID)
@@ -327,7 +343,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 	// Browse the network and find the addresses for this app id.
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
-			m.logger.Debugf("mdns response for app %s", appID)
+			m.logger.Debugf("mdns response for app %s received", appID)
 			for _, text := range entry.Text {
 				if text != appID {
 					m.logger.Debugf("mdns response doesn't match app id %s", appID)

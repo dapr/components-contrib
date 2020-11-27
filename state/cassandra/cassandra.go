@@ -37,6 +37,7 @@ const (
 
 // Cassandra is a state store implementation for Apache Cassandra
 type Cassandra struct {
+	state.DefaultBulkStore
 	session *gocql.Session
 	cluster *gocql.ClusterConfig
 	table   string
@@ -58,7 +59,10 @@ type cassandraMetadata struct {
 
 // NewCassandraStateStore returns a new cassandra state store
 func NewCassandraStateStore(logger logger.Logger) *Cassandra {
-	return &Cassandra{logger: logger}
+	s := &Cassandra{logger: logger}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 // Init performs metadata and connection parsing
@@ -215,18 +219,6 @@ func (c *Cassandra) Delete(req *state.DeleteRequest) error {
 	return c.session.Query("DELETE FROM ? WHERE key = ?", c.table, req.Key).Exec()
 }
 
-// BulkDelete performs a bulk delete operation
-func (c *Cassandra) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := c.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get retrieves state from cassandra with a key
 func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
@@ -301,16 +293,4 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	session.SetConsistency(consistency)
 
 	return session, nil
-}
-
-// BulkSet performs a bulks save operation
-func (c *Cassandra) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := c.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

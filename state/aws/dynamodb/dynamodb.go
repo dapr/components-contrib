@@ -29,7 +29,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store
-func NewDynamoDBStateStore() *StateStore {
+func NewDynamoDBStateStore() state.Store {
 	return &StateStore{}
 }
 
@@ -80,6 +80,12 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return &state.GetResponse{
 		Data: []byte(output),
 	}, nil
+}
+
+// BulkGet performs a bulk get operations
+func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	// TODO: replace with dynamodb.BatchGetItem for performance
+	return false, nil, nil
 }
 
 // Set saves a dynamoDB item

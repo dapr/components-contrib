@@ -169,6 +169,12 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return resp, nil
 }
 
+// BulkGet performs a bulks get operations
+func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	// TODO: replace with bulk get for performance
+	return false, nil, nil
+}
+
 // Set saves a state KV item
 func (s *RethinkDB) Set(req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {

@@ -19,6 +19,8 @@ const (
 	ContentType = "application/cloudevents+json"
 	// DefaultCloudEventSource is the default event source
 	DefaultCloudEventSource = "Dapr"
+	// DefaultCloudEventDataContentType is the default content-type for the data attribute
+	DefaultCloudEventDataContentType = "text/plain"
 )
 
 // CloudEventsEnvelope describes the Dapr implementation of the Cloud Events spec
@@ -36,7 +38,7 @@ type CloudEventsEnvelope struct {
 }
 
 // NewCloudEventsEnvelope returns CloudEventsEnvelope from data or a new one when data content was not
-func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, data []byte) *CloudEventsEnvelope {
+func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte) *CloudEventsEnvelope {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -50,6 +52,9 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	if subject == "" {
 		subject = DefaultCloudEventSource
 	}
+	if dataContentType == "" {
+		dataContentType = DefaultCloudEventDataContentType
+	}
 
 	// check if JSON
 	var j interface{}
@@ -59,7 +64,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		return &CloudEventsEnvelope{
 			ID:              id,
 			SpecVersion:     CloudEventsSpecVersion,
-			DataContentType: "text/plain",
+			DataContentType: dataContentType,
 			Source:          source,
 			Type:            eventType,
 			Subject:         subject,

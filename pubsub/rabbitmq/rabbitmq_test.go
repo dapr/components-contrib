@@ -70,7 +70,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 	messageCount := 0
 	lastMessage := ""
 	processed := make(chan bool)
-	handler := func(msg *pubsub.NewMessage) error {
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		messageCount++
 		lastMessage = string(msg.Data)
 		processed <- true
@@ -164,7 +164,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	messageCount := 0
 	lastMessage := ""
 	processed := make(chan bool)
-	handler := func(msg *pubsub.NewMessage) error {
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		messageCount++
 		lastMessage = string(msg.Data)
 		processed <- true
@@ -216,7 +216,7 @@ func TestSubscribeReconnect(t *testing.T) {
 	messageCount := 0
 	lastMessage := ""
 	processed := make(chan bool)
-	handler := func(msg *pubsub.NewMessage) error {
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		messageCount++
 		lastMessage = string(msg.Data)
 		processed <- true

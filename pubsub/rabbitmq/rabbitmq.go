@@ -222,7 +222,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 func (r *rabbitMQ) subscribeForever(
 	req pubsub.SubscribeRequest,
 	queueName string,
-	handler func(msg *pubsub.NewMessage) error) {
+	handler pubsub.Handler) {
 	var err error
 	var connectionCount int
 	var channel rabbitMQChannelBroker

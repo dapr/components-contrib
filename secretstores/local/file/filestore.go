@@ -81,6 +81,13 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	}, nil
 }
 
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	return secretstores.GetSecretResponse{
+		Data: j.secrets,
+	}, nil
+}
+
 func (j *localSecretStore) visitJSONObject(jsonConfig map[string]interface{}) error {
 	for key, element := range jsonConfig {
 		j.enterContext(key)

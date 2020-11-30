@@ -7,6 +7,7 @@ package env
 
 import (
 	"os"
+	"strings"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/dapr/pkg/logger"
@@ -34,5 +35,19 @@ func (s *envSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 		Data: map[string]string{
 			req.Name: os.Getenv(req.Name),
 		},
+	}, nil
+}
+
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	r := map[string]string{}
+
+	for _, element := range os.Environ() {
+		envVariable := strings.Split(element, "=")
+		r[envVariable[0]] = envVariable[1]
+	}
+
+	return secretstores.GetSecretResponse{
+		Data: r,
 	}, nil
 }

@@ -594,6 +594,8 @@ github.com/kataras/go-errors v0.0.3 h1:RQSGEb5AHjsGbwhNW8mFC7a9JrgoCLHC8CBQ4keXJ
 github.com/kataras/go-errors v0.0.3/go.mod h1:K3ncz8UzwI3bpuksXt5tQLmrRlgxfv+52ARvAu1+I+o=
 github.com/kataras/go-serializer v0.0.4 h1:isugggrY3DSac67duzQ/tn31mGAUtYqNpE2ob6Xt/SY=
 github.com/kataras/go-serializer v0.0.4/go.mod h1:/EyLBhXKQOJ12dZwpUZZje3lGy+3wnvG7QKaVJtm/no=
+github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3 h1:J/fzo/5aWuJBtoi82KCJH4jnNYmVlnaIQC9nFI8KMeU=
+github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3/go.mod h1:Pz+php+2qQ4fWYwCa5O/rcnovTT2ylkKg3OnMLuFUbg=
 github.com/kelseyhightower/envconfig v1.4.0/go.mod h1:cccZRl6mQpaq41TPp5QxidR+Sa3axMbJDNb//FQX6Gg=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=

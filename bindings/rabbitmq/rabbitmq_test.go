@@ -110,3 +110,54 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 		})
 	}
 }
+
+func TestDeadLetter(t *testing.T) {
+	const queueName = "test-queue"
+	const host = "test-host"
+
+	testCases := []struct {
+		name                         string
+		properties                   map[string]string
+		expectedDeadLetterExchange   string
+		expectedDeadLetterRoutingKey string
+	}{
+		{
+			name:                         "With dead letter exchange and no dead letter route key",
+			properties:                   map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "prefetchCount": "1", "deadLetterExchange": "testExchange"},
+			expectedDeadLetterExchange:   "testExchange",
+			expectedDeadLetterRoutingKey: "",
+		},
+		{
+			name:                         "With dead letter route key and no dead letter exchange",
+			properties:                   map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "prefetchCount": "1", "deadLetterRoutingKey": "test.route"},
+			expectedDeadLetterExchange:   "",
+			expectedDeadLetterRoutingKey: "test.route",
+		},
+		{
+			name:                         "With no dead letter route key and no dead letter exchange",
+			properties:                   map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "prefetchCount": "1"},
+			expectedDeadLetterExchange:   "",
+			expectedDeadLetterRoutingKey: "",
+		},
+		{
+			name:                         "With both dead letter route key and dead letter exchange",
+			properties:                   map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "prefetchCount": "1", "deadLetterExchange": "testExchange", "deadLetterRoutingKey": "test.route"},
+			expectedDeadLetterExchange:   "testExchange",
+			expectedDeadLetterRoutingKey: "test.route",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			r := RabbitMQ{logger: logger.NewLogger("test")}
+			err := r.parseMetadata(m)
+			assert.Nil(t, err)
+			assert.Equal(t, queueName, r.metadata.QueueName)
+			assert.Equal(t, host, r.metadata.Host)
+			assert.Equal(t, tt.expectedDeadLetterExchange, r.metadata.DeadLetterExchange)
+			assert.Equal(t, tt.expectedDeadLetterRoutingKey, r.metadata.DeadLetterRoutingKey)
+		})
+	}
+}

@@ -25,6 +25,8 @@ const (
 	rabbitMQQueueMessageTTLKey = "x-message-ttl"
 	defaultBase                = 10
 	defaultBitSize             = 0
+	deadLetterExchange         = "x-dead-letter-exchange"
+	deadLetterRoutingKey       = "x-dead-letter-routing-key"
 )
 
 // RabbitMQ allows sending/receiving data to/from RabbitMQ
@@ -38,12 +40,14 @@ type RabbitMQ struct {
 
 // Metadata is the rabbitmq config
 type rabbitMQMetadata struct {
-	Host             string `json:"host"`
-	QueueName        string `json:"queueName"`
-	Durable          bool   `json:"durable,string"`
-	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
-	PrefetchCount    int    `json:"prefetchCount"`
-	defaultQueueTTL  *time.Duration
+	Host                 string `json:"host"`
+	QueueName            string `json:"queueName"`
+	Durable              bool   `json:"durable,string"`
+	DeleteWhenUnused     bool   `json:"deleteWhenUnused,string"`
+	PrefetchCount        int    `json:"prefetchCount"`
+	defaultQueueTTL      *time.Duration
+	DeadLetterExchange   string `json:"deadLetterExchange,string"`
+	DeadLetterRoutingKey string `json:"deadLetterRoutingKey,string"`
 }
 
 // NewRabbitMQ returns a new rabbitmq instance
@@ -161,7 +165,24 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.defaultQueueTTL = &ttl
 	}
 
+	deadLetterExchange, ok, err := bindings.TryGetDeadLetterExchange(metadata.Properties)
+	if err != nil {
+		return err
+	}
+	if ok {
+		m.DeadLetterExchange = deadLetterExchange
+	}
+
+	deadLetterRoutingKey, ok, err := bindings.TryGetDeadLetterRoutingKey(metadata.Properties)
+	if err != nil {
+		return err
+	}
+	if ok {
+		m.DeadLetterRoutingKey = deadLetterRoutingKey
+	}
+
 	r.metadata = m
+
 	return nil
 }
 
@@ -171,6 +192,12 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 		// Value in ms
 		ttl := *r.metadata.defaultQueueTTL / time.Millisecond
 		args[rabbitMQQueueMessageTTLKey] = int(ttl)
+	}
+	if r.metadata.DeadLetterExchange != "" {
+		args[deadLetterExchange] = r.metadata.DeadLetterExchange
+	}
+	if r.metadata.DeadLetterRoutingKey != "" {
+		args[deadLetterRoutingKey] = r.metadata.DeadLetterRoutingKey
 	}
 
 	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
@@ -204,5 +231,6 @@ func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {
 	}()
 
 	<-forever
+
 	return nil
 }

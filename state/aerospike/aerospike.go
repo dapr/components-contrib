@@ -34,6 +34,7 @@ var (
 
 // Aerospike is a state store
 type Aerospike struct {
+	state.DefaultBulkStore
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -43,10 +44,13 @@ type Aerospike struct {
 
 // NewAerospikeStateStore returns a new Aerospike state store
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
-	return &Aerospike{
+	s := &Aerospike{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -136,18 +140,6 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulks save operation
-func (aspike *Aerospike) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := aspike.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get retrieves state from Aerospike with a key
 func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	asKey, err := as.NewKey(aspike.namespace, aspike.set, req.Key)
@@ -214,18 +206,6 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	_, err = aspike.client.Delete(writePolicy, asKey)
 	if err != nil {
 		return fmt.Errorf("aerospike: failed to delete key %s - %v", req.Key, err)
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (aspike *Aerospike) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := aspike.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

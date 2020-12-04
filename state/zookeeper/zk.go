@@ -158,6 +158,12 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
+// BulkGet performs a bulks get operations
+func (s *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	// TODO: replace with Multi for performance
+	return false, nil, nil
+}
+
 // Delete performs a delete operation
 func (s *StateStore) Delete(req *state.DeleteRequest) error {
 	r, err := s.newDeleteRequest(req)

@@ -17,6 +17,7 @@ import (
 
 // Consul is a state store implementation for HashiCorp Consul.
 type Consul struct {
+	state.DefaultBulkStore
 	client        *api.Client
 	keyPrefixPath string
 	logger        logger.Logger
@@ -32,7 +33,10 @@ type consulConfig struct {
 
 // NewConsulStateStore returns a new consul state store.
 func NewConsulStateStore(logger logger.Logger) *Consul {
-	return &Consul{logger: logger}
+	s := &Consul{logger: logger}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 // Init does metadata and config parsing and initializes the
@@ -126,36 +130,12 @@ func (c *Consul) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulk save operation
-func (c *Consul) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := c.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Delete performes a Consul KV delete operation
 func (c *Consul) Delete(req *state.DeleteRequest) error {
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
 	_, err := c.client.KV().Delete(keyWithPath, nil)
 	if err != nil {
 		return fmt.Errorf("couldn't delete key %s: %s", keyWithPath, err)
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (c *Consul) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := c.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

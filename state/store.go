@@ -5,6 +5,8 @@
 
 package state
 
+import "fmt"
+
 // Store is an interface to perform operations on store
 type Store interface {
 	BulkStore
@@ -12,6 +14,7 @@ type Store interface {
 	Delete(req *DeleteRequest) error
 	Get(req *GetRequest) (*GetResponse, error)
 	Set(req *SetRequest) error
+	Watch(req *GetRequest, handler func(msg *GetResponse) error) error
 }
 
 // BulkStore is an interface to perform bulk operations on store
@@ -63,4 +66,9 @@ func (b *DefaultBulkStore) BulkDelete(req []DeleteRequest) error {
 	}
 
 	return nil
+}
+
+// Default implements
+func (b *DefaultBulkStore) Watch(req *GetRequest, handler func(msg *GetResponse) error) error {
+	return fmt.Errorf("unimplement the feature of store.Watch.")
 }

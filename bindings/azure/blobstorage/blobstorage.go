@@ -45,6 +45,7 @@ type blobStorageMetadata struct {
 	Container         string `json:"container"`
 	DecodeBase64      string `json:"decodeBase64"`
 	GetBlobRetryCount int    `json:"getBlobRetryCount"`
+	PublicAccessLevel string `json:"publicAccessLevel"`
 }
 
 type createResponse struct {
@@ -75,7 +76,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	containerURL := azblob.NewContainerURL(*URL, p)
 
 	ctx := context.Background()
-	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessType(m.PublicAccessLevel))
 	// Don't return error, container might already exist
 	a.logger.Debugf("error creating container: %s", err)
 	a.containerURL = containerURL

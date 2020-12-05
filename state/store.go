@@ -70,5 +70,5 @@ func (b *DefaultBulkStore) BulkDelete(req []DeleteRequest) error {
 
 // Default implements
 func (b *DefaultBulkStore) Watch(req *GetRequest, handler func(msg *GetResponse) error) error {
-	return fmt.Errorf("unimplement the feature of store.Watch.")
+	return fmt.Errorf("unimplement the feature of store.Watch")
 }

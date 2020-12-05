@@ -55,7 +55,7 @@ func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (p *PostgreSQL) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
-	return fmt.Errorf("unimplement the feature of store.Watch.")
+	return fmt.Errorf("unimplement the feature of store.Watch")
 }
 
 // BulkGet performs a bulks get operations

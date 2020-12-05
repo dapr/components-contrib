@@ -150,6 +150,7 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if errors.Is(err, zk.ErrNoNode) {
 			return &state.GetResponse{}, nil
 		}
+
 		return nil, err
 	}
 
@@ -161,24 +162,27 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Watch performs a watch operation
 func (s *StateStore) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
-	if _, _, events, err := s.conn.GetW(s.prefixedKey(req.Key)); err != nil {
+	var (
+		events <-chan zk.Event
+		err    error
+	)
+	if _, _, events, err = s.conn.GetW(s.prefixedKey(req.Key)); err != nil {
 		return err
-	} else {
-		go func() {
-			for e := range events {
-				if req.Key != e.Path {
-					continue
-				}
-				if resp, err := s.Get(req); err != nil {
-					handler(&state.GetResponse{
-						Data: []byte(""),
-					})
-				} else {
-					handler(resp)
-				}
-			}
-		}()
 	}
+	go func() {
+		for e := range events {
+			if req.Key != e.Path {
+				continue
+			}
+			if resp, err := s.Get(req); err != nil {
+				handler(&state.GetResponse{
+					Data: []byte(""),
+				})
+			} else {
+				handler(resp)
+			}
+		}
+	}()
 
 	return nil
 }

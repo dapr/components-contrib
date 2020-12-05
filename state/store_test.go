@@ -148,6 +148,7 @@ func (s *Store2) Set(req *SetRequest) error {
 
 func (s *Store2) Watch(req *GetRequest, handler func(msg *GetResponse) error) error {
 	s.count++
+
 	return nil
 }
 

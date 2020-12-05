@@ -9,14 +9,14 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	contrib.go.opencensus.io/exporter/ocagent v0.7.0
 	contrib.go.opencensus.io/exporter/zipkin v0.1.1
+	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
 	github.com/Azure/azure-event-hubs-go v1.3.1
-	github.com/Azure/azure-sdk-for-go v42.0.0+incompatible
-	github.com/Azure/azure-service-bus-go v0.10.2
+	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
+	github.com/Azure/azure-service-bus-go v0.10.6
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
-	github.com/Azure/go-amqp v0.12.7 // indirect
-	github.com/Azure/go-autorest/autorest v0.10.2
-	github.com/Azure/go-autorest/autorest/adal v0.8.3
+	github.com/Azure/go-autorest/autorest v0.11.12
+	github.com/Azure/go-autorest/autorest/adal v0.9.5
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
@@ -50,7 +50,6 @@ require (
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.8
 	github.com/lib/pq v1.8.0 // indirect
-	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats-streaming-server v0.17.0 // indirect
 	github.com/nats-io/nats.go v1.9.1
@@ -66,14 +65,14 @@ require (
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/tidwall/pretty v1.0.1 // indirect
 	github.com/valyala/fasthttp v1.6.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.4
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
+	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20200904004341-0bd0a958aa1d
@@ -87,7 +86,4 @@ require (
 	k8s.io/client-go v0.17.0
 )
 
-replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+incompatible
-	k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
-)
+replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

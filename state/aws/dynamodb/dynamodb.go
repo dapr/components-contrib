@@ -82,6 +82,10 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
+func (d *StateStore) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
+	return fmt.Errorf("unimplement the feature of store.Watch.")
+}
+
 // BulkGet performs a bulk get operations
 func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with dynamodb.BatchGetItem for performance

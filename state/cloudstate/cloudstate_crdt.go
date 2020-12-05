@@ -518,6 +518,10 @@ func (c *CRDT) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return stateResp, nil
 }
 
+func (c *CRDT) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
+	return fmt.Errorf("unimplement the feature of store.Watch.")
+}
+
 // BulkGet performs a bulks get operations
 func (c *CRDT) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil

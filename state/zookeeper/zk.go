@@ -95,6 +95,8 @@ type Conn interface {
 
 	Get(path string) ([]byte, *zk.Stat, error)
 
+	GetW(path string) ([]byte, *zk.Stat, <-chan zk.Event, error)
+
 	Set(path string, data []byte, version int32) (*zk.Stat, error)
 
 	Delete(path string, version int32) error
@@ -148,7 +150,6 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if errors.Is(err, zk.ErrNoNode) {
 			return &state.GetResponse{}, nil
 		}
-
 		return nil, err
 	}
 
@@ -156,6 +157,30 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		Data: value,
 		ETag: strconv.Itoa(int(stat.Version)),
 	}, nil
+}
+
+// Watch performs a watch operation
+func (s *StateStore) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
+	if _, _, events, err := s.conn.GetW(s.prefixedKey(req.Key)); err != nil {
+		return err
+	} else {
+		go func() {
+			for e := range events {
+				if req.Key != e.Path {
+					continue
+				}
+				if resp, err := s.Get(req); err != nil {
+					handler(&state.GetResponse{
+						Data: []byte(""),
+					})
+				} else {
+					handler(resp)
+				}
+			}
+		}()
+	}
+
+	return nil
 }
 
 // BulkGet performs a bulks get operations

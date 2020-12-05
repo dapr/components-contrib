@@ -5,9 +5,11 @@
 package zookeeper
 
 import (
+	reflect "reflect"
+	"time"
+
 	gomock "github.com/golang/mock/gomock"
 	zk "github.com/samuel/go-zookeeper/zk"
-	reflect "reflect"
 )
 
 // MockConn is a mock of Conn interface
@@ -56,6 +58,29 @@ func (m *MockConn) Get(path string) ([]byte, *zk.Stat, error) {
 	ret1, _ := ret[1].(*zk.Stat)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
+}
+
+// GetW mocks returns the contents of a znode and sets a watch
+func (m *MockConn) GetW(path string) ([]byte, *zk.Stat, <-chan zk.Event, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", path)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(*zk.Stat)
+	ret2, _ := ret[2].(error)
+	events := make(chan zk.Event)
+	go func() {
+		for i := 0; i < 5; i++ {
+			ev := zk.Event{
+				Type:  zk.EventNodeCreated,
+				State: zk.StateConnected,
+				Path:  "/dapr/test",
+				Err:   nil,
+			}
+			events <- ev
+			time.Sleep(30 * time.Millisecond)
+		}
+	}()
+	return ret0, ret1, events, ret2
 }
 
 // Get indicates an expected call of Get

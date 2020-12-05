@@ -446,6 +446,10 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
+func (s *SQLServer) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
+	return fmt.Errorf("unimplement the feature of store.Watch.")
+}
+
 // BulkGet performs a bulks get operations
 func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil

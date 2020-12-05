@@ -54,6 +54,10 @@ func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return p.dbaccess.Get(req)
 }
 
+func (p *PostgreSQL) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
+	return fmt.Errorf("unimplement the feature of store.Watch.")
+}
+
 // BulkGet performs a bulks get operations
 func (p *PostgreSQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with ExecuteMulti for performance

@@ -7,6 +7,7 @@ package rethinkdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -167,6 +168,10 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return resp, nil
+}
+
+func (s *RethinkDB) Watch(req *state.GetRequest, handler func(msg *state.GetResponse) error) error {
+	return fmt.Errorf("unimplement the feature of store.Watch")
 }
 
 // BulkGet performs a bulks get operations

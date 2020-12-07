@@ -77,11 +77,12 @@ func (p *Postmark) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
+// Operations returns list of operations supported by Postmark binding
 func (p *Postmark) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Write does the work of sending message to Postmark API
+// Invoke does the work of sending message to Postmark API
 func (p *Postmark) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present

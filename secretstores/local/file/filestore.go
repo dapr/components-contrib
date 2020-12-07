@@ -49,6 +49,8 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 
 	if len(meta.NestedSeparator) == 0 {
 		j.nestedSeparator = ":"
+	} else {
+		j.nestedSeparator = meta.NestedSeparator
 	}
 
 	if j.readLocalFileFn == nil {

@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/couchbase/gocb.v1"
@@ -131,14 +132,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	var value string
-	b, ok := req.Value.([]byte)
-	if ok {
-		value = string(b)
-	} else {
-		value, err = cbs.json.MarshalToString(req.Value)
-	}
-
+	value, err := utils.Marshal(req.Value, cbs.json.Marshal)
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
@@ -183,13 +177,9 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
 	}
-	value, err := cbs.json.Marshal(&data)
-	if err != nil {
-		return nil, fmt.Errorf("couchbase error: failed to convert value to byte[] - %v", err)
-	}
 
 	return &state.GetResponse{
-		Data: value,
+		Data: data.([]byte),
 		ETag: fmt.Sprintf("%d", cas),
 	}, nil
 }

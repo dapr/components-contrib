@@ -95,7 +95,7 @@ func (a *addressList) add(ip string) {
 
 // next gets the next address from the list given
 // the current round robin implementation.
-// There are no guarantees of selection guarantees
+// There are no guarantees on the selection
 // beyond best effort linear iteration.
 func (a *addressList) next() *string {
 	a.mu.RLock()

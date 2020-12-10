@@ -95,7 +95,7 @@ func (a *addressList) add(ip string) {
 
 // next gets the next address from the list given
 // the current round robin implementation.
-// There are no guarentees of selection guarentees
+// There are no guarantees of selection guarantees
 // beyond best effort linear iteration.
 func (a *addressList) next() *string {
 	a.mu.RLock()
@@ -262,6 +262,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		// ...and trigger a background refresh for any additional addresses.
 		m.refreshChan <- req.ID
 	}
+
 	return addr, err
 }
 
@@ -276,8 +277,8 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, e
 
 	// onFirst will be invoked on the first address received.
 	// Due to the asynchronous nature of cancel() there
-	// is no guarentee that this will ONLY be invoked on the
-	// first address. Ensure that multiple invokations of this
+	// is no guarantee that this will ONLY be invoked on the
+	// first address. Ensure that multiple invocations of this
 	// function are safe.
 	onFirst := func(ip string) {
 		addr = ip
@@ -294,12 +295,11 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, e
 	// wait for the context to be canceled or time out.
 	<-ctx.Done()
 
-	switch ctx.Err() {
-	case context.Canceled:
+	if errors.Is(ctx.Err(), context.Canceled) {
 		// expect this when we've found an address and canceled the browse.
 		m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
-	case context.DeadlineExceeded:
-		// expect this when we've be unable to find the first address before the timeout.
+	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		// expect this when we've been unable to find the first address before the timeout.
 		m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
 	}
 
@@ -325,11 +325,10 @@ func (m *resolver) refreshApp(ctx context.Context, appID string) error {
 	// wait for the context to be canceled or time out.
 	<-ctx.Done()
 
-	switch ctx.Err() {
-	case context.Canceled:
+	if errors.Is(ctx.Err(), context.Canceled) {
 		// this is not expected, investigate why context was canceled.
 		m.logger.Warnf("Refreshing mDNS addresses for app id %s canceled.", appID)
-	case context.DeadlineExceeded:
+	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		// expect this when our browse has timedout.
 		m.logger.Debugf("Refreshing mDNS addresses for app id %s timed out.", appID)
 	}
@@ -364,8 +363,9 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 	// expired addresses will be evicted by getAppIDs()
 	for _, appID := range m.getAppIDs() {
 		_appID := appID
+		wg.Add(1)
+
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			m.refreshApp(ctx, _appID)
@@ -391,10 +391,9 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 		for {
 			select {
 			case <-ctx.Done():
-				switch ctx.Err() {
-				case context.Canceled:
+				if errors.Is(ctx.Err(), context.Canceled) {
 					m.logger.Debugf("mDNS browse for app id %s canceled.", appID)
-				case context.DeadlineExceeded:
+				} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					m.logger.Debugf("mDNS browse for app id %s timed out.", appID)
 				}
 
@@ -482,9 +481,9 @@ func (m *resolver) addAppAddressIPv6(appID string, addr string) {
 // This method uses expire on read to evict expired addreses.
 func (m *resolver) getAppIDsIPv4() []string {
 	m.ipv4Mu.RLock()
-	m.ipv4Mu.RUnlock()
+	defer m.ipv4Mu.RUnlock()
 
-	var appIDs []string
+	appIDs := make([]string, len(m.appAddressesIPv4))
 	for appID, addr := range m.appAddressesIPv4 {
 		old := len(addr.addresses)
 		addr.expire()
@@ -501,7 +500,7 @@ func (m *resolver) getAppIDsIPv6() []string {
 	m.ipv6Mu.RLock()
 	defer m.ipv6Mu.RUnlock()
 
-	var appIDs []string
+	appIDs := make([]string, len(m.appAddressesIPv6))
 	for appID, addr := range m.appAddressesIPv6 {
 		old := len(addr.addresses)
 		addr.expire()

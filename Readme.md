@@ -17,7 +17,6 @@ Available component types:
 * [Pub Sub](pubsub/Readme.md)
 * [State Stores](state/Readme.md)
 * [Secret Stores](secretstores/Readme.md)
-* [Tracing Exporters](exporters/Readme.md)
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://docs.dapr.io).
 

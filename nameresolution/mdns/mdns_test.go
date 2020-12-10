@@ -351,12 +351,47 @@ func TestAddressListNextWithExpiration(t *testing.T) {
 	require.Equal(t, "addr3", *addressList.next())
 }
 
-func TestAddressListNextReturnsNil(t *testing.T) {
+func TestUnion(t *testing.T) {
 	// arrange
-	addressList := &addressList{
-		addresses: []*address{},
+	testCases := []struct {
+		first    []string
+		second   []string
+		expected []string
+	}{
+		{
+			first:    []string{"a", "b", "c"},
+			second:   []string{"a", "c", "d", "e"},
+			expected: []string{"a", "b", "c", "d", "e"},
+		},
+		{
+			first:    []string{"a", "b", "c"},
+			second:   []string{"d", "e", "f", "g"},
+			expected: []string{"a", "b", "c", "d", "e", "f", "g"},
+		},
+		{
+			first:    []string{"a", "b"},
+			second:   []string{"a", "b"},
+			expected: []string{"a", "b"},
+		},
+		{
+			first:    []string{"a", "b"},
+			second:   []string{"b", "a"},
+			expected: []string{"a", "b"},
+		},
 	}
+	for _, tt := range testCases {
+		// act
+		union := union(tt.first, tt.second)
 
-	// act & assert
-	require.Nil(t, addressList.next())
+		// assert
+		var matches int
+		for _, i1 := range tt.expected {
+			for _, i2 := range union {
+				if i1 == i2 {
+					matches++
+				}
+			}
+		}
+		require.Equal(t, len(tt.expected), matches)
+	}
 }

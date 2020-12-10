@@ -23,29 +23,42 @@ import (
 )
 
 const (
-	browseTimeout         = time.Second * 1
-	browseRefreshTimeout  = time.Second * 10
-	browseRefreshInterval = time.Second * 30
-	addressTTL            = time.Second * 60
+	// firstOnlyTimeout is the timeout used when
+	// browsing for the first response to a single app id.
+	firstOnlyTimeout = time.Second * 1
+	// refreshTimeout is the timeout used when
+	// browsing for any responses to a single app id.
+	refreshTimeout = time.Second * 2
+	// refreshInterval is the duration between
+	// background address refreshes.
+	refreshInterval = time.Second * 30
+	// addressTTL is the duration an address has before
+	// becoming stale and being evicted.
+	addressTTL = time.Second * 45
 )
 
+// address is used to store an ip address along with
+// an expiry time at which point the address is considered
+// too stale to trust.
 type address struct {
 	ip        string
 	expiresAt time.Time
 }
 
+// addressList represents a set of addresses along with
+// data used to control and access said addresses.
 type addressList struct {
 	addresses []*address
 	counter   uint32
 	mu        sync.RWMutex
 }
 
-// expire removes any expired addresses from the address list.
+// expire removes any addresses with an expiry time earlier
+// than the current time.
 func (a *addressList) expire() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// remove expired addresses
 	i := 0
 	for _, addr := range a.addresses {
 		if time.Now().Before(addr.expiresAt) {
@@ -54,34 +67,36 @@ func (a *addressList) expire() {
 		}
 	}
 	for j := i; j < len(a.addresses); j++ {
-		// clear truncated pointers
-		a.addresses[j] = nil
+		a.addresses[j] = nil // clear truncated pointers
 	}
-	// resize slice
-	a.addresses = a.addresses[:i]
+	a.addresses = a.addresses[:i] // resize slice
 }
 
-// add adds or updates an address to the address list.
+// add adds a new address to the address list with a
+// maximum expiry time. For existing addresses, the
+// expiry time is updated to the maximum.
+// TODO: Consider enforcing a maximum address list size.
 func (a *addressList) add(ip string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	for _, addr := range a.addresses {
 		if addr.ip == ip {
-			// ip exists, renew expiration.
 			addr.expiresAt = time.Now().Add(addressTTL)
 
 			return
 		}
 	}
-	// ip is new.
 	a.addresses = append(a.addresses, &address{
 		ip:        ip,
 		expiresAt: time.Now().Add(addressTTL),
 	})
 }
 
-// next gets the next address from the list.
+// next gets the next address from the list given
+// the current round robin implementation.
+// There are no guarentees of selection guarentees
+// beyond best effort linear iteration.
 func (a *addressList) next() *string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -103,17 +118,24 @@ func (a *addressList) next() *string {
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	r := &resolver{
-		ipv4Addresses: make(map[string]*addressList),
-		ipv6Addresses: make(map[string]*addressList),
-		logger:        logger,
+		appAddressesIPv4: make(map[string]*addressList),
+		appAddressesIPv6: make(map[string]*addressList),
+		refreshChan:      make(chan string),
+		logger:           logger,
 	}
 
-	// periodically refresh all app addresses in the background.
 	go func() {
 		for {
-			r.browseAll()
-
-			time.Sleep(browseRefreshInterval)
+			select {
+			case appID := <-r.refreshChan: // refresh app addresses on demand.
+				if err := r.refreshApp(context.Background(), appID); err != nil {
+					r.logger.Warnf(err.Error())
+				}
+			case <-time.After(refreshInterval): // refresh all app addresses periodically.
+				if err := r.refreshAllApps(context.Background()); err != nil {
+					r.logger.Warnf(err.Error())
+				}
+			}
 		}
 	}()
 
@@ -121,11 +143,12 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 type resolver struct {
-	ipv4Mu        sync.RWMutex
-	ipv4Addresses map[string]*addressList
-	ipv6Mu        sync.RWMutex
-	ipv6Addresses map[string]*addressList
-	logger        logger.Logger
+	ipv4Mu           sync.RWMutex
+	appAddressesIPv4 map[string]*addressList
+	ipv6Mu           sync.RWMutex
+	appAddressesIPv6 map[string]*addressList
+	refreshChan      chan string
+	logger           logger.Logger
 }
 
 // Init registers service for mDNS.
@@ -204,64 +227,81 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 
 // ResolveID resolves name to address via mDNS.
 func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	// Attempt to get next ipv4 address for app id first.
+	// check for cached IPv4 addresses for this app id first.
 	m.ipv4Mu.RLock()
-	ipv4AddrList, ipv4Exists := m.ipv4Addresses[req.ID]
+	addrListIPv4, ipv4Exists := m.appAddressesIPv4[req.ID]
 	m.ipv4Mu.RUnlock()
 	if ipv4Exists {
-		ipv4Addr := ipv4AddrList.next()
-		if ipv4Addr != nil {
-			m.logger.Debugf("found mdns ipv4 address in cache: %s", *ipv4Addr)
+		addrIPv4 := addrListIPv4.next()
+		if addrIPv4 != nil {
+			m.logger.Debugf("found mDNS IPv4 address in cache: %s", *addrIPv4)
 
-			return *ipv4Addr, nil
+			return *addrIPv4, nil
 		}
 	}
 
-	// Attempt to get next ipv6 address for app id.
+	// check for cached IPv6 addresses for this app id second.
 	m.ipv6Mu.RLock()
-	ipv6AddrList, ipv6Exists := m.ipv6Addresses[req.ID]
+	addrListIPv6, ipv6Exists := m.appAddressesIPv6[req.ID]
 	m.ipv6Mu.RUnlock()
 	if ipv6Exists {
-		ipv6Addr := ipv6AddrList.next()
-		if ipv6Addr != nil {
-			m.logger.Debugf("found mdns ipv6 address in cache: %s", *ipv6Addr)
+		addrIPv6 := addrListIPv6.next()
+		if addrIPv6 != nil {
+			m.logger.Debugf("found mDNS IPv6 address in cache: %s", *addrIPv6)
 
-			return *ipv6Addr, nil
+			return *addrIPv6, nil
 		}
 	}
 
-	// No cached addresses, browse the network for the app id.
-	m.logger.Debugf("no mdns address found in cache, browsing for app %s", req.ID)
+	// cache miss, fallback to browsing the network for addresses.
+	m.logger.Debugf("no mDNS address found in cache, browsing network for app id %s", req.ID)
 
-	return m.browseFirstOnly(req.ID)
+	// get the first address we receive...
+	addr, err := m.browseFirstOnly(context.Background(), req.ID)
+	if err == nil {
+		// ...and trigger a background refresh for any additional addresses.
+		m.refreshChan <- req.ID
+	}
+	return addr, err
 }
 
-func (m *resolver) browseFirstOnly(appID string) (string, error) {
+// browseFirstOnly will perform a mDNS network browse for an address
+// matching the provided app id. It will return the first address it
+// receives and stop browsing for any more.
+func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, error) {
 	var addr string
 
-	ctx, cancel := context.WithTimeout(context.Background(), browseTimeout)
+	ctx, cancel := context.WithTimeout(ctx, firstOnlyTimeout)
 	defer cancel()
 
-	// onFirst will be executed for each address received
-	// for the provided app id. Cancelling the context will
-	// stop any further browsing so this will only actually
-	// be invoked on the first address.
+	// onFirst will be invoked on the first address received.
+	// Due to the asynchronous nature of cancel() there
+	// is no guarentee that this will ONLY be invoked on the
+	// first address. Ensure that multiple invokations of this
+	// function are safe.
 	onFirst := func(ip string) {
 		addr = ip
-		cancel()
+		cancel() // cancel to stop browsing.
 	}
 
-	onErr := func(_ error) {
-		cancel() // We cancel the context to stop browsing.
-	}
+	m.logger.Debugf("Browsing for first mDNS address for app id %s", appID)
 
-	err := m.browse(ctx, appID, onFirst, onErr)
+	err := m.browse(ctx, appID, onFirst)
 	if err != nil {
 		return "", err
 	}
 
-	// wait until context is cancelled or timed out.
+	// wait for the context to be canceled or time out.
 	<-ctx.Done()
+
+	switch ctx.Err() {
+	case context.Canceled:
+		// expect this when we've found an address and canceled the browse.
+		m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
+	case context.DeadlineExceeded:
+		// expect this when we've be unable to find the first address before the timeout.
+		m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
+	}
 
 	if addr == "" {
 		return "", fmt.Errorf("couldn't find service: %s", appID)
@@ -270,154 +310,227 @@ func (m *resolver) browseFirstOnly(appID string) (string, error) {
 	return addr, nil
 }
 
-func (m *resolver) browseAll() error {
-	m.logger.Debugf("refreshing mdns cache")
+// refreshApp will perform a mDNS network browse for a provided
+// app id. This function is blocking.
+func (m *resolver) refreshApp(ctx context.Context, appID string) error {
+	m.logger.Debugf("Refreshing mDNS addresses for app id %s.", appID)
 
-	// Check if we have any ipv4 or ipv6 addresses
-	// in the address cache that need refreshing.
-	m.ipv4Mu.RLock()
-	numIPv4Addr := len(m.ipv4Addresses)
-	m.ipv4Mu.RUnlock()
-
-	m.ipv6Mu.RLock()
-	numIPv6Addr := len(m.ipv4Addresses)
-	m.ipv6Mu.RUnlock()
-
-	numApps := numIPv4Addr + numIPv6Addr
-	if numApps == 0 {
-		m.logger.Debugf("no mdns app's to refresh")
-
-		return nil
-	}
-
-	// Build a set of all known app's currently in
-	// the address cache. Ensuring any expired addresses
-	// are evicted. Then browse the network for each
-	// app and update the address cache.
-	appIDKeys := make(map[string]struct{})
-
-	m.ipv4Mu.RLock()
-	for appID, addr := range m.ipv4Addresses {
-		old := len(addr.addresses)
-		addr.expire()
-		m.logger.Debugf("%d ipv4 addresses expired from the mdns cache", old-len(addr.addresses))
-
-		appIDKeys[appID] = struct{}{}
-	}
-	m.ipv4Mu.RUnlock()
-
-	m.ipv6Mu.RLock()
-	for appID, addr := range m.ipv6Addresses {
-		old := len(addr.addresses)
-		addr.expire()
-		m.logger.Debugf("%d ipv6 addresses expired from the mdns cache", old-len(addr.addresses))
-
-		appIDKeys[appID] = struct{}{}
-	}
-	m.ipv6Mu.RUnlock()
-
-	appIDs := make([]string, 0, len(appIDKeys))
-	for appID := range appIDKeys {
-		appIDs = append(appIDs, appID)
-	}
-
-	browseCtx, cancel := context.WithTimeout(context.Background(), browseRefreshTimeout)
+	ctx, cancel := context.WithTimeout(ctx, refreshTimeout)
 	defer cancel()
 
-	onErr := func(_ error) {
-		cancel() // We cancel the context to stop browsing.
+	if err := m.browse(ctx, appID, nil); err != nil {
+		return err
 	}
 
-	for _, appID := range appIDs {
-		err := m.browse(browseCtx, appID, nil, onErr)
-		if err != nil {
-			m.logger.Warn("Error refreshing app id %s, error: %+v", appID, err)
-		}
-	}
+	// wait for the context to be canceled or time out.
+	<-ctx.Done()
 
-	// wait until browsing context is cancelled (i.e. on error) or timed out.
-	<-browseCtx.Done()
+	switch ctx.Err() {
+	case context.Canceled:
+		// this is not expected, investigate why context was canceled.
+		m.logger.Warnf("Refreshing mDNS addresses for app id %s canceled.", appID)
+	case context.DeadlineExceeded:
+		// expect this when our browse has timedout.
+		m.logger.Debugf("Refreshing mDNS addresses for app id %s timed out.", appID)
+	}
 
 	return nil
 }
 
-func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip string), onErr func(error)) error {
+// refreshAllApps will perform a mDNS network browse for each address
+// currently in the cache. This function is blocking.
+func (m *resolver) refreshAllApps(ctx context.Context) error {
+	m.logger.Debugf("Refreshing all mDNS addresses.")
+
+	// check if we have any IPv4 or IPv6 addresses
+	// in the address cache that need refreshing.
+	m.ipv4Mu.RLock()
+	numAppIPv4Addr := len(m.appAddressesIPv4)
+	m.ipv4Mu.RUnlock()
+
+	m.ipv6Mu.RLock()
+	numAppIPv6Addr := len(m.appAddressesIPv4)
+	m.ipv6Mu.RUnlock()
+
+	numApps := numAppIPv4Addr + numAppIPv6Addr
+	if numApps == 0 {
+		m.logger.Debugf("no mDNS apps to refresh.")
+
+		return nil
+	}
+
+	var wg sync.WaitGroup
+
+	// expired addresses will be evicted by getAppIDs()
+	for _, appID := range m.getAppIDs() {
+		_appID := appID
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+
+			m.refreshApp(ctx, _appID)
+		}()
+	}
+
+	// wait for all the app refreshes to complete.
+	wg.Wait()
+
+	return nil
+}
+
+// browse will perform a non-blocking mdns network browse for the provided app id.
+func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip string)) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
 		return fmt.Errorf("failed to initialize resolver: %e", err)
 	}
 	entries := make(chan *zeroconf.ServiceEntry)
 
-	// Browse the network and find the addresses for this app id.
+	// handle each service entry returned from the mDNS browse.
 	go func(results <-chan *zeroconf.ServiceEntry) {
-		for entry := range results {
-			m.logger.Debugf("mdns response for app %s received", appID)
-			for _, text := range entry.Text {
-				if text != appID {
-					m.logger.Debugf("mdns response doesn't match app id %s", appID)
-
-					continue
-				}
-				hasIPv4Address := len(entry.AddrIPv4) > 0
-				hasIPv6Address := len(entry.AddrIPv6) > 0
-
-				if !hasIPv4Address && !hasIPv6Address {
-					m.logger.Debugf("mdns response doesn't contain any addresses for app id %s", appID)
-
-					continue
+		for {
+			select {
+			case <-ctx.Done():
+				switch ctx.Err() {
+				case context.Canceled:
+					m.logger.Debugf("mDNS browse for app id %s canceled.", appID)
+				case context.DeadlineExceeded:
+					m.logger.Debugf("mDNS browse for app id %s timed out.", appID)
 				}
 
-				var addr string
-				port := entry.Port
+				return
+			case entry := <-results:
+				if entry == nil {
+					break
+				}
 
-				// Service entry contains addresses for this
-				// app id. We currently only support the first
-				// address in entry's AddrIPv4 and AddrIPv6
-				// arrays. These addresses will be added to
-				// the internal address cache for this appid.
-				// TODO: We use write locks here to read and
-				// modify the address cache. We could use more
-				// granular read and write locks but this would
-				// increasse the code complexity.
-				if hasIPv4Address {
-					addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
-					m.logger.Debugf("mdns response for app %s has ipv4 address %s.", appID, addr)
+				for _, text := range entry.Text {
+					if text != appID {
+						m.logger.Debugf("mDNS response doesn't match app id %s, skipping.", appID)
 
-					m.ipv4Mu.Lock()
-					if _, ok := m.ipv4Addresses[appID]; !ok {
-						m.ipv4Addresses[appID] = &addressList{}
+						break
 					}
-					m.ipv4Addresses[appID].add(addr)
-					m.ipv4Mu.Unlock()
-				}
-				if hasIPv6Address {
-					addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
-					m.logger.Debugf("mdns response for app %s has ipv6 address %s.", appID, addr)
 
-					m.ipv6Mu.Lock()
-					if _, ok := m.ipv6Addresses[appID]; !ok {
-						m.ipv6Addresses[appID] = &addressList{}
+					m.logger.Debugf("mDNS response for app id %s received.", appID)
+
+					hasIPv4Address := len(entry.AddrIPv4) > 0
+					hasIPv6Address := len(entry.AddrIPv6) > 0
+
+					if !hasIPv4Address && !hasIPv6Address {
+						m.logger.Debugf("mDNS response for app id %s doesn't contain any IPv4 or IPv6 addresses, skipping.", appID)
+
+						break
 					}
-					m.ipv6Addresses[appID].add(addr)
-					m.ipv6Mu.Unlock()
-				}
 
-				// On each address, invoke a custom callback.
-				if onEach != nil {
-					onEach(addr)
+					var addr string
+					port := entry.Port
+
+					// TODO: We currently only use the first IPv4 and IPv6 address.
+					// We should understand the cases in which additional addresses
+					// are returned and whether we need to support them.
+					if hasIPv4Address {
+						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
+						m.addAppAddressIPv4(appID, addr)
+					}
+					if hasIPv6Address {
+						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
+						m.addAppAddressIPv6(appID, addr)
+					}
+
+					if onEach != nil {
+						onEach(addr) // invoke callback.
+					}
 				}
 			}
 		}
 	}(entries)
 
 	if err = resolver.Browse(ctx, appID, "local.", entries); err != nil {
-		// On error, invoke a custom callback.
-		if onErr != nil {
-			onErr(err)
-		}
-
 		return fmt.Errorf("failed to browse: %s", err.Error())
 	}
 
 	return nil
+}
+
+// addAppAddressIPv4 adds an IPv4 address to the
+// cache for the provided app id.
+func (m *resolver) addAppAddressIPv4(appID string, addr string) {
+	m.ipv4Mu.Lock()
+	defer m.ipv4Mu.Unlock()
+
+	m.logger.Debugf("Adding IPv4 address %s for app id %s cache entry.", addr, appID)
+	if _, ok := m.appAddressesIPv4[appID]; !ok {
+		m.appAddressesIPv4[appID] = &addressList{}
+	}
+	m.appAddressesIPv4[appID].add(addr)
+}
+
+// addAppIPv4Address adds an IPv6 address to the
+// cache for the provided app id.
+func (m *resolver) addAppAddressIPv6(appID string, addr string) {
+	m.ipv6Mu.Lock()
+	defer m.ipv6Mu.Unlock()
+
+	m.logger.Debugf("Adding IPv6 address %s for app id %s cache entry.", addr, appID)
+	if _, ok := m.appAddressesIPv6[appID]; !ok {
+		m.appAddressesIPv6[appID] = &addressList{}
+	}
+	m.appAddressesIPv6[appID].add(addr)
+}
+
+// getAppIDsIPv4 returns a list of the current IPv4 app IDs.
+// This method uses expire on read to evict expired addreses.
+func (m *resolver) getAppIDsIPv4() []string {
+	m.ipv4Mu.RLock()
+	m.ipv4Mu.RUnlock()
+
+	var appIDs []string
+	for appID, addr := range m.appAddressesIPv4 {
+		old := len(addr.addresses)
+		addr.expire()
+		m.logger.Debugf("%d IPv4 address(es) expired from the mDNS cache", old-len(addr.addresses))
+		appIDs = append(appIDs, appID)
+	}
+
+	return appIDs
+}
+
+// getAppIDsIPv6 returns a list of the known IPv6 app IDs.
+// This method uses expire on read to evict expired addreses.
+func (m *resolver) getAppIDsIPv6() []string {
+	m.ipv6Mu.RLock()
+	defer m.ipv6Mu.RUnlock()
+
+	var appIDs []string
+	for appID, addr := range m.appAddressesIPv6 {
+		old := len(addr.addresses)
+		addr.expire()
+		m.logger.Debugf("%d IPv6 address(es) expired from the mDNS cache", old-len(addr.addresses))
+		appIDs = append(appIDs, appID)
+	}
+
+	return appIDs
+}
+
+// getAppIDs returns a list of app ids currently in
+// the cache, ensuring expired addresses are evicted.
+func (m *resolver) getAppIDs() []string {
+	return union(m.getAppIDsIPv4(), m.getAppIDsIPv6())
+}
+
+// union merges the elements from two lists into a set.
+func union(first []string, second []string) []string {
+	keys := make(map[string]struct{})
+	for _, id := range first {
+		keys[id] = struct{}{}
+	}
+	for _, id := range second {
+		keys[id] = struct{}{}
+	}
+	result := make([]string, 0, len(keys))
+	for id := range keys {
+		result = append(result, id)
+	}
+
+	return result
 }

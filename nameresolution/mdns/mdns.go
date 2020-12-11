@@ -486,7 +486,7 @@ func (m *resolver) getAppIDsIPv4() []string {
 	for appID, addr := range m.appAddressesIPv4 {
 		old := len(addr.addresses)
 		addr.expire()
-		m.logger.Debugf("%d IPv4 address(es) expired for app id %s", old-len(addr.addresses), appID)
+		m.logger.Debugf("%d IPv4 address(es) expired for app id %s.", old-len(addr.addresses), appID)
 		appIDs = append(appIDs, appID)
 	}
 
@@ -503,7 +503,7 @@ func (m *resolver) getAppIDsIPv6() []string {
 	for appID, addr := range m.appAddressesIPv6 {
 		old := len(addr.addresses)
 		addr.expire()
-		m.logger.Debugf("%d IPv6 address(es) expired for app id %s", old-len(addr.addresses), appID)
+		m.logger.Debugf("%d IPv6 address(es) expired for app id %s.", old-len(addr.addresses), appID)
 		appIDs = append(appIDs, appID)
 	}
 

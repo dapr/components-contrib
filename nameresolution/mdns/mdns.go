@@ -534,7 +534,7 @@ func (m *resolver) nextIPv4Address(appID string) *string {
 	return nil
 }
 
-// nextIPv4Address returns the next IPv4 address for
+// nextIPv6Address returns the next IPv6 address for
 // the provided app id from the cache.
 func (m *resolver) nextIPv6Address(appID string) *string {
 	m.ipv6Mu.RLock()

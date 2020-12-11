@@ -136,9 +136,9 @@ func TestResolverMultipleInstances(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// assert that when we resolve the test app id n times, we see only
-	// see instance A and instance B and we see them each atleast m times.
-	instanceACount := 30
-	instanceBCount := 30
+	// instance A and instance B and we see them each atleast m times.
+	instanceACount := 0
+	instanceBCount := 0
 	for i := 0; i < 100; i++ {
 		addr, err := resolver.ResolveID(request)
 		require.NoError(t, err)
@@ -149,8 +149,9 @@ func TestResolverMultipleInstances(t *testing.T) {
 			instanceBCount++
 		}
 	}
-	require.Greater(t, instanceACount, 0)
-	require.Greater(t, instanceBCount, 0)
+	// 45 allows some variation in distribution.
+	require.Greater(t, instanceACount, 45)
+	require.Greater(t, instanceBCount, 45)
 }
 
 func TestAddressListExpire(t *testing.T) {

@@ -308,6 +308,10 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, e
 // refreshApp will perform a mDNS network browse for a provided
 // app id. This function is blocking.
 func (m *resolver) refreshApp(ctx context.Context, appID string) error {
+	if appID == "" {
+		return nil
+	}
+
 	m.logger.Debugf("Refreshing mDNS addresses for app id %s.", appID)
 
 	ctx, cancel := context.WithTimeout(ctx, refreshTimeout)

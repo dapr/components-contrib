@@ -7,8 +7,6 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/pubsub v1.3.1
 	cloud.google.com/go/storage v1.10.0
-	contrib.go.opencensus.io/exporter/ocagent v0.7.0
-	contrib.go.opencensus.io/exporter/zipkin v0.1.1
 	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
 	github.com/Azure/azure-event-hubs-go v1.3.1
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
@@ -56,7 +54,6 @@ require (
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
 	github.com/open-policy-agent/opa v0.23.2
-	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
@@ -71,7 +68,6 @@ require (
 	github.com/valyala/fasthttp v1.6.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2
-	go.opencensus.io v0.22.4
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b

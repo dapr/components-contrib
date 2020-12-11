@@ -28,7 +28,7 @@ const (
 	firstOnlyTimeout = time.Second * 1
 	// refreshTimeout is the timeout used when
 	// browsing for any responses to a single app id.
-	refreshTimeout = time.Second * 2
+	refreshTimeout = time.Second * 3
 	// refreshInterval is the duration between
 	// background address refreshes.
 	refreshInterval = time.Second * 30
@@ -124,17 +124,22 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 		logger:           logger,
 	}
 
+	// refresh app addresses on demand.
+	go func() {
+		for appID := range r.refreshChan {
+			if err := r.refreshApp(context.Background(), appID); err != nil {
+				r.logger.Warnf(err.Error())
+			}
+		}
+	}()
+
+	// refresh all app addresses periodically.
 	go func() {
 		for {
-			select {
-			case appID := <-r.refreshChan: // refresh app addresses on demand.
-				if err := r.refreshApp(context.Background(), appID); err != nil {
-					r.logger.Warnf(err.Error())
-				}
-			case <-time.After(refreshInterval): // refresh all app addresses periodically.
-				if err := r.refreshAllApps(context.Background()); err != nil {
-					r.logger.Warnf(err.Error())
-				}
+			time.Sleep(refreshInterval)
+
+			if err := r.refreshAllApps(context.Background()); err != nil {
+				r.logger.Warnf(err.Error())
 			}
 		}
 	}()
@@ -153,13 +158,14 @@ type resolver struct {
 
 // Init registers service for mDNS.
 func (m *resolver) Init(metadata nameresolution.Metadata) error {
-	var id string
+	var appID string
 	var hostAddress string
 	var ok bool
+	var instanceID string
 
 	props := metadata.Properties
 
-	if id, ok = props[nameresolution.MDNSInstanceName]; !ok {
+	if appID, ok = props[nameresolution.MDNSInstanceName]; !ok {
 		return errors.New("name is missing")
 	}
 	if hostAddress, ok = props[nameresolution.MDNSInstanceAddress]; !ok {
@@ -176,15 +182,19 @@ func (m *resolver) Init(metadata nameresolution.Metadata) error {
 		return errors.New("port is invalid")
 	}
 
-	err = m.registerMDNS(id, []string{hostAddress}, int(port))
+	if instanceID, ok = props[nameresolution.MDNSInstanceID]; !ok {
+		instanceID = ""
+	}
+
+	err = m.registerMDNS(instanceID, appID, []string{hostAddress}, int(port))
 	if err == nil {
-		m.logger.Infof("local service entry announced: %s -> %s:%d", id, hostAddress, port)
+		m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
 	}
 
 	return err
 }
 
-func (m *resolver) registerMDNS(id string, ips []string, port int) error {
+func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, port int) error {
 	started := make(chan bool, 1)
 	var err error
 
@@ -192,16 +202,17 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 		var server *zeroconf.Server
 
 		host, _ := os.Hostname()
-		info := []string{id}
+		info := []string{appID}
 
-		// Register as a unique instance
-		pid := syscall.Getpid()
-		instance := fmt.Sprintf("%s-%d", host, pid)
+		// default instance id is unique to the process.
+		if instanceID == "" {
+			instanceID = fmt.Sprintf("%s-%d", host, syscall.Getpid())
+		}
 
 		if len(ips) > 0 {
-			server, err = zeroconf.RegisterProxy(instance, id, "local.", port, host, ips, info, nil)
+			server, err = zeroconf.RegisterProxy(instanceID, appID, "local.", port, host, ips, info, nil)
 		} else {
-			server, err = zeroconf.Register(instance, id, "local.", port, info, nil)
+			server, err = zeroconf.Register(instanceID, appID, "local.", port, info, nil)
 		}
 
 		if err != nil {
@@ -228,29 +239,13 @@ func (m *resolver) registerMDNS(id string, ips []string, port int) error {
 // ResolveID resolves name to address via mDNS.
 func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
 	// check for cached IPv4 addresses for this app id first.
-	m.ipv4Mu.RLock()
-	addrListIPv4, ipv4Exists := m.appAddressesIPv4[req.ID]
-	m.ipv4Mu.RUnlock()
-	if ipv4Exists {
-		addrIPv4 := addrListIPv4.next()
-		if addrIPv4 != nil {
-			m.logger.Debugf("found mDNS IPv4 address in cache: %s", *addrIPv4)
-
-			return *addrIPv4, nil
-		}
+	if addr := m.nextIPv4Address(req.ID); addr != nil {
+		return *addr, nil
 	}
 
 	// check for cached IPv6 addresses for this app id second.
-	m.ipv6Mu.RLock()
-	addrListIPv6, ipv6Exists := m.appAddressesIPv6[req.ID]
-	m.ipv6Mu.RUnlock()
-	if ipv6Exists {
-		addrIPv6 := addrListIPv6.next()
-		if addrIPv6 != nil {
-			m.logger.Debugf("found mDNS IPv6 address in cache: %s", *addrIPv6)
-
-			return *addrIPv6, nil
-		}
+	if addr := m.nextIPv6Address(req.ID); addr != nil {
+		return *addr, nil
 	}
 
 	// cache miss, fallback to browsing the network for addresses.
@@ -339,7 +334,7 @@ func (m *resolver) refreshApp(ctx context.Context, appID string) error {
 // refreshAllApps will perform a mDNS network browse for each address
 // currently in the cache. This function is blocking.
 func (m *resolver) refreshAllApps(ctx context.Context) error {
-	m.logger.Debugf("Refreshing all mDNS addresses.")
+	m.logger.Debug("Refreshing all mDNS addresses.")
 
 	// check if we have any IPv4 or IPv6 addresses
 	// in the address cache that need refreshing.
@@ -353,7 +348,7 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 
 	numApps := numAppIPv4Addr + numAppIPv6Addr
 	if numApps == 0 {
-		m.logger.Debugf("no mDNS apps to refresh.")
+		m.logger.Debug("no mDNS apps to refresh.")
 
 		return nil
 	}
@@ -515,6 +510,42 @@ func (m *resolver) getAppIDsIPv6() []string {
 // the cache, ensuring expired addresses are evicted.
 func (m *resolver) getAppIDs() []string {
 	return union(m.getAppIDsIPv4(), m.getAppIDsIPv6())
+}
+
+// nextIPv4Address returns the next IPv4 address for
+// the provided app id from the cache.
+func (m *resolver) nextIPv4Address(appID string) *string {
+	m.ipv4Mu.RLock()
+	defer m.ipv4Mu.RUnlock()
+	addrList, exists := m.appAddressesIPv4[appID]
+	if exists {
+		addr := addrList.next()
+		if addr != nil {
+			m.logger.Debugf("found mDNS IPv4 address in cache: %s", *addr)
+
+			return addr
+		}
+	}
+
+	return nil
+}
+
+// nextIPv4Address returns the next IPv4 address for
+// the provided app id from the cache.
+func (m *resolver) nextIPv6Address(appID string) *string {
+	m.ipv6Mu.RLock()
+	defer m.ipv6Mu.RUnlock()
+	addrList, exists := m.appAddressesIPv6[appID]
+	if exists {
+		addr := addrList.next()
+		if addr != nil {
+			m.logger.Debugf("found mDNS IPv6 address in cache: %s", *addr)
+
+			return addr
+		}
+	}
+
+	return nil
 }
 
 // union merges the elements from two lists into a set.

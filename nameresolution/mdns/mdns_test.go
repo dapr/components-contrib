@@ -6,6 +6,7 @@
 package mdns
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -79,12 +80,77 @@ func TestResolver(t *testing.T) {
 	err := resolver.Init(md)
 	require.NoError(t, err)
 
-	request := nr.ResolveRequest{ID: "testAppID", Port: 1234}
+	request := nr.ResolveRequest{ID: "testAppID"}
 	pt, err := resolver.ResolveID(request)
 
 	// assert
 	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:1234", pt)
+}
+
+func TestResolverMultipleInstances(t *testing.T) {
+	// arrange...
+	resolver := NewResolver(logger.NewLogger("test"))
+
+	// register instance A
+	instanceAID := "A"
+	instanceAName := "testAppID"
+	instanceAAddress := "127.0.0.1"
+	instanceAPort := "1234"
+	instanceAPQDN := fmt.Sprintf("%s:%s", instanceAAddress, instanceAPort)
+
+	instanceA := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    instanceAName,
+		nr.MDNSInstanceAddress: instanceAAddress,
+		nr.MDNSInstancePort:    instanceAPort,
+		nr.MDNSInstanceID:      instanceAID,
+	}}
+	err1 := resolver.Init(instanceA)
+	require.NoError(t, err1)
+
+	// register instance B
+	instanceBID := "B"
+	instanceBName := "testAppID"
+	instanceBAddress := "127.0.0.1"
+	instanceBPort := "5678"
+	instanceBPQDN := fmt.Sprintf("%s:%s", instanceBAddress, instanceBPort)
+
+	instanceB := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    instanceBName,
+		nr.MDNSInstanceAddress: instanceBAddress,
+		nr.MDNSInstancePort:    instanceBPort,
+		nr.MDNSInstanceID:      instanceBID,
+	}}
+	err2 := resolver.Init(instanceB)
+	require.NoError(t, err2)
+
+	// act...
+	request := nr.ResolveRequest{ID: "testAppID"}
+
+	// first resolution will return the first responder's address and trigger a cache refresh.
+	addr1, err := resolver.ResolveID(request)
+	require.NoError(t, err)
+	require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr1)
+
+	// delay long enough for the background address cache to populate.
+	time.Sleep(1 * time.Second)
+
+	// assert that when we resolve the test app id n times, we see only
+	// see instance A and instance B and we see them each atleast m times.
+	instanceACount := 30
+	instanceBCount := 30
+	for i := 0; i < 100; i++ {
+		addr, err := resolver.ResolveID(request)
+		require.NoError(t, err)
+		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
+		if addr == instanceAPQDN {
+			instanceACount++
+		} else if addr == instanceBPQDN {
+			instanceBCount++
+		}
+	}
+	require.Greater(t, instanceACount, 0)
+	require.Greater(t, instanceBCount, 0)
 }
 
 func TestAddressListExpire(t *testing.T) {

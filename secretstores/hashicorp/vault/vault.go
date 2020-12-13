@@ -65,6 +65,13 @@ type vaultKVResponse struct {
 	} `json:"data"`
 }
 
+// vaultListKVResponse is the response data from Vault KV.
+type vaultListKVResponse struct {
+	Data struct {
+		Keys []string `json:"keys"`
+	} `json:"data"`
+}
+
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store
 func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &vaultSecretStore{
@@ -131,17 +138,80 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
+	token, err := v.readVaultToken()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create get secret url
+	// TODO: Add support for versioned secrets when the secretstore request has support for it
+	vaultSecretPathAddr := fmt.Sprintf("%s/v1/secret/data/%s/%s?version=0", v.vaultAddress, v.vaultKVPrefix, secret)
+
+	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
+	// Set vault token.
+	httpReq.Header.Set(vaultHTTPHeader, token)
+	// Set X-Vault-Request header
+	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate request: %s", err)
+	}
+
+	httpresp, err := v.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get secret: %s", err)
+	}
+
+	defer httpresp.Body.Close()
+
+	if httpresp.StatusCode != 200 {
+		var b bytes.Buffer
+		io.Copy(&b, httpresp.Body)
+
+		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
+			httpresp, b.String())
+	}
+
+	var d vaultKVResponse
+
+	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
+		return nil, fmt.Errorf("couldn't decode response body: %s", err)
+	}
+
+	return &d, nil
+}
+
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+	d, err := v.getSecret(req.Name)
+	if err != nil {
+		return secretstores.GetSecretResponse{Data: nil}, err
+	}
+
+	resp := secretstores.GetSecretResponse{
+		Data: map[string]string{},
+	}
+
+	// Only using secret data and ignore metadata
+	// TODO: add support for metadata response when secretstores support it.
+	for k, v := range d.Data.Data {
+		resp.Data[k] = v
+	}
+
+	return resp, nil
+}
+
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, err
 	}
 
-	// Create get secret url
-	// TODO: Add support for versioned secrets when the secretstore request has support for it
-	vaultSecretPathAddr := fmt.Sprintf("%s/v1/secret/data/%s/%s?version=0", v.vaultAddress, v.vaultKVPrefix, req.Name)
+	// Create list secrets url
+	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/secret/data/%s", v.vaultAddress, v.vaultKVPrefix)
 
-	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
+	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
 	// Set vault token.
 	httpReq.Header.Set(vaultHTTPHeader, token)
 	// Set X-Vault-Request header
@@ -165,7 +235,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 			httpresp, b.String())
 	}
 
-	var d vaultKVResponse
+	var d vaultListKVResponse
 
 	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't decode response body: %s", err)
@@ -175,10 +245,15 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 		Data: map[string]string{},
 	}
 
-	// Only using secret data and ignore metadata
-	// TODO: add support for metadata response when secretstores support it.
-	for k, v := range d.Data.Data {
-		resp.Data[k] = v
+	for _, key := range d.Data.Keys {
+		secrets, err := v.getSecret(key)
+		if err != nil {
+			return secretstores.GetSecretResponse{Data: nil}, err
+		}
+
+		for k, v := range secrets.Data.Data {
+			resp.Data[k] = v
+		}
 	}
 
 	return resp, nil

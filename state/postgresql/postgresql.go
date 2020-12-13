@@ -54,6 +54,12 @@ func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return p.dbaccess.Get(req)
 }
 
+// BulkGet performs a bulks get operations
+func (p *PostgreSQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	// TODO: replace with ExecuteMulti for performance
+	return false, nil, nil
+}
+
 // Set adds/updates an entity on store
 func (p *PostgreSQL) Set(req *state.SetRequest) error {
 	return p.dbaccess.Set(req)

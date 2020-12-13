@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/couchbase/gocb.v1"
@@ -29,6 +30,7 @@ const (
 
 // Couchbase is a couchbase state store
 type Couchbase struct {
+	state.DefaultBulkStore
 	bucket                        *gocb.Bucket
 	bucketName                    string // TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
 	numReplicasDurableReplication uint
@@ -40,10 +42,13 @@ type Couchbase struct {
 
 // NewCouchbaseStateStore returns a new couchbase state store
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
-	return &Couchbase{
+	s := &Couchbase{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -127,14 +132,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	var value string
-	b, ok := req.Value.([]byte)
-	if ok {
-		value = string(b)
-	} else {
-		value, err = cbs.json.MarshalToString(req.Value)
-	}
-
+	value, err := utils.Marshal(req.Value, cbs.json.Marshal)
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
@@ -168,18 +166,6 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulks save operation
-func (cbs *Couchbase) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := cbs.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get retrieves state from couchbase with a key
 func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var data interface{}
@@ -191,13 +177,9 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
 	}
-	value, err := cbs.json.Marshal(&data)
-	if err != nil {
-		return nil, fmt.Errorf("couchbase error: failed to convert value to byte[] - %v", err)
-	}
 
 	return &state.GetResponse{
-		Data: value,
+		Data: data.([]byte),
 		ETag: fmt.Sprintf("%d", cas),
 	}, nil
 }
@@ -224,18 +206,6 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	}
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := cbs.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

@@ -8,6 +8,7 @@ import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1beta1"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/dapr/pkg/logger"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
@@ -92,16 +93,62 @@ func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSe
 		versionID = value
 	}
 
-	ctx := context.Background()
-	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", s.ProjectID, req.Name, versionID),
-	}
-	result, err := s.client.AccessSecretVersion(ctx, accessRequest)
+	secret, err := s.getSecret(req.Name, versionID)
 	if err != nil {
 		return res, fmt.Errorf("failed to access secret version: %v", err)
 	}
 
-	return secretstores.GetSecretResponse{Data: map[string]string{req.Name: string(result.Payload.Data)}}, nil
+	return secretstores.GetSecretResponse{Data: map[string]string{req.Name: *secret}}, nil
+}
+
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (s *Store) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	versionID := "latest"
+
+	response := map[string]string{}
+
+	ctx := context.Background()
+
+	request := &secretmanagerpb.ListSecretsRequest{
+		Parent: fmt.Sprintf("projects/%s", s.ProjectID),
+	}
+	it := s.client.ListSecrets(ctx, request)
+
+	for {
+		resp, err := it.Next()
+
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to list secrets: %v", err)
+		}
+
+		name := resp.GetName()
+		secret, err := s.getSecret(name, versionID)
+		if err != nil {
+			return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to access secret version: %v", err)
+		}
+		response[name] = *secret
+	}
+
+	return secretstores.GetSecretResponse{Data: response}, nil
+}
+
+func (s *Store) getSecret(secretName string, versionID string) (*string, error) {
+	ctx := context.Background()
+	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
+		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", s.ProjectID, secretName, versionID),
+	}
+	result, err := s.client.AccessSecretVersion(ctx, accessRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	secret := string(result.Payload.Data)
+
+	return &secret, nil
 }
 
 func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*secretManagerMetadata, error) {

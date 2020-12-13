@@ -43,6 +43,7 @@ const (
 
 // StateStore is a Redis state store
 type StateStore struct {
+	state.DefaultBulkStore
 	client   *redis.Client
 	json     jsoniter.API
 	metadata metadata
@@ -53,10 +54,13 @@ type StateStore struct {
 
 // NewRedisStateStore returns a new redis state store
 func NewRedisStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{
+	s := &StateStore{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func parseRedisMetadata(meta state.Metadata) (metadata, error) {
@@ -232,18 +236,6 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	return state.DeleteWithOptions(r.deleteValue, req)
 }
 
-// BulkDelete performs a bulk delete operation
-func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := r.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.DoContext(context.Background(), "GET", req.Key).Result()
 	if err != nil {
@@ -316,18 +308,6 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 // Set saves state into redis
 func (r *StateStore) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(r.setValue, req)
-}
-
-// BulkSet performs a bulks save operation
-func (r *StateStore) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := r.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail

@@ -19,6 +19,7 @@ import (
 
 // StateStore is a CosmosDB state store
 type StateStore struct {
+	state.DefaultBulkStore
 	client     *documentdb.DocumentDB
 	collection *documentdb.Collection
 	db         *documentdb.Database
@@ -65,7 +66,10 @@ const (
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{logger: logger}
+	s := &StateStore{logger: logger}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 // Init does metadata and connection parsing
@@ -228,18 +232,6 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulk set operation
-func (c *StateStore) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := c.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Delete performs a delete operation
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
@@ -279,18 +271,6 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	return err
-}
-
-// BulkDelete performs a bulk delete operation
-func (c *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := c.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail

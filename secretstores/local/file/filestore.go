@@ -49,6 +49,8 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 
 	if len(meta.NestedSeparator) == 0 {
 		j.nestedSeparator = ":"
+	} else {
+		j.nestedSeparator = meta.NestedSeparator
 	}
 
 	if j.readLocalFileFn == nil {
@@ -78,6 +80,13 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 		Data: map[string]string{
 			req.Name: secretValue,
 		},
+	}, nil
+}
+
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	return secretstores.GetSecretResponse{
+		Data: j.secrets,
 	}, nil
 }
 

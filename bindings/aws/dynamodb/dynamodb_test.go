@@ -14,7 +14,9 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"AccessKey": "a", "Region": "a", "SecretKey": "a", "Table": "a", "Endpoint": "a"}
+	m.Properties = map[string]string{
+		"AccessKey": "a", "Region": "a", "SecretKey": "a", "Table": "a", "Endpoint": "a", "SessionToken": "t",
+	}
 	dy := DynamoDB{}
 	meta, err := dy.getDynamoDBMetadata(m)
 	assert.Nil(t, err)
@@ -23,4 +25,5 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "a", meta.SecretKey)
 	assert.Equal(t, "a", meta.Table)
 	assert.Equal(t, "a", meta.Endpoint)
+	assert.Equal(t, "t", meta.SessionToken)
 }

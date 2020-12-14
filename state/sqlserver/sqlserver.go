@@ -446,6 +446,11 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
+// BulkGet performs a bulks get operations
+func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	return false, nil, nil
+}
+
 // Set adds/updates an entity on store
 func (s *SQLServer) Set(req *state.SetRequest) error {
 	return s.executeSet(s.db, req)

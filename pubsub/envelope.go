@@ -87,7 +87,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 				Subject:         getStrVal(m, "subject"),
 				Topic:           topic,
 				PubsubName:      pubsubName,
-				Data:            data,
+				Data:            m["data"],
 			}
 			// check if CE is valid
 			if ce.ID != "" && ce.SpecVersion != "" && ce.DataContentType != "" {

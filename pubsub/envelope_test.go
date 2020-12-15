@@ -60,7 +60,6 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 		assert.Equal(t, "1.0", envelope.SpecVersion)
 		assert.Equal(t, "routed.topic", envelope.Topic)
 		assert.Equal(t, "mypubsub", envelope.PubsubName)
-		assert.Equal(t, []byte(str), envelope.Data)
 	})
 }
 

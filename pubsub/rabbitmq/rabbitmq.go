@@ -84,7 +84,6 @@ func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) 
 		return conn, nil, err
 	}
 
-
 	return conn, ch, nil
 }
 

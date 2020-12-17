@@ -16,6 +16,7 @@ type metadata struct {
 	requeueInFailure bool
 	deliveryMode     uint8 // Transient (0 or 1) or Persistent (2)
 	reconnectWait    time.Duration
+	prefetchCount    uint8 // Prefetch deactivated if 0
 }
 
 // createMetadata creates a new instance from the pubsub metadata
@@ -68,6 +69,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	if val, found := pubSubMetadata.Properties[metadataReconnectWaitSeconds]; found && val != "" {
 		if intVal, err := strconv.Atoi(val); err == nil {
 			result.reconnectWait = time.Duration(intVal) * time.Second
+		}
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataprefetchCount]; found && val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			result.prefetchCount = uint8(intVal)
 		}
 	}
 

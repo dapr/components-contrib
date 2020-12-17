@@ -15,8 +15,8 @@ type metadata struct {
 	autoAck          bool
 	requeueInFailure bool
 	deliveryMode     uint8 // Transient (0 or 1) or Persistent (2)
-	reconnectWait    time.Duration
 	prefetchCount    uint8 // Prefetch deactivated if 0
+	reconnectWait    time.Duration
 }
 
 // createMetadata creates a new instance from the pubsub metadata

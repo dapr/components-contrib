@@ -254,6 +254,10 @@ type rabbitMQInMemoryBroker struct {
 	closeCount   int
 }
 
+func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global bool) error {
+	return nil
+}
+
 func (r *rabbitMQInMemoryBroker) Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error {
 	if string(msg.Body) == errorChannelConnection {
 		return errors.New(errorChannelConnection)

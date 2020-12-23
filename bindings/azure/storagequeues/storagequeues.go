@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
 	"github.com/dapr/components-contrib/bindings"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 )
 
@@ -184,7 +185,7 @@ func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storage
 		return nil, err
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
 
 func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	ttlToUse := a.metadata.ttl
-	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
+	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package bindings
+package metadata
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ const (
 	TTLMetadataKey = "ttlInSeconds"
 )
 
-// TryGetTTL tries to get the ttl (in seconds) value for a binding
+// TryGetTTL tries to get the ttl (in seconds) value for pubsub, binding and any other building block.
 func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	if val, ok := props[TTLMetadataKey]; ok && val != "" {
 		valInt, err := strconv.Atoi(val)

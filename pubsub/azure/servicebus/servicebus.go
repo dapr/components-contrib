@@ -12,6 +12,7 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -225,7 +226,13 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 
-	err = sender.Send(ctx, azservicebus.NewMessage(req.Data))
+	msg := azservicebus.NewMessage(req.Data)
+	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
+	if hasTTL {
+		msg.TTL = &ttl
+	}
+
+	err = sender.Send(ctx, msg)
 	if err != nil {
 		return err
 	}

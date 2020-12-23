@@ -7,8 +7,10 @@ package pubsub
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,6 +51,7 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 			"subject" : "123",
 			"id" : "A234-1234-1234",
 			"time" : "2018-04-05T17:31:00Z",
+			"expiration" : "2018-04-06T17:31:00Z",
 			"comexampleextension1" : "value",
 			"comexampleothervalue" : 5,
 			"datacontenttype" : "text/xml",
@@ -60,6 +63,7 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 		assert.Equal(t, "1.0", envelope.SpecVersion)
 		assert.Equal(t, "routed.topic", envelope.Topic)
 		assert.Equal(t, "mypubsub", envelope.PubsubName)
+		assert.Equal(t, "2018-04-06T17:31:00Z", envelope.Expiration)
 	})
 }
 
@@ -116,5 +120,111 @@ func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	t.Run("string data content type", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "", []byte("data"))
 		assert.Equal(t, "text/plain", envelope.DataContentType)
+	})
+}
+
+func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
+	t.Run("cloud event not expired", func(t *testing.T) {
+		str := fmt.Sprintf(`{
+			"specversion" : "1.0",
+			"type" : "com.github.pull.create",
+			"source" : "https://github.com/cloudevents/spec/pull",
+			"subject" : "123",
+			"id" : "A234-1234-1234",
+			"expiration" : "%v",
+			"comexampleextension1" : "value",
+			"comexampleothervalue" : 5,
+			"datacontenttype" : "text/xml",
+			"data" : "<much wow=\"xml\"/>"
+		}`, time.Now().UTC().Add(time.Hour*24).Format(time.RFC3339))
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event expired", func(t *testing.T) {
+		str := fmt.Sprintf(`{
+			"specversion" : "1.0",
+			"type" : "com.github.pull.create",
+			"source" : "https://github.com/cloudevents/spec/pull",
+			"subject" : "123",
+			"id" : "A234-1234-1234",
+			"expiration" : "%v",
+			"comexampleextension1" : "value",
+			"comexampleothervalue" : 5,
+			"datacontenttype" : "text/xml",
+			"data" : "<much wow=\"xml\"/>"
+		}`, time.Now().UTC().Add(time.Hour*-24).Format(time.RFC3339))
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		assert.True(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event expired but applied new TTL from metadata", func(t *testing.T) {
+		str := fmt.Sprintf(`{
+			"specversion" : "1.0",
+			"type" : "com.github.pull.create",
+			"source" : "https://github.com/cloudevents/spec/pull",
+			"subject" : "123",
+			"id" : "A234-1234-1234",
+			"expiration" : "%v",
+			"comexampleextension1" : "value",
+			"comexampleothervalue" : 5,
+			"datacontenttype" : "text/xml",
+			"data" : "<much wow=\"xml\"/>"
+		}`, time.Now().UTC().Add(time.Hour*-24).Format(time.RFC3339))
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.ApplyMetadata(map[string]string{
+			"ttlInSeconds": "10000",
+		})
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event with invalid expiration format", func(t *testing.T) {
+		str := fmt.Sprintf(`{
+			"specversion" : "1.0",
+			"type" : "com.github.pull.create",
+			"source" : "https://github.com/cloudevents/spec/pull",
+			"subject" : "123",
+			"id" : "A234-1234-1234",
+			"expiration" : "%v",
+			"comexampleextension1" : "value",
+			"comexampleothervalue" : 5,
+			"datacontenttype" : "text/xml",
+			"data" : "<much wow=\"xml\"/>"
+		}`, time.Now().UTC().Add(time.Hour*-24).Format(time.RFC1123))
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event without expiration", func(t *testing.T) {
+		str := `{
+			"specversion" : "1.0",
+			"type" : "com.github.pull.create",
+			"source" : "https://github.com/cloudevents/spec/pull",
+			"subject" : "123",
+			"id" : "A234-1234-1234",
+			"comexampleextension1" : "value",
+			"comexampleothervalue" : 5,
+			"datacontenttype" : "text/xml",
+			"data" : "<much wow=\"xml\"/>"
+		}`
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event without expiration, without metadata", func(t *testing.T) {
+		str := `{
+			"specversion" : "1.0",
+			"type" : "com.github.pull.create",
+			"source" : "https://github.com/cloudevents/spec/pull",
+			"subject" : "123",
+			"id" : "A234-1234-1234",
+			"comexampleextension1" : "value",
+			"comexampleothervalue" : 5,
+			"datacontenttype" : "text/xml",
+			"data" : "<much wow=\"xml\"/>"
+		}`
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.ApplyMetadata(map[string]string{})
+		assert.False(t, envelope.HasExpired())
 	})
 }

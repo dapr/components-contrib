@@ -16,6 +16,7 @@ import (
 
 	servicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +65,7 @@ func TestQueueWithTTL(t *testing.T) {
 	queueName := uuid.New().String()
 	a := NewAzureServiceBusQueues(logger.NewLogger("test"))
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"connectionString": serviceBusConnectionString, "queueName": queueName, bindings.TTLMetadataKey: "1"}
+	m.Properties = map[string]string{"connectionString": serviceBusConnectionString, "queueName": queueName, metadata.TTLMetadataKey: "1"}
 	err := a.Init(m)
 	assert.Nil(t, err)
 
@@ -139,7 +140,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest := bindings.InvokeRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
-			bindings.TTLMetadataKey: "1",
+			metadata.TTLMetadataKey: "1",
 		},
 	}
 	err = queueBinding1.Write(&writeRequest)
@@ -163,7 +164,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest = bindings.InvokeRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
-			bindings.TTLMetadataKey: "1",
+			metadata.TTLMetadataKey: "1",
 		},
 	}
 	err = queueBinding2.Write(&writeRequest)

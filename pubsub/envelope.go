@@ -6,6 +6,9 @@
 package pubsub
 
 import (
+	"time"
+
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -35,6 +38,7 @@ type CloudEventsEnvelope struct {
 	Subject         string      `json:"subject"`
 	Topic           string      `json:"topic"`
 	PubsubName      string      `json:"pubsubname"`
+	Expiration      string      `json:"expiration,omitempty"`
 }
 
 // NewCloudEventsEnvelope returns CloudEventsEnvelope from data or a new one when data content was not
@@ -85,10 +89,12 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 				Source:          getStrVal(m, "source"),
 				Type:            getStrVal(m, "type"),
 				Subject:         getStrVal(m, "subject"),
+				Expiration:      getStrVal(m, "expiration"),
 				Topic:           topic,
 				PubsubName:      pubsubName,
 				Data:            m["data"],
 			}
+
 			// check if CE is valid
 			if ce.ID != "" && ce.SpecVersion != "" && ce.DataContentType != "" {
 				return ce
@@ -107,6 +113,29 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		Topic:           topic,
 		PubsubName:      pubsubName,
 		Data:            j,
+	}
+}
+
+// HasExpired determines if the current cloud event has expired.
+func (cloudEvent *CloudEventsEnvelope) HasExpired() bool {
+	if cloudEvent.Expiration != "" {
+		expiration, err := time.Parse(time.RFC3339, cloudEvent.Expiration)
+		if err != nil {
+			return false
+		}
+
+		return expiration.UTC().Before(time.Now().UTC())
+	}
+
+	return false
+}
+
+// ApplyMetadata will process metadata to modify the cloud event accordingly
+func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(metadata map[string]string) {
+	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(metadata)
+	if hasTTL {
+		// Adds an extra second to allow components to expire message before Dapr.
+		cloudEvent.Expiration = time.Now().UTC().Add(ttl).Add(time.Second).Format(time.RFC3339)
 	}
 }
 

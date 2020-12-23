@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,14 +34,14 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: ""},
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: ""},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
 			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
 		},
 		{
 			name:                     "With TTL",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "1"},
+			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: "1"},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
 			expectedTTL:              oneSecondDuration,
@@ -68,15 +69,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "  "},
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "-1"},
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", bindings.TTLMetadataKey: "abc"},
+			properties: map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: "abc"},
 		},
 	}
 

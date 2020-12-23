@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -70,7 +71,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: "1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
@@ -92,14 +93,14 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: "1"}
+	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
 	err := a.Init(m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{
 		Data:     []byte("This is my message"),
-		Metadata: map[string]string{bindings.TTLMetadataKey: "1"},
+		Metadata: map[string]string{metadata.TTLMetadataKey: "1"},
 	}
 
 	_, err = a.Invoke(&r)
@@ -269,13 +270,13 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:               "Empty TTL",
-			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: ""},
+			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
 			expectedAccountKey: "myKey",
 			expectedQueueName:  "queue1",
 		},
 		{
 			name:               "With TTL",
-			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: "1"},
+			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"},
 			expectedAccountKey: "myKey",
 			expectedQueueName:  "queue1",
 			expectedTTL:        &oneSecondDuration,
@@ -305,15 +306,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: "  "},
+			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: "-1"},
+			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", bindings.TTLMetadataKey: "abc"},
+			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "abc"},
 		},
 	}
 

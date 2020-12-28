@@ -7,8 +7,6 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/pubsub v1.3.1
 	cloud.google.com/go/storage v1.10.0
-	contrib.go.opencensus.io/exporter/ocagent v0.7.0
-	contrib.go.opencensus.io/exporter/zipkin v0.1.1
 	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
 	github.com/Azure/azure-event-hubs-go v1.3.1
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
@@ -40,15 +38,15 @@ require (
 	github.com/go-redis/redis/v7 v7.0.1
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.4.2
-	github.com/google/uuid v1.1.1
+	github.com/golang/protobuf v1.4.3
+	github.com/google/uuid v1.1.2
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.2.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v4 v4.6.0
-	github.com/json-iterator/go v1.1.8
+	github.com/json-iterator/go v1.1.10
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
 	github.com/lib/pq v1.8.0 // indirect
 	github.com/nats-io/go-nats v1.7.2
@@ -56,7 +54,6 @@ require (
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
 	github.com/open-policy-agent/opa v0.23.2
-	github.com/openzipkin/zipkin-go v0.1.6
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
@@ -71,7 +68,6 @@ require (
 	github.com/valyala/fasthttp v1.6.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2
-	go.opencensus.io v0.22.4
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
@@ -83,9 +79,9 @@ require (
 	gopkg.in/couchbase/gocbcore.v7 v7.1.16 // indirect
 	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4 // indirect
 	gopkg.in/gorethink/gorethink.v4 v4.1.0 // indirect
-	k8s.io/api v0.17.0
-	k8s.io/apimachinery v0.17.0
-	k8s.io/client-go v0.17.0
+	k8s.io/api v0.20.0
+	k8s.io/apimachinery v0.20.0
+	k8s.io/client-go v0.20.0
 )
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

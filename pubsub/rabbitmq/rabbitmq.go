@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ const (
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
 
 	defaultReconnectWaitSeconds = 10
+	metadataprefetchCount       = "prefetchCount"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format
@@ -53,6 +55,7 @@ type rabbitMQChannelBroker interface {
 	Nack(tag uint64, multiple bool, requeue bool) error
 	Ack(tag uint64, multiple bool) error
 	ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
+	Qos(prefetchCount, prefetchSize int, global bool) error
 }
 
 // interface used to allow unit testing
@@ -207,6 +210,14 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if r.metadata.prefetchCount > 0 {
+		r.logger.Debugf("setting prefetch count to %s", strconv.Itoa(int(r.metadata.prefetchCount)))
+		err = channel.Qos(int(r.metadata.prefetchCount), 0, false)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	r.logger.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)

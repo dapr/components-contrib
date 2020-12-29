@@ -292,3 +292,7 @@ func genRandomString(n int) string {
 func (n *natsStreamingPubSub) Close() error {
 	return n.natStreamingConn.Close()
 }
+
+func (n *natsStreamingPubSub) Features() []pubsub.Feature {
+	return nil
+}

@@ -135,16 +135,12 @@ func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(componentFeatures []Feature
 	if hasTTL && !FeatureMessageTTL.IsPresent(componentFeatures) {
 		// Dapr only handles Message TTL if component does not.
 		now := time.Now().UTC()
-		expiration := now.Add(ttl)
-		// The maximum duration (maxInt64) is not enough to overflow max time, for now.
+		// The maximum ttl is maxInt64, which is not enough to overflow time, for now.
 		// As of the time this code was written (2020 Dec 28th),
 		// the maximum time of now() adding maxInt64 is ~ "2313-04-09T23:30:26Z".
 		// Max time in golang is currently 292277024627-12-06T15:30:07.999999999Z.
-		// So, we have some time before the overflow below happens.
-		if (ttl.Seconds() > 0) && expiration.Before(now) {
-			// Overflow
-			expiration = time.Unix(1<<63-62135596801, 999999999).UTC()
-		}
+		// So, we have some time before the overflow below happens :)
+		expiration := now.Add(ttl)
 		cloudEvent.Expiration = expiration.Format(time.RFC3339)
 	}
 }

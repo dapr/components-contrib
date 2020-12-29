@@ -89,7 +89,6 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 				Source:          getStrVal(m, "source"),
 				Type:            getStrVal(m, "type"),
 				Subject:         getStrVal(m, "subject"),
-				Expiration:      getStrVal(m, "expiration"),
 				Topic:           topic,
 				PubsubName:      pubsubName,
 				Data:            m["data"],
@@ -130,12 +129,23 @@ func (cloudEvent *CloudEventsEnvelope) HasExpired() bool {
 	return false
 }
 
-// ApplyMetadata will process metadata to modify the cloud event accordingly
-func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(metadata map[string]string) {
+// ApplyMetadata will process metadata to modify the cloud event based on the component's feature set.
+func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(componentFeatures []Feature, metadata map[string]string) {
 	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(metadata)
-	if hasTTL {
-		// Adds an extra second to allow components to expire message before Dapr.
-		cloudEvent.Expiration = time.Now().UTC().Add(ttl).Add(time.Second).Format(time.RFC3339)
+	if hasTTL && !FeatureMessageTTL.IsPresent(componentFeatures) {
+		// Dapr only handles Message TTL if component does not.
+		now := time.Now().UTC()
+		expiration := now.Add(ttl)
+		// The maximum duration (maxInt64) is not enough to overflow max time, for now.
+		// As of the time this code was written (2020 Dec 28th),
+		// the maximum time of now() adding maxInt64 is ~ "2313-04-09T23:30:26Z".
+		// Max time in golang is currently 292277024627-12-06T15:30:07.999999999Z.
+		// So, we have some time before the overflow below happens.
+		if (ttl.Seconds() > 0) && expiration.Before(now) {
+			// Overflow
+			expiration = time.Unix(1<<63-62135596801, 999999999).UTC()
+		}
+		cloudEvent.Expiration = expiration.Format(time.RFC3339)
 	}
 }
 

@@ -26,29 +26,11 @@ type PubSub interface {
 }
 ```
 
-### TTL (or Time To Live)
+### Message TTL (or Time To Live)
 
-Time to live is implemented by default in Dapr. A publishing application can add the `expiration` attribute to a CloudEvent object and Dapr runtime will drop the message if the expiration is due at the subscriber's end, prior to invoking subscriber applications. The `expiration` attribute is Dapr specific and extends the CloudEvent spec. This is a convenience to subscriber applications, so Dapr does not expire messages from pub subs that do not have subscribers via Dapr.
+Message Time to live is implemented by default in Dapr. A publishing application can set the expiration of individual messages by publishing it with the `ttlInSeconds` metadata. Components that support message TTL should parse this metadata attribute. For components that do not implement this feature in Dapr, the runtime will automatically populate the `expiration` attribute in the CloudEvent object if `ttlInSeconds` is present - in this case, Dapr will expire the message when a Dapr subscriber is about to consume an expired message. The `expiration` attribute is handled by Dapr runtime as a convenience to subscribers, dropping expired messages without invoking subscribers' endpoint. Subscriber applications that don't use Dapr, need to handle this attribute and implement the expiration logic.
 
-Alternatively, the publisher application can set the expiration by publishing with the `ttlInSeconds` metadata. Components that support TTL should parse this metadata attribute. Dapr runtime will also automatically populate the `expiration` attribute in the CloudEvent object if `ttlInSeconds` is present - in this case, Dapr will add 1 second to allow component implementations to expire the message before Dapr consumes it.
-
-As per the CloudEvent spec, `expiration` is formatted using RFC3339.
-
-Example:
-```json
-{
-	"specversion" : "1.0",
-	"type" : "com.github.pull.create",
-	"source" : "https://github.com/cloudevents/spec/pull",
-	"subject" : "123",
-	"id" : "A234-1234-1234",
-	"expiration" : "2018-04-06T17:31:00Z",
-	"datacontenttype" : "text/xml",
-	"data" : "<much wow=\"xml\"/>"
-}
-```
-
-If the pub sub component implementation can handle TTL natively without relying on Dapr, consume the `ttlInSeconds` metadata in the component implementation for the Publish function.
+If the pub sub component implementation can handle message TTL natively without relying on Dapr, consume the `ttlInSeconds` metadata in the component implementation for the Publish function. Also, implement the `Features()` function so the Dapr runtime knows that it should not add the `expiration` attribute to events.
 
 Example:
 ```go
@@ -65,4 +47,16 @@ func (c *MyComponent) Publish(req *pubsub.PublishRequest) error {
 	//...
 	return nil
 }
+
+func (c *MyComponent) Features() []pubsub.Feature {
+	// Tip: cache this list into a private property.
+	// Simply return nil if component does not implement any addition features.
+	return []pubsub.Feature{pubsub.FeatureMessageTTL}
+}
 ```
+
+For pub sub components that support TTL per topic or queue but not per message, there are some design choices:
+ * Configure the TTL for the topic or queue as usual. Optionally, implement topic or queue provisioning in the Init() method, using the component configuration's metadata to determine the topic or queue TTL.
+ * Let Dapr runtime handle `ttlInSeconds` for messages that want to expire earlier than the topic's or queue's TTL. So, applications can still benefit from TTL per message via Dapr for this scenario.
+
+> Note: as per the CloudEvent spec, timestamps (like `expiration`) are formatted using RFC3339.

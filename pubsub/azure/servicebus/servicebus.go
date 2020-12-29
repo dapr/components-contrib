@@ -57,6 +57,7 @@ type azureServiceBus struct {
 	topicManager  *azservicebus.TopicManager
 	logger        logger.Logger
 	subscriptions []*subscription
+	features      []pubsub.Feature
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
@@ -64,6 +65,7 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:        logger,
 		subscriptions: []*subscription{},
+		features:      []pubsub.Feature{pubsub.FeatureMessageTTL},
 	}
 }
 
@@ -457,6 +459,10 @@ func (a *azureServiceBus) Close() error {
 	}
 
 	return nil
+}
+
+func (a *azureServiceBus) Features() []pubsub.Feature {
+	return a.features
 }
 
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) azservicebus.SubscriptionManagementOption {

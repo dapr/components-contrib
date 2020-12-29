@@ -304,3 +304,7 @@ func (k *Kafka) Close() error {
 
 	return k.producer.Close()
 }
+
+func (k *Kafka) Features() []pubsub.Feature {
+	return nil
+}

@@ -88,6 +88,10 @@ func (p *Hazelcast) Close() error {
 	return nil
 }
 
+func (p *Hazelcast) Features() []pubsub.Feature {
+	return nil
+}
+
 type hazelcastMessageListener struct {
 	topicName     string
 	pubsubHandler func(msg *pubsub.NewMessage) error

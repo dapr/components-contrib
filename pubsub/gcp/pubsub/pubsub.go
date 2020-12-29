@@ -160,3 +160,7 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 func (g *GCPPubSub) Close() error {
 	return g.client.Close()
 }
+
+func (g *GCPPubSub) Features() []pubsub.Feature {
+	return nil
+}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
@@ -92,7 +93,7 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 		Body:         req.Data,
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
+	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +153,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.PrefetchCount = int(parsedVal)
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return err
 	}

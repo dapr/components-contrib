@@ -92,3 +92,7 @@ func (n *natsPubSub) Close() error {
 
 	return nil
 }
+
+func (n *natsPubSub) Features() []pubsub.Feature {
+	return nil
+}

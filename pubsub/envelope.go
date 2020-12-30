@@ -109,6 +109,7 @@ func IsCloudEvent(data []byte) bool {
 
 		return specVersion && id && source && ceType
 	}
+
 	return false
 }
 
@@ -140,14 +141,4 @@ func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(componentFeatures []Feature
 		expiration := now.Add(ttl)
 		cloudEvent.Expiration = expiration.Format(time.RFC3339)
 	}
-}
-
-func getStrVal(m map[string]interface{}, key string) string {
-	if v, k := m[key]; k {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-
-	return ""
 }

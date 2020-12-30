@@ -43,32 +43,6 @@ func TestEnvelopeXML(t *testing.T) {
 	})
 }
 
-func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
-	t.Run("cloud event content", func(t *testing.T) {
-		str := `{
-			"specversion" : "1.0",
-			"type" : "com.github.pull.create",
-			"source" : "https://github.com/cloudevents/spec/pull",
-			"subject" : "123",
-			"id" : "A234-1234-1234",
-			"time" : "2018-04-05T17:31:00Z",
-			"expiration" : "2018-04-06T17:31:00Z",
-			"comexampleextension1" : "value",
-			"comexampleothervalue" : 5,
-			"datacontenttype" : "text/xml",
-			"data" : "<much wow=\"xml\"/>"
-		}`
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
-		assert.Equal(t, "A234-1234-1234", envelope.ID)
-		assert.Equal(t, "text/xml", envelope.DataContentType)
-		assert.Equal(t, "1.0", envelope.SpecVersion)
-		assert.Equal(t, "routed.topic", envelope.Topic)
-		assert.Equal(t, "mypubsub", envelope.PubsubName)
-		// The field below is dropped since it is a Dapr's internal attribute.
-		assert.Equal(t, "", envelope.Expiration)
-	})
-}
-
 func TestCreateFromJSON(t *testing.T) {
 	t.Run("has JSON object", func(t *testing.T) {
 		obj1 := struct {
@@ -193,5 +167,50 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
 		envelope.ApplyMetadata(nil, map[string]string{})
 		assert.False(t, envelope.HasExpired())
+	})
+}
+
+func TestIsCloudEvent(t *testing.T) {
+	t.Run("not cloud event: string", func(t *testing.T) {
+		r := IsCloudEvent([]byte("a"))
+		assert.False(t, r)
+	})
+
+	t.Run("not cloud event: non compliant json", func(t *testing.T) {
+		m := map[string]interface{}{
+			"a": "b",
+		}
+		b, err := json.Marshal(m)
+		assert.NoError(t, err)
+
+		r := IsCloudEvent(b)
+		assert.False(t, r)
+	})
+
+	t.Run("not cloud event: non compliant cloudevent", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "b",
+			"type":        "b",
+			"id":          "b",
+		}
+		b, err := json.Marshal(m)
+		assert.NoError(t, err)
+
+		r := IsCloudEvent(b)
+		assert.False(t, r)
+	})
+
+	t.Run("is cloud event", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "b",
+			"type":        "b",
+			"id":          "b",
+			"source":      "b",
+		}
+		b, err := json.Marshal(m)
+		assert.NoError(t, err)
+
+		r := IsCloudEvent(b)
+		assert.True(t, r)
 	})
 }

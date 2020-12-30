@@ -78,29 +78,6 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		}
 	}
 
-	// handle CloudEvent
-	m, isMap := j.(map[string]interface{})
-	if isMap {
-		if _, isCE := m["specversion"]; isCE {
-			ce := &CloudEventsEnvelope{
-				ID:              getStrVal(m, "id"),
-				SpecVersion:     getStrVal(m, "specversion"),
-				DataContentType: getStrVal(m, "datacontenttype"),
-				Source:          getStrVal(m, "source"),
-				Type:            getStrVal(m, "type"),
-				Subject:         getStrVal(m, "subject"),
-				Topic:           topic,
-				PubsubName:      pubsubName,
-				Data:            m["data"],
-			}
-
-			// check if CE is valid
-			if ce.ID != "" && ce.SpecVersion != "" && ce.DataContentType != "" {
-				return ce
-			}
-		}
-	}
-
 	// content was JSON but not a valid CloudEvent, make one
 	return &CloudEventsEnvelope{
 		ID:              id,
@@ -113,6 +90,27 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		PubsubName:      pubsubName,
 		Data:            j,
 	}
+}
+
+// IsCloudEvent returns a bool to indicate if a payload is a CloudEvents compliant format
+func IsCloudEvent(data []byte) bool {
+	var j interface{}
+	err := jsoniter.Unmarshal(data, &j)
+	if err != nil {
+		return false
+	}
+
+	m, isMap := j.(map[string]interface{})
+	if isMap {
+		_, specVersion := m["specversion"]
+		_, id := m["id"]
+		_, source := m["source"]
+		_, ceType := m["type"]
+
+		return specVersion && id && source && ceType
+	}
+
+	return false
 }
 
 // HasExpired determines if the current cloud event has expired.
@@ -143,14 +141,4 @@ func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(componentFeatures []Feature
 		expiration := now.Add(ttl)
 		cloudEvent.Expiration = expiration.Format(time.RFC3339)
 	}
-}
-
-func getStrVal(m map[string]interface{}, key string) string {
-	if v, k := m[key]; k {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-
-	return ""
 }

@@ -8,6 +8,7 @@ package kubernetes
 import (
 	"context"
 	"errors"
+	"os"
 
 	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
 	"github.com/dapr/components-contrib/secretstores"
@@ -88,5 +89,10 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 		return val, nil
 	}
 
-	return "", errors.New("namespace is missing on metadata")
+	val := os.Getenv("NAMESPACE")
+	if val != "" {
+		return val, nil
+	}
+
+	return "", errors.New("namespace is missing on metadata and NAMESPACE env variable")
 }

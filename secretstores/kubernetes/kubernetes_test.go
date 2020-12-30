@@ -6,6 +6,7 @@
 package kubernetes
 
 import (
+	"os"
 	"testing"
 
 	"github.com/dapr/dapr/pkg/logger"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestGetNamespace(t *testing.T) {
-	t.Run("has namespace", func(t *testing.T) {
+	t.Run("has namespace metadata", func(t *testing.T) {
 		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
 		namespace := "a"
 
@@ -22,11 +23,21 @@ func TestGetNamespace(t *testing.T) {
 		assert.Equal(t, namespace, ns)
 	})
 
+	t.Run("has namespace env", func(t *testing.T) {
+		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
+		os.Setenv("NAMESPACE", "b")
+
+		ns, err := store.getNamespaceFromMetadata(map[string]string{})
+		assert.Nil(t, err)
+		assert.Equal(t, "b", ns)
+	})
+
 	t.Run("no namespace", func(t *testing.T) {
 		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
+		os.Setenv("NAMESPACE", "")
 		_, err := store.getNamespaceFromMetadata(map[string]string{})
 
 		assert.NotNil(t, err)
-		assert.Equal(t, "namespace is missing on metadata", err.Error())
+		assert.Equal(t, "namespace is missing on metadata and NAMESPACE env variable", err.Error())
 	})
 }

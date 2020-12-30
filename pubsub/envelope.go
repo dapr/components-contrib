@@ -24,6 +24,7 @@ const (
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute
 	DefaultCloudEventDataContentType = "text/plain"
+	DaprTraceIDField                 = "daprtraceid"
 )
 
 // CloudEventsEnvelope describes the Dapr implementation of the Cloud Events spec
@@ -39,10 +40,11 @@ type CloudEventsEnvelope struct {
 	Topic           string      `json:"topic"`
 	PubsubName      string      `json:"pubsubname"`
 	Expiration      string      `json:"expiration,omitempty"`
+	DaprTraceID     string      `json:"daprtraceid"`
 }
 
 // NewCloudEventsEnvelope returns CloudEventsEnvelope from data or a new one when data content was not
-func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte) *CloudEventsEnvelope {
+func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte, traceID string) *CloudEventsEnvelope {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -52,9 +54,6 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	}
 	if eventType == "" {
 		eventType = DefaultCloudEventType
-	}
-	if subject == "" {
-		subject = DefaultCloudEventSource
 	}
 	if dataContentType == "" {
 		dataContentType = DefaultCloudEventDataContentType
@@ -75,6 +74,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 			Topic:           topic,
 			PubsubName:      pubsubName,
 			Data:            string(data),
+			DaprTraceID:     traceID,
 		}
 	}
 
@@ -89,28 +89,26 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		Topic:           topic,
 		PubsubName:      pubsubName,
 		Data:            j,
+		DaprTraceID:     traceID,
 	}
 }
 
-// IsCloudEvent returns a bool to indicate if a payload is a CloudEvents compliant format
-func IsCloudEvent(data []byte) bool {
-	var j interface{}
-	err := jsoniter.Unmarshal(data, &j)
+// SetTraceID adds the daprtraceid field to an existing cloudevents JSON
+func SetTraceID(data []byte, traceID string) ([]byte, error) {
+	var m map[string]interface{}
+
+	err := jsoniter.Unmarshal(data, &m)
 	if err != nil {
-		return false
+		return data, err
 	}
 
-	m, isMap := j.(map[string]interface{})
-	if isMap {
-		_, specVersion := m["specversion"]
-		_, id := m["id"]
-		_, source := m["source"]
-		_, ceType := m["type"]
-
-		return specVersion && id && source && ceType
+	m[DaprTraceIDField] = traceID
+	b, err := jsoniter.Marshal(m)
+	if err != nil {
+		return data, err
 	}
 
-	return false
+	return b, nil
 }
 
 // HasExpired determines if the current cloud event has expired.

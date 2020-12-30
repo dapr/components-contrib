@@ -177,3 +177,7 @@ func (r *redisStreams) beginReadingFromStream(stream, consumerID string, handler
 func (r *redisStreams) Close() error {
 	return r.client.Close()
 }
+
+func (r *redisStreams) Features() []pubsub.Feature {
+	return nil
+}

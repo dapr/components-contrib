@@ -3,10 +3,11 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package bindings
+package metadata
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -18,19 +19,25 @@ const (
 	TTLMetadataKey = "ttlInSeconds"
 )
 
-// TryGetTTL tries to get the ttl (in seconds) value for a binding
+// TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
 func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	if val, ok := props[TTLMetadataKey]; ok && val != "" {
-		valInt, err := strconv.Atoi(val)
+		valInt64, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
 			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
 		}
 
-		if valInt <= 0 {
-			return 0, false, fmt.Errorf("%s value must be higher than zero: actual is %d", TTLMetadataKey, valInt)
+		if valInt64 <= 0 {
+			return 0, false, fmt.Errorf("%s value must be higher than zero: actual is %d", TTLMetadataKey, valInt64)
 		}
 
-		return time.Duration(valInt) * time.Second, true, nil
+		duration := time.Duration(valInt64) * time.Second
+		if duration < 0 {
+			// Overflow
+			duration = math.MaxInt64
+		}
+
+		return duration, true, nil
 	}
 
 	return 0, false, nil

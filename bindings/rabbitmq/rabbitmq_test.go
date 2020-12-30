@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -41,14 +42,14 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:                     "With one second TTL",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: "1"},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: "1"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedTTL:              &oneSecondTTL,
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: ""},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 		},
@@ -88,15 +89,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "  "},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "-1"},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "abc"},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "abc"},
 		},
 	}
 

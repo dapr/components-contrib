@@ -7,8 +7,11 @@ package pubsub
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,6 +52,7 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 			"subject" : "123",
 			"id" : "A234-1234-1234",
 			"time" : "2018-04-05T17:31:00Z",
+			"expiration" : "2018-04-06T17:31:00Z",
 			"comexampleextension1" : "value",
 			"comexampleothervalue" : 5,
 			"datacontenttype" : "text/xml",
@@ -60,6 +64,8 @@ func TestEnvelopeUsingExistingCloudEvents(t *testing.T) {
 		assert.Equal(t, "1.0", envelope.SpecVersion)
 		assert.Equal(t, "routed.topic", envelope.Topic)
 		assert.Equal(t, "mypubsub", envelope.PubsubName)
+		// The field below is dropped since it is a Dapr's internal attribute.
+		assert.Equal(t, "", envelope.Expiration)
 	})
 }
 
@@ -116,5 +122,76 @@ func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	t.Run("string data content type", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "", []byte("data"))
 		assert.Equal(t, "text/plain", envelope.DataContentType)
+	})
+}
+
+func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
+	str := `{
+		"specversion" : "1.0",
+		"type" : "com.github.pull.create",
+		"source" : "https://github.com/cloudevents/spec/pull",
+		"subject" : "123",
+		"id" : "A234-1234-1234",
+		"comexampleextension1" : "value",
+		"comexampleothervalue" : 5,
+		"datacontenttype" : "text/xml",
+		"data" : "<much wow=\"xml\"/>"
+	}`
+
+	t.Run("cloud event not expired", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.Expiration = time.Now().UTC().Add(time.Hour * 24).Format(time.RFC3339)
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event expired", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.Expiration = time.Now().UTC().Add(time.Hour * -24).Format(time.RFC3339)
+		assert.True(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event expired but applied new TTL from metadata", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.Expiration = time.Now().UTC().Add(time.Hour * -24).Format(time.RFC3339)
+		envelope.ApplyMetadata(nil, map[string]string{
+			"ttlInSeconds": "10000",
+		})
+		assert.NotEqual(t, "", envelope.Expiration)
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event TTL from metadata does not apply due to component feature", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.ApplyMetadata([]Feature{FeatureMessageTTL}, map[string]string{
+			"ttlInSeconds": "10000",
+		})
+		assert.Equal(t, "", envelope.Expiration)
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event with max TTL metadata", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.ApplyMetadata(nil, map[string]string{
+			"ttlInSeconds": fmt.Sprintf("%v", math.MaxInt64),
+		})
+		assert.NotEqual(t, "", envelope.Expiration)
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event with invalid expiration format", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.Expiration = time.Now().UTC().Add(time.Hour * -24).Format(time.RFC1123)
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event without expiration", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		assert.False(t, envelope.HasExpired())
+	})
+
+	t.Run("cloud event without expiration, without metadata", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic", "mypubsub", "", []byte(str))
+		envelope.ApplyMetadata(nil, map[string]string{})
+		assert.False(t, envelope.HasExpired())
 	})
 }

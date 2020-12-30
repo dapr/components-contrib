@@ -195,3 +195,48 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 		assert.False(t, envelope.HasExpired())
 	})
 }
+
+func TestIsCloudEvent(t *testing.T) {
+	t.Run("not cloud event: string", func(t *testing.T) {
+		r := IsCloudEvent([]byte("a"))
+		assert.False(t, r)
+	})
+
+	t.Run("not cloud event: non compliant json", func(t *testing.T) {
+		m := map[string]interface{}{
+			"a": "b",
+		}
+		b, err := json.Marshal(m)
+		assert.NoError(t, err)
+
+		r := IsCloudEvent(b)
+		assert.False(t, r)
+	})
+
+	t.Run("not cloud event: non compliant cloudevent", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "b",
+			"type":        "b",
+			"id":          "b",
+		}
+		b, err := json.Marshal(m)
+		assert.NoError(t, err)
+
+		r := IsCloudEvent(b)
+		assert.False(t, r)
+	})
+
+	t.Run("is cloud event", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "b",
+			"type":        "b",
+			"id":          "b",
+			"source":      "b",
+		}
+		b, err := json.Marshal(m)
+		assert.NoError(t, err)
+
+		r := IsCloudEvent(b)
+		assert.True(t, r)
+	})
+}

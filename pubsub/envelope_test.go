@@ -191,7 +191,28 @@ func TestSetTraceID(t *testing.T) {
 			"customfield": "a",
 		}
 
-		SetTraceContext(m, "1")
+		setTraceContext(m, "1")
 		assert.Equal(t, "1", m[TraceIDField])
+	})
+}
+
+func TestNewFromExisting(t *testing.T) {
+	t.Run("valid cloudevent", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "1.0",
+			"customfield": "a",
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "1")
+		assert.NoError(t, err)
+		assert.Equal(t, "1.0", n["specversion"])
+		assert.Equal(t, "a", n["customfield"])
+		assert.Equal(t, "1", n["traceid"])
+	})
+
+	t.Run("invalid cloudevent", func(t *testing.T) {
+		_, err := FromCloudEvent([]byte("a"), "1")
+		assert.Error(t, err)
 	})
 }

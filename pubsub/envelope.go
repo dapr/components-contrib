@@ -65,8 +65,20 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	}
 }
 
-// SetTraceContext adds required trace fields to the cloudevents JSON
-func SetTraceContext(cloudEvent map[string]interface{}, traceID string) {
+// FromCloudEvent returns a map representation of an existing cloudevents JSON
+func FromCloudEvent(cloudEvent []byte, traceID string) (map[string]interface{}, error) {
+	var m map[string]interface{}
+	err := jsoniter.Unmarshal(cloudEvent, &m)
+	if err != nil {
+		return m, err
+	}
+
+	setTraceContext(m, traceID)
+
+	return m, nil
+}
+
+func setTraceContext(cloudEvent map[string]interface{}, traceID string) {
 	cloudEvent[TraceIDField] = traceID
 }
 

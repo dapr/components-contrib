@@ -6,6 +6,7 @@
 package pubsub
 
 import (
+	"fmt"
 	"time"
 
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
@@ -24,25 +25,12 @@ const (
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute
 	DefaultCloudEventDataContentType = "text/plain"
+	TraceIDField                     = "traceid"
+	expirationField                  = "expiration"
 )
 
-// CloudEventsEnvelope describes the Dapr implementation of the Cloud Events spec
-// Spec details: https://github.com/cloudevents/spec/blob/master/spec.md
-type CloudEventsEnvelope struct {
-	ID              string      `json:"id"`
-	Source          string      `json:"source"`
-	Type            string      `json:"type"`
-	SpecVersion     string      `json:"specversion"`
-	DataContentType string      `json:"datacontenttype"`
-	Data            interface{} `json:"data"`
-	Subject         string      `json:"subject"`
-	Topic           string      `json:"topic"`
-	PubsubName      string      `json:"pubsubname"`
-	Expiration      string      `json:"expiration,omitempty"`
-}
-
-// NewCloudEventsEnvelope returns CloudEventsEnvelope from data or a new one when data content was not
-func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte) *CloudEventsEnvelope {
+// NewCloudEventsEnvelope returns a map representation of a cloudevents JSON
+func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte, traceID string) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -53,70 +41,40 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	if eventType == "" {
 		eventType = DefaultCloudEventType
 	}
-	if subject == "" {
-		subject = DefaultCloudEventSource
-	}
 	if dataContentType == "" {
 		dataContentType = DefaultCloudEventDataContentType
 	}
 
-	// check if JSON
 	var j interface{}
 	err := jsoniter.Unmarshal(data, &j)
-	if err != nil {
-		// not JSON, return new envelope
-		return &CloudEventsEnvelope{
-			ID:              id,
-			SpecVersion:     CloudEventsSpecVersion,
-			DataContentType: dataContentType,
-			Source:          source,
-			Type:            eventType,
-			Subject:         subject,
-			Topic:           topic,
-			PubsubName:      pubsubName,
-			Data:            string(data),
-		}
+	if err == nil {
+		dataContentType = "application/json"
 	}
 
-	// content was JSON but not a valid CloudEvent, make one
-	return &CloudEventsEnvelope{
-		ID:              id,
-		SpecVersion:     CloudEventsSpecVersion,
-		DataContentType: "application/json",
-		Source:          source,
-		Type:            eventType,
-		Subject:         subject,
-		Topic:           topic,
-		PubsubName:      pubsubName,
-		Data:            j,
+	return map[string]interface{}{
+		"id":              id,
+		"specversion":     CloudEventsSpecVersion,
+		"datacontenttype": dataContentType,
+		"source":          source,
+		"type":            eventType,
+		"subject":         subject,
+		"topic":           topic,
+		"pubsubname":      pubsubName,
+		"data":            string(data),
+		"traceid":         traceID,
 	}
 }
 
-// IsCloudEvent returns a bool to indicate if a payload is a CloudEvents compliant format
-func IsCloudEvent(data []byte) bool {
-	var j interface{}
-	err := jsoniter.Unmarshal(data, &j)
-	if err != nil {
-		return false
-	}
-
-	m, isMap := j.(map[string]interface{})
-	if isMap {
-		_, specVersion := m["specversion"]
-		_, id := m["id"]
-		_, source := m["source"]
-		_, ceType := m["type"]
-
-		return specVersion && id && source && ceType
-	}
-
-	return false
+// SetTraceContext adds required trace fields to the cloudevents JSON
+func SetTraceContext(cloudEvent map[string]interface{}, traceID string) {
+	cloudEvent[TraceIDField] = traceID
 }
 
 // HasExpired determines if the current cloud event has expired.
-func (cloudEvent *CloudEventsEnvelope) HasExpired() bool {
-	if cloudEvent.Expiration != "" {
-		expiration, err := time.Parse(time.RFC3339, cloudEvent.Expiration)
+func HasExpired(cloudEvent map[string]interface{}) bool {
+	e, ok := cloudEvent[expirationField]
+	if ok && e != "" {
+		expiration, err := time.Parse(time.RFC3339, fmt.Sprintf("%s", e))
 		if err != nil {
 			return false
 		}
@@ -128,7 +86,7 @@ func (cloudEvent *CloudEventsEnvelope) HasExpired() bool {
 }
 
 // ApplyMetadata will process metadata to modify the cloud event based on the component's feature set.
-func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(componentFeatures []Feature, metadata map[string]string) {
+func ApplyMetadata(cloudEvent map[string]interface{}, componentFeatures []Feature, metadata map[string]string) {
 	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(metadata)
 	if hasTTL && !FeatureMessageTTL.IsPresent(componentFeatures) {
 		// Dapr only handles Message TTL if component does not.
@@ -139,6 +97,6 @@ func (cloudEvent *CloudEventsEnvelope) ApplyMetadata(componentFeatures []Feature
 		// Max time in golang is currently 292277024627-12-06T15:30:07.999999999Z.
 		// So, we have some time before the overflow below happens :)
 		expiration := now.Add(ttl)
-		cloudEvent.Expiration = expiration.Format(time.RFC3339)
+		cloudEvent[expirationField] = expiration.Format(time.RFC3339)
 	}
 }

@@ -74,6 +74,7 @@ func FromCloudEvent(cloudEvent []byte, traceID string) (map[string]interface{}, 
 	}
 
 	setTraceContext(m, traceID)
+
 	return m, nil
 }
 

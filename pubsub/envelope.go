@@ -65,22 +65,9 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	}
 }
 
-// SetTraceID adds the daprtraceid field to an existing cloudevents JSON
-func SetTraceID(data []byte, traceID string) ([]byte, error) {
-	var m map[string]interface{}
-
-	err := jsoniter.Unmarshal(data, &m)
-	if err != nil {
-		return data, err
-	}
-
-	m[TraceIDField] = traceID
-	b, err := jsoniter.Marshal(m)
-	if err != nil {
-		return data, err
-	}
-
-	return b, nil
+// SetTraceContext adds required trace fields to the cloudevents JSON
+func SetTraceContext(cloudEvent map[string]interface{}, traceID string) {
+	cloudEvent[TraceIDField] = traceID
 }
 
 // HasExpired determines if the current cloud event has expired.

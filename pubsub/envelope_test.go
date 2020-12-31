@@ -185,24 +185,13 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 }
 
 func TestSetTraceID(t *testing.T) {
-	t.Run("invalid json", func(t *testing.T) {
-		_, err := SetTraceID([]byte("a"), "1")
-		assert.Error(t, err)
-	})
-
-	t.Run("valid json", func(t *testing.T) {
+	t.Run("trace id is present", func(t *testing.T) {
 		m := map[string]interface{}{
 			"specversion": "1.0",
 			"customfield": "a",
 		}
 
-		b, err := json.Marshal(m)
-		assert.NoError(t, err)
-		ce, err := SetTraceID(b, "1")
-		assert.NoError(t, err)
-
-		json.Unmarshal(ce, &m)
-		assert.Equal(t, "1.0", m["specversion"])
+		SetTraceContext(m, "1")
 		assert.Equal(t, "1", m[TraceIDField])
 	})
 }

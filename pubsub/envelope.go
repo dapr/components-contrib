@@ -26,7 +26,16 @@ const (
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute
 	DefaultCloudEventDataContentType = "text/plain"
 	TraceIDField                     = "traceid"
-	expirationField                  = "expiration"
+	TopicField                       = "topic"
+	PubsubField                      = "pubsubname"
+	ExpirationField                  = "expiration"
+	DataContentTypeField             = "datacontenttype"
+	DataField                        = "data"
+	SpecVersionField                 = "specversion"
+	TypeField                        = "type"
+	SourceField                      = "source"
+	IDField                          = "id"
+	SubjectField                     = "subject"
 )
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON
@@ -52,39 +61,37 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	}
 
 	return map[string]interface{}{
-		"id":              id,
-		"specversion":     CloudEventsSpecVersion,
-		"datacontenttype": dataContentType,
-		"source":          source,
-		"type":            eventType,
-		"subject":         subject,
-		"topic":           topic,
-		"pubsubname":      pubsubName,
-		"data":            string(data),
-		"traceid":         traceID,
+		IDField:              id,
+		SpecVersionField:     CloudEventsSpecVersion,
+		DataContentTypeField: dataContentType,
+		SourceField:          source,
+		TypeField:            eventType,
+		SubjectField:         subject,
+		TopicField:           topic,
+		PubsubField:          pubsubName,
+		DataField:            string(data),
+		TraceIDField:         traceID,
 	}
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON
-func FromCloudEvent(cloudEvent []byte, traceID string) (map[string]interface{}, error) {
+func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := jsoniter.Unmarshal(cloudEvent, &m)
 	if err != nil {
 		return m, err
 	}
 
-	setTraceContext(m, traceID)
+	m[TraceIDField] = traceID
+	m[TopicField] = topic
+	m[PubsubField] = pubsub
 
 	return m, nil
 }
 
-func setTraceContext(cloudEvent map[string]interface{}, traceID string) {
-	cloudEvent[TraceIDField] = traceID
-}
-
 // HasExpired determines if the current cloud event has expired.
 func HasExpired(cloudEvent map[string]interface{}) bool {
-	e, ok := cloudEvent[expirationField]
+	e, ok := cloudEvent[ExpirationField]
 	if ok && e != "" {
 		expiration, err := time.Parse(time.RFC3339, fmt.Sprintf("%s", e))
 		if err != nil {
@@ -109,6 +116,6 @@ func ApplyMetadata(cloudEvent map[string]interface{}, componentFeatures []Featur
 		// Max time in golang is currently 292277024627-12-06T15:30:07.999999999Z.
 		// So, we have some time before the overflow below happens :)
 		expiration := now.Add(ttl)
-		cloudEvent[expirationField] = expiration.Format(time.RFC3339)
+		cloudEvent[ExpirationField] = expiration.Format(time.RFC3339)
 	}
 }

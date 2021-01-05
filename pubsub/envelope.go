@@ -20,7 +20,8 @@ const (
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
 	CloudEventsSpecVersion = "1.0"
 	// ContentType is the Cloud Events HTTP content type
-	ContentType = "application/cloudevents+json"
+	ContentType     = "application/cloudevents+json"
+	JSONContentType = "application/json"
 	// DefaultCloudEventSource is the default event source
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute
@@ -54,10 +55,14 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		dataContentType = DefaultCloudEventDataContentType
 	}
 
-	var j interface{}
-	err := jsoniter.Unmarshal(data, &j)
-	if err == nil {
-		dataContentType = "application/json"
+	var ceData interface{}
+	var err error
+	if dataContentType == JSONContentType {
+		err = jsoniter.Unmarshal(data, &ceData)
+	}
+
+	if err != nil || dataContentType != JSONContentType {
+		ceData = string(data)
 	}
 
 	return map[string]interface{}{
@@ -69,7 +74,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		SubjectField:         subject,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
-		DataField:            string(data),
+		DataField:            ceData,
 		TraceIDField:         traceID,
 	}
 }

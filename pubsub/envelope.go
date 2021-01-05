@@ -69,7 +69,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		SubjectField:         subject,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
-		DataField:            string(data),
+		DataField:            j,
 		TraceIDField:         traceID,
 	}
 }

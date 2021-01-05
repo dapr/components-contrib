@@ -327,10 +327,10 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 	return err
 }
 
-func (r *rabbitMQ) ensureExchangeDeclared(exchange string) error {
+func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange string) error {
 	if _, exists := r.declaredExchanges[exchange]; !exists {
 		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, r.metadata.exchangeKind)
-		err := r.channel.ExchangeDeclare(exchange, r.metadata.exchangeKind, true, false, false, false, nil)
+		err := channel.ExchangeDeclare(exchange, r.metadata.exchangeKind, true, false, false, false, nil)
 		if err != nil {
 			return err
 		}

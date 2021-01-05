@@ -53,7 +53,7 @@ func TestCreateFromJSON(t *testing.T) {
 			1,
 		}
 		data, _ := json.Marshal(obj1)
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "", data, "1")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "application/json", data, "1")
 		t.Logf("data: %v", envelope[DataField])
 		assert.Equal(t, "application/json", envelope[DataContentTypeField])
 

@@ -166,7 +166,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.defaultQueueTTL = &ttl
 	}
 
-	deadLetterExchange, ok, err := bindings.TryGetDeadLetterExchange(metadata.Properties)
+	deadLetterExchange, ok, err := contrib_metadata.TryGetDeadLetterExchange(metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.DeadLetterExchange = deadLetterExchange
 	}
 
-	deadLetterRoutingKey, ok, err := bindings.TryGetDeadLetterRoutingKey(metadata.Properties)
+	deadLetterRoutingKey, ok, err := contrib_metadata.TryGetDeadLetterRoutingKey(metadata.Properties)
 	if err != nil {
 		return err
 	}

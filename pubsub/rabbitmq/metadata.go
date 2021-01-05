@@ -10,6 +10,7 @@ import (
 type metadata struct {
 	consumerID       string
 	host             string
+	exchangeKind     string
 	deleteWhenUnused bool
 	autoAck          bool
 	requeueInFailure bool
@@ -30,6 +31,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		result.consumerID = val
 	} else {
 		return &result, fmt.Errorf("%s missing RabbitMQ consumerID", errorMessagePrefix)
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataExchangeKind]; found && val != "" {
+		result.exchangeKind = val
+	} else {
+		return &result, fmt.Errorf("%s missing RabbitMQ exchangeKind", errorMessagePrefix)
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataDeliveryModeKey]; found && val != "" {

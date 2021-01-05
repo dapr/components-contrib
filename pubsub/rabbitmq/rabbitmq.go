@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	fanoutExchangeKind = "fanout"
+	// fanoutExchangeKind = "fanout"
 	logMessagePrefix   = "rabbitmq pub/sub:"
 	errorMessagePrefix = "rabbitmq pub/sub error:"
 
 	metadataHostKey             = "host"
+	metadataExchangeKind        = "exchangeKind"
 	metadataConsumerIDKey       = "consumerID"
 	metadataDeleteWhenUnusedKey = "deletedWhenUnused"
 	metadataAutoAckKey          = "autoAck"
@@ -158,8 +159,8 @@ func (r *rabbitMQ) handleMessage(d amqp.Delivery, topic string, handler func(msg
 
 func (r *rabbitMQ) ensureExchangeDeclared(exchange string) error {
 	if _, exists := r.declaredExchanges[exchange]; !exists {
-		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, fanoutExchangeKind)
-		err := r.channel.ExchangeDeclare(exchange, fanoutExchangeKind, true, false, false, false, nil)
+		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, r.metadata.exchangeKind)
+		err := r.channel.ExchangeDeclare(exchange, r.metadata.exchangeKind, true, false, false, false, nil)
 		if err != nil {
 			return err
 		}

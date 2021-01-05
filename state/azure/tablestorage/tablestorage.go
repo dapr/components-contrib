@@ -51,6 +51,7 @@ const (
 )
 
 type StateStore struct {
+	state.DefaultBulkStore
 	table *storage.Table
 	json  jsoniter.API
 
@@ -74,12 +75,12 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	tables := client.GetTableService()
 	r.table = tables.GetTableReference(meta.tableName)
 
-	//check table exists
+	// check table exists
 	r.logger.Debugf("using table '%s'", meta.tableName)
 	err = r.table.Create(operationTimeout, storage.FullMetadata, nil)
 	if err != nil {
 		if isTableAlreadyExistsError(err) {
-			//error creating table, but it already exists so we're fine
+			// error creating table, but it already exists so we're fine
 			r.logger.Debugf("table already exists")
 		} else {
 			return err
@@ -93,18 +94,8 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
-	return r.deleteRow(req)
-}
 
-func (r *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	r.logger.Debugf("bulk delete %v key(s)", len(req))
-	for i := range req {
-		err := r.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return r.deleteRow(req)
 }
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
@@ -112,7 +103,6 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 	err := entity.Get(operationTimeout, storage.FullMetadata, nil)
-
 	if err != nil {
 		if isNotFoundError(err) {
 			return &state.GetResponse{}, nil
@@ -122,6 +112,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	data, etag, err := r.unmarshal(entity)
+
 	return &state.GetResponse{
 		Data: data,
 		ETag: etag,
@@ -134,24 +125,14 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return r.writeRow(req)
 }
 
-func (r *StateStore) BulkSet(req []state.SetRequest) error {
-	r.logger.Debugf("bulk set %v key(s)", len(req))
-
-	for i := range req {
-		err := r.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{
+	s := &StateStore{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
@@ -194,19 +175,23 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 		if isNotFoundError(err) {
 			// When entity is not found (set state first time) create it
 			entity.OdataEtag = ""
+
 			return entity.Insert(storage.FullMetadata, nil)
 		}
 	}
+
 	return err
 }
 
 func isNotFoundError(err error) bool {
 	azureError, ok := err.(storage.AzureStorageServiceError)
+
 	return ok && azureError.Code == "ResourceNotFound"
 }
 
 func isTableAlreadyExistsError(err error) bool {
 	azureError, ok := err.(storage.AzureStorageServiceError)
+
 	return ok && azureError.Code == "TableAlreadyExists"
 }
 
@@ -214,6 +199,7 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 	entity.OdataEtag = req.ETag
+
 	return entity.Delete(true, nil)
 }
 
@@ -222,6 +208,7 @@ func getPartitionAndRowKey(key string) (string, string) {
 	if len(pr) != 2 {
 		return pr[0], ""
 	}
+
 	return pr[0], pr[1]
 }
 
@@ -233,6 +220,7 @@ func (r *StateStore) marshal(req *state.SetRequest) string {
 	} else {
 		v, _ = jsoniter.MarshalToString(req.Value)
 	}
+
 	return v
 }
 
@@ -252,5 +240,6 @@ func (r *StateStore) unmarshal(row *storage.Entity) ([]byte, string, error) {
 
 	// use native ETag
 	etag := row.OdataEtag
+
 	return []byte(sv), etag, nil
 }

@@ -14,11 +14,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/google/uuid"
-
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/google/uuid"
 )
 
 const (
@@ -46,6 +45,7 @@ type blobStorageMetadata struct {
 	Container         string `json:"container"`
 	DecodeBase64      string `json:"decodeBase64"`
 	GetBlobRetryCount int    `json:"getBlobRetryCount"`
+	PublicAccessLevel string `json:"publicAccessLevel"`
 }
 
 type createResponse struct {
@@ -76,10 +76,11 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	containerURL := azblob.NewContainerURL(*URL, p)
 
 	ctx := context.Background()
-	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessType(m.PublicAccessLevel))
 	// Don't return error, container might already exist
 	a.logger.Debugf("error creating container: %s", err)
 	a.containerURL = containerURL
+
 	return nil
 }
 
@@ -99,6 +100,7 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 	if m.GetBlobRetryCount == 0 {
 		m.GetBlobRetryCount = defaultGetBlobRetryCount
 	}
+
 	return &m, nil
 }
 
@@ -137,25 +139,21 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		delete(req.Metadata, cacheControl)
 	}
 
-	// Unescape data which will still be a JSON string
-	unescapedData, unescapeError := strconv.Unquote(string(req.Data))
-
-	if unescapeError != nil {
-		return nil, unescapeError
+	d, err := strconv.Unquote(string(req.Data))
+	if err == nil {
+		req.Data = []byte(d)
 	}
-
-	data := []byte(unescapedData)
 
 	// The "true" is the only allowed positive value. Other positive variations like "True" not acceptable.
 	if a.metadata.DecodeBase64 == "true" {
-		decoded, decodeError := b64.StdEncoding.DecodeString(unescapedData)
+		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
 		if decodeError != nil {
 			return nil, decodeError
 		}
-		data = decoded
+		req.Data = decoded
 	}
 
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), data, blobURL, azblob.UploadToBlockBlobOptions{
+	_, err = azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,
@@ -190,6 +188,7 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 	if err != nil {
 		return nil, fmt.Errorf("error reading az blob body: %s", err)
 	}
+
 	return &bindings.InvokeResponse{
 		Data: b.Bytes(),
 	}, nil
@@ -210,6 +209,8 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 		return a.create(blobURL, req)
 	case bindings.GetOperation:
 		return a.get(blobURL, req)
+	case bindings.DeleteOperation, bindings.ListOperation:
+		fallthrough
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

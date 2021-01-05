@@ -15,12 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/kinesis"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
@@ -49,16 +48,17 @@ type kinesisMetadata struct {
 	Endpoint            string              `json:"endpoint"`
 	AccessKey           string              `json:"accessKey"`
 	SecretKey           string              `json:"secretKey"`
+	SessionToken        string              `json:"sessionToken"`
 	KinesisConsumerMode kinesisConsumerMode `json:"mode"`
 }
 
 type kinesisConsumerMode string
 
 const (
-	//ExtendedFanout - dedicated throughput through data stream api
+	// ExtendedFanout - dedicated throughput through data stream api
 	ExtendedFanout kinesisConsumerMode = "extended"
 
-	//SharedThroughput - shared throughput using checkpoint and monitoring
+	// SharedThroughput - shared throughput using checkpoint and monitoring
 	SharedThroughput kinesisConsumerMode = "shared"
 
 	partitionKeyName = "partitionKey"
@@ -104,7 +104,6 @@ func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	stream, err := client.DescribeStream(&kinesis.DescribeStreamInput{
 		StreamName: streamName,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -119,6 +118,7 @@ func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	a.streamARN = stream.StreamDescription.StreamARN
 	a.metadata = m
 	a.client = client
+
 	return nil
 }
 
@@ -136,6 +136,7 @@ func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		Data:         req.Data,
 		PartitionKey: &partitionKey,
 	})
+
 	return nil, err
 }
 
@@ -173,6 +174,7 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 	consumerARN, err := a.ensureConsumer(streamDesc.StreamARN)
 	if err != nil {
 		a.logger.Error(err)
+
 		return err
 	}
 
@@ -189,9 +191,9 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 					ShardId:          s.ShardId,
 					StartingPosition: &kinesis.StartingPosition{Type: aws.String(kinesis.ShardIteratorTypeLatest)},
 				})
-
 				if err != nil {
 					a.logger.Error(err)
+
 					return err
 				}
 
@@ -219,9 +221,9 @@ func (a *AWSKinesis) ensureConsumer(streamARN *string) (*string, error) {
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
-
 	if err != nil {
 		arn, err := a.registerConsumer(streamARN)
+
 		return arn, err
 	}
 
@@ -233,7 +235,6 @@ func (a *AWSKinesis) registerConsumer(streamARN *string) (*string, error) {
 		ConsumerName: &a.metadata.ConsumerName,
 		StreamARN:    streamARN,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +258,7 @@ func (a *AWSKinesis) deregisterConsumer(streamARN *string, consumerARN *string) 
 			StreamARN:    streamARN,
 			ConsumerName: &a.metadata.ConsumerName,
 		})
+
 		return err
 	}
 
@@ -284,6 +286,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 			req, _ := a.client.DescribeStreamConsumerRequest(inCpy)
 			req.SetContext(ctx)
 			req.ApplyOptions(opts...)
+
 			return req, nil
 		},
 	}
@@ -293,12 +296,12 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 }
 
 func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
-
 	k := kinesis.New(sess)
+
 	return k, nil
 }
 
@@ -313,6 +316,7 @@ func (a *AWSKinesis) parseMetadata(metadata bindings.Metadata) (*kinesisMetadata
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 

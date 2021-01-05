@@ -14,11 +14,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	json "github.com/json-iterator/go"
-
-	"github.com/dapr/components-contrib/state"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -52,6 +50,7 @@ const (
 
 // MongoDB is a state store implementation for MongoDB
 type MongoDB struct {
+	state.DefaultBulkStore
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -79,7 +78,10 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store
 func NewMongoDB(logger logger.Logger) *MongoDB {
-	return &MongoDB{logger: logger}
+	s := &MongoDB{logger: logger}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 // Init establishes connection to the store based on the metadata
@@ -92,7 +94,6 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	m.operationTimeout = meta.operationTimeout
 
 	client, err := getMongoDBClient(meta)
-
 	if err != nil {
 		return fmt.Errorf("error in creating mongodb client: %s", err)
 	}
@@ -105,14 +106,12 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 
 	// get the write concern
 	wc, err := getWriteConcernObject(meta.writeconcern)
-
 	if err != nil {
 		return fmt.Errorf("error in getting write concern object: %s", err)
 	}
 
 	// get the read concern
 	rc, err := getReadConcernObject(meta.readconcern)
-
 	if err != nil {
 		return fmt.Errorf("error in getting read concern object: %s", err)
 	}
@@ -131,7 +130,6 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 	defer cancel()
 
 	err := m.setInternal(ctx, req)
-
 	if err != nil {
 		return err
 	}
@@ -152,7 +150,6 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	filter := bson.M{id: req.Key}
 	update := bson.M{"$set": bson.M{id: req.Key, value: vStr}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
-
 	if err != nil {
 		return err
 	}
@@ -169,7 +166,6 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
-
 	if err != nil {
 		return &state.GetResponse{}, err
 	}
@@ -181,25 +177,12 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// BulkSet performs a bulks save operation
-func (m *MongoDB) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := m.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Delete performs a delete operation
 func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	err := m.deleteInternal(ctx, req)
-
 	if err != nil {
 		return err
 	}
@@ -210,21 +193,8 @@ func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
 	_, err := m.collection.DeleteOne(ctx, filter)
-
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation
-func (m *MongoDB) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := m.Delete(&req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -244,6 +214,7 @@ func (m *MongoDB) Multi(request *state.TransactionalStateRequest) error {
 
 	sess.WithTransaction(context.Background(), func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, request.Operations)
+
 		return nil, err
 	}, txnOpts)
 
@@ -263,6 +234,7 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 
 		if err != nil {
 			sessCtx.AbortTransaction(sessCtx)
+
 			return fmt.Errorf("error during transaction, aborting the transaction: %s", err)
 		}
 	}
@@ -274,6 +246,7 @@ func getMongoURI(metadata *mongoDBMetadata) string {
 	if metadata.username != "" && metadata.password != "" {
 		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
 	}
+
 	return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
 }
 
@@ -288,7 +261,6 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, clientOptions)
-
 	if err != nil {
 		return nil, err
 	}

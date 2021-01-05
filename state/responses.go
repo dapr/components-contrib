@@ -11,3 +11,11 @@ type GetResponse struct {
 	ETag     string            `json:"etag,omitempty"`
 	Metadata map[string]string `json:"metadata"`
 }
+
+type BulkGetResponse struct {
+	Key      string            `json:"key"`
+	Data     []byte            `json:"data"`
+	ETag     string            `json:"etag,omitempty"`
+	Metadata map[string]string `json:"metadata"`
+	Error    string            `json:"error,omitempty"`
+}

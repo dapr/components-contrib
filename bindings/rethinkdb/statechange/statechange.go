@@ -75,6 +75,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 			ok := cursor.Next(&change)
 			if !ok {
 				b.logger.Errorf("error detecting change: %v", cursor.Err())
+
 				break
 			}
 
@@ -95,6 +96,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 
 			if err := handler(resp); err != nil {
 				b.logger.Errorf("error invoking change handler: %v", err)
+
 				continue
 			}
 		}
@@ -103,6 +105,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 	done := <-b.stopCh
 	b.logger.Errorf("done: %b", done)
 	defer cursor.Close()
+
 	return nil
 }
 
@@ -110,69 +113,69 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 	c := StateConfig{}
 	for k, v := range cfg {
 		switch k {
-		case "address": //string
+		case "address": // string
 			c.Address = v
 		case "addresses": // []string
 			c.Addresses = strings.Split(v, ",")
-		case "database": //string
+		case "database": // string
 			c.Database = v
-		case "username": //string
+		case "username": // string
 			c.Username = v
-		case "password": //string
+		case "password": // string
 			c.Password = v
-		case "authkey": //string
+		case "authkey": // string
 			c.AuthKey = v
-		case "table": //string
+		case "table": // string
 			c.Table = v
-		case "timeout": //time.Duration
+		case "timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid timeout format: %v", v)
 			}
 			c.Timeout = d
-		case "write_timeout": //time.Duration
+		case "write_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid write timeout format: %v", v)
 			}
 			c.WriteTimeout = d
-		case "read_timeout": //time.Duration
+		case "read_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid read timeout format: %v", v)
 			}
 			c.ReadTimeout = d
-		case "keep_alive_timeout": //time.Duration
+		case "keep_alive_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid keep alive timeout format: %v", v)
 			}
 			c.KeepAlivePeriod = d
-		case "initial_cap": //int
+		case "initial_cap": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid keep initial cap format: %v", v)
 			}
 			c.InitialCap = i
-		case "max_open": //int
+		case "max_open": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid keep max open format: %v", v)
 			}
 			c.MaxOpen = i
-		case "discover_hosts": //bool
+		case "discover_hosts": // bool
 			b, err := strconv.ParseBool(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid discover hosts format: %v", v)
 			}
 			c.DiscoverHosts = b
-		case "use-open-tracing": //bool
+		case "use-open-tracing": // bool
 			b, err := strconv.ParseBool(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid use open tracing format: %v", v)
 			}
 			c.UseOpentracing = b
-		case "max_idle": //int
+		case "max_idle": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
 				return c, errors.Wrapf(err, "invalid keep max idle format: %v", v)

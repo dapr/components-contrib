@@ -5,6 +5,8 @@ State Stores provide a common way to interact with different data store implemen
 Currently supported state stores are:
 
 * AWS DynamoDB
+* Aerospike
+* Azure Blob Storage
 * Azure CosmosDB
 * Azure Table Storage
 * Cassandra
@@ -16,11 +18,11 @@ Currently supported state stores are:
 * Hazelcast
 * Memcached
 * MongoDB
+* PostgreSQL
 * Redis
+* RethinkDB
 * SQL Server
 * Zookeeper
-* Cloud Firestore (Datastore mode)
-* Couchbase
 
 ## Implementing a new State Store
 
@@ -48,4 +50,4 @@ type TransactionalStore interface {
 }
 ```
 
-See the [documentation repo](https://github.com/dapr/docs/tree/master/howto) for examples.  
+See the [documentation site](https://docs.dapr.io/developing-applications/building-blocks/state-management/) for examples.  

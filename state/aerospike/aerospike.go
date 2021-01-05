@@ -6,18 +6,16 @@
 package aerospike
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
-
-	"encoding/json"
 	"strconv"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -28,12 +26,15 @@ const (
 	set       = "set" // optional
 )
 
-var errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
-var errInvalidHosts = errors.New("aerospike: invalid value for hosts")
-var errInvalidETag = errors.New("aerospike: invalid ETag value")
+var (
+	errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
+	errInvalidHosts = errors.New("aerospike: invalid value for hosts")
+	errInvalidETag  = errors.New("aerospike: invalid ETag value")
+)
 
 // Aerospike is a state store
 type Aerospike struct {
+	state.DefaultBulkStore
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -43,10 +44,13 @@ type Aerospike struct {
 
 // NewAerospikeStateStore returns a new Aerospike state store
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
-	return &Aerospike{
+	s := &Aerospike{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -132,24 +136,13 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	if err != nil {
 		return fmt.Errorf("aerospike: failed to save value for key %s - %v", req.Key, err)
 	}
-	return nil
-}
 
-// BulkSet performs a bulks save operation
-func (aspike *Aerospike) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := aspike.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // Get retrieves state from Aerospike with a key
 func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	asKey, err := as.NewKey(aspike.namespace, aspike.set, req.Key)
-
 	if err != nil {
 		return nil, err
 	}
@@ -165,10 +158,10 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 		if err == types.ErrKeyNotFound {
 			return &state.GetResponse{}, nil
 		}
+
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
 	}
 	value, err := aspike.json.Marshal(record.Bins)
-
 	if err != nil {
 		return nil, err
 	}
@@ -214,17 +207,7 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		return fmt.Errorf("aerospike: failed to delete key %s - %v", req.Key, err)
 	}
-	return nil
-}
 
-// BulkDelete performs a bulk delete operation
-func (aspike *Aerospike) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := aspike.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -241,6 +224,7 @@ func parseHosts(hostsMeta string) ([]*as.Host, error) {
 		}
 		hostPorts = append(hostPorts, as.NewHost(host, int(port)))
 	}
+
 	return hostPorts, nil
 }
 
@@ -249,5 +233,6 @@ func convertETag(eTag string) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return uint32(i), nil
 }

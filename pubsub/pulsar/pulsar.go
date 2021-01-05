@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -66,6 +65,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 
 	p.client = client
 	p.metadata = *m
+
 	return nil
 }
 
@@ -125,4 +125,14 @@ func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler f
 	} else {
 		m.Ack(m.Message)
 	}
+}
+
+func (p *Pulsar) Close() error {
+	p.client.Close()
+
+	return nil
+}
+
+func (p *Pulsar) Features() []pubsub.Feature {
+	return nil
 }

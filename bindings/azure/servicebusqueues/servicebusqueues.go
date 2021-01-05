@@ -12,6 +12,7 @@ import (
 
 	servicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/bindings"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 )
 
@@ -69,6 +70,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	for _, q := range queues {
 		if q.Name == a.metadata.QueueName {
 			entity = q
+
 			break
 		}
 	}
@@ -77,7 +79,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	if entity == nil {
 		var ttl time.Duration
 		var ok bool
-		ttl, ok, err = bindings.TryGetTTL(metadata.Properties)
+		ttl, ok, err = contrib_metadata.TryGetTTL(metadata.Properties)
 		if err != nil {
 			return err
 		}
@@ -97,6 +99,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	a.client = client
+
 	return nil
 }
 
@@ -112,7 +115,7 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 		return nil, err
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +146,7 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 		msg.CorrelationID = val
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
+	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +167,13 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) error)
 		if err == nil {
 			return msg.Complete(ctx)
 		}
+
 		return msg.Abandon(ctx)
 	}
 
 	if err := a.client.Receive(context.Background(), sbHandler); err != nil {
 		return err
 	}
+
 	return nil
 }

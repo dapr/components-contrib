@@ -9,14 +9,12 @@ import (
 	"bytes"
 	"encoding/json"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/google/uuid"
-
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/google/uuid"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket
@@ -27,11 +25,12 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region    string `json:"region"`
-	Endpoint  string `json:"endpoint"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
-	Bucket    string `json:"bucket"`
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
+	Bucket       string `json:"bucket"`
 }
 
 // NewAWSS3 returns a new AWSS3 instance
@@ -51,6 +50,7 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	}
 	s.metadata = m
 	s.uploader = uploader
+
 	return nil
 }
 
@@ -73,6 +73,7 @@ func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		Key:    aws.String(key),
 		Body:   r,
 	})
+
 	return nil, err
 }
 
@@ -87,15 +88,17 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 
 func (s *AWSS3) getClient(metadata *s3Metadata) (*s3manager.Uploader, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	uploader := s3manager.NewUploader(sess)
+
 	return uploader, nil
 }

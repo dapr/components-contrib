@@ -4,15 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-	jsoniterator "github.com/json-iterator/go"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/state"
+	jsoniterator "github.com/json-iterator/go"
 )
 
 // StateStore is a DynamoDB state store
@@ -31,7 +29,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store
-func NewDynamoDBStateStore() *StateStore {
+func NewDynamoDBStateStore() state.Store {
 	return &StateStore{}
 }
 
@@ -49,6 +47,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 
 	d.client = client
 	d.table = meta.Table
+
 	return nil
 }
 
@@ -77,9 +76,16 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if err = dynamodbattribute.Unmarshal(result.Item["value"], &output); err != nil {
 		return nil, err
 	}
+
 	return &state.GetResponse{
 		Data: []byte(output),
 	}, nil
+}
+
+// BulkGet performs a bulk get operations
+func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	// TODO: replace with dynamodb.BatchGetItem for performance
+	return false, nil, nil
 }
 
 // Set saves a dynamoDB item
@@ -104,6 +110,7 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 	}
 
 	_, e := d.client.PutItem(input)
+
 	return e
 }
 
@@ -139,6 +146,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
 		RequestItems: requestItems,
 	})
+
 	return e
 }
 
@@ -153,6 +161,7 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 		TableName: aws.String(d.table),
 	}
 	_, err := d.client.DeleteItem(input)
+
 	return err
 }
 
@@ -179,6 +188,7 @@ func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	_, e := d.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
 		RequestItems: requestItems,
 	})
+
 	return e
 }
 
@@ -202,11 +212,12 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 }
 
 func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 	c := dynamodb.New(sess)
+
 	return c, nil
 }
 

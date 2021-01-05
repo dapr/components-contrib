@@ -8,6 +8,8 @@ package pubsub
 // PubSub is the interface for message buses
 type PubSub interface {
 	Init(metadata Metadata) error
+	Features() []Feature
 	Publish(req *PublishRequest) error
 	Subscribe(req SubscribeRequest, handler func(msg *NewMessage) error) error
+	Close() error
 }

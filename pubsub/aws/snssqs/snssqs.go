@@ -8,14 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/dapr/dapr/pkg/logger"
-
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 type snsSqs struct {
@@ -24,12 +22,12 @@ type snsSqs struct {
 	// key is the hashed topic name, value is the actual topic name
 	topicHash map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url
-	queues    map[string]*sqsQueueInfo
-	awsAcctID string
-	snsClient *sns.SNS
-	sqsClient *sqs.SQS
-	metadata  *snsSqsMetadata
-	logger    logger.Logger
+	queues        map[string]*sqsQueueInfo
+	snsClient     *sns.SNS
+	sqsClient     *sqs.SQS
+	metadata      *snsSqsMetadata
+	logger        logger.Logger
+	subscriptions []*string
 }
 
 type sqsQueueInfo struct {
@@ -42,15 +40,15 @@ type snsSqsMetadata struct {
 	sqsQueueName string
 
 	// aws endpoint for the component to use.
-	awsEndpoint string
-	// aws account ID to use for SNS/SQS. Required
-	awsAccountID string
-	// aws secret corresponding to the account ID. Required
-	awsSecret string
-	// aws token to use. Required
-	awsToken string
-	// aws region in which SNS/SQS should create resources. Required
-	awsRegion string
+	Endpoint string
+	// access key to use for accessing sqs/sns
+	AccessKey string
+	// secret key to use for accessing sqs/sns
+	SecretKey string
+	// aws session token to use.
+	SessionToken string
+	// aws region in which SNS/SQS should create resources
+	Region string
 
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10
 	messageVisibilityTimeout int64
@@ -58,7 +56,7 @@ type snsSqsMetadata struct {
 	messageRetryLimit int64
 	// amount of time to await receipt of a message before making another request. Default: 1
 	messageWaitTimeSeconds int64
-	// maximum number of messsages to receive from the queue at a time. Default: 10, Maximum: 10
+	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10
 	messageMaxNumber int64
 }
 
@@ -68,15 +66,29 @@ const (
 )
 
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
-	return &snsSqs{logger: l}
+	return &snsSqs{
+		logger:        l,
+		subscriptions: []*string{},
+	}
+}
+
+func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
+	props := metadata.Properties
+	for _, s := range aliases {
+		if val, ok := props[s]; ok {
+			return val, true
+		}
+	}
+
+	return "", false
 }
 
 func parseInt64(input string, propertyName string) (int64, error) {
 	number, err := strconv.Atoi(input)
-
 	if err != nil {
 		return -1, fmt.Errorf("parsing %s failed with: %v", propertyName, err)
 	}
+
 	return int64(number), nil
 }
 
@@ -85,6 +97,7 @@ func parseInt64(input string, propertyName string) (int64, error) {
 func nameToHash(name string) string {
 	h := sha256.New()
 	h.Write([]byte(name))
+
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
@@ -94,44 +107,33 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 	md.sqsQueueName = metadata.Properties["consumerID"]
 	s.logger.Debugf("Setting queue name to %s", md.sqsQueueName)
 
-	if val, ok := props["awsEndpoint"]; ok {
-		md.awsEndpoint = val
+	if val, ok := getAliasedProperty([]string{"Endpoint", "endpoint"}, metadata); ok {
+		s.logger.Debugf("endpoint: %s", val)
+		md.Endpoint = val
 	}
 
-	val, ok := props["awsAccountID"]
-
-	if !ok {
-		return nil, errors.New("missing required property: awsAccountID")
+	if val, ok := getAliasedProperty([]string{"awsAccountID", "accessKey"}, metadata); ok {
+		s.logger.Debugf("AccessKey: %s", val)
+		md.AccessKey = val
 	}
 
-	md.awsAccountID = val
-
-	val, ok = props["awsSecret"]
-	if !ok {
-		return nil, errors.New("missing required property: awsSecret")
+	if val, ok := getAliasedProperty([]string{"awsSecret", "secretKey"}, metadata); ok {
+		s.logger.Debugf("awsToken: %s", val)
+		md.SecretKey = val
 	}
 
-	md.awsSecret = val
-
-	val, ok = props["awsToken"]
-	if !ok {
-		md.awsToken = ""
-	} else {
-		md.awsToken = val
+	if val, ok := getAliasedProperty([]string{"sessionToken"}, metadata); ok {
+		md.SessionToken = val
 	}
 
-	val, ok = props["awsRegion"]
-	if !ok {
-		return nil, errors.New("missing required property: awsRegion")
+	if val, ok := getAliasedProperty([]string{"awsRegion", "region"}, metadata); ok {
+		md.Region = val
 	}
-
-	md.awsRegion = val
 
 	if val, ok := props["messageVisibilityTimeout"]; !ok {
 		md.messageVisibilityTimeout = 10
 	} else {
 		timeout, err := parseInt64(val, "messageVisibilityTimeout")
-
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +149,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageRetryLimit = 10
 	} else {
 		retryLimit, err := parseInt64(val, "messageRetryLimit")
-
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +164,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageWaitTimeSeconds = 1
 	} else {
 		waitTime, err := parseInt64(val, "messageWaitTimeSeconds")
-
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +179,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageMaxNumber = 10
 	} else {
 		maxNumber, err := parseInt64(val, "messageMaxNumber")
-
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +197,6 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 
 func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	md, err := s.getSnsSqsMetatdata(metadata)
-
 	if err != nil {
 		return err
 	}
@@ -210,13 +208,13 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.topics = make(map[string]string)
 	s.topicHash = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
-	s.awsAcctID = md.awsAccountID
-	sess, err := aws_auth.GetClient(s.awsAcctID, md.awsSecret, md.awsRegion, md.awsEndpoint)
+	sess, err := aws_auth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
 		return err
 	}
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)
+
 	return nil
 }
 
@@ -226,7 +224,6 @@ func (s *snsSqs) createTopic(topic string) (string, string, error) {
 		Name: aws.String(hashedName),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
 	})
-
 	if err != nil {
 		return "", "", err
 	}
@@ -241,15 +238,16 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 
 	if ok {
 		s.logger.Debugf("Found existing topic ARN for topic %s: %s", topic, topicArn)
+
 		return topicArn, nil
 	}
 
 	s.logger.Debugf("No topic ARN found for %s\n Creating topic instead.", topic)
 
 	topicArn, hashedName, err := s.createTopic(topic)
-
 	if err != nil {
 		s.logger.Errorf("error creating new topic %s: %v", topic, err)
+
 		return "", err
 	}
 
@@ -265,7 +263,6 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		QueueName: aws.String(nameToHash(queueName)),
 		Tags:      map[string]*string{awsSqsQueueNameKey: aws.String(queueName)},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +271,6 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		AttributeNames: []*string{aws.String("QueueArn")},
 		QueueUrl:       createQueueResponse.QueueUrl,
 	})
-
 	if err != nil {
 		s.logger.Errorf("error fetching queue attributes for %s: %v", queueName, err)
 	}
@@ -309,15 +305,16 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 
 	if ok {
 		s.logger.Debugf("Found queue arn for %s: %s", queueName, queueArn)
+
 		return queueArn, nil
 	}
 	// creating queues is idempotent, the names serve as unique keys among a given region
 	s.logger.Debugf("No queue arn found for %s\nCreating queue", queueName)
 
 	queueInfo, err := s.createQueue(queueName)
-
 	if err != nil {
 		s.logger.Errorf("Error creating queue %s: %v", queueName, err)
+
 		return nil, err
 	}
 
@@ -328,7 +325,6 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 
 func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	topicArn, err := s.getOrCreateTopic(req.Topic)
-
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
 	}
@@ -341,6 +337,7 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 
 	if err != nil {
 		s.logger.Errorf("error publishing topic %s with topic ARN %s: %v", req.Topic, topicArn, err)
+
 		return err
 	}
 
@@ -375,7 +372,6 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	}
 
 	recvCountInt, err := strconv.ParseInt(*recvCount, 10, 32)
-
 	if err != nil {
 		return fmt.Errorf("error parsing ApproximateReceiveCount from message: %v", message)
 	}
@@ -427,15 +423,16 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 				VisibilityTimeout:   aws.Int64(s.metadata.messageVisibilityTimeout),
 				WaitTimeSeconds:     aws.Int64(s.metadata.messageWaitTimeSeconds),
 			})
-
 			if err != nil {
 				s.logger.Errorf("error consuming topic: %v", err)
+
 				continue
 			}
 
 			// retry receiving messages
 			if len(messageResponse.Messages) < 1 {
 				s.logger.Debug("No messages received, requesting again")
+
 				continue
 			}
 
@@ -456,17 +453,17 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	// these should be idempotent
 	// queues should not be created if they exist
 	topicArn, err := s.getOrCreateTopic(req.Topic)
-
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
+
 		return err
 	}
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID"
 	queueInfo, err := s.getOrCreateQueue(s.metadata.sqsQueueName)
-
 	if err != nil {
 		s.logger.Errorf("error retrieving SQS queue: %v", err)
+
 		return err
 	}
 
@@ -478,15 +475,30 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 		ReturnSubscriptionArn: nil,
 		TopicArn:              &topicArn,
 	})
-
 	if err != nil {
 		s.logger.Errorf("error subscribing to topic %s: %v", req.Topic, err)
+
 		return err
 	}
 
+	s.subscriptions = append(s.subscriptions, subscribeOutput.SubscriptionArn)
 	s.logger.Debugf("Subscribed to topic %s: %v", req.Topic, subscribeOutput)
 
 	s.consumeSubscription(queueInfo, handler)
 
+	return nil
+}
+
+func (s *snsSqs) Close() error {
+	for _, sub := range s.subscriptions {
+		s.snsClient.Unsubscribe(&sns.UnsubscribeInput{
+			SubscriptionArn: sub,
+		})
+	}
+
+	return nil
+}
+
+func (s *snsSqs) Features() []pubsub.Feature {
 	return nil
 }

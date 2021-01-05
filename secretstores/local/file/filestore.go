@@ -49,6 +49,8 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 
 	if len(meta.NestedSeparator) == 0 {
 		j.nestedSeparator = ":"
+	} else {
+		j.nestedSeparator = meta.NestedSeparator
 	}
 
 	if j.readLocalFileFn == nil {
@@ -81,6 +83,13 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	}, nil
 }
 
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+	return secretstores.GetSecretResponse{
+		Data: j.secrets,
+	}, nil
+}
+
 func (j *localSecretStore) visitJSONObject(jsonConfig map[string]interface{}) error {
 	for key, element := range jsonConfig {
 		j.enterContext(key)
@@ -90,6 +99,7 @@ func (j *localSecretStore) visitJSONObject(jsonConfig map[string]interface{}) er
 		}
 		j.exitContext()
 	}
+
 	return nil
 }
 
@@ -120,6 +130,7 @@ func (j *localSecretStore) visitArray(array []interface{}) error {
 		}
 		j.exitContext()
 	}
+
 	return nil
 }
 
@@ -165,6 +176,7 @@ func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadat
 	if meta.SecretsFile == "" {
 		return nil, fmt.Errorf("missing local secrets file in metadata")
 	}
+
 	return &meta, nil
 }
 

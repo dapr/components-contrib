@@ -9,12 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
-
-	"github.com/dapr/dapr/pkg/logger"
-
 	"github.com/aws/aws-sdk-go/service/sns"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // AWSSNS is an AWS SNS binding
@@ -26,11 +24,12 @@ type AWSSNS struct {
 }
 
 type snsMetadata struct {
-	TopicArn  string `json:"topicArn"`
-	Region    string `json:"region"`
-	Endpoint  string `json:"endpoint"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
+	TopicArn     string `json:"topicArn"`
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
 }
 
 type dataPayload struct {
@@ -55,6 +54,7 @@ func (a *AWSSNS) Init(metadata bindings.Metadata) error {
 	}
 	a.client = client
 	a.topicARN = m.TopicArn
+
 	return nil
 }
 
@@ -69,15 +69,17 @@ func (a *AWSSNS) parseMetadata(metadata bindings.Metadata) (*snsMetadata, error)
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 
 func (a *AWSSNS) getClient(metadata *snsMetadata) (*sns.SNS, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 	c := sns.New(sess)
+
 	return c, nil
 }
 
@@ -105,5 +107,6 @@ func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	if err != nil {
 		return nil, err
 	}
+
 	return nil, nil
 }

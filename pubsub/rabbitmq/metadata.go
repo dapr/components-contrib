@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -15,11 +16,17 @@ type metadata struct {
 	autoAck          bool
 	requeueInFailure bool
 	deliveryMode     uint8 // Transient (0 or 1) or Persistent (2)
+	prefetchCount    uint8 // Prefetch deactivated if 0
+	reconnectWait    time.Duration
 }
 
 // createMetadata creates a new instance from the pubsub metadata
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
-	result := metadata{deleteWhenUnused: true, autoAck: false}
+	result := metadata{
+		deleteWhenUnused: true,
+		autoAck:          false,
+		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
+	}
 
 	if val, found := pubSubMetadata.Properties[metadataHostKey]; found && val != "" {
 		result.host = val
@@ -63,6 +70,18 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	if val, found := pubSubMetadata.Properties[metadataRequeueInFailureKey]; found && val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			result.requeueInFailure = boolVal
+		}
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataReconnectWaitSeconds]; found && val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			result.reconnectWait = time.Duration(intVal) * time.Second
+		}
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataprefetchCount]; found && val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			result.prefetchCount = uint8(intVal)
 		}
 	}
 

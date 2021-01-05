@@ -57,7 +57,8 @@ func TestParseEventHubsMetadata(t *testing.T) {
 			"missing storageContainerName",
 			map[string]string{"consumerID": "fake", "connectionString": "fake", "storageAccountName": "name", "storageAccountKey": "key"},
 			missingStorageContainerNameErrorMsg,
-		}}
+		},
+	}
 
 	for _, c := range invalidConfigTestCases {
 		t.Run(c.name, func(t *testing.T) {

@@ -32,6 +32,7 @@ func parseHazelcastMetadata(meta pubsub.Metadata) (metadata, error) {
 	} else {
 		return m, errors.New("hazelcast error: missing hazelcast servers")
 	}
+
 	return m, nil
 }
 
@@ -81,6 +82,16 @@ func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pub
 	return nil
 }
 
+func (p *Hazelcast) Close() error {
+	p.client.Shutdown()
+
+	return nil
+}
+
+func (p *Hazelcast) Features() []pubsub.Feature {
+	return nil
+}
+
 type hazelcastMessageListener struct {
 	topicName     string
 	pubsubHandler func(msg *pubsub.NewMessage) error
@@ -91,6 +102,7 @@ func (l *hazelcastMessageListener) OnMessage(message hazelcastCore.Message) erro
 	if !ok {
 		return errors.New("hazelcast error: cannot cast message to byte array")
 	}
+
 	return l.handleMessageObject(msg)
 }
 
@@ -99,5 +111,6 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		Data:  message,
 		Topic: l.topicName,
 	}
+
 	return l.pubsubHandler(pubsubMsg)
 }

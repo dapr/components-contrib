@@ -25,16 +25,17 @@ type AWSSQS struct {
 }
 
 type sqsMetadata struct {
-	QueueName string `json:"queueName"`
-	Region    string `json:"region"`
-	Endpoint  string `json:"endpoint"`
-	AccessKey string `json:"accessKey"`
-	SecretKey string `json:"secretKey"`
+	QueueName    string `json:"queueName"`
+	Region       string `json:"region"`
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
 }
 
 // NewAWSSQS returns a new AWS SQS instance
 func NewAWSSQS(logger logger.Logger) *AWSSQS {
-	return &AWSSQS{}
+	return &AWSSQS{logger: logger}
 }
 
 // Init does metadata parsing and connection creation
@@ -59,6 +60,7 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 
 	a.QueueURL = resultURL.QueueUrl
 	a.Client = client
+
 	return nil
 }
 
@@ -72,6 +74,7 @@ func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		MessageBody: &msgBody,
 		QueueUrl:    a.QueueURL,
 	})
+
 	return nil, err
 }
 
@@ -125,11 +128,12 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 	if err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.Region, metadata.Endpoint)
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

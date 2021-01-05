@@ -14,7 +14,7 @@ type GetRequest struct {
 
 // GetStateOption controls how a state store reacts to a get request
 type GetStateOption struct {
-	Consistency string `json:"consistency"` //"eventual, strong"
+	Consistency string `json:"consistency"` // "eventual, strong"
 }
 
 // DeleteRequest is the object describing a delete state request
@@ -37,8 +37,8 @@ func (r DeleteRequest) GetMetadata() map[string]string {
 
 // DeleteStateOption controls how a state store reacts to a delete request
 type DeleteStateOption struct {
-	Concurrency string `json:"concurrency,omitempty"` //"concurrency"
-	Consistency string `json:"consistency"`           //"eventual, strong"
+	Concurrency string `json:"concurrency,omitempty"` // "concurrency"
+	Consistency string `json:"consistency"`           // "eventual, strong"
 }
 
 // SetRequest is the object describing an upsert request
@@ -62,8 +62,8 @@ func (r SetRequest) GetMetadata() map[string]string {
 
 // SetStateOption controls how a state store reacts to a set request
 type SetStateOption struct {
-	Concurrency string `json:"concurrency,omitempty"` //first-write, last-write
-	Consistency string `json:"consistency"`           //"eventual, strong"
+	Concurrency string `json:"concurrency,omitempty"` // first-write, last-write
+	Consistency string `json:"consistency"`           // "eventual, strong"
 }
 
 // OperationType describes a CRUD operation performed against a state store

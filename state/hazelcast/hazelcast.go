@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/hazelcast/hazelcast-go-client"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/dapr/components-contrib/state"
-	"github.com/hazelcast/hazelcast-go-client"
 )
 
 const (
@@ -18,8 +17,9 @@ const (
 	hazelcastMap     = "hazelcastMap"
 )
 
-//Hazelcast state store
+// Hazelcast state store
 type Hazelcast struct {
+	state.DefaultBulkStore
 	hzMap  core.Map
 	json   jsoniter.API
 	logger logger.Logger
@@ -27,10 +27,13 @@ type Hazelcast struct {
 
 // NewHazelcastStore returns a new hazelcast backed state store
 func NewHazelcastStore(logger logger.Logger) *Hazelcast {
-	return &Hazelcast{
+	s := &Hazelcast{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -64,10 +67,11 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("hazelcast error: %v", err)
 	}
+
 	return nil
 }
 
-//Set stores value for a key to Hazelcast
+// Set stores value for a key to Hazelcast
 func (store *Hazelcast) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req)
 	if err != nil {
@@ -89,17 +93,6 @@ func (store *Hazelcast) Set(req *state.SetRequest) error {
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to set key %s: %s", req.Key, err)
 	}
-	return nil
-}
-
-// BulkSet performs a bulks save operation
-func (store *Hazelcast) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := store.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
@@ -111,12 +104,11 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, fmt.Errorf("hazelcast error: failed to get value for %s: %s", req.Key, err)
 	}
 
-	//HZ Get API returns nil response if key does not exist in the map
+	// HZ Get API returns nil response if key does not exist in the map
 	if resp == nil {
 		return &state.GetResponse{}, nil
 	}
 	value, err := store.json.Marshal(&resp)
-
 	if err != nil {
 		return nil, fmt.Errorf("hazelcast error: %v", err)
 	}
@@ -136,16 +128,6 @@ func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to delete key - %s", req.Key)
 	}
-	return nil
-}
 
-// BulkDelete performs a bulk delete operation
-func (store *Hazelcast) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := store.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }

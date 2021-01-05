@@ -226,13 +226,15 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 					Operation: state.Upsert,
 					Request: state.SetRequest{
 						Key:   fmt.Sprintf(recordIDFormat, 0),
-						Value: d2},
+						Value: d2,
+					},
 				},
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
 						Key:   fmt.Sprintf(recordIDFormat, 1),
-						Value: d2},
+						Value: d2,
+					},
 				},
 				{
 					Operation: state.Delete,

@@ -11,15 +11,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/a8m/documentdb"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/a8m/documentdb"
 )
 
 // StateStore is a CosmosDB state store
 type StateStore struct {
+	state.DefaultBulkStore
 	client     *documentdb.DocumentDB
 	collection *documentdb.Collection
 	db         *documentdb.Database
@@ -66,7 +66,10 @@ const (
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{logger: logger}
+	s := &StateStore{logger: logger}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 // Init does metadata and connection parsing
@@ -125,9 +128,10 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	// get a link to the sp
-	for _, proc := range sps {
-		if proc.Id == storedProcedureName {
-			c.sp = &proc
+	for i := range sps {
+		if sps[i].Id == storedProcedureName {
+			c.sp = &sps[i]
+
 			break
 		}
 	}
@@ -145,6 +149,7 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	c.logger.Debug("cosmos Init done")
+
 	return nil
 }
 
@@ -227,18 +232,6 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulk set operation
-func (c *StateStore) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := c.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Delete performs a delete operation
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
@@ -276,19 +269,8 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 	}
+
 	return err
-}
-
-// BulkDelete performs a bulk delete operation
-func (c *StateStore) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := c.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
@@ -310,7 +292,8 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			upsertOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        req.Value,
-				PartitionKey: partitionKey}
+				PartitionKey: partitionKey,
+			}
 
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
@@ -319,7 +302,8 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			deleteOperation := CosmosItem{
 				ID:           req.Key,
 				Value:        "", // Value does not need to be specified
-				PartitionKey: partitionKey}
+				PartitionKey: partitionKey,
+			}
 			deletes = append(deletes, deleteOperation)
 		}
 	}
@@ -333,6 +317,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	err := c.client.ExecuteStoredProcedure(c.sp.Self, [...]interface{}{upserts, deletes}, &retString, options...)
 	if err != nil {
 		c.logger.Debugf("error=%e", err)
+
 		return err
 	}
 
@@ -345,6 +330,7 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	if val, found := requestMetadata[metadataPartitionKey]; found {
 		return val
 	}
+
 	return key
 }
 
@@ -353,5 +339,6 @@ func convertToJSONWithoutEscapes(t interface{}) ([]byte, error) {
 	encoder := jsoniter.NewEncoder(buffer)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(t)
+
 	return buffer.Bytes(), err
 }

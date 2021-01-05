@@ -11,10 +11,10 @@ import (
 	"strconv"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
-	"gopkg.in/couchbase/gocb.v1"
-
 	jsoniter "github.com/json-iterator/go"
+	"gopkg.in/couchbase/gocb.v1"
 )
 
 const (
@@ -23,15 +23,16 @@ const (
 	password     = "password"
 	bucketName   = "bucketName"
 
-	//see https://docs.couchbase.com/go-sdk/1.6/durability.html#configuring-durability
+	// see https://docs.couchbase.com/go-sdk/1.6/durability.html#configuring-durability
 	numReplicasDurableReplication = "numReplicasDurableReplication"
 	numReplicasDurablePersistence = "numReplicasDurablePersistence"
 )
 
 // Couchbase is a couchbase state store
 type Couchbase struct {
+	state.DefaultBulkStore
 	bucket                        *gocb.Bucket
-	bucketName                    string //TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
+	bucketName                    string // TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
 	numReplicasDurableReplication uint
 	numReplicasDurablePersistence uint
 	json                          jsoniter.API
@@ -41,10 +42,13 @@ type Couchbase struct {
 
 // NewCouchbaseStateStore returns a new couchbase state store
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
-	return &Couchbase{
+	s := &Couchbase{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func validateMetadata(metadata state.Metadata) error {
@@ -94,13 +98,13 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("couchbase error: unable to connect to couchbase at %s - %v ", metadata.Properties[couchbaseURL], err)
 	}
-	//does not actually trigger the authentication
+	// does not actually trigger the authentication
 	c.Authenticate(gocb.PasswordAuthenticator{
 		Username: metadata.Properties[username],
 		Password: metadata.Properties[password],
 	})
 
-	//with RBAC, bucket-passwords are no longer used - https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
+	// with RBAC, bucket-passwords are no longer used - https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
 	bucket, err := c.OpenBucket(cbs.bucketName, "")
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucketName, err)
@@ -118,31 +122,25 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 		_p, _ := strconv.ParseUint(p, 10, 0)
 		cbs.numReplicasDurablePersistence = uint(_p)
 	}
+
 	return nil
 }
 
-//Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
+// Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
 func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
-	var value string
-	b, ok := req.Value.([]byte)
-	if ok {
-		value = string(b)
-	} else {
-		value, err = cbs.json.MarshalToString(req.Value)
-	}
-
+	value, err := utils.Marshal(req.Value, cbs.json.Marshal)
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
 
-	//nolint:nestif
-	//key already exists (use Replace)
+	// nolint:nestif
+	// key already exists (use Replace)
 	if req.ETag != "" {
-		//compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
+		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
 		cas, cerr := eTagToCas(req.ETag)
 		if cerr != nil {
 			return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
@@ -153,7 +151,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 			_, err = cbs.bucket.Replace(req.Key, value, cas, 0)
 		}
 	} else {
-		//key does not exist: replace or insert (with Upsert)
+		// key does not exist: replace or insert (with Upsert)
 		if req.Options.Consistency == state.Strong {
 			_, err = cbs.bucket.UpsertDura(req.Key, value, 0, cbs.numReplicasDurableReplication, cbs.numReplicasDurablePersistence)
 		} else {
@@ -168,18 +166,6 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet performs a bulks save operation
-func (cbs *Couchbase) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := cbs.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Get retrieves state from couchbase with a key
 func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var data interface{}
@@ -188,16 +174,12 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if gocb.IsKeyNotFoundError(err) {
 			return &state.GetResponse{}, nil
 		}
-		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
-	}
-	value, err := cbs.json.Marshal(&data)
 
-	if err != nil {
-		return nil, fmt.Errorf("couchbase error: failed to convert value to byte[] - %v", err)
+		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
 	}
 
 	return &state.GetResponse{
-		Data: value,
+		Data: data.([]byte),
 		ETag: fmt.Sprintf("%d", cas),
 	}, nil
 }
@@ -229,26 +211,15 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-// BulkDelete performs a bulk delete operation
-func (cbs *Couchbase) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := cbs.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-//converts string etag sent by the application into a gocb.Cas object, which can then be used for optimistic locking for set and delete operations
+// converts string etag sent by the application into a gocb.Cas object, which can then be used for optimistic locking for set and delete operations
 func eTagToCas(eTag string) (gocb.Cas, error) {
 	var cas gocb.Cas = 0
-	//CAS is a 64-bit integer - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html#cas-value-format
+	// CAS is a 64-bit integer - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html#cas-value-format
 	temp, err := strconv.ParseUint(eTag, 10, 64)
 	if err != nil {
 		return cas, err
 	}
 	cas = gocb.Cas(temp)
+
 	return cas, nil
 }

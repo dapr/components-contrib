@@ -24,6 +24,7 @@ const (
 )
 
 type Memcached struct {
+	state.DefaultBulkStore
 	client *memcache.Client
 	json   jsoniter.API
 	logger logger.Logger
@@ -36,10 +37,13 @@ type memcachedMetadata struct {
 }
 
 func NewMemCacheStateStore(logger logger.Logger) *Memcached {
-	return &Memcached{
+	s := &Memcached{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
+	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
+
+	return s
 }
 
 func (m *Memcached) Init(metadata state.Metadata) error {
@@ -97,7 +101,6 @@ func (m *Memcached) setValue(req *state.SetRequest) error {
 	var bt []byte
 	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
 	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt})
-
 	if err != nil {
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
@@ -110,16 +113,7 @@ func (m *Memcached) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		return err
 	}
-	return nil
-}
 
-func (m *Memcached) BulkDelete(req []state.DeleteRequest) error {
-	for i := range req {
-		err := m.Delete(&req[i])
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -130,6 +124,7 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if errors.Is(err, memcache.ErrCacheMiss) {
 			return &state.GetResponse{}, nil
 		}
+
 		return &state.GetResponse{}, err
 	}
 
@@ -140,14 +135,4 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 func (m *Memcached) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
-}
-
-func (m *Memcached) BulkSet(req []state.SetRequest) error {
-	for i := range req {
-		err := m.Set(&req[i])
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

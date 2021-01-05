@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/eventgrid/mgmt/2020-04-01-preview/eventgrid"
@@ -115,6 +114,7 @@ func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	err := a.ensureOutputBindingMetadata()
 	if err != nil {
 		a.logger.Error(err.Error())
+
 		return nil, err
 	}
 
@@ -133,12 +133,14 @@ func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	err = client.Do(request, response)
 	if err != nil {
 		a.logger.Error(err.Error())
+
 		return nil, err
 	}
 
 	if response.StatusCode() != fasthttp.StatusOK {
 		body := response.Body()
 		a.logger.Error(string(body))
+
 		return nil, errors.New(string(body))
 	}
 
@@ -174,10 +176,12 @@ func (a *AzureEventGrid) ensureInputBindingMetadata() error {
 func (a *AzureEventGrid) ensureOutputBindingMetadata() error {
 	if a.metadata.AccessKey == "" {
 		msg := fmt.Sprintf("metadata field 'AccessKey' is empty in EventGrid binding (%s)", a.metadata.Name)
+
 		return errors.New(msg)
 	}
 	if a.metadata.TopicEndpoint == "" {
 		msg := fmt.Sprintf("metadata field 'TopicEndpoint' is empty in EventGrid binding (%s)", a.metadata.Name)
+
 		return errors.New(msg)
 	}
 
@@ -205,6 +209,7 @@ func (a *AzureEventGrid) parseMetadata(metadata bindings.Metadata) (*azureEventG
 	if eventGridMetadata.EventSubscriptionName == "" {
 		eventGridMetadata.EventSubscriptionName = metadata.Name
 	}
+
 	return &eventGridMetadata, nil
 }
 
@@ -243,6 +248,7 @@ func (a *AzureEventGrid) createSubscription() error {
 		if err != nil {
 			return err
 		}
+
 		return errors.New(string(bodyBytes))
 	}
 

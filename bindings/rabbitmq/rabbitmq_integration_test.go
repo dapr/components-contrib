@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/streadway/amqp"
@@ -63,7 +64,7 @@ func TestQueuesWithTTL(t *testing.T) {
 			"host":                  rabbitmqHost,
 			"deleteWhenUnused":      strconv.FormatBool(exclusive),
 			"durable":               strconv.FormatBool(durable),
-			bindings.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+			metadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
 		},
 	}
 
@@ -143,7 +144,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest := bindings.InvokeRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
-			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds),
+			metadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds),
 		},
 	}
 
@@ -165,7 +166,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest = bindings.InvokeRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
-			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
+			metadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
 		},
 	}
 	err = rabbitMQBinding2.Write(&writeRequest)

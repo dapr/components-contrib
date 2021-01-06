@@ -16,9 +16,9 @@ import (
 
 const (
 	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds)
-	TTLMetadataKey = "ttlInSeconds"
+	TTLMetadataKey       = "ttlInSeconds"
 	deadLetterExchange   = "deadLetterExchange"
-    deadLetterRoutingKey = "deadLetterRoutingKey"
+	deadLetterRoutingKey = "deadLetterRoutingKey"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
@@ -47,18 +47,18 @@ func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 
 // TryGetDeadLetterExchange tries to get DeadLetterExchange
 func TryGetDeadLetterExchange(props map[string]string) (string, bool, error) {
-    if val, ok := props[deadLetterExchange]; ok && val != "" {
-        return val, true, nil
-    }
+	if val, ok := props[deadLetterExchange]; ok && val != "" {
+		return val, true, nil
+	}
 
-    return "", false, nil
+	return "", false, nil
 }
 
 // TryGetDeadLetterRoutingKey tries to get DeadLetterRoutingKey
 func TryGetDeadLetterRoutingKey(props map[string]string) (string, bool, error) {
-    if val, ok := props[deadLetterRoutingKey]; ok && val != "" {
-        return val, true, nil
-    }
+	if val, ok := props[deadLetterRoutingKey]; ok && val != "" {
+		return val, true, nil
+	}
 
-    return "", false, nil
+	return "", false, nil
 }

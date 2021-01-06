@@ -12,6 +12,7 @@ func getFakeProperties() map[string]string {
 	props := map[string]string{}
 	props[metadataHostKey] = "fakehost"
 	props[metadataConsumerIDKey] = "fakeConsumerID"
+	props[metadataExchangeKind] = "fakeExchangeKind"
 
 	return props
 }

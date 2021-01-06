@@ -57,6 +57,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 		Properties: map[string]string{
 			metadataHostKey:       "anyhost",
 			metadataConsumerIDKey: "consumer",
+			metadataExchangeKind:  "fanout",
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -100,6 +101,7 @@ func TestPublishReconnect(t *testing.T) {
 		Properties: map[string]string{
 			metadataHostKey:       "anyhost",
 			metadataConsumerIDKey: "consumer",
+			metadataExchangeKind:  "fanout",
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -151,6 +153,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 		Properties: map[string]string{
 			metadataHostKey:       "anyhost",
 			metadataConsumerIDKey: "consumer",
+			metadataExchangeKind:  "fanout",
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -203,6 +206,7 @@ func TestSubscribeReconnect(t *testing.T) {
 			metadataConsumerIDKey:        "consumer",
 			metadataAutoAckKey:           "true",
 			metadataReconnectWaitSeconds: "0",
+			metadataExchangeKind:         "fanout",
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)

@@ -301,9 +301,23 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 		Topic: topic,
 	}
 
-	err := handler(pubsubMsg)
-	if err != nil {
-		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+	var err error
+	f := func(msg *pubsub.NewMessage) {
+		err = handler(pubsubMsg)
+		if err != nil {
+			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+		}
+	}
+	switch r.metadata.concurrency {
+	case pubsub.Single:
+		f(pubsubMsg)
+	case pubsub.Parallel:
+		done := make(chan bool, 1)
+		go func(msg *pubsub.NewMessage, done chan bool) {
+			f(pubsubMsg)
+			done <- true
+		}(pubsubMsg, done)
+		<-done
 	}
 
 	//nolint:nestif

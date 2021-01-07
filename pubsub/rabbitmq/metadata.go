@@ -17,6 +17,7 @@ type metadata struct {
 	deliveryMode     uint8 // Transient (0 or 1) or Persistent (2)
 	prefetchCount    uint8 // Prefetch deactivated if 0
 	reconnectWait    time.Duration
+	concurrency      pubsub.ConcurrencyMode
 }
 
 // createMetadata creates a new instance from the pubsub metadata
@@ -78,5 +79,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	result.concurrency = pubsub.Concurrency(pubSubMetadata.Properties)
 	return &result, nil
 }

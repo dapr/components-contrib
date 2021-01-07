@@ -26,6 +26,7 @@ const (
 	metadataDeliveryModeKey      = "deliveryMode"
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
+	concurrencyMode              = "concurrencyMode"
 
 	defaultReconnectWaitSeconds = 10
 	metadataprefetchCount       = "prefetchCount"
@@ -301,9 +302,25 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 		Topic: topic,
 	}
 
-	err := handler(pubsubMsg)
-	if err != nil {
-		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+	var err error
+	f := func(msg *pubsub.NewMessage, done chan bool) {
+		err = handler(pubsubMsg)
+		if err != nil {
+			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+		}
+		if done != nil {
+			done <- true
+		}
+	}
+	switch r.metadata.concurrency {
+	case pubsub.Single:
+		f(pubsubMsg, nil)
+	case pubsub.Parallel:
+		go func(msg *pubsub.NewMessage) {
+			done := make(chan bool, 1)
+			f(pubsubMsg, done)
+			<-done
+		}(pubsubMsg)
 	}
 
 	//nolint:nestif

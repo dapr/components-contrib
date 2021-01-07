@@ -50,6 +50,52 @@ func TestNoConsumer(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing RabbitMQ consumerID")
 }
 
+func TestConcurrencyMode(t *testing.T) {
+	t.Run("parallel", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{
+			Properties: map[string]string{
+				metadataHostKey:       "anyhost",
+				metadataConsumerIDKey: "consumer",
+				pubsub.ConcurrencyKey: string(pubsub.Parallel),
+			},
+		}
+		err := pubsubRabbitMQ.Init(metadata)
+		assert.Nil(t, err)
+		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
+	})
+
+	t.Run("single", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{
+			Properties: map[string]string{
+				metadataHostKey:       "anyhost",
+				metadataConsumerIDKey: "consumer",
+				pubsub.ConcurrencyKey: string(pubsub.Single),
+			},
+		}
+		err := pubsubRabbitMQ.Init(metadata)
+		assert.Nil(t, err)
+		assert.Equal(t, pubsub.Single, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		metadata := pubsub.Metadata{
+			Properties: map[string]string{
+				metadataHostKey:       "anyhost",
+				metadataConsumerIDKey: "consumer",
+			},
+		}
+		err := pubsubRabbitMQ.Init(metadata)
+		assert.Nil(t, err)
+		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
+	})
+}
+
 func TestPublishAndSubscribe(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)
@@ -203,6 +249,7 @@ func TestSubscribeReconnect(t *testing.T) {
 			metadataConsumerIDKey:        "consumer",
 			metadataAutoAckKey:           "true",
 			metadataReconnectWaitSeconds: "0",
+			pubsub.ConcurrencyKey:        string(pubsub.Single),
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)

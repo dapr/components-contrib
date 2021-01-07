@@ -80,5 +80,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	}
 
 	result.concurrency = pubsub.Concurrency(pubSubMetadata.Properties)
+
 	return &result, nil
 }

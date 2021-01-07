@@ -9,7 +9,7 @@ package pubsub
 type ConcurrencyMode string
 
 const (
-	//ConcurrencyKey is the metadata key name for ConcurrencyMode
+	// ConcurrencyKey is the metadata key name for ConcurrencyMode
 	ConcurrencyKey                 = "concurrencyMode"
 	Single         ConcurrencyMode = "single"
 	Parallel       ConcurrencyMode = "parallel"
@@ -20,5 +20,6 @@ func Concurrency(metadata map[string]string) ConcurrencyMode {
 	if val, ok := metadata[ConcurrencyKey]; ok && val != "" {
 		return ConcurrencyMode(val)
 	}
+
 	return Parallel
 }

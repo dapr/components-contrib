@@ -285,8 +285,16 @@ func (r *rabbitMQ) subscribeForever(
 }
 
 func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) error {
+	var err error
 	for d := range msgs {
-		err := r.handleMessage(channel, d, topic, handler)
+		switch r.metadata.concurrency {
+		case pubsub.Single:
+			err = r.handleMessage(channel, d, topic, handler)
+		case pubsub.Parallel:
+			go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) {
+				err = r.handleMessage(channel, d, topic, handler)
+			}(channel, d, topic, handler)
+		}
 		if (err != nil) && mustReconnect(channel, err) {
 			return err
 		}
@@ -301,23 +309,9 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 		Topic: topic,
 	}
 
-	var err error
-	f := func(msg *pubsub.NewMessage) {
-		err = handler(pubsubMsg)
-		if err != nil {
-			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
-		}
-	}
-	switch r.metadata.concurrency {
-	case pubsub.Single:
-		f(pubsubMsg)
-	case pubsub.Parallel:
-		done := make(chan bool, 1)
-		go func(msg *pubsub.NewMessage, done chan bool) {
-			f(pubsubMsg)
-			done <- true
-		}(pubsubMsg, done)
-		<-done
+	err := handler(pubsubMsg)
+	if err != nil {
+		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}
 
 	//nolint:nestif

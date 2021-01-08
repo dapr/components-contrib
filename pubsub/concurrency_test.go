@@ -14,22 +14,30 @@ import (
 func TestConcurrency(t *testing.T) {
 	t.Run("default parallel", func(t *testing.T) {
 		m := map[string]string{}
-		c := Concurrency(m)
+		c, _ := Concurrency(m)
 
 		assert.Equal(t, Parallel, c)
 	})
 
 	t.Run("parallel", func(t *testing.T) {
 		m := map[string]string{ConcurrencyKey: string(Parallel)}
-		c := Concurrency(m)
+		c, _ := Concurrency(m)
 
 		assert.Equal(t, Parallel, c)
 	})
 
 	t.Run("single", func(t *testing.T) {
 		m := map[string]string{ConcurrencyKey: string(Single)}
-		c := Concurrency(m)
+		c, _ := Concurrency(m)
 
 		assert.Equal(t, Single, c)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		m := map[string]string{ConcurrencyKey: "a"}
+		c, err := Concurrency(m)
+
+		assert.Empty(t, c)
+		assert.Error(t, err)
 	})
 }

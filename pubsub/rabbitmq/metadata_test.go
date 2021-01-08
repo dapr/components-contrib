@@ -123,6 +123,21 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, uint8(2), m.deliveryMode)
 	})
 
+	t.Run("invalid concurrency", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[pubsub.ConcurrencyKey] = "a"
+
+		// act
+		_, err := createMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+	})
+
 	t.Run("prefetchCount is set", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 

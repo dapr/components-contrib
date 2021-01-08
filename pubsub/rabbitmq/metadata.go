@@ -79,9 +79,9 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
-	c := pubsub.Concurrency(pubSubMetadata.Properties)
-	if string(c) == "" {
-		return nil, fmt.Errorf("invalid concurrencyMode %s", pubSubMetadata.Properties[pubsub.ConcurrencyKey])
+	c, err := pubsub.Concurrency(pubSubMetadata.Properties)
+	if err != nil {
+		return &result, err
 	}
 	result.concurrency = c
 

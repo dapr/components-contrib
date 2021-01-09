@@ -29,7 +29,6 @@ const (
 var (
 	errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
 	errInvalidHosts = errors.New("aerospike: invalid value for hosts")
-	errInvalidETag  = errors.New("aerospike: invalid ETag value")
 )
 
 // Aerospike is a state store

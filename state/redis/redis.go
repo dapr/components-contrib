@@ -295,6 +295,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		if req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
+
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
 

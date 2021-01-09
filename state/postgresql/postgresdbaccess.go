@@ -114,7 +114,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		var etag int
 		etag, err = strconv.Atoi(req.ETag)
 		if err != nil {
-			return err
+			return state.NewETagError(state.ETagInvalid, err)
 		}
 
 		// When an etag is provided do an update - no insert
@@ -176,7 +176,7 @@ func (p *postgresDBAccess) deleteValue(req *state.DeleteRequest) error {
 		// Convert req.ETag to integer for postgres compatibility
 		etag, conversionError := strconv.Atoi(req.ETag)
 		if conversionError != nil {
-			return conversionError
+			return state.NewETagError(state.ETagInvalid, err)
 		}
 
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
@@ -238,7 +238,7 @@ func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) er
 	}
 
 	if rowsAffected == 0 {
-		noRowsErr := errors.New("database operation failed: no rows match given key and etag")
+		noRowsErr := state.NewETagError(state.ETagMismatch, err)
 		p.logger.Error(noRowsErr)
 
 		return noRowsErr

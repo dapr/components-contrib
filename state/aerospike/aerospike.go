@@ -136,6 +136,7 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 		if req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
+
 		return fmt.Errorf("aerospike: failed to save value for key %s - %v", req.Key, err)
 	}
 

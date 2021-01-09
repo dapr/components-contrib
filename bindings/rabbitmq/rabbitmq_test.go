@@ -25,9 +25,9 @@ func TestParseMetadata(t *testing.T) {
 		properties               map[string]string
 		expectedDeleteWhenUnused bool
 		expectedDurable          bool
+		expectedExclusive        bool
 		expectedTTL              *time.Duration
 		expectedPrefetchCount    int
-		expectedExclusive        bool
 	}{
 		{
 			name:                     "Delete / Durable",

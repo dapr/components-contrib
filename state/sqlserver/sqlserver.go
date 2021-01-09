@@ -327,7 +327,7 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		var b []byte
 		b, err = hex.DecodeString(req.ETag)
 		if err != nil {
-			return err
+			return state.NewETagError(state.ETagInvalid, err)
 		}
 
 		res, err = s.db.Exec(s.deleteWithETagCommand, sql.Named(keyColumnName, req.Key), sql.Named(rowVersionColumnName, b))
@@ -336,6 +336,10 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	}
 
 	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return err
 	}
 
@@ -384,7 +388,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 		if d.ETag != "" {
 			etag, err = hex.DecodeString(d.ETag)
 			if err != nil {
-				return err
+				return state.NewETagError(state.ETagInvalid, err)
 			}
 		}
 		values[i] = TvpDeleteTableStringKey{ID: d.Key, RowVersion: etag}
@@ -473,12 +477,16 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 		var b []byte
 		b, err = hex.DecodeString(req.ETag)
 		if err != nil {
-			return err
+			return state.NewETagError(state.ETagInvalid, err)
 		}
 		etag.Value = b
 	}
 	res, err := db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag)
 	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return err
 	}
 

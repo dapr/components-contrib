@@ -109,7 +109,7 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 		var gen uint32
 		gen, err = convertETag(req.ETag)
 		if err != nil {
-			return errInvalidETag
+			return err
 		}
 		// pass etag and fail writes is etag in DB is not same as passed by dapr (EXPECT_GEN_EQUAL)
 		writePolicy.Generation = gen
@@ -134,6 +134,9 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	}
 	err = aspike.client.Put(writePolicy, asKey, as.BinMap(data))
 	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 		return fmt.Errorf("aerospike: failed to save value for key %s - %v", req.Key, err)
 	}
 
@@ -184,7 +187,7 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 		var gen uint32
 		gen, err = convertETag(req.ETag)
 		if err != nil {
-			return errInvalidETag
+			return err
 		}
 		// pass etag and fail writes is etag in DB is not same as passed by dapr (EXPECT_GEN_EQUAL)
 		writePolicy.Generation = gen
@@ -231,7 +234,7 @@ func parseHosts(hostsMeta string) ([]*as.Host, error) {
 func convertETag(eTag string) (uint32, error) {
 	i, err := strconv.ParseUint(eTag, 10, 32)
 	if err != nil {
-		return 0, err
+		return 0, state.NewETagError(state.ETagInvalid, err)
 	}
 
 	return uint32(i), nil

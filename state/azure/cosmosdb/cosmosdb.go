@@ -226,6 +226,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	}
 
 	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return err
 	}
 
@@ -268,6 +272,10 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	_, err = c.client.DeleteDocument(items[0].Self, options...)
 	if err != nil {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
+	}
+
+	if req.ETag != "" {
+		return state.NewETagError(state.ETagMismatch, err)
 	}
 
 	return err

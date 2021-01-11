@@ -274,8 +274,10 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 	}
 
-	if req.ETag != "" {
-		return state.NewETagError(state.ETagMismatch, err)
+	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 	}
 
 	return err

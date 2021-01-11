@@ -38,4 +38,10 @@ func TestETagError(t *testing.T) {
 
 		assert.Equal(t, mismatchPrefix, err.Error())
 	})
+
+	t.Run("valid kind", func(t *testing.T) {
+		err := NewETagError(ETagMismatch, nil)
+
+		assert.IsType(t, ETagMismatch, err.kind)
+	})
 }

@@ -26,6 +26,10 @@ type ETagError struct {
 	kind ETagErrorKind
 }
 
+func (e *ETagError) Kind() ETagErrorKind {
+	return e.kind
+}
+
 func (e *ETagError) Error() string {
 	var prefix string
 

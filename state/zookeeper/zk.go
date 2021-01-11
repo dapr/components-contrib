@@ -177,7 +177,15 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 			return nil
 		}
 
-		return err
+		if err != nil {
+			if req.ETag != "" {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+
+			return err
+		}
+
+		return nil
 	}, req)
 }
 
@@ -222,7 +230,15 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 			_, err = s.conn.Create(r.Path, r.Data, 0, nil)
 		}
 
-		return err
+		if err != nil {
+			if req.ETag != "" {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+
+			return err
+		}
+
+		return nil
 	}, req)
 }
 

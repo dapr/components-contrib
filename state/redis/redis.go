@@ -220,7 +220,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	}
 	_, err := r.client.DoContext(context.Background(), "EVAL", delQuery, 1, req.Key, req.ETag).Result()
 	if err != nil {
-		return fmt.Errorf("failed to delete key '%s' due to ETag mismatch", req.Key)
+		return state.NewETagError(state.ETagMismatch, err)
 	}
 
 	return nil
@@ -292,6 +292,10 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 	_, err = r.client.DoContext(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt).Result()
 	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
 
@@ -363,7 +367,7 @@ func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
 	}
 	ver, err := strconv.Atoi(req.ETag)
 	if err != nil {
-		return -1, err
+		return -1, state.NewETagError(state.ETagInvalid, err)
 	}
 
 	return ver, nil

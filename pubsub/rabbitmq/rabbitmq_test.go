@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
@@ -137,6 +138,71 @@ func TestPublishAndSubscribe(t *testing.T) {
 	<-processed
 	assert.Equal(t, 2, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
+}
+
+func TestPublishWithPriority(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{
+		Properties: map[string]string{
+			metadataHostKey:        "anyhost",
+			metadataConsumerIDKey:  "consumer",
+			metadataMaxPriorityKey: "10",
+		},
+	}
+	err := pubsubRabbitMQ.Init(metadata)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, broker.connectCount)
+	assert.Equal(t, 0, broker.closeCount)
+
+	topic := "mytopic"
+
+	messageCount := 0
+	lastMessage := ""
+	processed := make(chan bool)
+	handler := func(msg *pubsub.NewMessage) error {
+		messageCount++
+		lastMessage = string(msg.Data)
+		processed <- true
+
+		return nil
+	}
+
+	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	assert.Nil(t, err)
+
+	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{
+		Topic: topic,
+		Metadata: map[string]string{
+			contrib_metadata.PriorityMetadataKey: "1",
+		},
+		Data: []byte("hello world"),
+	})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 1, messageCount)
+	assert.Equal(t, "hello world", lastMessage)
+
+	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{
+		Topic: topic,
+		Metadata: map[string]string{
+			contrib_metadata.PriorityMetadataKey: "1",
+		},
+		Data: []byte("foo bar"),
+	})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 2, messageCount)
+	assert.Equal(t, "foo bar", lastMessage)
+
+	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{
+		Topic: topic,
+		Metadata: map[string]string{
+			contrib_metadata.PriorityMetadataKey: "invalid",
+		},
+		Data: []byte("baz qux"),
+	})
+	assert.Error(t, err)
 }
 
 func TestPublishReconnect(t *testing.T) {

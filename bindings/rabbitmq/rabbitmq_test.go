@@ -28,6 +28,7 @@ func TestParseMetadata(t *testing.T) {
 		expectedExclusive        bool
 		expectedTTL              *time.Duration
 		expectedPrefetchCount    int
+		expectedMaxPriority      *uint8
 	}{
 		{
 			name:                     "Delete / Durable",
@@ -68,6 +69,28 @@ func TestParseMetadata(t *testing.T) {
 			expectedDurable:          false,
 			expectedExclusive:        true,
 		},
+		{
+			name:                     "With maxPriority",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "maxPriority": "1"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedMaxPriority: func() *uint8 {
+				v := uint8(1)
+
+				return &v
+			}(),
+		},
+		{
+			name:                     "With maxPriority(> 255)",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "maxPriority": "256"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedMaxPriority: func() *uint8 {
+				v := uint8(255)
+
+				return &v
+			}(),
+		},
 	}
 
 	for _, tt := range testCases {
@@ -84,6 +107,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
 			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
+			assert.Equal(t, tt.expectedMaxPriority, r.metadata.MaxPriority)
 		})
 	}
 }
@@ -107,6 +131,43 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 		{
 			name:       "Non-numeric ttl",
 			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "abc"},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			r := RabbitMQ{logger: logger.NewLogger("test")}
+			err := r.parseMetadata(m)
+			assert.NotNil(t, err)
+		})
+	}
+}
+
+func TestParseMetadataWithInvalidMaxPriority(t *testing.T) {
+	const queueName = "test-queue"
+	const host = "test-host"
+
+	testCases := []struct {
+		name       string
+		properties map[string]string
+	}{
+		{
+			name:       "Whitespaces maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "  "},
+		},
+		{
+			name:       "Negative maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "-1"},
+		},
+		{
+			name:       "Non-numeric maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "abc"},
+		},
+		{
+			name:       "Negative maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "-1"},
 		},
 	}
 

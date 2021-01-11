@@ -208,6 +208,10 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 
 	_, err = aspike.client.Delete(writePolicy, asKey)
 	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return fmt.Errorf("aerospike: failed to delete key %s - %v", req.Key, err)
 	}
 

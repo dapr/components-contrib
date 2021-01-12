@@ -198,6 +198,10 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	if err != nil {
 		r.logger.Debugf("write file %s, err %s", req.Key, err)
 
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return err
 	}
 
@@ -215,6 +219,10 @@ func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
 	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionNone, accessConditions)
 	if err != nil {
 		r.logger.Debugf("delete file %s, err %s", req.Key, err)
+
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 
 		return err
 	}

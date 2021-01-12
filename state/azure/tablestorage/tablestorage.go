@@ -95,7 +95,14 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
-	return r.deleteRow(req)
+	err := r.deleteRow(req)
+	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	}
+
+	return err
 }
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
@@ -122,7 +129,14 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
-	return r.writeRow(req)
+	err := r.writeRow(req)
+	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	}
+
+	return err
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) *StateStore {

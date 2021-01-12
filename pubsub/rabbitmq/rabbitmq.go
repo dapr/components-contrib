@@ -285,8 +285,16 @@ func (r *rabbitMQ) subscribeForever(
 }
 
 func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) error {
+	var err error
 	for d := range msgs {
-		err := r.handleMessage(channel, d, topic, handler)
+		switch r.metadata.concurrency {
+		case pubsub.Single:
+			err = r.handleMessage(channel, d, topic, handler)
+		case pubsub.Parallel:
+			go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) {
+				err = r.handleMessage(channel, d, topic, handler)
+			}(channel, d, topic, handler)
+		}
 		if (err != nil) && mustReconnect(channel, err) {
 			return err
 		}

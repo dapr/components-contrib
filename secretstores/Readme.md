@@ -15,11 +15,15 @@ Currently supported secret stores are:
 
 A compliant secret store needs to implement the following interface:
 
-```
+```go
 type SecretStore interface {
-	// Init authenticates with the actual secret store and performs other init operation
-	Init(metadata Metadata) error
-	// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-	GetSecret(req GetSecretRequest) (GetSecretResponse, error)
+  // Init authenticates with the actual secret store and performs other init operation
+  Init(metadata Metadata) error
+
+  // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+  GetSecret(req GetSecretRequest) (GetSecretResponse, error)
+
+  // BulkGetSecrets retrieves all secrets in the store and returns a map of decrypted string/string values
+  BulkGetSecret(req BulkGetSecretRequest) (GetSecretResponse, error)
 }
 ```

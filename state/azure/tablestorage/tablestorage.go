@@ -96,8 +96,10 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
 	err := r.deleteRow(req)
-	if req.ETag != "" {
-		return state.NewETagError(state.ETagMismatch, err)
+	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 	}
 
 	return err
@@ -128,8 +130,10 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
 	err := r.writeRow(req)
-	if req.ETag != "" {
-		return state.NewETagError(state.ETagMismatch, err)
+	if err != nil {
+		if req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 	}
 
 	return err

@@ -20,6 +20,7 @@ import (
 const (
 	host                       = "host"
 	queueName                  = "queueName"
+	exclusive                  = "exclusive"
 	durable                    = "durable"
 	deleteWhenUnused           = "deleteWhenUnused"
 	prefetchCount              = "prefetchCount"
@@ -43,6 +44,7 @@ type RabbitMQ struct {
 type rabbitMQMetadata struct {
 	Host                 string `json:"host"`
 	QueueName            string `json:"queueName"`
+	Exclusive            bool   `json:"exclusive,string"`
 	Durable              bool   `json:"durable,string"`
 	DeleteWhenUnused     bool   `json:"deleteWhenUnused,string"`
 	PrefetchCount        int    `json:"prefetchCount"`
@@ -157,6 +159,14 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.PrefetchCount = int(parsedVal)
 	}
 
+	if val, ok := metadata.Properties[exclusive]; ok && val != "" {
+		d, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("rabbitMQ binding error: can't parse exclusive field: %s", err)
+		}
+		m.Exclusive = d
+	}
+
 	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return err
@@ -201,7 +211,7 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 		args[deadLetterRoutingKey] = r.metadata.DeadLetterRoutingKey
 	}
 
-	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
+	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
 }
 
 func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {

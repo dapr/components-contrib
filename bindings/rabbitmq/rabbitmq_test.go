@@ -25,6 +25,7 @@ func TestParseMetadata(t *testing.T) {
 		properties               map[string]string
 		expectedDeleteWhenUnused bool
 		expectedDurable          bool
+		expectedExclusive        bool
 		expectedTTL              *time.Duration
 		expectedPrefetchCount    int
 	}{
@@ -60,6 +61,13 @@ func TestParseMetadata(t *testing.T) {
 			expectedDurable:          false,
 			expectedPrefetchCount:    1,
 		},
+		{
+			name:                     "Exclusive Queue",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "exclusive": "true"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedExclusive:        true,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -75,6 +83,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
 			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
+			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
 		})
 	}
 }

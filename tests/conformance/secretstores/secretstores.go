@@ -24,14 +24,15 @@ func NewTestConfig(name string, allOperations bool, operations []string) TestCon
 			Operations:    sets.NewString(operations...),
 		},
 	}
-	os.Setenv("mysecret", "abcd")
 
 	return tc
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, store secretstores.SecretStore, config TestConfig) {
 	// TODO add support for metadata
-
+	// For local env var based component test
+	os.Setenv("conftestsecret", "abcd")
+	defer os.Unsetenv("conftestsecret")
 	if config.HasOperation("init") {
 		t.Run(config.GetTestName("init"), func(t *testing.T) {
 			err := store.Init(secretstores.Metadata{
@@ -42,11 +43,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	}
 	if config.HasOperation("get") {
 		getSecretRequest := secretstores.GetSecretRequest{
-			Name: "mysecret",
+			Name: "conftestsecret",
 		}
 		getSecretResponse := secretstores.GetSecretResponse{
 			Data: map[string]string{
-				"mysecret": "abcd",
+				"conftestsecret": "abcd",
 			},
 		}
 
@@ -63,8 +64,8 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		bulkReq := secretstores.BulkGetSecretRequest{}
 		bulkResponse := secretstores.GetSecretResponse{
 			Data: map[string]string{
-				"mysecret":     "abcd",
-				"secondsecret": "efgh",
+				"conftestsecret": "abcd",
+				"secondsecret":   "efgh",
 			},
 		}
 

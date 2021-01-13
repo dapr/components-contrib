@@ -221,7 +221,7 @@ func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
 		if req.ETag != nil {
 			etag = *req.ETag
 		}
-		accessConditions.IfMatch = azblob.ETag(*req.ETag)
+		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
 	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionNone, accessConditions)

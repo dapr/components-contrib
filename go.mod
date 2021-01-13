@@ -22,7 +22,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/apache/pulsar-client-go v0.1.0
-	github.com/aws/aws-sdk-go v1.34.28
+	github.com/aws/aws-sdk-go v1.27.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dancannon/gorethink v4.0.0+incompatible
@@ -61,7 +61,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/valyala/fasthttp v1.16.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
-	go.mongodb.org/mongo-driver v1.4.2
+	go.mongodb.org/mongo-driver v1.1.2
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43

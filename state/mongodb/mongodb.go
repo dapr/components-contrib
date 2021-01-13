@@ -16,7 +16,6 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -138,13 +137,7 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 }
 
 func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error {
-	var vStr string
-	b, ok := req.Value.([]byte)
-	if ok {
-		vStr = string(b)
-	} else {
-		vStr, _ = json.MarshalToString(req.Value)
-	}
+	var vStr = string(req.Value)
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}

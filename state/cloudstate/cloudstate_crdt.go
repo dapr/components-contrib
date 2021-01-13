@@ -569,20 +569,12 @@ func (c *CRDT) Set(req *state.SetRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultOperationTimeout)
 	defer cancel()
 
-	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = c.json.Marshal(req.Value)
-	}
-
 	client := c.getClient()
 	_, err = client.SaveState(ctx, &kvstore_pb.SaveStateEnvelope{
 		Key:  req.Key,
 		Etag: req.ETag,
 		Value: &any.Any{
-			Value: bt,
+			Value: req.Value,
 		},
 	})
 

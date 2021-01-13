@@ -187,23 +187,23 @@ func TestSet(t *testing.T) {
 	stat := &zk.Stat{}
 
 	t.Run("With key", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
+		conn.EXPECT().Set("foo", []byte("bar"), int32(anyVersion)).Return(stat, nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(&state.SetRequest{Key: "foo", Value: []byte("bar")})
 		assert.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and version", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(123)).Return(stat, nil).Times(1)
+		conn.EXPECT().Set("foo", []byte("bar"), int32(123)).Return(stat, nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar", ETag: "123"})
+		err := s.Set(&state.SetRequest{Key: "foo", Value: []byte("bar"), ETag: "123"})
 		assert.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and concurrency", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
+		conn.EXPECT().Set("foo", []byte("bar"), int32(anyVersion)).Return(stat, nil).Times(1)
 
 		err := s.Set(&state.SetRequest{
 			Key:     "foo",
-			Value:   "bar",
+			Value:   []byte("bar"),
 			ETag:    "123",
 			Options: state.SetStateOption{Concurrency: state.LastWrite},
 		})
@@ -211,16 +211,16 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("With error", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(1)
+		conn.EXPECT().Set("foo", []byte("bar"), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(&state.SetRequest{Key: "foo", Value: []byte("bar")})
 		assert.EqualError(t, err, "zk: unknown error")
 	})
 	t.Run("With NoNode error and retry", func(t *testing.T) {
-		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrNoNode).Times(1)
-		conn.EXPECT().Create("foo", []byte("\"bar\""), int32(0), nil).Return("/foo", nil).Times(1)
+		conn.EXPECT().Set("foo", []byte("bar"), int32(anyVersion)).Return(nil, zk.ErrNoNode).Times(1)
+		conn.EXPECT().Create("foo", []byte("bar"), int32(0), nil).Return("/foo", nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(&state.SetRequest{Key: "foo", Value: []byte("bar")})
 		assert.NoError(t, err, "Key must be create")
 	})
 }
@@ -235,45 +235,45 @@ func TestBulkSet(t *testing.T) {
 
 	t.Run("With keys", func(t *testing.T) {
 		conn.EXPECT().Multi([]interface{}{
-			&zk.SetDataRequest{Path: "foo", Data: []byte("\"bar\""), Version: int32(anyVersion)},
-			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
+			&zk.SetDataRequest{Path: "foo", Data: []byte("bar"), Version: int32(anyVersion)},
+			&zk.SetDataRequest{Path: "bar", Data: []byte("foo"), Version: int32(anyVersion)},
 		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
 
 		err := s.BulkSet([]state.SetRequest{
-			{Key: "foo", Value: "bar"},
-			{Key: "bar", Value: "foo"},
+			{Key: "foo", Value: []byte("bar")},
+			{Key: "bar", Value: []byte("foo")},
 		})
 		assert.NoError(t, err, "Key must be set")
 	})
 
 	t.Run("With keys and error", func(t *testing.T) {
 		conn.EXPECT().Multi([]interface{}{
-			&zk.SetDataRequest{Path: "foo", Data: []byte("\"bar\""), Version: int32(anyVersion)},
-			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
+			&zk.SetDataRequest{Path: "foo", Data: []byte("bar"), Version: int32(anyVersion)},
+			&zk.SetDataRequest{Path: "bar", Data: []byte("foo"), Version: int32(anyVersion)},
 		}).Return([]zk.MultiResponse{
 			{Error: zk.ErrUnknown}, {Error: zk.ErrNoAuth},
 		}, nil).Times(1)
 
 		err := s.BulkSet([]state.SetRequest{
-			{Key: "foo", Value: "bar"},
-			{Key: "bar", Value: "foo"},
+			{Key: "foo", Value: []byte("bar")},
+			{Key: "bar", Value: []byte("foo")},
 		})
 		assert.Equal(t, err.(*multierror.Error).Errors, []error{zk.ErrUnknown, zk.ErrNoAuth})
 	})
 	t.Run("With keys and retry NoNode error", func(t *testing.T) {
 		conn.EXPECT().Multi([]interface{}{
-			&zk.SetDataRequest{Path: "foo", Data: []byte("\"bar\""), Version: int32(anyVersion)},
-			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
+			&zk.SetDataRequest{Path: "foo", Data: []byte("bar"), Version: int32(anyVersion)},
+			&zk.SetDataRequest{Path: "bar", Data: []byte("foo"), Version: int32(anyVersion)},
 		}).Return([]zk.MultiResponse{
 			{Error: zk.ErrNoNode}, {},
 		}, nil).Times(1)
 		conn.EXPECT().Multi([]interface{}{
-			&zk.CreateRequest{Path: "foo", Data: []byte("\"bar\"")},
+			&zk.CreateRequest{Path: "foo", Data: []byte("bar")},
 		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
 
 		err := s.BulkSet([]state.SetRequest{
-			{Key: "foo", Value: "bar"},
-			{Key: "bar", Value: "foo"},
+			{Key: "foo", Value: []byte("bar")},
+			{Key: "bar", Value: []byte("foo")},
 		})
 		assert.NoError(t, err, "Key must be set")
 	})

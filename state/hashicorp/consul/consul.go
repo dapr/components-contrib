@@ -109,19 +109,11 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves a Consul KV item
 func (c *Consul) Set(req *state.SetRequest) error {
-	var reqValByte []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		reqValByte = b
-	} else {
-		reqValByte, _ = json.Marshal(req.Value)
-	}
-
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
 
 	_, err := c.client.KV().Put(&api.KVPair{
 		Key:   keyWithPath,
-		Value: reqValByte,
+		Value: req.Value,
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("couldn't set key %s: %s", keyWithPath, err)

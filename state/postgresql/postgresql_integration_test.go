@@ -190,7 +190,7 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
 			Key:   randomKey(),
-			Value: randomJSON(),
+			Value: fakeItem2ByteArray(randomJSON()),
 		}
 		setRequests = append(setRequests, req)
 		operations = append(operations, state.TransactionalStateOperation{
@@ -263,7 +263,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 	for i := 0; i < 3; i++ {
 		req := state.SetRequest{
 			Key:   randomKey(),
-			Value: randomJSON(),
+			Value: fakeItem2ByteArray(randomJSON()),
 		}
 		setRequests = append(setRequests, req)
 		operations = append(operations, state.TransactionalStateOperation{
@@ -318,7 +318,7 @@ func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 	setReq := &state.SetRequest{
 		Key:   randomKey(),
 		ETag:  invalidEtag,
-		Value: value,
+		Value: fakeItem2ByteArray(value),
 	}
 
 	err := pgs.Set(setReq)
@@ -345,7 +345,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 	setReq := &state.SetRequest{
 		Key:   key,
 		ETag:  originalEtag,
-		Value: newValue,
+		Value: fakeItem2ByteArray(newValue),
 	}
 	err := pgs.Set(setReq)
 	assert.NotNil(t, err)
@@ -429,11 +429,11 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	setReq := []state.SetRequest{
 		{
 			Key:   randomKey(),
-			Value: &fakeItem{Color: "blue"},
+			Value: fakeItem2ByteArray(&fakeItem{Color: "blue"}),
 		},
 		{
 			Key:   randomKey(),
-			Value: &fakeItem{Color: "red"},
+			Value: fakeItem2ByteArray(&fakeItem{Color: "red"}),
 		},
 	}
 
@@ -505,7 +505,7 @@ func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag 
 	setReq := &state.SetRequest{
 		Key:   key,
 		ETag:  etag,
-		Value: value,
+		Value: interface2ByteArray(value),
 	}
 
 	err := pgs.Set(setReq)
@@ -571,4 +571,14 @@ func randomKey() string {
 
 func randomJSON() *fakeItem {
 	return &fakeItem{Color: randomKey()}
+}
+
+func fakeItem2ByteArray(f *fakeItem) []byte {
+	c, _ := json.Marshal(f)
+	return c
+}
+
+func interface2ByteArray(i interface{}) []byte {
+	c, _ := json.Marshal(i)
+	return c
 }

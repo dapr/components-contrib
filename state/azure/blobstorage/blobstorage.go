@@ -240,15 +240,7 @@ func getFileName(key string) string {
 }
 
 func (r *StateStore) marshal(req *state.SetRequest) []byte {
-	var v string
-	b, ok := req.Value.([]byte)
-	if ok {
-		v = string(b)
-	} else {
-		v, _ = jsoniter.MarshalToString(req.Value)
-	}
-
-	return []byte(v)
+	return req.Value
 }
 
 func isNotFoundError(err error) bool {

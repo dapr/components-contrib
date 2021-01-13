@@ -122,7 +122,7 @@ func TestTransactionalUpsert(t *testing.T) {
 			Operation: state.Upsert,
 			Request: state.SetRequest{
 				Key:   "weapon",
-				Value: "deathstar",
+				Value: []byte("deathstar"),
 			},
 		}},
 	})
@@ -135,7 +135,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	data, version, err := ss.getKeyVersion(vals)
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "1", version)
-	assert.Equal(t, `"deathstar"`, data)
+	assert.Equal(t, "deathstar", data)
 }
 
 func TestTransactionalDelete(t *testing.T) {
@@ -151,7 +151,7 @@ func TestTransactionalDelete(t *testing.T) {
 	// Insert a record first.
 	ss.Set(&state.SetRequest{
 		Key:   "weapon",
-		Value: "deathstar",
+		Value: []byte("deathstar"),
 	})
 
 	err := ss.Multi(&state.TransactionalStateRequest{
@@ -185,7 +185,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	// Insert a record first.
 	ss.Set(&state.SetRequest{
 		Key:   "weapon100",
-		Value: "deathstar100",
+		Value: []byte("deathstar100"),
 	})
 
 	err := ss.Multi(&state.TransactionalStateRequest{

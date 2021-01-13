@@ -14,7 +14,6 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/gocql/gocql"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -255,14 +254,6 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set saves state into cassandra
 func (c *Cassandra) Set(req *state.SetRequest) error {
-	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = jsoniter.ConfigFastest.Marshal(req.Value)
-	}
-
 	session := c.session
 
 	if req.Options.Consistency == state.Strong {
@@ -281,7 +272,7 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		session = sess
 	}
 
-	return session.Query("INSERT INTO ? (key, value) VALUES (?, ?)", c.table, req.Key, bt).Exec()
+	return session.Query("INSERT INTO ? (key, value) VALUES (?, ?)", c.table, req.Key, req.Value).Exec()
 }
 
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {

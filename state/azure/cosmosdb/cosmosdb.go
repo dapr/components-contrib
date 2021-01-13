@@ -210,20 +210,14 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	b, ok := req.Value.([]uint8)
-	if ok {
-		// data arrived in bytes and already json.  Don't marshal the Value field again.
-		item := CosmosItemWithRawMessage{ID: req.Key, Value: b, PartitionKey: partitionKey}
-		var marshalled []byte
-		marshalled, err = convertToJSONWithoutEscapes(item)
-		if err != nil {
-			return err
-		}
-		_, err = c.client.UpsertDocument(c.collection.Self, marshalled, options...)
-	} else {
-		// data arrived as non-bytes, just pass it through.
-		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
+	// data arrived in bytes and already json.  Don't marshal the Value field again.
+	item := CosmosItemWithRawMessage{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}
+	var marshalled []byte
+	marshalled, err = convertToJSONWithoutEscapes(item)
+	if err != nil {
+		return err
 	}
+	_, err = c.client.UpsertDocument(c.collection.Self, marshalled, options...)
 
 	if err != nil {
 		if req.ETag != "" {

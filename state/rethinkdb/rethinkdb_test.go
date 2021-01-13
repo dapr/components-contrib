@@ -76,7 +76,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 		d := &testObj{F1: "test", F2: 1, F3: time.Now().UTC()}
 		k := fmt.Sprintf("ids-%d", time.Now().UnixNano())
 
-		if err := db.Set(&state.SetRequest{Key: k, Value: d}); err != nil {
+		if err := db.Set(&state.SetRequest{Key: k, Value: testObj2ByteArray(d)}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
 		}
 
@@ -93,7 +93,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 		d2.F2 = 2
 		d2.F3 = time.Now().UTC()
 		tag := fmt.Sprintf("hash-%d", time.Now().UnixNano())
-		if err = db.Set(&state.SetRequest{Key: k, Value: d2, ETag: tag}); err != nil {
+		if err = db.Set(&state.SetRequest{Key: k, Value: testObj2ByteArray(d2), ETag: tag}); err != nil {
 			t.Fatalf("error setting data to db: %v", err)
 		}
 
@@ -298,4 +298,9 @@ func getTestMetadata() map[string]string {
 		"password": "rethinkdb", // default
 		"archive":  "true",
 	}
+}
+
+func testObj2ByteArray(o *testObj) []byte {
+	c, _ := json.Marshal(o)
+	return c
 }

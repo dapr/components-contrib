@@ -44,7 +44,7 @@ type DeleteStateOption struct {
 // SetRequest is the object describing an upsert request
 type SetRequest struct {
 	Key      string            `json:"key"`
-	Value    interface{}       `json:"value"`
+	Value    []byte            `json:"value"`
 	ETag     string            `json:"etag,omitempty"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 	Options  SetStateOption    `json:"options,omitempty"`

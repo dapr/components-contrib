@@ -234,14 +234,14 @@ func testSingleOperations(t *testing.T) {
 			assertUserDoesNotExist(t, store, john.ID)
 
 			// Save and read
-			err := store.Set(&state.SetRequest{Key: john.ID, Value: john})
+			err := store.Set(&state.SetRequest{Key: john.ID, Value: user2ByteArray(john)})
 			assert.Nil(t, err)
 			johnV1, etagFromInsert := assertLoadedUserIsEqual(t, store, john.ID, john)
 
 			// Update with ETAG
 			waterJohn := johnV1
 			waterJohn.FavoriteBeverage = "Water"
-			err = store.Set(&state.SetRequest{Key: waterJohn.ID, Value: waterJohn, ETag: etagFromInsert})
+			err = store.Set(&state.SetRequest{Key: waterJohn.ID, Value: user2ByteArray(waterJohn), ETag: etagFromInsert})
 			assert.Nil(t, err)
 
 			// Get updated
@@ -250,7 +250,7 @@ func testSingleOperations(t *testing.T) {
 			// Update without ETAG
 			noEtagJohn := johnV2
 			noEtagJohn.FavoriteBeverage = "No Etag John"
-			err = store.Set(&state.SetRequest{Key: noEtagJohn.ID, Value: noEtagJohn})
+			err = store.Set(&state.SetRequest{Key: noEtagJohn.ID, Value: user2ByteArray(noEtagJohn)})
 			assert.Nil(t, err)
 
 			// 7. Get updated
@@ -259,7 +259,7 @@ func testSingleOperations(t *testing.T) {
 			// 8. Update with invalid ETAG should fail
 			failedJohn := johnV3
 			failedJohn.FavoriteBeverage = "Will not work"
-			err = store.Set(&state.SetRequest{Key: failedJohn.ID, Value: failedJohn, ETag: etagFromInsert})
+			err = store.Set(&state.SetRequest{Key: failedJohn.ID, Value: user2ByteArray(failedJohn), ETag: etagFromInsert})
 			assert.NotNil(t, err)
 			_, etag := assertLoadedUserIsEqual(t, store, johnV3.ID, johnV3)
 
@@ -282,7 +282,7 @@ func testSetNewRecordWithInvalidEtagShouldFail(t *testing.T) {
 
 	u := user{uuid.New().String(), "John", "Coffee"}
 
-	err := store.Set(&state.SetRequest{Key: u.ID, Value: u, ETag: invalidEtag})
+	err := store.Set(&state.SetRequest{Key: u.ID, Value: user2ByteArray(u), ETag: invalidEtag})
 	assert.NotNil(t, err)
 }
 
@@ -291,10 +291,10 @@ func testIndexedProperties(t *testing.T) {
 	store := getTestStore(t, `[{ "column":"FavoriteBeverage", "property":"FavoriteBeverage", "type":"nvarchar(100)"}, { "column":"PetsCount", "property":"PetsCount", "type": "INTEGER"}]`)
 
 	err := store.BulkSet([]state.SetRequest{
-		{Key: "1", Value: userWithPets{user{"1", "John", "Coffee"}, 3}},
-		{Key: "2", Value: userWithPets{user{"2", "Laura", "Water"}, 1}},
-		{Key: "3", Value: userWithPets{user{"3", "Carl", "Beer"}, 0}},
-		{Key: "4", Value: userWithPets{user{"4", "Maria", "Wine"}, 100}},
+		{Key: "1", Value: userWithPets2ByteArray(userWithPets{user{"1", "John", "Coffee"}, 3})},
+		{Key: "2", Value: userWithPets2ByteArray(userWithPets{user{"2", "Laura", "Water"}, 1})},
+		{Key: "3", Value: userWithPets2ByteArray(userWithPets{user{"3", "Carl", "Beer"}, 0})},
+		{Key: "4", Value: userWithPets2ByteArray(userWithPets{user{"4", "Maria", "Wine"}, 100})},
 	})
 
 	assert.Nil(t, err)
@@ -349,7 +349,7 @@ func testMultiOperations(t *testing.T) {
 			// 1. add bulk users
 			bulkSet := make([]state.SetRequest, len(initialUsers))
 			for i, u := range initialUsers {
-				bulkSet[i] = state.SetRequest{Key: u.ID, Value: u}
+				bulkSet[i] = state.SetRequest{Key: u.ID, Value: user2ByteArray(u)}
 			}
 
 			err := store.BulkSet(bulkSet)
@@ -375,7 +375,7 @@ func testMultiOperations(t *testing.T) {
 				localErr := store.Multi(&state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
 						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: user2ByteArray(modified)}},
 					},
 				})
 				assert.Nil(t, localErr)
@@ -398,8 +398,8 @@ func testMultiOperations(t *testing.T) {
 				err = store.Multi(&state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
 						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: toDelete.etag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: toModify.etag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: user2ByteArray(modified), ETag: toModify.etag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: user2ByteArray(toInsert)}},
 					},
 				})
 				assert.Nil(t, err)
@@ -422,7 +422,7 @@ func testMultiOperations(t *testing.T) {
 				err = store.Multi(&state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
 						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: toDelete.etag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: toModify.etag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: user2ByteArray(modified), ETag: toModify.etag}},
 					},
 				})
 				assert.Nil(t, err)
@@ -442,7 +442,7 @@ func testMultiOperations(t *testing.T) {
 				err = store.Multi(&state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
 						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: invalidEtag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: user2ByteArray(toInsert)}},
 					},
 				})
 
@@ -462,7 +462,7 @@ func testMultiOperations(t *testing.T) {
 				err = store.Multi(&state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
 						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: invalidEtag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: user2ByteArray(modified)}},
 					},
 				})
 				assert.NotNil(t, err)
@@ -481,7 +481,7 @@ func testMultiOperations(t *testing.T) {
 				err = store.Multi(&state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
 						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: invalidEtag}},
+						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: user2ByteArray(modified), ETag: invalidEtag}},
 					},
 				})
 
@@ -523,7 +523,7 @@ func testBulkSet(t *testing.T) {
 			t.Run("Add initial users", func(t *testing.T) {
 				sets := make([]state.SetRequest, len(initialUsers))
 				for i, u := range initialUsers {
-					sets[i] = state.SetRequest{Key: u.ID, Value: u}
+					sets[i] = state.SetRequest{Key: u.ID, Value: user2ByteArray(u)}
 				}
 
 				err := store.BulkSet(sets)
@@ -539,8 +539,8 @@ func testBulkSet(t *testing.T) {
 				toInsert := user{keyGen.NextKey(), "Maria", "Wine"}
 
 				err := store.BulkSet([]state.SetRequest{
-					{Key: modified.ID, Value: modified, ETag: toModifyETag},
-					{Key: toInsert.ID, Value: toInsert},
+					{Key: modified.ID, Value: user2ByteArray(modified), ETag: toModifyETag},
+					{Key: toInsert.ID, Value: user2ByteArray(toInsert)},
 				})
 				assert.Nil(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
@@ -558,8 +558,8 @@ func testBulkSet(t *testing.T) {
 				toInsert := user{keyGen.NextKey(), "Tony", "Milk"}
 
 				err := store.BulkSet([]state.SetRequest{
-					{Key: modified.ID, Value: modified},
-					{Key: toInsert.ID, Value: toInsert},
+					{Key: modified.ID, Value: user2ByteArray(modified)},
+					{Key: toInsert.ID, Value: user2ByteArray(toInsert)},
 				})
 				assert.Nil(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
@@ -578,9 +578,9 @@ func testBulkSet(t *testing.T) {
 				modified.FavoriteBeverage = beverageTea
 
 				sets := []state.SetRequest{
-					{Key: toInsert1.ID, Value: toInsert1},
-					{Key: toInsert2.ID, Value: toInsert2},
-					{Key: modified.ID, Value: modified, ETag: invalidEtag},
+					{Key: toInsert1.ID, Value: user2ByteArray(toInsert1)},
+					{Key: toInsert2.ID, Value: user2ByteArray(toInsert2)},
+					{Key: modified.ID, Value: user2ByteArray(modified), ETag: invalidEtag},
 				}
 
 				err := store.BulkSet(sets)
@@ -624,7 +624,7 @@ func testBulkDelete(t *testing.T) {
 
 			sets := make([]state.SetRequest, len(initialUsers))
 			for i, u := range initialUsers {
-				sets[i] = state.SetRequest{Key: u.ID, Value: u}
+				sets[i] = state.SetRequest{Key: u.ID, Value: user2ByteArray(u)}
 			}
 			err := store.BulkSet(sets)
 			assert.Nil(t, err)
@@ -707,7 +707,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	store := getTestStore(t, "")
 
 	u := user{"1", "John", "Coffee"}
-	err := store.Set(&state.SetRequest{Key: u.ID, Value: u})
+	err := store.Set(&state.SetRequest{Key: u.ID, Value: user2ByteArray(u)})
 	assert.Nil(t, err)
 
 	var originalInsertTime time.Time
@@ -729,7 +729,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 
 	modified := u
 	modified.FavoriteBeverage = beverageTea
-	err = store.Set(&state.SetRequest{Key: modified.ID, Value: modified})
+	err = store.Set(&state.SetRequest{Key: modified.ID, Value: user2ByteArray(modified)})
 	assert.Nil(t, err)
 	assertDBQuery(t, store, getUserTsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
@@ -753,7 +753,7 @@ func testConcurrentSets(t *testing.T) {
 	store := getTestStore(t, "")
 
 	u := user{"1", "John", "Coffee"}
-	err := store.Set(&state.SetRequest{Key: u.ID, Value: u})
+	err := store.Set(&state.SetRequest{Key: u.ID, Value: user2ByteArray(u)})
 	assert.Nil(t, err)
 
 	_, etag := assertLoadedUserIsEqual(t, store, u.ID, u)
@@ -770,7 +770,7 @@ func testConcurrentSets(t *testing.T) {
 			defer wc.Done()
 
 			modified := user{"1", "John", beverageTea}
-			err := store.Set(&state.SetRequest{Key: id, Value: modified, ETag: etag})
+			err := store.Set(&state.SetRequest{Key: id, Value: user2ByteArray(modified), ETag: etag})
 			if err != nil {
 				atomic.AddInt32(&totalErrors, 1)
 			} else {
@@ -806,4 +806,14 @@ func testMultipleInitializations(t *testing.T) {
 			assert.Nil(t, store2.Init(createMetadata(store.schema, test.kt, test.indexedProperties)))
 		})
 	}
+}
+
+func user2ByteArray(u user) []byte {
+	c, _ := json.Marshal(u)
+	return c
+}
+
+func userWithPets2ByteArray(u userWithPets) []byte {
+	c, _ := json.Marshal(u)
+	return c
 }

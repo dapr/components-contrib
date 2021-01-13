@@ -227,15 +227,7 @@ func getPartitionAndRowKey(key string) (string, string) {
 }
 
 func (r *StateStore) marshal(req *state.SetRequest) string {
-	var v string
-	b, ok := req.Value.([]byte)
-	if ok {
-		v = string(b)
-	} else {
-		v, _ = jsoniter.MarshalToString(req.Value)
-	}
-
-	return v
+	return string(req.Value)
 }
 
 func (r *StateStore) unmarshal(row *storage.Entity) ([]byte, string, error) {

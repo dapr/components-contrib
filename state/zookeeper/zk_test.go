@@ -94,6 +94,7 @@ func TestDelete(t *testing.T) {
 	conn := NewMockConn(ctrl)
 	s := StateStore{conn: conn}
 
+	etag := "123"
 	t.Run("With key", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
@@ -104,7 +105,6 @@ func TestDelete(t *testing.T) {
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(123)).Return(nil).Times(1)
 
-		etag := "123"
 		err := s.Delete(&state.DeleteRequest{Key: "foo", ETag: &etag})
 		assert.NoError(t, err, "Key must be exists")
 	})
@@ -112,7 +112,6 @@ func TestDelete(t *testing.T) {
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
-		etag := "123"
 		err := s.Delete(&state.DeleteRequest{
 			Key:     "foo",
 			ETag:    &etag,
@@ -188,6 +187,7 @@ func TestSet(t *testing.T) {
 
 	stat := &zk.Stat{}
 
+	etag := "123"
 	t.Run("With key", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
@@ -197,14 +197,12 @@ func TestSet(t *testing.T) {
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(123)).Return(stat, nil).Times(1)
 
-		etag := "123"
 		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar", ETag: &etag})
 		assert.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
-		etag := "123"
 		err := s.Set(&state.SetRequest{
 			Key:     "foo",
 			Value:   "bar",

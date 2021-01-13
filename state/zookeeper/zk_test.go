@@ -104,16 +104,18 @@ func TestDelete(t *testing.T) {
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(123)).Return(nil).Times(1)
 
-		err := s.Delete(&state.DeleteRequest{Key: "foo", ETag: "123"})
+		etag := "123"
+		err := s.Delete(&state.DeleteRequest{Key: "foo", ETag: &etag})
 		assert.NoError(t, err, "Key must be exists")
 	})
 
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
+		etag := "123"
 		err := s.Delete(&state.DeleteRequest{
 			Key:     "foo",
-			ETag:    "123",
+			ETag:    &etag,
 			Options: state.DeleteStateOption{Concurrency: state.LastWrite},
 		})
 		assert.NoError(t, err, "Key must be exists")
@@ -195,16 +197,18 @@ func TestSet(t *testing.T) {
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(123)).Return(stat, nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar", ETag: "123"})
+		etag := "123"
+		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar", ETag: &etag})
 		assert.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
+		etag := "123"
 		err := s.Set(&state.SetRequest{
 			Key:     "foo",
 			Value:   "bar",
-			ETag:    "123",
+			ETag:    &etag,
 			Options: state.SetStateOption{Concurrency: state.LastWrite},
 		})
 		assert.NoError(t, err, "Key must be set")

@@ -323,9 +323,9 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	var err error
 	var res sql.Result
-	if req.ETag != "" {
+	if req.ETag != nil {
 		var b []byte
-		b, err = hex.DecodeString(req.ETag)
+		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
@@ -336,7 +336,7 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -385,8 +385,8 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 	for i, d := range req {
 		var etag []byte
 		var err error
-		if d.ETag != "" {
-			etag, err = hex.DecodeString(d.ETag)
+		if d.ETag != nil {
+			etag, err = hex.DecodeString(*d.ETag)
 			if err != nil {
 				return state.NewETagError(state.ETagInvalid, err)
 			}
@@ -473,9 +473,9 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 		return err
 	}
 	etag := sql.Named(rowVersionColumnName, nil)
-	if req.ETag != "" {
+	if req.ETag != nil {
 		var b []byte
-		b, err = hex.DecodeString(req.ETag)
+		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
@@ -483,7 +483,7 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	}
 	res, err := db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag)
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 

@@ -188,11 +188,16 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 	docs := make([]*stateRecord, len(req))
 	for i, v := range req {
+		var etag string
+		if v.ETag != nil {
+			etag = *v.ETag
+		}
+
 		docs[i] = &stateRecord{
 			ID:   v.Key,
 			TS:   time.Now().UTC().UnixNano(),
-			Hash: v.ETag,
 			Data: v.Value,
+			Hash: etag,
 		}
 	}
 

@@ -104,9 +104,9 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	writePolicy := &as.WritePolicy{}
 
 	// not a new record
-	if req.ETag != "" {
+	if req.ETag != nil {
 		var gen uint32
-		gen, err = convertETag(req.ETag)
+		gen, err = convertETag(*req.ETag)
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	}
 	err = aspike.client.Put(writePolicy, asKey, as.BinMap(data))
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -183,9 +183,9 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	}
 	writePolicy := &as.WritePolicy{}
 
-	if req.ETag != "" {
+	if req.ETag != nil {
 		var gen uint32
-		gen, err = convertETag(req.ETag)
+		gen, err = convertETag(*req.ETag)
 		if err != nil {
 			return err
 		}
@@ -208,7 +208,7 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 
 	_, err = aspike.client.Delete(writePolicy, asKey)
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 

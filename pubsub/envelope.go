@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	contrib_contenttype "github.com/dapr/components-contrib/contenttype"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
@@ -19,9 +20,6 @@ const (
 	DefaultCloudEventType = "com.dapr.event.sent"
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
 	CloudEventsSpecVersion = "1.0"
-	// ContentType is the Cloud Events HTTP content type
-	ContentType     = "application/cloudevents+json"
-	JSONContentType = "application/json"
 	// DefaultCloudEventSource is the default event source
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute
@@ -57,11 +55,13 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 
 	var ceData interface{}
 	var err error
-	if dataContentType == JSONContentType {
+	if contrib_contenttype.IsJSONContentType(dataContentType) {
 		err = jsoniter.Unmarshal(data, &ceData)
+	} else {
+		ceData = string(data)
 	}
 
-	if err != nil || dataContentType != JSONContentType {
+	if err != nil {
 		ceData = string(data)
 	}
 

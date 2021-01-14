@@ -137,7 +137,7 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 }
 
 func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error {
-	var vStr = string(req.Value)
+	vStr := string(req.Value)
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}

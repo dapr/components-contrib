@@ -5,6 +5,7 @@ This document describes how to build and test new component.
 ## Prerequisites
 
 1. [Dapr development environment setup](https://github.com/dapr/dapr/blob/master/docs/development/setup-dapr-development-env.md)
+2. [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
 
 ## Clone dapr and component-contrib
 

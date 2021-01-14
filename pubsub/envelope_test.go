@@ -56,15 +56,16 @@ func TestCreateFromJSON(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "application/json", data, "1")
 		t.Logf("data: %v", envelope[DataField])
 		assert.Equal(t, "application/json", envelope[DataContentTypeField])
+		assert.Equal(t, map[string]interface{}{"Val1": "test", "Val2": float64(1)}, envelope[DataField])
+	})
 
-		obj2 := struct {
-			Val1 string
-			Val2 int
-		}{}
-		err := json.Unmarshal(data, &obj2)
-		assert.NoError(t, err)
-		assert.Equal(t, obj1.Val1, obj2.Val1)
-		assert.Equal(t, obj1.Val2, obj2.Val2)
+	t.Run("has JSON string with rich contenttype", func(t *testing.T) {
+		obj1 := "message"
+		data, _ := json.Marshal(obj1)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "application/JSON; charset=utf-8", data, "1")
+		t.Logf("data: %v", envelope[DataField])
+		assert.Equal(t, "application/JSON; charset=utf-8", envelope[DataContentTypeField])
+		assert.Equal(t, "message", envelope[DataField])
 	})
 }
 

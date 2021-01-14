@@ -810,10 +810,12 @@ func testMultipleInitializations(t *testing.T) {
 
 func user2ByteArray(u user) []byte {
 	c, _ := json.Marshal(u)
+
 	return c
 }
 
 func userWithPets2ByteArray(u userWithPets) []byte {
 	c, _ := json.Marshal(u)
+
 	return c
 }

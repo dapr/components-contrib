@@ -302,5 +302,6 @@ func getTestMetadata() map[string]string {
 
 func testObj2ByteArray(o *testObj) []byte {
 	c, _ := json.Marshal(o)
+
 	return c
 }

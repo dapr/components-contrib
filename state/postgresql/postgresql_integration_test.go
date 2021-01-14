@@ -575,10 +575,12 @@ func randomJSON() *fakeItem {
 
 func fakeItem2ByteArray(f *fakeItem) []byte {
 	c, _ := json.Marshal(f)
+
 	return c
 }
 
 func interface2ByteArray(i interface{}) []byte {
 	c, _ := json.Marshal(i)
+
 	return c
 }

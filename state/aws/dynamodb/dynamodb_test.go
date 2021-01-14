@@ -160,10 +160,6 @@ func TestGet(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	type value struct {
-		Value string
-	}
-
 	t.Run("Successfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
@@ -212,10 +208,6 @@ func TestSet(t *testing.T) {
 }
 
 func TestBulkSet(t *testing.T) {
-	type value struct {
-		Value string
-	}
-
 	t.Run("Successfully set items", func(t *testing.T) {
 		tableName := "table_name"
 		ss := StateStore{

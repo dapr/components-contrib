@@ -186,8 +186,12 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 
 	accessConditions := azblob.BlobAccessConditions{}
 
-	if req.Options.Concurrency == state.LastWrite {
-		accessConditions.IfMatch = azblob.ETag(req.ETag)
+	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {
+		var etag string
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
@@ -197,6 +201,10 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	})
 	if err != nil {
 		r.logger.Debugf("write file %s, err %s", req.Key, err)
+
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 
 		return err
 	}
@@ -208,13 +216,21 @@ func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName((req.Key)))
 	accessConditions := azblob.BlobAccessConditions{}
 
-	if req.Options.Concurrency == state.LastWrite {
-		accessConditions.IfMatch = azblob.ETag(req.ETag)
+	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {
+		var etag string
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
 	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionNone, accessConditions)
 	if err != nil {
 		r.logger.Debugf("delete file %s, err %s", req.Key, err)
+
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 
 		return err
 	}

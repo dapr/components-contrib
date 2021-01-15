@@ -206,7 +206,15 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 			return nil
 		}
 
-		return err
+		if err != nil {
+			if req.ETag != nil {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+
+			return err
+		}
+
+		return nil
 	}, req)
 }
 
@@ -251,7 +259,15 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 			_, err = s.conn.Create(r.Path, r.Data, 0, nil)
 		}
 
-		return err
+		if err != nil {
+			if req.ETag != nil {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+
+			return err
+		}
+
+		return nil
 	}, req)
 }
 
@@ -312,7 +328,12 @@ func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteReque
 	if req.Options.Concurrency == state.LastWrite {
 		version = anyVersion
 	} else {
-		version = s.parseETag(req.ETag)
+		var etag string
+
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		version = s.parseETag(etag)
 	}
 
 	return &zk.DeleteRequest{
@@ -337,7 +358,12 @@ func (s *StateStore) newSetDataRequest(req *state.SetRequest) (*zk.SetDataReques
 	if req.Options.Concurrency == state.LastWrite {
 		version = anyVersion
 	} else {
-		version = s.parseETag(req.ETag)
+		var etag string
+
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		version = s.parseETag(etag)
 	}
 
 	return &zk.SetDataRequest{

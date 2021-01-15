@@ -12,9 +12,11 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/streadway/amqp"
@@ -63,7 +65,7 @@ func TestQueuesWithTTL(t *testing.T) {
 			"host":                  rabbitmqHost,
 			"deleteWhenUnused":      strconv.FormatBool(exclusive),
 			"durable":               strconv.FormatBool(durable),
-			bindings.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+			metadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
 		},
 	}
 
@@ -143,7 +145,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest := bindings.InvokeRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
-			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds),
+			metadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds),
 		},
 	}
 
@@ -165,7 +167,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest = bindings.InvokeRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
-			bindings.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
+			metadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
 		},
 	}
 	err = rabbitMQBinding2.Write(&writeRequest)
@@ -176,4 +178,57 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+}
+
+func TestExclusiveQueue(t *testing.T) {
+	rabbitmqHost := getTestRabbitMQHost()
+	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
+
+	queueName := uuid.New().String()
+	durable := true
+	exclusive := true
+	const ttlInSeconds = 1
+	const maxGetDuration = ttlInSeconds * time.Second
+
+	metadata := bindings.Metadata{
+		Name: "testQueue",
+		Properties: map[string]string{
+			"queueName":             queueName,
+			"host":                  rabbitmqHost,
+			"deleteWhenUnused":      strconv.FormatBool(exclusive),
+			"durable":               strconv.FormatBool(durable),
+			"exclusive":             strconv.FormatBool(exclusive),
+			bindings.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+		},
+	}
+
+	logger := logger.NewLogger("test")
+
+	r := NewRabbitMQ(logger)
+	err := r.Init(metadata)
+	assert.Nil(t, err)
+
+	// Assert that if waited too long, we won't see any message
+	conn, err := amqp.Dial(rabbitmqHost)
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	assert.Nil(t, err)
+
+	if _, err = ch.QueueDeclarePassive(queueName, durable, false, false, false, amqp.Table{}); err != nil {
+		// Assert that queue actually exists if an error is thrown
+		assert.Equal(t, strings.Contains(err.Error(), "404"), false)
+	}
+
+	ch.Close()
+
+	ch, err = conn.Channel()
+	assert.Nil(t, err)
+	defer ch.Close()
+
+	if _, err = ch.QueueDeclarePassive(queueName, durable, false, false, false, amqp.Table{}); err != nil {
+		// Assert that queue actually no longer exists if an error is thrown
+		assert.Equal(t, strings.Contains(err.Error(), "404"), true)
+	}
 }

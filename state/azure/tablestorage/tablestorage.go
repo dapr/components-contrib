@@ -95,7 +95,14 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
-	return r.deleteRow(req)
+	err := r.deleteRow(req)
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	}
+
+	return err
 }
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
@@ -122,7 +129,14 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
-	return r.writeRow(req)
+	err := r.writeRow(req)
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	}
+
+	return err
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
@@ -165,7 +179,12 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	entity.Properties = map[string]interface{}{
 		valueEntityProperty: r.marshal(req),
 	}
-	entity.OdataEtag = req.ETag
+
+	var etag string
+	if req.ETag != nil {
+		etag = *req.ETag
+	}
+	entity.OdataEtag = etag
 
 	// InsertOrReplace does not support ETag concurrency, therefore we will try to use Update method first
 	// as it's more frequent, and then Insert
@@ -198,7 +217,12 @@ func isTableAlreadyExistsError(err error) bool {
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
-	entity.OdataEtag = req.ETag
+
+	var etag string
+	if req.ETag != nil {
+		etag = *req.ETag
+	}
+	entity.OdataEtag = etag
 
 	return entity.Delete(true, nil)
 }

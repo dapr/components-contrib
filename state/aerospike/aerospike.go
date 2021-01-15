@@ -29,7 +29,6 @@ const (
 var (
 	errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
 	errInvalidHosts = errors.New("aerospike: invalid value for hosts")
-	errInvalidETag  = errors.New("aerospike: invalid ETag value")
 )
 
 // Aerospike is a state store
@@ -105,11 +104,11 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	writePolicy := &as.WritePolicy{}
 
 	// not a new record
-	if req.ETag != "" {
+	if req.ETag != nil {
 		var gen uint32
-		gen, err = convertETag(req.ETag)
+		gen, err = convertETag(*req.ETag)
 		if err != nil {
-			return errInvalidETag
+			return err
 		}
 		// pass etag and fail writes is etag in DB is not same as passed by dapr (EXPECT_GEN_EQUAL)
 		writePolicy.Generation = gen
@@ -134,6 +133,10 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	}
 	err = aspike.client.Put(writePolicy, asKey, as.BinMap(data))
 	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return fmt.Errorf("aerospike: failed to save value for key %s - %v", req.Key, err)
 	}
 
@@ -180,11 +183,11 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	}
 	writePolicy := &as.WritePolicy{}
 
-	if req.ETag != "" {
+	if req.ETag != nil {
 		var gen uint32
-		gen, err = convertETag(req.ETag)
+		gen, err = convertETag(*req.ETag)
 		if err != nil {
-			return errInvalidETag
+			return err
 		}
 		// pass etag and fail writes is etag in DB is not same as passed by dapr (EXPECT_GEN_EQUAL)
 		writePolicy.Generation = gen
@@ -205,6 +208,10 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 
 	_, err = aspike.client.Delete(writePolicy, asKey)
 	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return fmt.Errorf("aerospike: failed to delete key %s - %v", req.Key, err)
 	}
 
@@ -231,7 +238,7 @@ func parseHosts(hostsMeta string) ([]*as.Host, error) {
 func convertETag(eTag string) (uint32, error) {
 	i, err := strconv.ParseUint(eTag, 10, 32)
 	if err != nil {
-		return 0, err
+		return 0, state.NewETagError(state.ETagInvalid, err)
 	}
 
 	return uint32(i), nil

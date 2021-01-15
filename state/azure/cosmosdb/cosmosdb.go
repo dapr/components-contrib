@@ -200,8 +200,12 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
-	if req.ETag != "" {
-		options = append(options, documentdb.IfMatch((req.ETag)))
+	if req.ETag != nil {
+		var etag string
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -226,6 +230,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	}
 
 	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return err
 	}
 
@@ -255,8 +263,12 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		return nil
 	}
 
-	if req.ETag != "" {
-		options = append(options, documentdb.IfMatch((req.ETag)))
+	if req.ETag != nil {
+		var etag string
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -268,6 +280,12 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	_, err = c.client.DeleteDocument(items[0].Self, options...)
 	if err != nil {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
+	}
+
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 	}
 
 	return err

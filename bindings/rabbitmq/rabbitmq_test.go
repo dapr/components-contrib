@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,6 +25,7 @@ func TestParseMetadata(t *testing.T) {
 		properties               map[string]string
 		expectedDeleteWhenUnused bool
 		expectedDurable          bool
+		expectedExclusive        bool
 		expectedTTL              *time.Duration
 		expectedPrefetchCount    int
 	}{
@@ -41,14 +43,14 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:                     "With one second TTL",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: "1"},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: "1"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedTTL:              &oneSecondTTL,
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: ""},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 		},
@@ -58,6 +60,13 @@ func TestParseMetadata(t *testing.T) {
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedPrefetchCount:    1,
+		},
+		{
+			name:                     "Exclusive Queue",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "exclusive": "true"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedExclusive:        true,
 		},
 	}
 
@@ -74,6 +83,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
 			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
+			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
 		})
 	}
 }
@@ -88,15 +98,15 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "  "},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "-1"},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "abc"},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "abc"},
 		},
 	}
 

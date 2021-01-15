@@ -139,11 +139,11 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 
 	// nolint:nestif
 	// key already exists (use Replace)
-	if req.ETag != "" {
+	if req.ETag != nil {
 		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
-		cas, cerr := eTagToCas(req.ETag)
+		cas, cerr := eTagToCas(*req.ETag)
 		if cerr != nil {
-			return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
+			return err
 		}
 		if req.Options.Consistency == state.Strong {
 			_, err = cbs.bucket.ReplaceDura(req.Key, value, cas, 0, cbs.numReplicasDurableReplication, cbs.numReplicasDurablePersistence)
@@ -160,6 +160,10 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	}
 
 	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
 	}
 
@@ -193,10 +197,10 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 
 	var cas gocb.Cas = 0
 
-	if req.ETag != "" {
-		cas, err = eTagToCas(req.ETag)
+	if req.ETag != nil {
+		cas, err = eTagToCas(*req.ETag)
 		if err != nil {
-			return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
+			return err
 		}
 	}
 	if req.Options.Consistency == state.Strong {
@@ -205,6 +209,10 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 		_, err = cbs.bucket.Remove(req.Key, cas)
 	}
 	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
 	}
 
@@ -217,7 +225,7 @@ func eTagToCas(eTag string) (gocb.Cas, error) {
 	// CAS is a 64-bit integer - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html#cas-value-format
 	temp, err := strconv.ParseUint(eTag, 10, 64)
 	if err != nil {
-		return cas, err
+		return cas, state.NewETagError(state.ETagInvalid, err)
 	}
 	cas = gocb.Cas(temp)
 

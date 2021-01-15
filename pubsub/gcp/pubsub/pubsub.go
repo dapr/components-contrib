@@ -9,8 +9,8 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	"google.golang.org/api/option"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -128,9 +128,13 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 func (g *GCPPubSub) ensureTopic(topic string) error {
 	entity := g.getTopic(topic)
 	exists, err := entity.Exists(context.Background())
+	if err != nil {
+		return err
+	}
+
 	if !exists {
 		_, err = g.client.CreateTopic(context.Background(), topic)
-		if grpc.Code(err) == codes.AlreadyExists {
+		if status.Code(err) == codes.AlreadyExists {
 			return nil
 		}
 

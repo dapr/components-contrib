@@ -18,7 +18,6 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/google/uuid"
 )
 
 const (
@@ -93,9 +92,10 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
-	m.clientID = uuid.New().String()
 	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
 		m.clientID = val
+	} else {
+		return &m, fmt.Errorf("%s missing consumerID", errorMsgPrefix)
 	}
 
 	m.cleanSession = defaultCleanSession

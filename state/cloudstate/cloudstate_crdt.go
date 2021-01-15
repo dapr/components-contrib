@@ -534,9 +534,14 @@ func (c *CRDT) Delete(req *state.DeleteRequest) error {
 	defer cancel()
 
 	client := c.getClient()
+
+	var etag string
+	if req.ETag != nil {
+		etag = *req.ETag
+	}
 	_, err = client.DeleteState(ctx, &kvstore_pb.DeleteStateEnvelope{
 		Key:  req.Key,
-		Etag: req.ETag,
+		Etag: etag,
 	})
 
 	return err
@@ -570,9 +575,14 @@ func (c *CRDT) Set(req *state.SetRequest) error {
 	defer cancel()
 
 	client := c.getClient()
+	var etag string
+	if req.ETag != nil {
+		etag = *req.ETag
+	}
+
 	_, err = client.SaveState(ctx, &kvstore_pb.SaveStateEnvelope{
 		Key:  req.Key,
-		Etag: req.ETag,
+		Etag: etag,
 		Value: &any.Any{
 			Value: req.Value,
 		},

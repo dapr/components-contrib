@@ -97,7 +97,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 
 	err := r.deleteRow(req)
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 	}
@@ -131,7 +131,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 
 	err := r.writeRow(req)
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 	}
@@ -179,7 +179,12 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	entity.Properties = map[string]interface{}{
 		valueEntityProperty: r.marshal(req),
 	}
-	entity.OdataEtag = req.ETag
+
+	var etag string
+	if req.ETag != nil {
+		etag = *req.ETag
+	}
+	entity.OdataEtag = etag
 
 	// InsertOrReplace does not support ETag concurrency, therefore we will try to use Update method first
 	// as it's more frequent, and then Insert
@@ -212,7 +217,12 @@ func isTableAlreadyExistsError(err error) bool {
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
-	entity.OdataEtag = req.ETag
+
+	var etag string
+	if req.ETag != nil {
+		etag = *req.ETag
+	}
+	entity.OdataEtag = etag
 
 	return entity.Delete(true, nil)
 }

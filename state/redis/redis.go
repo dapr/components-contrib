@@ -215,10 +215,11 @@ func (r *StateStore) parseConnectedSlaves(res string) int {
 }
 
 func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
-	if req.ETag == "" {
-		req.ETag = "0"
+	if req.ETag == nil {
+		etag := "0"
+		req.ETag = &etag
 	}
-	_, err := r.client.DoContext(context.Background(), "EVAL", delQuery, 1, req.Key, req.ETag).Result()
+	_, err := r.client.DoContext(context.Background(), "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -292,7 +293,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 	_, err = r.client.DoContext(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt).Result()
 	if err != nil {
-		if req.ETag != "" {
+		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -328,10 +329,11 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			pipe.Do("EVAL", setQuery, 1, req.Key, ver, bt)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
-			if req.ETag == "" {
-				req.ETag = "0"
+			if req.ETag == nil {
+				etag := "0"
+				req.ETag = &etag
 			}
-			pipe.Do("EVAL", delQuery, 1, req.Key, req.ETag)
+			pipe.Do("EVAL", delQuery, 1, req.Key, *req.ETag)
 		}
 	}
 
@@ -362,10 +364,10 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version str
 }
 
 func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
-	if req.Options.Concurrency == state.LastWrite || req.ETag == "" {
+	if req.Options.Concurrency == state.LastWrite || req.ETag == nil || (req.ETag != nil && *req.ETag == "") {
 		return 0, nil
 	}
-	ver, err := strconv.Atoi(req.ETag)
+	ver, err := strconv.Atoi(*req.ETag)
 	if err != nil {
 		return -1, state.NewETagError(state.ETagInvalid, err)
 	}

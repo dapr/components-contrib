@@ -222,6 +222,7 @@ func TestExclusiveQueue(t *testing.T) {
 	}
 
 	ch.Close()
+	r.connection.Close()
 
 	ch, err = conn.Channel()
 	assert.Nil(t, err)

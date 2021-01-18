@@ -106,7 +106,7 @@ func TestGetSecret(t *testing.T) {
 	}
 	s.Init(m)
 
-	t.Run("successfully retrieve secret", func(t *testing.T) {
+	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{
 			Name:     "secret",
 			Metadata: map[string]string{},
@@ -124,5 +124,30 @@ func TestGetSecret(t *testing.T) {
 		_, err := s.GetSecret(req)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("secret %s not found", req.Name))
+	})
+}
+
+func TestBulkGetSecret(t *testing.T) {
+	m := secretstores.Metadata{}
+	m.Properties = map[string]string{
+		"SecretsFile":     "a",
+		"NestedSeparator": "a",
+	}
+	s := localSecretStore{
+		logger: logger.NewLogger("test"),
+		readLocalFileFn: func(secretsFile string) (map[string]interface{}, error) {
+			secrets := make(map[string]interface{})
+			secrets["secret"] = secretValue
+
+			return secrets, nil
+		},
+	}
+	s.Init(m)
+
+	t.Run("successfully retrieve secrets", func(t *testing.T) {
+		req := secretstores.BulkGetSecretRequest{}
+		output, e := s.BulkGetSecret(req)
+		assert.Nil(t, e)
+		assert.Equal(t, "secret", output.Data["secret"]["secret"])
 	})
 }

@@ -35,4 +35,13 @@ func TestInit(t *testing.T) {
 		assert.NotNil(t, resp)
 		assert.Equal(t, secret, resp.Data[key])
 	})
+
+	t.Run("Test bulk get", func(t *testing.T) {
+		err := s.Init(secretstores.Metadata{})
+		assert.Nil(t, err)
+		resp, err := s.BulkGetSecret(secretstores.BulkGetSecretRequest{})
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, secret, resp.Data[key][key])
+	})
 }

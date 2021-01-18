@@ -84,9 +84,15 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
-	return secretstores.GetSecretResponse{
-		Data: j.secrets,
+func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+	r := map[string]map[string]string{}
+
+	for k, v := range j.secrets {
+		r[k] = map[string]string{k: v}
+	}
+
+	return secretstores.BulkGetSecretResponse{
+		Data: r,
 	}, nil
 }
 

@@ -145,7 +145,6 @@ func (m *MySQL) finishInit(db *sql.DB, err error) error {
 
 func (m *MySQL) ensureStateTable(stateTableName string) error {
 	exists, err := tableExists(m.db, stateTableName)
-
 	if err != nil {
 		return err
 	}
@@ -239,7 +238,6 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	err := m.db.QueryRow(fmt.Sprintf(
 		`SELECT value, eTag FROM %s WHERE id = ?`,
 		m.tableName), req.Key).Scan(&value, &eTag)
-
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if err == sql.ErrNoRows {
@@ -270,7 +268,6 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	m.logger.Debug("Setting state value in MySql")
 
 	err := state.CheckRequestOptions(req.Options)
-
 	if err != nil {
 		return err
 	}

@@ -661,7 +661,6 @@ func createDeleteRequest() state.DeleteRequest {
 
 func mockDatabase(t *testing.T) (*MySQL, sqlmock.Sqlmock, error) {
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-
 	if err != nil {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}

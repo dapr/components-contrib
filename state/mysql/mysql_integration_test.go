@@ -506,7 +506,8 @@ func testInitConfiguration(t *testing.T) {
 			name: "Valid connection string",
 			props: map[string]string{
 				connectionStringKey: getConnectionString(),
-				pemPathKey:          getPemPath()},
+				pemPathKey:          getPemPath(),
+			},
 			expectedErr: "",
 		},
 		{
@@ -514,7 +515,8 @@ func testInitConfiguration(t *testing.T) {
 			props: map[string]string{
 				connectionStringKey: getConnectionString(),
 				pemPathKey:          getPemPath(),
-				tableNameKey:        "stateStore"},
+				tableNameKey:        "stateStore",
+			},
 			expectedErr: "",
 		},
 	}

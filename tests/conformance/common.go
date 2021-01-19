@@ -90,7 +90,7 @@ func LookUpEnv(key string) string {
 	return ""
 }
 
-func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) map[string]string {
+func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) (map[string]string, error) {
 	properties := map[string]string{}
 	for _, c := range items {
 		val := c.Value.String()
@@ -98,14 +98,15 @@ func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) map[string]strin
 			// look up env var with that name. remove ${{}} and space
 			k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
 			v := LookUpEnv(k)
-			if v != "" {
-				val = v
+			if v == "" {
+				return map[string]string{}, fmt.Errorf("required env var is not set %s", k)
 			}
+			val = v
 		}
 		properties[c.Name] = val
 	}
 
-	return properties
+	return properties, nil
 }
 
 // nolint:gosec
@@ -151,37 +152,62 @@ func decodeYaml(b []byte) (TestConfiguration, error) {
 	return testConfig, nil
 }
 
-func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) map[string]string {
+func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
 	comps, err := LoadComponents(filepath)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(comps)) // We only expect a single component per state store but on
 	c := comps[0]
-	props := ConvertMetadataToProperties(c.Spec.Metadata)
+	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
 
-	return props
+	return props, err
 }
 
-func (tc *TestConfiguration) Run(t *testing.T) {
+func convertComponentNameToPath(componentName string) string {
+	if strings.Contains(componentName, ".") {
+		return strings.Join(strings.Split(componentName, "."), "/")
+	}
+
+	return componentName
+}
+
+func (tc *TestConfiguration) Run(t *testing.T) []error {
+	var errs []error
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
+		componentConfigPath := convertComponentNameToPath(comp.Component)
 		switch tc.ComponentType {
 		case "state":
-			filepath := fmt.Sprintf("../config/state/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
+			filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
+			props, err := tc.loadComponentsAndProperties(t, filepath)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+
+				continue
+			}
 			store := loadStateStore(comp)
 			assert.NotNil(t, store)
 			storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 			conf_state.ConformanceTests(t, props, store, storeConfig)
 		case "secretstores":
-			filepath := fmt.Sprintf("../config/secretstores/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
+			filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
+			props, err := tc.loadComponentsAndProperties(t, filepath)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+
+				continue
+			}
 			store := loadSecretStore(comp)
 			assert.NotNil(t, store)
 			storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
 			conf_secret.ConformanceTests(t, props, store, storeConfig)
 		case "pubsub":
-			filepath := fmt.Sprintf("../config/pubsub/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
+			filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
+			props, err := tc.loadComponentsAndProperties(t, filepath)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+
+				continue
+			}
 			pubsub := loadPubSub(comp)
 			assert.NotNil(t, pubsub)
 			pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
@@ -190,6 +216,8 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 			assert.Failf(t, "unknown component type %s", tc.ComponentType)
 		}
 	}
+
+	return errs
 }
 
 func loadPubSub(tc TestComponent) pubsub.PubSub {
@@ -197,7 +225,7 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	switch tc.Component {
 	case "redis":
 		pubsub = p_redis.NewRedisStreams(testLogger)
-	case "azure-servicebus":
+	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	default:
 		return nil

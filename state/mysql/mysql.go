@@ -240,7 +240,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		m.tableName), req.Key).Scan(&value, &eTag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return &state.GetResponse{}, nil
 		}
 
@@ -369,7 +369,6 @@ func (m *MySQL) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequ
 	m.logger.Debug("Executing multiple MySql operations")
 
 	tx, err := m.db.Begin()
-
 	if err != nil {
 		return err
 	}

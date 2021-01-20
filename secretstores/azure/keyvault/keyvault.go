@@ -84,21 +84,21 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	vaultURI := k.getVaultURI()
 
 	maxResults, err := k.getMaxResultsFromMetadata(req.Metadata)
 	if err != nil {
-		return secretstores.GetSecretResponse{}, err
+		return secretstores.BulkGetSecretResponse{}, err
 	}
 
 	secretsResp, err := k.vaultClient.GetSecretsComplete(context.Background(), vaultURI, maxResults)
 	if err != nil {
-		return secretstores.GetSecretResponse{}, err
+		return secretstores.BulkGetSecretResponse{}, err
 	}
 
-	resp := secretstores.GetSecretResponse{
-		Data: map[string]string{},
+	resp := secretstores.BulkGetSecretResponse{
+		Data: map[string]map[string]string{},
 	}
 
 	for secretsResp.NotDone() {
@@ -107,7 +107,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 		secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
 		if err != nil {
-			return secretstores.GetSecretResponse{}, err
+			return secretstores.BulkGetSecretResponse{}, err
 		}
 
 		secretValue := ""
@@ -115,7 +115,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 			secretValue = *secretResp.Value
 		}
 
-		resp.Data[secretName] = secretValue
+		resp.Data[secretName] = map[string]string{secretName: secretValue}
 
 		secretsResp.NextWithContext(context.Background())
 	}

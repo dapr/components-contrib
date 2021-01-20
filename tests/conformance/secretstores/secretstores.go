@@ -62,10 +62,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 	if config.HasOperation("bulkget") {
 		bulkReq := secretstores.BulkGetSecretRequest{}
-		bulkResponse := secretstores.GetSecretResponse{
-			Data: map[string]string{
-				"conftestsecret": "abcd",
-				"secondsecret":   "efgh",
+		bulkResponse := secretstores.BulkGetSecretResponse{
+			Data: map[string]map[string]string{
+				"conftestsecret": {
+					"conftestsecret": "abcd",
+				},
+				"secondsecret": {
+					"secondsecret": "efgh",
+				},
 			},
 		}
 

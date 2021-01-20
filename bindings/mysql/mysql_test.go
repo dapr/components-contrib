@@ -9,12 +9,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -32,6 +33,7 @@ const (
 func TestOperations(t *testing.T) {
 	t.Parallel()
 	t.Run("Get operation list", func(t *testing.T) {
+		t.Parallel()
 		b := NewMysql(nil)
 		assert.NotNil(t, b)
 		l := b.Operations()
@@ -93,7 +95,6 @@ func TestMysqlIntegrationWithConfig(t *testing.T) {
 	}
 
 	liveTest(t, b)
-
 }
 
 func liveTest(t *testing.T, b *Mysql) {

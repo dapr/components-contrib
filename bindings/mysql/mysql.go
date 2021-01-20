@@ -8,12 +8,13 @@ package mysql
 import (
 	"database/sql"
 	"encoding/json"
+	"strconv"
+	"time"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
-	"strconv"
-	"time"
 )
 
 const (
@@ -43,7 +44,7 @@ const (
 
 	// keys from response's metadata
 	respOpKey           = "operation"
-	respSqlKey          = "sql"
+	respSQLKey          = "sql"
 	respStartTimeKey    = "start-time"
 	respRowsAffectedKey = "rows-affected"
 	respEndTimeKey      = "end-time"
@@ -129,12 +130,12 @@ func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			respOpKey:        string(req.Operation),
-			respSqlKey:       s,
+			respSQLKey:       s,
 			respStartTimeKey: startTime.Format(time.RFC3339Nano),
 		},
 	}
 
-	switch req.Operation {
+	switch req.Operation { // nolint: exhaustive
 	case execOperation:
 		r, err := m.exec(s)
 		if err != nil {
@@ -157,6 +158,7 @@ func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	endTime := time.Now().UTC()
 	resp.Metadata[respEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
+
 	return resp, nil
 }
 
@@ -177,7 +179,10 @@ func (m *Mysql) query(s string) ([]byte, error) {
 		return nil, errors.Wrapf(err, "error executing %s", s)
 	}
 
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+		_ = rows.Err()
+	}()
 
 	columns, err := rows.Columns()
 	if err != nil {
@@ -215,6 +220,7 @@ func (m *Mysql) exec(sql string) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrapf(err, "error executing %s", sql)
 	}
+
 	return res.RowsAffected()
 }
 
@@ -226,6 +232,7 @@ func propertyToInt(props map[string]string, key string, setter func(int)) error 
 			return errors.Wrapf(err, "error converitng %s:%s to int", key, v)
 		}
 	}
+
 	return nil
 }
 
@@ -237,6 +244,7 @@ func propertyToDuration(props map[string]string, key string, setter func(time.Du
 			return errors.Wrapf(err, "error converitng %s:%s to int", key, v)
 		}
 	}
+
 	return nil
 }
 
@@ -268,5 +276,6 @@ func initDBFromConfig(user, passwd, net, server, port, db string) (*sql.DB, erro
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening DB connection")
 	}
+
 	return ret, nil
 }

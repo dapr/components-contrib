@@ -85,9 +85,9 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
-	resp := secretstores.GetSecretResponse{
-		Data: map[string]string{},
+func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+	resp := secretstores.BulkGetSecretResponse{
+		Data: map[string]map[string]string{},
 	}
 
 	search := true
@@ -99,21 +99,19 @@ func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (se
 			NextToken:  nextToken,
 		})
 		if err != nil {
-			return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't list secrets: %s", err)
+			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't list secrets: %s", err)
 		}
 
 		for _, entry := range output.SecretList {
 			secrets, err := s.client.GetSecretValue(&secretsmanager.GetSecretValueInput{
 				SecretId: entry.Name,
-				// VersionId:    versionID,
-				// VersionStage: versionStage,
 			})
 			if err != nil {
-				return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", *entry.Name)
+				return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", *entry.Name)
 			}
 
 			if entry.Name != nil && secrets.SecretString != nil {
-				resp.Data[*entry.Name] = *secrets.SecretString
+				resp.Data[*entry.Name] = map[string]string{*entry.Name: *secrets.SecretString}
 			}
 		}
 

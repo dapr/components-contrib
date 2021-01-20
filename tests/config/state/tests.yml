@@ -5,3 +5,12 @@ components:
     config:
       maxInitDuration: 30
       maxSetDuration: 20
+  - component: cosmosdb
+    allOperations: true
+    config:
+      maxInitDuration: 900
+      maxSetDuration: 300
+      maxGetDuration: 300
+      maxBulkSetDuration: 300
+      maxBulkDeleteDuration: 300
+      maxDeleteDuration: 300

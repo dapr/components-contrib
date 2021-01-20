@@ -82,11 +82,11 @@ jobs:
         NAME=$(echo ${{ matrix.component }} | cut -d. -f2)
         KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
 
-        if [ ${KIND}=="secretstores" ]; then
+        if [ "${KIND}" = "secretstores" ]; then
           KIND_UPPER=SecretStore
         fi
 
-        if [ ${KIND}=="output-binding" ]; then
+        if [ "${KIND}" = "output-binding" ]; then
           KIND_UPPER=OutputBinding
         fi
 

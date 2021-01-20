@@ -62,6 +62,7 @@ func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
 			return nil, err
 		}
 		tc, err := decodeYaml(b)
+
 		return &tc, err
 	}
 

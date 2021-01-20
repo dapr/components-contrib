@@ -36,6 +36,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/go-redis/redis/v7 v7.0.1
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3

@@ -1,0 +1,173 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
+package mysql
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"os"
+	"testing"
+	"time"
+)
+
+const (
+	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
+		id bigint NOT NULL,
+		v1 character varying(50) NOT NULL,
+		ts TIMESTAMP)`
+	testDropTable = `DROP TABLE foo`
+	testInsert    = "INSERT INTO foo (id, v1, ts) VALUES (%d, 'test-%d', '%v')"
+	testDelete    = "DELETE FROM foo"
+	testUpdate    = "UPDATE foo SET ts = '%v' WHERE id = %d"
+	testSelect    = "SELECT * FROM foo WHERE id < 3"
+)
+
+func TestOperations(t *testing.T) {
+	t.Parallel()
+	t.Run("Get operation list", func(t *testing.T) {
+		b := NewMysql(nil)
+		assert.NotNil(t, b)
+		l := b.Operations()
+		assert.Equal(t, 3, len(l))
+		assert.Contains(t, l, execOperation)
+		assert.Contains(t, l, closeOperation)
+		assert.Contains(t, l, queryOperation)
+	})
+}
+
+// SETUP TESTS
+// 1. `CREATE DATABASE daprtest;`
+// 2. `CREATE USER daprtest;`
+// 3. `GRANT ALL PRIVILEGES ON daprtest.* to daprtest;`
+// 4. `export MYSQL_TEST_CONN_URL="daprtest@tcp(localhost:3306)/daprtest"``
+// 5. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithURL`
+
+func TestMysqlIntegrationWithURL(t *testing.T) {
+	url := os.Getenv("MYSQL_TEST_CONN_URL")
+	if url == "" {
+		t.SkipNow()
+	}
+
+	b := NewMysql(logger.NewLogger("test"))
+	m := bindings.Metadata{Properties: map[string]string{connectionURLKey: url}}
+	if err := b.Init(m); err != nil {
+		t.Fatal(err)
+	}
+
+	liveTest(t, b)
+}
+
+// SETUP TESTS
+// 1. `CREATE DATABASE daprtest;`
+// 2. `CREATE USER daprtest;`
+// 3. `GRANT ALL PRIVILEGES ON daprtest.* to daprtest;`
+// 4. `export MYSQL_TEST_USER="daprtest"`
+// 5. `export MYSQL_TEST_NET="tcp"`
+// 6. `export MYSQL_TEST_SERVER="localhost"`
+// 7. `export MYSQL_TEST_PORT="3306"`
+// 8. `export MYSQL_TEST_DB="daprtest"`
+// 9. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithConfig`
+func TestMysqlIntegrationWithConfig(t *testing.T) {
+	user := os.Getenv("MYSQL_TEST_USER")
+	if user == "" {
+		t.SkipNow()
+	}
+
+	b := NewMysql(logger.NewLogger("test"))
+	m := bindings.Metadata{Properties: map[string]string{}}
+	m.Properties[userKey] = user
+	m.Properties[networkKey] = os.Getenv("MYSQL_TEST_NET")
+	m.Properties[serverKey] = os.Getenv("MYSQL_TEST_SERVER")
+	m.Properties[portKey] = os.Getenv("MYSQL_TEST_PORT")
+	m.Properties[databaseKey] = os.Getenv("MYSQL_TEST_DB")
+
+	if err := b.Init(m); err != nil {
+		t.Fatal(err)
+	}
+
+	liveTest(t, b)
+
+}
+
+func liveTest(t *testing.T, b *Mysql) {
+	req := &bindings.InvokeRequest{Metadata: map[string]string{}}
+
+	t.Run("Invoke create table", func(t *testing.T) {
+		req.Operation = execOperation
+		req.Metadata[commandSQLKey] = testCreateTable
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Invoke delete", func(t *testing.T) {
+		req.Operation = execOperation
+		req.Metadata[commandSQLKey] = testDelete
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Invoke insert", func(t *testing.T) {
+		req.Operation = execOperation
+		for i := 0; i < 10; i++ {
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
+			res, err := b.Invoke(req)
+			assertResponse(t, res, err)
+		}
+	})
+
+	t.Run("Invoke update", func(t *testing.T) {
+		req.Operation = execOperation
+		for i := 0; i < 10; i++ {
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
+			res, err := b.Invoke(req)
+			assertResponse(t, res, err)
+		}
+	})
+
+	t.Run("Invoke select", func(t *testing.T) {
+		req.Operation = queryOperation
+		req.Metadata[commandSQLKey] = testSelect
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+		result := make([][]sql.RawBytes, 0)
+		err = json.Unmarshal(res.Data, &result)
+		assert.Nil(t, err)
+		assert.Equal(t, 3, len(result))
+	})
+
+	t.Run("Invoke delete", func(t *testing.T) {
+		req.Operation = execOperation
+		req.Metadata[commandSQLKey] = testDelete
+		req.Data = nil
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Invoke drop", func(t *testing.T) {
+		req.Operation = execOperation
+		req.Metadata[commandSQLKey] = testDropTable
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+	})
+
+	t.Run("Invoke close", func(t *testing.T) {
+		req.Operation = closeOperation
+		req.Metadata = nil
+		req.Data = nil
+		_, err := b.Invoke(req)
+		assert.NoError(t, err)
+	})
+}
+
+func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	assert.NotNil(t, res.Metadata)
+}

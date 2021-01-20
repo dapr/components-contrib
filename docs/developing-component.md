@@ -71,8 +71,8 @@ cp ./dist/darwin_amd64/debug/daprd ~/.dapr/bin
 ```
 > Linux Debuggable Binary: ./dist/linux_amd64/debug/daprd
 > Windows Debuggable Binary: .\dist\windows_amd64\debug\daprd
-7. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/samples/blob/master/5.bindings/nodeapp/)
-8. Create yaml for bindings in './components' under app’s directory (e.g. kafka example : https://github.com/dapr/samples/blob/master/5.bindings/deploy/kafka_bindings.yaml)
+7. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/quickstarts/tree/master/bindings/nodeapp/)
+8. Create yaml for bindings in './components' under app’s directory (e.g. kafka example : https://github.com/dapr/quickstarts/blob/master/bindings/nodeapp/components/kafka_bindings.yaml)
 9. Run your test app using dapr cli
 10. Make sure your component is loaded successfully in daprd log
 

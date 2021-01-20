@@ -8,8 +8,12 @@ components:
   - component: mongodb
     allOperations: true
     config:
-      maxInitDuration: 100
-      maxSetDuration: 20
+      maxInitDuration: 900
+      maxSetDuration: 700
+      maxGetDuration: 300
+      maxBulkSetDuration: 300
+      maxBulkDeleteDuration: 600
+      maxDeleteDuration: 300
   - component: cosmosdb
     allOperations: true
     config:

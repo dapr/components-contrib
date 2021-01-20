@@ -74,3 +74,10 @@ go.mod:
 .PHONY: check-diff
 check-diff:
 	git diff --exit-code ./go.mod # check no changes
+
+################################################################################
+# Target: conf-tests                                                           #
+################################################################################
+.PHONY: conf-tests
+conf-tests:
+	@go test -v -tags=conftests -count=1 ./tests/...

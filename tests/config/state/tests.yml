@@ -8,7 +8,7 @@ components:
   - component: mongodb
     allOperations: true
     config:
-      maxInitDuration: 30
+      maxInitDuration: 100
       maxSetDuration: 20
   - component: cosmosdb
     allOperations: true

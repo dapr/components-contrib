@@ -1,0 +1,79 @@
+# ------------------------------------------------------------
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+# ------------------------------------------------------------
+
+name: Components Conformance Tests
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./src/github.com/dapr/components-contrib
+
+jobs:
+  conformance:
+    name: conformance
+    runs-on: ubuntu-latest
+
+    env:
+      # Set this to your keyvault.
+      #
+      # The KeyVault policy must be granted to your Service Principal using
+      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+      AZURE_KEYVAULT: conformance-tests-secret
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        # List here all the components that needs to be invoked in this workflow.
+        component:
+        - state.redis
+        - pubsub.redis
+        - secretstores.localenv
+    steps:
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@v2
+      with:
+        path: ./src/github.com/dapr/components-contrib
+
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      if: matrix.required-secrets != ''
+
+    - name: Setup secrets
+      uses: Azure/get-keyvault-secrets@v1
+      with:
+        keyvault: ${{ env.AZURE_KEYVAULT }}
+        secrets: ${{ matrix.required-secrets }}
+      id: get-azure-secrets
+      if: matrix.required-secrets != ''
+
+    - name: Start Redis
+      uses: supercharge/redis-github-action@1.2.0
+      if: contains(matrix.component, 'redis')
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+
+    - name: Run tests
+      run: |
+        KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2)
+        KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
+
+        if [ ${KIND}=="secretstores" ]; then
+          KIND_UPPER=SecretStore
+        fi
+
+        if [ ${KIND}=="output-binding" ]; then
+          KIND_UPPER=OutputBinding
+        fi
+
+        echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+
+        go test -v -tags=conftests -count=1 ./tests/... \
+          --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}"

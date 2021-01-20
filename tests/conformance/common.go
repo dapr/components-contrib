@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package conformance
 
 import (
@@ -5,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,11 +18,13 @@ import (
 
 	"fortio.org/fortio/log"
 	"github.com/dapr/components-contrib/pubsub"
+	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	"github.com/dapr/components-contrib/state"
+	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
@@ -74,10 +82,27 @@ func LoadComponents(componentPath string) ([]v1alpha1.Component, error) {
 	return components, nil
 }
 
+func LookUpEnv(key string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+
+	return ""
+}
+
 func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) map[string]string {
 	properties := map[string]string{}
 	for _, c := range items {
-		properties[c.Name] = c.Value.String()
+		val := c.Value.String()
+		if strings.HasPrefix(c.Value.String(), "${{") {
+			// look up env var with that name. remove ${{}} and space
+			k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+			v := LookUpEnv(k)
+			if v != "" {
+				val = v
+			}
+		}
+		properties[c.Name] = val
 	}
 
 	return properties
@@ -172,6 +197,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	switch tc.Component {
 	case "redis":
 		pubsub = p_redis.NewRedisStreams(testLogger)
+	case "azure-servicebus":
+		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	default:
 		return nil
 	}
@@ -198,6 +225,8 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case "redis":
 		store = s_redis.NewRedisStateStore(testLogger)
+	case "cosmosdb":
+		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	default:
 		return nil
 	}

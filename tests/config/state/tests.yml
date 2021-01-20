@@ -5,6 +5,11 @@ components:
     config:
       maxInitDuration: 30
       maxSetDuration: 20
+  - component: mongodb
+    allOperations: true
+    config:
+      maxInitDuration: 30
+      maxSetDuration: 20
   - component: cosmosdb
     allOperations: true
     config:

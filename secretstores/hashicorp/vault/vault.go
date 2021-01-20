@@ -202,27 +202,27 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, err
+		return secretstores.BulkGetSecretResponse{Data: nil}, err
 	}
 
 	// Create list secrets url
 	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/secret/data/%s", v.vaultAddress, v.vaultKVPrefix)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
+	if err != nil {
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't generate request: %s", err)
+	}
+
 	// Set vault token.
 	httpReq.Header.Set(vaultHTTPHeader, token)
 	// Set X-Vault-Request header
 	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
-	if err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't generate request: %s", err)
-	}
-
 	httpresp, err := v.client.Do(httpReq)
 	if err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)
 	}
 
 	defer httpresp.Body.Close()
@@ -231,28 +231,28 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 
-		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't to get successful response: %#v, %s",
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get successful response: %#v, %s",
 			httpresp, b.String())
 	}
 
 	var d vaultListKVResponse
 
 	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
-		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't decode response body: %s", err)
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't decode response body: %s", err)
 	}
 
-	resp := secretstores.GetSecretResponse{
-		Data: map[string]string{},
+	resp := secretstores.BulkGetSecretResponse{
+		Data: map[string]map[string]string{},
 	}
 
 	for _, key := range d.Data.Keys {
 		secrets, err := v.getSecret(key)
 		if err != nil {
-			return secretstores.GetSecretResponse{Data: nil}, err
+			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}
 
 		for k, v := range secrets.Data.Data {
-			resp.Data[k] = v
+			resp.Data[k] = map[string]string{k: v}
 		}
 	}
 

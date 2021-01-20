@@ -26,7 +26,7 @@ jobs:
       AZURE_KEYVAULT: conformance-tests-secret
 
     strategy:
-      fail-fast: false # Keep running even if one compoent fails
+      fail-fast: false # Keep running even if one component fails
       matrix:
         # List here all the components that needs to be invoked in this workflow.
         component:

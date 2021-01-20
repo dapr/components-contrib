@@ -1,0 +1,7 @@
+componentType: state
+components:
+  - component: redis
+    allOperations: true
+    config:
+      maxInitDuration: 30
+      maxSetDuration: 20

@@ -1,0 +1,4 @@
+componentType: pubsub
+components:
+  - component: redis
+    allOperations: true

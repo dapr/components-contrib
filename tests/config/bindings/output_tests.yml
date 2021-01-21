@@ -1,0 +1,4 @@
+componentType: output-binding
+components:
+  - component: redis
+    operations: ["init", "create", "operations"]

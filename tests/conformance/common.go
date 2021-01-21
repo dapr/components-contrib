@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"fortio.org/fortio/log"
+	"github.com/dapr/components-contrib/bindings"
+	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
@@ -27,6 +29,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_redis "github.com/dapr/components-contrib/state/redis"
+	conf_output_bindings "github.com/dapr/components-contrib/tests/conformance/bindings/output"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
@@ -37,6 +40,10 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	redis = "redis"
 )
 
 // nolint:gochecknoglobals
@@ -187,6 +194,13 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 			assert.NotNil(t, pubsub)
 			pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 			conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
+		case "output-binding":
+			filepath := fmt.Sprintf("../config/bindings/%s", comp.Component)
+			props := tc.loadComponentsAndProperties(t, filepath)
+			binding := loadOutputBindings(comp)
+			assert.NotNil(t, binding)
+			bindingsConfig := conf_output_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+			conf_output_bindings.ConformanceTests(t, props, binding, bindingsConfig)
 		default:
 			assert.Failf(t, "unknown component type %s", tc.ComponentType)
 		}
@@ -196,7 +210,7 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 func loadPubSub(tc TestComponent) pubsub.PubSub {
 	var pubsub pubsub.PubSub
 	switch tc.Component {
-	case "redis":
+	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
 	case "azure-servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
@@ -224,7 +238,7 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadStateStore(tc TestComponent) state.Store {
 	var store state.Store
 	switch tc.Component {
-	case "redis":
+	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
 	case "cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
@@ -235,4 +249,17 @@ func loadStateStore(tc TestComponent) state.Store {
 	}
 
 	return store
+}
+
+func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
+	var binding bindings.OutputBinding
+
+	switch tc.Component {
+	case redis:
+		binding = b_redis.NewRedis(testLogger)
+	default:
+		return nil
+	}
+
+	return binding
 }

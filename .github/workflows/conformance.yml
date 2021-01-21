@@ -32,8 +32,8 @@ jobs:
         component:
         - output-binding.azure.blobstorage
         - output-binding.azure.storagequeues
-        - pubsub.redis
         - pubsub.azure.servicebus
+        - pubsub.redis
         - secretstores.localenv
         - secretstores.localfile
         - state.cosmosdb
@@ -111,5 +111,5 @@ jobs:
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
-        go test -v -tags=conftests -count=1 ./tests/... \
+        go test -v -tags=conftests -count=1 ./tests/conformance \
           --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}"

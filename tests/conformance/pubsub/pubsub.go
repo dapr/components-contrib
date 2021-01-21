@@ -73,14 +73,11 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 	return tc
 }
 
-func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubSub, config TestConfig) {
-	// Properly close connection to pubsub
-	defer pubusub.Close()
-
+func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, config TestConfig) {
 	actualReadCount := 0
 	if config.CommonConfig.HasOperation("init") {
 		t.Run(config.GetTestName("init"), func(t *testing.T) {
-			err := pubusub.Init(pubsub.Metadata{
+			err := ps.Init(pubsub.Metadata{
 				Properties: props,
 			})
 			assert.NoError(t, err, "expected no error on setting up pubsub")
@@ -89,7 +86,7 @@ func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubS
 
 	if config.HasOperation("subscribe") {
 		t.Run(config.GetTestName("subscribe"), func(t *testing.T) {
-			err := pubusub.Subscribe(pubsub.SubscribeRequest{
+			err := ps.Subscribe(pubsub.SubscribeRequest{
 				Topic:    config.testTopicName,
 				Metadata: config.subscribeMetadata,
 			}, func(_ *pubsub.NewMessage) error {
@@ -105,7 +102,7 @@ func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubS
 		t.Run(config.GetTestName("publish"), func(t *testing.T) {
 			for k := 0; k < config.messageCount; k++ {
 				data := []byte("message-" + strconv.Itoa(k))
-				err := pubusub.Publish(&pubsub.PublishRequest{
+				err := ps.Publish(&pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.pubsubName,
 					Topic:      config.testTopicName,
@@ -123,4 +120,10 @@ func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubS
 			assert.LessOrEqual(t, config.messageCount, actualReadCount, "expected to read %v messages", config.messageCount)
 		})
 	}
+
+	t.Run(config.GetTestName("close pubsub"), func(t *testing.T) {
+		// Properly close connection to pubsub
+		// This is needed inside t.Run because of the way the individual tests are run based on name filtering in the conformance test workflow.
+		ps.Close()
+	})
 }

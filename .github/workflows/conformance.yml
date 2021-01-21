@@ -7,6 +7,8 @@ name: Components Conformance Tests
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
 
 defaults:
   run:
@@ -30,9 +32,12 @@ jobs:
       matrix:
         # List here all the components that needs to be invoked in this workflow.
         component:
+        - output-binding.azure.blobstorage
+        - output-binding.azure.storagequeues
         - pubsub.redis
         - secretstores.localenv
         - state.cosmosdb
+        - state.mongodb
         - state.redis
         include:
         - component: state.cosmosdb
@@ -50,6 +55,11 @@ jobs:
           #
           # Only list the secrets you need for this component.
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: output-binding.azure.blobstorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: output-binding.azure.storagequeues
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+
     steps:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
@@ -71,7 +81,15 @@ jobs:
 
     - name: Start Redis
       uses: supercharge/redis-github-action@1.2.0
+      with:
+        redis-version: 6
       if: contains(matrix.component, 'redis')
+
+    - name: Start MongoDB
+      uses: supercharge/mongodb-github-action@1.3.0
+      with:
+        mongodb-version: 4.2
+      if: contains(matrix.component, 'mongodb')
 
     - name: Set up Go
       uses: actions/setup-go@v2
@@ -79,7 +97,7 @@ jobs:
     - name: Run tests
       run: |
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
-        NAME=$(echo ${{ matrix.component }} | cut -d. -f2)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
         KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
 
         if [ "${KIND}" = "secretstores" ]; then
@@ -93,4 +111,10 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         go test -v -tags=conftests -count=1 ./tests/... \
-          --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}"
+          --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}" 2>&1 | tee output.log
+
+        # Fail the step if we found no test to run
+        if grep -q "warning: no tests to run" output.log ; then
+          echo "::error:: No test was found for component ${{ matrix.component }}"
+          exit -1
+        fi

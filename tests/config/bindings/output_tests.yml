@@ -2,3 +2,7 @@ componentType: output-binding
 components:
   - component: redis
     operations: ["init", "create", "operations"]
+  - component: azure.blobstorage
+    operations: ["init", "create"]
+  - component: azure.storagequeues
+    operations: ["init", "create", "operations"]

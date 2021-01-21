@@ -162,7 +162,7 @@ func decodeYaml(b []byte) (TestConfiguration, error) {
 func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
 	comps, err := LoadComponents(filepath)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(comps)) // We only expect a single component per state store but on
+	assert.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
 
@@ -221,7 +221,12 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 			conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 		case "output-binding":
 			filepath := fmt.Sprintf("../config/bindings/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
+			props, err := tc.loadComponentsAndProperties(t, filepath)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+
+				continue
+			}
 			binding := loadOutputBindings(comp)
 			assert.NotNil(t, binding)
 			bindingsConfig := conf_output_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)

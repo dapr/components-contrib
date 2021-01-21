@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-blobstorage-output
+  namespace: default
+spec:
+  type: bindings.azure.blobstorage
+  version: v1
+  metadata:
+  - name: storageAccount
+    value: ${{AzureBlobStorageAccount}}
+  - name: storageAccessKey
+    value: ${{AzureBlobStorageAccessKey}}
+  - name: container
+    value: ${{AzureBlobStorageContainer}}

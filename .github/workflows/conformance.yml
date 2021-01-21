@@ -30,6 +30,8 @@ jobs:
       matrix:
         # List here all the components that needs to be invoked in this workflow.
         component:
+        - output-binding.azure.blobstorage
+        - output-binding.azure.storagequeues
         - pubsub.redis
         - secretstores.localenv
         - state.cosmosdb
@@ -50,6 +52,11 @@ jobs:
           #
           # Only list the secrets you need for this component.
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: output-binding.azure.blobstorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: output-binding.azure.storagequeues
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+
     steps:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
@@ -79,7 +86,7 @@ jobs:
     - name: Run tests
       run: |
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
-        NAME=$(echo ${{ matrix.component }} | cut -d. -f2)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
         KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
 
         if [ "${KIND}" = "secretstores" ]; then

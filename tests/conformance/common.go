@@ -43,6 +43,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	redis = "redis"
+)
+
 // nolint:gochecknoglobals
 var testLogger = logger.NewLogger("testLogger")
 
@@ -67,6 +71,7 @@ func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
 			return nil, err
 		}
 		tc, err := decodeYaml(b)
+
 		return &tc, err
 	}
 
@@ -215,7 +220,7 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 func loadPubSub(tc TestComponent) pubsub.PubSub {
 	var pubsub pubsub.PubSub
 	switch tc.Component {
-	case "redis":
+	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
 	case "azure-servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
@@ -243,7 +248,7 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadStateStore(tc TestComponent) state.Store {
 	var store state.Store
 	switch tc.Component {
-	case "redis":
+	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
 	case "cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
@@ -258,7 +263,7 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 	var binding bindings.OutputBinding
 
 	switch tc.Component {
-	case "redis":
+	case redis:
 		binding = b_redis.NewRedis(testLogger)
 	case "azure.blobstorage":
 		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)

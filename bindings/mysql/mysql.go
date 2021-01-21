@@ -29,8 +29,7 @@ const (
 	userKey     = "user"
 	passwordKey = "password"
 	networkKey  = "network"
-	serverKey   = "server"
-	portKey     = "port"
+	addrKey     = "addr"
 	databaseKey = "database"
 
 	// other general settings for DB connections
@@ -75,7 +74,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 		}
 		m.db = db
 	} else {
-		db, err := initDBFromConfig(p[userKey], p[passwordKey], p[networkKey], p[serverKey], p[portKey], p[databaseKey])
+		db, err := initDBFromConfig(p[userKey], p[passwordKey], p[networkKey], p[addrKey], p[databaseKey])
 		if err != nil {
 			return err
 		}
@@ -261,14 +260,12 @@ func initDBFromURL(url string) (*sql.DB, error) {
 	return db, nil
 }
 
-func initDBFromConfig(user, passwd, net, server, port, db string) (*sql.DB, error) {
+func initDBFromConfig(user, passwd, net, addr, db string) (*sql.DB, error) {
 	config := mysql.NewConfig()
 	config.User = user
 	config.Passwd = passwd
 	config.Net = net
-	if server != "" && port != "" {
-		config.Addr = server + ":" + port
-	}
+	config.Addr = addr
 	config.DBName = db
 	dns := config.FormatDSN()
 

@@ -15,5 +15,13 @@
 ## Running conformance tests
 1. Test test setup is independent of the test run.
 2. Run Redis with 6379 exposed locally.
-3. Run `make conf-tests` to run the conformance tests locally.
+3. Run Mongodb locally.
+4. Run all conformance tests with `make conf-tests`.
 > Note Some conformance tests require credentials in the form of environment variables. For examples Azure CosmosDB conformance tests will need to have Azure CosmosDB credentials. You will need to supply them to make these tests pass.
+5. To run specific tests, run:
+```bash
+# TEST_NAME can be TestPubsubConformance, TestStateConformance, TestSecretStoreConformance or TestOutputBindingConformance
+# COMPONENT_TYPE is the type of the component can be pubsub, state, output-binding, secretstores
+# COMPONENT_NAME is the component name from the tests.yml file eg: azure.servicebus, redis, mongodb etc.
+go test -v -tags=conftests -count=1 ./tests/conformance -run="${TEST_NAME}/${COMPONENT_TYPE}/${COMPONENT_NAME}"
+```

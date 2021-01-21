@@ -13,7 +13,7 @@ func TestDecodeYaml(t *testing.T) {
 	var config TestConfiguration
 	yam := `
 componentType: state
-components: 
+components:
   - component: redis
     allOperations: false
     operations: ["init", "set"]
@@ -75,4 +75,13 @@ func TestConvertMetadataToProperties(t *testing.T) {
 	assert.Equal(t, 2, len(resp))
 	assert.Equal(t, "test", resp["test_key"])
 	assert.Equal(t, "testval", resp["env_var_sub"])
+}
+
+func TestConvertComponentNameToPath(t *testing.T) {
+	val := convertComponentNameToPath("azure.servicebus")
+	assert.Equal(t, "azure/servicebus", val)
+	val = convertComponentNameToPath("a.b.c")
+	assert.Equal(t, "a/b/c", val)
+	val = convertComponentNameToPath("redis")
+	assert.Equal(t, "redis", val)
 }

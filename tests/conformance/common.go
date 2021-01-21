@@ -18,6 +18,8 @@ import (
 
 	"fortio.org/fortio/log"
 	"github.com/dapr/components-contrib/bindings"
+	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
@@ -168,33 +170,42 @@ func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath 
 	return props
 }
 
+func convertComponentNameToPath(componentName string) string {
+	if strings.Contains(componentName, ".") {
+		return strings.Join(strings.Split(componentName, "."), "/")
+	}
+
+	return componentName
+}
+
 func (tc *TestConfiguration) Run(t *testing.T) {
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
+		componentConfigPath := convertComponentNameToPath(comp.Component)
 		switch tc.ComponentType {
 		case "state":
-			filepath := fmt.Sprintf("../config/state/%s", comp.Component)
+			filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
 			props := tc.loadComponentsAndProperties(t, filepath)
 			store := loadStateStore(comp)
 			assert.NotNil(t, store)
 			storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 			conf_state.ConformanceTests(t, props, store, storeConfig)
 		case "secretstores":
-			filepath := fmt.Sprintf("../config/secretstores/%s", comp.Component)
+			filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
 			props := tc.loadComponentsAndProperties(t, filepath)
 			store := loadSecretStore(comp)
 			assert.NotNil(t, store)
 			storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
 			conf_secret.ConformanceTests(t, props, store, storeConfig)
 		case "pubsub":
-			filepath := fmt.Sprintf("../config/pubsub/%s", comp.Component)
+			filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
 			props := tc.loadComponentsAndProperties(t, filepath)
 			pubsub := loadPubSub(comp)
 			assert.NotNil(t, pubsub)
 			pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 			conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 		case "output-binding":
-			filepath := fmt.Sprintf("../config/bindings/%s", comp.Component)
+			filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 			props := tc.loadComponentsAndProperties(t, filepath)
 			binding := loadOutputBindings(comp)
 			assert.NotNil(t, binding)
@@ -254,6 +265,10 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 	switch tc.Component {
 	case redis:
 		binding = b_redis.NewRedis(testLogger)
+	case "azure.blobstorage":
+		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)
+	case "azure.storagequeues":
+		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	default:
 		return nil
 	}

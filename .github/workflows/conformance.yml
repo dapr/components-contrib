@@ -7,6 +7,8 @@ name: Components Conformance Tests
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
 
 defaults:
   run:
@@ -109,4 +111,10 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         go test -v -tags=conftests -count=1 ./tests/... \
-          --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}"
+          --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}" 2>&1 | tee output.log
+
+        # Fail the step if we found no test to run
+        if grep -q "warning: no tests to run" output.log ; then
+          echo "::error:: No test was found for component ${{ matrix.component }}"
+          exit -1
+        fi

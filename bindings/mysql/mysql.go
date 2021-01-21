@@ -238,8 +238,8 @@ func propertyToInt(props map[string]string, key string, setter func(int)) error 
 
 func propertyToDuration(props map[string]string, key string, setter func(time.Duration)) error {
 	if v, ok := props[key]; ok {
-		if i, err := strconv.Atoi(v); err == nil {
-			setter(time.Duration(i) * time.Second)
+		if d, err := time.ParseDuration(v); err == nil {
+			setter(d)
 		} else {
 			return errors.Wrapf(err, "error converitng %s:%s to int", key, v)
 		}

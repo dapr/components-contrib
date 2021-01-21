@@ -72,10 +72,14 @@ jobs:
 
     - name: Start Redis
       uses: supercharge/redis-github-action@1.2.0
+      with:
+        redis-version: 6
       if: contains(matrix.component, 'redis')
 
     - name: Start MongoDB
       uses: supercharge/mongodb-github-action@1.3.0
+      with:
+        mongodb-version: 4.2
       if: contains(matrix.component, 'mongodb')
 
     - name: Set up Go

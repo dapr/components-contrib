@@ -13,7 +13,7 @@ func TestDecodeYaml(t *testing.T) {
 	var config TestConfiguration
 	yam := `
 componentType: state
-components: 
+components:
   - component: redis
     allOperations: false
     operations: ["init", "set"]

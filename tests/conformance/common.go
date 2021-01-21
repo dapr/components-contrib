@@ -18,6 +18,8 @@ import (
 
 	"fortio.org/fortio/log"
 	"github.com/dapr/components-contrib/bindings"
+	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
@@ -220,7 +222,7 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 			pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 			conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 		case "output-binding":
-			filepath := fmt.Sprintf("../config/bindings/%s", comp.Component)
+			filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 			props, err := tc.loadComponentsAndProperties(t, filepath)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
@@ -287,6 +289,10 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 	switch tc.Component {
 	case redis:
 		binding = b_redis.NewRedis(testLogger)
+	case "azure.blobstorage":
+		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)
+	case "azure.storagequeues":
+		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	default:
 		return nil
 	}

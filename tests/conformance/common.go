@@ -29,6 +29,7 @@ import (
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	"github.com/dapr/components-contrib/state"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	conf_output_bindings "github.com/dapr/components-contrib/tests/conformance/bindings/output"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
@@ -252,6 +253,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_redis.NewRedisStateStore(testLogger)
 	case "cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
+	case "mongodb":
+		store = s_mongodb.NewMongoDB(testLogger)
 	default:
 		return nil
 	}

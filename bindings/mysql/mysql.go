@@ -99,7 +99,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 	}
 
 	if err := m.db.Ping(); err != nil {
-		return errors.Wrap(err, "unable to pint the DB")
+		return errors.Wrap(err, "unable to ping the DB")
 	}
 
 	return nil

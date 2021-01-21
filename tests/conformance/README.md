@@ -21,7 +21,5 @@
 5. To run specific tests, run:
 ```bash
 # TEST_NAME can be TestPubsubConformance, TestStateConformance, TestSecretStoreConformance or TestOutputBindingConformance
-# COMPONENT_TYPE is the type of the component can be pubsub, state, output-binding, secretstores
 # COMPONENT_NAME is the component name from the tests.yml file eg: azure.servicebus, redis, mongodb etc.
-go test -v -tags=conftests -count=1 ./tests/conformance -run="${TEST_NAME}/${COMPONENT_TYPE}/${COMPONENT_NAME}"
-```
+go test -v -tags=conftests -count=1 ./tests/conformance -run="${TEST_NAME}/${COMPONENT_NAME}"

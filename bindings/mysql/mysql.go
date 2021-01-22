@@ -181,6 +181,15 @@ func (m *Mysql) Operations() []bindings.OperationKind {
 	}
 }
 
+// Close will close the DB
+func (m *Mysql) Close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+
+	return nil
+}
+
 func (m *Mysql) query(s string) ([]byte, error) {
 	m.logger.Debugf("query: %s", s)
 

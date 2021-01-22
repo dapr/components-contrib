@@ -1,139 +1,161 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
-
 package mysql
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
-		id bigint NOT NULL,
-		v1 character varying(50) NOT NULL,
-		ts TIMESTAMP)`
-	testDropTable = `DROP TABLE foo`
-	testInsert    = "INSERT INTO foo (id, v1, ts) VALUES (%d, 'test-%d', '%v')"
-	testDelete    = "DELETE FROM foo"
-	testUpdate    = "UPDATE foo SET ts = '%v' WHERE id = %d"
-	testSelect    = "SELECT * FROM foo WHERE id < 3"
-)
+func TestQuery(t *testing.T) {
+	m, mock, _ := mockDatabase(t)
+	defer m.Close()
 
-func TestOperations(t *testing.T) {
-	t.Parallel()
-	t.Run("Get operation list", func(t *testing.T) {
-		t.Parallel()
-		b := NewMysql(nil)
-		assert.NotNil(t, b)
-		l := b.Operations()
-		assert.Equal(t, 3, len(l))
-		assert.Contains(t, l, execOperation)
-		assert.Contains(t, l, closeOperation)
-		assert.Contains(t, l, queryOperation)
-	})
-}
+	t.Run("no dbType provided", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "value", "timestamp"}).
+			AddRow(1, "value-1", time.Now()).
+			AddRow(2, "value-2", time.Now().Add(1000)).
+			AddRow(3, "value-3", time.Now().Add(2000))
 
-// SETUP TESTS
-// 1. `CREATE DATABASE daprtest;`
-// 2. `CREATE USER daprtest;`
-// 3. `GRANT ALL PRIVILEGES ON daprtest.* to daprtest;`
-// 4. `export MYSQL_TEST_CONN_URL="daprtest@tcp(localhost:3306)/daprtest"``
-// 5. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithURL`
-
-func TestMysqlIntegration(t *testing.T) {
-	url := os.Getenv("MYSQL_TEST_CONN_URL")
-	if url == "" {
-		t.SkipNow()
-	}
-
-	b := NewMysql(logger.NewLogger("test"))
-	m := bindings.Metadata{Properties: map[string]string{connectionURLKey: url}}
-	if err := b.Init(m); err != nil {
-		t.Fatal(err)
-	}
-
-	req := &bindings.InvokeRequest{Metadata: map[string]string{}}
-
-	t.Run("Invoke create table", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testCreateTable
-		res, err := b.Invoke(req)
-		assertResponse(t, res, err)
-	})
-
-	t.Run("Invoke delete", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDelete
-		res, err := b.Invoke(req)
-		assertResponse(t, res, err)
-	})
-
-	t.Run("Invoke insert", func(t *testing.T) {
-		req.Operation = execOperation
-		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
-			res, err := b.Invoke(req)
-			assertResponse(t, res, err)
-		}
-	})
-
-	t.Run("Invoke update", func(t *testing.T) {
-		req.Operation = execOperation
-		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
-			res, err := b.Invoke(req)
-			assertResponse(t, res, err)
-		}
-	})
-
-	t.Run("Invoke select", func(t *testing.T) {
-		req.Operation = queryOperation
-		req.Metadata[commandSQLKey] = testSelect
-		res, err := b.Invoke(req)
-		assertResponse(t, res, err)
-		t.Logf("received result: %s", res.Data)
-		result := make([]interface{}, 0)
-		err = json.Unmarshal(res.Data, &result)
+		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < 4").WillReturnRows(rows)
+		ret, err := m.query(`SELECT * FROM foo WHERE id < 4`)
+		assert.Nil(t, err)
+		t.Logf("query result: %s", ret)
+		assert.Contains(t, string(ret), "\"id\":\"1\"")
+		var result []interface{}
+		err = json.Unmarshal(ret, &result)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(result))
 	})
 
-	t.Run("Invoke delete", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDelete
-		req.Data = nil
-		res, err := b.Invoke(req)
-		assertResponse(t, res, err)
-	})
-
-	t.Run("Invoke drop", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDropTable
-		res, err := b.Invoke(req)
-		assertResponse(t, res, err)
-	})
-
-	t.Run("Invoke close", func(t *testing.T) {
-		req.Operation = closeOperation
-		req.Metadata = nil
-		req.Data = nil
-		_, err := b.Invoke(req)
-		assert.NoError(t, err)
+	t.Run("dbType provided", func(t *testing.T) {
+		col1 := sqlmock.NewColumn("id").OfType("BIGINT", 1)
+		col2 := sqlmock.NewColumn("value").OfType("FLOAT", 1.0)
+		col3 := sqlmock.NewColumn("timestamp").OfType("TIME", time.Now())
+		rows := sqlmock.NewRowsWithColumnDefinition(col1, col2, col3).
+			AddRow(1, 1.1, time.Now()).
+			AddRow(2, 2.2, time.Now().Add(1000)).
+			AddRow(3, 3.3, time.Now().Add(2000))
+		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < 4").WillReturnRows(rows)
+		ret, err := m.query("SELECT * FROM foo WHERE id < 4")
+		assert.Nil(t, err)
+		t.Logf("query result: %s", ret)
+		assert.Contains(t, string(ret), "\"id\":1")
+		assert.Contains(t, string(ret), "\"value\":2.2")
+		var result []interface{}
+		err = json.Unmarshal(ret, &result)
+		assert.Nil(t, err)
+		assert.Equal(t, 3, len(result))
 	})
 }
 
-func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
-	assert.NoError(t, err)
-	assert.NotNil(t, res)
-	assert.NotNil(t, res.Metadata)
+func TestExec(t *testing.T) {
+	m, mock, _ := mockDatabase(t)
+	defer m.Close()
+	mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))
+	i, err := m.exec("INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')")
+	assert.Equal(t, int64(1), i)
+	assert.Nil(t, err)
+}
+
+func TestInvoke(t *testing.T) {
+	m, mock, _ := mockDatabase(t)
+	defer m.Close()
+
+	t.Run("exec operation succeeds", func(t *testing.T) {
+		mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))
+		metadata := map[string]string{commandSQLKey: "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')"}
+		req := &bindings.InvokeRequest{
+			Data:      nil,
+			Metadata:  metadata,
+			Operation: execOperation,
+		}
+		resp, err := m.Invoke(req)
+		assert.Nil(t, err)
+		assert.Equal(t, "1", resp.Metadata[respRowsAffectedKey])
+	})
+
+	t.Run("exec operation fails", func(t *testing.T) {
+		mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnError(errors.New("insert failed"))
+		metadata := map[string]string{commandSQLKey: "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')"}
+		req := &bindings.InvokeRequest{
+			Data:      nil,
+			Metadata:  metadata,
+			Operation: execOperation,
+		}
+		resp, err := m.Invoke(req)
+		assert.Nil(t, resp)
+		assert.NotNil(t, err)
+	})
+
+	t.Run("query operation succeeds", func(t *testing.T) {
+		col1 := sqlmock.NewColumn("id").OfType("BIGINT", 1)
+		col2 := sqlmock.NewColumn("value").OfType("FLOAT", 1.0)
+		col3 := sqlmock.NewColumn("timestamp").OfType("TIME", time.Now())
+		rows := sqlmock.NewRowsWithColumnDefinition(col1, col2, col3).AddRow(1, 1.1, time.Now())
+		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < \\d+").WillReturnRows(rows)
+
+		metadata := map[string]string{commandSQLKey: "SELECT * FROM foo WHERE id < 2"}
+		req := &bindings.InvokeRequest{
+			Data:      nil,
+			Metadata:  metadata,
+			Operation: queryOperation,
+		}
+		resp, err := m.Invoke(req)
+		assert.Nil(t, err)
+		var data []interface{}
+		err = json.Unmarshal(resp.Data, &data)
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(data))
+	})
+
+	t.Run("query operation fails", func(t *testing.T) {
+		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < \\d+").WillReturnError(errors.New("query failed"))
+		metadata := map[string]string{commandSQLKey: "SELECT * FROM foo WHERE id < 2"}
+		req := &bindings.InvokeRequest{
+			Data:      nil,
+			Metadata:  metadata,
+			Operation: queryOperation,
+		}
+		resp, err := m.Invoke(req)
+		assert.Nil(t, resp)
+		assert.NotNil(t, err)
+	})
+
+	t.Run("close operation", func(t *testing.T) {
+		mock.ExpectClose()
+		req := &bindings.InvokeRequest{
+			Operation: closeOperation,
+		}
+		resp, _ := m.Invoke(req)
+		assert.Nil(t, resp)
+	})
+
+	t.Run("unsupported operation", func(t *testing.T) {
+		req := &bindings.InvokeRequest{
+			Data:      nil,
+			Metadata:  map[string]string{},
+			Operation: "unsupported",
+		}
+		resp, err := m.Invoke(req)
+		assert.Nil(t, resp)
+		assert.NotNil(t, err)
+	})
+}
+
+func mockDatabase(t *testing.T) (*Mysql, sqlmock.Sqlmock, error) {
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+
+	m := NewMysql(logger.NewLogger("test"))
+	m.db = db
+
+	return m, mock, err
 }

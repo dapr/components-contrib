@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestOutputBindingConformance(t *testing.T) {
-	tc, err := NewTestConfiguration("../config/bindings/output_tests.yml")
+func TestBindingsConformance(t *testing.T) {
+	tc, err := NewTestConfiguration("../config/bindings/tests.yml")
 	assert.NoError(t, err)
 	assert.NotNil(t, tc)
 	tc.Run(t)

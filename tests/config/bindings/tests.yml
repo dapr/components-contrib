@@ -1,13 +1,14 @@
-# the config map is passed in a metadata map to the Invoke request for output bindings
-componentType: output-binding
+componentType: bindings
 components:
   - component: redis
     operations: ["create", "operations"]
     config:
-      key: $((uuid))
+      output_key: $((uuid))
   - component: azure.blobstorage
     operations: ["create", "operations", "get"]
     config:
-      blobName: $((uuid))
+      output_blobName: $((uuid))
   - component: azure.storagequeues
+    operations: ["create", "operations", "read"]
+  - component: kafka
     operations: ["create", "operations"]

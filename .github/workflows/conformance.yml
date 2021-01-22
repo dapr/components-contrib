@@ -113,7 +113,7 @@ jobs:
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
-        go test -v -tags=conftests -count=1 ./tests/conformance/... \
+        go test -v -tags=conftests -count=1 ./tests/conformance \
           --run="Test${KIND_UPPER}Conformance/${NAME}" 2>&1 | tee output.log
 
         # Fail the step if we found no test to run

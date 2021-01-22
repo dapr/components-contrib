@@ -6,8 +6,12 @@
 package mysql
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"strconv"
 	"time"
 
@@ -25,12 +29,15 @@ const (
 
 	// configurations to connect to Mysql, either a data source name represent by URL
 	connectionURLKey = "url"
-	// , or separated keys:
-	userKey     = "user"
-	passwordKey = "password"
-	networkKey  = "network"
-	addrKey     = "addr"
-	databaseKey = "database"
+
+	// To connect to MySQL running in Azure over SSL you have to download a
+	// SSL certificate. If this is provided the driver will connect using
+	// SSL. If you have disable SSL you can leave this empty.
+	// When the user provides a pem path their connection string must end with
+	// &tls=custom
+	// The connection string should be in the following format
+	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
+	pemPathKey = "pemPath"
 
 	// other general settings for DB connections
 	maxIdleConnsKey    = "maxIdleConns"
@@ -65,41 +72,45 @@ func NewMysql(logger logger.Logger) *Mysql {
 
 // Init initializes the MySQL binding
 func (m *Mysql) Init(metadata bindings.Metadata) error {
+	m.logger.Debug("Initializing MySql binding")
+
 	p := metadata.Properties
-	// either init from URL or from separated keys
-	if url, ok := p[connectionURLKey]; ok && url != "" {
-		db, err := initDBFromURL(url)
-		if err != nil {
-			return err
-		}
-		m.db = db
-	} else {
-		db, err := initDBFromConfig(p[userKey], p[passwordKey], p[networkKey], p[addrKey], p[databaseKey])
-		if err != nil {
-			return err
-		}
-		m.db = db
+	url, ok := p[connectionURLKey]
+	if !ok || url == "" {
+		return fmt.Errorf("missing MySql connection string")
 	}
 
-	if err := propertyToInt(p, maxIdleConnsKey, m.db.SetMaxIdleConns); err != nil {
+	db, err := initDB(url, metadata.Properties[pemPathKey])
+	if err != nil {
 		return err
 	}
 
-	if err := propertyToInt(p, maxOpenConnsKey, m.db.SetMaxOpenConns); err != nil {
+	err = propertyToInt(p, maxIdleConnsKey, db.SetMaxIdleConns)
+	if err != nil {
 		return err
 	}
 
-	if err := propertyToDuration(p, connMaxIdleTimeKey, m.db.SetConnMaxIdleTime); err != nil {
+	err = propertyToInt(p, maxOpenConnsKey, db.SetMaxOpenConns)
+	if err != nil {
 		return err
 	}
 
-	if err := propertyToDuration(p, connMaxLifetimeKey, m.db.SetConnMaxLifetime); err != nil {
+	err = propertyToDuration(p, connMaxIdleTimeKey, db.SetConnMaxIdleTime)
+	if err != nil {
 		return err
 	}
 
-	if err := m.db.Ping(); err != nil {
+	err = propertyToDuration(p, connMaxLifetimeKey, db.SetConnMaxLifetime)
+	if err != nil {
+		return err
+	}
+
+	err = db.Ping()
+	if err != nil {
 		return errors.Wrap(err, "unable to ping the DB")
 	}
+
+	m.db = db
 
 	return nil
 }
@@ -240,16 +251,35 @@ func propertyToDuration(props map[string]string, key string, setter func(time.Du
 		if d, err := time.ParseDuration(v); err == nil {
 			setter(d)
 		} else {
-			return errors.Wrapf(err, "error converitng %s:%s to int", key, v)
+			return errors.Wrapf(err, "error converitng %s:%s to time duration", key, v)
 		}
 	}
 
 	return nil
 }
 
-func initDBFromURL(url string) (*sql.DB, error) {
+func initDB(url, pemPath string) (*sql.DB, error) {
 	if _, err := mysql.ParseDSN(url); err != nil {
 		return nil, errors.Wrapf(err, "illegal Data Source Name (DNS) specified by %s", connectionURLKey)
+	}
+
+	if pemPath != "" {
+		rootCertPool := x509.NewCertPool()
+		pem, err := ioutil.ReadFile(pemPath)
+
+		if err != nil {
+			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
+		}
+
+		ok := rootCertPool.AppendCertsFromPEM(pem)
+		if !ok {
+			return nil, fmt.Errorf("failed to append PEM")
+		}
+
+		err = mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12})
+		if err != nil {
+			return nil, errors.Wrap(err, "Error register TLS config")
+		}
 	}
 
 	db, err := sql.Open("mysql", url)
@@ -258,21 +288,4 @@ func initDBFromURL(url string) (*sql.DB, error) {
 	}
 
 	return db, nil
-}
-
-func initDBFromConfig(user, passwd, net, addr, db string) (*sql.DB, error) {
-	config := mysql.NewConfig()
-	config.User = user
-	config.Passwd = passwd
-	config.Net = net
-	config.Addr = addr
-	config.DBName = db
-	dns := config.FormatDSN()
-
-	ret, err := sql.Open("mysql", dns)
-	if err != nil {
-		return nil, errors.Wrap(err, "error opening DB connection")
-	}
-
-	return ret, nil
 }

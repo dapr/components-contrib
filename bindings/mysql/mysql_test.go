@@ -51,7 +51,7 @@ func TestOperations(t *testing.T) {
 // 4. `export MYSQL_TEST_CONN_URL="daprtest@tcp(localhost:3306)/daprtest"``
 // 5. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithURL`
 
-func TestMysqlIntegrationWithURL(t *testing.T) {
+func TestMysqlIntegration(t *testing.T) {
 	url := os.Getenv("MYSQL_TEST_CONN_URL")
 	if url == "" {
 		t.SkipNow()
@@ -63,39 +63,6 @@ func TestMysqlIntegrationWithURL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	liveTest(t, b)
-}
-
-// SETUP TESTS
-// 1. `CREATE DATABASE daprtest;`
-// 2. `CREATE USER daprtest;`
-// 3. `GRANT ALL PRIVILEGES ON daprtest.* to daprtest;`
-// 4. `export MYSQL_TEST_USER="daprtest"`
-// 5. `export MYSQL_TEST_NET="tcp"`
-// 6. `export MYSQL_TEST_ADDR="localhost:3306"`
-// 7. `export MYSQL_TEST_DB="daprtest"`
-// 8. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithConfig`
-func TestMysqlIntegrationWithConfig(t *testing.T) {
-	user := os.Getenv("MYSQL_TEST_USER")
-	if user == "" {
-		t.SkipNow()
-	}
-
-	b := NewMysql(logger.NewLogger("test"))
-	m := bindings.Metadata{Properties: map[string]string{}}
-	m.Properties[userKey] = user
-	m.Properties[networkKey] = os.Getenv("MYSQL_TEST_NET")
-	m.Properties[addrKey] = os.Getenv("MYSQL_TEST_ADDR")
-	m.Properties[databaseKey] = os.Getenv("MYSQL_TEST_DB")
-
-	if err := b.Init(m); err != nil {
-		t.Fatal(err)
-	}
-
-	liveTest(t, b)
-}
-
-func liveTest(t *testing.T, b *Mysql) {
 	req := &bindings.InvokeRequest{Metadata: map[string]string{}}
 
 	t.Run("Invoke create table", func(t *testing.T) {

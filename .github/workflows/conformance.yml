@@ -34,32 +34,35 @@ jobs:
         component:
         - output-binding.azure.blobstorage
         - output-binding.azure.storagequeues
+        - pubsub.azure.servicebus
         - pubsub.redis
         - secretstores.localenv
+        - secretstores.localfile
         - state.cosmosdb
         - state.mongodb
         - state.redis
         include:
+        # Unfortunately, Azure secrets can't have underscores in
+        # names, while environment variables with hyphens ('-') are
+        # troublesome.
+        #
+        # We work around here by leveraging the fact that
+        # environment variable names are case sensitive, so
+        # CamelCase would still work.
+        #
+        # That is slightly better than something like
+        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
+        # and errorprone.
+        #
+        # Only list the secrets you need for the component.
         - component: state.cosmosdb
-          # Unfortunately, Azure secrets can't have underscores in
-          # names, while environment variables with hyphens ('-') are
-          # troublesome.
-          #
-          # We work around here by leveraging the fact that
-          # environment variable names are case sensitive, so
-          # CamelCase would still work.
-          #
-          # That is slightly better than something like
-          # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
-          # and errorprone.
-          #
-          # Only list the secrets you need for this component.
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: pubsub.azure.servicebus
+          required-secrets: AzureServiceBusConnectionString
         - component: output-binding.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
         - component: output-binding.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-
     steps:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
@@ -110,7 +113,7 @@ jobs:
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
-        go test -v -tags=conftests -count=1 ./tests/... \
+        go test -v -tags=conftests -count=1 ./tests/conformance/... \
           --run="Test${KIND_UPPER}Conformance/${KIND}/${NAME}" 2>&1 | tee output.log
 
         # Fail the step if we found no test to run

@@ -74,18 +74,22 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, config TestConfig) {
-	actualReadCount := 0
-	if config.CommonConfig.HasOperation("init") {
-		t.Run(config.GetTestName("init"), func(t *testing.T) {
-			err := ps.Init(pubsub.Metadata{
-				Properties: props,
-			})
-			assert.NoError(t, err, "expected no error on setting up pubsub")
-		})
-	}
+	// Properly close pubsub
+	defer ps.Close()
 
+	actualReadCount := 0
+
+	// Init
+	t.Run("init", func(t *testing.T) {
+		err := ps.Init(pubsub.Metadata{
+			Properties: props,
+		})
+		assert.NoError(t, err, "expected no error on setting up pubsub")
+	})
+
+	// Subscribe
 	if config.HasOperation("subscribe") {
-		t.Run(config.GetTestName("subscribe"), func(t *testing.T) {
+		t.Run("subscribe", func(t *testing.T) {
 			err := ps.Subscribe(pubsub.SubscribeRequest{
 				Topic:    config.testTopicName,
 				Metadata: config.subscribeMetadata,
@@ -98,8 +102,9 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		})
 	}
 
+	// Publish
 	if config.HasOperation("publish") {
-		t.Run(config.GetTestName("publish"), func(t *testing.T) {
+		t.Run("publish", func(t *testing.T) {
 			for k := 0; k < config.messageCount; k++ {
 				data := []byte("message-" + strconv.Itoa(k))
 				err := ps.Publish(&pubsub.PublishRequest{
@@ -113,17 +118,12 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		})
 	}
 
+	// Verify read
 	if config.HasOperation("subscribe") {
-		t.Run(config.GetTestName("verify read"), func(t *testing.T) {
+		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.maxReadDuration)
 			time.Sleep(config.maxReadDuration)
 			assert.LessOrEqual(t, config.messageCount, actualReadCount, "expected to read %v messages", config.messageCount)
 		})
 	}
-
-	t.Run(config.GetTestName("close pubsub"), func(t *testing.T) {
-		// Properly close connection to pubsub
-		// This is needed inside t.Run because of the way the individual tests are run based on name filtering in the conformance test workflow.
-		ps.Close()
-	})
 }

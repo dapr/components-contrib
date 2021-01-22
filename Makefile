@@ -80,4 +80,4 @@ check-diff:
 ################################################################################
 .PHONY: conf-tests
 conf-tests:
-	@go test -v -tags=conftests -count=1 ./tests/...
+	@go test -v -tags=conftests -count=1 ./tests/conformance

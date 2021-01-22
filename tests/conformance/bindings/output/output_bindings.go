@@ -12,9 +12,10 @@ import (
 
 type TestConfig struct {
 	utils.CommonConfig
+	metadata map[string]string
 }
 
-func NewTestConfig(name string, allOperations bool, operations []string) TestConfig {
+func NewTestConfig(name string, allOperations bool, operations []string, config map[string]string) TestConfig {
 	return TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "output-binding",
@@ -22,21 +23,31 @@ func NewTestConfig(name string, allOperations bool, operations []string) TestCon
 			AllOperations: allOperations,
 			Operations:    sets.NewString(operations...),
 		},
+		metadata: config,
+	}
+}
+
+func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
+	// There is a possiblity that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
+	// So we are making a copy of the config metadata map and setting the Metadata field before each request
+	return bindings.InvokeRequest{
+		Data:     []byte("Test Data"),
+		Metadata: tc.CopyMap(tc.metadata),
 	}
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, binding bindings.OutputBinding, config TestConfig) {
-	if config.CommonConfig.HasOperation("init") {
-		t.Run(config.GetTestName("init"), func(t *testing.T) {
-			err := binding.Init(bindings.Metadata{
-				Properties: props,
-			})
-			assert.NoError(t, err, "expected no error setting up binding")
+	// Init
+	t.Run("init", func(t *testing.T) {
+		err := binding.Init(bindings.Metadata{
+			Properties: props,
 		})
-	}
+		assert.NoError(t, err, "expected no error setting up binding")
+	})
 
-	if config.CommonConfig.HasOperation("operations") {
-		t.Run(config.GetTestName("operations"), func(t *testing.T) {
+	// Operations
+	if config.HasOperation("operations") {
+		t.Run("operations", func(t *testing.T) {
 			ops := binding.Operations()
 			for _, op := range ops {
 				assert.True(t, config.HasOperation(string(op)), fmt.Sprintf("Operation missing from conformance test config: %v", op))
@@ -44,17 +55,12 @@ func ConformanceTests(t *testing.T, props map[string]string, binding bindings.Ou
 		})
 	}
 
-	req := bindings.InvokeRequest{
-		Data: []byte("Test Data"),
-		Metadata: map[string]string{
-			"key": "test-key",
-		},
-	}
-
+	// CreateOperations
 	createPerformed := false
 	// Order matters here, we use the result of the create in other validations.
 	if config.HasOperation(string(bindings.CreateOperation)) {
-		t.Run(config.GetTestName("create"), func(t *testing.T) {
+		t.Run("create", func(t *testing.T) {
+			req := config.createInvokeRequest()
 			req.Operation = bindings.CreateOperation
 			_, err := binding.Invoke(&req)
 			assert.Nil(t, err, "expected no error invoking output binding")
@@ -62,29 +68,33 @@ func ConformanceTests(t *testing.T, props map[string]string, binding bindings.Ou
 		})
 	}
 
+	// GetOperation
 	if config.HasOperation(string(bindings.GetOperation)) {
-		t.Run(config.GetTestName("get"), func(t *testing.T) {
+		t.Run("get", func(t *testing.T) {
+			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			resp, err := binding.Invoke(&req)
 			assert.Nil(t, err, "expected no error invoking output binding")
-			assert.NotNil(t, resp)
-
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
 			}
 		})
 	}
 
+	// ListOperation
 	if config.HasOperation(string(bindings.ListOperation)) {
-		t.Run(config.GetTestName("list"), func(t *testing.T) {
+		t.Run("list", func(t *testing.T) {
+			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			_, err := binding.Invoke(&req)
 			assert.Nil(t, err, "expected no error invoking output binding")
 		})
 	}
 
+	// DeleteOperation
 	if config.HasOperation(string(bindings.DeleteOperation)) {
-		t.Run(config.GetTestName("delete"), func(t *testing.T) {
+		t.Run("delete", func(t *testing.T) {
+			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
 			_, err := binding.Invoke(&req)
 			assert.Nil(t, err, "expected no error invoking output binding")

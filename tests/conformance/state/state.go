@@ -88,23 +88,21 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	b, _ := json.Marshal(ValueType{Message: "test"})
 	value := b
 
-	if config.HasOperation("init") {
-		// Init
-		t.Run(config.GetTestName("init"), func(t *testing.T) {
-			start := time.Now()
-			err := statestore.Init(state.Metadata{
-				Properties: props,
-			})
-			elapsed := time.Since(start)
-			assert.Nil(t, err)
-			assert.Lessf(t, elapsed.Microseconds(), config.maxInitDuration.Microseconds(),
-				"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), config.maxDeleteDuration.Microseconds())
+	// Init
+	t.Run("init", func(t *testing.T) {
+		start := time.Now()
+		err := statestore.Init(state.Metadata{
+			Properties: props,
 		})
-	}
+		elapsed := time.Since(start)
+		assert.Nil(t, err)
+		assert.Lessf(t, elapsed.Microseconds(), config.maxInitDuration.Microseconds(),
+			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), config.maxDeleteDuration.Microseconds())
+	})
 
 	if config.HasOperation("set") {
 		// Set
-		t.Run(config.GetTestName("set"), func(t *testing.T) {
+		t.Run("set", func(t *testing.T) {
 			setReq := &state.SetRequest{
 				Key:   key,
 				Value: value,
@@ -120,7 +118,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	if config.HasOperation("get") {
 		// Get
-		t.Run(config.GetTestName("get"), func(t *testing.T) {
+		t.Run("get", func(t *testing.T) {
 			getReq := &state.GetRequest{
 				Key: key,
 			}
@@ -136,7 +134,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	if config.HasOperation("delete") {
 		// Delete
-		t.Run(config.GetTestName("delete"), func(t *testing.T) {
+		t.Run("delete", func(t *testing.T) {
 			delReq := &state.DeleteRequest{
 				Key: key,
 			}
@@ -166,7 +164,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 		if config.HasOperation("bulkset") {
 			// BulkSet
-			t.Run(config.GetTestName("bulkset"), func(t *testing.T) {
+			t.Run("bulkset", func(t *testing.T) {
 				start := time.Now()
 				err := statestore.BulkSet(bulkSetReqs)
 				elapsed := time.Since(start)
@@ -189,7 +187,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 		if config.HasOperation("bulkdelete") {
 			// BulkDelete
-			t.Run(config.GetTestName("bulkdelete"), func(t *testing.T) {
+			t.Run("bulkdelete", func(t *testing.T) {
 				start := time.Now()
 				err := statestore.BulkDelete(bulkDeleteReqs)
 				elapsed := time.Since(start)

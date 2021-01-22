@@ -1,8 +1,13 @@
+# the config map is passed in a metadata map to the Invoke request for output bindings
 componentType: output-binding
 components:
   - component: redis
-    operations: ["init", "create", "operations"]
+    operations: ["create", "operations"]
+    config:
+      key: $((uuid))
   - component: azure.blobstorage
-    operations: ["init", "create"]
+    operations: ["create", "operations", "get"]
+    config:
+      blobName: $((uuid))
   - component: azure.storagequeues
-    operations: ["init", "create", "operations"]
+    operations: ["create", "operations"]

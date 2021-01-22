@@ -6,7 +6,6 @@
 package mysql
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -102,7 +101,8 @@ func TestMysqlIntegration(t *testing.T) {
 		req.Metadata[commandSQLKey] = testSelect
 		res, err := b.Invoke(req)
 		assertResponse(t, res, err)
-		result := make([][]sql.RawBytes, 0)
+		t.Logf("received result: %s", res.Data)
+		result := make([]interface{}, 0)
 		err = json.Unmarshal(res.Data, &result)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(result))

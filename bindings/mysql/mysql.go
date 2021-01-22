@@ -194,28 +194,7 @@ func (m *Mysql) query(s string) ([]byte, error) {
 		_ = rows.Err()
 	}()
 
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, errors.Wrapf(err, "error finding column names for %s", s)
-	}
-
-	var values [][]sql.RawBytes
-	for rows.Next() {
-		row := make([]sql.RawBytes, len(columns))
-		scanArgs := make([]interface{}, len(row))
-		for i := range row {
-			scanArgs[i] = &row[i]
-		}
-
-		err = rows.Scan(scanArgs...)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error scanning query result for %s", s)
-		}
-
-		values = append(values, row)
-	}
-
-	result, err := json.Marshal(values)
+	result, err := jsonify(rows)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error marshalling query result for %s", s)
 	}
@@ -288,4 +267,94 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func jsonify(rows *sql.Rows) ([]byte, error) {
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
+
+	var ret []interface{}
+	for rows.Next() {
+		scanArgs := prepareScanArgs(columnTypes)
+		err := rows.Scan(scanArgs...)
+		if err != nil {
+			return nil, err
+		}
+
+		r := convertScanArgs(columnTypes, scanArgs)
+		ret = append(ret, r)
+	}
+
+	return json.Marshal(ret)
+}
+
+func convertScanArgs(columnTypes []*sql.ColumnType, scanArgs []interface{}) map[string]interface{} {
+	r := map[string]interface{}{}
+
+	for i, v := range columnTypes {
+		if s, ok := (scanArgs[i]).(*sql.NullString); ok {
+			r[v.Name()] = s.String
+
+			continue
+		}
+
+		if s, ok := (scanArgs[i]).(*sql.NullBool); ok {
+			r[v.Name()] = s.Bool
+
+			continue
+		}
+
+		if s, ok := (scanArgs[i]).(*sql.NullInt32); ok {
+			r[v.Name()] = s.Int32
+
+			continue
+		}
+
+		if s, ok := (scanArgs[i]).(*sql.NullInt64); ok {
+			r[v.Name()] = s.Int64
+
+			continue
+		}
+
+		if s, ok := (scanArgs[i]).(*sql.NullFloat64); ok {
+			r[v.Name()] = s.Float64
+
+			continue
+		}
+
+		if s, ok := (scanArgs[i]).(*sql.NullTime); ok {
+			r[v.Name()] = s.Time
+
+			continue
+		}
+
+		// this won't happen since the default switch is sql.NullString
+		r[v.Name()] = scanArgs[i]
+	}
+
+	return r
+}
+
+func prepareScanArgs(columnTypes []*sql.ColumnType) []interface{} {
+	scanArgs := make([]interface{}, len(columnTypes))
+	for i, v := range columnTypes {
+		switch v.DatabaseTypeName() {
+		case "BOOL":
+			scanArgs[i] = new(sql.NullBool)
+		case "INT", "MEDIUMINT", "SMALLINT", "CHAR", "TINYINT":
+			scanArgs[i] = new(sql.NullInt32)
+		case "BIGINT":
+			scanArgs[i] = new(sql.NullInt64)
+		case "DOUBLE", "FLOAT", "DECIMAL":
+			scanArgs[i] = new(sql.NullFloat64)
+		case "DATE", "TIME", "YEAR":
+			scanArgs[i] = new(sql.NullTime)
+		default:
+			scanArgs[i] = new(sql.NullString)
+		}
+	}
+
+	return scanArgs
 }

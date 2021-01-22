@@ -68,13 +68,23 @@ func TestConvertMetadataToProperties(t *testing.T) {
 			},
 		},
 	}
-	os.Setenv("CONF_TEST_KEY", "testval")
-	defer os.Unsetenv("CONF_TEST_KEY")
-	resp := ConvertMetadataToProperties(items)
-	assert.NotNil(t, resp)
-	assert.Equal(t, 2, len(resp))
-	assert.Equal(t, "test", resp["test_key"])
-	assert.Equal(t, "testval", resp["env_var_sub"])
+	t.Run("env var set", func(t *testing.T) {
+		os.Setenv("CONF_TEST_KEY", "testval")
+		defer os.Unsetenv("CONF_TEST_KEY")
+		resp, err := ConvertMetadataToProperties(items)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, 2, len(resp))
+		assert.Equal(t, "test", resp["test_key"])
+		assert.Equal(t, "testval", resp["env_var_sub"])
+	})
+
+	t.Run("env var not set", func(t *testing.T) {
+		resp, err := ConvertMetadataToProperties(items)
+		assert.NotNil(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, 0, len(resp))
+	})
 }
 
 func TestConvertComponentNameToPath(t *testing.T) {

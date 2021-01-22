@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
@@ -27,12 +26,9 @@ const (
 	metadataDeliveryModeKey      = "deliveryMode"
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
-	metadataMaxPriorityKey       = "maxPriority"
 
 	defaultReconnectWaitSeconds = 10
 	metadataprefetchCount       = "prefetchCount"
-
-	rabbitMQMaxPriorityKey = "x-max-priority"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format
@@ -176,23 +172,13 @@ func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 		return err
 	}
 
-	pub := amqp.Publishing{
+	r.logger.Debugf("%s publishing message to topic '%s'", logMessagePrefix, req.Topic)
+
+	err = channel.Publish(req.Topic, "", false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
-	}
-
-	priority, ok, err := contrib_metadata.TryGetPriority(req.Metadata)
-	if err != nil {
-		return err
-	}
-	if ok {
-		pub.Priority = priority
-	}
-
-	r.logger.Debugf("%s publishing message to topic '%s'", logMessagePrefix, req.Topic)
-
-	err = channel.Publish(req.Topic, "", false, false, pub)
+	})
 
 	if err != nil {
 		if mustReconnect(channel, err) {
@@ -220,13 +206,8 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		return nil, err
 	}
 
-	args := amqp.Table{}
-	if r.metadata.maxPriority != nil {
-		args[rabbitMQMaxPriorityKey] = *r.metadata.maxPriority
-	}
-
 	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
-	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, args)
+	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, nil)
 	if err != nil {
 		return nil, err
 	}

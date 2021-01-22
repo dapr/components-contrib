@@ -46,7 +46,7 @@ func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	return 0, false, nil
 }
 
-// TryGetPriority tries to get the priority for pubsub, binding and any other building block.
+// TryGetPriority tries to get the priority for binding and any other building block.
 func TryGetPriority(props map[string]string) (uint8, bool, error) {
 	if val, ok := props[PriorityMetadataKey]; ok && val != "" {
 		intVal, err := strconv.Atoi(val)

@@ -27,16 +27,6 @@ func TestCreateMetadata(t *testing.T) {
 		{"FALSE", false},
 	}
 
-	uint8FlagTests := []struct {
-		in       string
-		expected uint8
-	}{
-		{"0", 0},
-		{"255", 255},
-		{"-1", 0},
-		{"256", 255},
-	}
-
 	t.Run("metadata is correct", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
@@ -165,26 +155,6 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, uint8(1), m.prefetchCount)
 	})
-
-	for _, tt := range uint8FlagTests {
-		t.Run(fmt.Sprintf("maxPriority value=%s", tt.in), func(t *testing.T) {
-			fakeProperties := getFakeProperties()
-
-			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
-			}
-			fakeMetaData.Properties[metadataMaxPriorityKey] = tt.in
-
-			// act
-			m, err := createMetadata(fakeMetaData)
-
-			// assert
-			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, *m.maxPriority)
-		})
-	}
 
 	for _, tt := range booleanFlagTests {
 		t.Run(fmt.Sprintf("autoAck value=%s", tt.in), func(t *testing.T) {

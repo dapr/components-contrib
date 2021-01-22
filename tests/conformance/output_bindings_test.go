@@ -12,11 +12,5 @@ func TestOutputBindingConformance(t *testing.T) {
 	tc, err := NewTestConfiguration("../config/bindings/output_tests.yml")
 	assert.NoError(t, err)
 	assert.NotNil(t, tc)
-	errs := tc.Run(t)
-	if len(errs) != 0 {
-		for _, err = range errs {
-			t.Log(err)
-		}
-		assert.Fail(t, "some of tests failed")
-	}
+	tc.Run(t)
 }

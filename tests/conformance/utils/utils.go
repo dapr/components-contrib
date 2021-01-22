@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"fmt"
-
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -17,6 +15,11 @@ func (cc CommonConfig) HasOperation(operation string) bool {
 	return cc.AllOperations || cc.Operations.Has(operation)
 }
 
-func (cc CommonConfig) GetTestName(operation string) string {
-	return fmt.Sprintf("%s/%s/%s", cc.ComponentType, cc.ComponentName, operation)
+func (cc CommonConfig) CopyMap(config map[string]string) map[string]string {
+	m := map[string]string{}
+	for k, v := range config {
+		m[k] = v
+	}
+
+	return m
 }

@@ -33,14 +33,16 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	// For local env var based component test
 	os.Setenv("conftestsecret", "abcd")
 	defer os.Unsetenv("conftestsecret")
-	if config.HasOperation("init") {
-		t.Run(config.GetTestName("init"), func(t *testing.T) {
-			err := store.Init(secretstores.Metadata{
-				Properties: props,
-			})
-			assert.NoError(t, err, "expected no error on initializing store")
+
+	// Init
+	t.Run("init", func(t *testing.T) {
+		err := store.Init(secretstores.Metadata{
+			Properties: props,
 		})
-	}
+		assert.NoError(t, err, "expected no error on initializing store")
+	})
+
+	// Get
 	if config.HasOperation("get") {
 		getSecretRequest := secretstores.GetSecretRequest{
 			Name: "conftestsecret",
@@ -51,7 +53,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 			},
 		}
 
-		t.Run("secretstores/"+config.ComponentName+"/get", func(t *testing.T) {
+		t.Run("get", func(t *testing.T) {
 			resp, err := store.GetSecret(getSecretRequest)
 			assert.NoError(t, err, "expected no error on getting secret %v", getSecretRequest)
 			assert.NotNil(t, resp, "expected value to be returned")
@@ -60,6 +62,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		})
 	}
 
+	// Bulkget
 	if config.HasOperation("bulkget") {
 		bulkReq := secretstores.BulkGetSecretRequest{}
 		bulkResponse := secretstores.BulkGetSecretResponse{
@@ -73,7 +76,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 			},
 		}
 
-		t.Run(config.GetTestName("bulkget"), func(t *testing.T) {
+		t.Run("bulkget", func(t *testing.T) {
 			resp, err := store.BulkGetSecret(bulkReq)
 			assert.NoError(t, err, "expected no error on getting secret %v", bulkReq)
 			assert.NotNil(t, resp, "expected value to be returned")

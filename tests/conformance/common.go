@@ -9,12 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"fortio.org/fortio/log"
 	"github.com/dapr/components-contrib/bindings"
@@ -38,6 +36,7 @@ import (
 	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
 	"github.com/dapr/dapr/pkg/components"
 	config "github.com/dapr/dapr/pkg/config/modes"
+	"github.com/google/uuid"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +44,8 @@ import (
 )
 
 const (
-	redis = "redis"
+	redis        = "redis"
+	generateUUID = "$((uuid))"
 )
 
 // nolint:gochecknoglobals
@@ -100,6 +100,18 @@ func LookUpEnv(key string) string {
 	return ""
 }
 
+func ParseConfigurationMap(t *testing.T, configMap map[string]string) {
+	for k, v := range configMap {
+		val := v
+		if strings.EqualFold(val, generateUUID) {
+			// check if generate uuid is specified
+			val = uuid.New().String()
+			t.Logf("Generated UUID %s", val)
+		}
+		configMap[k] = val
+	}
+}
+
 func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) (map[string]string, error) {
 	properties := map[string]string{}
 	for _, c := range items {
@@ -117,18 +129,6 @@ func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) (map[string]stri
 	}
 
 	return properties, nil
-}
-
-// nolint:gosec
-func NewRandString(length int) string {
-	rand.Seed(time.Now().Unix())
-	var letters = []rune("abcdefghijklmnopqrstuvwxyz")
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-
-	return string(b)
 }
 
 // isYaml checks whether the file is yaml or not
@@ -180,66 +180,68 @@ func convertComponentNameToPath(componentName string) string {
 	return componentName
 }
 
-func (tc *TestConfiguration) Run(t *testing.T) []error {
-	var errs []error
+func (tc *TestConfiguration) Run(t *testing.T) {
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
-		componentConfigPath := convertComponentNameToPath(comp.Component)
-		switch tc.ComponentType {
-		case "state":
-			filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
-			props, err := tc.loadComponentsAndProperties(t, filepath)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+		t.Run(comp.Component, func(t *testing.T) {
+			// Parse and generate any keys
+			ParseConfigurationMap(t, comp.Config)
 
-				continue
-			}
-			store := loadStateStore(comp)
-			assert.NotNil(t, store)
-			storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-			conf_state.ConformanceTests(t, props, store, storeConfig)
-		case "secretstores":
-			filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
-			props, err := tc.loadComponentsAndProperties(t, filepath)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+			componentConfigPath := convertComponentNameToPath(comp.Component)
+			switch tc.ComponentType {
+			case "state":
+				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
-				continue
-			}
-			store := loadSecretStore(comp)
-			assert.NotNil(t, store)
-			storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
-			conf_secret.ConformanceTests(t, props, store, storeConfig)
-		case "pubsub":
-			filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
-			props, err := tc.loadComponentsAndProperties(t, filepath)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+					break
+				}
+				store := loadStateStore(comp)
+				assert.NotNil(t, store)
+				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_state.ConformanceTests(t, props, store, storeConfig)
+			case "secretstores":
+				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
-				continue
-			}
-			pubsub := loadPubSub(comp)
-			assert.NotNil(t, pubsub)
-			pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-			conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
-		case "output-binding":
-			filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
-			props, err := tc.loadComponentsAndProperties(t, filepath)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("error running conformance test for %s: %w", comp.Component, err))
+					break
+				}
+				store := loadSecretStore(comp)
+				assert.NotNil(t, store)
+				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+				conf_secret.ConformanceTests(t, props, store, storeConfig)
+			case "pubsub":
+				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
-				continue
+					break
+				}
+				pubsub := loadPubSub(comp)
+				assert.NotNil(t, pubsub)
+				pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
+			case "output-binding":
+				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				binding := loadOutputBindings(comp)
+				assert.NotNil(t, binding)
+				bindingsConfig := conf_output_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_output_bindings.ConformanceTests(t, props, binding, bindingsConfig)
+			default:
+				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
-			binding := loadOutputBindings(comp)
-			assert.NotNil(t, binding)
-			bindingsConfig := conf_output_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
-			conf_output_bindings.ConformanceTests(t, props, binding, bindingsConfig)
-		default:
-			assert.Failf(t, "unknown component type %s", tc.ComponentType)
-		}
+		})
 	}
-
-	return errs
 }
 
 func loadPubSub(tc TestComponent) pubsub.PubSub {

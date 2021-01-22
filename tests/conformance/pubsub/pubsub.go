@@ -73,23 +73,24 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 	return tc
 }
 
-func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubSub, config TestConfig) {
-	// Properly close connection to pubsub
-	defer pubusub.Close()
+func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, config TestConfig) {
+	// Properly close pubsub
+	defer ps.Close()
 
 	actualReadCount := 0
-	if config.CommonConfig.HasOperation("init") {
-		t.Run(config.GetTestName("init"), func(t *testing.T) {
-			err := pubusub.Init(pubsub.Metadata{
-				Properties: props,
-			})
-			assert.NoError(t, err, "expected no error on setting up pubsub")
-		})
-	}
 
+	// Init
+	t.Run("init", func(t *testing.T) {
+		err := ps.Init(pubsub.Metadata{
+			Properties: props,
+		})
+		assert.NoError(t, err, "expected no error on setting up pubsub")
+	})
+
+	// Subscribe
 	if config.HasOperation("subscribe") {
-		t.Run(config.GetTestName("subscribe"), func(t *testing.T) {
-			err := pubusub.Subscribe(pubsub.SubscribeRequest{
+		t.Run("subscribe", func(t *testing.T) {
+			err := ps.Subscribe(pubsub.SubscribeRequest{
 				Topic:    config.testTopicName,
 				Metadata: config.subscribeMetadata,
 			}, func(_ *pubsub.NewMessage) error {
@@ -101,11 +102,12 @@ func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubS
 		})
 	}
 
+	// Publish
 	if config.HasOperation("publish") {
-		t.Run(config.GetTestName("publish"), func(t *testing.T) {
+		t.Run("publish", func(t *testing.T) {
 			for k := 0; k < config.messageCount; k++ {
 				data := []byte("message-" + strconv.Itoa(k))
-				err := pubusub.Publish(&pubsub.PublishRequest{
+				err := ps.Publish(&pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.pubsubName,
 					Topic:      config.testTopicName,
@@ -116,8 +118,9 @@ func ConformanceTests(t *testing.T, props map[string]string, pubusub pubsub.PubS
 		})
 	}
 
+	// Verify read
 	if config.HasOperation("subscribe") {
-		t.Run(config.GetTestName("verify read"), func(t *testing.T) {
+		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.maxReadDuration)
 			time.Sleep(config.maxReadDuration)
 			assert.LessOrEqual(t, config.messageCount, actualReadCount, "expected to read %v messages", config.messageCount)

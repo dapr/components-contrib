@@ -1,33 +1,51 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package conformance
 
 import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"fortio.org/fortio/log"
+	"github.com/dapr/components-contrib/bindings"
+	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
+	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
+	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	"github.com/dapr/components-contrib/state"
+	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_redis "github.com/dapr/components-contrib/state/redis"
+	conf_output_bindings "github.com/dapr/components-contrib/tests/conformance/bindings/output"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
 	"github.com/dapr/dapr/pkg/components"
 	config "github.com/dapr/dapr/pkg/config/modes"
+	"github.com/google/uuid"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	redis        = "redis"
+	generateUUID = "$((uuid))"
 )
 
 // nolint:gochecknoglobals
@@ -74,25 +92,43 @@ func LoadComponents(componentPath string) ([]v1alpha1.Component, error) {
 	return components, nil
 }
 
-func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) map[string]string {
-	properties := map[string]string{}
-	for _, c := range items {
-		properties[c.Name] = c.Value.String()
+func LookUpEnv(key string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
 	}
 
-	return properties
+	return ""
 }
 
-// nolint:gosec
-func NewRandString(length int) string {
-	rand.Seed(time.Now().Unix())
-	var letters = []rune("abcdefghijklmnopqrstuvwxyz")
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+func ParseConfigurationMap(t *testing.T, configMap map[string]string) {
+	for k, v := range configMap {
+		val := v
+		if strings.EqualFold(val, generateUUID) {
+			// check if generate uuid is specified
+			val = uuid.New().String()
+			t.Logf("Generated UUID %s", val)
+		}
+		configMap[k] = val
+	}
+}
+
+func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) (map[string]string, error) {
+	properties := map[string]string{}
+	for _, c := range items {
+		val := c.Value.String()
+		if strings.HasPrefix(c.Value.String(), "${{") {
+			// look up env var with that name. remove ${{}} and space
+			k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+			v := LookUpEnv(k)
+			if v == "" {
+				return map[string]string{}, fmt.Errorf("required env var is not set %s", k)
+			}
+			val = v
+		}
+		properties[c.Name] = val
 	}
 
-	return string(b)
+	return properties, nil
 }
 
 // isYaml checks whether the file is yaml or not
@@ -126,52 +162,95 @@ func decodeYaml(b []byte) (TestConfiguration, error) {
 	return testConfig, nil
 }
 
-func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) map[string]string {
+func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
 	comps, err := LoadComponents(filepath)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(comps)) // We only expect a single component per state store but on
+	assert.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
-	props := ConvertMetadataToProperties(c.Spec.Metadata)
+	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
 
-	return props
+	return props, err
+}
+
+func convertComponentNameToPath(componentName string) string {
+	if strings.Contains(componentName, ".") {
+		return strings.Join(strings.Split(componentName, "."), "/")
+	}
+
+	return componentName
 }
 
 func (tc *TestConfiguration) Run(t *testing.T) {
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
-		switch tc.ComponentType {
-		case "state":
-			filepath := fmt.Sprintf("../config/state/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
-			store := loadStateStore(comp)
-			assert.NotNil(t, store)
-			storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-			conf_state.ConformanceTests(t, props, store, storeConfig)
-		case "secretstores":
-			filepath := fmt.Sprintf("../config/secretstores/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
-			store := loadSecretStore(comp)
-			assert.NotNil(t, store)
-			storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
-			conf_secret.ConformanceTests(t, props, store, storeConfig)
-		case "pubsub":
-			filepath := fmt.Sprintf("../config/pubsub/%s", comp.Component)
-			props := tc.loadComponentsAndProperties(t, filepath)
-			pubsub := loadPubSub(comp)
-			assert.NotNil(t, pubsub)
-			pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-			conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
-		default:
-			assert.Failf(t, "unknown component type %s", tc.ComponentType)
-		}
+		t.Run(comp.Component, func(t *testing.T) {
+			// Parse and generate any keys
+			ParseConfigurationMap(t, comp.Config)
+
+			componentConfigPath := convertComponentNameToPath(comp.Component)
+			switch tc.ComponentType {
+			case "state":
+				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				store := loadStateStore(comp)
+				assert.NotNil(t, store)
+				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_state.ConformanceTests(t, props, store, storeConfig)
+			case "secretstores":
+				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				store := loadSecretStore(comp)
+				assert.NotNil(t, store)
+				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+				conf_secret.ConformanceTests(t, props, store, storeConfig)
+			case "pubsub":
+				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				pubsub := loadPubSub(comp)
+				assert.NotNil(t, pubsub)
+				pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
+			case "output-binding":
+				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				binding := loadOutputBindings(comp)
+				assert.NotNil(t, binding)
+				bindingsConfig := conf_output_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_output_bindings.ConformanceTests(t, props, binding, bindingsConfig)
+			default:
+				t.Errorf("unknown component type %s", tc.ComponentType)
+			}
+		})
 	}
 }
 
 func loadPubSub(tc TestComponent) pubsub.PubSub {
 	var pubsub pubsub.PubSub
 	switch tc.Component {
-	case "redis":
+	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
+	case "azure.servicebus":
+		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	default:
 		return nil
 	}
@@ -196,11 +275,32 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadStateStore(tc TestComponent) state.Store {
 	var store state.Store
 	switch tc.Component {
-	case "redis":
+	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
+	case "cosmosdb":
+		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
+	case "mongodb":
+		store = s_mongodb.NewMongoDB(testLogger)
 	default:
 		return nil
 	}
 
 	return store
+}
+
+func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
+	var binding bindings.OutputBinding
+
+	switch tc.Component {
+	case redis:
+		binding = b_redis.NewRedis(testLogger)
+	case "azure.blobstorage":
+		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)
+	case "azure.storagequeues":
+		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	default:
+		return nil
+	}
+
+	return binding
 }

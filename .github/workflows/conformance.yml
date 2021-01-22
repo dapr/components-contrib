@@ -1,0 +1,123 @@
+# ------------------------------------------------------------
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+# ------------------------------------------------------------
+
+name: Components Conformance Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./src/github.com/dapr/components-contrib
+
+jobs:
+  conformance:
+    name: conformance
+    runs-on: ubuntu-latest
+
+    env:
+      # Set this to your keyvault.
+      #
+      # The KeyVault policy must be granted to your Service Principal using
+      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+      AZURE_KEYVAULT: dapr-conf-tests
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        # List here all the components that needs to be invoked in this workflow.
+        component:
+        - output-binding.azure.blobstorage
+        - output-binding.azure.storagequeues
+        - pubsub.azure.servicebus
+        - pubsub.redis
+        - secretstores.localenv
+        - secretstores.localfile
+        - state.cosmosdb
+        - state.mongodb
+        - state.redis
+        include:
+        # Unfortunately, Azure secrets can't have underscores in
+        # names, while environment variables with hyphens ('-') are
+        # troublesome.
+        #
+        # We work around here by leveraging the fact that
+        # environment variable names are case sensitive, so
+        # CamelCase would still work.
+        #
+        # That is slightly better than something like
+        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
+        # and errorprone.
+        #
+        # Only list the secrets you need for the component.
+        - component: state.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: pubsub.azure.servicebus
+          required-secrets: AzureServiceBusConnectionString
+        - component: output-binding.azure.blobstorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: output-binding.azure.storagequeues
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+    steps:
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@v2
+      with:
+        path: ./src/github.com/dapr/components-contrib
+
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      if: matrix.required-secrets != ''
+
+    - name: Setup secrets
+      uses: Azure/get-keyvault-secrets@v1
+      with:
+        keyvault: ${{ env.AZURE_KEYVAULT }}
+        secrets: ${{ matrix.required-secrets }}
+      id: get-azure-secrets
+      if: matrix.required-secrets != ''
+
+    - name: Start Redis
+      uses: supercharge/redis-github-action@1.2.0
+      with:
+        redis-version: 6
+      if: contains(matrix.component, 'redis')
+
+    - name: Start MongoDB
+      uses: supercharge/mongodb-github-action@1.3.0
+      with:
+        mongodb-version: 4.2
+      if: contains(matrix.component, 'mongodb')
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+
+    - name: Run tests
+      run: |
+        KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
+        KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
+
+        if [ "${KIND}" = "secretstores" ]; then
+          KIND_UPPER=SecretStore
+        fi
+
+        if [ "${KIND}" = "output-binding" ]; then
+          KIND_UPPER=OutputBinding
+        fi
+
+        echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+
+        go test -v -tags=conftests -count=1 ./tests/conformance \
+          --run="Test${KIND_UPPER}Conformance/${NAME}" 2>&1 | tee output.log
+
+        # Fail the step if we found no test to run
+        if grep -q "warning: no tests to run" output.log ; then
+          echo "::error:: No test was found for component ${{ matrix.component }}"
+          exit -1
+        fi

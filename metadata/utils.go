@@ -17,6 +17,9 @@ import (
 const (
 	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds)
 	TTLMetadataKey = "ttlInSeconds"
+
+	// PriorityMetadataKey defines the metadata key for setting a priority
+	PriorityMetadataKey = "priority"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
@@ -38,6 +41,27 @@ func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 		}
 
 		return duration, true, nil
+	}
+
+	return 0, false, nil
+}
+
+// TryGetPriority tries to get the priority for binding and any other building block.
+func TryGetPriority(props map[string]string) (uint8, bool, error) {
+	if val, ok := props[PriorityMetadataKey]; ok && val != "" {
+		intVal, err := strconv.Atoi(val)
+		if err != nil {
+			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
+		}
+
+		priority := uint8(intVal)
+		if intVal < 0 {
+			priority = 0
+		} else if intVal > 255 {
+			priority = math.MaxUint8
+		}
+
+		return priority, true, nil
 	}
 
 	return 0, false, nil

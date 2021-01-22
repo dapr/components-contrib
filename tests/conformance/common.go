@@ -180,8 +180,7 @@ func convertComponentNameToPath(componentName string) string {
 	return componentName
 }
 
-func (tc *TestConfiguration) Run(t *testing.T) []error {
-	var errs []error
+func (tc *TestConfiguration) Run(t *testing.T) {
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
 		t.Run(comp.Component, func(t *testing.T) {
@@ -194,7 +193,7 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
-					t.Errorf("error running conformance test for %s: %w", comp.Component, err)
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
 					break
 				}
@@ -206,7 +205,7 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
-					t.Errorf("error running conformance test for %s: %w", comp.Component, err)
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
 					break
 				}
@@ -218,7 +217,7 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
-					t.Errorf("error running conformance test for %s: %w", comp.Component, err)
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
 					break
 				}
@@ -230,7 +229,7 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
-					t.Errorf("error running conformance test for %s: %w", comp.Component, err)
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
 
 					break
 				}
@@ -243,8 +242,6 @@ func (tc *TestConfiguration) Run(t *testing.T) []error {
 			}
 		})
 	}
-
-	return errs
 }
 
 func loadPubSub(tc TestComponent) pubsub.PubSub {

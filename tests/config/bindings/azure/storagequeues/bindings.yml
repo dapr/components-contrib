@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-storagequeues-output
+  namespace: default
+spec:
+  type: bindings.azure.storagequeues
+  version: v1
+  metadata:
+  - name: storageAccount
+    value: ${{AzureBlobStorageAccount}}
+  - name: storageAccessKey
+    value: ${{AzureBlobStorageAccessKey}}
+  - name: queue
+    value: ${{AzureBlobStorageQueue}}
+  - name: ttlInSeconds
+    value: "60"

@@ -47,7 +47,7 @@ func TestOperations(t *testing.T) {
 // 1. `CREATE DATABASE daprtest;`
 // 2. `CREATE USER daprtest;`
 // 3. `GRANT ALL PRIVILEGES ON daprtest.* to daprtest;`
-// 4. `export MYSQL_TEST_CONN_URL="daprtest@tcp(localhost:3306)/daprtest"``
+// 4. `export MYSQL_TEST_CONN_URL=daprtest@tcp(localhost:3306)/daprtest`
 // 5. `go test -v -count=1 ./bindings/mysql -run ^TestMysqlIntegrationWithURL`
 
 func TestMysqlIntegration(t *testing.T) {
@@ -104,10 +104,24 @@ func TestMysqlIntegration(t *testing.T) {
 		res, err := b.Invoke(req)
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
+
+		// verify number and string
+		assert.Contains(t, string(res.Data), "\"id\":1")
+		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")
+
 		result := make([]interface{}, 0)
 		err = json.Unmarshal(res.Data, &result)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(result))
+
+		// verify timestamp
+		ts, ok := result[0].(map[string]interface{})["ts"].(string)
+		assert.True(t, ok)
+		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
+		var tt time.Time
+		tt, err = time.Parse("2006-01-02 15:04:05", ts)
+		assert.Nil(t, err)
+		t.Logf("time stamp is: %v", tt)
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {

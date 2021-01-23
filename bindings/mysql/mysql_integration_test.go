@@ -106,7 +106,7 @@ func TestMysqlIntegration(t *testing.T) {
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
-		// verify number and string
+		// verify number, boolean and string
 		assert.Contains(t, string(res.Data), "\"id\":1")
 		assert.Contains(t, string(res.Data), "\"b\":1")
 		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")

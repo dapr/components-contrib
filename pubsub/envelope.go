@@ -6,6 +6,7 @@
 package pubsub
 
 import (
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -57,8 +58,10 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	var err error
 	if contrib_contenttype.IsJSONContentType(dataContentType) {
 		err = jsoniter.Unmarshal(data, &ceData)
-	} else {
+	} else if contrib_contenttype.IsStringContentType(dataContentType) {
 		ceData = string(data)
+	} else {
+		ceData = base64.StdEncoding.EncodeToString(data)
 	}
 
 	if err != nil {

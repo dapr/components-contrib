@@ -45,12 +45,23 @@ func TestQuery(t *testing.T) {
 		ret, err := m.query("SELECT * FROM foo WHERE id < 4")
 		assert.Nil(t, err)
 		t.Logf("query result: %s", ret)
+
+		// verify number
 		assert.Contains(t, string(ret), "\"id\":1")
 		assert.Contains(t, string(ret), "\"value\":2.2")
+
 		var result []interface{}
 		err = json.Unmarshal(ret, &result)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(result))
+
+		// verify timestamp
+		ts, ok := result[0].(map[string]interface{})["timestamp"].(string)
+		assert.True(t, ok)
+		var tt time.Time
+		tt, err = time.Parse(time.RFC3339, ts)
+		assert.Nil(t, err)
+		t.Logf("time stamp is: %v", tt)
 	})
 }
 

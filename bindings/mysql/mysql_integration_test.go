@@ -21,9 +21,10 @@ const (
 	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
 		id bigint NOT NULL,
 		v1 character varying(50) NOT NULL,
+		b  BOOLEAN,
 		ts TIMESTAMP)`
 	testDropTable = `DROP TABLE foo`
-	testInsert    = "INSERT INTO foo (id, v1, ts) VALUES (%d, 'test-%d', '%v')"
+	testInsert    = "INSERT INTO foo (id, v1, b, ts) VALUES (%d, 'test-%d', %t, '%v')"
 	testDelete    = "DELETE FROM foo"
 	testUpdate    = "UPDATE foo SET ts = '%v' WHERE id = %d"
 	testSelect    = "SELECT * FROM foo WHERE id < 3"
@@ -83,7 +84,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke insert", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(time.RFC3339))
 			res, err := b.Invoke(req)
 			assertResponse(t, res, err)
 		}
@@ -107,6 +108,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 		// verify number and string
 		assert.Contains(t, string(res.Data), "\"id\":1")
+		assert.Contains(t, string(res.Data), "\"b\":1")
 		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")
 
 		result := make([]interface{}, 0)

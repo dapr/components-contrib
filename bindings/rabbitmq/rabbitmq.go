@@ -8,6 +8,7 @@ package rabbitmq
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -24,7 +25,9 @@ const (
 	durable                    = "durable"
 	deleteWhenUnused           = "deleteWhenUnused"
 	prefetchCount              = "prefetchCount"
+	maxPriority                = "maxPriority"
 	rabbitMQQueueMessageTTLKey = "x-message-ttl"
+	rabbitMQMaxPriorityKey     = "x-max-priority"
 	defaultBase                = 10
 	defaultBitSize             = 0
 )
@@ -46,6 +49,7 @@ type rabbitMQMetadata struct {
 	Durable          bool   `json:"durable,string"`
 	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
 	PrefetchCount    int    `json:"prefetchCount"`
+	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
 	defaultQueueTTL  *time.Duration
 }
 
@@ -107,6 +111,15 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 		pub.Expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
 	}
 
+	priority, ok, err := contrib_metadata.TryGetPriority(req.Metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		pub.Priority = priority
+	}
+
 	err = r.channel.Publish("", r.metadata.QueueName, false, false, pub)
 
 	if err != nil {
@@ -163,6 +176,21 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.Exclusive = d
 	}
 
+	if val, ok := metadata.Properties[maxPriority]; ok && val != "" {
+		parsedVal, err := strconv.ParseUint(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return fmt.Errorf("rabbitMQ binding error: can't parse maxPriority field: %s", err)
+		}
+
+		maxPriority := uint8(parsedVal)
+		if parsedVal > 255 {
+			// Overflow
+			maxPriority = math.MaxUint8
+		}
+
+		m.MaxPriority = &maxPriority
+	}
+
 	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return err
@@ -183,6 +211,10 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 		// Value in ms
 		ttl := *r.metadata.defaultQueueTTL / time.Millisecond
 		args[rabbitMQQueueMessageTTLKey] = int(ttl)
+	}
+
+	if r.metadata.MaxPriority != nil {
+		args[rabbitMQMaxPriorityKey] = *r.metadata.MaxPriority
 	}
 
 	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)

@@ -422,7 +422,7 @@ func (m *MySQL) returnNDBResults(result sql.Result, err error, n int64) error {
 
 	if rowsAffected == 0 {
 		noRowsErr := errors.New(
-			`database operation failed: no rows match given key and eTag`)
+			`rows affected error: no rows match given key and eTag`)
 		m.logger.Error(noRowsErr)
 
 		return noRowsErr
@@ -430,7 +430,7 @@ func (m *MySQL) returnNDBResults(result sql.Result, err error, n int64) error {
 
 	if rowsAffected > n {
 		tooManyRowsErr := fmt.Errorf(
-			`database operation failed: more than %d row affected, expected %d, actual %d`,
+			`rows affected error: more than %d row affected, expected %d, actual %d`,
 			n, n, rowsAffected)
 		m.logger.Error(tooManyRowsErr)
 

@@ -272,7 +272,7 @@ func TestReturnNDBResultsNoRows(t *testing.T) {
 
 	// Assert
 	assert.NotNil(t, err)
-	assert.Equal(t, "database operation failed: no rows match given key and eTag", err.Error())
+	assert.Equal(t, "rows affected error: no rows match given key and eTag", err.Error())
 }
 
 func TestReturnNDBResultsTooManyRows(t *testing.T) {
@@ -290,7 +290,7 @@ func TestReturnNDBResultsTooManyRows(t *testing.T) {
 
 	// Assert
 	assert.NotNil(t, err)
-	assert.Equal(t, "database operation failed: more than 2 row affected, expected 2, actual 3", err.Error())
+	assert.Equal(t, "rows affected error: more than 2 row affected, expected 2, actual 3", err.Error())
 }
 
 func TestGetHandlesNoRows(t *testing.T) {

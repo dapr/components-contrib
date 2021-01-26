@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
@@ -38,13 +39,13 @@ func TestMySQLIntegration(t *testing.T) {
 
 	// When the connection string is not set these tests will simply be skipped.
 	// This makes sure the test do not try to run during any CI builds.
-	connectionString := getConnectionString()
+	connectionString := getConnectionString("")
 	if connectionString == "" {
 		t.Skipf(
 			`MySQL state integration tests skipped.
 			To enable define the connection string
 			using environment variable '%s'
-			(example 'export %s="root:password@tcp(localhost:3306)/DaprStateStore")`,
+			(example 'export %s="root:password@tcp(localhost:3306)/")`,
 			connectionStringEnvKey, connectionStringEnvKey)
 	}
 
@@ -505,7 +506,7 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name: "Valid connection string",
 			props: map[string]string{
-				connectionStringKey: getConnectionString(),
+				connectionStringKey: getConnectionString(""),
 				pemPathKey:          getPemPath(),
 			},
 			expectedErr: "",
@@ -513,7 +514,7 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name: "Valid table name",
 			props: map[string]string{
-				connectionStringKey: getConnectionString(),
+				connectionStringKey: getConnectionString(""),
 				pemPathKey:          getPemPath(),
 				tableNameKey:        "stateStore",
 			},
@@ -633,7 +634,7 @@ func connectToDB(t *testing.T) (*sql.DB, error) {
 		mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12})
 	}
 
-	db, err := sql.Open("mysql", getConnectionString())
+	db, err := sql.Open("mysql", getConnectionString(defaultSchemaName))
 
 	return db, err
 }
@@ -648,8 +649,15 @@ func randomJSON() *fakeItem {
 
 // Returns the connection string
 // The value is read from an environment variable
-func getConnectionString() string {
-	return os.Getenv(connectionStringEnvKey)
+func getConnectionString(database string) string {
+	connectionString := os.Getenv(connectionStringEnvKey)
+
+	if database != "" {
+		parts := strings.Split(connectionString, "/")
+		connectionString = fmt.Sprintf("%s/%s%s", parts[0], database, parts[1])
+	}
+
+	return connectionString
 }
 
 // Returns the full path to the PEM file used to connect to Azure MySQL over

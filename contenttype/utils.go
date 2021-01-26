@@ -26,7 +26,7 @@ func IsJSONContentType(contentType string) bool {
 
 // IsStringContentType determines if content type is string
 func IsStringContentType(contentType string) bool {
-	if strings.HasPrefix(contentType, "text/") {
+	if strings.HasPrefix(strings.ToLower(contentType), "text/") {
 		return true
 	}
 

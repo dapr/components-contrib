@@ -209,7 +209,7 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	}
 
 	// Create list secrets url
-	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/secret/data/%s", v.vaultAddress, v.vaultKVPrefix)
+	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/secret/metadata/%s", v.vaultAddress, v.vaultKVPrefix)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
 	if err != nil {
@@ -246,14 +246,16 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	}
 
 	for _, key := range d.Data.Keys {
+		keyValues := map[string]string{}
 		secrets, err := v.getSecret(key)
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}
 
 		for k, v := range secrets.Data.Data {
-			resp.Data[k] = map[string]string{k: v}
+			keyValues[k] = v
 		}
+		resp.Data[key] = keyValues
 	}
 
 	return resp, nil

@@ -6,18 +6,15 @@
 package mysql
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"strings"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 )
 
@@ -28,9 +25,16 @@ const (
 	// Used if the user does not configure a table name in the metadata
 	defaultTableName = "state"
 
+	// Used if the user does not configure a database name in the metadata
+	defaultSchemaName = "dapr_state_store"
+
 	// The key name in the metadata if the user wants a different table name
 	// than the defaultTableName
 	tableNameKey = "tableName"
+
+	// The key name in the metadata if the user wants a different database name
+	// than the defaultSchemaName
+	schemaNameKey = "schemaName"
 
 	// The key for the mandatory connection string of the metadata
 	connectionStringKey = "connectionString"
@@ -54,18 +58,38 @@ type MySQL struct {
 	// be created.
 	tableName string
 
+	// Name of the table to create to store state. If the table does not exist
+	// it will be created.
+	schemaName string
+
+	connectionString string
+
 	// Instance of the database to issue commands to
 	db *sql.DB
 
 	// Logger used in a functions
 	logger logger.Logger
+
+	factory iMySQLFactory
 }
 
 // NewMySQLStateStore creates a new instance of MySQL state store
 func NewMySQLStateStore(logger logger.Logger) *MySQL {
+	factory := newMySQLFactory(logger)
+
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
-	return &MySQL{logger: logger}
+	return newMySQLStateStore(logger, factory)
+}
+
+// Hidden implementation for testing
+func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
+	// Store the provided logger and return the object. The rest of the
+	// properties will be populated in the Init function
+	return &MySQL{
+		logger:  logger,
+		factory: factory,
+	}
 }
 
 // Init initializes the SQL server state store
@@ -86,9 +110,18 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 		m.tableName = defaultTableName
 	}
 
-	connectionString, ok := metadata.Properties[connectionStringKey]
+	val, ok = metadata.Properties[schemaNameKey]
 
-	if !ok || connectionString == "" {
+	if ok && val != "" {
+		m.schemaName = val
+	} else {
+		// Default to the constant
+		m.schemaName = defaultSchemaName
+	}
+
+	m.connectionString, ok = metadata.Properties[connectionStringKey]
+
+	if !ok || m.connectionString == "" {
 		m.logger.Error("Missing MySql connection string")
 
 		return fmt.Errorf(errMissingConnectionString)
@@ -97,25 +130,15 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 	val, ok = metadata.Properties[pemPathKey]
 
 	if ok && val != "" {
-		rootCertPool := x509.NewCertPool()
-		pem, readErr := ioutil.ReadFile(val)
+		err := m.factory.RegisterTLSConfig(val)
+		if err != nil {
+			m.logger.Error(err)
 
-		if readErr != nil {
-			m.logger.Errorf("Error reading PEM file from $s", val)
-
-			return readErr
+			return err
 		}
-
-		ok := rootCertPool.AppendCertsFromPEM(pem)
-
-		if !ok {
-			return fmt.Errorf("failed to append PEM")
-		}
-
-		mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12})
 	}
 
-	db, err := sql.Open("mysql", connectionString)
+	db, err := m.factory.Open(m.connectionString)
 
 	// will be nil if everything is good or an err that needs to be returned
 	return m.finishInit(db, err)
@@ -131,7 +154,15 @@ func (m *MySQL) finishInit(db *sql.DB, err error) error {
 
 	m.db = db
 
-	pingErr := db.Ping()
+	schemaErr := m.ensureStateSchema()
+
+	if schemaErr != nil {
+		m.logger.Error(schemaErr)
+
+		return schemaErr
+	}
+
+	pingErr := m.db.Ping()
 
 	if pingErr != nil {
 		m.logger.Error(pingErr)
@@ -141,6 +172,45 @@ func (m *MySQL) finishInit(db *sql.DB, err error) error {
 
 	// will be nil if everything is good or an err that needs to be returned
 	return m.ensureStateTable(m.tableName)
+}
+
+func (m *MySQL) ensureStateSchema() error {
+	exists, err := schemaExists(m.db, m.schemaName)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
+
+		createTable := fmt.Sprintf("CREATE DATABASE %s;", m.schemaName)
+
+		_, err = m.db.Exec(createTable)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// Build a connection string that contains the new schema name
+	// All MySQL connection strings must contain a / so split on it.
+	parts := strings.Split(m.connectionString, "/")
+
+	// Even if the connection string ends with a / parts will have two values
+	// with the second being an empty string.
+	m.connectionString = fmt.Sprintf("%s/%s%s", parts[0], m.schemaName, parts[1])
+
+	// Close the connection we used to confirm and or create the schema
+	err = m.db.Close()
+
+	if err != nil {
+		return err
+	}
+
+	// Open a connection to the new schema
+	m.db, err = m.factory.Open(m.connectionString)
+
+	return err
 }
 
 func (m *MySQL) ensureStateTable(stateTableName string) error {
@@ -172,6 +242,19 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 	}
 
 	return nil
+}
+
+func schemaExists(db *sql.DB, schemaName string) (bool, error) {
+	exists := ""
+
+	query := `SELECT EXISTS (
+		SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = ?
+		) AS 'exists'`
+
+	// Returns 1 or 0 as a string if the table exists or not
+	err := db.QueryRow(query, schemaName).Scan(&exists)
+
+	return exists == "1", err
 }
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {

@@ -6,6 +6,7 @@
 package pubsub
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -197,4 +198,10 @@ func TestNewFromExisting(t *testing.T) {
 		_, err := FromCloudEvent([]byte("a"), "1", "", "")
 		assert.Error(t, err)
 	})
+}
+
+func TestCreateFromBinaryPayload(t *testing.T) {
+	base64Encoding := base64.StdEncoding.EncodeToString([]byte{0x1})
+	envelope := NewCloudEventsEnvelope("", "", "", "", "", "", "application/octet-stream", []byte{0x1}, "trace")
+	assert.Equal(t, base64Encoding, envelope[DataField])
 }

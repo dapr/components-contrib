@@ -236,6 +236,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	if sender == nil {
 		a.topicsLock.Lock()
 		sender, err = a.namespace.NewTopic(req.Topic)
+		a.topics[req.Topic] = sender
 		a.topicsLock.Unlock()
 
 		if err != nil {

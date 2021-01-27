@@ -34,6 +34,7 @@ jobs:
         component:
         - bindings.azure.blobstorage
         - bindings.azure.storagequeues
+        - bindings.http
         - bindings.kafka
         - bindings.redis
         - pubsub.azure.servicebus

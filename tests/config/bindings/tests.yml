@@ -12,3 +12,8 @@ components:
     operations: ["create", "operations", "read"]
   - component: kafka
     operations: ["create", "operations"]
+  - component: http
+    operations: ["create", "operations", "read"]
+    config:
+      url: "localhost:22222"
+      method: "POST"

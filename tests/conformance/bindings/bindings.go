@@ -9,6 +9,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -16,6 +17,9 @@ import (
 const (
 	defaultTimeoutDuration = 60 * time.Second
 )
+
+// nolint:gochecknoglobals
+var testLogger = logger.NewLogger("bindingsTest")
 
 type TestConfig struct {
 	utils.CommonConfig
@@ -45,6 +49,11 @@ func NewTestConfig(name string, allOperations bool, operations []string, config 
 			}
 		}
 
+		// A url indicates that we need to test the http binding which requires a simple endpoint.
+		if key == "url" {
+			startHTTPServer(val)
+		}
+
 		if strings.HasPrefix(key, "output_") {
 			testConfig.outputMetadata[strings.Replace(key, "output_", "", 1)] = val
 		}
@@ -55,6 +64,18 @@ func NewTestConfig(name string, allOperations bool, operations []string, config 
 	}
 
 	return testConfig
+}
+
+func startHTTPServer(url string) {
+	if parts := strings.Split(url, ":"); len(parts) != 2 {
+		testLogger.Errorf("URL must be in format {host}:{port}. Got: %s", url)
+	} else {
+		if port, err := strconv.Atoi(parts[1]); err != nil {
+			testLogger.Errorf("Could not parse port number: %s", err.Error())
+		} else {
+			go utils.StartHTTPServer(port)
+		}
+	}
 }
 
 func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {

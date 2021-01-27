@@ -18,6 +18,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
+	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
@@ -304,6 +305,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
+	case "http":
+		binding = b_http.NewHTTP(testLogger)
 	default:
 		return nil
 	}
@@ -319,6 +322,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
+	case "http":
+		binding = b_http.NewHTTP(testLogger)
 	default:
 		return nil
 	}

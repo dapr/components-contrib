@@ -24,6 +24,15 @@ func IsJSONContentType(contentType string) bool {
 	return isContentType(contentType, JSONContentType)
 }
 
+// IsStringContentType determines if content type is string
+func IsStringContentType(contentType string) bool {
+	if strings.HasPrefix(strings.ToLower(contentType), "text/") {
+		return true
+	}
+
+	return isContentType(contentType, "application/xml")
+}
+
 func isContentType(contentType string, expected string) bool {
 	lowerContentType := strings.ToLower(contentType)
 	if lowerContentType == expected {

@@ -95,6 +95,18 @@ func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 		assert.Equal(t, data, envelope[DataField].(string))
 	})
 
+	t.Run("has subject", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "source", "", "subject1", "", "mypubsub", "", []byte(""), "")
+		t.Logf("data: %v", envelope[DataField])
+		assert.Equal(t, "subject1", envelope[SubjectField])
+	})
+
+	t.Run("no subject", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "topic", "mypubsub", "", []byte(""), "")
+		t.Logf("data: %v", envelope[DataField])
+		assert.Empty(t, envelope[SubjectField])
+	})
+
 	t.Run("string data content type", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "", "mypubsub", "", []byte("data"), "")
 		assert.Equal(t, "text/plain", envelope[DataContentTypeField])

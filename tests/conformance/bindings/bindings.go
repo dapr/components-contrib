@@ -1,0 +1,205 @@
+package bindings
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/sets"
+)
+
+const (
+	defaultTimeoutDuration = 60 * time.Second
+)
+
+// nolint:gochecknoglobals
+var testLogger = logger.NewLogger("bindingsTest")
+
+type TestConfig struct {
+	utils.CommonConfig
+	inputMetadata      map[string]string
+	outputMetadata     map[string]string
+	readBindingTimeout time.Duration
+}
+
+func NewTestConfig(name string, allOperations bool, operations []string, config map[string]string) TestConfig {
+	testConfig := TestConfig{
+		CommonConfig: utils.CommonConfig{
+			ComponentType: "bindings",
+			ComponentName: name,
+			AllOperations: allOperations,
+			Operations:    sets.NewString(operations...),
+		},
+		inputMetadata:      make(map[string]string),
+		outputMetadata:     make(map[string]string),
+		readBindingTimeout: defaultTimeoutDuration,
+	}
+
+	for key, val := range config {
+		if key == "readBindingTimeout" {
+			timeout, err := strconv.Atoi(val)
+			if err == nil {
+				testConfig.readBindingTimeout = time.Duration(timeout) * time.Second
+			}
+		}
+
+		// A url indicates that we need to test the http binding which requires a simple endpoint.
+		if key == "url" {
+			startHTTPServer(val)
+		}
+
+		if strings.HasPrefix(key, "output_") {
+			testConfig.outputMetadata[strings.Replace(key, "output_", "", 1)] = val
+		}
+
+		if strings.HasPrefix(key, "input_") {
+			testConfig.inputMetadata[strings.Replace(key, "input_", "", 1)] = val
+		}
+	}
+
+	return testConfig
+}
+
+func startHTTPServer(url string) {
+	if parts := strings.Split(url, ":"); len(parts) != 2 {
+		testLogger.Errorf("URL must be in format {host}:{port}. Got: %s", url)
+	} else {
+		if port, err := strconv.Atoi(parts[1]); err != nil {
+			testLogger.Errorf("Could not parse port number: %s", err.Error())
+		} else {
+			go utils.StartHTTPServer(port)
+		}
+	}
+}
+
+func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
+	// There is a possiblity that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
+	// So we are making a copy of the config metadata map and setting the Metadata field before each request
+	return bindings.InvokeRequest{
+		Data:     []byte("Test Data"),
+		Metadata: tc.CopyMap(tc.outputMetadata),
+	}
+}
+
+func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindings.InputBinding, outputBinding bindings.OutputBinding, config TestConfig) {
+	// TODO: Further investigate the parallelism issue below.
+	// Some input bindings launch more goroutines than others. It was found that some were not able to run in parallel without increasing the GOMAXPROCS.
+	// Example: runtime.GOMAXPROCS(20)
+
+	// Init
+	t.Run("init", func(t *testing.T) {
+		// Check for an output binding specific operation before init
+		if config.HasOperation("operations") {
+			err := outputBinding.Init(bindings.Metadata{
+				Properties: props,
+			})
+			assert.NoError(t, err, "expected no error setting up output binding")
+		}
+		// Check for an input binding specific operation before init
+		if config.HasOperation("read") {
+			err := inputBinding.Init(bindings.Metadata{
+				Properties: props,
+			})
+			assert.NoError(t, err, "expected no error setting up input binding")
+		}
+	})
+
+	// Operations
+	if config.HasOperation("operations") {
+		t.Run("operations", func(t *testing.T) {
+			ops := outputBinding.Operations()
+			for _, op := range ops {
+				assert.True(t, config.HasOperation(string(op)), fmt.Sprintf("Operation missing from conformance test config: %v", op))
+			}
+		})
+	}
+
+	inputBindingCall := 0
+	readChan := make(chan int)
+	if config.HasOperation("read") {
+		t.Run("read", func(t *testing.T) {
+			go readFromInputBinding(inputBinding, &inputBindingCall, readChan)
+		})
+	}
+
+	// CreateOperation
+	createPerformed := false
+	// Order matters here, we use the result of the create in other validations.
+	if config.HasOperation(string(bindings.CreateOperation)) {
+		t.Run("create", func(t *testing.T) {
+			req := config.createInvokeRequest()
+			req.Operation = bindings.CreateOperation
+			_, err := outputBinding.Invoke(&req)
+			assert.Nil(t, err, "expected no error invoking output binding")
+			createPerformed = true
+		})
+	}
+
+	// GetOperation
+	if config.HasOperation(string(bindings.GetOperation)) {
+		t.Run("get", func(t *testing.T) {
+			req := config.createInvokeRequest()
+			req.Operation = bindings.GetOperation
+			resp, err := outputBinding.Invoke(&req)
+			assert.Nil(t, err, "expected no error invoking output binding")
+			if createPerformed {
+				assert.Equal(t, req.Data, resp.Data)
+			}
+		})
+	}
+
+	// ListOperation
+	if config.HasOperation(string(bindings.ListOperation)) {
+		t.Run("list", func(t *testing.T) {
+			req := config.createInvokeRequest()
+			req.Operation = bindings.GetOperation
+			_, err := outputBinding.Invoke(&req)
+			assert.Nil(t, err, "expected no error invoking output binding")
+		})
+	}
+
+	if config.CommonConfig.HasOperation("read") {
+		t.Run("verify read", func(t *testing.T) {
+			// To stop the test from hanging if there's no response, we can setup a simple timeout.
+			select {
+			case <-readChan:
+				assert.Greater(t, inputBindingCall, 0)
+			case <-time.After(defaultTimeoutDuration):
+				assert.Greater(t, inputBindingCall, 0)
+			}
+		})
+	}
+
+	// DeleteOperation
+	if config.HasOperation(string(bindings.DeleteOperation)) {
+		t.Run("delete", func(t *testing.T) {
+			req := config.createInvokeRequest()
+			req.Operation = bindings.DeleteOperation
+			_, err := outputBinding.Invoke(&req)
+			assert.Nil(t, err, "expected no error invoking output binding")
+
+			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
+				req.Operation = bindings.GetOperation
+				resp, err := outputBinding.Invoke(&req)
+				assert.Nil(t, err, "expected no error invoking output binding")
+				assert.NotNil(t, resp)
+				assert.Nil(t, resp.Data)
+			}
+		})
+	}
+}
+
+func readFromInputBinding(binding bindings.InputBinding, reads *int, readChan chan int) {
+	binding.Read(func(r *bindings.ReadResponse) error {
+		(*reads)++
+		readChan <- (*reads)
+
+		return nil
+	})
+}

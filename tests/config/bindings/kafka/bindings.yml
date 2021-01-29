@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binding-topic
+  namespace: default
+spec:
+  type: bindings.kafka
+  version: v1
+  metadata:
+  - name: topics # Input binding topic
+    value: binding-topic
+  - name: brokers
+    value: localhost:9092,localhost:9093
+  - name: consumerGroup
+    value: group1
+  - name: publishTopic # Output binding topic
+    value: binding-topic
+  - name: authRequired
+    value: "false"

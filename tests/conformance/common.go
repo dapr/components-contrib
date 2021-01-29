@@ -18,6 +18,8 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
+	b_http "github.com/dapr/components-contrib/bindings/http"
+	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
@@ -29,7 +31,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_redis "github.com/dapr/components-contrib/state/redis"
-	conf_output_bindings "github.com/dapr/components-contrib/tests/conformance/bindings/output"
+	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
@@ -225,7 +227,7 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				assert.NotNil(t, pubsub)
 				pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
-			case "output-binding":
+			case "bindings":
 				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
@@ -233,10 +235,13 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 
 					break
 				}
-				binding := loadOutputBindings(comp)
-				assert.NotNil(t, binding)
-				bindingsConfig := conf_output_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				conf_output_bindings.ConformanceTests(t, props, binding, bindingsConfig)
+				inputBinding := loadInputBindings(comp)
+				outputBinding := loadOutputBindings(comp)
+				atLeastOne(t, func(item interface{}) bool {
+					return item != nil
+				}, inputBinding, outputBinding)
+				bindingsConfig := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
@@ -298,9 +303,40 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)
 	case "azure.storagequeues":
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "kafka":
+		binding = b_kafka.NewKafka(testLogger)
+	case "http":
+		binding = b_http.NewHTTP(testLogger)
 	default:
 		return nil
 	}
 
 	return binding
+}
+
+func loadInputBindings(tc TestComponent) bindings.InputBinding {
+	var binding bindings.InputBinding
+
+	switch tc.Component {
+	case "azure.storagequeues":
+		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "kafka":
+		binding = b_kafka.NewKafka(testLogger)
+	case "http":
+		binding = b_http.NewHTTP(testLogger)
+	default:
+		return nil
+	}
+
+	return binding
+}
+
+func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {
+	met := false
+
+	for _, item := range items {
+		met = met || predicate(item)
+	}
+
+	assert.True(t, met)
 }

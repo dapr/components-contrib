@@ -32,8 +32,11 @@ jobs:
       matrix:
         # List here all the components that needs to be invoked in this workflow.
         component:
-        - output-binding.azure.blobstorage
-        - output-binding.azure.storagequeues
+        - bindings.azure.blobstorage
+        - bindings.azure.storagequeues
+        - bindings.http
+        - bindings.kafka
+        - bindings.redis
         - pubsub.azure.servicebus
         - pubsub.redis
         - secretstores.localenv
@@ -93,6 +96,10 @@ jobs:
       with:
         mongodb-version: 4.2
       if: contains(matrix.component, 'mongodb')
+
+    - name: Start kafka
+      run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml up -d
+      if: contains(matrix.component, 'kafka')
 
     - name: Set up Go
       uses: actions/setup-go@v2

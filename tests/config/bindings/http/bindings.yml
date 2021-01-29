@@ -1,0 +1,13 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: http-binding
+  namespace: default
+spec:
+  type: bindings.http
+  version: v1
+  metadata:
+  - name: url
+    value: http://localhost:22222
+  - name: method
+    value: POST

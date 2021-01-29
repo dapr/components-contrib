@@ -68,18 +68,22 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		ceData = string(data)
 	}
 
-	return map[string]interface{}{
+	ce := map[string]interface{}{
 		IDField:              id,
 		SpecVersionField:     CloudEventsSpecVersion,
 		DataContentTypeField: dataContentType,
 		SourceField:          source,
 		TypeField:            eventType,
-		SubjectField:         subject,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
 		DataField:            ceData,
 		TraceIDField:         traceID,
 	}
+	if subject != "" {
+		ce[SubjectField] = subject
+	}
+
+	return ce
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON

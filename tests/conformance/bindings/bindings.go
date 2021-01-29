@@ -19,7 +19,13 @@ const (
 )
 
 // nolint:gochecknoglobals
-var testLogger = logger.NewLogger("bindingsTest")
+var (
+	testLogger = logger.NewLogger("bindingsTest")
+
+	// Some bindings may require setup, this boolean/signal pair is used to signal that.
+	waitForSetup bool
+	ready        chan bool
+)
 
 type TestConfig struct {
 	utils.CommonConfig
@@ -29,6 +35,7 @@ type TestConfig struct {
 }
 
 func NewTestConfig(name string, allOperations bool, operations []string, config map[string]string) TestConfig {
+	waitForSetup = false
 	testConfig := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "bindings",
@@ -51,6 +58,7 @@ func NewTestConfig(name string, allOperations bool, operations []string, config 
 
 		// A url indicates that we need to test the http binding which requires a simple endpoint.
 		if key == "url" {
+			waitForSetup = true
 			startHTTPServer(val)
 		}
 
@@ -73,7 +81,8 @@ func startHTTPServer(url string) {
 		if port, err := strconv.Atoi(parts[1]); err != nil {
 			testLogger.Errorf("Could not parse port number: %s", err.Error())
 		} else {
-			go utils.StartHTTPServer(port)
+			ready = make(chan bool)
+			go utils.StartHTTPServer(port, ready)
 		}
 	}
 }
@@ -91,6 +100,11 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 	// TODO: Further investigate the parallelism issue below.
 	// Some input bindings launch more goroutines than others. It was found that some were not able to run in parallel without increasing the GOMAXPROCS.
 	// Example: runtime.GOMAXPROCS(20)
+
+	if waitForSetup {
+		testLogger.Info("Waiting on HTTP Server to start.")
+		<-ready
+	}
 
 	// Init
 	t.Run("init", func(t *testing.T) {

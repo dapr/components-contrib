@@ -1,5 +1,10 @@
 // +build conftests
 
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package conformance
 
 import (

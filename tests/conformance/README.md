@@ -20,6 +20,6 @@
 > Note Some conformance tests require credentials in the form of environment variables. For examples Azure CosmosDB conformance tests will need to have Azure CosmosDB credentials. You will need to supply them to make these tests pass.
 5. To run specific tests, run:
 ```bash
-# TEST_NAME can be TestPubsubConformance, TestStateConformance, TestSecretStoreConformance or TestOutputBindingConformance
+# TEST_NAME can be TestPubsubConformance, TestStateConformance, TestSecretStoreConformance or TestBindingsConformance
 # COMPONENT_NAME is the component name from the tests.yml file eg: azure.servicebus, redis, mongodb etc.
 go test -v -tags=conftests -count=1 ./tests/conformance -run="${TEST_NAME}/${COMPONENT_NAME}"

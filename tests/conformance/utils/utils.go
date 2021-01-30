@@ -49,23 +49,27 @@ func (cc CommonConfig) CopyMap(config map[string]string) map[string]string {
 	return m
 }
 
-func StartHTTPServer(port int) {
+func StartHTTPServer(port int, ready chan bool) {
 	s = server{}
 	srv := http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: appRouter(),
 	}
 
+	testLogger.Info(("Starting HTTP Server"))
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			testLogger.Errorf("Error with http server: %s", err.Error())
 		}
 	}()
 
+	testLogger.Info(("Registering Signal"))
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
-
+	ready <- true
+	testLogger.Info(("Waiting to stop Server"))
 	<-stop
+	testLogger.Info(("Stopping Server"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -62,9 +62,9 @@ jobs:
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
-        - component: output-binding.azure.blobstorage
+        - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
-        - component: output-binding.azure.storagequeues
+        - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
     steps:
     - name: Check out code onto GOPATH
@@ -112,10 +112,6 @@ jobs:
 
         if [ "${KIND}" = "secretstores" ]; then
           KIND_UPPER=SecretStore
-        fi
-
-        if [ "${KIND}" = "output-binding" ]; then
-          KIND_UPPER=OutputBinding
         fi
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "

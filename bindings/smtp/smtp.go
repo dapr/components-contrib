@@ -32,7 +32,7 @@ type Metadata struct {
 	EmailFrom     string `json:"emailFrom"`
 	EmailTo       string `json:"emailTo"`
 	EmailCC       string `json:"emailCC"`
-	EmailBCC       string `json:"emailBCC"`
+	EmailBCC      string `json:"emailBCC"`
 	Subject       string `json:"subject"`
 }
 
@@ -204,13 +204,4 @@ func determineSubject(metadata Metadata, req *bindings.InvokeRequest) string {
 	}
 
 	return subject
-}
-
-func buildMessage(toAddress string, subject string, body string) []byte {
-	msg := []byte("To: " + toAddress + "\r\n" +
-		"Subject: " + subject + "\r\n" +
-		"\r\n" +
-		body + "\r\n")
-
-	return msg
 }

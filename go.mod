@@ -72,6 +72,7 @@ require (
 	google.golang.org/genproto v0.0.0-20201022181438-0ff5f38871d5
 	google.golang.org/grpc v1.33.1
 	gopkg.in/couchbase/gocb.v1 v1.6.4
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.0
 	k8s.io/apiextensions-apiserver v0.17.2

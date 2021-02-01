@@ -136,6 +136,7 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, nil
 }
 
+// Helper to merge config and request metadata
 func (metadata *Metadata) mergeRequest(req *bindings.InvokeRequest) {
 	if req.Metadata["emailFrom"] != "" {
 		metadata.EmailFrom = req.Metadata["emailFrom"]

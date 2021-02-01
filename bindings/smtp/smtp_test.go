@@ -47,7 +47,7 @@ func TestParseMetadata(t *testing.T) {
 
 func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
-		var smtpMeta = Metadata {
+		var smtpMeta = Metadata{
 			Host:          "mailserver.dapr.io",
 			Port:          "25",
 			User:          "user@dapr.io",
@@ -57,15 +57,15 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			EmailTo:       "to@dapr.io",
 			EmailCC:       "cc@dapr.io",
 			EmailBCC:      "bcc@dapr.io",
-			Subject:       "Test email" }
+			Subject:       "Test email"}
 
 		var request = bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
-			"emailFrom":     "req-from@dapr.io",
-			"emailTo":       "req-to@dapr.io",
-			"emailCC":       "req-cc@dapr.io",
-			"emailBCC":      "req-bcc@dapr.io",
-			"subject":       "req-Test email"}
+			"emailFrom": "req-from@dapr.io",
+			"emailTo":   "req-to@dapr.io",
+			"emailCC":   "req-cc@dapr.io",
+			"emailBCC":  "req-bcc@dapr.io",
+			"subject":   "req-Test email"}
 
 		mergedMeta := smtpMeta.mergeWithRequestMetadata(&request)
 

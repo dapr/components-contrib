@@ -33,6 +33,7 @@ jobs:
         # List here all the components that needs to be invoked in this workflow.
         component:
         - bindings.azure.blobstorage
+        - bindings.azure.servicebusqueues
         - bindings.azure.storagequeues
         - bindings.http
         - bindings.kafka
@@ -64,6 +65,8 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: bindings.azure.servicebusqueues
+          required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
     steps:

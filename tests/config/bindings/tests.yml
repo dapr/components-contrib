@@ -10,6 +10,8 @@ components:
       output_blobName: $((uuid))
   - component: azure.storagequeues
     operations: ["create", "operations", "read"]
+  - component: azure.servicebusqueues
+    operations: ["create", "operations", "read"]
   - component: kafka
     operations: ["create", "operations"]
   - component: http

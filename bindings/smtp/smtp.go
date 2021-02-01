@@ -92,6 +92,7 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	// Send message
 	dialer := gomail.NewDialer(metadata.Host, port, metadata.User, metadata.Password)
 	if metadata.SkipTLSVerify {
+		/* #nosec */
 		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	if err := dialer.DialAndSend(msg); err != nil {

@@ -99,35 +99,25 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	}
 	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, port)
 
-	// From
-	from := determineFrom(s.metadata, req)
-	if from == "" {
-		return nil, fmt.Errorf("SMTP binding error: fromEmail property not supplied in metadata or request")
+	// Override config metadata with request-metadata
+	s.metadata.mergeRequest(req)
+	if s.metadata.EmailFrom == "" {
+		return nil, fmt.Errorf("SMTP binding error: fromEmail property not supplied in configuration- or request-metadata")
 	}
-
-	// To
-	to := determineTo(s.metadata, req)
-	if to == "" {
-		return nil, fmt.Errorf("SMTP binding error: emailTo property not supplied in metadata or request")
+	if s.metadata.EmailTo == "" {
+		return nil, fmt.Errorf("SMTP binding error: emailTo property not supplied in configuration- or request-metadata")
 	}
-
-	// (B)CC
-	cc := determineCC(s.metadata, req)
-	bcc := determineBCC(s.metadata, req)
-
-	// Subject
-	subject := determineSubject(s.metadata, req)
-	if subject == "" {
-		return nil, fmt.Errorf("SMTP binding error: subject property not supplied in metadata or request")
+	if s.metadata.Subject == "" {
+		return nil, fmt.Errorf("SMTP binding error: subject property not supplied in configuration- or request-metadata")
 	}
 
 	// Compose message
 	msg := gomail.NewMessage()
-	msg.SetHeader("From", from)
-	msg.SetHeader("To", to)
-	msg.SetHeader("CC", cc)
-	msg.SetHeader("BCC", bcc)
-	msg.SetHeader("Subject", subject)
+	msg.SetHeader("From", s.metadata.EmailFrom)
+	msg.SetHeader("To", s.metadata.EmailTo)
+	msg.SetHeader("CC", s.metadata.EmailCC)
+	msg.SetHeader("BCC", s.metadata.EmailBCC)
+	msg.SetHeader("Subject", s.metadata.Subject)
 	body, _ := strconv.Unquote(string(req.Data))
 	msg.SetBody("text/html", body)
 
@@ -146,62 +136,24 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, nil
 }
 
-func determineFrom(metadata Metadata, req *bindings.InvokeRequest) string {
-	var result string
-	if metadata.EmailFrom != "" {
-		result = metadata.EmailFrom
-	}
+func (metadata *Metadata) mergeRequest(req *bindings.InvokeRequest) {
 	if req.Metadata["emailFrom"] != "" {
-		result = req.Metadata["emailFrom"]
+		metadata.EmailFrom = req.Metadata["emailFrom"]
 	}
 
-	return result
-}
-
-func determineTo(metadata Metadata, req *bindings.InvokeRequest) string {
-	var to string
-	if metadata.EmailTo != "" {
-		to = metadata.EmailTo
-	}
 	if req.Metadata["emailTo"] != "" {
-		to = req.Metadata["emailTo"]
+		metadata.EmailTo = req.Metadata["emailTo"]
 	}
 
-	return to
-}
-
-func determineCC(metadata Metadata, req *bindings.InvokeRequest) string {
-	var cc string
-	if metadata.EmailCC != "" {
-		cc = metadata.EmailCC
-	}
 	if req.Metadata["emailCC"] != "" {
-		cc = req.Metadata["emailCC"]
+		metadata.EmailCC = req.Metadata["emailCC"]
 	}
 
-	return cc
-}
-
-func determineBCC(metadata Metadata, req *bindings.InvokeRequest) string {
-	var bcc string
-	if metadata.EmailBCC != "" {
-		bcc = metadata.EmailBCC
-	}
 	if req.Metadata["emailBCC"] != "" {
-		bcc = req.Metadata["emailBCC"]
+		metadata.EmailBCC = req.Metadata["emailBCC"]
 	}
 
-	return bcc
-}
-
-func determineSubject(metadata Metadata, req *bindings.InvokeRequest) string {
-	var subject string
-	if metadata.Subject != "" {
-		subject = metadata.Subject
-	}
 	if req.Metadata["subject"] != "" {
-		subject = req.Metadata["subject"]
+		metadata.Subject = req.Metadata["subject"]
 	}
-
-	return subject
 }

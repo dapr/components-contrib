@@ -36,9 +36,72 @@ type Metadata struct {
 	Subject       string `json:"subject"`
 }
 
-// NewSMTP returns a new SMTP bindings instance
+// NewSMTP returns a new smtp binding instance
 func NewSMTP(logger logger.Logger) *Mailer {
 	return &Mailer{logger: logger}
+}
+
+// Init smtp component (parse metadata)
+func (s *Mailer) Init(metadata bindings.Metadata) error {
+	// parse metadata
+	meta, err := s.parseMetadata(metadata)
+	if err != nil {
+		return err
+	}
+	s.metadata = meta
+
+	return nil
+}
+
+// Operations returns the allowed binding operations
+func (s *Mailer) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+// Invoke sends an email message
+func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	// Determine host and port
+	port, err := strconv.Atoi(s.metadata.Port)
+	if err != nil {
+		s.logger.Fatal("SMTP binding error: Unable to parse specified port to integer value")
+	}
+	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, port)
+
+	// Merge config metadata with request metadata
+	metadata := s.metadata.mergeWithRequestMetadata(req)
+	if metadata.EmailFrom == "" {
+		return nil, fmt.Errorf("SMTP binding error: fromEmail property not supplied in configuration- or request-metadata")
+	}
+	if metadata.EmailTo == "" {
+		return nil, fmt.Errorf("SMTP binding error: emailTo property not supplied in configuration- or request-metadata")
+	}
+	if metadata.Subject == "" {
+		return nil, fmt.Errorf("SMTP binding error: subject property not supplied in configuration- or request-metadata")
+	}
+
+	// Compose message
+	msg := gomail.NewMessage()
+	msg.SetHeader("From", metadata.EmailFrom)
+	msg.SetHeader("To", metadata.EmailTo)
+	msg.SetHeader("CC", metadata.EmailCC)
+	msg.SetHeader("BCC", metadata.EmailBCC)
+	msg.SetHeader("Subject", metadata.Subject)
+	body, _ := strconv.Unquote(string(req.Data))
+	msg.SetBody("text/html", body)
+
+	// Send message
+	dialer := gomail.NewDialer(metadata.Host, port, metadata.User, metadata.Password)
+	if metadata.SkipTLSVerify {
+		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	if err := dialer.DialAndSend(msg); err != nil {
+		s.logger.Fatal(err)
+	}
+
+	// Log success
+	s.logger.Info("SMTP binding: sent email")
+
+	return nil, nil
 }
 
 // Helper to parse metadata
@@ -73,88 +136,28 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	return smtpMeta, nil
 }
 
-// Init Smtp component (parse metadata)
-func (s *Mailer) Init(metadata bindings.Metadata) error {
-	// parse metadata
-	meta, err := s.parseMetadata(metadata)
-	if err != nil {
-		return err
-	}
-	s.metadata = meta
-
-	return nil
-}
-
-// Operations returns the allowed binding operations
-func (s *Mailer) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
-}
-
-// Invoke sends an email message
-func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	// host and port
-	port, err := strconv.Atoi(s.metadata.Port)
-	if err != nil {
-		s.logger.Fatal("SMTP binding error: Unable to parse specified port to integer value")
-	}
-	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, port)
-
-	// Override config metadata with request-metadata
-	s.metadata.mergeRequest(req)
-	if s.metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("SMTP binding error: fromEmail property not supplied in configuration- or request-metadata")
-	}
-	if s.metadata.EmailTo == "" {
-		return nil, fmt.Errorf("SMTP binding error: emailTo property not supplied in configuration- or request-metadata")
-	}
-	if s.metadata.Subject == "" {
-		return nil, fmt.Errorf("SMTP binding error: subject property not supplied in configuration- or request-metadata")
-	}
-
-	// Compose message
-	msg := gomail.NewMessage()
-	msg.SetHeader("From", s.metadata.EmailFrom)
-	msg.SetHeader("To", s.metadata.EmailTo)
-	msg.SetHeader("CC", s.metadata.EmailCC)
-	msg.SetHeader("BCC", s.metadata.EmailBCC)
-	msg.SetHeader("Subject", s.metadata.Subject)
-	body, _ := strconv.Unquote(string(req.Data))
-	msg.SetBody("text/html", body)
-
-	// Send message
-	dialer := gomail.NewDialer(s.metadata.Host, port, s.metadata.User, s.metadata.Password)
-	if s.metadata.SkipTLSVerify {
-		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-	if err := dialer.DialAndSend(msg); err != nil {
-		s.logger.Fatal(err)
-	}
-
-	// Log success
-	s.logger.Info("SMTP binding: sent email")
-
-	return nil, nil
-}
-
 // Helper to merge config and request metadata
-func (metadata *Metadata) mergeRequest(req *bindings.InvokeRequest) {
+func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) Metadata {
+	merged := metadata
 	if req.Metadata["emailFrom"] != "" {
-		metadata.EmailFrom = req.Metadata["emailFrom"]
+		merged.EmailFrom = req.Metadata["emailFrom"]
 	}
 
 	if req.Metadata["emailTo"] != "" {
-		metadata.EmailTo = req.Metadata["emailTo"]
+		merged.EmailTo = req.Metadata["emailTo"]
 	}
 
 	if req.Metadata["emailCC"] != "" {
-		metadata.EmailCC = req.Metadata["emailCC"]
+		merged.EmailCC = req.Metadata["emailCC"]
 	}
 
 	if req.Metadata["emailBCC"] != "" {
-		metadata.EmailBCC = req.Metadata["emailBCC"]
+		merged.EmailBCC = req.Metadata["emailBCC"]
 	}
 
 	if req.Metadata["subject"] != "" {
-		metadata.Subject = req.Metadata["subject"]
+		merged.Subject = req.Metadata["subject"]
 	}
+
+	return merged
 }

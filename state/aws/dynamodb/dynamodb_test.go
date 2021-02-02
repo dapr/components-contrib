@@ -45,9 +45,10 @@ func TestInit(t *testing.T) {
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
-			"Region":       "a",
+			"Region":       "eu-west-1",
 			"SecretKey":    "a",
 			"SessionToken": "a",
+			"Table":        "a",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)
@@ -65,6 +66,7 @@ func TestInit(t *testing.T) {
 	t.Run("Init with valid table", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"Table": "a",
+			"Region":       "eu-west-1",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)

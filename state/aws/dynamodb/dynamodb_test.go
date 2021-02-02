@@ -59,7 +59,7 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(m)
 		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("Missing DynamoDB Table name"))
+		assert.Equal(t, err, fmt.Errorf("missing dynamodb table name"))
 	})
 
 	t.Run("Init with valid table", func(t *testing.T) {

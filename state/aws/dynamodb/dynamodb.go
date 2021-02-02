@@ -205,7 +205,7 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 	}
 
 	if meta.Table == "" {
-		return nil, fmt.Errorf("Missing DynamoDB Table name")
+		return nil, fmt.Errorf("missing dynamodb table name")
 	}
 
 	return &meta, nil

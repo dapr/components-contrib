@@ -45,21 +45,31 @@ func TestInit(t *testing.T) {
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":    "a",
-			"Region":       "a",
+			"Region":       "eu-west-1",
 			"SecretKey":    "a",
 			"SessionToken": "a",
+			"Table":        "a",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)
 	})
 
-	t.Run("Init with missing metadata", func(t *testing.T) {
+	t.Run("Init with missing table", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"Dummy": "a",
 		}
 		err := s.Init(m)
 		assert.NotNil(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing aws credentials in metadata"))
+		assert.Equal(t, err, fmt.Errorf("missing dynamodb table name"))
+	})
+
+	t.Run("Init with valid table", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"Table":  "a",
+			"Region": "eu-west-1",
+		}
+		err := s.Init(m)
+		assert.Nil(t, err)
 	})
 }
 

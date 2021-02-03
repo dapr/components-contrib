@@ -203,9 +203,8 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 	if err != nil {
 		return nil, err
 	}
-
-	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" || meta.SessionToken == "" {
-		return nil, fmt.Errorf("missing aws credentials in metadata")
+	if meta.Table == "" {
+		return nil, fmt.Errorf("missing dynamodb table name")
 	}
 
 	return &meta, nil

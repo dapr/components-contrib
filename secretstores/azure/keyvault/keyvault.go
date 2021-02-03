@@ -102,9 +102,11 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 		Data: map[string]map[string]string{},
 	}
 
+	secretIDPrefix := vaultURI + secretItemIDPrefix
+
 	for secretsResp.NotDone() {
 		secretItem := secretsResp.Value()
-		secretName := strings.TrimPrefix(strings.TrimPrefix(*secretItem.ID, vaultURI), secretItemIDPrefix)
+		secretName := strings.TrimPrefix(*secretItem.ID, secretIDPrefix)
 
 		secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
 		if err != nil {

@@ -96,10 +96,11 @@ go mod tidy
 API versioning of Dapr components follows the same approach as [Go modules](https://blog.golang.org/v2-go-modules) where the unstable version (v0) and first stable version (v1) are contained in the root directory of the component package.  For example v1 of the Redis binding component is located in `bindings/redis`. Code changes may continue in this package provided there are no breaking changes. Breaking changes include:
 
 * Renaming or removing a `metadata` field that the component is currently using
-* Adding a required `metadata` field or optional field that does not have a backward-compatible default value
+* Adding a required `metadata` field
+* Adding an optional field that does not have a backward compatible default value
 * Changing the component's logic such that it deviates from previously expected behavior
 
-In most cases, breaking changes can be avoided by using backward-compatible `metadata` fields. When breaking changes cannot be avoided, here are the steps for creating the next major version of a component:
+In most cases, breaking changes can be avoided by using backward compatible `metadata` fields. When breaking changes cannot be avoided, here are the steps for creating the next major version of a component:
 
 1. Create a version subdirectory for the next major version (e.g. `bindings/redis/v2`, `bindings/redis/v3`, etc.)
 2. Copy any code into the new subdirectory that should be preserved from the previous version

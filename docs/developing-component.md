@@ -53,7 +53,7 @@ make lint
 
 ## Validating with Dapr core
 
-1. Make sure you clone dapr and component-contrib repos under $GOPATH/src/github.com/dapr
+1. Make sure you clone Dapr and component-contrib repos under $GOPATH/src/github.com/dapr
 2. Replace github.com/dapr/components-contrib reference to the local component-contrib
 ```bash
 go mod edit -replace github.com/dapr/components-contrib=../components-contrib
@@ -87,6 +87,24 @@ cp ./dist/darwin_amd64/debug/daprd ~/.dapr/bin
 go get -u github.com/dapr/components-contrib@master
 go mod tidy
 ```
-5. Import your component to Dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L79)
-6. Register your component in Dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)
+5. Import your component to Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L20-L115)
+6. Register your component in Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L256-L385)
 7. Create a pullrequest in [Dapr](https://github.com/dapr/dapr/pulls)
+
+## Version 2 and beyond of a component
+
+API versioning of Dapr components follows the same approach as [Go modules](https://blog.golang.org/v2-go-modules) where the unstable version (v0) and first stable version (v1) are contained in the root directory of the component package.  For example v1 of the Redis binding component is located in `bindings/redis`. Code changes may continue in this package provided there are no breaking changes. Breaking changes include:
+
+* Renaming or removing a `metadata` field that the component is currently using
+* Adding a required `metadata` field
+* Adding an optional field that does not have a backward compatible default value
+* Making significant changes to the component's behavior that would adversely affect existing users
+
+In most cases, breaking changes can be avoided by using backward compatible `metadata` fields. When breaking changes cannot be avoided, here are the steps for creating the next major version of a component:
+
+1. Create a version subdirectory for the next major version (e.g. `bindings/redis/v2`, `bindings/redis/v3`, etc.)
+2. Copy any code into the new subdirectory that should be preserved from the previous version
+3. Submit your component as described in the previous section
+4. Import your component to Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L20-L115) *without removing the package for the previous version*
+5. Register your component in dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L256-L385) like before, but append its new major version to the name (e.g. `redis/v2`)
+6. Validate your component as described previously

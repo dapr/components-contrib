@@ -25,6 +25,7 @@ const (
 	componentSPNTenantID            = "spnTenantId"
 	componentVaultName              = "vaultName"
 	VersionID                       = "version_id"
+	secretItemIDPrefix              = "/secrets/"
 )
 
 type keyvaultSecretStore struct {
@@ -101,9 +102,11 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 		Data: map[string]map[string]string{},
 	}
 
+	secretIDPrefix := vaultURI + secretItemIDPrefix
+
 	for secretsResp.NotDone() {
 		secretItem := secretsResp.Value()
-		secretName := strings.TrimPrefix(*secretItem.ID, vaultURI)
+		secretName := strings.TrimPrefix(*secretItem.ID, secretIDPrefix)
 
 		secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
 		if err != nil {

@@ -95,8 +95,11 @@ func startHTTPServer(url string) {
 func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
 	// There is a possiblity that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
 	// So we are making a copy of the config metadata map and setting the Metadata field before each request
+	// Use CloudEvent as data because it is required by Azure's EventGrid.
+	cloudEvent := "[{\"eventType\":\"test\",\"eventTime\": \"2018-01-25T22:12:19.4556811Z\",\"subject\":\"dapr-conf-tests\",\"id\":\"A234-1234-1234\",\"data\":\"root/>\"}]"
+
 	return bindings.InvokeRequest{
-		Data:     []byte("Test Data"),
+		Data:     []byte(cloudEvent),
 		Metadata: tc.CopyMap(tc.outputMetadata),
 	}
 }

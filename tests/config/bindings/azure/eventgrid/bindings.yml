@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-eventgrid
+  namespace: default
+spec:
+  type: bindings.azure.eventgrid
+  version: v1
+  metadata:
+  - name: EventSubscriptionName
+    value: "conf-test-subscription"
+  # Required Input Binding Metadata
+  - name: tenantId
+    value: ${{AzureEventGridTenantId}}
+  - name: subscriptionId
+    value: ${{AzureEventGridSubscriptionId}}
+  - name: clientId
+    value: ${{AzureEventGridClientId}}
+  - name: clientSecret
+    value: ${{AzureEventGridClientSecret}}
+  - name: subscriberEndpoint
+  # Generated dynamically when starting ngrok
+    value: ${{AzureEventGridSubscriberEndpoint}}
+  - name: handshakePort
+    value: 9000
+  - name: scope
+    value: ${{AzureEventGridScope}}
+  # Required Output Binding Metadata
+  - name: accessKey
+    value: ${{AzureEventGridAccessKey}}
+  - name: topicEndpoint
+    value: ${{AzureEventGridTopicEndpoint}}

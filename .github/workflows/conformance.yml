@@ -33,6 +33,7 @@ jobs:
         # List here all the components that needs to be invoked in this workflow.
         component:
         - bindings.azure.blobstorage
+        - bindings.azure.eventgrid
         - bindings.azure.servicebusqueues
         - bindings.azure.storagequeues
         - bindings.http
@@ -65,6 +66,8 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: bindings.azure.eventgrid
+          required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
@@ -87,6 +90,17 @@ jobs:
         secrets: ${{ matrix.required-secrets }}
       id: get-azure-secrets
       if: matrix.required-secrets != ''
+
+    - name: Start ngrok
+      run: |
+        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+        unzip -qq ngrok-stable-linux-amd64.zip
+        ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
+        ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        sleep 10
+        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
+        echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
+        echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
 
     - name: Start Redis
       uses: supercharge/redis-github-action@1.2.0

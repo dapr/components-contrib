@@ -17,6 +17,7 @@ import (
 	"fortio.org/fortio/log"
 	"github.com/dapr/components-contrib/bindings"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
@@ -306,6 +307,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.servicebusqueues":
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
+	case "azure.eventgrid":
+		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
@@ -325,6 +328,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.storagequeues":
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "azure.eventgrid":
+		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":

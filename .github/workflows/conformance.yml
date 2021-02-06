@@ -92,11 +92,12 @@ jobs:
       if: matrix.required-secrets != ''
 
     - name: Start ngrok
+      if: contains(matrix.component, 'azure.eventgrid')
       run: |
         wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
         unzip -qq ngrok-stable-linux-amd64.zip
         ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
-        ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        ./ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
         sleep 10
         export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"

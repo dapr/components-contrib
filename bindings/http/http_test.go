@@ -22,7 +22,15 @@ import (
 
 func TestOperations(t *testing.T) {
 	opers := (*binding_http.HTTPSource)(nil).Operations()
-	assert.Equal(t, []bindings.OperationKind{bindings.GetOperation}, opers)
+	assert.Equal(t, []bindings.OperationKind{bindings.CreateOperation,
+		"get",
+		"head",
+		"post",
+		"put",
+		"patch",
+		"delete",
+		"options",
+		"trace"}, opers)
 }
 
 func TestInit(t *testing.T) {
@@ -39,6 +47,7 @@ func TestInit(t *testing.T) {
 					input = string(b)
 				}
 			}
+			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte(strings.ToUpper(input)))
 		}),
 	)
@@ -88,12 +97,47 @@ func TestInit(t *testing.T) {
 			path:      "/test",
 			err:       "",
 		},
+		"delete": {
+			input:     "DELETE",
+			operation: "delete",
+			metadata:  nil,
+			path:      "/",
+			err:       "",
+		},
+		"options": {
+			input:     "OPTIONS",
+			operation: "options",
+			metadata:  nil,
+			path:      "/",
+			err:       "",
+		},
+		"trace": {
+			input:     "TRACE",
+			operation: "trace",
+			metadata:  nil,
+			path:      "/",
+			err:       "",
+		},
+		"backward compatability": {
+			input:     "expected",
+			operation: "create",
+			metadata:  map[string]string{"path": "/test"},
+			path:      "/test",
+			err:       "",
+		},
 		"invalid path": {
 			input:     "expected",
 			operation: "POST",
 			metadata:  map[string]string{"path": "/../test"},
 			path:      "",
 			err:       "invalid path: /../test",
+		},
+		"invalid operation": {
+			input:     "notvalid",
+			operation: "notvalid",
+			metadata:  map[string]string{"path": "/test"},
+			path:      "/test",
+			err:       "invalid operation: notvalid",
 		},
 	}
 
@@ -108,7 +152,9 @@ func TestInit(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tc.path, path)
 				assert.Equal(t, strings.ToUpper(tc.input), string(response.Data))
+				assert.Equal(t, "text/plain", response.Metadata["Content-Type"])
 			} else {
+				require.Error(t, err)
 				assert.Equal(t, tc.err, err.Error())
 			}
 		})

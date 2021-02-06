@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -48,16 +47,16 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 
 	// See guidance on proper HTTP client settings here:
 	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
-	dialer := net.Dialer{
+	dialer := &net.Dialer{
 		Timeout: 5 * time.Second,
 	}
-	var netTransport = http.Transport{
-		Dial:                (&dialer).Dial,
+	var netTransport = &http.Transport{
+		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
 	h.client = &http.Client{
 		Timeout:   time.Second * 10,
-		Transport: &netTransport,
+		Transport: netTransport,
 	}
 
 	return nil
@@ -65,7 +64,17 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 
 // Operations returns the supported operations for this binding.
 func (h *HTTPSource) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.GetOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation, // For backward compatability
+		"get",
+		"head",
+		"post",
+		"put",
+		"patch",
+		"delete",
+		"options",
+		"trace",
+	}
 }
 
 // Invoke performs an HTTP request to the configured HTTP endpoint.
@@ -76,16 +85,23 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 			// Simplicity and no "../../.." type exploits.
 			u = fmt.Sprintf("%s/%s", strings.TrimRight(u, "/"), strings.TrimLeft(path, "/"))
 			if strings.Contains(u, "..") {
-				return nil, errors.Errorf("invalid path: %s", path)
+				return nil, fmt.Errorf("invalid path: %s", path)
 			}
 		}
 	}
 
 	var body io.Reader
 	method := strings.ToUpper(string(req.Operation))
+	// For backward compatability
+	if method == "CREATE" {
+		method = "POST"
+	}
 	switch method {
 	case "PUT", "POST", "PATCH":
 		body = bytes.NewBuffer(req.Data)
+	case "GET", "HEAD", "DELETE", "OPTIONS", "TRACE":
+	default:
+		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
 	}
 
 	// nolint: noctx
@@ -110,7 +126,13 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return nil, err
 	}
 
+	metadata := make(map[string]string, len(resp.Header))
+	for key, values := range resp.Header {
+		metadata[key] = strings.Join(values, ", ")
+	}
+
 	return &bindings.InvokeResponse{
-		Data: b,
+		Data:     b,
+		Metadata: metadata,
 	}, nil
 }

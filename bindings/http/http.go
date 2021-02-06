@@ -7,10 +7,16 @@ package http
 
 import (
 	"bytes"
-	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -20,13 +26,13 @@ import (
 // nolint:golint
 type HTTPSource struct {
 	metadata httpMetadata
+	client   *http.Client
 
 	logger logger.Logger
 }
 
 type httpMetadata struct {
-	URL    string `json:"url"`
-	Method string `json:"method"`
+	URL string `mapstructure:"url"`
 }
 
 // NewHTTP returns a new HTTPSource
@@ -36,69 +42,74 @@ func NewHTTP(logger logger.Logger) *HTTPSource {
 
 // Init performs metadata parsing
 func (h *HTTPSource) Init(metadata bindings.Metadata) error {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
+	if err := mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
 		return err
 	}
 
-	var m httpMetadata
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return err
+	// See guidance on proper HTTP client settings here:
+	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
+	dialer := net.Dialer{
+		Timeout: 5 * time.Second,
 	}
-
-	h.metadata = m
-
+	var netTransport = http.Transport{
+		Dial:                (&dialer).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	h.client = &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: &netTransport,
+	}
 	return nil
 }
 
-func (h *HTTPSource) get(url string) ([]byte, error) {
-	client := http.Client{Timeout: time.Second * 60}
-	// nolint: noctx
-	resp, err := client.Get(url)
+// Operations returns the supported operations for this binding.
+func (h *HTTPSource) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.GetOperation}
+}
+
+// Invoke performs an HTTP request to the configured HTTP endpoint.
+func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	u := h.metadata.URL
+	if req.Metadata != nil {
+		if path, ok := req.Metadata["path"]; ok {
+			// Simplicity and no "../../.." type exploits.
+			u = fmt.Sprintf("%s/%s", strings.TrimRight(u, "/"), strings.TrimLeft(path, "/"))
+			if strings.Contains(u, "..") {
+				return nil, errors.Errorf("invalid path: %s", path)
+			}
+		}
+	}
+
+	var body io.Reader
+	method := strings.ToUpper(string(req.Operation))
+	switch method {
+	case "PUT", "POST", "PATCH":
+		body = bytes.NewBuffer(req.Data)
+	}
+
+	request, err := http.NewRequest(method, u, body)
 	if err != nil {
 		return nil, err
 	}
+
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json; charset=utf-8")
+	}
+	request.Header.Set("Accept", "application/json; charset=utf-8")
+
+	// nolint: noctx
+	resp, err := h.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp != nil && resp.Body != nil {
-		resp.Body.Close()
-	}
-
-	return b, nil
-}
-
-func (h *HTTPSource) Read(handler func(*bindings.ReadResponse) error) error {
-	b, err := h.get(h.metadata.URL)
-	if err != nil {
-		return err
-	}
-
-	handler(&bindings.ReadResponse{
+	return &bindings.InvokeResponse{
 		Data: b,
-	})
-
-	return nil
-}
-
-func (h *HTTPSource) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
-}
-
-func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	client := http.Client{Timeout: time.Second * 5}
-	// nolint: noctx
-	resp, err := client.Post(h.metadata.URL, "application/json; charset=utf-8", bytes.NewBuffer(req.Data))
-	if err != nil {
-		return nil, err
-	}
-	if resp != nil && resp.Body != nil {
-		resp.Body.Close()
-	}
-
-	return nil, nil
+	}, nil
 }

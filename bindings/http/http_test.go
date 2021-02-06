@@ -118,7 +118,7 @@ func TestInit(t *testing.T) {
 			path:      "/",
 			err:       "",
 		},
-		"backward compatability": {
+		"backward compatibility": {
 			input:     "expected",
 			operation: "create",
 			metadata:  map[string]string{"path": "/test"},

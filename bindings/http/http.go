@@ -65,7 +65,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 // Operations returns the supported operations for this binding.
 func (h *HTTPSource) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
-		bindings.CreateOperation, // For backward compatability
+		bindings.CreateOperation, // For backward compatibility
 		"get",
 		"head",
 		"post",
@@ -92,7 +92,7 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 
 	var body io.Reader
 	method := strings.ToUpper(string(req.Operation))
-	// For backward compatability
+	// For backward compatibility
 	if method == "CREATE" {
 		method = "POST"
 	}

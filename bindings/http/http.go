@@ -59,6 +59,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		Timeout:   time.Second * 10,
 		Transport: &netTransport,
 	}
+
 	return nil
 }
 

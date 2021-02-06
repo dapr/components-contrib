@@ -238,6 +238,8 @@ func (a *AzureEventGrid) createSubscription() error {
 	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
 	result, err := subscriptionClient.CreateOrUpdate(context.Background(), a.metadata.Scope, a.metadata.EventSubscriptionName, eventInfo)
 	if err != nil {
+		a.logger.Debugf("Failed to create or update Event Grid subscription: %v", err)
+
 		return err
 	}
 
@@ -246,11 +248,18 @@ func (a *AzureEventGrid) createSubscription() error {
 	if res.StatusCode != fasthttp.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
+			a.logger.Debugf("Failed reading error body when creating or updating Event Grid subscription: %v", err)
+
 			return err
 		}
 
-		return errors.New(string(bodyBytes))
+		bodyStr := string(bodyBytes)
+		a.logger.Debugf("Code HTTP %d in response to create or update Event Grid subscription: %s", res.StatusCode, bodyStr)
+
+		return errors.New(bodyStr)
 	}
+
+	a.logger.Debugf("Succeeded to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
 
 	return nil
 }

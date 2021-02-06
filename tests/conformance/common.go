@@ -185,6 +185,8 @@ func convertComponentNameToPath(componentName string) string {
 }
 
 func (tc *TestConfiguration) Run(t *testing.T) {
+	// Increase verbosity of tests to allow troubleshooting of runs.
+	testLogger.SetOutputLevel(logger.DebugLevel)
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
 		t.Run(comp.Component, func(t *testing.T) {

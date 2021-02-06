@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -111,9 +112,22 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	}
 
 	if body != nil {
-		request.Header.Set("Content-Type", "application/json; charset=utf-8")
+		if _, ok := req.Metadata["Content-Type"]; !ok {
+			request.Header.Set("Content-Type", "application/json; charset=utf-8")
+		}
 	}
-	request.Header.Set("Accept", "application/json; charset=utf-8")
+	if _, ok := req.Metadata["Accept"]; !ok {
+		request.Header.Set("Accept", "application/json; charset=utf-8")
+	}
+
+	// Any metadata keys that start with a capital letter
+	// are treated as request headers
+	for mdKey, mdValue := range req.Metadata {
+		keyAsRunes := []rune(mdKey)
+		if len(keyAsRunes) > 0 && unicode.IsUpper(keyAsRunes[0]) {
+			request.Header.Set(mdKey, mdValue)
+		}
+	}
 
 	resp, err := h.client.Do(request)
 	if err != nil {

@@ -47,6 +47,10 @@ func TestInit(t *testing.T) {
 					input = string(b)
 				}
 			}
+			inputFromHeader := req.Header.Get("X-Input")
+			if inputFromHeader != "" {
+				input = inputFromHeader
+			}
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte(strings.ToUpper(input)))
 		}),
@@ -73,6 +77,13 @@ func TestInit(t *testing.T) {
 			input:     "GET",
 			operation: "get",
 			metadata:  nil,
+			path:      "/",
+			err:       "",
+		},
+		"request headers": {
+			input:     "OVERRIDE",
+			operation: "get",
+			metadata:  map[string]string{"X-Input": "override"},
 			path:      "/",
 			err:       "",
 		},

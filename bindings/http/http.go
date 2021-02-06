@@ -87,6 +87,7 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		body = bytes.NewBuffer(req.Data)
 	}
 
+	// nolint: noctx
 	request, err := http.NewRequest(method, u, body)
 	if err != nil {
 		return nil, err
@@ -97,7 +98,6 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	}
 	request.Header.Set("Accept", "application/json; charset=utf-8")
 
-	// nolint: noctx
 	resp, err := h.client.Do(request)
 	if err != nil {
 		return nil, err

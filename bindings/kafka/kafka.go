@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -39,13 +40,14 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers       []string `json:"brokers"`
-	Topics        []string `json:"topics"`
-	PublishTopic  string   `json:"publishTopic"`
-	ConsumerGroup string   `json:"consumerGroup"`
-	AuthRequired  bool     `json:"authRequired"`
-	SaslUsername  string   `json:"saslUsername"`
-	SaslPassword  string   `json:"saslPassword"`
+	Brokers         []string `json:"brokers"`
+	Topics          []string `json:"topics"`
+	PublishTopic    string   `json:"publishTopic"`
+	ConsumerGroup   string   `json:"consumerGroup"`
+	AuthRequired    bool     `json:"authRequired"`
+	SaslUsername    string   `json:"saslUsername"`
+	SaslPassword    string   `json:"saslPassword"`
+	MaxMessageBytes int
 }
 
 type consumer struct {
@@ -169,6 +171,15 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 		}
 	}
 
+	if val, ok := metadata.Properties["maxMessageBytes"]; ok && val != "" {
+		maxBytes, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %s", err)
+		}
+
+		meta.MaxMessageBytes = maxBytes
+	}
+
 	return &meta, nil
 }
 
@@ -182,6 +193,10 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
 		updateAuthInfo(config, meta.SaslUsername, meta.SaslPassword)
+	}
+
+	if meta.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = meta.MaxMessageBytes
 	}
 
 	producer, err := sarama.NewSyncProducer(meta.Brokers, config)

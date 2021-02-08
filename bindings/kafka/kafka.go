@@ -171,7 +171,7 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 		}
 	}
 
-	if val, ok = metadata.Properties["maxMessageBytes"]; ok && val != "" {
+	if val, ok := metadata.Properties["maxMessageBytes"]; ok && val != "" {
 		maxBytes, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %s", err)

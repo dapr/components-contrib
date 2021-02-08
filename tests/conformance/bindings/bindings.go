@@ -192,7 +192,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			select {
 			case <-readChan:
 				assert.Greater(t, inputBindingCall, 0)
-			case <-time.After(defaultTimeoutDuration):
+			case <-time.After(config.readBindingTimeout):
 				assert.Greater(t, inputBindingCall, 0)
 			}
 		})

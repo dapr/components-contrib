@@ -17,6 +17,8 @@ import (
 	"fortio.org/fortio/log"
 	"github.com/dapr/components-contrib/bindings"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
+	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
@@ -25,6 +27,7 @@ import (
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
+	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	"github.com/dapr/components-contrib/state"
@@ -183,6 +186,8 @@ func convertComponentNameToPath(componentName string) string {
 }
 
 func (tc *TestConfiguration) Run(t *testing.T) {
+	// Increase verbosity of tests to allow troubleshooting of runs.
+	testLogger.SetOutputLevel(logger.DebugLevel)
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
 		t.Run(comp.Component, func(t *testing.T) {
@@ -270,6 +275,8 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 		store = ss_local_file.NewLocalSecretStore(testLogger)
 	case "localenv":
 		store = ss_local_env.NewEnvSecretStore(testLogger)
+	case "azure.keyvault":
+		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	default:
 		return nil
 	}
@@ -303,6 +310,10 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)
 	case "azure.storagequeues":
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "azure.servicebusqueues":
+		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
+	case "azure.eventgrid":
+		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
@@ -318,8 +329,12 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 	var binding bindings.InputBinding
 
 	switch tc.Component {
+	case "azure.servicebusqueues":
+		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.storagequeues":
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "azure.eventgrid":
+		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":

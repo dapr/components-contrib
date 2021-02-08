@@ -9,42 +9,44 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
-
-defaults:
-  run:
-    shell: bash
-    working-directory: ./src/github.com/dapr/components-contrib
+  pull_request:
+    branches:
+      - master
 
 jobs:
-  conformance:
-    name: conformance
+  # Based on whether this is a PR or a scheduled run, we will run a different
+  # subset of the conformance tests. This allows all the tests not requiring
+  # secrets to be executed on pull requests.
+  generate-matrix:
     runs-on: ubuntu-latest
+    steps:
+    - name: Install yq
+      run: |
+        sudo snap install yq
 
-    env:
-      # Set this to your keyvault.
-      #
-      # The KeyVault policy must be granted to your Service Principal using
-      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
-      AZURE_KEYVAULT: dapr-conf-tests
-
-    strategy:
-      fail-fast: false # Keep running even if one component fails
-      matrix:
-        # List here all the components that needs to be invoked in this workflow.
-        component:
-        - bindings.azure.blobstorage
-        - bindings.azure.storagequeues
+    - name: Specify components not requiring secrets nor certs
+      id: pr-components
+      run: |
+        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
         - bindings.kafka
         - bindings.redis
-        - pubsub.azure.servicebus
         - pubsub.redis
         - secretstores.localenv
         - secretstores.localfile
-        - state.cosmosdb
         - state.mongodb
         - state.redis
-        include:
+        EOF
+        )
+        echo "::set-output name=pr-components::$PR_COMPONENTS"
+
+    - name: Specify components requiring secrets or certs
+      id: cron-components
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "::set-output name=cron-components::[]"
+          exit
+        fi
         # Unfortunately, Azure secrets can't have underscores in
         # names, while environment variables with hyphens ('-') are
         # troublesome.
@@ -58,14 +60,49 @@ jobs:
         # and errorprone.
         #
         # Only list the secrets you need for the component.
+        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - component: state.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: bindings.azure.eventgrid
+          required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.servicebusqueues
+          required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+        - component: secretstores.azure.keyvault
+          required-secrets: AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
+          required-certs: AzureKeyVaultSecretStoreCert
+        EOF
+        )
+        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+    outputs:
+      pr-components: ${{ steps.pr-components.outputs.pr-components }}
+      cron-components: ${{ steps.cron-components.outputs.cron-components }}
+
+  conformance:
+    name: conformance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./src/github.com/dapr/components-contrib
+    needs: generate-matrix
+    env:
+      # Set this to your keyvault.
+      #
+      # The KeyVault policy must be granted to your Service Principal using
+      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+      AZURE_KEYVAULT: dapr-conf-tests
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
     steps:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
@@ -84,6 +121,31 @@ jobs:
         secrets: ${{ matrix.required-secrets }}
       id: get-azure-secrets
       if: matrix.required-secrets != ''
+
+    - name: Start ngrok
+      if: contains(matrix.component, 'azure.eventgrid')
+      run: |
+        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+        unzip -qq ngrok-stable-linux-amd64.zip
+        ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
+        ./ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        sleep 10
+        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
+        echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
+        echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Setup certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(mktemp --suffix .pfx)
+          echo "Downloading cert $CERT_NAME into file $CERT_FILE"
+          rm $CERT_FILE && \
+            az keyvault secret download --vault-name $AZURE_KEYVAULT --name $CERT_NAME --encoding base64 --file $CERT_FILE
+          echo 'Setting $CERT_NAME to' "$CERT_FILE"
+          echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
+        done
 
     - name: Start Redis
       uses: supercharge/redis-github-action@1.2.0
@@ -124,3 +186,14 @@ jobs:
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Clean up certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(printenv $CERT_NAME)
+
+          echo "Cleaning up the certificate file $CERT_FILE..."
+          rm $CERT_FILE
+        done

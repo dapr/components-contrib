@@ -6,7 +6,6 @@
 package cosmosdb
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -41,16 +40,6 @@ type CosmosItem struct {
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
 	PartitionKey string      `json:"partitionKey"`
-}
-
-// CosmosItemWithRawMessage is a version of CosmosItem with a Value of RawMessage so this field
-// is not marshalled.  If it is marshalled it will end up in a form that
-// cannot be unmarshalled.  This type is used when SetRequest.Value arrives as bytes.
-type CosmosItemWithRawMessage struct {
-	documentdb.Document
-	ID           string              `json:"id"`
-	Value        jsoniter.RawMessage `json:"value"`
-	PartitionKey string              `json:"partitionKey"`
 }
 
 type storedProcedureDefinition struct {
@@ -214,20 +203,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	b, ok := req.Value.([]uint8)
-	if ok {
-		// data arrived in bytes and already json.  Don't marshal the Value field again.
-		item := CosmosItemWithRawMessage{ID: req.Key, Value: b, PartitionKey: partitionKey}
-		var marshalled []byte
-		marshalled, err = convertToJSONWithoutEscapes(item)
-		if err != nil {
-			return err
-		}
-		_, err = c.client.UpsertDocument(c.collection.Self, marshalled, options...)
-	} else {
-		// data arrived as non-bytes, just pass it through.
-		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
-	}
+	doc := createUpsertItem(*req, partitionKey)
+	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
 
 	if err != nil {
 		if req.ETag != nil {
@@ -306,13 +283,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			// Value need not be marshaled here. It is handled by cosmosdb client.
-			upsertOperation := CosmosItem{
-				ID:           req.Key,
-				Value:        req.Value,
-				PartitionKey: partitionKey,
-			}
-
+			upsertOperation := createUpsertItem(req, partitionKey)
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -352,11 +323,18 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	return key
 }
 
-func convertToJSONWithoutEscapes(t interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := jsoniter.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(t)
+func createUpsertItem(req state.SetRequest, partitionKey string) CosmosItem {
+	if b, ok := req.Value.([]uint8); ok {
+		// data arrived in bytes and already json.  Don't marshal the Value field again.
+		return CosmosItem{
+			ID:           req.Key,
+			Value:        json.RawMessage(b),
+			PartitionKey: partitionKey}
+	}
 
-	return buffer.Bytes(), err
+	return CosmosItem{
+		ID:           req.Key,
+		Value:        req.Value,
+		PartitionKey: partitionKey,
+	}
 }

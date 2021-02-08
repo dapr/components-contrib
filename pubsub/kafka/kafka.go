@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,10 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
+)
+
+const (
+	key = "partitionKey"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -35,11 +40,12 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers      []string `json:"brokers"`
-	ConsumerID   string   `json:"consumerID"`
-	AuthRequired bool     `json:"authRequired"`
-	SaslUsername string   `json:"saslUsername"`
-	SaslPassword string   `json:"saslPassword"`
+	Brokers         []string `json:"brokers"`
+	ConsumerID      string   `json:"consumerID"`
+	AuthRequired    bool     `json:"authRequired"`
+	SaslUsername    string   `json:"saslUsername"`
+	SaslPassword    string   `json:"saslPassword"`
+	MaxMessageBytes int      `json:"maxMessageBytes"`
 }
 
 type consumer struct {
@@ -121,10 +127,17 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 // Publish message to Kafka cluster
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	k.logger.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
-	partition, offset, err := k.producer.SendMessage(&sarama.ProducerMessage{
+
+	msg := &sarama.ProducerMessage{
 		Topic: req.Topic,
 		Value: sarama.ByteEncoder(req.Data),
-	})
+	}
+
+	if val, ok := req.Metadata[key]; ok && val != "" {
+		msg.Key = sarama.StringEncoder(val)
+	}
+
+	partition, offset, err := k.producer.SendMessage(msg)
 
 	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
 
@@ -264,6 +277,15 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		}
 	}
 
+	if val, ok := metadata.Properties["maxMessageBytes"]; ok && val != "" {
+		maxBytes, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %s", err)
+		}
+
+		meta.MaxMessageBytes = maxBytes
+	}
+
 	return &meta, nil
 }
 
@@ -275,6 +297,10 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 
 	if k.authRequired {
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+
+	if meta.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = meta.MaxMessageBytes
 	}
 
 	producer, err := sarama.NewSyncProducer(meta.Brokers, config)

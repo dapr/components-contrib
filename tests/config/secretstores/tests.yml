@@ -4,3 +4,6 @@ components:
     operations: ["get"]
   - component: localfile
     allOperations: true
+  - component: azure.keyvault
+    allOperations: true
+

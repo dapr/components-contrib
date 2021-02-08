@@ -52,6 +52,9 @@ func TestInit(t *testing.T) {
 				input = inputFromHeader
 			}
 			w.Header().Set("Content-Type", "text/plain")
+			if input == "internal server error" {
+				w.WriteHeader(500)
+			}
 			w.Write([]byte(strings.ToUpper(input)))
 		}),
 	)
@@ -149,6 +152,13 @@ func TestInit(t *testing.T) {
 			metadata:  map[string]string{"path": "/test"},
 			path:      "/test",
 			err:       "invalid operation: notvalid",
+		},
+		"internal server error": {
+			input:     "internal server error",
+			operation: "post",
+			metadata:  map[string]string{"path": "/"},
+			path:      "/",
+			err:       "received status code 500",
 		},
 	}
 

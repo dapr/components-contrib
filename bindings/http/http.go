@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -111,6 +112,7 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return nil, err
 	}
 
+	// Set default values for Content-Type and Accept headers.
 	if body != nil {
 		if _, ok := req.Metadata["Content-Type"]; !ok {
 			request.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -129,24 +131,38 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		}
 	}
 
+	// Send the question
 	resp, err := h.client.Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	// Read the response body. For empty responses (e.g. 204 No Content)
+	// `b` will be an empty slice.
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	metadata := make(map[string]string, len(resp.Header))
+	metadata := make(map[string]string, len(resp.Header)+2)
+	// Include status code & desc
+	metadata["statusCode"] = strconv.Itoa(resp.StatusCode)
+	metadata["status"] = resp.Status
+
+	// Response headers are mapped from `map[string][]string` to `map[string]string`
+	// where headers with multiple values are delimited with ", ".
 	for key, values := range resp.Header {
 		metadata[key] = strings.Join(values, ", ")
+	}
+
+	// Create an error for non-200 status codes.
+	if resp.StatusCode/100 != 2 {
+		err = fmt.Errorf("received status code %d", resp.StatusCode)
 	}
 
 	return &bindings.InvokeResponse{
 		Data:     b,
 		Metadata: metadata,
-	}, nil
+	}, err
 }

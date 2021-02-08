@@ -9,45 +9,44 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
-
-defaults:
-  run:
-    shell: bash
-    working-directory: ./src/github.com/dapr/components-contrib
+  pull_request:
+    branches:
+      - master
 
 jobs:
-  conformance:
-    name: conformance
+  # Based on whether this is a PR or a scheduled run, we will run a different
+  # subset of the conformance tests. This allows all the tests not requiring
+  # secrets to be executed on pull requests.
+  generate-matrix:
     runs-on: ubuntu-latest
+    steps:
+    - name: Install yq
+      run: |
+        sudo snap install yq
 
-    env:
-      # Set this to your keyvault.
-      #
-      # The KeyVault policy must be granted to your Service Principal using
-      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
-      AZURE_KEYVAULT: dapr-conf-tests
-
-    strategy:
-      fail-fast: false # Keep running even if one component fails
-      matrix:
-        # List here all the components that needs to be invoked in this workflow.
-        component:
-        - bindings.azure.blobstorage
-        - bindings.azure.eventgrid
-        - bindings.azure.servicebusqueues
-        - bindings.azure.storagequeues
+    - name: Specify components not requiring secrets nor certs
+      id: pr-components
+      run: |
+        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
         - bindings.kafka
         - bindings.redis
-        - pubsub.azure.servicebus
         - pubsub.redis
-        - secretstores.azure.keyvault
         - secretstores.localenv
         - secretstores.localfile
-        - state.cosmosdb
         - state.mongodb
         - state.redis
-        include:
+        EOF
+        )
+        echo "::set-output name=pr-components::$PR_COMPONENTS"
+
+    - name: Specify components requiring secrets or certs
+      id: cron-components
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "::set-output name=cron-components::[]"
+          exit
+        fi
         # Unfortunately, Azure secrets can't have underscores in
         # names, while environment variables with hyphens ('-') are
         # troublesome.
@@ -61,6 +60,7 @@ jobs:
         # and errorprone.
         #
         # Only list the secrets you need for the component.
+        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - component: state.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.azure.servicebus
@@ -76,6 +76,33 @@ jobs:
         - component: secretstores.azure.keyvault
           required-secrets: AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
+        EOF
+        )
+        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+    outputs:
+      pr-components: ${{ steps.pr-components.outputs.pr-components }}
+      cron-components: ${{ steps.cron-components.outputs.cron-components }}
+
+  conformance:
+    name: conformance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./src/github.com/dapr/components-contrib
+    needs: generate-matrix
+    env:
+      # Set this to your keyvault.
+      #
+      # The KeyVault policy must be granted to your Service Principal using
+      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+      AZURE_KEYVAULT: dapr-conf-tests
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
     steps:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2

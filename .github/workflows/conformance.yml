@@ -41,6 +41,7 @@ jobs:
         - bindings.redis
         - pubsub.azure.servicebus
         - pubsub.redis
+        - secretstores.azure.keyvault
         - secretstores.localenv
         - secretstores.localfile
         - state.cosmosdb
@@ -72,6 +73,9 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+        - component: secretstores.azure.keyvault
+          required-secrets: AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
+          required-certs: AzureKeyVaultSecretStoreCert
     steps:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
@@ -102,6 +106,19 @@ jobs:
         export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
         echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Setup certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(mktemp --suffix .pfx)
+          echo "Downloading cert $CERT_NAME into file $CERT_FILE"
+          rm $CERT_FILE && \
+            az keyvault secret download --vault-name $AZURE_KEYVAULT --name $CERT_NAME --encoding base64 --file $CERT_FILE
+          echo 'Setting $CERT_NAME to' "$CERT_FILE"
+          echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
+        done
 
     - name: Start Redis
       uses: supercharge/redis-github-action@1.2.0
@@ -142,3 +159,14 @@ jobs:
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Clean up certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(printenv $CERT_NAME)
+
+          echo "Cleaning up the certificate file $CERT_FILE..."
+          rm $CERT_FILE
+        done

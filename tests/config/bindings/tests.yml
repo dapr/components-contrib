@@ -8,7 +8,13 @@ components:
     operations: ["create", "operations", "get"]
     config:
       output_blobName: $((uuid))
+  - component: azure.eventgrid
+    operations: ["create", "operations", "read"]
+    config:
+      readBindingTimeout: 120
   - component: azure.storagequeues
+    operations: ["create", "operations", "read"]
+  - component: azure.servicebusqueues
     operations: ["create", "operations", "read"]
   - component: kafka
     operations: ["create", "operations"]

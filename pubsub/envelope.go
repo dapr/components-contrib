@@ -31,6 +31,7 @@ const (
 	ExpirationField                  = "expiration"
 	DataContentTypeField             = "datacontenttype"
 	DataField                        = "data"
+	DataBase64Field                  = "data_base64"
 	SpecVersionField                 = "specversion"
 	TypeField                        = "type"
 	SourceField                      = "source"
@@ -55,13 +56,15 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	}
 
 	var ceData interface{}
+	ceDataField := DataField
 	var err error
 	if contrib_contenttype.IsJSONContentType(dataContentType) {
 		err = jsoniter.Unmarshal(data, &ceData)
-	} else if contrib_contenttype.IsStringContentType(dataContentType) {
-		ceData = string(data)
-	} else {
+	} else if contrib_contenttype.IsBinaryContentType(dataContentType) {
 		ceData = base64.StdEncoding.EncodeToString(data)
+		ceDataField = DataBase64Field
+	} else {
+		ceData = string(data)
 	}
 
 	if err != nil {
@@ -76,9 +79,11 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TypeField:            eventType,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
-		DataField:            ceData,
 		TraceIDField:         traceID,
 	}
+
+	ce[ceDataField] = ceData
+
 	if subject != "" {
 		ce[SubjectField] = subject
 	}

@@ -337,8 +337,6 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
-	case "http":
-		binding = b_http.NewHTTP(testLogger)
 	default:
 		return nil
 	}

@@ -6,7 +6,6 @@
 package bindings
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -136,8 +135,18 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 	if config.HasOperation("operations") {
 		t.Run("operations", func(t *testing.T) {
 			ops := outputBinding.Operations()
-			for _, op := range ops {
-				assert.True(t, config.HasOperation(string(op)), fmt.Sprintf("Operation missing from conformance test config: %v", op))
+			for op := range config.Operations {
+				match := false
+				// remove all test related operation names
+				if strings.EqualFold(op, "operations") || strings.EqualFold(op, "read") {
+					continue
+				}
+				for _, o := range ops {
+					if strings.EqualFold(string(o), op) {
+						match = true
+					}
+				}
+				assert.Truef(t, match, "expected operation %s to match list", op)
 			}
 		})
 	}

@@ -50,6 +50,7 @@ require (
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.10
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
+	github.com/mitchellh/mapstructure v1.3.3
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0

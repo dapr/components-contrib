@@ -3,8 +3,8 @@ components:
   - component: redis
     allOperations: true
     config:
-      maxInitDuration: 30
-      maxSetDuration: 20
+      maxInitDuration: 5000
+      maxSetDuration: 300
   - component: mongodb
     allOperations: true
     config:

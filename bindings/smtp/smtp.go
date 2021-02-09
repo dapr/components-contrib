@@ -100,7 +100,7 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	}
 
 	// Log success
-	s.logger.Info("SMTP binding: sent email")
+	s.logger.Debug("SMTP binding: sent email")
 
 	return nil, nil
 }

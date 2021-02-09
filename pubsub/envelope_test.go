@@ -204,16 +204,57 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "b", n["topic"])
 		assert.Equal(t, "pubsub", n["pubsubname"])
 		assert.Equal(t, "1", n["traceid"])
+		assert.Nil(t, n["data"])
+		assert.Nil(t, n["data_base64"])
 	})
 
 	t.Run("invalid cloudevent", func(t *testing.T) {
 		_, err := FromCloudEvent([]byte("a"), "1", "", "")
 		assert.Error(t, err)
 	})
+
+	t.Run("valid cloudevent with text data", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "1.0",
+			"customfield": "a",
+			"data":        "hello world",
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "b", "pubsub", "1")
+		assert.NoError(t, err)
+		assert.Equal(t, "1.0", n["specversion"])
+		assert.Equal(t, "a", n["customfield"])
+		assert.Equal(t, "b", n["topic"])
+		assert.Equal(t, "pubsub", n["pubsubname"])
+		assert.Equal(t, "1", n["traceid"])
+		assert.Nil(t, n["data_base64"])
+		assert.Equal(t, "hello world", n["data"])
+	})
+
+	t.Run("valid cloudevent with binary data", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "1.0",
+			"customfield": "a",
+			"data_base64": base64.StdEncoding.EncodeToString([]byte{0x1}),
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "b", "pubsub", "1")
+		assert.NoError(t, err)
+		assert.Equal(t, "1.0", n["specversion"])
+		assert.Equal(t, "a", n["customfield"])
+		assert.Equal(t, "b", n["topic"])
+		assert.Equal(t, "pubsub", n["pubsubname"])
+		assert.Equal(t, "1", n["traceid"])
+		assert.Nil(t, n["data"])
+		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0x1}), n["data_base64"])
+	})
 }
 
 func TestCreateFromBinaryPayload(t *testing.T) {
 	base64Encoding := base64.StdEncoding.EncodeToString([]byte{0x1})
 	envelope := NewCloudEventsEnvelope("", "", "", "", "", "", "application/octet-stream", []byte{0x1}, "trace")
-	assert.Equal(t, base64Encoding, envelope[DataField])
+	assert.Equal(t, base64Encoding, envelope[DataBase64Field])
+	assert.Nil(t, envelope[DataField])
 }

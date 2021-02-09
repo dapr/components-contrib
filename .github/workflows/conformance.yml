@@ -133,6 +133,7 @@ jobs:
         export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
         echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
+        cat /tmp/ngrok.log
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs

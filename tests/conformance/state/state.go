@@ -6,12 +6,10 @@
 package state
 
 import (
-	"encoding/json"
 	"fmt"
-	"strconv"
+	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
@@ -24,18 +22,18 @@ type ValueType struct {
 	Message string `json:"message"`
 }
 
-const (
-	defaultDuration         = 10 * time.Millisecond
-	defaultBulkRequestCount = 10
-)
+type scenario struct {
+	key                  string
+	value                interface{}
+	expectedReadResponse []byte
+	toBeDeleted          bool
+	bulkOnly             bool
+	transactionOnly      bool
+	transactionGroup     int
+}
 
 type TestConfig struct {
 	utils.CommonConfig
-	maxInitDuration   time.Duration
-	maxSetDuration    time.Duration
-	maxGetDuration    time.Duration
-	maxDeleteDuration time.Duration
-	numBulkRequests   int
 }
 
 func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]string) TestConfig {
@@ -46,246 +44,336 @@ func NewTestConfig(component string, allOperations bool, operations []string, co
 			AllOperations: allOperations,
 			Operations:    sets.NewString(operations...),
 		},
-		maxInitDuration:   defaultDuration,
-		maxSetDuration:    defaultDuration,
-		maxGetDuration:    defaultDuration,
-		maxDeleteDuration: defaultDuration,
-		numBulkRequests:   defaultBulkRequestCount,
-	}
-	if val, ok := conf["maxInitDuration"]; ok {
-		v, err := strconv.Atoi(val)
-		if err == nil {
-			tc.maxInitDuration = time.Duration(v) * time.Millisecond
-		}
-	}
-	if val, ok := conf["maxSetDuration"]; ok {
-		v, err := strconv.Atoi(val)
-		if err == nil {
-			tc.maxSetDuration = time.Duration(v) * time.Millisecond
-		}
-	}
-	if val, ok := conf["maxGetDuration"]; ok {
-		v, err := strconv.Atoi(val)
-		if err == nil {
-			tc.maxGetDuration = time.Duration(v) * time.Millisecond
-		}
-	}
-	if val, ok := conf["maxDeleteDuration"]; ok {
-		v, err := strconv.Atoi(val)
-		if err == nil {
-			tc.maxDeleteDuration = time.Duration(v) * time.Millisecond
-		}
-	}
-	if val, ok := conf["numBulkRequests"]; ok {
-		v, err := strconv.Atoi(val)
-		if err == nil {
-			tc.numBulkRequests = v
-		}
 	}
 
 	return tc
 }
 
-/*
-	State store component tests
-*/
+// ConformanceTests runs conf tests for state store,
 func ConformanceTests(t *testing.T, props map[string]string, statestore state.Store, config TestConfig) {
 	// Test vars
 	key := strings.ReplaceAll(uuid.New().String(), "-", "")
 	t.Logf("Base key for test: %s", key)
-	b, _ := json.Marshal(ValueType{Message: "test"})
-	value := b
 
-	// Init
+	scenarios := []scenario{
+		{
+			key:                  fmt.Sprintf("%s-int", key),
+			value:                123,
+			expectedReadResponse: []byte("123"),
+		},
+		{
+			key:                  fmt.Sprintf("%s-bool", key),
+			value:                true,
+			expectedReadResponse: []byte("true"),
+		},
+		{
+			key:                  fmt.Sprintf("%s-bytes", key),
+			value:                []byte{0x1},
+			expectedReadResponse: []byte{0x1},
+		},
+		{
+			key:                  fmt.Sprintf("%s-string", key),
+			value:                "hello world",
+			expectedReadResponse: []byte("\"hello world\""),
+		},
+		{
+			key:                  fmt.Sprintf("%s-struct", key),
+			value:                ValueType{Message: "test"},
+			expectedReadResponse: []byte("{\"message\":\"test\"}"),
+		},
+		{
+			key:                  fmt.Sprintf("%s-to-be-deleted", key),
+			value:                "to be deleted",
+			expectedReadResponse: []byte("\"to be deleted\""),
+			toBeDeleted:          true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-int", key),
+			value:                123,
+			expectedReadResponse: []byte("123"),
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-bool", key),
+			value:                true,
+			expectedReadResponse: []byte("true"),
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-bytes", key),
+			value:                []byte{0x1},
+			expectedReadResponse: []byte{0x1},
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-string", key),
+			value:                "hello world",
+			expectedReadResponse: []byte("\"hello world\""),
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-struct", key),
+			value:                ValueType{Message: "test"},
+			expectedReadResponse: []byte("{\"message\":\"test\"}"),
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-to-be-deleted", key),
+			value:                "to be deleted",
+			expectedReadResponse: []byte("\"to be deleted\""),
+			toBeDeleted:          true,
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
+			value:                "to be deleted too",
+			expectedReadResponse: []byte("\"to be deleted too\""),
+			toBeDeleted:          true,
+			bulkOnly:             true,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-int", key),
+			value:                123,
+			expectedReadResponse: []byte("123"),
+			transactionOnly:      true,
+			transactionGroup:     1,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-bool", key),
+			value:                true,
+			expectedReadResponse: []byte("true"),
+			transactionOnly:      true,
+			transactionGroup:     1,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-bytes", key),
+			value:                []byte{0x1},
+			expectedReadResponse: []byte{0x1},
+			transactionOnly:      true,
+			transactionGroup:     1,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-string", key),
+			value:                "hello world",
+			expectedReadResponse: []byte("\"hello world\""),
+			transactionOnly:      true,
+			transactionGroup:     1,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-struct", key),
+			value:                ValueType{Message: "test"},
+			expectedReadResponse: []byte("{\"message\":\"test\"}"),
+			transactionOnly:      true,
+			transactionGroup:     2,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-to-be-deleted", key),
+			value:                "to be deleted",
+			expectedReadResponse: []byte("\"to be deleted\""),
+			toBeDeleted:          true,
+			transactionOnly:      true,
+			transactionGroup:     1,
+		},
+		{
+			key:                  fmt.Sprintf("%s-trx-to-be-deleted-too", key),
+			value:                "to be deleted too",
+			expectedReadResponse: []byte("\"to be deleted too\""),
+			toBeDeleted:          true,
+			transactionOnly:      true,
+			transactionGroup:     3,
+		},
+	}
+
 	t.Run("init", func(t *testing.T) {
-		start := time.Now()
 		err := statestore.Init(state.Metadata{
 			Properties: props,
 		})
-		elapsed := time.Since(start)
 		assert.Nil(t, err)
-		assert.Lessf(t, elapsed.Microseconds(), config.maxInitDuration.Microseconds(),
-			"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), config.maxDeleteDuration.Microseconds())
 	})
 
 	if config.HasOperation("set") {
-		// Set
 		t.Run("set", func(t *testing.T) {
-			setReq := &state.SetRequest{
-				Key:   key,
-				Value: value,
+			for _, scenario := range scenarios {
+				if !scenario.bulkOnly && !scenario.transactionOnly {
+					t.Logf("Setting value for %s", scenario.key)
+					err := statestore.Set(&state.SetRequest{
+						Key:   scenario.key,
+						Value: scenario.value,
+					})
+					assert.Nil(t, err)
+				}
 			}
-			start := time.Now()
-			err := statestore.Set(setReq)
-			elapsed := time.Since(start)
-			assert.Nil(t, err)
-			assert.Lessf(t, elapsed.Microseconds(), config.maxSetDuration.Microseconds(),
-				"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), config.maxSetDuration.Microseconds())
 		})
 	}
 
 	if config.HasOperation("get") {
-		// Get
 		t.Run("get", func(t *testing.T) {
-			getReq := &state.GetRequest{
-				Key: key,
+			for _, scenario := range scenarios {
+				if !scenario.bulkOnly && !scenario.transactionOnly {
+					t.Logf("Checking value presence for %s", scenario.key)
+					res, err := statestore.Get(&state.GetRequest{
+						Key: scenario.key,
+					})
+					assert.Nil(t, err)
+					assert.Equal(t, scenario.expectedReadResponse, res.Data)
+				}
 			}
-			start := time.Now()
-			getRes, err := statestore.Get(getReq)
-			elapsed := time.Since(start)
-			assert.Nil(t, err)
-			assert.Equal(t, value, getRes.Data)
-			assert.Lessf(t, elapsed.Microseconds(), config.maxGetDuration.Microseconds(),
-				"test took %v but must complete in less than %v", elapsed.Microseconds(), config.maxGetDuration.Microseconds())
 		})
 	}
 
 	if config.HasOperation("delete") {
-		// Delete
 		t.Run("delete", func(t *testing.T) {
-			delReq := &state.DeleteRequest{
-				Key: key,
+			for _, scenario := range scenarios {
+				if !scenario.bulkOnly && scenario.toBeDeleted {
+					t.Logf("Deleting %s", scenario.key)
+					err := statestore.Delete(&state.DeleteRequest{
+						Key: scenario.key,
+					})
+					assert.Nil(t, err)
+
+					t.Logf("Checking value absence for %s", scenario.key)
+					res, err := statestore.Get(&state.GetRequest{
+						Key: scenario.key,
+					})
+					assert.Nil(t, err)
+					assert.Nil(t, res.Data)
+				}
 			}
-			start := time.Now()
-			err := statestore.Delete(delReq)
-			elapsed := time.Since(start)
-			assert.Nil(t, err)
-			assert.Lessf(t, elapsed.Microseconds(), config.maxDeleteDuration.Microseconds(),
-				"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), config.maxDeleteDuration.Microseconds())
 		})
 	}
 
-	if config.HasOperation("bulkset") || config.HasOperation("bulkdelete") {
-		// Bulk test vars
-		var bulkSetReqs []state.SetRequest
-		var bulkDeleteReqs []state.DeleteRequest
-		for k := 0; k < config.numBulkRequests; k++ {
-			bkey := fmt.Sprintf("%s-%d", key, k)
-			bulkSetReqs = append(bulkSetReqs, state.SetRequest{
-				Key:   bkey,
-				Value: value,
-			})
-			bulkDeleteReqs = append(bulkDeleteReqs, state.DeleteRequest{
-				Key: bkey,
-			})
-		}
+	if config.HasOperation("bulkset") {
+		t.Run("bulkset", func(t *testing.T) {
+			var bulk []state.SetRequest
+			for _, scenario := range scenarios {
+				if scenario.bulkOnly {
+					t.Logf("Adding set request to bulk for %s", scenario.key)
+					bulk = append(bulk, state.SetRequest{
+						Key:   scenario.key,
+						Value: scenario.value,
+					})
+				}
+			}
+			err := statestore.BulkSet(bulk)
+			assert.Nil(t, err)
 
-		if config.HasOperation("bulkset") {
-			// BulkSet
-			t.Run("bulkset", func(t *testing.T) {
-				start := time.Now()
-				err := statestore.BulkSet(bulkSetReqs)
-				elapsed := time.Since(start)
-				maxElapsed := config.maxSetDuration * time.Duration(config.numBulkRequests) // assumes at least linear scale
-				assert.Nil(t, err)
-				assert.Lessf(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
-					"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
-				for k := 0; k < config.numBulkRequests; k++ {
-					bkey := fmt.Sprintf("%s-%d", key, k)
-					greq := &state.GetRequest{
-						Key: bkey,
-					}
-					_, err = statestore.Get(greq)
+			for _, scenario := range scenarios {
+				if scenario.bulkOnly {
+					t.Logf("Checking value presence for %s", scenario.key)
+					// Data should have been inserted at this point
+					res, err := statestore.Get(&state.GetRequest{
+						Key: scenario.key,
+					})
 					assert.Nil(t, err)
+					assert.Equal(t, scenario.expectedReadResponse, res.Data)
 				}
-			})
-		}
+			}
+		})
+	}
 
-		// BulkGet is not implemented yet in state/store.go
-
-		if config.HasOperation("bulkdelete") {
-			// BulkDelete
-			t.Run("bulkdelete", func(t *testing.T) {
-				start := time.Now()
-				err := statestore.BulkDelete(bulkDeleteReqs)
-				elapsed := time.Since(start)
-				maxElapsed := config.maxDeleteDuration * time.Duration(config.numBulkRequests) // assumes at least linear scale
-				assert.Nil(t, err)
-				assert.Lessf(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
-					"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
-			})
-		}
-
-		if config.HasOperation("transaction") {
-			t.Run("transaction", func(t *testing.T) {
-				// We do not test failure transactions because each database has their own failure conditions.
-				saveReq := &state.TransactionalStateRequest{
-					Operations: []state.TransactionalStateOperation{
-						{
-							Operation: state.Upsert,
-							Request: state.SetRequest{
-								Key:   fmt.Sprintf("%s-transactionstate", key),
-								Value: "hello world",
-							},
-						},
-						{
-							Operation: state.Upsert,
-							Request: state.SetRequest{
-								Key:   fmt.Sprintf("%s-to-be-deleted", key),
-								Value: "hello world",
-							},
-						},
-					},
-					// For CosmosDB
-					Metadata: map[string]string{
-						"partitionKey": "myPartition",
-					},
+	if config.HasOperation("bulkdelete") {
+		t.Run("bulkdelete", func(t *testing.T) {
+			var bulk []state.DeleteRequest
+			for _, scenario := range scenarios {
+				if scenario.bulkOnly && scenario.toBeDeleted {
+					t.Logf("Adding delete request to bulk for %s", scenario.key)
+					bulk = append(bulk, state.DeleteRequest{
+						Key: scenario.key,
+					})
 				}
+			}
+			err := statestore.BulkDelete(bulk)
+			assert.Nil(t, err)
 
-				deleteReq := &state.TransactionalStateRequest{
-					Operations: []state.TransactionalStateOperation{
-						{
-							Operation: state.Delete,
-							Request: state.DeleteRequest{
-								Key: fmt.Sprintf("%s-to-be-deleted", key),
-							},
-						},
-					},
-					// For CosmosDB
-					Metadata: map[string]string{
-						"partitionKey": "myPartition",
-					},
-				}
-
-				reqCount := 0
-				transactionStore := statestore.(state.TransactionalStore)
-				start := time.Now()
-
-				// Save
-				err := transactionStore.Multi(saveReq)
-				reqCount = reqCount + 1
-				assert.Nil(t, err)
-
-				// Delete
-				err = transactionStore.Multi(deleteReq)
-				reqCount = reqCount + 1
-				assert.Nil(t, err)
-
-				elapsed := time.Since(start)
-				maxElapsed := config.maxSetDuration * time.Duration(reqCount) // assumes at least linear scale
-				assert.Lessf(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
-					"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
-
+			for _, req := range bulk {
+				t.Logf("Checking value absence for %s", req.Key)
 				res, err := statestore.Get(&state.GetRequest{
-					Key: fmt.Sprintf("%s-transactionstate", key),
-					// For CosmosDB
-					Metadata: map[string]string{
-						"partitionKey": "myPartition",
-					},
-				})
-				assert.Nil(t, err)
-				assert.NotNil(t, res.Data)
-
-				res, err = statestore.Get(&state.GetRequest{
-					Key: fmt.Sprintf("%s-to-be-deleted", key),
-					// For CosmosDB
-					Metadata: map[string]string{
-						"partitionKey": "myPartition",
-					},
+					Key: req.Key,
 				})
 				assert.Nil(t, err)
 				assert.Nil(t, res.Data)
-			})
-		}
+			}
+		})
+	}
+
+	if config.HasOperation("transaction") {
+		t.Run("transaction", func(t *testing.T) {
+			var transactionGroups []int
+			transactions := map[int][]state.TransactionalStateOperation{}
+			for _, scenario := range scenarios {
+				if scenario.transactionOnly {
+					if transactions[scenario.transactionGroup] == nil {
+						transactionGroups = append(transactionGroups, scenario.transactionGroup)
+					}
+					transactions[scenario.transactionGroup] = append(
+						transactions[scenario.transactionGroup], state.TransactionalStateOperation{
+							Operation: state.Upsert,
+							Request: state.SetRequest{
+								Key:   scenario.key,
+								Value: scenario.value,
+							},
+						})
+
+					// Deletion happens in the following transaction.
+					if scenario.toBeDeleted {
+						if transactions[scenario.transactionGroup+1] == nil {
+							transactionGroups = append(transactionGroups, scenario.transactionGroup+1)
+						}
+						transactions[scenario.transactionGroup+1] = append(
+							transactions[scenario.transactionGroup+1], state.TransactionalStateOperation{
+								Operation: state.Delete,
+								Request: state.DeleteRequest{
+									Key: scenario.key,
+								},
+							})
+					}
+				}
+			}
+
+			transactionStore := statestore.(state.TransactionalStore)
+			sort.Ints(transactionGroups)
+			for _, transactionGroup := range transactionGroups {
+				t.Logf("Testing transaction #%d", transactionGroup)
+				err := transactionStore.Multi(&state.TransactionalStateRequest{
+					Operations: transactions[transactionGroup],
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
+				for _, scenario := range scenarios {
+					if scenario.transactionOnly {
+						if scenario.transactionGroup == transactionGroup {
+							t.Logf("Checking value presence for %s", scenario.key)
+							// Data should have been inserted at this point
+							res, err := statestore.Get(&state.GetRequest{
+								Key: scenario.key,
+								// For CosmosDB
+								Metadata: map[string]string{
+									"partitionKey": "myPartition",
+								},
+							})
+							assert.Nil(t, err)
+							assert.Equal(t, scenario.expectedReadResponse, res.Data)
+						}
+
+						if scenario.toBeDeleted && (scenario.transactionGroup == transactionGroup-1) {
+							t.Logf("Checking value absence for %s", scenario.key)
+							// Data should have been deleted at this point
+							res, err := statestore.Get(&state.GetRequest{
+								Key: scenario.key,
+								// For CosmosDB
+								Metadata: map[string]string{
+									"partitionKey": "myPartition",
+								},
+							})
+							assert.Nil(t, err)
+							assert.Nil(t, res.Data)
+						}
+					}
+				}
+			}
+		})
 	}
 }

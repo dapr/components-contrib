@@ -574,14 +574,6 @@ func (c *CRDT) Set(req *state.SetRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultOperationTimeout)
 	defer cancel()
 
-	var bt []byte
-	b, ok := req.Value.([]byte)
-	if ok {
-		bt = b
-	} else {
-		bt, _ = c.json.Marshal(req.Value)
-	}
-
 	client := c.getClient()
 	var etag string
 	if req.ETag != nil {
@@ -592,7 +584,7 @@ func (c *CRDT) Set(req *state.SetRequest) error {
 		Key:  req.Key,
 		Etag: etag,
 		Value: &any.Any{
-			Value: bt,
+			Value: req.Value,
 		},
 	})
 

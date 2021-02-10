@@ -14,7 +14,6 @@ import (
 	"cloud.google.com/go/datastore"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/api/option"
 )
 
@@ -103,16 +102,8 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 		return err
 	}
 
-	var v string
-	b, ok := req.Value.([]byte)
-	if ok {
-		v = string(b)
-	} else {
-		v, _ = jsoniter.MarshalToString(req.Value)
-	}
-
 	entity := &StateEntity{
-		Value: v,
+		Value: string(req.Value),
 	}
 	ctx := context.Background()
 	key := datastore.NameKey(f.entityKind, req.Key, nil)

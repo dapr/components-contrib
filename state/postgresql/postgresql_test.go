@@ -154,7 +154,7 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 func createSetRequest() state.SetRequest {
 	return state.SetRequest{
 		Key:   randomKey(),
-		Value: randomJSON(),
+		Value: fakeItem2ByteArray(randomJSON()),
 	}
 }
 

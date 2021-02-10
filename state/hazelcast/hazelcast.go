@@ -78,16 +78,7 @@ func (store *Hazelcast) Set(req *state.SetRequest) error {
 		return err
 	}
 
-	var value string
-	b, ok := req.Value.([]byte)
-	if ok {
-		value = string(b)
-	} else {
-		value, err = store.json.MarshalToString(req.Value)
-		if err != nil {
-			return fmt.Errorf("hazelcast error: failed to set key %s: %s", req.Key, err)
-		}
-	}
+	value := string(req.Value)
 	_, err = store.hzMap.Put(req.Key, value)
 
 	if err != nil {

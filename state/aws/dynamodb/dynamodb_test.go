@@ -170,10 +170,6 @@ func TestGet(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	type value struct {
-		Value string
-	}
-
 	t.Run("Successfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
@@ -183,7 +179,7 @@ func TestSet(t *testing.T) {
 							S: aws.String("key"),
 						},
 						"value": {
-							S: aws.String(`{"Value":"value"}`),
+							S: aws.String("value"),
 						},
 					}, input.Item)
 
@@ -198,10 +194,8 @@ func TestSet(t *testing.T) {
 			},
 		}
 		req := &state.SetRequest{
-			Key: "key",
-			Value: value{
-				Value: "value",
-			},
+			Key:   "key",
+			Value: []byte("value"),
 		}
 		err := ss.Set(req)
 		assert.Nil(t, err)
@@ -215,10 +209,8 @@ func TestSet(t *testing.T) {
 			},
 		}
 		req := &state.SetRequest{
-			Key: "key",
-			Value: value{
-				Value: "value",
-			},
+			Key:   "key",
+			Value: []byte("value"),
 		}
 		err := ss.Set(req)
 		assert.NotNil(t, err)
@@ -226,10 +218,6 @@ func TestSet(t *testing.T) {
 }
 
 func TestBulkSet(t *testing.T) {
-	type value struct {
-		Value string
-	}
-
 	t.Run("Successfully set items", func(t *testing.T) {
 		tableName := "table_name"
 		ss := StateStore{
@@ -244,7 +232,7 @@ func TestBulkSet(t *testing.T) {
 										S: aws.String("key1"),
 									},
 									"value": {
-										S: aws.String(`{"Value":"value1"}`),
+										S: aws.String("value1"),
 									},
 								},
 							},
@@ -256,7 +244,7 @@ func TestBulkSet(t *testing.T) {
 										S: aws.String("key2"),
 									},
 									"value": {
-										S: aws.String(`{"Value":"value2"}`),
+										S: aws.String("value2"),
 									},
 								},
 							},
@@ -273,16 +261,12 @@ func TestBulkSet(t *testing.T) {
 		}
 		req := []state.SetRequest{
 			{
-				Key: "key1",
-				Value: value{
-					Value: "value1",
-				},
+				Key:   "key1",
+				Value: []byte("value1"),
 			},
 			{
-				Key: "key2",
-				Value: value{
-					Value: "value2",
-				},
+				Key:   "key2",
+				Value: []byte("value2"),
 			},
 		}
 		err := ss.BulkSet(req)
@@ -298,10 +282,8 @@ func TestBulkSet(t *testing.T) {
 		}
 		req := []state.SetRequest{
 			{
-				Key: "key",
-				Value: value{
-					Value: "value",
-				},
+				Key:   "key",
+				Value: []byte("value"),
 			},
 		}
 		err := ss.BulkSet(req)

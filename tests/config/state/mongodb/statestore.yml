@@ -7,3 +7,5 @@ spec:
   metadata:
   - name: host
     value: localhost:27017
+  - name: params
+    value: replicaSet=test-rs

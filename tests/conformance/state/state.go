@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -89,7 +91,8 @@ func NewTestConfig(component string, allOperations bool, operations []string, co
 */
 func ConformanceTests(t *testing.T, props map[string]string, statestore state.Store, config TestConfig) {
 	// Test vars
-	key := "testkey"
+	key := strings.ReplaceAll(uuid.New().String(), "-", "")
+	t.Logf("Base key for test: %s", key)
 	b, _ := json.Marshal(ValueType{Message: "test"})
 	value := b
 
@@ -200,6 +203,88 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assert.Nil(t, err)
 				assert.Lessf(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
 					"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
+			})
+		}
+
+		if config.HasOperation("transaction") {
+			t.Run("transaction", func(t *testing.T) {
+				// We do not test failure transactions because each database has their own failure conditions.
+				saveReq := &state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{
+							Operation: state.Upsert,
+							Request: state.SetRequest{
+								Key:   fmt.Sprintf("%s-transactionstate", key),
+								Value: "hello world",
+							},
+						},
+						{
+							Operation: state.Upsert,
+							Request: state.SetRequest{
+								Key:   fmt.Sprintf("%s-to-be-deleted", key),
+								Value: "hello world",
+							},
+						},
+					},
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				}
+
+				deleteReq := &state.TransactionalStateRequest{
+					Operations: []state.TransactionalStateOperation{
+						{
+							Operation: state.Delete,
+							Request: state.DeleteRequest{
+								Key: fmt.Sprintf("%s-to-be-deleted", key),
+							},
+						},
+					},
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				}
+
+				reqCount := 0
+				transactionStore := statestore.(state.TransactionalStore)
+				start := time.Now()
+
+				// Save
+				err := transactionStore.Multi(saveReq)
+				reqCount = reqCount + 1
+				assert.Nil(t, err)
+
+				// Delete
+				err = transactionStore.Multi(deleteReq)
+				reqCount = reqCount + 1
+				assert.Nil(t, err)
+
+				elapsed := time.Since(start)
+				maxElapsed := config.maxSetDuration * time.Duration(reqCount) // assumes at least linear scale
+				assert.Lessf(t, elapsed.Microseconds(), maxElapsed.Microseconds(),
+					"test took %dμs but must complete in less than %dμs", elapsed.Microseconds(), maxElapsed.Microseconds())
+
+				res, err := statestore.Get(&state.GetRequest{
+					Key: fmt.Sprintf("%s-transactionstate", key),
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
+				assert.NotNil(t, res.Data)
+
+				res, err = statestore.Get(&state.GetRequest{
+					Key: fmt.Sprintf("%s-to-be-deleted", key),
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
+				assert.Nil(t, res.Data)
 			})
 		}
 	}

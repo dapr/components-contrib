@@ -2,24 +2,7 @@ componentType: state
 components:
   - component: redis
     allOperations: true
-    config:
-      maxInitDuration: 5000
-      maxSetDuration: 300
   - component: mongodb
     allOperations: true
-    config:
-      maxInitDuration: 900
-      maxSetDuration: 700
-      maxGetDuration: 300
-      maxBulkSetDuration: 300
-      maxBulkDeleteDuration: 600
-      maxDeleteDuration: 300
   - component: cosmosdb
     allOperations: true
-    config:
-      maxInitDuration: 900
-      maxSetDuration: 300
-      maxGetDuration: 300
-      maxBulkSetDuration: 300
-      maxBulkDeleteDuration: 300
-      maxDeleteDuration: 300

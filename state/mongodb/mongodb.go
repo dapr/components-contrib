@@ -167,6 +167,12 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
+		if err.Error() == "mongo: no documents in result" {
+			// Key not found, not an error.
+			// To behave the same as other state stores in conf tests.
+			return &state.GetResponse{}, nil
+		}
+
 		return &state.GetResponse{}, err
 	}
 

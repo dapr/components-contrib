@@ -84,7 +84,7 @@ jobs:
       cron-components: ${{ steps.cron-components.outputs.cron-components }}
 
   conformance:
-    name: conformance
+    name: ${{ matrix.component }} conformance
     runs-on: ubuntu-latest
     defaults:
       run:

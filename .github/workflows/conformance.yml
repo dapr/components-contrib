@@ -32,6 +32,7 @@ jobs:
         - bindings.kafka
         - bindings.redis
         - pubsub.redis
+        - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
         - state.mongodb
@@ -166,6 +167,16 @@ jobs:
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml up -d
       if: contains(matrix.component, 'kafka')
+
+    - name: Start KinD
+      uses: helm/kind-action@v1.0.0
+      if: contains(matrix.component, 'kubernetes')
+
+    - name: Setup KinD test data
+      if: contains(matrix.component, 'kubernetes')
+      run: |
+        kubectl apply -f tests/config/kind-data.yaml
+        echo "NAMESPACE=default" >> $GITHUB_ENV
 
     - name: Set up Go
       uses: actions/setup-go@v2

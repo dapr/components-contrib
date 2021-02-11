@@ -41,6 +41,7 @@ export GOOS ?= $(TARGET_OS_LOCAL)
 ifeq ($(GOOS),windows)
 BINARY_EXT_LOCAL:=.exe
 GOLANGCI_LINT:=golangci-lint.exe
+# Workaround for https://github.com/golang/go/issues/40795
 BUILDMODE:=-buildmode=exe
 else
 BINARY_EXT_LOCAL:=

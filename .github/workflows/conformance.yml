@@ -134,6 +134,8 @@ jobs:
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
         echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
         cat /tmp/ngrok.log
+        # Schedule trigger to kill ngrok
+        bash -c "sleep 500 && pkill ngrok" &
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs
@@ -168,6 +170,7 @@ jobs:
       uses: actions/setup-go@v2
 
     - name: Run tests
+      continue-on-error: true
       run: |
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
         NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
@@ -187,6 +190,11 @@ jobs:
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
+
+    - name: Stop ngrok
+      if: contains(matrix.component, 'azure.eventgrid')
+      continue-on-error: true
+      run: pkill ngrok; cat /tmp/ngrok.log
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs

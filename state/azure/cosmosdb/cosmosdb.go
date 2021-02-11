@@ -1,11 +1,12 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
 package cosmosdb
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -39,6 +40,7 @@ type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
+	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
 }
 
@@ -166,6 +168,15 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, err
 	} else if len(items) == 0 {
 		return &state.GetResponse{}, nil
+	}
+
+	if items[0].IsBinary {
+		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+
+		return &state.GetResponse{
+			Data: bytes,
+			ETag: items[0].Etag,
+		}, nil
 	}
 
 	b, err := jsoniter.ConfigFastest.Marshal(&items[0].Value)
@@ -324,17 +335,12 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 }
 
 func createUpsertItem(req state.SetRequest, partitionKey string) CosmosItem {
-	if b, ok := req.Value.([]uint8); ok {
-		// data arrived in bytes and already json.  Don't marshal the Value field again.
-		return CosmosItem{
-			ID:           req.Key,
-			Value:        json.RawMessage(b),
-			PartitionKey: partitionKey}
-	}
+	_, isBinary := req.Value.([]uint8)
 
 	return CosmosItem{
 		ID:           req.Key,
 		Value:        req.Value,
 		PartitionKey: partitionKey,
+		IsBinary:     isBinary,
 	}
 }

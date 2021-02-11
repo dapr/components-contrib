@@ -11,7 +11,7 @@ components:
   - component: azure.eventgrid
     operations: ["create", "operations", "read"]
     config:
-      readBindingTimeout: 120
+      readBindingTimeout: 240
   - component: azure.storagequeues
     operations: ["create", "operations", "read"]
   - component: azure.servicebusqueues

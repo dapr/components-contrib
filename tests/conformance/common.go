@@ -28,6 +28,7 @@ import (
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
+	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	"github.com/dapr/components-contrib/state"
@@ -271,12 +272,14 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	var store secretstores.SecretStore
 	switch tc.Component {
-	case "localfile":
-		store = ss_local_file.NewLocalSecretStore(testLogger)
-	case "localenv":
-		store = ss_local_env.NewEnvSecretStore(testLogger)
 	case "azure.keyvault":
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
+	case "kubernetes":
+		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)
+	case "localenv":
+		store = ss_local_env.NewEnvSecretStore(testLogger)
+	case "localfile":
+		store = ss_local_file.NewLocalSecretStore(testLogger)
 	default:
 		return nil
 	}

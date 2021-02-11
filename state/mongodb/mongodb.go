@@ -172,6 +172,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 			// To behave the same as other state stores in conf tests.
 			return &state.GetResponse{}, nil
 		}
+
 		return &state.GetResponse{}, err
 	}
 

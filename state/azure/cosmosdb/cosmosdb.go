@@ -172,6 +172,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	if items[0].IsBinary {
 		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+
 		return &state.GetResponse{
 			Data: bytes,
 			ETag: items[0].Etag,

@@ -49,7 +49,7 @@ func NewTestConfig(component string, allOperations bool, operations []string, co
 	return tc
 }
 
-// ConformanceTests runs conf tests for state store,
+// ConformanceTests runs conf tests for state store.
 func ConformanceTests(t *testing.T, props map[string]string, statestore state.Store, config TestConfig) {
 	// Test vars
 	key := strings.ReplaceAll(uuid.New().String(), "-", "")
@@ -70,6 +70,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			key:                  fmt.Sprintf("%s-bytes", key),
 			value:                []byte{0x1},
 			expectedReadResponse: []byte{0x1},
+		},
+		{
+			key:                  fmt.Sprintf("%s-string-with-json", key),
+			value:                "{\"a\":\"b\"}",
+			expectedReadResponse: []byte("\"{\\\"a\\\":\\\"b\\\"}\""),
 		},
 		{
 			key:                  fmt.Sprintf("%s-string", key),
@@ -296,6 +301,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	}
 
+	// nolint: nestif
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
 			var transactionGroups []int

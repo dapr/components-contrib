@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: servicebusqueue-binding
+  namespace: default
+spec:
+  type: bindings.azure.servicebusqueues
+  version: v1
+  metadata:
+  - name: connectionString
+    value: ${{AzureServiceBusConnectionString}}
+  - name: queueName
+    value: conf-tests
+  - name: ttlInSeconds
+    value: 60

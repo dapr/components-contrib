@@ -47,8 +47,7 @@ func TestCreateCosmosItem(t *testing.T) {
 	})
 
 	t.Run("create item for JSON bytes", func(t *testing.T) {
-		// We have special handling for bytes, we assume that it's UTF-8 text containing
-		// JSON and special case it to avoid the serializer turning it into a base64 encoded string
+		// Bytes are handled the same way, does not matter if is JSON or JPEG.
 		bytes, err := json.Marshal(value)
 		assert.NoError(t, err)
 
@@ -70,9 +69,9 @@ func TestCreateCosmosItem(t *testing.T) {
 		assert.NoError(t, err)
 
 		value := j["value"]
-		m, ok := value.(map[string]interface{})
-		assert.Truef(t, ok, "value should be a map")
+		m, ok := value.(string)
+		assert.Truef(t, ok, "value should be a string")
 
-		assert.Equal(t, "red", m["color"])
+		assert.Equal(t, "eyJjb2xvciI6InJlZCJ9", m)
 	})
 }

@@ -41,6 +41,7 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
+	github.com/gorilla/mux v1.7.3
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.3.0
 	github.com/hashicorp/go-multierror v1.0.0
@@ -49,6 +50,7 @@ require (
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.10
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
+	github.com/mitchellh/mapstructure v1.3.3
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
@@ -70,7 +72,9 @@ require (
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201022181438-0ff5f38871d5
 	google.golang.org/grpc v1.33.1
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.0
 	k8s.io/apiextensions-apiserver v0.17.2

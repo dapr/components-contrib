@@ -63,7 +63,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
 			var warningLogged bool
-			backoff.RetryNotify(func() error {
+			err := backoff.RetryNotify(func() error {
 				err := consumer.callback(&pubsub.NewMessage{
 					Topic: claim.Topic(),
 					Data:  message.Value,
@@ -71,7 +71,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				if err == nil {
 					session.MarkMessage(message, "")
 					if warningLogged {
-						consumer.k.logger.Warnf("Kafka message processed successfully after previously failing: %s/%d [key=%s]", message.Topic, message.Partition, message.Key)
+						consumer.k.logger.Infof("Kafka message processed successfully after previously failing: %s/%d [key=%s]", message.Topic, message.Partition, message.Key)
 						warningLogged = false
 					}
 				}
@@ -82,15 +82,10 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 					warningLogged = true
 				}
 			})
-			err := consumer.callback(&pubsub.NewMessage{
-				Topic: claim.Topic(),
-				Data:  message.Value,
-			})
+
 			if err != nil {
 				return err
 			}
-
-			session.MarkMessage(message, "")
 		}
 	}
 

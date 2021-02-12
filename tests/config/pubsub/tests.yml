@@ -8,4 +8,6 @@ components:
       maxReadDuration: 1000
   - component: redis
     allOperations: true
+  - component: natsstreaming
+    allOperations: true
   

@@ -61,9 +61,11 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				Topic: claim.Topic(),
 				Data:  message.Value,
 			})
-			if err == nil {
-				session.MarkMessage(message, "")
+			if err != nil {
+				return err
 			}
+
+			session.MarkMessage(message, "")
 		}
 	}
 
@@ -215,6 +217,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {
+			k.logger.Debugf("Starting loop to consume.")
 			// Consume the requested topic
 			innerError := k.cg.Consume(ctx, topics, &(k.consumer))
 			if innerError != nil {
@@ -224,6 +227,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
 			// us out of the consume loop
 			if ctx.Err() != nil {
+				k.logger.Debugf("Context error, stopping consumer: %v", ctx.Err())
 				return
 			}
 		}

@@ -13,25 +13,28 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
-	defaultPubsubName      = "pubusub"
-	defaultTopicName       = "testTopic"
-	defaultMessageCount    = 10
-	defaultMaxReadDuration = 10 * time.Millisecond
+	defaultPubsubName            = "pubusub"
+	defaultTopicName             = "testTopic"
+	defaultMessageCount          = 10
+	defaultMaxReadDuration       = 5 * time.Second
+	defaultWaitDurationToPublish = 5 * time.Second
 )
 
 type TestConfig struct {
 	utils.CommonConfig
-	pubsubName        string
-	testTopicName     string
-	publishMetadata   map[string]string
-	subscribeMetadata map[string]string
-	messageCount      int
-	maxReadDuration   time.Duration
+	pubsubName            string
+	testTopicName         string
+	publishMetadata       map[string]string
+	subscribeMetadata     map[string]string
+	messageCount          int
+	maxReadDuration       time.Duration
+	waitDurationToPublish time.Duration
 }
 
 func NewTestConfig(componentName string, allOperations bool, operations []string, config map[string]string) TestConfig {
@@ -67,6 +70,12 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 				tc.maxReadDuration = time.Duration(val) * time.Millisecond
 			}
 		}
+		if k == "waitDurationToPublish" {
+			val, err := strconv.Atoi(v)
+			if err == nil {
+				tc.waitDurationToPublish = time.Duration(val) * time.Millisecond
+			}
+		}
 		if strings.HasPrefix(k, "publish_") {
 			tc.publishMetadata[strings.Replace(k, "publish_", "", 1)] = v
 		}
@@ -92,6 +101,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
+	errorCount := 0
 	// Subscribe
 	if config.HasOperation("subscribe") {
 		t.Run("subscribe", func(t *testing.T) {
@@ -99,6 +109,18 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				Topic:    config.testTopicName,
 				Metadata: config.subscribeMetadata,
 			}, func(_ *pubsub.NewMessage) error {
+				// This behavior is standard to repro a failure of one message in a batch.
+				if errorCount < 2 {
+					// First message errors just to give time for more messages to pile up.
+					// Second error is to force an error in a batch.
+					errorCount++
+					// Sleep to allow messages to pile up and be delivered as a batch.
+					time.Sleep(2 * time.Second)
+					t.Logf("Simulating subscriber error")
+					return errors.Errorf("conf test simulated error")
+				}
+
+				t.Logf("Simulating subscriber success")
 				actualReadCount++
 
 				return nil
@@ -109,6 +131,9 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 	// Publish
 	if config.HasOperation("publish") {
+		// Some pubsub, like Kafka need to wait for Subscriber to be up before messages can be consumed.
+		// So, wait for some time here.
+		time.Sleep(config.waitDurationToPublish)
 		t.Run("publish", func(t *testing.T) {
 			for k := 0; k < config.messageCount; k++ {
 				data := []byte("message-" + strconv.Itoa(k))
@@ -127,7 +152,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	if config.HasOperation("subscribe") {
 		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.maxReadDuration)
-			time.Sleep(config.maxReadDuration)
+			time.Sleep(config.maxReadDuration * 5)
 			assert.LessOrEqual(t, config.messageCount, actualReadCount, "expected to read %v messages", config.messageCount)
 		})
 	}

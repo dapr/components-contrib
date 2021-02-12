@@ -25,6 +25,7 @@ import (
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
+	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
@@ -261,6 +262,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_redis.NewRedisStreams(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
+	case "kafka":
+		pubsub = p_kafka.NewKafka(testLogger)
 	default:
 		return nil
 	}

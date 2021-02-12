@@ -51,6 +51,7 @@ import (
 
 const (
 	redis        = "redis"
+	kafka        = "kafka"
 	generateUUID = "$((uuid))"
 )
 
@@ -262,7 +263,7 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_redis.NewRedisStreams(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
-	case "kafka":
+	case kafka:
 		pubsub = p_kafka.NewKafka(testLogger)
 	default:
 		return nil
@@ -317,7 +318,7 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
-	case "kafka":
+	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
@@ -338,7 +339,7 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
-	case "kafka":
+	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	default:
 		return nil

@@ -22,7 +22,7 @@ const (
 	defaultPubsubName            = "pubusub"
 	defaultTopicName             = "testTopic"
 	defaultMessageCount          = 10
-	defaultMaxReadDuration       = 5 * time.Second
+	defaultMaxReadDuration       = 20 * time.Second
 	defaultWaitDurationToPublish = 5 * time.Second
 )
 
@@ -44,12 +44,13 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 			ComponentName: componentName,
 			AllOperations: allOperations,
 			Operations:    sets.NewString(operations...)},
-		pubsubName:        defaultPubsubName,
-		testTopicName:     defaultTopicName,
-		messageCount:      defaultMessageCount,
-		maxReadDuration:   defaultMaxReadDuration,
-		publishMetadata:   map[string]string{},
-		subscribeMetadata: map[string]string{},
+		pubsubName:            defaultPubsubName,
+		testTopicName:         defaultTopicName,
+		messageCount:          defaultMessageCount,
+		maxReadDuration:       defaultMaxReadDuration,
+		waitDurationToPublish: defaultWaitDurationToPublish,
+		publishMetadata:       map[string]string{},
+		subscribeMetadata:     map[string]string{},
 	}
 	for k, v := range config {
 		if k == "pubsubName" {
@@ -117,6 +118,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					// Sleep to allow messages to pile up and be delivered as a batch.
 					time.Sleep(2 * time.Second)
 					t.Logf("Simulating subscriber error")
+
 					return errors.Errorf("conf test simulated error")
 				}
 
@@ -152,7 +154,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	if config.HasOperation("subscribe") {
 		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.maxReadDuration)
-			time.Sleep(config.maxReadDuration * 5)
+			time.Sleep(config.maxReadDuration)
 			assert.LessOrEqual(t, config.messageCount, actualReadCount, "expected to read %v messages", config.messageCount)
 		})
 	}

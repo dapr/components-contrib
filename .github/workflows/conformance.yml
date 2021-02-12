@@ -32,6 +32,7 @@ jobs:
         - bindings.kafka
         - bindings.redis
         - pubsub.redis
+        - pubsub.kafka
         - secretstores.localenv
         - secretstores.localfile
         - state.mongodb

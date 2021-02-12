@@ -5,7 +5,8 @@ components:
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
-      maxReadDuration: 1000
   - component: redis
+    allOperations: true
+  - component: kafka
     allOperations: true
   

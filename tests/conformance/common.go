@@ -25,6 +25,7 @@ import (
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
+	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
@@ -50,6 +51,7 @@ import (
 
 const (
 	redis        = "redis"
+	kafka        = "kafka"
 	generateUUID = "$((uuid))"
 )
 
@@ -261,6 +263,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_redis.NewRedisStreams(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
+	case kafka:
+		pubsub = p_kafka.NewKafka(testLogger)
 	default:
 		return nil
 	}
@@ -314,7 +318,7 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
-	case "kafka":
+	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
@@ -335,7 +339,7 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
-	case "kafka":
+	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	default:
 		return nil

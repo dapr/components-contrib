@@ -3,7 +3,7 @@
 ## All config keys prefixed with output_ will be part of request for the output binding
 ## readBindingTimeout : timeout to wait to receive test event
 ## url: specific to http component, url of the http server
-## method: what method to use
+## method: specific to http component, what method to use
 componentType: bindings
 components:
   - component: redis

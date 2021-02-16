@@ -8,6 +8,7 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -60,35 +61,30 @@ type consumer struct {
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	if consumer.callback == nil {
+		return fmt.Errorf("nil consumer callback")
+	}
+
 	bo := backoff.WithContext(consumer.backOff, session.Context())
 	for message := range claim.Messages() {
-		if consumer.callback == nil {
-			return fmt.Errorf("nil consumer callback")
+		keyBase64 := base64.StdEncoding.EncodeToString(message.Key)
+		msg := pubsub.NewMessage{
+			Topic: message.Topic,
+			Data:  message.Value,
 		}
-
-		var warningLogged bool
-		err := backoff.RetryNotify(func() error {
-			err := consumer.callback(&pubsub.NewMessage{
-				Topic: claim.Topic(),
-				Data:  message.Value,
-			})
+		if err := pubsub.RetryNotifyRecover(func() error {
+			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, keyBase64)
+			err := consumer.callback(&msg)
 			if err == nil {
 				session.MarkMessage(message, "")
-				if warningLogged {
-					consumer.logger.Infof("Kafka message processed successfully after previously failing: %s/%d [key=%s]", message.Topic, message.Partition, message.Key)
-					warningLogged = false
-				}
 			}
 
 			return err
 		}, bo, func(err error, d time.Duration) {
-			if !warningLogged {
-				consumer.logger.Warnf("Encountered error processing Kafka message: %s/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Key)
-				warningLogged = true
-			}
-		})
-
-		if err != nil {
+			consumer.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, keyBase64)
+		}, func() {
+			consumer.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, keyBase64)
+		}); err != nil {
 			return err
 		}
 	}
@@ -211,6 +207,10 @@ func (k *Kafka) closeSubscripionResources() {
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+	if k.consumerGroup == "" {
+		return errors.New("kafka: consumerID must be set to subscribe")
+	}
+
 	topics := k.addTopic(req.Topic)
 
 	// Close resources and reset synchronization primitives

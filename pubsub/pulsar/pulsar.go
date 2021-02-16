@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -21,6 +23,10 @@ type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
 	metadata pulsarMetadata
+
+	ctx     context.Context
+	cancel  context.CancelFunc
+	backOff backoff.BackOff
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -63,8 +69,16 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	}
 	defer client.Close()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	p.ctx = ctx
+	p.cancel = cancel
+
 	p.client = client
 	p.metadata = *m
+
+	// TODO: Make the backoff configurable for constant or exponential
+	b := backoff.NewConstantBackOff(5 * time.Second)
+	p.backOff = backoff.WithContext(b, p.ctx)
 
 	return nil
 }
@@ -96,12 +110,13 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 		Topic:            req.Topic,
 		SubscriptionName: p.metadata.ConsumerID,
 		Type:             pulsar.Failover,
+		MessageChannel:   channel,
 	}
 
-	options.MessageChannel = channel
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
 		p.logger.Debugf("Could not subscribe %s", req.Topic)
+		return err
 	}
 
 	go p.ListenMessage(consumer, req.Topic, handler)
@@ -109,25 +124,47 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	return nil
 }
 
-func (p *Pulsar) ListenMessage(msgs pulsar.Consumer, topic string, handler func(msg *pubsub.NewMessage) error) {
-	for cm := range msgs.Chan() {
-		p.HandleMessage(cm, topic, handler)
+func (p *Pulsar) ListenMessage(consumer pulsar.Consumer, topic string, handler func(msg *pubsub.NewMessage) error) {
+	defer consumer.Close()
+
+	for {
+		select {
+		case msg := <-consumer.Chan():
+			if err := p.HandleMessage(msg, topic, handler); err != nil {
+				p.logger.Errorf("Error processing message")
+				return
+			}
+
+		case <-p.ctx.Done():
+			// Handle the component being closed
+			return
+		}
 	}
 }
 
-func (p *Pulsar) HandleMessage(m pulsar.ConsumerMessage, topic string, handler func(msg *pubsub.NewMessage) error) {
-	err := handler(&pubsub.NewMessage{
-		Data:  m.Payload(),
-		Topic: topic,
-	})
-	if err != nil {
-		p.logger.Debugf("Could not handle topic %s", topic)
-	} else {
-		m.Ack(m.Message)
+func (p *Pulsar) HandleMessage(msg pulsar.ConsumerMessage, topic string, handler func(msg *pubsub.NewMessage) error) error {
+	pubsubMsg := pubsub.NewMessage{
+		Data:     msg.Payload(),
+		Topic:    topic,
+		Metadata: msg.Properties(),
 	}
+	return pubsub.RetryNotifyRecover(func() error {
+		p.logger.Debugf("Processing Pulsar message %s/%#v", topic, msg.ID())
+		err := handler(&pubsubMsg)
+		if err == nil {
+			msg.Ack(msg.Message)
+		}
+
+		return err
+	}, p.backOff, func(err error, d time.Duration) {
+		p.logger.Errorf("Error processing Pulsar message: %s/%#v [key=%s]. Retrying...", topic, msg.ID(), msg.Key())
+	}, func() {
+		p.logger.Infof("Successfully processed Pulsar message after it previously failed: %s/%#v [key=%s]", topic, msg.ID(), msg.Key())
+	})
 }
 
 func (p *Pulsar) Close() error {
+	p.cancel()
 	p.client.Close()
 
 	return nil

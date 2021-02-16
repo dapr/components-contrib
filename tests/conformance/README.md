@@ -32,8 +32,8 @@
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
-    case "new-component":
-        binding = b_new_component.NewComponent(testLogger)
+        case "new-component":
+                binding = b_new_component.NewComponent(testLogger)
 	default:
 		return nil
 	}

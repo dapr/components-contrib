@@ -1,4 +1,4 @@
-## Supported operations: get, bulkget
+# Supported operations: get, bulkget
 componentType: secretstores
 components:
   - component: localenv

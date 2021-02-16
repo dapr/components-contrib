@@ -12,13 +12,11 @@
 
 ## Conformance test workflow
 1. All components/services needed are currently manually setup. 
-2. If the component is tested locally within a docker container requiring no secrets, then add the component to the `pr-components` step in conformance test workflow `.github/conformance.yml`. 
-3. If the component is tested against a service and requires secrets, then add the component to the `cron-components` step in conformance test workflow `.github/conformance.yml`. 
-4. `pr-components` step generates the component matrix for which the conformance tests will be run on each PR. 
-5. `cron-components` defines the components for which the conformance test will be run against the master code in a scehduled manner.
+2. If the component is tested locally within a docker container requiring no secrets, then add the component to the `pr-components` step in conformance test workflow `.github/conformance.yml`. `pr-components` step generates the component matrix for which the conformance tests will be run on each PR. 
+3. If the component is tested against a service and requires secrets, then add the component to the `cron-components` step in conformance test workflow `.github/conformance.yml`. `cron-components` defines the components for which the conformance test will be run against the master code in a scehduled manner.
 
 ## Integrating a new component with conformance tests 
-1. Add the component sepcific YAML to `tests/config/<COMPONENT-TYPE>/<COMPONENT>/<FILE>.yaml`.
+1. Add the component specific YAML to `tests/config/<COMPONENT-TYPE>/<COMPONENT>/<FILE>.yaml`.
 2. All passwords will be of the form `${{PASSWORD_KEY}}` so that it is injected via environment variables.
 3. Register the component `New**` function in `common.go`. Eg: 
 ```go
@@ -32,8 +30,8 @@
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case "kafka":
 		binding = b_kafka.NewKafka(testLogger)
-        case "new-component":
-                binding = b_new_component.NewComponent(testLogger)
+	case "new-component":
+		binding = b_new_component.NewComponent(testLogger)
 	default:
 		return nil
 	}

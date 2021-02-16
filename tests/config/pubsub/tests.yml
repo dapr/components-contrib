@@ -1,3 +1,10 @@
+## Supported operation: publish, subscribe 
+## pubsubName : name of the pubsub 
+## testTopicName: name of the test topic to use
+## maxReadDuration: duration to wait for read to complete
+## messageCount: no. of messages to publish 
+## All config map keys prefixed with publish_ will be part of the publish metadata in the Publish call
+## All config map keys prefixed with subscribe_ will be part of the subscribe metadata in the Subscribe call
 componentType: pubsub
 components:
   - component: azure.servicebus

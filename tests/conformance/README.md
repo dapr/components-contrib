@@ -11,7 +11,7 @@
 9. Each test added will also need to be added to the `conformance.yml` workflow file.
 
 ## Conformance test workflow
-1. All components/services needed are currently manually setup by the Dapr team and run in an environment maintained by the Dapr team. As a contributor, follow the next two steps for integrating a new component with conformance tests.
+1. All components/services tested in the automated tests are currently manually setup by the Dapr team and run in an environment maintained by the Dapr team. As a contributor, follow the next two steps for integrating a new component with conformance tests.
 2. If the component is tested locally within a docker container requiring no secrets, then add the component to the `pr-components` step in conformance test workflow `.github/conformance.yml`. `pr-components` step generates the component matrix for which the conformance tests will be run on each PR. 
 3. If the component is tested against a service and requires secrets, then add the component to the `cron-components` step in conformance test workflow `.github/conformance.yml`. `cron-components` defines the components for which the conformance test will be run against the master code in a scehduled manner.
 

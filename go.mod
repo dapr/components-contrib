@@ -25,6 +25,7 @@ require (
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.27.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/dapr v1.0.0-rc.2

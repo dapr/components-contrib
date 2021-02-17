@@ -13,8 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -36,6 +38,7 @@ type Kafka struct {
 	topics        map[string]bool
 	cancel        context.CancelFunc
 	consumer      consumer
+	backOff       backoff.BackOff
 	config        *sarama.Config
 }
 
@@ -49,21 +52,44 @@ type kafkaMetadata struct {
 }
 
 type consumer struct {
+	logger   logger.Logger
+	backOff  backoff.BackOff
 	ready    chan bool
 	callback func(msg *pubsub.NewMessage) error
 	once     sync.Once
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	bo := backoff.WithContext(consumer.backOff, session.Context())
 	for message := range claim.Messages() {
-		if consumer.callback != nil {
+		if consumer.callback == nil {
+			return fmt.Errorf("nil consumer callback")
+		}
+
+		var warningLogged bool
+		err := backoff.RetryNotify(func() error {
 			err := consumer.callback(&pubsub.NewMessage{
 				Topic: claim.Topic(),
 				Data:  message.Value,
 			})
 			if err == nil {
 				session.MarkMessage(message, "")
+				if warningLogged {
+					consumer.logger.Infof("Kafka message processed successfully after previously failing: %s/%d [key=%s]", message.Topic, message.Partition, message.Key)
+					warningLogged = false
+				}
 			}
+
+			return err
+		}, bo, func(err error, d time.Duration) {
+			if !warningLogged {
+				consumer.logger.Warnf("Encountered error processing Kafka message: %s/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Key)
+				warningLogged = true
+			}
+		})
+
+		if err != nil {
+			return err
 		}
 	}
 
@@ -118,6 +144,9 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.config = config
 
 	k.topics = make(map[string]bool)
+
+	// TODO: Make the backoff configurable for constant or exponential
+	k.backOff = backoff.NewConstantBackOff(5 * time.Second)
 
 	k.logger.Debug("Kafka message bus initialization complete")
 
@@ -199,6 +228,8 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 
 	ready := make(chan bool)
 	k.consumer = consumer{
+		logger:   k.logger,
+		backOff:  k.backOff,
 		ready:    ready,
 		callback: handler,
 	}
@@ -215,6 +246,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {
+			k.logger.Debugf("Starting loop to consume.")
 			// Consume the requested topic
 			innerError := k.cg.Consume(ctx, topics, &(k.consumer))
 			if innerError != nil {
@@ -224,6 +256,8 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
 			// us out of the consume loop
 			if ctx.Err() != nil {
+				k.logger.Debugf("Context error, stopping consumer: %v", ctx.Err())
+
 				return
 			}
 		}

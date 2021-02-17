@@ -33,6 +33,7 @@ jobs:
         - bindings.redis
         - pubsub.redis
         - pubsub.natsstreaming
+        - pubsub.kafka
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile

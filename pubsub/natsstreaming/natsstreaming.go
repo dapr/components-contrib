@@ -228,13 +228,13 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler fun
 		}
 		pubsub.RetryNotifyRecover(func() error {
 			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
-			err := handler(&msg)
-			if err == nil {
+			herr := handler(&msg)
+			if herr == nil {
 				// we only send a successful ACK if there is no error from Dapr runtime
 				natsMsg.Ack()
 			}
 
-			return err
+			return herr
 		}, n.backOff, func(err error, d time.Duration) {
 			n.logger.Errorf("Error processing NATS Streaming message: %s/%d. Retrying...", natsMsg.Subject, natsMsg.Sequence)
 		}, func() {

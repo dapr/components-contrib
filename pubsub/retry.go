@@ -12,6 +12,7 @@ import (
 // log messages to only the events that operators need to be alerted on.
 func RetryNotifyRecover(operation backoff.Operation, b backoff.BackOff, notify backoff.Notify, recovered func()) error {
 	var notified bool
+
 	return backoff.RetryNotify(func() error {
 		err := operation()
 

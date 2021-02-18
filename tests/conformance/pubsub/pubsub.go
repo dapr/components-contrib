@@ -129,6 +129,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				dataString := string(msg.Data)
 				if !strings.HasPrefix(dataString, dataPrefix) {
 					t.Logf("Ignoring message without expected prefix")
+
 					return nil
 				}
 
@@ -138,6 +139,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				if err != nil {
 					t.Logf("Message did not contain a sequence number")
 					assert.Fail(t, "message did not contain a sequence number")
+
 					return err
 				}
 

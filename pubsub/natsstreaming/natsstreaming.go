@@ -318,6 +318,7 @@ func genRandomString(n int) string {
 
 func (n *natsStreamingPubSub) Close() error {
 	n.cancel()
+
 	return n.natStreamingConn.Close()
 }
 

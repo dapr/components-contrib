@@ -116,22 +116,24 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
 		p.logger.Debugf("Could not subscribe %s", req.Topic)
+
 		return err
 	}
 
-	go p.ListenMessage(consumer, req.Topic, handler)
+	go p.listenMessage(consumer, handler)
 
 	return nil
 }
 
-func (p *Pulsar) ListenMessage(consumer pulsar.Consumer, topic string, handler func(msg *pubsub.NewMessage) error) {
+func (p *Pulsar) listenMessage(consumer pulsar.Consumer, handler func(msg *pubsub.NewMessage) error) {
 	defer consumer.Close()
 
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			if err := p.HandleMessage(msg, topic, handler); err != nil {
-				p.logger.Errorf("Error processing message")
+			if err := p.handleMessage(msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+				p.logger.Errorf("Error processing message and retries are exhausted: %s/%#v [key=%s]. Closing consumer.", msg.Topic(), msg.ID(), msg.Key())
+
 				return
 			}
 
@@ -142,14 +144,15 @@ func (p *Pulsar) ListenMessage(consumer pulsar.Consumer, topic string, handler f
 	}
 }
 
-func (p *Pulsar) HandleMessage(msg pulsar.ConsumerMessage, topic string, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler func(msg *pubsub.NewMessage) error) error {
 	pubsubMsg := pubsub.NewMessage{
 		Data:     msg.Payload(),
-		Topic:    topic,
+		Topic:    msg.Topic(),
 		Metadata: msg.Properties(),
 	}
+
 	return pubsub.RetryNotifyRecover(func() error {
-		p.logger.Debugf("Processing Pulsar message %s/%#v", topic, msg.ID())
+		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
 		err := handler(&pubsubMsg)
 		if err == nil {
 			msg.Ack(msg.Message)
@@ -157,9 +160,9 @@ func (p *Pulsar) HandleMessage(msg pulsar.ConsumerMessage, topic string, handler
 
 		return err
 	}, p.backOff, func(err error, d time.Duration) {
-		p.logger.Errorf("Error processing Pulsar message: %s/%#v [key=%s]. Retrying...", topic, msg.ID(), msg.Key())
+		p.logger.Errorf("Error processing Pulsar message: %s/%#v [key=%s]. Retrying...", msg.Topic(), msg.ID(), msg.Key())
 	}, func() {
-		p.logger.Infof("Successfully processed Pulsar message after it previously failed: %s/%#v [key=%s]", topic, msg.ID(), msg.Key())
+		p.logger.Infof("Successfully processed Pulsar message after it previously failed: %s/%#v [key=%s]", msg.Topic(), msg.ID(), msg.Key())
 	})
 }
 

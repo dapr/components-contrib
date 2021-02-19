@@ -156,6 +156,8 @@ github.com/aerospike/aerospike-client-go v2.7.0+incompatible h1:NbjGs0ZMHKge1+0m
 github.com/aerospike/aerospike-client-go v2.7.0+incompatible/go.mod h1:zj8LBEnWBDOVEIJt8LvaRvDG5ARAoa5dBeHaB472NRc=
 github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5/go.mod h1:SkGFH1ia65gfNATL8TAiHDNxPzPdmEL5uirI2Uyuz6c=
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
+github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b h1:WMhlIaJkDgEQSVJQM06YV+cYUl1r5OY5//ijMXJNqtA=
+github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b/go.mod h1:Tie46d3UWzXpj+Fh9+DQTyaUxEpFBPOLXrnx7nxlKRo=
 github.com/ajg/form v1.5.1 h1:t9c7v8JUKu/XxOGBU0yjNpaMloxGEJhUkqFRq0ibGeU=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=

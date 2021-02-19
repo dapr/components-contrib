@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/kit/config"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
@@ -33,49 +34,38 @@ var (
 
 type TestConfig struct {
 	utils.CommonConfig
-	inputMetadata      map[string]string
-	outputMetadata     map[string]string
-	readBindingTimeout time.Duration
+	URL                string            `mapstructure:"url"`
+	InputMetadata      map[string]string `mapstructure:"input"`
+	OutputMetadata     map[string]string `mapstructure:"output"`
+	ReadBindingTimeout time.Duration     `mapstructure:"readBindingTimeout"`
 }
 
-func NewTestConfig(name string, allOperations bool, operations []string, config map[string]string) TestConfig {
+func NewTestConfig(name string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
 	waitForSetup = false
 	testConfig := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "bindings",
 			ComponentName: name,
 			AllOperations: allOperations,
-			Operations:    sets.NewString(operations...),
+			Operations:    utils.NewStringSet(operations...),
 		},
-		inputMetadata:      make(map[string]string),
-		outputMetadata:     make(map[string]string),
-		readBindingTimeout: defaultTimeoutDuration,
+		InputMetadata:      make(map[string]string),
+		OutputMetadata:     make(map[string]string),
+		ReadBindingTimeout: defaultTimeoutDuration,
 	}
 
-	for key, val := range config {
-		if key == "readBindingTimeout" {
-			timeout, err := strconv.Atoi(val)
-			if err == nil {
-				testConfig.readBindingTimeout = time.Duration(timeout) * time.Second
-			}
-		}
-
-		// A url indicates that we need to test the http binding which requires a simple endpoint.
-		if key == "url" {
-			waitForSetup = true
-			startHTTPServer(val)
-		}
-
-		if strings.HasPrefix(key, "output_") {
-			testConfig.outputMetadata[strings.Replace(key, "output_", "", 1)] = val
-		}
-
-		if strings.HasPrefix(key, "input_") {
-			testConfig.inputMetadata[strings.Replace(key, "input_", "", 1)] = val
-		}
+	err := config.Decode(configMap, &testConfig)
+	if err != nil {
+		return testConfig, err
 	}
 
-	return testConfig
+	// A url indicates that we need to test the http binding which requires a simple endpoint.
+	if testConfig.URL != "" {
+		waitForSetup = true
+		startHTTPServer(testConfig.URL)
+	}
+
+	return testConfig, err
 }
 
 func startHTTPServer(url string) {
@@ -99,7 +89,7 @@ func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
 
 	return bindings.InvokeRequest{
 		Data:     []byte(cloudEvent),
-		Metadata: tc.CopyMap(tc.outputMetadata),
+		Metadata: tc.CopyMap(tc.OutputMetadata),
 	}
 }
 
@@ -201,7 +191,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			select {
 			case <-readChan:
 				assert.Greater(t, inputBindingCall, 0)
-			case <-time.After(config.readBindingTimeout):
+			case <-time.After(config.ReadBindingTimeout):
 				assert.Greater(t, inputBindingCall, 0)
 			}
 		})

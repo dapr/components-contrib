@@ -67,13 +67,12 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 	bo := backoff.WithContext(consumer.backOff, session.Context())
 	for message := range claim.Messages() {
-		keyBase64 := base64.StdEncoding.EncodeToString(message.Key)
 		msg := pubsub.NewMessage{
 			Topic: message.Topic,
 			Data:  message.Value,
 		}
 		if err := pubsub.RetryNotifyRecover(func() error {
-			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, keyBase64)
+			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 			err := consumer.callback(&msg)
 			if err == nil {
 				session.MarkMessage(message, "")
@@ -81,9 +80,9 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 			return err
 		}, bo, func(err error, d time.Duration) {
-			consumer.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, keyBase64)
+			consumer.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 		}, func() {
-			consumer.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, keyBase64)
+			consumer.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 		}); err != nil {
 			return err
 		}
@@ -367,4 +366,10 @@ func (k *Kafka) Close() error {
 
 func (k *Kafka) Features() []pubsub.Feature {
 	return nil
+}
+
+type asBase64String []byte
+
+func (s asBase64String) String() string {
+	return base64.StdEncoding.EncodeToString(s)
 }

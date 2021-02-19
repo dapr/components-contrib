@@ -28,6 +28,7 @@ const (
 	defaultMaxReadDuration        = 60 * time.Second
 	defaultWaitDurationToPublish  = 5 * time.Second
 	defaultCheckInOrderProcessing = true
+	defaultSimulateErrors         = true
 )
 
 type TestConfig struct {
@@ -40,6 +41,7 @@ type TestConfig struct {
 	maxReadDuration        time.Duration
 	waitDurationToPublish  time.Duration
 	checkInOrderProcessing bool
+	simulateErrors         bool
 }
 
 func NewTestConfig(componentName string, allOperations bool, operations []string, config map[string]string) TestConfig {
@@ -57,6 +59,7 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 		publishMetadata:        map[string]string{},
 		subscribeMetadata:      map[string]string{},
 		checkInOrderProcessing: defaultCheckInOrderProcessing,
+		simulateErrors:         defaultSimulateErrors,
 	}
 
 	for k, v := range config {
@@ -80,6 +83,10 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 		case "checkInOrderProcessing":
 			if val, err := strconv.ParseBool(v); err == nil {
 				tc.checkInOrderProcessing = val
+			}
+		case "simulateErrors":
+			if val, err := strconv.ParseBool(v); err == nil {
+				tc.simulateErrors = val
 			}
 		default:
 			if strings.HasPrefix(k, "publish_") {
@@ -151,7 +158,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				lastSequence = sequence
 
 				// This behavior is standard to repro a failure of one message in a batch.
-				if errorCount < 2 || counter%5 == 0 {
+				if config.simulateErrors && (errorCount < 2 || counter%5 == 0) {
 					// First message errors just to give time for more messages to pile up.
 					// Second error is to force an error in a batch.
 					errorCount++

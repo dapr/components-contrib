@@ -5,7 +5,9 @@
 ## pubsubName : name of the pubsub 
 ## testTopicName: name of the test topic to use
 ## maxReadDuration: duration to wait for read to complete
-## messageCount: no. of messages to publish 
+## messageCount: no. of messages to publish
+## checkInOrderProcessing: false disables in-order message processing checking
+## simulateErrors: false disables periodic simulation of errors returned by the handler
 componentType: pubsub
 components:
   - component: azure.servicebus
@@ -15,6 +17,9 @@ components:
       testTopicName: dapr-conf-test
   - component: redis
     allOperations: true
+    config:
+      checkInOrderProcessing: false
+      simulateErrors: false
   - component: natsstreaming
     allOperations: true
   - component: kafka

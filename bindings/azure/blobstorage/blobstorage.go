@@ -195,7 +195,8 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 }
 
 func (a *AzureBlobStorage) delete(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	_, err := blobURL.Delete(context.Background(),azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
+	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
+
 	return nil, err
 }
 

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -110,11 +110,11 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	// Generate a unique ID for this run to isolate messages to this test
 	// and prevent messages still stored in a locally running broker
 	// from being considered as part of this test.
-	runID := uuid.NewV4()
+	runID := uuid.Must(uuid.NewRandom()).String()
 	awaitingMessages := make(map[string]struct{}, 20)
 	processedC := make(chan string, config.messageCount*2)
 	errorCount := 0
-	dataPrefix := "message-" + runID.String() + "-"
+	dataPrefix := "message-" + runID + "-"
 	var outOfOrder bool
 
 	// Subscribe

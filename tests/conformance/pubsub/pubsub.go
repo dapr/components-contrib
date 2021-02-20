@@ -41,7 +41,12 @@ type TestConfig struct {
 	maxReadDuration        time.Duration
 	waitDurationToPublish  time.Duration
 	checkInOrderProcessing bool
-	simulateErrors         bool
+
+	// TODO: Eventually all pubsub components should handle periodic errors.
+	// Once all of the existing components conform to this, we should consider
+	// removing this option because error recovery will be required for any new
+	// pubsub component.
+	simulateErrors bool
 }
 
 func NewTestConfig(componentName string, allOperations bool, operations []string, config map[string]string) TestConfig {

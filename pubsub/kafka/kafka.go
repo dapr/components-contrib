@@ -368,6 +368,10 @@ func (k *Kafka) Features() []pubsub.Feature {
 	return nil
 }
 
+// asBase64String implements the `fmt.Stringer` interface in order to print
+// `[]byte` as a base 64 encoded string.
+// It is used above to log the message key. The call to `EncodeToString`
+// only occurs for logs that are written based on the logging level.
 type asBase64String []byte
 
 func (s asBase64String) String() string {

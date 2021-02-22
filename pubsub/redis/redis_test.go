@@ -9,8 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/go-redis/redis/v7"
 	"github.com/stretchr/testify/assert"
@@ -89,7 +89,12 @@ func TestProcessStreams(t *testing.T) {
 	messageCount := 0
 	expectedData := "testData"
 
+	var wg sync.WaitGroup
+	wg.Add(3)
+
 	fakeHandler := func(msg *pubsub.NewMessage) error {
+		defer wg.Done()
+
 		messageCount++
 		if topicCount == 0 {
 			topicCount = 1
@@ -109,8 +114,8 @@ func TestProcessStreams(t *testing.T) {
 	go testRedisStream.worker()
 	testRedisStream.enqueue(fakeConsumerID, fakeConsumerID, fakeHandler, generateRedisStreamTestData(2, 3, expectedData))
 
-	// sleep for 10ms to give time to finish processing
-	time.Sleep(time.Millisecond * 10)
+	// Wait for the handler tp finish processing
+	wg.Wait()
 
 	// assert
 	assert.Equal(t, 1, topicCount)

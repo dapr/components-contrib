@@ -1,6 +1,6 @@
 # Developing new component
 
-This document describes how to build and test new component.
+This document describes how to build and test new component. The Dapr runtime and all of its components are written in [Go](https://golang.org/). If you are completely new to the language you can [take a tour of its features](https://tour.golang.org/). For building your first component, using an existing one as a template is as a great way to get started.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ git clone https://github.com/dapr/components-contrib.git github.com/dapr/compone
 ### Write new component
 
 1. Create your component directory in the right component directory
-2. Copy component files from the refernece component to your component directory
+2. Copy component files from the reference component to your component directory
 3. Add go unit-test for your component
 
 | Type | Directory | Reference | Docs |

@@ -5,9 +5,17 @@
 
 package redis
 
+import (
+	"time"
+)
+
 type metadata struct {
-	host       string
-	password   string
-	consumerID string
-	enableTLS  bool
+	host              string
+	password          string
+	consumerID        string
+	enableTLS         bool
+	processingTimeout time.Duration
+	reclaimInterval   time.Duration
+	queueDepth        uint
+	concurrency       uint
 }

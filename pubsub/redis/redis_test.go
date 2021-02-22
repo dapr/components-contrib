@@ -6,15 +6,17 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-redis/redis/v7"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 func getFakeProperties() map[string]string {
@@ -89,9 +91,8 @@ func TestProcessStreams(t *testing.T) {
 
 	fakeHandler := func(msg *pubsub.NewMessage) error {
 		messageCount++
-		if topicCount == 0 && messageCount >= 3 {
+		if topicCount == 0 {
 			topicCount = 1
-			messageCount = 0
 		}
 
 		// assert
@@ -103,7 +104,10 @@ func TestProcessStreams(t *testing.T) {
 
 	// act
 	testRedisStream := &redisStreams{logger: logger.NewLogger("test")}
-	testRedisStream.processStreams(fakeConsumerID, generateRedisStreamTestData(2, 3, expectedData), fakeHandler)
+	testRedisStream.ctx, testRedisStream.cancel = context.WithCancel(context.Background())
+	testRedisStream.queue = make(chan redisMessage, 10)
+	go testRedisStream.worker()
+	testRedisStream.enqueue(fakeConsumerID, fakeConsumerID, fakeHandler, generateRedisStreamTestData(2, 3, expectedData))
 
 	// sleep for 10ms to give time to finish processing
 	time.Sleep(time.Millisecond * 10)
@@ -113,7 +117,7 @@ func TestProcessStreams(t *testing.T) {
 	assert.Equal(t, 3, messageCount)
 }
 
-func generateRedisStreamTestData(topicCount, messageCount int, data string) []redis.XStream {
+func generateRedisStreamTestData(topicCount, messageCount int, data string) []redis.XMessage {
 	generateXMessage := func(id int) redis.XMessage {
 		return redis.XMessage{
 			ID: fmt.Sprintf("%d", id),
@@ -128,13 +132,5 @@ func generateRedisStreamTestData(topicCount, messageCount int, data string) []re
 		xmessageArray[i] = generateXMessage(i)
 	}
 
-	redisStreams := make([]redis.XStream, topicCount)
-	for i := range redisStreams {
-		redisStreams[i] = redis.XStream{
-			Stream:   fmt.Sprintf("Topic%d", i),
-			Messages: xmessageArray,
-		}
-	}
-
-	return redisStreams
+	return xmessageArray
 }

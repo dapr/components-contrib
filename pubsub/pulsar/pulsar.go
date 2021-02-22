@@ -69,9 +69,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	}
 	defer client.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	p.ctx = ctx
-	p.cancel = cancel
+	p.ctx, p.cancel = context.WithCancel(context.Background())
 
 	p.client = client
 	p.metadata = *m

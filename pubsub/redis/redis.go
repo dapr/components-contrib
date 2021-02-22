@@ -57,6 +57,7 @@ func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
 }
 
 func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
+	// Default values
 	m := metadata{
 		processingTimeout: 5 * time.Second,
 		reclaimInterval:   1 * time.Second,
@@ -182,6 +183,7 @@ func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler func(msg *
 	// Ignore BUSYGROUP errors
 	if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
 		r.logger.Errorf("redis streams: %s", err)
+
 		return err
 	}
 
@@ -195,11 +197,11 @@ func (r *redisStreams) enqueue(stream, consumerID string, handler func(msg *pubs
 	for _, msg := range msgs {
 		var data []byte
 		if dataValue, exists := msg.Values["data"]; exists && dataValue != nil {
-			switch dataValue.(type) {
+			switch v := dataValue.(type) {
 			case string:
-				data = []byte(dataValue.(string))
+				data = []byte(v)
 			case []byte:
-				data = dataValue.([]byte)
+				data = v
 			}
 		}
 
@@ -233,7 +235,9 @@ func (r *redisStreams) worker() {
 		case msg := <-r.queue:
 			r.logger.Debugf("Processing Redis message %s", msg.messageID)
 			if err := msg.handler(&msg.message); err == nil {
-				err = r.client.XAck(msg.message.Topic, r.metadata.consumerID, msg.messageID).Err()
+				if err = r.client.XAck(msg.message.Topic, r.metadata.consumerID, msg.messageID).Err(); err != nil {
+					r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
+				}
 			} else {
 				r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 			}
@@ -298,6 +302,7 @@ func (r *redisStreams) reclaimMessagesLoop(stream string, handler func(msg *pubs
 				}).Result()
 				if err != nil && err != redis.Nil {
 					r.logger.Errorf("error retrieving pending Redis messages: %v", err)
+
 					break
 				}
 
@@ -324,6 +329,7 @@ func (r *redisStreams) reclaimMessagesLoop(stream string, handler func(msg *pubs
 				}).Result()
 				if err != nil && err != redis.Nil {
 					r.logger.Errorf("error claiming pending Redis messages: %v", err)
+
 					break
 				}
 
@@ -344,40 +350,45 @@ func (r *redisStreams) reclaimMessagesLoop(stream string, handler func(msg *pubs
 						delete(expectedMsgIDs, claimed.ID)
 					}
 
-					// Check each message ID individually.
-					for pendingID := range expectedMsgIDs {
-						claimResultSingleMsg, err := r.client.XClaim(&redis.XClaimArgs{
-							Stream:   stream,
-							Group:    r.metadata.consumerID,
-							Consumer: r.metadata.consumerID,
-							MinIdle:  r.metadata.processingTimeout,
-							Messages: []string{pendingID},
-						}).Result()
-						if err != nil && err != redis.Nil {
-							r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
-							break
-						}
-
-						// Ack the message to remove it from the pending list.
-						if err == redis.Nil {
-							err = r.client.XAck(stream, r.metadata.consumerID, pendingID).Err()
-							if err != nil {
-								r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
-							}
-							continue
-						}
-
-						// This should not happen but if it does the message should be processed.
-						r.enqueue(stream, consumerID, handler, claimResultSingleMsg)
-					}
+					r.handlePendingWithoutMessages(stream, expectedMsgIDs, handler)
 				}
 			}
 		}
 	}
 }
 
+func (r *redisStreams) handlePendingWithoutMessages(stream string, messageIDs map[string]struct{}, handler func(msg *pubsub.NewMessage) error) {
+	// Check each message ID individually.
+	for pendingID := range messageIDs {
+		claimResultSingleMsg, err := r.client.XClaim(&redis.XClaimArgs{
+			Stream:   stream,
+			Group:    r.metadata.consumerID,
+			Consumer: r.metadata.consumerID,
+			MinIdle:  r.metadata.processingTimeout,
+			Messages: []string{pendingID},
+		}).Result()
+		if err != nil && err != redis.Nil {
+			r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
+
+			return
+		}
+
+		// Ack the message to remove it from the pending list.
+		if err == redis.Nil {
+			err = r.client.XAck(stream, r.metadata.consumerID, pendingID).Err()
+			if err != nil {
+				r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
+			}
+		} else {
+			// This should not happen but if it does the message should be processed.
+			r.enqueue(stream, consumerID, handler, claimResultSingleMsg)
+		}
+	}
+}
+
 func (r *redisStreams) Close() error {
 	r.cancel()
+
 	return r.client.Close()
 }
 

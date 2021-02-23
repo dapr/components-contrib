@@ -109,7 +109,7 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		} else if d, err := time.ParseDuration(val); err == nil {
 			m.redeliverInterval = d
 		} else {
-			return m, fmt.Errorf("redis streams error: can't parse processingTimeout field: %s", err)
+			return m, fmt.Errorf("redis streams error: can't parse redeliverInterval field: %s", err)
 		}
 	}
 
@@ -308,6 +308,8 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubs
 // reclaimPendingMessagesLoop periodically reclaims pending messages
 // based on the `redeliverInterval` setting.
 func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler func(msg *pubsub.NewMessage) error) {
+	// Having a `processingTimeout` or `redeliverInterval` means that
+	// redelivery is disabled so we just return out of the goroutine.
 	if r.metadata.processingTimeout == 0 || r.metadata.redeliverInterval == 0 {
 		return
 	}
@@ -410,7 +412,7 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string,
 		if err != nil && !errors.Is(err, redis.Nil) {
 			r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
 
-			return
+			continue
 		}
 
 		// Ack the message to remove it from the pending list.

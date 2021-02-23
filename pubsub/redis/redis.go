@@ -32,7 +32,7 @@ const (
 
 // redisStreams handles consuming from a Redis stream using
 // `XREADGROUP` for reading new messages and `XPENDING` and
-// `XCLAIM` for redelivering message that previously failed.
+// `XCLAIM` for redelivering messages that previously failed.
 //
 // See https://redis.io/topics/streams-intro for more information
 // on the mechanics of Redis Streams.
@@ -48,12 +48,11 @@ type redisStreams struct {
 	cancel context.CancelFunc
 }
 
-// redisMessageWrapper encapsulates the pubsub message and handler to
-// send to the queue channel for processing.
+// redisMessageWrapper encapsulates the message identifier,
+// pubsub message, and handler to send to the queue channel for processing.
 type redisMessageWrapper struct {
-	message pubsub.NewMessage
-
 	messageID string
+	message   pubsub.NewMessage
 	handler   func(msg *pubsub.NewMessage) error
 }
 

@@ -12,3 +12,9 @@ spec:
     value: ""
   - name: consumerID
     value: "testConsumer"
+  - name: processingTimeout
+    value: 5s
+  - name: redeliverInterval
+    value: 1s
+  - name: concurrency
+    value: 1

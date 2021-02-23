@@ -10,7 +10,7 @@ require (
 	fortio.org/fortio v1.11.5
 	github.com/Azure/azure-event-hubs-go v1.3.1
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
-	github.com/Azure/azure-service-bus-go v0.10.6
+	github.com/Azure/azure-service-bus-go v0.10.10
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-autorest/autorest v0.11.12
@@ -25,6 +25,7 @@ require (
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.27.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/dapr v1.0.0-rc.2
@@ -40,7 +41,7 @@ require (
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.7.3
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.3.0
@@ -59,7 +60,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/satori/go.uuid v1.2.0
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.6.1

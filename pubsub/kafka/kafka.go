@@ -8,6 +8,7 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -60,35 +61,29 @@ type consumer struct {
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	if consumer.callback == nil {
+		return fmt.Errorf("nil consumer callback")
+	}
+
 	bo := backoff.WithContext(consumer.backOff, session.Context())
 	for message := range claim.Messages() {
-		if consumer.callback == nil {
-			return fmt.Errorf("nil consumer callback")
+		msg := pubsub.NewMessage{
+			Topic: message.Topic,
+			Data:  message.Value,
 		}
-
-		var warningLogged bool
-		err := backoff.RetryNotify(func() error {
-			err := consumer.callback(&pubsub.NewMessage{
-				Topic: claim.Topic(),
-				Data:  message.Value,
-			})
+		if err := pubsub.RetryNotifyRecover(func() error {
+			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+			err := consumer.callback(&msg)
 			if err == nil {
 				session.MarkMessage(message, "")
-				if warningLogged {
-					consumer.logger.Infof("Kafka message processed successfully after previously failing: %s/%d [key=%s]", message.Topic, message.Partition, message.Key)
-					warningLogged = false
-				}
 			}
 
 			return err
 		}, bo, func(err error, d time.Duration) {
-			if !warningLogged {
-				consumer.logger.Warnf("Encountered error processing Kafka message: %s/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Key)
-				warningLogged = true
-			}
-		})
-
-		if err != nil {
+			consumer.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		}, func() {
+			consumer.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		}); err != nil {
 			return err
 		}
 	}
@@ -211,6 +206,10 @@ func (k *Kafka) closeSubscripionResources() {
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+	if k.consumerGroup == "" {
+		return errors.New("kafka: consumerID must be set to subscribe")
+	}
+
 	topics := k.addTopic(req.Topic)
 
 	// Close resources and reset synchronization primitives
@@ -367,4 +366,14 @@ func (k *Kafka) Close() error {
 
 func (k *Kafka) Features() []pubsub.Feature {
 	return nil
+}
+
+// asBase64String implements the `fmt.Stringer` interface in order to print
+// `[]byte` as a base 64 encoded string.
+// It is used above to log the message key. The call to `EncodeToString`
+// only occurs for logs that are written based on the logging level.
+type asBase64String []byte
+
+func (s asBase64String) String() string {
+	return base64.StdEncoding.EncodeToString(s)
 }

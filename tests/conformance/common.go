@@ -27,6 +27,7 @@ import (
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
+	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
@@ -269,6 +270,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
 	case kafka:
 		pubsub = p_kafka.NewKafka(testLogger)
+	case "pulsar":
+		pubsub = p_pulsar.NewPulsar(testLogger)
 	default:
 		return nil
 	}

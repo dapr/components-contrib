@@ -25,3 +25,5 @@ components:
     allOperations: true
   - component: pulsar
     allOperations: true
+  - component: mqtt
+    allOperations: true

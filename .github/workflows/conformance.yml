@@ -35,6 +35,7 @@ jobs:
         - pubsub.natsstreaming
         - pubsub.kafka
         - pubsub.pulsar
+        - pubsub.mqtt
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -178,6 +179,10 @@ jobs:
     - name: Start pulsar
       run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
       if: contains(matrix.component, 'pulsar')
+
+    - name: Start mosquitto (mqtt)
+      run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
+      if: contains(matrix.component, 'mqtt')
 
     - name: Start KinD
       uses: helm/kind-action@v1.0.0

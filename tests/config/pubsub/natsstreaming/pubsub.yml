@@ -15,4 +15,6 @@ spec:
   - name: consumerID
     value: myConsumerID
   - name: ackWaitTime
-    value: 3s
+    value: 10s
+  - name: maxInFlight
+    value: 1

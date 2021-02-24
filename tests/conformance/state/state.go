@@ -382,4 +382,75 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		})
 	}
+
+	// Supporting etags requires support for get, set, and delete so they are not checked individually
+	if config.HasOperation("etag") {
+		t.Run("etag", func(t *testing.T) {
+			testKey := "etagTest"
+			firstValue := []byte("testValue1")
+			secondValue := []byte("testValue2")
+			fakeEtag := "not-an-etag"
+
+			// Delete any potential object, it's important to start from a clean slate.
+			err := statestore.Delete(&state.DeleteRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+
+			// Set an object.
+			err = statestore.Set(&state.SetRequest{
+				Key:   testKey,
+				Value: firstValue,
+			})
+			assert.Nil(t, err)
+
+			// Validate the set.
+			res, err := statestore.Get(&state.GetRequest{
+				Key: testKey,
+			})
+
+			assert.Nil(t, err)
+			assert.Equal(t, firstValue, res.Data)
+			etag := res.ETag
+
+			// Try and update with wrong ETag, expect failure.
+			err = statestore.Set(&state.SetRequest{
+				Key:   testKey,
+				Value: secondValue,
+				ETag:  &fakeEtag,
+			})
+			assert.NotNil(t, err)
+
+			// Try and update with corect ETag, expect success.
+			err = statestore.Set(&state.SetRequest{
+				Key:   testKey,
+				Value: secondValue,
+				ETag:  &etag,
+			})
+			assert.Nil(t, err)
+
+			// Validate the set.
+			res, err = statestore.Get(&state.GetRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+			assert.Equal(t, secondValue, res.Data)
+			assert.NotEqual(t, etag, res.ETag)
+			etag = res.ETag
+
+			// Try and delete with wrong ETag, expect failure.
+			err = statestore.Delete(&state.DeleteRequest{
+				Key:  testKey,
+				ETag: &fakeEtag,
+			})
+			assert.NotNil(t, err)
+
+			// Try and delete with correct ETag, expect success.
+			err = statestore.Delete(&state.DeleteRequest{
+				Key:  testKey,
+				ETag: &etag,
+			})
+			assert.Nil(t, err)
+		})
+	}
 }

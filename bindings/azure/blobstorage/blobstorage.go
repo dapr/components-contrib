@@ -28,7 +28,7 @@ const (
 	contentLanguage          = "ContentLanguage"
 	contentDisposition       = "ContentDisposition"
 	cacheControl             = "CacheControl"
-	deleteSnapshotOptions 	 = "DeleteSnapshotOptions"
+	deleteSnapshotOptions    = "DeleteSnapshotOptions"
 	defaultGetBlobRetryCount = 10
 )
 

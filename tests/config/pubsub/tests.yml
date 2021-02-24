@@ -14,10 +14,11 @@ components:
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
+      checkInOrderProcessing: false
   - component: redis
     allOperations: true
     config:
-      #checkInOrderProcessing: false
+      checkInOrderProcessing: false
   - component: natsstreaming
     allOperations: true
   - component: kafka

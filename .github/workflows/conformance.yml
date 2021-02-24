@@ -39,6 +39,7 @@ jobs:
         - pubsub.mqtt-emqx
         - pubsub.mqtt-vernemq
         - pubsub.hazelcast
+        - pubsub.rabbitmq
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -198,6 +199,10 @@ jobs:
     - name: Start hazelcast
       run: docker-compose -f ./.github/infrastructure/docker-compose-hazelcast.yml -p hazelcast up -d
       if: contains(matrix.component, 'hazelcast')
+
+    - name: Start rabbitmq
+      run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
+      if: contains(matrix.component, 'rabbitmq')
 
     - name: Start KinD
       uses: helm/kind-action@v1.0.0

@@ -17,7 +17,7 @@ components:
   - component: redis
     allOperations: true
     config:
-      checkInOrderProcessing: false
+      #checkInOrderProcessing: false
   - component: natsstreaming
     allOperations: true
   - component: kafka

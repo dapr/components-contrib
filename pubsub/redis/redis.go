@@ -53,7 +53,7 @@ type redisStreams struct {
 type redisMessageWrapper struct {
 	messageID string
 	message   pubsub.NewMessage
-	handler   pubsub.Handler error
+	handler   pubsub.Handler
 }
 
 // NewRedisStreams returns a new redis streams pub-sub implementation
@@ -201,7 +201,7 @@ func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Han
 // enqueueMessages is a shared function that funnels new messages (via polling)
 // and redelivered messages (via reclaiming) to a channel where workers can
 // pick them up for processing.
-func (r *redisStreams) enqueueMessages(stream string, handler func(msg *pubsub.NewMessage) error, msgs []redis.XMessage) {
+func (r *redisStreams) enqueueMessages(stream string, handler pubsub.Handler, msgs []redis.XMessage) {
 	for _, msg := range msgs {
 		rmsg := createRedisMessageWrapper(stream, handler, msg)
 
@@ -218,7 +218,7 @@ func (r *redisStreams) enqueueMessages(stream string, handler func(msg *pubsub.N
 
 // createRedisMessageWrapper encapsulates the Redis message, message identifier, and handler
 // in `redisMessage` for processing.
-func createRedisMessageWrapper(stream string, handler func(msg *pubsub.NewMessage) error, msg redis.XMessage) redisMessageWrapper {
+func createRedisMessageWrapper(stream string, handler pubsub.Handler, msg redis.XMessage) redisMessageWrapper {
 	var data []byte
 	if dataValue, exists := msg.Values["data"]; exists && dataValue != nil {
 		switch v := dataValue.(type) {
@@ -277,7 +277,7 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 
 // pollMessagesLoop calls `XReadGroup` for new messages and funnels them to the message channel
 // by calling `enqueueMessages`.
-func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) pollNewMessagesLoop(stream string, handler pubsub.Handler) {
 	for {
 		// Read messages
 		streams, err := r.client.XReadGroup(&redis.XReadGroupArgs{
@@ -307,7 +307,7 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubs
 
 // reclaimPendingMessagesLoop periodically reclaims pending messages
 // based on the `redeliverInterval` setting.
-func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler pubsub.Handler) {
 	// Having a `processingTimeout` or `redeliverInterval` means that
 	// redelivery is disabled so we just return out of the goroutine.
 	if r.metadata.processingTimeout == 0 || r.metadata.redeliverInterval == 0 {
@@ -332,7 +332,7 @@ func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler func(ms
 
 // reclaimPendingMessages handles reclaiming messages that previously failed to process and
 // funneling them to the message channel by calling `enqueueMessages`.
-func (r *redisStreams) reclaimPendingMessages(stream string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) reclaimPendingMessages(stream string, handler pubsub.Handler) {
 	for {
 		// Retrieve pending messages for this stream and consumer
 		pendingResult, err := r.client.XPendingExt(&redis.XPendingExtArgs{
@@ -399,7 +399,7 @@ func (r *redisStreams) reclaimPendingMessages(stream string, handler func(msg *p
 
 // removeMessagesThatNoLongerExistFromPending attempts to claim messages individually so that messages in the pending list
 // that no longer exist can be removed from the pending list. This is done by calling `XACK`.
-func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string, messageIDs map[string]struct{}, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string, messageIDs map[string]struct{}, handler pubsub.Handler) {
 	// Check each message ID individually.
 	for pendingID := range messageIDs {
 		claimResultSingleMsg, err := r.client.XClaim(&redis.XClaimArgs{

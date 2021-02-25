@@ -14,6 +14,7 @@ components:
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
+      checkInOrderProcessing: false
   - component: redis
     allOperations: true
     config:

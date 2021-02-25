@@ -26,4 +26,11 @@ components:
   - component: pulsar
     allOperations: true
   - component: mqtt
+    profile: mosquitto
+    allOperations: true
+  - component: mqtt
+    profile: emqx
+    allOperations: true
+  - component: mqtt
+    profile: vernemq
     allOperations: true

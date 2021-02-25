@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -68,6 +69,7 @@ type TestConfiguration struct {
 }
 type TestComponent struct {
 	Component     string            `yaml:"component,omitempty"`
+	Profile       string            `yaml:"profile,omitempty"`
 	AllOperations bool              `yaml:"allOperations,omitempty"`
 	Operations    []string          `yaml:"operations,omitempty"`
 	Config        map[string]string `yaml:"config,omitempty"`
@@ -183,12 +185,17 @@ func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath 
 	return props, err
 }
 
-func convertComponentNameToPath(componentName string) string {
+func convertComponentNameToPath(componentName, componentProfile string) string {
+	pathName := componentName
 	if strings.Contains(componentName, ".") {
-		return strings.Join(strings.Split(componentName, "."), "/")
+		pathName = strings.Join(strings.Split(componentName, "."), "/")
 	}
 
-	return componentName
+	if componentProfile != "" {
+		pathName = path.Join(pathName, componentProfile)
+	}
+
+	return pathName
 }
 
 func (tc *TestConfiguration) Run(t *testing.T) {
@@ -196,11 +203,15 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 	testLogger.SetOutputLevel(logger.DebugLevel)
 	// For each component in the tests file run the conformance test
 	for _, comp := range tc.Components {
-		t.Run(comp.Component, func(t *testing.T) {
+		testName := comp.Component
+		if comp.Profile != "" {
+			testName += "-" + comp.Profile
+		}
+		t.Run(testName, func(t *testing.T) {
 			// Parse and generate any keys
 			ParseConfigurationMap(t, comp.Config)
 
-			componentConfigPath := convertComponentNameToPath(comp.Component)
+			componentConfigPath := convertComponentNameToPath(comp.Component, comp.Profile)
 			switch tc.ComponentType {
 			case "state":
 				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)

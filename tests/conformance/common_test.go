@@ -117,10 +117,10 @@ func TestParseConfigurationMap(t *testing.T) {
 }
 
 func TestConvertComponentNameToPath(t *testing.T) {
-	val := convertComponentNameToPath("azure.servicebus")
+	val := convertComponentNameToPath("azure.servicebus", "")
 	assert.Equal(t, "azure/servicebus", val)
-	val = convertComponentNameToPath("a.b.c")
+	val = convertComponentNameToPath("a.b.c", "")
 	assert.Equal(t, "a/b/c", val)
-	val = convertComponentNameToPath("redis")
+	val = convertComponentNameToPath("redis", "")
 	assert.Equal(t, "redis", val)
 }

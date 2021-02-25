@@ -7,4 +7,4 @@ services:
     - DOCKER_VERNEMQ_ALLOW_ANONYMOUS=on
     - DOCKER_VERNEMQ_ACCEPT_EULA=yes
     ports:
-    - "1883:1883"
+    - "1885:1883"

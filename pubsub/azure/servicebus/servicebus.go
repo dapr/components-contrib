@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -9,9 +9,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -56,6 +58,9 @@ type azureServiceBus struct {
 	topicManager  *azservicebus.TopicManager
 	logger        logger.Logger
 	subscriptions []*subscription
+	features      []pubsub.Feature
+	topics        map[string]*azservicebus.Topic
+	topicsLock    *sync.RWMutex
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
@@ -63,6 +68,9 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:        logger,
 		subscriptions: []*subscription{},
+		features:      []pubsub.Feature{pubsub.FeatureMessageTTL},
+		topics:        map[string]*azservicebus.Topic{},
+		topicsLock:    &sync.RWMutex{},
 	}
 }
 
@@ -216,16 +224,36 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	sender, err := a.namespace.NewTopic(req.Topic)
-	if err != nil {
-		return err
+	var sender *azservicebus.Topic
+	var err error
+
+	a.topicsLock.RLock()
+	if topic, ok := a.topics[req.Topic]; ok {
+		sender = topic
 	}
-	defer sender.Close(context.Background())
+	a.topicsLock.RUnlock()
+
+	if sender == nil {
+		a.topicsLock.Lock()
+		sender, err = a.namespace.NewTopic(req.Topic)
+		a.topics[req.Topic] = sender
+		a.topicsLock.Unlock()
+
+		if err != nil {
+			return err
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 
-	err = sender.Send(ctx, azservicebus.NewMessage(req.Data))
+	msg := azservicebus.NewMessage(req.Data)
+	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
+	if hasTTL {
+		msg.TTL = &ttl
+	}
+
+	err = sender.Send(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -449,7 +477,15 @@ func (a *azureServiceBus) Close() error {
 		s.close(context.TODO())
 	}
 
+	for _, t := range a.topics {
+		t.Close(context.TODO())
+	}
+
 	return nil
+}
+
+func (a *azureServiceBus) Features() []pubsub.Feature {
+	return a.features
 }
 
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) azservicebus.SubscriptionManagementOption {

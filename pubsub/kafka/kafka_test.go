@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -19,12 +19,13 @@ func getKafkaPubsub() *Kafka {
 
 func TestParseMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{"consumerID": "a", "brokers": "a", "authRequired": "false"}
+	m.Properties = map[string]string{"consumerID": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048"}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.Brokers[0])
 	assert.Equal(t, "a", meta.ConsumerID)
+	assert.Equal(t, 2048, meta.MaxMessageBytes)
 }
 
 func TestMissingBrokers(t *testing.T) {

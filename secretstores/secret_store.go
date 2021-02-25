@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,5 +12,5 @@ type SecretStore interface {
 	// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 	GetSecret(req GetSecretRequest) (GetSecretResponse, error)
 	// BulkGetSecrets retrieves all secrets in the store and returns a map of decrypted string/string values
-	BulkGetSecret(req BulkGetSecretRequest) (GetSecretResponse, error)
+	BulkGetSecret(req BulkGetSecretRequest) (BulkGetSecretResponse, error)
 }

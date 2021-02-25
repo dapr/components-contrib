@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,6 +12,8 @@ const (
 	MDNSInstanceAddress string = "address"
 	// MDNSInstancePort is the port of instance.
 	MDNSInstancePort string = "port"
+	// MDNSInstanceID is an optional unique instance ID.
+	MDNSInstanceID string = "instance"
 )
 
 // Metadata contains a name resolution specific set of metadata properties

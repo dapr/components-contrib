@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -91,5 +91,9 @@ func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 func (n *natsPubSub) Close() error {
 	n.natsConn.Close()
 
+	return nil
+}
+
+func (n *natsPubSub) Features() []pubsub.Feature {
 	return nil
 }

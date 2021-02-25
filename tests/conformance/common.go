@@ -1,0 +1,368 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
+package conformance
+
+import (
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"fortio.org/fortio/log"
+	"github.com/dapr/components-contrib/bindings"
+	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
+	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
+	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
+	b_http "github.com/dapr/components-contrib/bindings/http"
+	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
+	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	"github.com/dapr/components-contrib/pubsub"
+	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
+	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
+	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
+	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
+	p_redis "github.com/dapr/components-contrib/pubsub/redis"
+	"github.com/dapr/components-contrib/secretstores"
+	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
+	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
+	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
+	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
+	"github.com/dapr/components-contrib/state"
+	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
+	s_redis "github.com/dapr/components-contrib/state/redis"
+	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
+	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
+	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
+	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
+	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
+	"github.com/dapr/dapr/pkg/components"
+	config "github.com/dapr/dapr/pkg/config/modes"
+	"github.com/google/uuid"
+
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
+)
+
+const (
+	redis        = "redis"
+	kafka        = "kafka"
+	generateUUID = "$((uuid))"
+)
+
+// nolint:gochecknoglobals
+var testLogger = logger.NewLogger("testLogger")
+
+type TestConfiguration struct {
+	ComponentType string          `yaml:"componentType,omitempty"`
+	Components    []TestComponent `yaml:"components,omitempty"`
+}
+type TestComponent struct {
+	Component     string            `yaml:"component,omitempty"`
+	AllOperations bool              `yaml:"allOperations,omitempty"`
+	Operations    []string          `yaml:"operations,omitempty"`
+	Config        map[string]string `yaml:"config,omitempty"`
+}
+
+// NewTestConfiguration reads the tests.yml and loads the TestConfiguration
+func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
+	if isYaml(configFilepath) {
+		b, err := readTestConfiguration(configFilepath)
+		if err != nil {
+			log.Warnf("error reading file %s : %s", configFilepath, err)
+
+			return nil, err
+		}
+		tc, err := decodeYaml(b)
+
+		return &tc, err
+	}
+
+	return nil, errors.New("no test configuration file tests.yml found")
+}
+
+func LoadComponents(componentPath string) ([]v1alpha1.Component, error) {
+	cfg := config.StandaloneConfig{
+		ComponentsPath: componentPath,
+	}
+	standaloneComps := components.NewStandaloneComponents(cfg)
+	components, err := standaloneComps.LoadComponents()
+	if err != nil {
+		return nil, err
+	}
+
+	return components, nil
+}
+
+func LookUpEnv(key string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+
+	return ""
+}
+
+func ParseConfigurationMap(t *testing.T, configMap map[string]string) {
+	for k, v := range configMap {
+		val := v
+		if strings.EqualFold(val, generateUUID) {
+			// check if generate uuid is specified
+			val = uuid.New().String()
+			t.Logf("Generated UUID %s", val)
+		}
+		configMap[k] = val
+	}
+}
+
+func ConvertMetadataToProperties(items []v1alpha1.MetadataItem) (map[string]string, error) {
+	properties := map[string]string{}
+	for _, c := range items {
+		val := c.Value.String()
+		if strings.HasPrefix(c.Value.String(), "${{") {
+			// look up env var with that name. remove ${{}} and space
+			k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+			v := LookUpEnv(k)
+			if v == "" {
+				return map[string]string{}, fmt.Errorf("required env var is not set %s", k)
+			}
+			val = v
+		}
+		properties[c.Name] = val
+	}
+
+	return properties, nil
+}
+
+// isYaml checks whether the file is yaml or not
+func isYaml(fileName string) bool {
+	extension := strings.ToLower(filepath.Ext(fileName))
+	if extension == ".yaml" || extension == ".yml" {
+		return true
+	}
+
+	return false
+}
+
+func readTestConfiguration(filePath string) ([]byte, error) {
+	b, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file %s", filePath)
+	}
+
+	return b, nil
+}
+
+func decodeYaml(b []byte) (TestConfiguration, error) {
+	var testConfig TestConfiguration
+	err := yaml.Unmarshal(b, &testConfig)
+	if err != nil {
+		log.Warnf("error parsing string as yaml %s", err)
+
+		return TestConfiguration{}, err
+	}
+
+	return testConfig, nil
+}
+
+func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
+	comps, err := LoadComponents(filepath)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(comps)) // We only expect a single component per file
+	c := comps[0]
+	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
+
+	return props, err
+}
+
+func convertComponentNameToPath(componentName string) string {
+	if strings.Contains(componentName, ".") {
+		return strings.Join(strings.Split(componentName, "."), "/")
+	}
+
+	return componentName
+}
+
+func (tc *TestConfiguration) Run(t *testing.T) {
+	// Increase verbosity of tests to allow troubleshooting of runs.
+	testLogger.SetOutputLevel(logger.DebugLevel)
+	// For each component in the tests file run the conformance test
+	for _, comp := range tc.Components {
+		t.Run(comp.Component, func(t *testing.T) {
+			// Parse and generate any keys
+			ParseConfigurationMap(t, comp.Config)
+
+			componentConfigPath := convertComponentNameToPath(comp.Component)
+			switch tc.ComponentType {
+			case "state":
+				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				store := loadStateStore(comp)
+				assert.NotNil(t, store)
+				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_state.ConformanceTests(t, props, store, storeConfig)
+			case "secretstores":
+				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				store := loadSecretStore(comp)
+				assert.NotNil(t, store)
+				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+				conf_secret.ConformanceTests(t, props, store, storeConfig)
+			case "pubsub":
+				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				pubsub := loadPubSub(comp)
+				assert.NotNil(t, pubsub)
+				pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
+			case "bindings":
+				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
+				inputBinding := loadInputBindings(comp)
+				outputBinding := loadOutputBindings(comp)
+				atLeastOne(t, func(item interface{}) bool {
+					return item != nil
+				}, inputBinding, outputBinding)
+				bindingsConfig := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
+			default:
+				t.Errorf("unknown component type %s", tc.ComponentType)
+			}
+		})
+	}
+}
+
+func loadPubSub(tc TestComponent) pubsub.PubSub {
+	var pubsub pubsub.PubSub
+	switch tc.Component {
+	case redis:
+		pubsub = p_redis.NewRedisStreams(testLogger)
+	case "azure.servicebus":
+		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
+	case "natsstreaming":
+		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
+	case kafka:
+		pubsub = p_kafka.NewKafka(testLogger)
+	case "pulsar":
+		pubsub = p_pulsar.NewPulsar(testLogger)
+	default:
+		return nil
+	}
+
+	return pubsub
+}
+
+func loadSecretStore(tc TestComponent) secretstores.SecretStore {
+	var store secretstores.SecretStore
+	switch tc.Component {
+	case "azure.keyvault":
+		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
+	case "kubernetes":
+		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)
+	case "localenv":
+		store = ss_local_env.NewEnvSecretStore(testLogger)
+	case "localfile":
+		store = ss_local_file.NewLocalSecretStore(testLogger)
+	default:
+		return nil
+	}
+
+	return store
+}
+
+func loadStateStore(tc TestComponent) state.Store {
+	var store state.Store
+	switch tc.Component {
+	case redis:
+		store = s_redis.NewRedisStateStore(testLogger)
+	case "cosmosdb":
+		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
+	case "mongodb":
+		store = s_mongodb.NewMongoDB(testLogger)
+	default:
+		return nil
+	}
+
+	return store
+}
+
+func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
+	var binding bindings.OutputBinding
+
+	switch tc.Component {
+	case redis:
+		binding = b_redis.NewRedis(testLogger)
+	case "azure.blobstorage":
+		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)
+	case "azure.storagequeues":
+		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "azure.servicebusqueues":
+		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
+	case "azure.eventgrid":
+		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case kafka:
+		binding = b_kafka.NewKafka(testLogger)
+	case "http":
+		binding = b_http.NewHTTP(testLogger)
+	default:
+		return nil
+	}
+
+	return binding
+}
+
+func loadInputBindings(tc TestComponent) bindings.InputBinding {
+	var binding bindings.InputBinding
+
+	switch tc.Component {
+	case "azure.servicebusqueues":
+		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
+	case "azure.storagequeues":
+		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
+	case "azure.eventgrid":
+		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case kafka:
+		binding = b_kafka.NewKafka(testLogger)
+	default:
+		return nil
+	}
+
+	return binding
+}
+
+func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {
+	met := false
+
+	for _, item := range items {
+		met = met || predicate(item)
+	}
+
+	assert.True(t, met)
+}

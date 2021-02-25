@@ -45,6 +45,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, false, m.requeueInFailure)
 		assert.Equal(t, true, m.deleteWhenUnused)
 		assert.Equal(t, uint8(0), m.deliveryMode)
+		assert.Equal(t, uint8(0), m.prefetchCount)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {
@@ -120,6 +121,39 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, uint8(2), m.deliveryMode)
+	})
+
+	t.Run("invalid concurrency", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[pubsub.ConcurrencyKey] = "a"
+
+		// act
+		_, err := createMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+	})
+
+	t.Run("prefetchCount is set", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[metadataprefetchCount] = "1"
+
+		// act
+		m, err := createMetadata(fakeMetaData)
+
+		// assert
+		assert.NoError(t, err)
+		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+		assert.Equal(t, uint8(1), m.prefetchCount)
 	})
 
 	for _, tt := range booleanFlagTests {

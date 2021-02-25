@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,8 +25,10 @@ func TestParseMetadata(t *testing.T) {
 		properties               map[string]string
 		expectedDeleteWhenUnused bool
 		expectedDurable          bool
+		expectedExclusive        bool
 		expectedTTL              *time.Duration
 		expectedPrefetchCount    int
+		expectedMaxPriority      *uint8
 	}{
 		{
 			name:                     "Delete / Durable",
@@ -41,14 +44,14 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:                     "With one second TTL",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: "1"},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: "1"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedTTL:              &oneSecondTTL,
 		},
 		{
 			name:                     "Empty TTL",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", bindings.TTLMetadataKey: ""},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 		},
@@ -58,6 +61,35 @@ func TestParseMetadata(t *testing.T) {
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedPrefetchCount:    1,
+		},
+		{
+			name:                     "Exclusive Queue",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "exclusive": "true"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedExclusive:        true,
+		},
+		{
+			name:                     "With maxPriority",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "maxPriority": "1"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedMaxPriority: func() *uint8 {
+				v := uint8(1)
+
+				return &v
+			}(),
+		},
+		{
+			name:                     "With maxPriority(> 255)",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "maxPriority": "256"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedMaxPriority: func() *uint8 {
+				v := uint8(255)
+
+				return &v
+			}(),
 		},
 	}
 
@@ -74,6 +106,8 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
 			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
+			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
+			assert.Equal(t, tt.expectedMaxPriority, r.metadata.MaxPriority)
 		})
 	}
 }
@@ -88,15 +122,52 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}{
 		{
 			name:       "Whitespaces TTL",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "  "},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "  "},
 		},
 		{
 			name:       "Negative ttl",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "-1"},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "-1"},
 		},
 		{
 			name:       "Non-numeric ttl",
-			properties: map[string]string{"queueName": queueName, "host": host, bindings.TTLMetadataKey: "abc"},
+			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "abc"},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			r := RabbitMQ{logger: logger.NewLogger("test")}
+			err := r.parseMetadata(m)
+			assert.NotNil(t, err)
+		})
+	}
+}
+
+func TestParseMetadataWithInvalidMaxPriority(t *testing.T) {
+	const queueName = "test-queue"
+	const host = "test-host"
+
+	testCases := []struct {
+		name       string
+		properties map[string]string
+	}{
+		{
+			name:       "Whitespaces maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "  "},
+		},
+		{
+			name:       "Negative maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "-1"},
+		},
+		{
+			name:       "Non-numeric maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "abc"},
+		},
+		{
+			name:       "Negative maxPriority",
+			properties: map[string]string{"queueName": queueName, "host": host, "maxPriority": "-1"},
 		},
 	}
 

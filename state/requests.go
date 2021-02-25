@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -20,7 +20,7 @@ type GetStateOption struct {
 // DeleteRequest is the object describing a delete state request
 type DeleteRequest struct {
 	Key      string            `json:"key"`
-	ETag     string            `json:"etag,omitempty"`
+	ETag     *string           `json:"etag,omitempty"`
 	Metadata map[string]string `json:"metadata"`
 	Options  DeleteStateOption `json:"options,omitempty"`
 }
@@ -45,7 +45,7 @@ type DeleteStateOption struct {
 type SetRequest struct {
 	Key      string            `json:"key"`
 	Value    interface{}       `json:"value"`
-	ETag     string            `json:"etag,omitempty"`
+	ETag     *string           `json:"etag,omitempty"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 	Options  SetStateOption    `json:"options,omitempty"`
 }

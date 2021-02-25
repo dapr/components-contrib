@@ -1,5 +1,5 @@
 # ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation.
+# Copyright (c) Microsoft Corporation and Dapr Contributors.
 # Licensed under the MIT License.
 # ------------------------------------------------------------
 
@@ -41,6 +41,8 @@ export GOOS ?= $(TARGET_OS_LOCAL)
 ifeq ($(GOOS),windows)
 BINARY_EXT_LOCAL:=.exe
 GOLANGCI_LINT:=golangci-lint.exe
+# Workaround for https://github.com/golang/go/issues/40795
+BUILDMODE:=-buildmode=exe
 else
 BINARY_EXT_LOCAL:=
 GOLANGCI_LINT:=golangci-lint
@@ -51,7 +53,7 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	go test ./... $(COVERAGE_OPTS)
+	go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
 
 ################################################################################
 # Target: lint                                                                 #
@@ -74,3 +76,10 @@ go.mod:
 .PHONY: check-diff
 check-diff:
 	git diff --exit-code ./go.mod # check no changes
+
+################################################################################
+# Target: conf-tests                                                           #
+################################################################################
+.PHONY: conf-tests
+conf-tests:
+	@go test -v -tags=conftests -count=1 ./tests/conformance

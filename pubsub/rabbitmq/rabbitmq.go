@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ const (
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
 
 	defaultReconnectWaitSeconds = 10
+	metadataprefetchCount       = "prefetchCount"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format
@@ -54,6 +56,7 @@ type rabbitMQChannelBroker interface {
 	Nack(tag uint64, multiple bool, requeue bool) error
 	Ack(tag uint64, multiple bool) error
 	ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
+	Qos(prefetchCount, prefetchSize int, global bool) error
 }
 
 // interface used to allow unit testing
@@ -210,6 +213,14 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		return nil, err
 	}
 
+	if r.metadata.prefetchCount > 0 {
+		r.logger.Debugf("setting prefetch count to %s", strconv.Itoa(int(r.metadata.prefetchCount)))
+		err = channel.Qos(int(r.metadata.prefetchCount), 0, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	r.logger.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
 	err = channel.QueueBind(q.Name, "", req.Topic, false, nil)
 	if err != nil {
@@ -275,8 +286,16 @@ func (r *rabbitMQ) subscribeForever(
 }
 
 func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler pubsub.Handler) error {
+	var err error
 	for d := range msgs {
-		err := r.handleMessage(channel, d, topic, handler)
+		switch r.metadata.concurrency {
+		case pubsub.Single:
+			err = r.handleMessage(channel, d, topic, handler)
+		case pubsub.Parallel:
+			go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) {
+				err = r.handleMessage(channel, d, topic, handler)
+			}(channel, d, topic, handler)
+		}
 		if (err != nil) && mustReconnect(channel, err) {
 			return err
 		}
@@ -370,6 +389,10 @@ func (r *rabbitMQ) Close() error {
 	r.stopped = true
 
 	return err
+}
+
+func (r *rabbitMQ) Features() []pubsub.Feature {
+	return nil
 }
 
 func mustReconnect(channel rabbitMQChannelBroker, err error) bool {

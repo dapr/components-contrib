@@ -6,6 +6,7 @@
 package pubsub
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -125,7 +126,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			err := ps.Subscribe(pubsub.SubscribeRequest{
 				Topic:    config.testTopicName,
 				Metadata: config.subscribeMetadata,
-			}, func(msg *pubsub.NewMessage) error {
+			}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 				dataString := string(msg.Data)
 				if !strings.HasPrefix(dataString, dataPrefix) {
 					t.Logf("Ignoring message without expected prefix")

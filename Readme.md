@@ -2,7 +2,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/dapr/components-contrib)](https://goreportcard.com/report/github.com/dapr/components-contrib)
 [![Build Status](https://github.com/dapr/components-contrib/workflows/components-contrib/badge.svg?event=push&branch=master)](https://github.com/dapr/components-contrib/actions?workflow=components-contrib)
-[![Join the chat at https://gitter.im/Dapr/components-contrib](https://badges.gitter.im/Dapr/components-contrib.svg)](https://gitter.im/Dapr/components-contrib?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Discord](https://img.shields.io/discord/778680217417809931)](https://discord.com/channels/778680217417809931/781589820128493598)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
@@ -17,7 +17,6 @@ Available component types:
 * [Pub Sub](pubsub/Readme.md)
 * [State Stores](state/Readme.md)
 * [Secret Stores](secretstores/Readme.md)
-* [Tracing Exporters](exporters/Readme.md)
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://docs.dapr.io).
 

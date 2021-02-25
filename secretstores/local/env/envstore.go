@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -39,15 +39,15 @@ func (s *envSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
-	r := map[string]string{}
+func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+	r := map[string]map[string]string{}
 
 	for _, element := range os.Environ() {
-		envVariable := strings.Split(element, "=")
-		r[envVariable[0]] = envVariable[1]
+		envVariable := strings.SplitN(element, "=", 2)
+		r[envVariable[0]] = map[string]string{envVariable[0]: envVariable[1]}
 	}
 
-	return secretstores.GetSecretResponse{
+	return secretstores.BulkGetSecretResponse{
 		Data: r,
 	}, nil
 }

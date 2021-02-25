@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -157,4 +157,8 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 
 func (aeh *AzureEventHubs) Close() error {
 	return aeh.hub.Close(context.TODO())
+}
+
+func (aeh *AzureEventHubs) Features() []pubsub.Feature {
+	return nil
 }

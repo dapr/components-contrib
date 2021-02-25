@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -8,10 +8,12 @@ package rabbitmq
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/streadway/amqp"
 )
@@ -19,10 +21,13 @@ import (
 const (
 	host                       = "host"
 	queueName                  = "queueName"
+	exclusive                  = "exclusive"
 	durable                    = "durable"
 	deleteWhenUnused           = "deleteWhenUnused"
 	prefetchCount              = "prefetchCount"
+	maxPriority                = "maxPriority"
 	rabbitMQQueueMessageTTLKey = "x-message-ttl"
+	rabbitMQMaxPriorityKey     = "x-max-priority"
 	defaultBase                = 10
 	defaultBitSize             = 0
 )
@@ -40,9 +45,11 @@ type RabbitMQ struct {
 type rabbitMQMetadata struct {
 	Host             string `json:"host"`
 	QueueName        string `json:"queueName"`
+	Exclusive        bool   `json:"exclusive,string"`
 	Durable          bool   `json:"durable,string"`
 	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
 	PrefetchCount    int    `json:"prefetchCount"`
+	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
 	defaultQueueTTL  *time.Duration
 }
 
@@ -92,7 +99,7 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 		Body:         req.Data,
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(req.Metadata)
+	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +109,15 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	if ok {
 		// RabbitMQ expects the duration in ms
 		pub.Expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
+	}
+
+	priority, ok, err := contrib_metadata.TryGetPriority(req.Metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		pub.Priority = priority
 	}
 
 	err = r.channel.Publish("", r.metadata.QueueName, false, false, pub)
@@ -152,7 +168,30 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.PrefetchCount = int(parsedVal)
 	}
 
-	ttl, ok, err := bindings.TryGetTTL(metadata.Properties)
+	if val, ok := metadata.Properties[exclusive]; ok && val != "" {
+		d, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("rabbitMQ binding error: can't parse exclusive field: %s", err)
+		}
+		m.Exclusive = d
+	}
+
+	if val, ok := metadata.Properties[maxPriority]; ok && val != "" {
+		parsedVal, err := strconv.ParseUint(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return fmt.Errorf("rabbitMQ binding error: can't parse maxPriority field: %s", err)
+		}
+
+		maxPriority := uint8(parsedVal)
+		if parsedVal > 255 {
+			// Overflow
+			maxPriority = math.MaxUint8
+		}
+
+		m.MaxPriority = &maxPriority
+	}
+
+	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -174,7 +213,11 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 		args[rabbitMQQueueMessageTTLKey] = int(ttl)
 	}
 
-	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
+	if r.metadata.MaxPriority != nil {
+		args[rabbitMQMaxPriorityKey] = *r.metadata.MaxPriority
+	}
+
+	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
 }
 
 func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) error) error {

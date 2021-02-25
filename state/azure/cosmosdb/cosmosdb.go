@@ -1,12 +1,12 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
 package cosmosdb
 
 import (
-	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -40,17 +40,8 @@ type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
+	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
-}
-
-// CosmosItemWithRawMessage is a version of CosmosItem with a Value of RawMessage so this field
-// is not marshalled.  If it is marshalled it will end up in a form that
-// cannot be unmarshalled.  This type is used when SetRequest.Value arrives as bytes.
-type CosmosItemWithRawMessage struct {
-	documentdb.Document
-	ID           string              `json:"id"`
-	Value        jsoniter.RawMessage `json:"value"`
-	PartitionKey string              `json:"partitionKey"`
 }
 
 type storedProcedureDefinition struct {
@@ -179,6 +170,15 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, nil
 	}
 
+	if items[0].IsBinary {
+		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+
+		return &state.GetResponse{
+			Data: bytes,
+			ETag: items[0].Etag,
+		}, nil
+	}
+
 	b, err := jsoniter.ConfigFastest.Marshal(&items[0].Value)
 	if err != nil {
 		return nil, err
@@ -200,8 +200,12 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
-	if req.ETag != "" {
-		options = append(options, documentdb.IfMatch((req.ETag)))
+	if req.ETag != nil {
+		var etag string
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -210,22 +214,14 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	b, ok := req.Value.([]uint8)
-	if ok {
-		// data arrived in bytes and already json.  Don't marshal the Value field again.
-		item := CosmosItemWithRawMessage{ID: req.Key, Value: b, PartitionKey: partitionKey}
-		var marshalled []byte
-		marshalled, err = convertToJSONWithoutEscapes(item)
-		if err != nil {
-			return err
-		}
-		_, err = c.client.UpsertDocument(c.collection.Self, marshalled, options...)
-	} else {
-		// data arrived as non-bytes, just pass it through.
-		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
-	}
+	doc := createUpsertItem(*req, partitionKey)
+	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
 
 	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
 		return err
 	}
 
@@ -255,8 +251,12 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		return nil
 	}
 
-	if req.ETag != "" {
-		options = append(options, documentdb.IfMatch((req.ETag)))
+	if req.ETag != nil {
+		var etag string
+		if req.ETag != nil {
+			etag = *req.ETag
+		}
+		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -268,6 +268,12 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	_, err = c.client.DeleteDocument(items[0].Self, options...)
 	if err != nil {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
+	}
+
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 	}
 
 	return err
@@ -288,13 +294,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			// Value need not be marshaled here. It is handled by cosmosdb client.
-			upsertOperation := CosmosItem{
-				ID:           req.Key,
-				Value:        req.Value,
-				PartitionKey: partitionKey,
-			}
-
+			upsertOperation := createUpsertItem(req, partitionKey)
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -334,11 +334,13 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	return key
 }
 
-func convertToJSONWithoutEscapes(t interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := jsoniter.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(t)
+func createUpsertItem(req state.SetRequest, partitionKey string) CosmosItem {
+	_, isBinary := req.Value.([]uint8)
 
-	return buffer.Bytes(), err
+	return CosmosItem{
+		ID:           req.Key,
+		Value:        req.Value,
+		PartitionKey: partitionKey,
+		IsBinary:     isBinary,
+	}
 }

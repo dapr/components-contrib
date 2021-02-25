@@ -1,0 +1,248 @@
+# ------------------------------------------------------------
+# Copyright (c) Microsoft Corporation and Dapr Contributors.
+# Licensed under the MIT License.
+# ------------------------------------------------------------
+
+name: Components Conformance Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  # Based on whether this is a PR or a scheduled run, we will run a different
+  # subset of the conformance tests. This allows all the tests not requiring
+  # secrets to be executed on pull requests.
+  generate-matrix:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install yq
+      run: |
+        sudo snap install yq
+
+    - name: Specify components not requiring secrets nor certs
+      id: pr-components
+      run: |
+        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - bindings.http
+        - bindings.kafka
+        - bindings.redis
+        - pubsub.redis
+        - pubsub.natsstreaming
+        - pubsub.kafka
+        - pubsub.pulsar
+        - secretstores.kubernetes
+        - secretstores.localenv
+        - secretstores.localfile
+        - state.mongodb
+        - state.redis
+        EOF
+        )
+        echo "::set-output name=pr-components::$PR_COMPONENTS"
+
+    - name: Specify components requiring secrets or certs
+      id: cron-components
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "::set-output name=cron-components::[]"
+          exit
+        fi
+        # Unfortunately, Azure secrets can't have underscores in
+        # names, while environment variables with hyphens ('-') are
+        # troublesome.
+        #
+        # We work around here by leveraging the fact that
+        # environment variable names are case sensitive, so
+        # CamelCase would still work.
+        #
+        # That is slightly better than something like
+        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
+        # and errorprone.
+        #
+        # Only list the secrets you need for the component.
+        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - component: state.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: pubsub.azure.servicebus
+          required-secrets: AzureServiceBusConnectionString
+        - component: bindings.azure.blobstorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+        - component: bindings.azure.eventgrid
+          required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.servicebusqueues
+          required-secrets: AzureServiceBusConnectionString
+        - component: bindings.azure.storagequeues
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+        - component: secretstores.azure.keyvault
+          required-secrets: AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
+          required-certs: AzureKeyVaultSecretStoreCert
+        EOF
+        )
+        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+    outputs:
+      pr-components: ${{ steps.pr-components.outputs.pr-components }}
+      cron-components: ${{ steps.cron-components.outputs.cron-components }}
+
+  conformance:
+    name: ${{ matrix.component }} conformance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./src/github.com/dapr/components-contrib
+    needs: generate-matrix
+    env:
+      # Set this to your keyvault.
+      #
+      # The KeyVault policy must be granted to your Service Principal using
+      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+      AZURE_KEYVAULT: dapr-conf-tests
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+    steps:
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@v2
+      with:
+        path: ./src/github.com/dapr/components-contrib
+
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      if: matrix.required-secrets != ''
+
+    - name: Setup secrets
+      uses: Azure/get-keyvault-secrets@v1
+      with:
+        keyvault: ${{ env.AZURE_KEYVAULT }}
+        secrets: ${{ matrix.required-secrets }}
+      id: get-azure-secrets
+      if: matrix.required-secrets != ''
+
+    - name: Start ngrok
+      if: contains(matrix.component, 'azure.eventgrid')
+      run: |
+        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+        unzip -qq ngrok-stable-linux-amd64.zip
+        ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
+        ./ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        sleep 10
+        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
+        echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
+        echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
+        cat /tmp/ngrok.log
+        # Schedule trigger to kill ngrok
+        bash -c "sleep 500 && pkill ngrok" &
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Setup certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(mktemp --suffix .pfx)
+          echo "Downloading cert $CERT_NAME into file $CERT_FILE"
+          rm $CERT_FILE && \
+            az keyvault secret download --vault-name $AZURE_KEYVAULT --name $CERT_NAME --encoding base64 --file $CERT_FILE
+          echo 'Setting $CERT_NAME to' "$CERT_FILE"
+          echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
+        done
+
+    - name: Start Redis
+      uses: supercharge/redis-github-action@1.2.0
+      with:
+        redis-version: 6
+      if: contains(matrix.component, 'redis')
+
+    - name: Start MongoDB
+      uses: supercharge/mongodb-github-action@1.3.0
+      with:
+        mongodb-version: 4.2
+        mongodb-replica-set: test-rs
+      if: contains(matrix.component, 'mongodb')
+
+    - name: Start kafka
+      run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
+      if: contains(matrix.component, 'kafka')
+
+    - name: Start natsstreaming
+      run: docker-compose -f ./.github/infrastructure/docker-compose-natsstreaming.yml -p natsstreaming up -d
+      if: contains(matrix.component, 'natsstreaming')
+
+    - name: Start pulsar
+      run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
+      if: contains(matrix.component, 'pulsar')
+
+    - name: Start KinD
+      uses: helm/kind-action@v1.0.0
+      if: contains(matrix.component, 'kubernetes')
+
+    - name: Setup KinD test data
+      if: contains(matrix.component, 'kubernetes')
+      run: |
+        kubectl apply -f tests/config/kind-data.yaml
+        echo "NAMESPACE=default" >> $GITHUB_ENV
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+
+    - name: Run tests
+      continue-on-error: true
+      run: |
+        set -e 
+        KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
+        KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
+
+        if [ "${KIND}" = "secretstores" ]; then
+          KIND_UPPER=SecretStore
+        fi
+
+        echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+
+        set +e
+        go test -v -tags=conftests -count=1 ./tests/conformance \
+          --run="Test${KIND_UPPER}Conformance/${NAME}" 2>&1 | tee output.log
+        status=$?
+        echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+        if test $status -ne 0; then
+          echo "Setting CONFORMANCE_FAILURE"
+          echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
+        fi
+        set -e
+
+        # Fail the step if we found no test to run
+        if grep -q "warning: no tests to run" output.log ; then
+          echo "::error:: No test was found for component ${{ matrix.component }}"
+          exit -1
+        fi
+
+    - name: Stop ngrok
+      if: contains(matrix.component, 'azure.eventgrid')
+      continue-on-error: true
+      run: pkill ngrok; cat /tmp/ngrok.log
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Clean up certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(printenv $CERT_NAME)
+
+          echo "Cleaning up the certificate file $CERT_FILE..."
+          rm $CERT_FILE
+        done
+
+    - name: Check conformance test passed
+      continue-on-error: false
+      run: |
+        echo "CONFORMANCE_FAILURE=$CONFORMANCE_FAILURE"
+        if [[ -v CONFORMANCE_FAILURE ]]; then
+          exit 1
+        fi

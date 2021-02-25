@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -16,11 +16,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/cenkalti/backoff/v4"
 	nats "github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 // compulsory options
@@ -62,6 +64,10 @@ type natsStreamingPubSub struct {
 	natStreamingConn stan.Conn
 
 	logger logger.Logger
+
+	ctx     context.Context
+	cancel  context.CancelFunc
+	backOff backoff.BackOff
 }
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation
@@ -187,6 +193,14 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	}
 	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	n.ctx = ctx
+	n.cancel = cancel
+
+	// TODO: Make the backoff configurable for constant or exponential
+	b := backoff.NewConstantBackOff(5 * time.Second)
+	n.backOff = backoff.WithContext(b, n.ctx)
+
 	n.natStreamingConn = natStreamingConn
 
 	return nil
@@ -208,12 +222,24 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 	}
 
 	natsMsgHandler := func(natsMsg *stan.Msg) {
-		herr := handler(context.Background(), &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
-		if herr != nil {
-		} else {
-			// we only send a successful ACK if there is no error from Dapr runtime
-			natsMsg.Ack()
+		msg := pubsub.NewMessage{
+			Topic: req.Topic,
+			Data:  natsMsg.Data,
 		}
+		pubsub.RetryNotifyRecover(func() error {
+			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
+			herr := handler(context.Background(), &msg)
+			if herr == nil {
+				// we only send a successful ACK if there is no error from Dapr runtime
+				natsMsg.Ack()
+			}
+
+			return herr
+		}, n.backOff, func(err error, d time.Duration) {
+			n.logger.Errorf("Error processing NATS Streaming message: %s/%d. Retrying...", natsMsg.Subject, natsMsg.Sequence)
+		}, func() {
+			n.logger.Infof("Successfully processed NATS Streaming message after it previously failed: %s/%d", natsMsg.Subject, natsMsg.Sequence)
+		})
 	}
 
 	if n.metadata.subscriptionType == subscriptionTypeTopic {
@@ -291,5 +317,11 @@ func genRandomString(n int) string {
 }
 
 func (n *natsStreamingPubSub) Close() error {
+	n.cancel()
+
 	return n.natStreamingConn.Close()
+}
+
+func (n *natsStreamingPubSub) Features() []pubsub.Feature {
+	return nil
 }

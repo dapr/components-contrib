@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -25,6 +25,7 @@ const (
 	componentSPNTenantID            = "spnTenantId"
 	componentVaultName              = "vaultName"
 	VersionID                       = "version_id"
+	secretItemIDPrefix              = "/secrets/"
 )
 
 type keyvaultSecretStore struct {
@@ -84,38 +85,43 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	vaultURI := k.getVaultURI()
 
 	maxResults, err := k.getMaxResultsFromMetadata(req.Metadata)
 	if err != nil {
-		return secretstores.GetSecretResponse{}, err
+		return secretstores.BulkGetSecretResponse{}, err
 	}
 
 	secretsResp, err := k.vaultClient.GetSecretsComplete(context.Background(), vaultURI, maxResults)
 	if err != nil {
-		return secretstores.GetSecretResponse{}, err
+		return secretstores.BulkGetSecretResponse{}, err
 	}
 
-	resp := secretstores.GetSecretResponse{
-		Data: map[string]string{},
+	resp := secretstores.BulkGetSecretResponse{
+		Data: map[string]map[string]string{},
 	}
+
+	secretIDPrefix := vaultURI + secretItemIDPrefix
 
 	for secretsResp.NotDone() {
-		secretItem := secretsResp.Value()
-		secretName := strings.TrimPrefix(*secretItem.ID, vaultURI)
+		secretEnabled := secretsResp.Value().Attributes.Enabled
+		if *secretEnabled {
+			secretItem := secretsResp.Value()
+			secretName := strings.TrimPrefix(*secretItem.ID, secretIDPrefix)
 
-		secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
-		if err != nil {
-			return secretstores.GetSecretResponse{}, err
+			secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
+			if err != nil {
+				return secretstores.BulkGetSecretResponse{}, err
+			}
+
+			secretValue := ""
+			if secretResp.Value != nil {
+				secretValue = *secretResp.Value
+			}
+
+			resp.Data[secretName] = map[string]string{secretName: secretValue}
 		}
-
-		secretValue := ""
-		if secretResp.Value != nil {
-			secretValue = *secretResp.Value
-		}
-
-		resp.Data[secretName] = secretValue
 
 		secretsResp.NextWithContext(context.Background())
 	}

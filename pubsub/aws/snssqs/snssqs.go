@@ -67,7 +67,10 @@ const (
 )
 
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
-	return &snsSqs{logger: l, subscriptions: []*string{}}
+	return &snsSqs{
+		logger:        l,
+		subscriptions: []*string{},
+	}
 }
 
 func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
@@ -494,5 +497,9 @@ func (s *snsSqs) Close() error {
 		})
 	}
 
+	return nil
+}
+
+func (s *snsSqs) Features() []pubsub.Feature {
 	return nil
 }

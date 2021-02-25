@@ -1,0 +1,11 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.mongodb
+  metadata:
+  - name: host
+    value: localhost:27017
+  - name: params
+    value: replicaSet=test-rs

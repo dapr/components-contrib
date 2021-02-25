@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: localhost:9092
+  - name: consumerID
+    value: pubsubgroup1
+  - name: authRequired
+    value: "false"

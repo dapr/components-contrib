@@ -116,30 +116,26 @@ func (s *subscription) getHandlerFunc(handler pubsub.Handler, handlerTimeoutInSe
 		handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		defer handleCancel()
 		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
-		err := handler(handleCtx, msg)
+		appErr := handler(handleCtx, msg)
 
-		// The context isn't handled downstream so we time out these
-		// operations here to avoid getting stuck waiting for a message
-		// to finalize (abandon/complete) if the connection has dropped.
-		// Warning, this can cause goroutine to be leaked.
-		errs := make(chan error, 1)
-		if err != nil {
-			s.logger.Warnf("Error in app's handler: %+v", err)
-			go func() {
-				errs <- s.abandonMessage(ctx, message)
-			}()
+		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+		finalizeCtx, finalizeCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+		defer finalizeCancel()
+
+		if appErr != nil {
+			s.logger.Warnf("Error in app's handler: %+v", appErr)
+			if abandonErr := s.abandonMessage(finalizeCtx, message); abandonErr != nil {
+				return fmt.Errorf("failed to abandon: %+v", abandonErr)
+			}
+
+			return nil
 		}
-		go func() {
-			errs <- s.completeMessage(ctx, message)
-		}()
-		select {
-		case err := <-errs:
-			return err
-		case <-time.After(time.Second * time.Duration(timeoutInSec)):
-			return fmt.Errorf("%s call to finalize message %s has timedout", errorMessagePrefix, message.ID)
-		case <-ctx.Done():
-			return ctx.Err()
+		if completeErr := s.completeMessage(finalizeCtx, message); completeErr != nil {
+			return fmt.Errorf("failed to complete: %+v", completeErr)
 		}
+
+		return nil
 	}
 }
 

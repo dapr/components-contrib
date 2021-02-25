@@ -102,10 +102,14 @@ func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSe
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
-func (s *Store) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (s *Store) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	versionID := "latest"
 
-	response := map[string]string{}
+	response := map[string]map[string]string{}
+
+	if s.client == nil {
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("client is not initialized")
+	}
 
 	ctx := context.Background()
 
@@ -122,18 +126,18 @@ func (s *Store) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstor
 		}
 
 		if err != nil {
-			return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to list secrets: %v", err)
+			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to list secrets: %v", err)
 		}
 
 		name := resp.GetName()
 		secret, err := s.getSecret(name, versionID)
 		if err != nil {
-			return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("failed to access secret version: %v", err)
+			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("failed to access secret version: %v", err)
 		}
-		response[name] = *secret
+		response[name] = map[string]string{name: *secret}
 	}
 
-	return secretstores.GetSecretResponse{Data: response}, nil
+	return secretstores.BulkGetSecretResponse{Data: response}, nil
 }
 
 func (s *Store) getSecret(secretName string, versionID string) (*string, error) {

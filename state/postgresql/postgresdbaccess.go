@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -104,7 +104,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
-	if req.ETag == "" {
+	if req.ETag == nil {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value) VALUES ($1, $2)
 			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`,
@@ -112,9 +112,9 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
 		var etag int
-		etag, err = strconv.Atoi(req.ETag)
+		etag, err = strconv.Atoi(*req.ETag)
 		if err != nil {
-			return err
+			return state.NewETagError(state.ETagInvalid, err)
 		}
 
 		// When an etag is provided do an update - no insert
@@ -170,13 +170,13 @@ func (p *postgresDBAccess) deleteValue(req *state.DeleteRequest) error {
 	var result sql.Result
 	var err error
 
-	if req.ETag == "" {
+	if req.ETag == nil {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
-		etag, conversionError := strconv.Atoi(req.ETag)
+		etag, conversionError := strconv.Atoi(*req.ETag)
 		if conversionError != nil {
-			return conversionError
+			return state.NewETagError(state.ETagInvalid, err)
 		}
 
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
@@ -238,7 +238,7 @@ func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) er
 	}
 
 	if rowsAffected == 0 {
-		noRowsErr := errors.New("database operation failed: no rows match given key and etag")
+		noRowsErr := state.NewETagError(state.ETagMismatch, err)
 		p.logger.Error(noRowsErr)
 
 		return noRowsErr

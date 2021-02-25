@@ -9,6 +9,8 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -99,7 +101,7 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 	}
 
 	topic := g.getTopic(req.Topic)
-	sub := g.getSubscription(g.metadata.ConsumerID)
+	sub := g.getSubscription(g.metadata.ConsumerID + "-" + req.Topic)
 
 	go g.handleSubscriptionMessages(topic, sub, handler)
 
@@ -126,11 +128,20 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 func (g *GCPPubSub) ensureTopic(topic string) error {
 	entity := g.getTopic(topic)
 	exists, err := entity.Exists(context.Background())
-	if !exists {
-		_, err = g.client.CreateTopic(context.Background(), topic)
+	if err != nil {
+		return err
 	}
 
-	return err
+	if !exists {
+		_, err = g.client.CreateTopic(context.Background(), topic)
+		if status.Code(err) == codes.AlreadyExists {
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
@@ -143,10 +154,11 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error 
 		return err
 	}
 
-	entity := g.getSubscription(subscription)
+	managedSubscription := subscription + "-" + topic
+	entity := g.getSubscription(managedSubscription)
 	exists, subErr := entity.Exists(context.Background())
 	if !exists {
-		_, subErr = g.client.CreateSubscription(context.Background(), g.metadata.ConsumerID,
+		_, subErr = g.client.CreateSubscription(context.Background(), managedSubscription,
 			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic)})
 	}
 
@@ -159,4 +171,8 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 
 func (g *GCPPubSub) Close() error {
 	return g.client.Close()
+}
+
+func (g *GCPPubSub) Features() []pubsub.Feature {
+	return nil
 }

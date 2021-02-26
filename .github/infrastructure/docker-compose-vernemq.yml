@@ -1,0 +1,10 @@
+version: '2'
+services:
+  vernemq:
+    image: vernemq/vernemq:1.11.0
+    hostname: vernemq
+    environment:
+    - DOCKER_VERNEMQ_ALLOW_ANONYMOUS=on
+    - DOCKER_VERNEMQ_ACCEPT_EULA=yes
+    ports:
+    - "1885:1883"

@@ -18,9 +18,9 @@ var (
 
 // StringDecoder is used as a way for custom types (or alias types) to
 // override the basic decoding function in the `decodeString`
-// DecodeHook. `encoding.TextMashaller` was not used because there it
-// matches many Go types and specifying a custom decoding func should
-// be very intentional.
+// DecodeHook. `encoding.TextMashaller` was not used because it
+// matches many Go types and would have potentially unexpected results.
+// Specifying a custom decoding func should be very intentional.
 type StringDecoder interface {
 	DecodeString(value string) error
 }

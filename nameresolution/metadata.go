@@ -29,5 +29,6 @@ const (
 
 // Metadata contains a name resolution specific set of metadata properties
 type Metadata struct {
-	Properties map[string]string `json:"properties"`
+	Properties    map[string]string `json:"properties"`
+	Configuration interface{}
 }

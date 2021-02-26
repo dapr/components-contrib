@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -112,13 +113,15 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	// from being considered as part of this test.
 	runID := uuid.Must(uuid.NewRandom()).String()
 	awaitingMessages := make(map[string]struct{}, 20)
+	var mu sync.Mutex
+	processedMessages := make(map[int]struct{}, 20)
 	processedC := make(chan string, config.messageCount*2)
 	errorCount := 0
 	dataPrefix := "message-" + runID + "-"
 	var outOfOrder bool
 
 	// Subscribe
-	if config.HasOperation("subscribe") {
+	if config.HasOperation("subscribe") { // nolint: nestif
 		t.Run("subscribe", func(t *testing.T) {
 			var counter int
 			var lastSequence int
@@ -133,8 +136,6 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					return nil
 				}
 
-				counter++
-
 				sequence, err := strconv.Atoi(dataString[len(dataPrefix):])
 				if err != nil {
 					t.Logf("Message did not contain a sequence number")
@@ -142,6 +143,20 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 					return err
 				}
+
+				// Ignore already processed messages
+				// in case we receive a redelivery from the broker
+				// during retries.
+				mu.Lock()
+				_, alreadyProcessed := processedMessages[sequence]
+				mu.Unlock()
+				if alreadyProcessed {
+					t.Logf("Message was already processed: %d", sequence)
+
+					return nil
+				}
+
+				counter++
 
 				if sequence < lastSequence {
 					outOfOrder = true
@@ -164,6 +179,10 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 				t.Logf("Simulating subscriber success")
 				actualReadCount++
+
+				mu.Lock()
+				processedMessages[sequence] = struct{}{}
+				mu.Unlock()
 
 				processedC <- dataString
 

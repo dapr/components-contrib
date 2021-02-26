@@ -1,0 +1,662 @@
+package consul
+
+import (
+
+	// "fmt"
+	// "math/rand"
+	// "strconv"
+	// "time"
+	// "testing"
+
+	// nr "github.com/dapr/components-contrib/nameresolution"
+
+	// "github.com/stretchr/testify/assert"
+
+	"fmt"
+	"testing"
+
+	nr "github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/dapr/pkg/logger"
+	consul "github.com/hashicorp/consul/api"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+type mockConsulResolver struct {
+	mock.Mock
+}
+
+func (c *mockConsulResolver) InitClient(config *consul.Config) error {
+	args := c.Called(config)
+	return args.Error(0)
+}
+
+func (c *mockConsulResolver) RegisterService(registration *consul.AgentServiceRegistration) error {
+	args := c.Called(registration)
+	return args.Error(0)
+}
+
+func (c *mockConsulResolver) CheckAgent() error {
+	args := c.Called()
+	return args.Error(0)
+}
+
+func (c *mockConsulResolver) GetConfig() *resolverConfig {
+	args := c.Called()
+	return args.Get(0).(*resolverConfig)
+}
+
+func (c *mockConsulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
+	args := c.Called(serviceID, queryOptions)
+	return args.Get(0).([]*consul.ServiceEntry), args.Error(1)
+}
+
+func TestInit(t *testing.T) {
+
+	tests := []struct {
+		testName string
+		metadata nr.Metadata
+		test     func(*testing.T, nr.Metadata)
+	}{
+		{
+			"given no configuration don't register service just check agent",
+			nr.Metadata{
+				Properties:    getTestPropsWithoutKey(""),
+				Configuration: nil,
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("InitClient", mock.Anything).Return(nil)
+				mockResolver.On("RegisterService", mock.Anything).Return(nil)
+				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
+
+				_ = newConsulResolver(logger.NewLogger("test"), mockResolver).Init(metadata)
+
+				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
+				mockResolver.AssertNumberOfCalls(t, "RegisterService", 0)
+				mockResolver.AssertNumberOfCalls(t, "CheckAgent", 1)
+			},
+		},
+		{
+			"given SelfRegister true then register service",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("InitClient", mock.Anything).Return(nil)
+				mockResolver.On("RegisterService", mock.Anything).Return(nil)
+				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
+
+				_ = newConsulResolver(logger.NewLogger("test"), mockResolver).Init(metadata)
+
+				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
+				mockResolver.AssertNumberOfCalls(t, "RegisterService", 1)
+				mockResolver.AssertNumberOfCalls(t, "CheckAgent", 0)
+			},
+		},
+		{
+			"given AdvancedRegistraion then register service",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{},
+					QueryOptions:         &consul.QueryOptions{},
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("InitClient", mock.Anything).Return(nil)
+				mockResolver.On("RegisterService", mock.Anything).Return(nil)
+				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
+
+				_ = newConsulResolver(logger.NewLogger("test"), mockResolver).Init(metadata)
+
+				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
+				mockResolver.AssertNumberOfCalls(t, "RegisterService", 1)
+				mockResolver.AssertNumberOfCalls(t, "CheckAgent", 0)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			tt.test(t, tt.metadata)
+		})
+	}
+}
+
+func TestResolveID(t *testing.T) {
+
+	tests := []struct {
+		testName string
+		req      nr.ResolveRequest
+		test     func(*testing.T, nr.ResolveRequest)
+	}{
+		{
+			"error if no healthy services found",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return([]*consul.ServiceEntry{}, nil)
+				mockResolver.On("GetConfig").Return(&resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+				})
+
+				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+				mockResolver.AssertNumberOfCalls(t, "GetHealthyServices", 1)
+				assert.Error(t, err)
+			},
+		},
+		{
+			"should get address from service",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
+					[]*consul.ServiceEntry{
+						{
+							Service: &consul.AgentService{
+								Address: "123.234.345.456",
+								Port:    8600,
+								Meta: map[string]string{
+									"DAPR_PORT": "50005",
+								},
+							},
+						},
+					}, nil)
+				mockResolver.On("GetConfig").Return(&resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+				})
+
+				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+
+				assert.Equal(t, "123.234.345.456:50005", addr)
+			},
+		},
+		{
+			"should get address from node if not on service",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
+					[]*consul.ServiceEntry{
+						{
+							Node: &consul.Node{
+								Address: "999.888.777",
+							},
+							Service: &consul.AgentService{
+								Address: "",
+								Port:    8600,
+								Meta: map[string]string{
+									"DAPR_PORT": "50005",
+								},
+							},
+						},
+					}, nil)
+				mockResolver.On("GetConfig").Return(&resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+				})
+
+				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+
+				assert.Equal(t, "999.888.777:50005", addr)
+			},
+		},
+		{
+			"error if no address found on service",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
+					[]*consul.ServiceEntry{
+						{
+							Node: &consul.Node{},
+							Service: &consul.AgentService{
+								Port: 8600,
+								Meta: map[string]string{
+									"DAPR_PORT": "50005",
+								},
+							},
+						},
+					}, nil)
+				mockResolver.On("GetConfig").Return(&resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+				})
+
+				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+
+				assert.Error(t, err)
+			},
+		},
+		{
+			"error if consul service missing DaprPortMetaKey",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+
+				mockResolver := &mockConsulResolver{}
+				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
+					[]*consul.ServiceEntry{
+						{
+							Service: &consul.AgentService{
+								Address: "123.234.345.456",
+								Port:    8600,
+							},
+						},
+					}, nil)
+				mockResolver.On("GetConfig").Return(&resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+				})
+
+				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+
+				assert.Error(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			tt.test(t, tt.req)
+		})
+	}
+}
+
+func TestParseConfig(t *testing.T) {
+	tests := []struct {
+		testName    string
+		shouldParse bool
+		input       interface{}
+		expected    configSpec
+	}{
+		{
+			"valid configuration in metadata",
+			true,
+			map[interface{}]interface{}{
+				"Checks": []interface{}{
+					map[interface{}]interface{}{
+						"Name":     "test-app health check name",
+						"CheckID":  "test-app health check id",
+						"Interval": "15s",
+						"HTTP":     "http://127.0.0.1:3500/health",
+					},
+				},
+				"Tags": []interface{}{
+					"dapr",
+					"test",
+				},
+				"Metadata": map[interface{}]interface{}{
+					"APP_PORT":       "123",
+					"DAPR_HTTP_PORT": "3500",
+					"DAPR_GRPC_PORT": "50005",
+				},
+				"QueryOptions": map[interface{}]interface{}{
+					"UseCache": true,
+					"Filter":   "Checks.ServiceTags contains dapr",
+				},
+			},
+			configSpec{
+				Checks: []*consul.AgentServiceCheck{
+					{
+						Name:     "test-app health check name",
+						CheckID:  "test-app health check id",
+						Interval: "15s",
+						HTTP:     "http://127.0.0.1:3500/health",
+					},
+				},
+				Tags: []string{
+					"dapr",
+					"test",
+				},
+				Metadata: map[string]string{
+					"APP_PORT":       "123",
+					"DAPR_HTTP_PORT": "3500",
+					"DAPR_GRPC_PORT": "50005",
+				},
+				QueryOptions: &consul.QueryOptions{
+					UseCache: true,
+					Filter:   "Checks.ServiceTags contains dapr",
+				},
+			},
+		},
+		{
+			"invalid configuration in metadata",
+			false,
+			map[interface{}]interface{}{
+				"Checks": []interface{}{
+					map[interface{}]interface{}{
+						"Name":     "health check name",
+						"IAMFAKE":  "health check id",
+						"Interval": "15s",
+						"HTTP":     "http://127.0.0.1:3500/health",
+					},
+				},
+				"Bob": []interface{}{
+					"dapr",
+					"test",
+				},
+				"Metadata": map[interface{}]interface{}{
+					"DAPR_HTTP_PORT": "3500",
+					"DAPR_GRPC_PORT": "50005",
+				},
+				"QueryOptions": map[interface{}]interface{}{
+					"NOTAREALFIELDNAME": true,
+					"Filter":            "Checks.ServiceTags contains dapr",
+				},
+			},
+			configSpec{},
+		},
+		{
+			"empty configuration in metadata",
+			true,
+			nil,
+			configSpec{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+
+			actual, err := parseConfig(tt.input)
+
+			if tt.shouldParse {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, actual)
+
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestGetConfig(t *testing.T) {
+	tests := []struct {
+		testName string
+		metadata nr.Metadata
+		test     func(*testing.T, nr.Metadata)
+	}{
+		{
+			"empty configuration should only return ClientConfig, QueryOptions and DaprPortMetaKey",
+			nr.Metadata{
+				Properties:    getTestPropsWithoutKey(""),
+				Configuration: nil,
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				actual, _ := getConfig(metadata)
+
+				// Client
+				assert.Equal(t, consul.DefaultConfig().Address, actual.ClientConfig.Address)
+
+				// Registration
+				assert.Nil(t, actual.Registration)
+
+				// QueryOptions
+				assert.NotNil(t, actual.QueryOptions)
+				assert.Equal(t, "Checks.ServiceTags contains dapr", actual.QueryOptions.Filter)
+				assert.Equal(t, true, actual.QueryOptions.UseCache)
+
+				// DaprPortMetaKey
+				assert.Equal(t, "DAPR_PORT", actual.DaprPortMetaKey)
+			},
+		},
+		{
+			"empty configuration with SelfRegister should default correctly",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				actual, _ := getConfig(metadata)
+				// Client
+				assert.Equal(t, consul.DefaultConfig().Address, actual.ClientConfig.Address)
+
+				// Checks
+				assert.Equal(t, 1, len(actual.Registration.Checks))
+				check := actual.Registration.Checks[0]
+				assert.Equal(t, "Dapr Health Status", check.Name)
+				assert.Equal(t, "daprHealth:test-app", check.CheckID)
+				assert.Equal(t, "15s", check.Interval)
+				assert.Equal(t, fmt.Sprintf("http://%s:%s/v1.0/healthz", metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), check.HTTP)
+
+				//Tags
+				assert.Equal(t, 1, len(actual.Registration.Tags))
+				assert.Equal(t, "dapr", actual.Registration.Tags[0])
+
+				//Metadata
+				assert.Equal(t, 1, len(actual.Registration.Meta))
+				assert.Equal(t, "50001", actual.Registration.Meta["DAPR_PORT"])
+
+				//QueryOptions
+				assert.Equal(t, "Checks.ServiceTags contains dapr", actual.QueryOptions.Filter)
+				assert.Equal(t, true, actual.QueryOptions.UseCache)
+
+				// DaprPortMetaKey
+				assert.Equal(t, "DAPR_PORT", actual.DaprPortMetaKey)
+			},
+		},
+		{
+			"tags without queryOptions should generate filter",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					Tags: []string{"dapr-A", "dapr-B", "dapr-C"},
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				actual, _ := getConfig(metadata)
+				//QueryOptions
+				filter := "Checks.ServiceTags contains dapr-A and " +
+					"Checks.ServiceTags contains dapr-B and " +
+					"Checks.ServiceTags contains dapr-C"
+				assert.Equal(t, filter, actual.QueryOptions.Filter)
+			},
+		},
+		{
+			"DaprPortMetaKey should set registration meta and config used for resolve",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					SelfRegister:    true,
+					DaprPortMetaKey: "random_key",
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				actual, _ := getConfig(metadata)
+
+				daprPort := metadata.Properties[nr.DaprPort]
+
+				assert.Equal(t, "random_key", actual.DaprPortMetaKey)
+				assert.Equal(t, daprPort, actual.Registration.Meta["random_key"])
+			},
+		},
+		{
+			"missing AppID property should error when SelfRegister true",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(nr.AppID),
+				Configuration: configSpec{
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				_, err := getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.AppID)
+
+				metadata.Configuration = configSpec{
+					SelfRegister: false,
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+
+				metadata.Configuration = configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{},
+					QueryOptions:         &consul.QueryOptions{},
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+			},
+		},
+		{
+			"missing AppPort property should error when SelfRegister true",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(nr.AppPort),
+				Configuration: configSpec{
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				_, err := getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.AppPort)
+
+				metadata.Configuration = configSpec{
+					SelfRegister: false,
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+
+				metadata.Configuration = configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{},
+					QueryOptions:         &consul.QueryOptions{},
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+			},
+		},
+		{
+			"missing HostAddress property should error when SelfRegister true",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(nr.HostAddress),
+				Configuration: configSpec{
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				_, err := getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.HostAddress)
+
+				metadata.Configuration = configSpec{
+					SelfRegister: false,
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+
+				metadata.Configuration = configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{},
+					QueryOptions:         &consul.QueryOptions{},
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+			},
+		},
+		{
+			"missing DaprHTTPPort property should error only when SelfRegister true",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(nr.DaprHTTPPort),
+				Configuration: configSpec{
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				_, err := getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.DaprHTTPPort)
+
+				metadata.Configuration = configSpec{
+					SelfRegister: false,
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+
+				metadata.Configuration = configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{},
+					QueryOptions:         &consul.QueryOptions{},
+				}
+
+				_, err = getConfig(metadata)
+				assert.NoError(t, err)
+			},
+		},
+		{
+			"missing DaprPort property should always error",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(nr.DaprPort),
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				metadata.Configuration = configSpec{
+					SelfRegister: false,
+				}
+
+				_, err := getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.DaprPort)
+
+				metadata.Configuration = configSpec{
+					SelfRegister: true,
+				}
+
+				_, err = getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.DaprPort)
+
+				metadata.Configuration = configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{},
+					QueryOptions:         &consul.QueryOptions{},
+				}
+
+				_, err = getConfig(metadata)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), nr.DaprPort)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			tt.test(t, tt.metadata)
+		})
+	}
+}
+
+func getTestPropsWithoutKey(removeKey string) map[string]string {
+	metadata := map[string]string{
+		nr.AppID:        "test-app",
+		nr.AppPort:      "8650",
+		nr.DaprPort:     "50001",
+		nr.DaprHTTPPort: "3500",
+		nr.HostAddress:  "127.0.0.1",
+	}
+	delete(metadata, removeKey)
+	return metadata
+}

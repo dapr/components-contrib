@@ -104,7 +104,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
-	if req.ETag == nil {
+	if req.ETag == nil || *req.ETag == "" {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value) VALUES ($1, $2)
 			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`,

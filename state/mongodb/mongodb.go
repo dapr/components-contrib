@@ -16,8 +16,10 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/google/uuid"
 	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -36,6 +38,7 @@ const (
 	params           = "params"
 	id               = "_id"
 	value            = "value"
+	etag             = "_etag"
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -74,6 +77,7 @@ type mongoDBMetadata struct {
 type Item struct {
 	Key   string `bson:"_id"`
 	Value string `bson:"value"`
+	Etag  string `bson:"_etag"`
 }
 
 // NewMongoDB returns a new MongoDB state store
@@ -147,8 +151,14 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	}
 
 	// create a document based on request key and value
-	filter := bson.M{id: req.Key}
-	update := bson.M{"$set": bson.M{id: req.Key, value: vStr}}
+	var filter primitive.M
+	if req.ETag == nil || *req.ETag == "" {
+		filter = bson.M{id: req.Key}
+	} else {
+		filter = bson.M{id: req.Key, etag: *req.ETag}
+	}
+
+	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.New().String()}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
 		return err
@@ -180,6 +190,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: value,
+		ETag: result.Etag,
 	}, nil
 }
 
@@ -197,7 +208,12 @@ func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 }
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
-	filter := bson.M{id: req.Key}
+	var filter primitive.M
+	if req.ETag == nil {
+		filter = bson.M{id: req.Key}
+	} else {
+		filter = bson.M{id: req.Key, etag: req.ETag}
+	}
 	_, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err

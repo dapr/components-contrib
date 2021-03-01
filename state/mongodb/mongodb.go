@@ -19,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -151,11 +150,9 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	}
 
 	// create a document based on request key and value
-	var filter primitive.M
-	if req.ETag == nil || *req.ETag == "" {
-		filter = bson.M{id: req.Key}
-	} else {
-		filter = bson.M{id: req.Key, etag: *req.ETag}
+	filter := bson.M{id: req.Key}
+	if req.ETag != nil {
+		filter[etag] = *req.ETag
 	}
 
 	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
@@ -208,11 +205,9 @@ func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 }
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
-	var filter primitive.M
-	if req.ETag == nil || *req.ETag == "" {
-		filter = bson.M{id: req.Key}
-	} else {
-		filter = bson.M{id: req.Key, etag: *req.ETag}
+	filter := bson.M{id: req.Key}
+	if req.ETag != nil {
+		filter[etag] = *req.ETag
 	}
 	_, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {

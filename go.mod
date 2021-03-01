@@ -20,6 +20,7 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
+	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/apache/pulsar-client-go v0.1.0

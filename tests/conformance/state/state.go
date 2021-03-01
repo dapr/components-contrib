@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
 
 type ValueType struct {
@@ -36,13 +36,13 @@ type TestConfig struct {
 	utils.CommonConfig
 }
 
-func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]string) TestConfig {
+func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]interface{}) TestConfig {
 	tc := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "state",
 			ComponentName: component,
 			AllOperations: allOperations,
-			Operations:    sets.NewString(operations...),
+			Operations:    utils.NewStringSet(operations...),
 		},
 	}
 

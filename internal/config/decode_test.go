@@ -10,7 +10,7 @@ import (
 	"github.com/agrea/ptr"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/kit/config"
+	"github.com/dapr/components-contrib/internal/config"
 )
 
 type testConfig struct { // nolint: maligned

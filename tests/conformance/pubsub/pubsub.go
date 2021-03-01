@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/kit/config"
+	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )

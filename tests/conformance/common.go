@@ -68,11 +68,11 @@ type TestConfiguration struct {
 	Components    []TestComponent `yaml:"components,omitempty"`
 }
 type TestComponent struct {
-	Component     string            `yaml:"component,omitempty"`
-	Profile       string            `yaml:"profile,omitempty"`
-	AllOperations bool              `yaml:"allOperations,omitempty"`
-	Operations    []string          `yaml:"operations,omitempty"`
-	Config        map[string]string `yaml:"config,omitempty"`
+	Component     string                 `yaml:"component,omitempty"`
+	Profile       string                 `yaml:"profile,omitempty"`
+	AllOperations bool                   `yaml:"allOperations,omitempty"`
+	Operations    []string               `yaml:"operations,omitempty"`
+	Config        map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // NewTestConfiguration reads the tests.yml and loads the TestConfiguration
@@ -113,15 +113,39 @@ func LookUpEnv(key string) string {
 	return ""
 }
 
-func ParseConfigurationMap(t *testing.T, configMap map[string]string) {
+func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 	for k, v := range configMap {
-		val := v
-		if strings.EqualFold(val, generateUUID) {
-			// check if generate uuid is specified
-			val = uuid.New().String()
-			t.Logf("Generated UUID %s", val)
+		switch val := v.(type) {
+		case string:
+			if strings.EqualFold(val, generateUUID) {
+				// check if generate uuid is specified
+				val = uuid.New().String()
+				t.Logf("Generated UUID %s", val)
+				configMap[k] = val
+			}
+		case map[string]interface{}:
+			ParseConfigurationMap(t, val)
+		case map[interface{}]interface{}:
+			parseConfigurationInterfaceMap(t, val)
 		}
-		configMap[k] = val
+	}
+}
+
+func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]interface{}) {
+	for k, v := range configMap {
+		switch val := v.(type) {
+		case string:
+			if strings.EqualFold(val, generateUUID) {
+				// check if generate uuid is specified
+				val = uuid.New().String()
+				t.Logf("Generated UUID %s", val)
+				configMap[k] = val
+			}
+		case map[string]interface{}:
+			ParseConfigurationMap(t, val)
+		case map[interface{}]interface{}:
+			parseConfigurationInterfaceMap(t, val)
+		}
 	}
 }
 
@@ -247,7 +271,12 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				}
 				pubsub := loadPubSub(comp)
 				assert.NotNil(t, pubsub)
-				pubsubConfig := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 			case "bindings":
 				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
@@ -262,7 +291,12 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				atLeastOne(t, func(item interface{}) bool {
 					return item != nil
 				}, inputBinding, outputBinding)
-				bindingsConfig := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)

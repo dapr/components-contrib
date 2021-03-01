@@ -1,9 +1,9 @@
 # Supported operation: publish, subscribe 
 # Config map:
-## All config map keys prefixed with publish_ will be part of the publish metadata in the Publish call
-## All config map keys prefixed with subscribe_ will be part of the subscribe metadata in the Subscribe call
 ## pubsubName : name of the pubsub 
 ## testTopicName: name of the test topic to use
+## publish: A map of strings that will be part of the publish metadata in the Publish call
+## subscribe: A map of strings that will be part of the subscribe metadata in the Subscribe call
 ## maxReadDuration: duration to wait for read to complete
 ## messageCount: no. of messages to publish
 ## checkInOrderProcessing: false disables in-order message processing checking

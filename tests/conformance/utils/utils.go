@@ -14,16 +14,16 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/gorilla/mux"
-	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 type CommonConfig struct {
 	ComponentType string
 	ComponentName string
 	AllOperations bool
-	Operations    sets.String
+	Operations    map[string]struct{}
 }
 
 type server struct {
@@ -37,7 +37,12 @@ var (
 )
 
 func (cc CommonConfig) HasOperation(operation string) bool {
-	return cc.AllOperations || cc.Operations.Has(operation)
+	if cc.AllOperations {
+		return true
+	}
+	_, exists := cc.Operations[operation]
+
+	return exists
 }
 
 func (cc CommonConfig) CopyMap(config map[string]string) map[string]string {
@@ -111,4 +116,13 @@ func (s *server) handlePost(r *http.Request) {
 	if err == nil {
 		s.Data = data
 	}
+}
+
+func NewStringSet(values ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		set[value] = struct{}{}
+	}
+
+	return set
 }

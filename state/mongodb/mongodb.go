@@ -158,7 +158,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		filter = bson.M{id: req.Key, etag: *req.ETag}
 	}
 
-	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.New().String()}}
+	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
 		return err
@@ -209,10 +209,10 @@ func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	var filter primitive.M
-	if req.ETag == nil {
+	if req.ETag == nil || *req.ETag == "" {
 		filter = bson.M{id: req.Key}
 	} else {
-		filter = bson.M{id: req.Key, etag: req.ETag}
+		filter = bson.M{id: req.Key, etag: *req.ETag}
 	}
 	_, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {

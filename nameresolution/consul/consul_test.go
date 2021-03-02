@@ -1,18 +1,8 @@
 package consul
 
 import (
-
-	// "fmt"
-	// "math/rand"
-	// "strconv"
-	// "time"
-	// "testing"
-
-	// nr "github.com/dapr/components-contrib/nameresolution"
-
-	// "github.com/stretchr/testify/assert"
-
 	"fmt"
+	"strconv"
 	"testing"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
@@ -305,7 +295,7 @@ func TestParseConfig(t *testing.T) {
 					"dapr",
 					"test",
 				},
-				"Metadata": map[interface{}]interface{}{
+				"Meta": map[interface{}]interface{}{
 					"APP_PORT":       "123",
 					"DAPR_HTTP_PORT": "3500",
 					"DAPR_GRPC_PORT": "50005",
@@ -328,7 +318,7 @@ func TestParseConfig(t *testing.T) {
 					"dapr",
 					"test",
 				},
-				Metadata: map[string]string{
+				Meta: map[string]string{
 					"APP_PORT":       "123",
 					"DAPR_HTTP_PORT": "3500",
 					"DAPR_GRPC_PORT": "50005",
@@ -355,7 +345,7 @@ func TestParseConfig(t *testing.T) {
 					"dapr",
 					"test",
 				},
-				"Metadata": map[interface{}]interface{}{
+				"Meta": map[interface{}]interface{}{
 					"DAPR_HTTP_PORT": "3500",
 					"DAPR_GRPC_PORT": "50005",
 				},
@@ -638,6 +628,110 @@ func TestGetConfig(t *testing.T) {
 				_, err = getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.DaprPort)
+			},
+		},
+		{
+			"registration should configure correctly",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					Checks: []*consul.AgentServiceCheck{
+						{
+							Name:     "test-app health check name",
+							CheckID:  "test-app health check id",
+							Interval: "15s",
+							HTTP:     "http://127.0.0.1:3500/health",
+						},
+					},
+					Tags: []string{
+						"test",
+					},
+					Meta: map[string]string{
+						"APP_PORT":       "8650",
+						"DAPR_GRPC_PORT": "50005",
+					},
+					QueryOptions: &consul.QueryOptions{
+						UseCache: false,
+						Filter:   "Checks.ServiceTags contains something",
+					},
+					SelfRegister: true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				actual, _ := getConfig(metadata)
+
+				appPort, _ := strconv.Atoi(metadata.Properties[nr.AppPort])
+
+				// Enabled Registration
+				assert.NotNil(t, actual.Registration)
+				assert.Equal(t, metadata.Properties[nr.AppID], actual.Registration.Name)
+				assert.Equal(t, metadata.Properties[nr.HostAddress], actual.Registration.Address)
+				assert.Equal(t, appPort, actual.Registration.Port)
+				assert.Equal(t, "test-app health check name", actual.Registration.Checks[0].Name)
+				assert.Equal(t, "test-app health check id", actual.Registration.Checks[0].CheckID)
+				assert.Equal(t, "15s", actual.Registration.Checks[0].Interval)
+				assert.Equal(t, "http://127.0.0.1:3500/health", actual.Registration.Checks[0].HTTP)
+				assert.Equal(t, "test", actual.Registration.Tags[0])
+				assert.Equal(t, "8650", actual.Registration.Meta["APP_PORT"])
+				assert.Equal(t, "50005", actual.Registration.Meta["DAPR_GRPC_PORT"])
+				assert.Equal(t, false, actual.QueryOptions.UseCache)
+				assert.Equal(t, "Checks.ServiceTags contains something", actual.QueryOptions.Filter)
+			},
+		},
+		{
+			"advanced registration should override/ignore other configs",
+			nr.Metadata{
+				Properties: getTestPropsWithoutKey(""),
+				Configuration: configSpec{
+					AdvancedRegistration: &consul.AgentServiceRegistration{
+						Name:    "random-app-id",
+						Port:    000,
+						Address: "123.345.678",
+						Tags:    []string{"random-tag"},
+						Meta: map[string]string{
+							"APP_PORT": "000",
+						},
+						Checks: []*consul.AgentServiceCheck{
+							{
+								Name:     "random health check name",
+								CheckID:  "random health check id",
+								Interval: "15s",
+								HTTP:     "http://127.0.0.1:3500/health",
+							},
+						},
+					},
+					Checks: []*consul.AgentServiceCheck{
+						{
+							Name:     "test-app health check name",
+							CheckID:  "test-app health check id",
+							Interval: "15s",
+							HTTP:     "http://127.0.0.1:3500/health",
+						},
+					},
+					Tags: []string{
+						"dapr",
+						"test",
+					},
+					Meta: map[string]string{
+						"APP_PORT":       "123",
+						"DAPR_HTTP_PORT": "3500",
+						"DAPR_GRPC_PORT": "50005",
+					},
+					SelfRegister: false,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				actual, _ := getConfig(metadata)
+
+				// Enabled Registration
+				assert.NotNil(t, actual.Registration)
+				assert.Equal(t, "random-app-id", actual.Registration.Name)
+				assert.Equal(t, "123.345.678", actual.Registration.Address)
+				assert.Equal(t, 000, actual.Registration.Port)
+				assert.Equal(t, "random health check name", actual.Registration.Checks[0].Name)
+				assert.Equal(t, "000", actual.Registration.Meta["APP_PORT"])
+				assert.Equal(t, "random-tag", actual.Registration.Tags[0])
+				assert.Equal(t, "Checks.ServiceTags contains random-tag", actual.QueryOptions.Filter)
 			},
 		},
 	}

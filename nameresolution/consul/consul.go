@@ -13,24 +13,11 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
-/*
-configSpec doc
-- blank configuration will not register and will filter consul for given tags and resolve port from given DaprPortMetaKey
-- SelfRegister true will register to consul with given tags and given DaprPortMetaKey
-- Tags will default to ["dapr"] if not configured, used for registration (if enabled) and resolution filtering
-- DaprPortMetaKey will default to "DAPR_PORT", used to 1. set the DaprPort in metadata during registration 2. get the DaprPort from metadata during resolution
-- Metadata is for any additional metadata to add if/when registering service
-- Checks used for health checks if/when registering, if nil will default to sidecar health check only
-- ClientConfig used for connecting to agent, if nil will use sdk defaults
-- QueryOptions used for healthy service resolution, if nil will default to useCache and filters for configured tags
-- AdvancedRegistration gives full control of registration. Forces configuration of QueryOptions (no default) and
-  ignores Checks, Tags, Metadata, SelfRegister
-*/
 type configSpec struct {
 	ClientConfig         *consul.Config
 	Checks               []*consul.AgentServiceCheck
 	Tags                 []string
-	Metadata             map[string]string
+	Meta                 map[string]string
 	QueryOptions         *consul.QueryOptions
 	AdvancedRegistration *consul.AgentServiceRegistration // advanced use-case
 	SelfRegister         bool
@@ -208,11 +195,6 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 
 	// if advanced registration configured ignore other registration related configs
 	if cfg.AdvancedRegistration != nil {
-		if cfg.QueryOptions == nil {
-			return resolverConfig, fmt.Errorf("QueryOptions nil - this must be configured if advanced registration")
-		}
-
-		resolverConfig.QueryOptions = cfg.QueryOptions
 		resolverConfig.Registration = cfg.AdvancedRegistration
 	} else {
 
@@ -261,25 +243,34 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 				Port:    appPortInt,
 				Checks:  cfg.Checks,
 				Tags:    cfg.Tags,
-				Meta:    cfg.Metadata,
+				Meta:    cfg.Meta,
 			}
 		}
+	}
 
-		// if no query options configured add default filter matching every tags in config
-		if cfg.QueryOptions == nil {
-			filter := ""
+	// if no query options configured add default filter matching every tag in config
+	if cfg.QueryOptions != nil {
+		resolverConfig.QueryOptions = cfg.QueryOptions
+	} else {
+		filter := ""
+		filterTags := *new([]string)
 
-			for i, tag := range cfg.Tags {
-				if i != 0 {
-					filter = filter + " and "
-				}
-				filter = filter + fmt.Sprintf("Checks.ServiceTags contains %s", tag)
+		if resolverConfig.Registration != nil {
+			filterTags = resolverConfig.Registration.Tags
+		} else {
+			filterTags = cfg.Tags
+		}
+
+		for i, tag := range filterTags {
+			if i != 0 {
+				filter = filter + " and "
 			}
+			filter = filter + fmt.Sprintf("Checks.ServiceTags contains %s", tag)
+		}
 
-			resolverConfig.QueryOptions = &consul.QueryOptions{
-				Filter:   filter,
-				UseCache: true,
-			}
+		resolverConfig.QueryOptions = &consul.QueryOptions{
+			Filter:   filter,
+			UseCache: true,
 		}
 	}
 

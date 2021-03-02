@@ -35,9 +35,11 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/agrea/ptr"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -112,7 +114,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: data,
-		ETag: etag,
+		ETag: ptr.String(etag),
 	}, err
 }
 

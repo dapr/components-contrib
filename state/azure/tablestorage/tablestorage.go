@@ -34,10 +34,12 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/storage"
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -248,22 +250,22 @@ func (r *StateStore) marshal(req *state.SetRequest) string {
 	return v
 }
 
-func (r *StateStore) unmarshal(row *storage.Entity) ([]byte, string, error) {
+func (r *StateStore) unmarshal(row *storage.Entity) ([]byte, *string, error) {
 	raw := row.Properties[valueEntityProperty]
 
 	// value column not present
 	if raw == nil {
-		return nil, "", nil
+		return nil, nil, nil
 	}
 
 	// must be a string
 	sv, ok := raw.(string)
 	if !ok {
-		return nil, "", errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
+		return nil, nil, errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
 	}
 
 	// use native ETag
 	etag := row.OdataEtag
 
-	return []byte(sv), etag, nil
+	return []byte(sv), ptr.String(etag), nil
 }

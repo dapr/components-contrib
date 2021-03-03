@@ -16,6 +16,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
+	"github.com/google/uuid"
 	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -36,6 +37,7 @@ const (
 	params           = "params"
 	id               = "_id"
 	value            = "value"
+	etag             = "_etag"
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -74,6 +76,7 @@ type mongoDBMetadata struct {
 type Item struct {
 	Key   string `bson:"_id"`
 	Value string `bson:"value"`
+	Etag  string `bson:"_etag"`
 }
 
 // NewMongoDB returns a new MongoDB state store
@@ -148,7 +151,11 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}
-	update := bson.M{"$set": bson.M{id: req.Key, value: vStr}}
+	if req.ETag != nil {
+		filter[etag] = *req.ETag
+	}
+
+	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
 		return err
@@ -180,6 +187,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: value,
+		ETag: result.Etag,
 	}, nil
 }
 
@@ -198,6 +206,9 @@ func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
+	if req.ETag != nil {
+		filter[etag] = *req.ETag
+	}
 	_, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err

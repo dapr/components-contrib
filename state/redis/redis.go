@@ -14,11 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agrea/ptr"
+	redis "github.com/go-redis/redis/v7"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
-	redis "github.com/go-redis/redis/v7"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -342,7 +344,7 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	return err
 }
 
-func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version string, err error) {
+func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *string, err error) {
 	seenData := false
 	seenVersion := false
 	for i := 0; i < len(vals); i += 2 {
@@ -352,12 +354,13 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version str
 			data, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
 			seenData = true
 		case "version":
-			version, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
+			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
+			version = ptr.String(versionVal)
 			seenVersion = true
 		}
 	}
 	if !seenData || !seenVersion {
-		return "", "", errors.New("required hash field 'data' or 'version' was not found")
+		return "", nil, errors.New("required hash field 'data' or 'version' was not found")
 	}
 
 	return data, version, nil

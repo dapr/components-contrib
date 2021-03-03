@@ -14,8 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
 	"github.com/google/uuid"
 	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,6 +22,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -187,7 +189,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: result.Etag,
+		ETag: ptr.String(result.Etag),
 	}, nil
 }
 

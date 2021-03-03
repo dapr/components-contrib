@@ -34,3 +34,5 @@ components:
   - component: mqtt
     profile: vernemq
     allOperations: true
+  - component: hazelcast
+    allOperations: true

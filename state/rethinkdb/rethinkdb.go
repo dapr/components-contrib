@@ -12,10 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agrea/ptr"
 	r "github.com/dancannon/gorethink"
+	"github.com/pkg/errors"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -154,7 +156,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, errors.Wrap(err, "error parsing database content")
 	}
 
-	resp := &state.GetResponse{ETag: doc.Hash}
+	resp := &state.GetResponse{ETag: ptr.String(doc.Hash)}
 	b, ok := doc.Data.([]byte)
 	if ok {
 		resp.Data = b

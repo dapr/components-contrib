@@ -425,7 +425,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			err = statestore.Set(&state.SetRequest{
 				Key:   testKey,
 				Value: secondValue,
-				ETag:  &etag,
+				ETag:  etag,
 			})
 			assert.Nil(t, err)
 
@@ -448,7 +448,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// Try and delete with correct ETag, expect success.
 			err = statestore.Delete(&state.DeleteRequest{
 				Key:  testKey,
-				ETag: &etag,
+				ETag: etag,
 			})
 			assert.Nil(t, err)
 		})

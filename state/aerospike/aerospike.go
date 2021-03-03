@@ -14,9 +14,11 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/agrea/ptr"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 // metadata values
@@ -171,7 +173,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: fmt.Sprintf("%d", record.Generation),
+		ETag: ptr.String(strconv.FormatUint(uint64(record.Generation), 10)),
 	}, nil
 }
 

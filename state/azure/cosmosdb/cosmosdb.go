@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/a8m/documentdb"
+	"github.com/agrea/ptr"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 // StateStore is a CosmosDB state store
@@ -175,7 +177,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return &state.GetResponse{
 			Data: bytes,
-			ETag: items[0].Etag,
+			ETag: ptr.String(items[0].Etag),
 		}, nil
 	}
 
@@ -186,7 +188,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: items[0].Etag,
+		ETag: ptr.String(items[0].Etag),
 	}, nil
 }
 

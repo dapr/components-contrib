@@ -209,9 +209,13 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	if req.ETag != nil {
 		filter[etag] = *req.ETag
 	}
-	_, err := m.collection.DeleteOne(ctx, filter)
+	result, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
+	}
+
+	if result.DeletedCount == 0 && req.ETag != nil {
+		return errors.New("key or etag not found")
 	}
 
 	return nil

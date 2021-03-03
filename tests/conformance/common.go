@@ -26,6 +26,7 @@ import (
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
+	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
@@ -320,6 +321,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_pulsar.NewPulsar(testLogger)
 	case "mqtt":
 		pubsub = p_mqtt.NewMQTTPubSub(testLogger)
+	case "hazelcast":
+		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
 	default:
 		return nil
 	}

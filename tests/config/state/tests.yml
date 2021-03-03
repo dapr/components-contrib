@@ -4,6 +4,6 @@ components:
   - component: redis
     allOperations: true
   - component: mongodb
-    operations: ["get", "set", "delete", "bulkset", "bulkdelete", "transaction"]
+    allOperations: true
   - component: cosmosdb
     allOperations: true

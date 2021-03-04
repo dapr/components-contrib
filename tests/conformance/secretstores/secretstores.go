@@ -9,10 +9,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // creating this struct so that it can be expanded later
@@ -26,7 +26,7 @@ func NewTestConfig(name string, allOperations bool, operations []string) TestCon
 			ComponentType: "secretstores",
 			ComponentName: name,
 			AllOperations: allOperations,
-			Operations:    sets.NewString(operations...),
+			Operations:    utils.NewStringSet(operations...),
 		},
 	}
 

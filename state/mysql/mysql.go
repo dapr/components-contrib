@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agrea/ptr"
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/google/uuid"
 )
 
 // Optimistic Concurrency is implemented using a string column that stores
@@ -331,7 +333,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	response := &state.GetResponse{
-		ETag:     eTag,
+		ETag:     ptr.String(eTag),
 		Metadata: req.Metadata,
 		Data:     []byte(value),
 	}

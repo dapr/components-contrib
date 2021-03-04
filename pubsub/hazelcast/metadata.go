@@ -1,5 +1,6 @@
 package hazelcast
 
 type metadata struct {
-	hazelcastServers string
+	hazelcastServers  string
+	backOffMaxRetries int
 }

@@ -1,0 +1,11 @@
+version: '2'
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.7
+    hostname: mosquitto
+    container_name: mosquitto
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "1883:1883"
+      - "9001:9001"

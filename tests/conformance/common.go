@@ -31,6 +31,7 @@ import (
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
+	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	"github.com/dapr/components-contrib/secretstores"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
@@ -323,6 +324,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_mqtt.NewMQTTPubSub(testLogger)
 	case "hazelcast":
 		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
+	case "rabbitmq":
+		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}

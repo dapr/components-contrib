@@ -36,3 +36,7 @@ components:
     allOperations: true
   - component: hazelcast
     allOperations: true
+  - component: rabbitmq
+    allOperations: true
+    config:
+      checkInOrderProcessing: false

@@ -193,6 +193,10 @@ func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+	if r.metadata.consumerID == "" {
+		return errors.New("consumerID is required for subscriptions")
+	}
+
 	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
 
 	go r.subscribeForever(req, queueName, handler)
@@ -321,12 +325,12 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 			requeue := r.metadata.requeueInFailure && !d.Redelivered
 
 			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
-			if err = channel.Nack(d.DeliveryTag, false, requeue); err != nil {
+			if err = d.Nack(false, requeue); err != nil {
 				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		} else {
 			r.logger.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
-			if err = channel.Ack(d.DeliveryTag, false); err != nil {
+			if err = d.Ack(false); err != nil {
 				r.logger.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		}

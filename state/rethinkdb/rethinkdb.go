@@ -29,9 +29,10 @@ const (
 
 // RethinkDB is a state store implementation with transactional support for RethinkDB.
 type RethinkDB struct {
-	session *r.Session
-	config  *stateConfig
-	logger  logger.Logger
+	session  *r.Session
+	config   *stateConfig
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type stateConfig struct {
@@ -50,7 +51,8 @@ type stateRecord struct {
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 	return &RethinkDB{
-		logger: logger,
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
 	}
 }
 
@@ -119,6 +121,11 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	}
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (s *RethinkDB) Features() []state.Feature {
+	return s.features
 }
 
 func tableExists(arr []string, table string) bool {

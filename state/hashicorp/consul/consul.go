@@ -72,6 +72,12 @@ func (c *Consul) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (c *Consul) Features() []state.Feature {
+	// Etag is just returned and not handled in set or delete operations.
+	return nil
+}
+
 func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 	b, err := json.Marshal(connInfo)
 	if err != nil {

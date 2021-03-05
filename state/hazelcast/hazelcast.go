@@ -73,7 +73,6 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 
 // Features returns the features available in this state store
 func (store *Hazelcast) Features() []state.Feature {
-	// Etag is just returned and not handled in set or delete operations.
 	return nil
 }
 

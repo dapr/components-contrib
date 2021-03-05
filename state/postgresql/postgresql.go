@@ -14,6 +14,7 @@ import (
 
 // PostgreSQL state store
 type PostgreSQL struct {
+	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
 }
@@ -29,6 +30,7 @@ func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 		dbaccess: dba,
 	}
@@ -37,6 +39,11 @@ func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 // Init initializes the SQL server state store
 func (p *PostgreSQL) Init(metadata state.Metadata) error {
 	return p.dbaccess.Init(metadata)
+}
+
+// Features returns the features available in this state store
+func (p *PostgreSQL) Features() []state.Feature {
+	return p.features
 }
 
 // Delete removes an entity from the store

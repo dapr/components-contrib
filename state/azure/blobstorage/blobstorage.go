@@ -55,7 +55,8 @@ type StateStore struct {
 	containerURL azblob.ContainerURL
 	json         jsoniter.API
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type blobStorageMetadata struct {
@@ -89,6 +90,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.logger.Debugf("using container '%s'", meta.containerName)
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (r *StateStore) Features() []state.Feature {
+	return r.features
 }
 
 // Delete the state
@@ -128,8 +134,9 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 // NewAzureBlobStorageStore instance
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 

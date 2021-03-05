@@ -304,6 +304,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	// nolint: nestif
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
+			// Check if transactional feature is listed
+			features := statestore.Features()
+			assert.True(t, state.FeatureTransactional.IsPresent(features))
+
 			var transactionGroups []int
 			transactions := map[int][]state.TransactionalStateOperation{}
 			for _, scenario := range scenarios {
@@ -381,6 +385,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 		})
+	} else {
+		// Check if transactional feature is NOT listed
+		features := statestore.Features()
+		assert.False(t, state.FeatureTransactional.IsPresent(features))
 	}
 
 	// Supporting etags requires support for get, set, and delete so they are not checked individually
@@ -390,6 +398,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			firstValue := []byte("testValue1")
 			secondValue := []byte("testValue2")
 			fakeEtag := "not-an-etag"
+
+			// Check if eTag feature is listed
+			features := statestore.Features()
+			assert.True(t, state.FeatureETag.IsPresent(features))
 
 			// Delete any potential object, it's important to start from a clean slate.
 			err := statestore.Delete(&state.DeleteRequest{
@@ -452,5 +464,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			assert.Nil(t, err)
 		})
+	} else {
+		// Check if eTag feature is NOT listed
+		features := statestore.Features()
+		assert.False(t, state.FeatureETag.IsPresent(features))
 	}
 }

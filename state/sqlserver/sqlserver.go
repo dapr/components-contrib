@@ -70,7 +70,7 @@ const (
 // NewSQLServerStateStore creates a new instance of a Sql Server transaction store
 func NewSQLServerStateStore(logger logger.Logger) *SQLServer {
 	store := SQLServer{
-		features: []state.Feature{state.FeatureETag},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 	}
 	store.migratorFactory = newMigration

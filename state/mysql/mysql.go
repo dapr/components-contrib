@@ -91,7 +91,7 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
 	return &MySQL{
-		features: []state.Feature{state.FeatureETag},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 		factory:  factory,
 	}

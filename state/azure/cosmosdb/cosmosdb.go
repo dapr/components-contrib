@@ -61,7 +61,7 @@ const (
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		features: []state.Feature{state.FeatureETag},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)

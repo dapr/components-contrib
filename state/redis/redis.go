@@ -59,7 +59,7 @@ type StateStore struct {
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)

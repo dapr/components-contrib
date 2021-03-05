@@ -8,6 +8,8 @@ package state
 const (
 	// FeatureETag is the feature to etag metadata in state store.
 	FeatureETag Feature = "ETAG"
+	// FeatureTransactional is the feature that performs transactional operations.
+	FeatureTransactional Feature = "TRANSACTIONAL"
 )
 
 // Feature names a feature that can be implemented by PubSub components.

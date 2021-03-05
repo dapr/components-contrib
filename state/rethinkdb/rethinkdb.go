@@ -51,7 +51,7 @@ type stateRecord struct {
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 	return &RethinkDB{
-		features: []state.Feature{state.FeatureETag},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 	}
 }

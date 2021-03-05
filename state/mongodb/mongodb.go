@@ -59,7 +59,8 @@ type MongoDB struct {
 	collection       *mongo.Collection
 	operationTimeout time.Duration
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type mongoDBMetadata struct {
@@ -83,7 +84,10 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store
 func NewMongoDB(logger logger.Logger) *MongoDB {
-	s := &MongoDB{logger: logger}
+	s := &MongoDB{
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
+	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
@@ -127,6 +131,11 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	m.collection = collection
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (m *MongoDB) Features() []state.Feature {
+	return m.features
 }
 
 // Set saves state into MongoDB

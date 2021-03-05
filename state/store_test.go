@@ -128,6 +128,10 @@ func (s *Store2) Init(metadata Metadata) error {
 	return nil
 }
 
+func (s *Store2) Features() []Feature {
+	return nil
+}
+
 func (s *Store2) Delete(req *DeleteRequest) error {
 	s.count++
 

@@ -51,6 +51,11 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (d *StateStore) Features() []state.Feature {
+	return nil
+}
+
 // Get retrieves a dynamoDB item
 func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	input := &dynamodb.GetItemInput{

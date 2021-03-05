@@ -66,6 +66,12 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (m *Memcached) Features() []state.Feature {
+	// Etag is just returned and not handled in set or delete operations.
+	return nil
+}
+
 func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 	meta := memcachedMetadata{
 		maxIdleConnections: defaultMaxIdleConnections,

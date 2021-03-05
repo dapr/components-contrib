@@ -27,7 +27,8 @@ type StateStore struct {
 	db         *documentdb.Database
 	sp         *documentdb.Sproc
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type credentials struct {
@@ -59,7 +60,10 @@ const (
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
-	s := &StateStore{logger: logger}
+	s := &StateStore{
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
+	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
@@ -144,6 +148,11 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	c.logger.Debug("cosmos Init done")
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (c *StateStore) Features() []state.Feature {
+	return c.features
 }
 
 // Get retrieves a CosmosDB item

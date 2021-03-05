@@ -78,6 +78,11 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (f *Firestore) Features() []state.Feature {
+	return nil
+}
+
 // Get retrieves state from Firestore with a key (Always strong consistency)
 func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key

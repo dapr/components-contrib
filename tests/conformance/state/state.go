@@ -391,6 +391,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			secondValue := []byte("testValue2")
 			fakeEtag := "not-an-etag"
 
+			// Check if eTag feature is listed
+			features := statestore.Features()
+			assert.True(t, state.FeatureETag.IsPresent(features))
+
 			// Delete any potential object, it's important to start from a clean slate.
 			err := statestore.Delete(&state.DeleteRequest{
 				Key: testKey,
@@ -452,5 +456,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			assert.Nil(t, err)
 		})
+	} else {
+		// Check if eTag feature is NOT listed
+		features := statestore.Features()
+		assert.False(t, state.FeatureETag.IsPresent(features))
 	}
 }

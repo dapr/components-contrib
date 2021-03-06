@@ -56,6 +56,7 @@ func TestGetSecret(t *testing.T) {
 				client: &mockedSSM{
 					GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
 						secret := secretValue
+
 						return &ssm.GetParameterOutput{
 							Parameter: &ssm.Parameter{
 								Name:  input.Name,
@@ -84,6 +85,7 @@ func TestGetSecret(t *testing.T) {
 						assert.NotNil(t, keys)
 						assert.Len(t, keys, 2)
 						assert.Equalf(t, "1", keys[1], "Version IDs are same")
+
 						return &ssm.GetParameterOutput{
 							Parameter: &ssm.Parameter{
 								Name:  &keys[0],
@@ -139,6 +141,7 @@ func TestGetBulkSecrets(t *testing.T) {
 				},
 				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
 					secret := fmt.Sprintf("%s-%s", *input.Name, secretValue)
+
 					return &ssm.GetParameterOutput{
 						Parameter: &ssm.Parameter{
 							Name:  input.Name,

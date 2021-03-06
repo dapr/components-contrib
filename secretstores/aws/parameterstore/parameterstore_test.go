@@ -56,7 +56,6 @@ func TestGetSecret(t *testing.T) {
 				client: &mockedSSM{
 					GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
 						secret := secretValue
-
 						return &ssm.GetParameterOutput{
 							Parameter: &ssm.Parameter{
 								Name:  input.Name,
@@ -140,7 +139,6 @@ func TestGetBulkSecrets(t *testing.T) {
 				},
 				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
 					secret := fmt.Sprintf("%s-%s", *input.Name, secretValue)
-
 					return &ssm.GetParameterOutput{
 						Parameter: &ssm.Parameter{
 							Name:  input.Name,

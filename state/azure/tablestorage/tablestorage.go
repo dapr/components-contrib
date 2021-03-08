@@ -57,7 +57,8 @@ type StateStore struct {
 	table *storage.Table
 	json  jsoniter.API
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type tablesMetadata struct {
@@ -92,6 +93,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.logger.Debugf("table initialised, account: %s, table: %s", meta.accountName, meta.tableName)
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (r *StateStore) Features() []state.Feature {
+	return r.features
 }
 
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
@@ -143,8 +149,9 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 
 func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 

@@ -66,6 +66,11 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (m *Memcached) Features() []state.Feature {
+	return nil
+}
+
 func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 	meta := memcachedMetadata{
 		maxIdleConnections: defaultMaxIdleConnections,

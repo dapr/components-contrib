@@ -39,14 +39,16 @@ type Couchbase struct {
 	numReplicasDurablePersistence uint
 	json                          jsoniter.API
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
 	s := &Couchbase{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -126,6 +128,11 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	}
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (cbs *Couchbase) Features() []state.Feature {
+	return cbs.features
 }
 
 // Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings

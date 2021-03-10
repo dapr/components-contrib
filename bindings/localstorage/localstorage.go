@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
@@ -28,10 +27,8 @@ const (
 
 // LocalStorage allows saving files to disk
 type LocalStorage struct {
-	metadata     *Metadata
-	containerURL azblob.ContainerURL
-
-	logger logger.Logger
+	metadata *Metadata
+	logger   logger.Logger
 }
 
 // Metadata defines the metadata

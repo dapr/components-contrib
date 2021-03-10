@@ -173,7 +173,8 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 	}
 
 	if !fi.IsDir() {
-		return nil, errors.New(fmt.Sprintf("unable to list files as the file specified is not a directory [%s]", absPath))
+		msg := fmt.Sprintf("unable to list files as the file specified is not a directory [%s]", absPath)
+		return nil, errors.New(msg)
 	}
 
 	files, err := walkPath(absPath)

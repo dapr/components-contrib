@@ -18,30 +18,30 @@ type mockConsulResolver struct {
 
 func (c *mockConsulResolver) InitClient(config *consul.Config) error {
 	args := c.Called(config)
+
 	return args.Error(0)
 }
 
 func (c *mockConsulResolver) RegisterService(registration *consul.AgentServiceRegistration) error {
 	args := c.Called(registration)
+
 	return args.Error(0)
 }
 
 func (c *mockConsulResolver) CheckAgent() error {
 	args := c.Called()
-	return args.Error(0)
-}
 
-func (c *mockConsulResolver) GetConfig() *resolverConfig {
-	args := c.Called()
-	return args.Get(0).(*resolverConfig)
+	return args.Error(0)
 }
 
 func (c *mockConsulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
 	args := c.Called(serviceID, queryOptions)
+
 	return args.Get(0).([]*consul.ServiceEntry), args.Error(1)
 }
 
 func TestInit(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		testName string
@@ -55,13 +55,13 @@ func TestInit(t *testing.T) {
 				Configuration: nil,
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("InitClient", mock.Anything).Return(nil)
 				mockResolver.On("RegisterService", mock.Anything).Return(nil)
 				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
 
-				_ = newConsulResolver(logger.NewLogger("test"), mockResolver).Init(metadata)
+				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
 
 				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
 				mockResolver.AssertNumberOfCalls(t, "RegisterService", 0)
@@ -77,13 +77,13 @@ func TestInit(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("InitClient", mock.Anything).Return(nil)
 				mockResolver.On("RegisterService", mock.Anything).Return(nil)
 				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
 
-				_ = newConsulResolver(logger.NewLogger("test"), mockResolver).Init(metadata)
+				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
 
 				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
 				mockResolver.AssertNumberOfCalls(t, "RegisterService", 1)
@@ -100,13 +100,13 @@ func TestInit(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("InitClient", mock.Anything).Return(nil)
 				mockResolver.On("RegisterService", mock.Anything).Return(nil)
 				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
 
-				_ = newConsulResolver(logger.NewLogger("test"), mockResolver).Init(metadata)
+				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
 
 				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
 				mockResolver.AssertNumberOfCalls(t, "RegisterService", 1)
@@ -116,13 +116,19 @@ func TestInit(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
 			tt.test(t, tt.metadata)
 		})
 	}
 }
 
 func TestResolveID(t *testing.T) {
+	t.Parallel()
+	testConfig := &resolverConfig{
+		DaprPortMetaKey: "DAPR_PORT",
+	}
 
 	tests := []struct {
 		testName string
@@ -135,14 +141,11 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return([]*consul.ServiceEntry{}, nil)
-				mockResolver.On("GetConfig").Return(&resolverConfig{
-					DaprPortMetaKey: "DAPR_PORT",
-				})
 
-				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 				mockResolver.AssertNumberOfCalls(t, "GetHealthyServices", 1)
 				assert.Error(t, err)
 			},
@@ -153,7 +156,7 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
 					[]*consul.ServiceEntry{
@@ -167,11 +170,8 @@ func TestResolveID(t *testing.T) {
 							},
 						},
 					}, nil)
-				mockResolver.On("GetConfig").Return(&resolverConfig{
-					DaprPortMetaKey: "DAPR_PORT",
-				})
 
-				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
 				assert.Equal(t, "123.234.345.456:50005", addr)
 			},
@@ -182,7 +182,7 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
 					[]*consul.ServiceEntry{
@@ -199,11 +199,8 @@ func TestResolveID(t *testing.T) {
 							},
 						},
 					}, nil)
-				mockResolver.On("GetConfig").Return(&resolverConfig{
-					DaprPortMetaKey: "DAPR_PORT",
-				})
 
-				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
 				assert.Equal(t, "999.888.777:50005", addr)
 			},
@@ -214,7 +211,7 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
 					[]*consul.ServiceEntry{
@@ -228,11 +225,8 @@ func TestResolveID(t *testing.T) {
 							},
 						},
 					}, nil)
-				mockResolver.On("GetConfig").Return(&resolverConfig{
-					DaprPortMetaKey: "DAPR_PORT",
-				})
 
-				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
 				assert.Error(t, err)
 			},
@@ -243,7 +237,7 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-
+				t.Helper()
 				mockResolver := &mockConsulResolver{}
 				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
 					[]*consul.ServiceEntry{
@@ -254,11 +248,8 @@ func TestResolveID(t *testing.T) {
 							},
 						},
 					}, nil)
-				mockResolver.On("GetConfig").Return(&resolverConfig{
-					DaprPortMetaKey: "DAPR_PORT",
-				})
 
-				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver).ResolveID(req)
+				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
 				assert.Error(t, err)
 			},
@@ -266,13 +257,17 @@ func TestResolveID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
 			tt.test(t, tt.req)
 		})
 	}
 }
 
 func TestParseConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		testName    string
 		shouldParse bool
@@ -365,14 +360,14 @@ func TestParseConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
-
+			t.Parallel()
 			actual, err := parseConfig(tt.input)
 
 			if tt.shouldParse {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expected, actual)
-
 			} else {
 				assert.Error(t, err)
 			}
@@ -381,6 +376,8 @@ func TestParseConfig(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		testName string
 		metadata nr.Metadata
@@ -393,6 +390,7 @@ func TestGetConfig(t *testing.T) {
 				Configuration: nil,
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				// Client
@@ -419,6 +417,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				actual, _ := getConfig(metadata)
 				// Client
 				assert.Equal(t, consul.DefaultConfig().Address, actual.ClientConfig.Address)
@@ -431,15 +430,15 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "15s", check.Interval)
 				assert.Equal(t, fmt.Sprintf("http://%s:%s/v1.0/healthz", metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), check.HTTP)
 
-				//Tags
+				// Tags
 				assert.Equal(t, 1, len(actual.Registration.Tags))
 				assert.Equal(t, "dapr", actual.Registration.Tags[0])
 
-				//Metadata
+				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))
 				assert.Equal(t, "50001", actual.Registration.Meta["DAPR_PORT"])
 
-				//QueryOptions
+				// QueryOptions
 				assert.Equal(t, "Checks.ServiceTags contains dapr", actual.QueryOptions.Filter)
 				assert.Equal(t, true, actual.QueryOptions.UseCache)
 
@@ -456,8 +455,9 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				actual, _ := getConfig(metadata)
-				//QueryOptions
+				// QueryOptions
 				filter := "Checks.ServiceTags contains dapr-A and " +
 					"Checks.ServiceTags contains dapr-B and " +
 					"Checks.ServiceTags contains dapr-C"
@@ -474,6 +474,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				daprPort := metadata.Properties[nr.DaprPort]
@@ -491,6 +492,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.AppID)
@@ -520,6 +522,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.AppPort)
@@ -549,6 +552,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.HostAddress)
@@ -578,6 +582,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.DaprHTTPPort)
@@ -604,6 +609,7 @@ func TestGetConfig(t *testing.T) {
 				Properties: getTestPropsWithoutKey(nr.DaprPort),
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				metadata.Configuration = configSpec{
 					SelfRegister: false,
 				}
@@ -658,6 +664,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				appPort, _ := strconv.Atoi(metadata.Properties[nr.AppPort])
@@ -721,6 +728,7 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				// Enabled Registration
@@ -737,7 +745,9 @@ func TestGetConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
 			tt.test(t, tt.metadata)
 		})
 	}
@@ -752,5 +762,6 @@ func getTestPropsWithoutKey(removeKey string) map[string]string {
 		nr.HostAddress:  "127.0.0.1",
 	}
 	delete(metadata, removeKey)
+
 	return metadata
 }

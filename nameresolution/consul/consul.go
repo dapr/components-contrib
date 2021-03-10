@@ -2,9 +2,9 @@ package consul
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"strconv"
 
 	consul "github.com/hashicorp/consul/api"
@@ -27,8 +27,6 @@ type configSpec struct {
 const daprTag string = "dapr"       // default tag for register and filter
 const daprMeta string = "DAPR_PORT" // default key for DAPR_PORT metadata
 
-var config resolverConfig
-
 type resolverConfig struct {
 	ClientConfig    *consul.Config
 	QueryOptions    *consul.QueryOptions
@@ -37,19 +35,21 @@ type resolverConfig struct {
 }
 
 type resolver struct {
+	config resolverConfig
 	consul consulResolverInterface
 	logger logger.Logger
 }
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newConsulResolver(logger, &consulResolver{})
+	return newConsulResolver(logger, &consulResolver{}, resolverConfig{})
 }
 
-func newConsulResolver(logger logger.Logger, consul consulResolverInterface) nr.Resolver {
+func newConsulResolver(logger logger.Logger, consul consulResolverInterface, config resolverConfig) nr.Resolver {
 	return &resolver{
 		logger: logger,
 		consul: consul,
+		config: config,
 	}
 }
 
@@ -58,7 +58,6 @@ type consulResolverInterface interface {
 	CheckAgent() error
 	RegisterService(registration *consul.AgentServiceRegistration) error
 	GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error)
-	GetConfig() *resolverConfig
 }
 
 type consulResolver struct {
@@ -66,11 +65,12 @@ type consulResolver struct {
 }
 
 func (c *consulResolver) InitClient(config *consul.Config) error {
-	err := *new(error)
+	var err error
 	c.client, err = consul.NewClient(config)
 	if err != nil {
-		return err
+		return fmt.Errorf("consul api error initing client: %w", err)
 	}
+
 	return nil
 }
 
@@ -80,42 +80,38 @@ func (c *consulResolver) RegisterService(registration *consul.AgentServiceRegist
 
 func (c *consulResolver) CheckAgent() error {
 	_, err := c.client.Agent().Self()
-	return err
-}
 
-func (c *consulResolver) GetConfig() *resolverConfig {
-	return &config
+	return fmt.Errorf("consul api error getting agent metadata: %w", err)
 }
 
 func (c *consulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
-	services, _, err := c.client.Health().Service(serviceID, "", true, config.QueryOptions)
-	return services, err
+	services, _, err := c.client.Health().Service(serviceID, "", true, queryOptions)
+
+	return services, fmt.Errorf("consul api error querying health service: %w", err)
 }
 
 // Init will configure component. It will also register service or validate client connection based on config
 func (c *resolver) Init(metadata nr.Metadata) error {
-	err := *new(error)
+	var err error
 
-	config, err = getConfig(metadata)
+	c.config, err = getConfig(metadata)
 	if err != nil {
 		return err
 	}
 
-	if err = c.consul.InitClient(config.ClientConfig); err != nil {
-		return err
+	if err = c.consul.InitClient(c.config.ClientConfig); err != nil {
+		return fmt.Errorf("failed to init consul client: %w", err)
 	}
 
 	// register service to consul
-	if config.Registration != nil {
-		if err := c.consul.RegisterService(config.Registration); err != nil {
-			return err
+	if c.config.Registration != nil {
+		if err := c.consul.RegisterService(c.config.Registration); err != nil {
+			return fmt.Errorf("failed to register consul service: %w", err)
 		}
 
-		c.logger.Info("service registered on consul agent")
-	} else {
-		if err := c.consul.CheckAgent(); err != nil {
-			return err
-		}
+		c.logger.Infof("service:%s registered on consul agent", c.config.Registration.Name)
+	} else if err := c.consul.CheckAgent(); err != nil {
+		return fmt.Errorf("failed check on consul agent: %w", err)
 	}
 
 	return nil
@@ -123,12 +119,11 @@ func (c *resolver) Init(metadata nr.Metadata) error {
 
 // ResolveID resolves name to address via consul
 func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
-
-	cfg := c.consul.GetConfig()
+	cfg := c.config
 	services, err := c.consul.GetHealthyServices(req.ID, cfg.QueryOptions)
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to query healthy consul services: %w", err)
 	}
 
 	if len(services) == 0 {
@@ -137,9 +132,10 @@ func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 
 	shuffle := func(services []*consul.ServiceEntry) []*consul.ServiceEntry {
 		for i := len(services) - 1; i > 0; i-- {
-			j := rand.Int31n(int32(i + 1))
+			j, _ := rand.Read(make([]byte, i+1))
 			services[i], services[j] = services[j], services[i]
 		}
+
 		return services
 	}
 
@@ -158,139 +154,152 @@ func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 			return "", fmt.Errorf("no healthy services found with AppID:%s", req.ID)
 		}
 	} else {
-		return "", fmt.Errorf("target service AppID:%s found but DAPR_PORT missing from meta ", req.ID)
+		return "", fmt.Errorf("target service AppID:%s found but DAPR_PORT missing from meta", req.ID)
 	}
 
-	return addr, err
+	return addr, fmt.Errorf("error resolving AppID:%s: %w", req.ID, err)
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode
 func getConfig(metadata nr.Metadata) (resolverConfig, error) {
-	var appID string
-	var appPort string
-	var host string
 	var daprPort string
-	var httpPort string
 	var ok bool
-
-	resolverConfig := resolverConfig{}
+	var err error
+	resolverCfg := resolverConfig{}
 
 	props := metadata.Properties
 
 	if daprPort, ok = props[nr.DaprPort]; !ok {
-		return resolverConfig, fmt.Errorf("nr metadata property missing: %s", nr.DaprPort)
+		return resolverCfg, fmt.Errorf("nr metadata property missing: %s", nr.DaprPort)
 	}
 
 	cfg, err := parseConfig(metadata.Configuration)
 	if err != nil {
-		return resolverConfig, err
+		return resolverCfg, err
 	}
 
+	// if no tags defined then set default tag for filter
+	if len(cfg.Tags) == 0 {
+		cfg.Tags = []string{daprTag}
+	}
+
+	resolverCfg.ClientConfig = getClientConfig(cfg)
+	if resolverCfg.Registration, err = getRegistrationConfig(cfg, props); err != nil {
+		return resolverCfg, err
+	}
+	resolverCfg.QueryOptions = getQueryOptionsConfig(cfg, resolverCfg.Registration)
+
+	// set DaprPortMetaKey used for registring DaprPort and resolving from Consul
+	if cfg.DaprPortMetaKey == "" {
+		resolverCfg.DaprPortMetaKey = daprMeta
+	} else {
+		resolverCfg.DaprPortMetaKey = cfg.DaprPortMetaKey
+	}
+
+	// if registering, set DaprPort in meta, needed for resolution
+	if resolverCfg.Registration != nil {
+		if resolverCfg.Registration.Meta == nil {
+			resolverCfg.Registration.Meta = map[string]string{}
+		}
+
+		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = daprPort
+	}
+
+	return resolverCfg, nil
+}
+
+func getClientConfig(cfg configSpec) *consul.Config {
 	// If no client config use library defaults
 	if cfg.ClientConfig != nil {
-		resolverConfig.ClientConfig = cfg.ClientConfig
-	} else {
-		resolverConfig.ClientConfig = consul.DefaultConfig()
+		return cfg.ClientConfig
 	}
 
+	return consul.DefaultConfig()
+}
+
+func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.AgentServiceRegistration, error) {
 	// if advanced registration configured ignore other registration related configs
 	if cfg.AdvancedRegistration != nil {
-		resolverConfig.Registration = cfg.AdvancedRegistration
-	} else {
+		return cfg.AdvancedRegistration, nil
+	} else if !cfg.SelfRegister {
+		return nil, nil
+	}
 
-		// if no tags defined then set default tag for filter
-		if len(cfg.Tags) == 0 {
-			cfg.Tags = []string{daprTag}
-		}
+	var appID string
+	var appPort string
+	var host string
+	var httpPort string
+	var ok bool
 
-		if cfg.SelfRegister {
-			if appID, ok = props[nr.AppID]; !ok {
-				return resolverConfig, fmt.Errorf("nr metadata property missing: %s", nr.AppID)
-			}
+	if appID, ok = props[nr.AppID]; !ok {
+		return nil, fmt.Errorf("nr metadata property missing: %s", nr.AppID)
+	}
 
-			if appPort, ok = props[nr.AppPort]; !ok {
-				return resolverConfig, fmt.Errorf("nr metadata property missing: %s", nr.AppPort)
-			}
+	if appPort, ok = props[nr.AppPort]; !ok {
+		return nil, fmt.Errorf("nr metadata property missing: %s", nr.AppPort)
+	}
 
-			if host, ok = props[nr.HostAddress]; !ok {
-				return resolverConfig, fmt.Errorf("nr metadata property missing: %s", nr.HostAddress)
-			}
+	if host, ok = props[nr.HostAddress]; !ok {
+		return nil, fmt.Errorf("nr metadata property missing: %s", nr.HostAddress)
+	}
 
-			if httpPort, ok = props[nr.DaprHTTPPort]; !ok {
-				return resolverConfig, fmt.Errorf("nr metadata property missing: %s", nr.DaprHTTPPort)
-			}
+	if httpPort, ok = props[nr.DaprHTTPPort]; !ok {
+		return nil, fmt.Errorf("nr metadata property missing: %s", nr.DaprHTTPPort)
+	}
 
-			// if no health checks configured add dapr sidecar health check by default
-			if len(cfg.Checks) == 0 {
-				cfg.Checks = []*consul.AgentServiceCheck{
-					{
-						Name:     "Dapr Health Status",
-						CheckID:  fmt.Sprintf("daprHealth:%s", appID),
-						Interval: "15s",
-						HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort), // default assumes consul agent on svc host
-					},
-				}
-			}
-
-			appPortInt, err := strconv.Atoi(appPort)
-			if err != nil {
-				return resolverConfig, err
-			}
-
-			resolverConfig.Registration = &consul.AgentServiceRegistration{
-				Name:    appID,
-				Address: host,
-				Port:    appPortInt,
-				Checks:  cfg.Checks,
-				Tags:    cfg.Tags,
-				Meta:    cfg.Meta,
-			}
+	// if no health checks configured add dapr sidecar health check by default
+	if len(cfg.Checks) == 0 {
+		cfg.Checks = []*consul.AgentServiceCheck{
+			{
+				Name:     "Dapr Health Status",
+				CheckID:  fmt.Sprintf("daprHealth:%s", appID),
+				Interval: "15s",
+				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort), // default assumes consul agent on svc host
+			},
 		}
 	}
 
-	// if no query options configured add default filter matching every tag in config
-	if cfg.QueryOptions != nil {
-		resolverConfig.QueryOptions = cfg.QueryOptions
-	} else {
-		filter := ""
-		filterTags := *new([]string)
+	appPortInt, err := strconv.Atoi(appPort)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing app port: %w", err)
+	}
 
-		if resolverConfig.Registration != nil {
-			filterTags = resolverConfig.Registration.Tags
+	return &consul.AgentServiceRegistration{
+		Name:    appID,
+		Address: host,
+		Port:    appPortInt,
+		Checks:  cfg.Checks,
+		Tags:    cfg.Tags,
+		Meta:    cfg.Meta,
+	}, nil
+}
+
+func getQueryOptionsConfig(cfg configSpec, registration *consul.AgentServiceRegistration) *consul.QueryOptions {
+	// if no query options configured add default filter matching every tag in config
+	if cfg.QueryOptions == nil {
+		var filterTags []string
+		filter := ""
+
+		if registration != nil {
+			filterTags = registration.Tags
 		} else {
 			filterTags = cfg.Tags
 		}
 
 		for i, tag := range filterTags {
 			if i != 0 {
-				filter = filter + " and "
+				filter += " and "
 			}
-			filter = filter + fmt.Sprintf("Checks.ServiceTags contains %s", tag)
+			filter += fmt.Sprintf("Checks.ServiceTags contains %s", tag)
 		}
 
-		resolverConfig.QueryOptions = &consul.QueryOptions{
+		return &consul.QueryOptions{
 			Filter:   filter,
 			UseCache: true,
 		}
 	}
 
-	// set DaprPortMetaKey used for registring DaprPort and resolving from Consul
-	if cfg.DaprPortMetaKey == "" {
-		resolverConfig.DaprPortMetaKey = daprMeta
-	} else {
-		resolverConfig.DaprPortMetaKey = cfg.DaprPortMetaKey
-	}
-
-	// if registering, set DaprPort in meta, needed for resolution
-	if resolverConfig.Registration != nil {
-		if resolverConfig.Registration.Meta == nil {
-			resolverConfig.Registration.Meta = map[string]string{}
-		}
-
-		resolverConfig.Registration.Meta[resolverConfig.DaprPortMetaKey] = daprPort
-	}
-
-	return resolverConfig, nil
+	return cfg.QueryOptions
 }
 
 func parseConfig(rawConfig interface{}) (configSpec, error) {
@@ -299,14 +308,14 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 
 	data, err := json.Marshal(rawConfig)
 	if err != nil {
-		return config, err
+		return config, fmt.Errorf("error serializing to json: %w", err)
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&config); err != nil {
-		return config, err
+		return config, fmt.Errorf("error deserializing to configSpec: %w", err)
 	}
 
 	return config, nil
@@ -320,11 +329,13 @@ func convertGenericConfig(i interface{}) interface{} {
 		for k, v := range x {
 			m2[k.(string)] = convertGenericConfig(v)
 		}
+
 		return m2
 	case []interface{}:
 		for i, v := range x {
 			x[i] = convertGenericConfig(v)
 		}
 	}
+
 	return i
 }

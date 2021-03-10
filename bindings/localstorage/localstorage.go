@@ -129,12 +129,14 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 	f, err := os.Open(absPath)
 	if err != nil {
 		ls.logger.Debugf("%s", err)
+
 		return nil, err
 	}
 
 	b, err := io.ReadAll(f)
 	if err != nil {
 		ls.logger.Debugf("%s", err)
+
 		return nil, err
 	}
 
@@ -174,6 +176,7 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 
 	if !fi.IsDir() {
 		msg := fmt.Sprintf("unable to list files as the file specified is not a directory [%s]", absPath)
+
 		return nil, errors.New(msg)
 	}
 
@@ -192,9 +195,11 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 	}, nil
 }
 
+//nolint:staticcheck
 func getSecureAbsRelPath(rootPath string, filename string) (absPath string, relPath string, err error) {
 	absPath, err = securejoin.SecureJoin(rootPath, filename)
 	relPath, err = filepath.Rel(rootPath, absPath)
+
 	return
 }
 
@@ -204,8 +209,10 @@ func walkPath(root string) ([]string, error) {
 		if !info.IsDir() {
 			files = append(files, path)
 		}
+
 		return nil
 	})
+
 	return files, err
 }
 

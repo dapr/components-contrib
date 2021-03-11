@@ -1,0 +1,6 @@
+version: '2'
+services:
+  hazelcast:
+    image: hazelcast/hazelcast:3.12.12-1
+    ports:
+      - 5701:5701

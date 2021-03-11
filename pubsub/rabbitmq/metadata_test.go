@@ -65,24 +65,6 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Empty(t, m.consumerID)
 	})
 
-	t.Run("consumerID is not given", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[metadataConsumerIDKey] = ""
-
-		// act
-		m, err := createMetadata(fakeMetaData)
-
-		// assert
-		assert.EqualError(t, err, "rabbitmq pub/sub error: missing RabbitMQ consumerID")
-		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
-		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-		assert.Empty(t, m.consumerID)
-	})
-
 	invalidDeliveryModes := []string{"3", "10", "-1"}
 
 	for _, deliveryMode := range invalidDeliveryModes {

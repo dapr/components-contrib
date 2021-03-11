@@ -104,7 +104,7 @@ func TestConvertMetadataToProperties(t *testing.T) {
 }
 
 func TestParseConfigurationMap(t *testing.T) {
-	testMap := map[string]string{
+	testMap := map[string]interface{}{
 		"key":  "$((uuid))",
 		"blob": "testblob",
 	}
@@ -112,7 +112,7 @@ func TestParseConfigurationMap(t *testing.T) {
 	ParseConfigurationMap(t, testMap)
 	assert.Equal(t, 2, len(testMap))
 	assert.Equal(t, "testblob", testMap["blob"])
-	_, err := uuid.ParseBytes([]byte(testMap["key"]))
+	_, err := uuid.ParseBytes([]byte(testMap["key"].(string)))
 	assert.NoError(t, err)
 }
 

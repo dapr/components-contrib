@@ -14,9 +14,11 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/agrea/ptr"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 // metadata values
@@ -38,14 +40,17 @@ type Aerospike struct {
 	set       string // optional
 	client    *as.Client
 	json      jsoniter.API
-	logger    logger.Logger
+
+	features []state.Feature
+	logger   logger.Logger
 }
 
 // NewAerospikeStateStore returns a new Aerospike state store
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
 	s := &Aerospike{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -89,6 +94,11 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 	aspike.set = metadata.Properties[set]
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (aspike *Aerospike) Features() []state.Feature {
+	return aspike.features
 }
 
 // Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings
@@ -171,7 +181,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: fmt.Sprintf("%d", record.Generation),
+		ETag: ptr.String(strconv.FormatUint(uint64(record.Generation), 10)),
 	}, nil
 }
 

@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/a8m/documentdb"
+	"github.com/agrea/ptr"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 // StateStore is a CosmosDB state store
@@ -25,7 +27,8 @@ type StateStore struct {
 	db         *documentdb.Database
 	sp         *documentdb.Sproc
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type credentials struct {
@@ -57,7 +60,10 @@ const (
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
-	s := &StateStore{logger: logger}
+	s := &StateStore{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
+	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
@@ -144,6 +150,11 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (c *StateStore) Features() []state.Feature {
+	return c.features
+}
+
 // Get retrieves a CosmosDB item
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
@@ -175,7 +186,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return &state.GetResponse{
 			Data: bytes,
-			ETag: items[0].Etag,
+			ETag: ptr.String(items[0].Etag),
 		}, nil
 	}
 
@@ -186,7 +197,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: items[0].Etag,
+		ETag: ptr.String(items[0].Etag),
 	}, nil
 }
 

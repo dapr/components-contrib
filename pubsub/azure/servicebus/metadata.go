@@ -15,6 +15,8 @@ type metadata struct {
 	LockRenewalInSec               int    `json:"lockRenewalInSec"`
 	MaxActiveMessages              int    `json:"maxActiveMessages"`
 	MaxActiveMessagesRecoveryInSec int    `json:"maxActiveMessagesRecoveryInSec"`
+	MaxReconnectionAttempts        int    `json:"maxReconnectionAttempts"`
+	ConnectionRecoveryInSec        int    `json:"connectionRecoveryInSec"`
 	DisableEntityManagement        bool   `json:"disableEntityManagement"`
 	MaxDeliveryCount               *int   `json:"maxDeliveryCount"`
 	LockDurationInSec              *int   `json:"lockDurationInSec"`

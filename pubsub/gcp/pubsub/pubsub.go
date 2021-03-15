@@ -93,7 +93,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		result.ClientEmail = val
 	}
 
-
 	if val, found := pubSubMetadata.Properties[metadataClientIdKey]; found && val != "" {
 		result.ClientID = val
 	}
@@ -168,10 +167,8 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 }
 
 func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*gcppubsub.Client, error) {
-	pubsubClient, err := gcppubsub.NewClient(ctx, metadata.ProjectID)
-	if err != nil {
-		return pubsubClient, err
-	}
+	var pubsubClient *gcppubsub.Client
+	var err error
 
 	if metadata.PrivateKeyID != "" {
 		//TODO: validate that all auth json fields are filled
@@ -196,6 +193,10 @@ func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*g
 		}
 	} else {
 		g.logger.Debugf("Using implicit credentials for GCP")
+		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
+		if err != nil {
+			return pubsubClient, err
+		}
 	}
 	return pubsubClient, nil
 }

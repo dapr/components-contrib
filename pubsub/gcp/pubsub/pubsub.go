@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	gcppubsub "cloud.google.com/go/pubsub"
 	"github.com/dapr/components-contrib/pubsub"
@@ -18,6 +19,7 @@ const (
 	metadataConsumerIDKey              = "consumerID"
 	metadataTypeKey                    = "type"
 	metadataProjectIDKey               = "projectId"
+	metadataIdentityProjectIDKey       = "identityProjectId"
 	metadataPrivateKeyIdKey            = "privateKeyId"
 	metadataClientEmailKey             = "clientEmail"
 	metadataClientIdKey                = "clientId"
@@ -37,16 +39,20 @@ type GCPPubSub struct {
 }
 
 type GCPAuthJson struct {
-	//json format expected by gcp for explicit auth
-	project_id                  string
-	private_key_id              string
-	private_key                 string
-	client_email                string
-	client_id                   string
-	auth_uri                    string
-	token_uri                   string
-	auth_provider_x509_cert_url string
-	client_x509_cert_url        string
+	ProjectID           string `json:"project_id"`
+	PrivateKeyID        string `json:"private_key_id"`
+	PrivateKey          string `json:"private_key"`
+	ClientEmail         string `json:"client_email"`
+	ClientID            string `json:"client_id"`
+	AuthURI             string `json:"auth_uri"`
+	TokenURI            string `json:"token_uri"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
+	ClientCertURL       string `json:"client_x509_cert_url"`
+	Type                string `json:"type"`
+}
+
+type WhatNow struct {
+	Type string `json:"type"`
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance
@@ -54,12 +60,81 @@ func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 	return &GCPPubSub{logger: logger}
 }
 
+func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
+	// TODO: Add the rest of the metadata here, add defaults where applicable
+	result := metadata{
+		DisableEntityManagement: false,
+		Type:                    "service_account",
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataTypeKey]; found && val != "" {
+		result.Type = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataConsumerIDKey]; found && val != "" {
+		result.consumerID = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataIdentityProjectIDKey]; found && val != "" {
+		result.IdentityProjectID = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataProjectIDKey]; found && val != "" {
+		result.ProjectID = val
+	} else {
+		return &result, fmt.Errorf("%s missing attribute %s", errorMessagePrefix, metadataProjectIDKey)
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataPrivateKeyIdKey]; found && val != "" {
+		result.PrivateKeyID = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataClientEmailKey]; found && val != "" {
+		result.ClientEmail = val
+	}
+
+
+	if val, found := pubSubMetadata.Properties[metadataClientIdKey]; found && val != "" {
+		result.ClientID = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataAuthUriKey]; found && val != "" {
+		result.AuthURI = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataTokenUriKey]; found && val != "" {
+		result.TokenURI = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataAuthProviderX509CertUrlKey]; found && val != "" {
+		result.AuthProviderCertURL = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataClientX509CertUrlKey]; found && val != "" {
+		result.ClientCertURL = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataPrivateKeyKey]; found && val != "" {
+		result.PrivateKey = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataDisableEntityManagementKey]; found && val != "" {
+		if boolVal, err := strconv.ParseBool(val); err == nil {
+			result.DisableEntityManagement = boolVal
+		}
+	}
+	return &result, nil
+}
+
 // Init parses metadata and creates a new Pub Sub client
 func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	//meta, err := createMetadata(meta)
 	myMeta, err := createMetadata(meta)
+	if err != nil {
+		return err
+	}
 	b, err := g.parseMetadata(myMeta)
-	g.logger.Debugf(string(b))
+	//g.logger.Debugf(string(b))
 	if err != nil {
 		return err
 	}
@@ -75,7 +150,6 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-
 
 	if err != nil {
 		return fmt.Errorf("%s error creating pubsub client: %s", errorMessagePrefix, err)
@@ -98,25 +172,30 @@ func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*g
 	if err != nil {
 		return pubsubClient, err
 	}
+
 	if metadata.PrivateKeyID != "" {
-		// explicit credentials
-		authJson := GCPAuthJson{
-			project_id:                  metadata.ProjectID,
-			private_key_id:              metadata.PrivateKeyID,
-			private_key:                 metadata.PrivateKey,
-			client_email:                metadata.ClientEmail,
-			client_id:                   metadata.ClientID,
-			auth_uri:                    metadata.AuthURI,
-			token_uri:                   metadata.TokenURI,
-			auth_provider_x509_cert_url: metadata.AuthProviderCertURL,
-			client_x509_cert_url:        metadata.ClientCertURL,
+		//TODO: validate that all auth json fields are filled
+		authJson := &GCPAuthJson{
+			ProjectID:           metadata.IdentityProjectID,
+			PrivateKeyID:        metadata.PrivateKeyID,
+			PrivateKey:          metadata.PrivateKey,
+			ClientEmail:         metadata.ClientEmail,
+			ClientID:            metadata.ClientID,
+			AuthURI:             metadata.AuthURI,
+			TokenURI:            metadata.TokenURI,
+			AuthProviderCertURL: metadata.AuthProviderCertURL,
+			ClientCertURL:       metadata.ClientCertURL,
+			Type:                metadata.Type,
 		}
-		gcpCompatibleJson, err := json.Marshal(authJson)
+		gcpCompatibleJson, _ := json.Marshal(authJson)
+		g.logger.Debugf("Using explicit credentials for GCP")
+		clientOptions := option.WithCredentialsJSON(gcpCompatibleJson)
+		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
 		if err != nil {
 			return pubsubClient, err
 		}
-		clientOptions := option.WithCredentialsJSON(gcpCompatibleJson)
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
+	} else {
+		g.logger.Debugf("Using implicit credentials for GCP")
 	}
 	return pubsubClient, nil
 }

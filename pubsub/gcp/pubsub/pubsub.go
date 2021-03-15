@@ -1,11 +1,9 @@
 package pubsub
 
 import (
-	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/oauth2/google"
 
 	gcppubsub "cloud.google.com/go/pubsub"
 	"github.com/dapr/components-contrib/pubsub"
@@ -96,6 +94,10 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 }
 
 func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*gcppubsub.Client, error) {
+	pubsubClient, err := gcppubsub.NewClient(ctx, metadata.ProjectID)
+	if err != nil {
+		return pubsubClient, err
+	}
 	if metadata.PrivateKeyID != "" {
 		// explicit credentials
 		authJson := GCPAuthJson{
@@ -111,15 +113,12 @@ func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*g
 		}
 		gcpCompatibleJson, err := json.Marshal(authJson)
 		if err != nil {
-			return nil, err
+			return pubsubClient, err
 		}
-		clientOptions = option.WithCredentialsJSON(gcpCompatibleJson)
-		pubsubClient, err := gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
-	} else {
-		// implicit credentials
-		pubsubClient, err := gcppubsub.NewClient(ctx, metadata.ProjectID)
+		clientOptions := option.WithCredentialsJSON(gcpCompatibleJson)
+		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
 	}
-	return pubsubClient
+	return pubsubClient, nil
 }
 
 func (g *GCPPubSub) parseMetadata(metadata *metadata) ([]byte, error) {

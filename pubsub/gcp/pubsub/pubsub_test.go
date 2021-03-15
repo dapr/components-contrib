@@ -8,7 +8,6 @@ import (
 )
 
 func TestInit(t *testing.T) {
-
 	t.Run("metadata is correct with explicit creds", func(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
@@ -24,13 +23,8 @@ func TestInit(t *testing.T) {
 			"tokenUri":                "https://token",
 			"type":                    "serviceaccount",
 		}
-		//ps := GCPPubSub{logger: logger.NewLogger("test")}
 		b, err := createMetadata(m)
 		assert.Nil(t, err)
-
-		//var pubsubMeta metadata
-		//err = json.Unmarshal(b, &pubsubMeta)
-		//assert.Nil(t, err)
 
 		assert.Equal(t, "https://authcerturl", b.AuthProviderCertURL)
 		assert.Equal(t, "https://auth", b.AuthURI)
@@ -49,13 +43,9 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"projectId": "superproject",
 		}
-		//ps := GCPPubSub{logger: logger.NewLogger("test")}
+
 		b, err := createMetadata(m)
 		assert.Nil(t, err)
-
-		//var pubsubMeta metadata
-		//err = json.Unmarshal(b, &pubsubMeta)
-		//assert.Nil(t, err)
 
 		assert.Equal(t, "superproject", b.ProjectID)
 		assert.Equal(t, "service_account", b.Type)

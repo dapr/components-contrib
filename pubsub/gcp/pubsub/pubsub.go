@@ -20,13 +20,13 @@ const (
 	metadataTypeKey                    = "type"
 	metadataProjectIDKey               = "projectId"
 	metadataIdentityProjectIDKey       = "identityProjectId"
-	metadataPrivateKeyIdKey            = "privateKeyId"
+	metadataPrivateKeyIDKey            = "privateKeyId"
 	metadataClientEmailKey             = "clientEmail"
-	metadataClientIdKey                = "clientId"
-	metadataAuthUriKey                 = "authUri"
-	metadataTokenUriKey                = "tokenUri"
-	metadataAuthProviderX509CertUrlKey = "authProviderX509CertUrl"
-	metadataClientX509CertUrlKey       = "clientX509CertUrl"
+	metadataClientIDKey                = "clientId"
+	metadataAuthURIKey                 = "authUri"
+	metadataTokenURIKey                = "tokenUri"
+	metadataAuthProviderX509CertURLKey = "authProviderX509CertUrl"
+	metadataClientX509CertURLKey       = "clientX509CertUrl"
 	metadataPrivateKeyKey              = "privateKey"
 	metadataDisableEntityManagementKey = "disableEntityManagement"
 )
@@ -38,7 +38,7 @@ type GCPPubSub struct {
 	logger   logger.Logger
 }
 
-type GCPAuthJson struct {
+type GCPAuthJSON struct {
 	ProjectID           string `json:"project_id"`
 	PrivateKeyID        string `json:"private_key_id"`
 	PrivateKey          string `json:"private_key"`
@@ -85,7 +85,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		return &result, fmt.Errorf("%s missing attribute %s", errorMessagePrefix, metadataProjectIDKey)
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataPrivateKeyIdKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataPrivateKeyIDKey]; found && val != "" {
 		result.PrivateKeyID = val
 	}
 
@@ -93,23 +93,23 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		result.ClientEmail = val
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataClientIdKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataClientIDKey]; found && val != "" {
 		result.ClientID = val
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataAuthUriKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataAuthURIKey]; found && val != "" {
 		result.AuthURI = val
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataTokenUriKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataTokenURIKey]; found && val != "" {
 		result.TokenURI = val
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataAuthProviderX509CertUrlKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataAuthProviderX509CertURLKey]; found && val != "" {
 		result.AuthProviderCertURL = val
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataClientX509CertUrlKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataClientX509CertURLKey]; found && val != "" {
 		result.ClientCertURL = val
 	}
 
@@ -122,6 +122,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 			result.DisableEntityManagement = boolVal
 		}
 	}
+
 	return &result, nil
 }
 
@@ -133,7 +134,7 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	}
 
 	ctx := context.Background()
-	pubsubClient, err := g.getPubSubClient(metadata, ctx)
+	pubsubClient, err := g.getPubSubClient(ctx, metadata)
 	if err != nil {
 		return err
 	}
@@ -144,16 +145,17 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 
 	g.client = pubsubClient
 	g.metadata = metadata
+
 	return nil
 }
 
-func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*gcppubsub.Client, error) {
+func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*gcppubsub.Client, error) {
 	var pubsubClient *gcppubsub.Client
 	var err error
 
 	if metadata.PrivateKeyID != "" {
 		//TODO: validate that all auth json fields are filled
-		authJson := &GCPAuthJson{
+		authJSON := &GCPAuthJSON{
 			ProjectID:           metadata.IdentityProjectID,
 			PrivateKeyID:        metadata.PrivateKeyID,
 			PrivateKey:          metadata.PrivateKey,
@@ -165,9 +167,9 @@ func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*g
 			ClientCertURL:       metadata.ClientCertURL,
 			Type:                metadata.Type,
 		}
-		gcpCompatibleJson, _ := json.Marshal(authJson)
+		gcpCompatibleJSON, _ := json.Marshal(authJSON)
 		g.logger.Debugf("Using explicit credentials for GCP")
-		clientOptions := option.WithCredentialsJSON(gcpCompatibleJson)
+		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
 		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
 		if err != nil {
 			return pubsubClient, err
@@ -179,6 +181,7 @@ func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*g
 			return pubsubClient, err
 		}
 	}
+
 	return pubsubClient, nil
 }
 

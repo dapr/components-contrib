@@ -1,7 +1,5 @@
 package pubsub
 
-
-
 // GCPPubSubMetaData pubsub metadata
 type metadata struct {
 	consumerID              string
@@ -18,5 +16,3 @@ type metadata struct {
 	AuthProviderCertURL     string
 	ClientCertURL           string
 }
-
-

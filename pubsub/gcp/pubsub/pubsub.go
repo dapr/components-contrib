@@ -127,25 +127,13 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 // Init parses metadata and creates a new Pub Sub client
 func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
-	//meta, err := createMetadata(meta)
-	myMeta, err := createMetadata(meta)
-	if err != nil {
-		return err
-	}
-	b, err := g.parseMetadata(myMeta)
-	//g.logger.Debugf(string(b))
-	if err != nil {
-		return err
-	}
-
-	var pubsubMeta metadata
-	err = json.Unmarshal(b, &pubsubMeta)
+	metadata, err := createMetadata(meta)
 	if err != nil {
 		return err
 	}
 
 	ctx := context.Background()
-	pubsubClient, err := g.getPubSubClient(myMeta, ctx)
+	pubsubClient, err := g.getPubSubClient(metadata, ctx)
 	if err != nil {
 		return err
 	}
@@ -154,15 +142,8 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 		return fmt.Errorf("%s error creating pubsub client: %s", errorMessagePrefix, err)
 	}
 
-	if val, ok := meta.Properties[metadataConsumerIDKey]; ok && val != "" {
-		pubsubMeta.consumerID = val
-	} else {
-		return fmt.Errorf("%s missing consumerID", errorMessagePrefix)
-	}
-
 	g.client = pubsubClient
-	g.metadata = &pubsubMeta
-
+	g.metadata = metadata
 	return nil
 }
 
@@ -199,12 +180,6 @@ func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*g
 		}
 	}
 	return pubsubClient, nil
-}
-
-func (g *GCPPubSub) parseMetadata(metadata *metadata) ([]byte, error) {
-	b, err := json.Marshal(metadata)
-
-	return b, err
 }
 
 // Publish the topic to GCP Pubsub

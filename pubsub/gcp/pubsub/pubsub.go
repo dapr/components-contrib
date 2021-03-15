@@ -1,9 +1,11 @@
 package pubsub
 
 import (
+	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/oauth2/google"
 
 	gcppubsub "cloud.google.com/go/pubsub"
 	"github.com/dapr/components-contrib/pubsub"
@@ -14,8 +16,19 @@ import (
 )
 
 const (
-	errorMessagePrefix = "gcp pubsub error:"
-	consumerID         = "consumerID"
+	errorMessagePrefix                 = "gcp pubsub error:"
+	metadataConsumerIDKey              = "consumerID"
+	metadataTypeKey                    = "type"
+	metadataProjectIDKey               = "projectId"
+	metadataPrivateKeyIdKey            = "privateKeyId"
+	metadataClientEmailKey             = "clientEmail"
+	metadataClientIdKey                = "clientId"
+	metadataAuthUriKey                 = "authUri"
+	metadataTokenUriKey                = "tokenUri"
+	metadataAuthProviderX509CertUrlKey = "authProviderX509CertUrl"
+	metadataClientX509CertUrlKey       = "clientX509CertUrl"
+	metadataPrivateKeyKey              = "privateKey"
+	metadataDisableEntityManagementKey = "disableEntityManagement"
 )
 
 // GCPPubSub type
@@ -25,6 +38,19 @@ type GCPPubSub struct {
 	logger   logger.Logger
 }
 
+type GCPAuthJson struct {
+	//json format expected by gcp for explicit auth
+	project_id                  string
+	private_key_id              string
+	private_key                 string
+	client_email                string
+	client_id                   string
+	auth_uri                    string
+	token_uri                   string
+	auth_provider_x509_cert_url string
+	client_x509_cert_url        string
+}
+
 // NewGCPPubSub returns a new GCPPubSub instance
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 	return &GCPPubSub{logger: logger}
@@ -32,7 +58,10 @@ func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 
 // Init parses metadata and creates a new Pub Sub client
 func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
-	b, err := g.parseMetadata(meta)
+	//meta, err := createMetadata(meta)
+	myMeta, err := createMetadata(meta)
+	b, err := g.parseMetadata(myMeta)
+	g.logger.Debugf(string(b))
 	if err != nil {
 		return err
 	}
@@ -42,15 +71,20 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-	clientOptions := option.WithCredentialsJSON(b)
+
 	ctx := context.Background()
-	pubsubClient, err := gcppubsub.NewClient(ctx, pubsubMeta.ProjectID, clientOptions)
+	pubsubClient, err := g.getPubSubClient(myMeta, ctx)
+	if err != nil {
+		return err
+	}
+
+
 	if err != nil {
 		return fmt.Errorf("%s error creating pubsub client: %s", errorMessagePrefix, err)
 	}
 
-	if val, ok := meta.Properties[consumerID]; ok && val != "" {
-		pubsubMeta.ConsumerID = val
+	if val, ok := meta.Properties[metadataConsumerIDKey]; ok && val != "" {
+		pubsubMeta.consumerID = val
 	} else {
 		return fmt.Errorf("%s missing consumerID", errorMessagePrefix)
 	}
@@ -61,8 +95,35 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	return nil
 }
 
-func (g *GCPPubSub) parseMetadata(metadata pubsub.Metadata) ([]byte, error) {
-	b, err := json.Marshal(metadata.Properties)
+func (g *GCPPubSub) getPubSubClient(metadata *metadata, ctx context.Context) (*gcppubsub.Client, error) {
+	if metadata.PrivateKeyID != "" {
+		// explicit credentials
+		authJson := GCPAuthJson{
+			project_id:                  metadata.ProjectID,
+			private_key_id:              metadata.PrivateKeyID,
+			private_key:                 metadata.PrivateKey,
+			client_email:                metadata.ClientEmail,
+			client_id:                   metadata.ClientID,
+			auth_uri:                    metadata.AuthURI,
+			token_uri:                   metadata.TokenURI,
+			auth_provider_x509_cert_url: metadata.AuthProviderCertURL,
+			client_x509_cert_url:        metadata.ClientCertURL,
+		}
+		gcpCompatibleJson, err := json.Marshal(authJson)
+		if err != nil {
+			return nil, err
+		}
+		clientOptions = option.WithCredentialsJSON(gcpCompatibleJson)
+		pubsubClient, err := gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
+	} else {
+		// implicit credentials
+		pubsubClient, err := gcppubsub.NewClient(ctx, metadata.ProjectID)
+	}
+	return pubsubClient
+}
+
+func (g *GCPPubSub) parseMetadata(metadata *metadata) ([]byte, error) {
+	b, err := json.Marshal(metadata)
 
 	return b, err
 }
@@ -94,14 +155,14 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg 
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(g.metadata.ConsumerID, req.Topic)
+		subError := g.ensureSubscription(g.metadata.consumerID, req.Topic)
 		if subError != nil {
-			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.ConsumerID, subError)
+			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
 		}
 	}
 
 	topic := g.getTopic(req.Topic)
-	sub := g.getSubscription(g.metadata.ConsumerID + "-" + req.Topic)
+	sub := g.getSubscription(g.metadata.consumerID + "-" + req.Topic)
 
 	go g.handleSubscriptionMessages(topic, sub, daprHandler)
 

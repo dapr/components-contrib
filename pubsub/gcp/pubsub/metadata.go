@@ -1,17 +1,38 @@
 package pubsub
 
+import "github.com/dapr/components-contrib/pubsub"
+
 // GCPPubSubMetaData pubsub metadata
 type metadata struct {
-	ConsumerID              string `json:"consumerID"`
-	DisableEntityManagement bool   `json:"disableEntityManagement"`
-	Type                    string `json:"type"`
-	ProjectID               string `json:"project_id"`
-	PrivateKeyID            string `json:"private_key_id"`
-	PrivateKey              string `json:"private_key"`
-	ClientEmail             string `json:"client_email"`
-	ClientID                string `json:"client_id"`
-	AuthURI                 string `json:"auth_uri"`
-	TokenURI                string `json:"token_uri"`
-	AuthProviderCertURL     string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL           string `json:"client_x509_cert_url"`
+	consumerID              string
+	DisableEntityManagement bool
+	Type                    string
+	ProjectID               string
+	PrivateKeyID            string
+	PrivateKey              string
+	ClientEmail             string
+	ClientID                string
+	AuthURI                 string
+	TokenURI                string
+	AuthProviderCertURL     string
+	ClientCertURL           string
+}
+
+
+func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
+	// TODO: Add the rest of the metadata here, add defaults where applicable
+	result := metadata{
+		DisableEntityManagement: true,
+		Type: "service_account",
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataTypeKey]; found && val != "" {
+		result.Type = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataConsumerIDKey]; found && val != "" {
+		result.consumerID = val
+	}
+
+	return &result, nil
 }

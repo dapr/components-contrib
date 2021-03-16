@@ -92,6 +92,18 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return err
 	}
 
+	if m.URL == "" {
+		return errors.New("url is required")
+	}
+	if m.MasterKey == "" {
+		return errors.New("masterKey is required")
+	}
+	if m.Database == "" {
+		return errors.New("database is required")
+	}
+	if m.Collection == "" {
+		return errors.New("collection is required")
+	}
 	if m.ContentType == "" {
 		return errors.New("contentType is required")
 	}

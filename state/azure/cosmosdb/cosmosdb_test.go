@@ -26,7 +26,7 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: value,
 		}
 
-		item := createUpsertItem(req, partitionKey)
+		item := createUpsertItem("", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -39,8 +39,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		err = json.Unmarshal(b, &j)
 		assert.NoError(t, err)
 
-		value := j["value"]
-		m, ok := value.(map[string]interface{})
+		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
 
 		assert.Equal(t, "red", m["color"])
@@ -56,7 +55,35 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem(req, partitionKey)
+		item := createUpsertItem("", req, partitionKey)
+		assert.Equal(t, partitionKey, item.PartitionKey)
+		assert.Equal(t, "testKey", item.ID)
+
+		// items need to be marshallable to JSON with encoding/json
+		b, err := json.Marshal(item)
+		assert.NoError(t, err)
+
+		j := map[string]interface{}{}
+		err = json.Unmarshal(b, &j)
+		assert.NoError(t, err)
+
+		m, ok := j["value"].(map[string]interface{})
+		assert.Truef(t, ok, "value should be a map")
+
+		assert.Equal(t, "red", m["color"])
+	})
+
+	t.Run("create item for String bytes", func(t *testing.T) {
+		// Bytes are handled the same way, does not matter if is JSON or JPEG.
+		bytes, err := json.Marshal(value)
+		assert.NoError(t, err)
+
+		req := state.SetRequest{
+			Key:   "testKey",
+			Value: bytes,
+		}
+
+		item := createUpsertItem("text/plain", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 
@@ -72,6 +99,62 @@ func TestCreateCosmosItem(t *testing.T) {
 		m, ok := value.(string)
 		assert.Truef(t, ok, "value should be a string")
 
-		assert.Equal(t, "eyJjb2xvciI6InJlZCJ9", m)
+		assert.Equal(t, "{\"color\":\"red\"}", m)
+	})
+
+	t.Run("create item for random bytes", func(t *testing.T) {
+		// Bytes are handled as per content-type
+		bytes := []byte{0x1}
+
+		req := state.SetRequest{
+			Key:   "testKey",
+			Value: bytes,
+		}
+
+		item := createUpsertItem("", req, partitionKey)
+		assert.Equal(t, partitionKey, item.PartitionKey)
+		assert.Equal(t, "testKey", item.ID)
+
+		// items need to be marshallable to JSON with encoding/json
+		b, err := json.Marshal(item)
+		assert.NoError(t, err)
+
+		j := map[string]interface{}{}
+		err = json.Unmarshal(b, &j)
+		assert.NoError(t, err)
+
+		value := j["value"]
+		m, ok := value.(string)
+		assert.Truef(t, ok, "value should be a string")
+
+		assert.Equal(t, "AQ==", m)
+	})
+
+	t.Run("create item for random bytes", func(t *testing.T) {
+		// Bytes are handled as per content-type
+		bytes := []byte{0x1}
+
+		req := state.SetRequest{
+			Key:   "testKey",
+			Value: bytes,
+		}
+
+		item := createUpsertItem("application/octet-stream", req, partitionKey)
+		assert.Equal(t, partitionKey, item.PartitionKey)
+		assert.Equal(t, "testKey", item.ID)
+
+		// items need to be marshallable to JSON with encoding/json
+		b, err := json.Marshal(item)
+		assert.NoError(t, err)
+
+		j := map[string]interface{}{}
+		err = json.Unmarshal(b, &j)
+		assert.NoError(t, err)
+
+		value := j["value"]
+		m, ok := value.(string)
+		assert.Truef(t, ok, "value should be a string")
+
+		assert.Equal(t, "AQ==", m)
 	})
 }

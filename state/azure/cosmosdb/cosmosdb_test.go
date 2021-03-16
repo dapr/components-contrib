@@ -26,7 +26,7 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: value,
 		}
 
-		item := createUpsertItem("", req, partitionKey)
+		item := createUpsertItem("application/json", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -55,7 +55,7 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem("", req, partitionKey)
+		item := createUpsertItem("application/json", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 
@@ -111,7 +111,7 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem("", req, partitionKey)
+		item := createUpsertItem("application/json", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 

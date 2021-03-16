@@ -8,6 +8,7 @@ package cosmosdb
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -82,10 +83,17 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return err
 	}
 
-	var m metadata
+	m := metadata{
+		ContentType: "application/json",
+	}
+
 	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return err
+	}
+
+	if m.ContentType == "" {
+		return errors.New("contentType is required")
 	}
 
 	client := documentdb.New(m.URL, &documentdb.Config{
@@ -342,7 +350,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) CosmosItem {
 	byteArray, isBinary := req.Value.([]uint8)
 	if isBinary {
-		if contentType == "" || contenttype.IsJSONContentType(contentType) {
+		if contenttype.IsJSONContentType(contentType) {
 			var value map[string]interface{}
 			err := json.Unmarshal(byteArray, &value)
 			// if byte array is not a valid JSON, so keep it as-is to be Base64 encoded in CosmosDB.

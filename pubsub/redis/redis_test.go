@@ -21,10 +21,15 @@ import (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		consumerID: "fakeConsumer",
-		host:       "fake.redis.com",
-		password:   "fakePassword",
-		enableTLS:  "true",
+		consumerID:        "fakeConsumer",
+		host:              "fake.redis.com",
+		password:          "fakePassword",
+		enableTLS:         "true",
+		dialTimeoutInSec:  "5",
+		readTimeoutInSec:  "5",
+		writeTimeoutInSec: "5",
+		poolSize:          "20",
+		maxConnAgeInSec:   "200",
 	}
 }
 
@@ -45,6 +50,11 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[password], m.password)
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
 		assert.Equal(t, true, m.enableTLS)
+		assert.Equal(t, 5, m.dialTimeoutInSec)
+		assert.Equal(t, 5, m.readTimeoutInSec)
+		assert.Equal(t, 5, m.writeTimeoutInSec)
+		assert.Equal(t, 20, m.poolSize)
+		assert.Equal(t, 200, m.maxConnAgeInSec)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {

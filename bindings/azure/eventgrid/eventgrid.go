@@ -63,7 +63,7 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error {
+func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 			case "POST":
 				bodyBytes := ctx.PostBody()
 
-				err = handler(&bindings.ReadResponse{
+				_, err := handler(&bindings.ReadResponse{
 					Data: bodyBytes,
 				})
 				if err != nil {

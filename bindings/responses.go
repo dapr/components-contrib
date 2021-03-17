@@ -9,7 +9,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 )
 
-// ReadResponse is an the return object from an dapr input binding
+// ReadResponse is the return object from an dapr input binding
 type ReadResponse struct {
 	Data     []byte            `json:"data"`
 	Metadata map[string]string `json:"metadata"`

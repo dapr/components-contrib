@@ -93,11 +93,11 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 	}
 
 	if val, ok := meta.Properties[db]; ok && val != "" {
-		if db, err := strconv.Atoi(val); err != nil {
+		db, err := strconv.Atoi(val)
+		if err != nil {
 			return m, fmt.Errorf("redis streams error: can't parse db field: %s", err)
-		} else {
-			m.db = int(db)
 		}
+		m.db = db
 	}
 
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
@@ -151,11 +151,11 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 	}
 
 	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		if maxRetries, err := strconv.Atoi(val); err != nil {
+		maxRetries, err := strconv.Atoi(val)
+		if err != nil {
 			return m, fmt.Errorf("redis streams error: can't parse maxRetries field: %s", err)
-		} else {
-			m.maxRetries = maxRetries
 		}
+		m.maxRetries = maxRetries
 	}
 
 	if val, ok := meta.Properties[minRetryBackoff]; ok && val != "" {
@@ -233,11 +233,11 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 	}
 
 	if val, ok := meta.Properties[minIdleConns]; ok && val != "" {
-		if minIdleConns, err := strconv.Atoi(val); err != nil {
+		minIdleConns, err := strconv.Atoi(val)
+		if err != nil {
 			return m, fmt.Errorf("redis streams error: can't parse minIdleConns field: %s", err)
-		} else {
-			m.minIdleConns = minIdleConns
 		}
+		m.minIdleConns = minIdleConns
 	}
 
 	if val, ok := meta.Properties[poolTimeout]; ok && val != "" {

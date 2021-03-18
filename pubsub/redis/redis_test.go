@@ -22,15 +22,23 @@ import (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		consumerID:   "fakeConsumer",
-		host:         "fake.redis.com",
-		password:     "fakePassword",
-		enableTLS:    "true",
-		dialTimeout:  "5s",
-		readTimeout:  "5s",
-		writeTimeout: "50000",
-		poolSize:     "20",
-		maxConnAge:   "200s",
+		consumerID:         "fakeConsumer",
+		host:               "fake.redis.com",
+		password:           "fakePassword",
+		enableTLS:          "true",
+		dialTimeout:        "5s",
+		readTimeout:        "5s",
+		writeTimeout:       "50000",
+		poolSize:           "20",
+		maxConnAge:         "200s",
+		db:                 "1",
+		maxRetries:         "1",
+		minRetryBackoff:    "8ms",
+		maxRetryBackoff:    "1s",
+		minIdleConns:       "1",
+		poolTimeout:        "1s",
+		idleTimeout:        "1s",
+		idleCheckFrequency: "1s",
 	}
 }
 
@@ -51,11 +59,19 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[password], m.password)
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
 		assert.Equal(t, true, m.enableTLS)
-		assert.Equal(t, 5 * time.Second, m.dialTimeout)
-		assert.Equal(t, 5 * time.Second, m.readTimeout)
-		assert.Equal(t, 50000 * time.Millisecond, m.writeTimeout)
+		assert.Equal(t, 5*time.Second, m.dialTimeout)
+		assert.Equal(t, 5*time.Second, m.readTimeout)
+		assert.Equal(t, 50000*time.Millisecond, m.writeTimeout)
 		assert.Equal(t, 20, m.poolSize)
-		assert.Equal(t, 200 * time.Second, m.maxConnAge)
+		assert.Equal(t, 200*time.Second, m.maxConnAge)
+		assert.Equal(t, 1, m.db)
+		assert.Equal(t, 1, m.maxRetries)
+		assert.Equal(t, 8*time.Millisecond, m.minRetryBackoff)
+		assert.Equal(t, 1*time.Second, m.maxRetryBackoff)
+		assert.Equal(t, 1, m.minIdleConns)
+		assert.Equal(t, 1*time.Second, m.poolTimeout)
+		assert.Equal(t, 1*time.Second, m.idleTimeout)
+		assert.Equal(t, 1*time.Second, m.idleCheckFrequency)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {
@@ -93,19 +109,27 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Empty(t, m.consumerID)
 	})
 
-	t.Run("readTimeout can be set as -1", func(t *testing.T) {
+	t.Run("check values can be set as -1", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[readTimeout] = "-1"
+		fakeMetaData.Properties[idleTimeout] = "-1"
+		fakeMetaData.Properties[idleCheckFrequency] = "-1"
+		fakeMetaData.Properties[maxRetryBackoff] = "-1"
+		fakeMetaData.Properties[minRetryBackoff] = "-1"
 
 		// act
 		m, err := parseRedisMetadata(fakeMetaData)
 		// assert
 		assert.NoError(t, err)
 		assert.True(t, m.readTimeout == -1)
+		assert.True(t, m.idleTimeout == -1)
+		assert.True(t, m.idleCheckFrequency == -1)
+		assert.True(t, m.maxRetryBackoff == -1)
+		assert.True(t, m.minRetryBackoff == -1)
 	})
 }
 

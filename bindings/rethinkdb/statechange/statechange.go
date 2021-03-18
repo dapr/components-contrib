@@ -60,7 +60,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the RethinkDB scheduler
-func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
+func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	b.logger.Infof("subscribing to state changes in %s.%s...", b.config.Database, b.config.Table)
 	cursor, err := r.DB(b.config.Database).Table(b.config.Table).Changes(r.ChangesOpts{
 		IncludeTypes: true,
@@ -94,7 +94,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
 				},
 			}
 
-			if err := handler(resp); err != nil {
+			if _, err := handler(resp); err != nil {
 				b.logger.Errorf("error invoking change handler: %v", err)
 
 				continue

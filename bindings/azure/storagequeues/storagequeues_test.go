@@ -144,11 +144,11 @@ func TestReadQueue(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	handler := func(data *bindings.ReadResponse) error {
+	handler := func(data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 
-		return nil
+		return nil, nil
 	}
 
 	go a.Read(handler)
@@ -179,11 +179,11 @@ func TestReadQueueDecode(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	handler := func(data *bindings.ReadResponse) error {
+	handler := func(data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 
-		return nil
+		return nil, nil
 	}
 
 	go a.Read(handler)
@@ -211,10 +211,10 @@ func TestReadQueueDecode(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	var handler = func(data *bindings.ReadResponse) error {
+	var handler = func(data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
-		return nil
+		return nil, nil
 	}
 
 	_ = a.Read(handler)
@@ -236,11 +236,11 @@ func TestReadQueueNoMessage(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	handler := func(data *bindings.ReadResponse) error {
+	handler := func(data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 
-		return nil
+		return nil, nil
 	}
 
 	go a.Read(handler)

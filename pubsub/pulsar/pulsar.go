@@ -115,6 +115,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 			Topic:            req.Topic,
 			SubscriptionName: p.metadata.ConsumerID,
 			Type:             pulsar.Exclusive,
+			MessageChannel:   channel,
 		}
 
 		options.MessageChannel = channel
@@ -124,7 +125,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 			p.logger.Debugf("Could not subscribe %s", req.Topic)
 		}
 
-		go p.ListenMessage(consumer, req.Topic, handler)
+		go p.listenMessage(consumer, handler)
 
 	} else {
 
@@ -132,6 +133,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 			Topic:            req.Topic,
 			SubscriptionName: p.metadata.ConsumerID,
 			Type:             pulsar.Failover,
+			MessageChannel:   channel,
 		}
 
 		options.MessageChannel = channel
@@ -141,7 +143,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 			p.logger.Debugf("Could not subscribe %s", req.Topic)
 		}
 
-		go p.ListenMessage(consumer, req.Topic, handler)
+		go p.listenMessage(consumer, handler)
 
 	}
 

@@ -22,11 +22,11 @@ import (
 const (
 	host              = "redisHost"
 	password          = "redisPassword"
-	dialTimeoutInSec  = "dialTimeoutInSec"
-	readTimeoutInSec  = "readTimeoutInSec"
-	writeTimeoutInSec = "writeTimeoutInSec"
+	dialTimeout       = "dialTimeout"
+	readTimeout       = "readTimeout"
+	writeTimeout      = "writeTimeout"
 	poolSize          = "poolSize"
-	maxConnAgeInSec   = "maxConnAgeInSec"
+	maxConnAge        = "maxConnAge"
 	consumerID        = "consumerID"
 	enableTLS         = "enableTLS"
 	processingTimeout = "processingTimeout"
@@ -134,27 +134,35 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.concurrency = uint(concurrency)
 	}
 
-	if val, ok := meta.Properties[dialTimeoutInSec]; ok && val != "" {
-		var err error
-		m.dialTimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: invalid dialTimeoutInSec %s, %s", val, err)
+	if val, ok := meta.Properties[dialTimeout]; ok && val != "" {
+		if dialTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.dialTimeout = time.Duration(dialTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.dialTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid dialTimeout %s, %s", val, err)
 		}
 	}
 
-	if val, ok := meta.Properties[readTimeoutInSec]; ok && val != "" {
-		var err error
-		m.readTimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: invalid readTimeoutInSec %s, %s", val, err)
+	if val, ok := meta.Properties[readTimeout]; ok && val != "" {
+		if val == "-1" {
+			m.readTimeout = -1
+		} else if readTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.readTimeout = time.Duration(readTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.readTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid readTimeout %s, %s", val, err)
 		}
 	}
 
-	if val, ok := meta.Properties[writeTimeoutInSec]; ok && val != "" {
-		var err error
-		m.writeTimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: invalid writeTimeoutInSec %s, %s", val, err)
+	if val, ok := meta.Properties[writeTimeout]; ok && val != "" {
+		if writeTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.writeTimeout = time.Duration(writeTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.writeTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid writeTimeout %s, %s", val, err)
 		}
 	}
 
@@ -166,11 +174,13 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	if val, ok := meta.Properties[maxConnAgeInSec]; ok && val != "" {
-		var err error
-		m.maxConnAgeInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: invalid maxConnAgeInSec %s, %s", val, err)
+	if val, ok := meta.Properties[maxConnAge]; ok && val != "" {
+		if maxConnAgeMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.maxConnAge = time.Duration(maxConnAgeMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.maxConnAge = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid maxConnAge %s, %s", val, err)
 		}
 	}
 
@@ -191,22 +201,20 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		MaxRetries:      3,
 		MaxRetryBackoff: time.Second * 2,
 	}
-	if m.dialTimeoutInSec > 0 {
-		options.DialTimeout = time.Duration(m.dialTimeoutInSec) * time.Second
+	if m.dialTimeout > 0 {
+		options.DialTimeout = m.dialTimeout
 	}
-	if m.readTimeoutInSec > 0 {
-		options.ReadTimeout = time.Duration(m.readTimeoutInSec) * time.Second
-	} else if m.readTimeoutInSec == -1 {
-		options.ReadTimeout = time.Duration(m.readTimeoutInSec)
+	if m.readTimeout >= -1 {
+		options.ReadTimeout = m.readTimeout
 	}
-	if m.writeTimeoutInSec > 0 {
-		options.WriteTimeout = time.Duration(m.writeTimeoutInSec) * time.Second
+	if m.writeTimeout > 0 {
+		options.WriteTimeout = m.writeTimeout
 	}
 	if m.poolSize > 0 {
 		options.PoolSize = m.poolSize
 	}
-	if m.maxConnAgeInSec > 0 {
-		options.MaxConnAge = time.Duration(m.maxConnAgeInSec) * time.Second
+	if m.maxConnAge > 0 {
+		options.MaxConnAge = m.maxConnAge
 	}
 
 	/* #nosec */

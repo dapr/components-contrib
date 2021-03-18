@@ -24,7 +24,6 @@ type configSpec struct {
 	DaprPortMetaKey      string
 }
 
-const daprTag string = "dapr"       // default tag for register and filter
 const daprMeta string = "DAPR_PORT" // default key for DAPR_PORT metadata
 
 type resolverConfig struct {
@@ -178,23 +177,18 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 		return resolverCfg, err
 	}
 
-	// if no tags defined then set default tag for filter
-	if len(cfg.Tags) == 0 {
-		cfg.Tags = []string{daprTag}
-	}
-
-	resolverCfg.ClientConfig = getClientConfig(cfg)
-	if resolverCfg.Registration, err = getRegistrationConfig(cfg, props); err != nil {
-		return resolverCfg, err
-	}
-	resolverCfg.QueryOptions = getQueryOptionsConfig(cfg, resolverCfg.Registration)
-
 	// set DaprPortMetaKey used for registring DaprPort and resolving from Consul
 	if cfg.DaprPortMetaKey == "" {
 		resolverCfg.DaprPortMetaKey = daprMeta
 	} else {
 		resolverCfg.DaprPortMetaKey = cfg.DaprPortMetaKey
 	}
+
+	resolverCfg.ClientConfig = getClientConfig(cfg)
+	if resolverCfg.Registration, err = getRegistrationConfig(cfg, props); err != nil {
+		return resolverCfg, err
+	}
+	resolverCfg.QueryOptions = getQueryOptionsConfig(cfg)
 
 	// if registering, set DaprPort in meta, needed for resolution
 	if resolverCfg.Registration != nil {
@@ -274,27 +268,10 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	}, nil
 }
 
-func getQueryOptionsConfig(cfg configSpec, registration *consul.AgentServiceRegistration) *consul.QueryOptions {
+func getQueryOptionsConfig(cfg configSpec) *consul.QueryOptions {
 	// if no query options configured add default filter matching every tag in config
 	if cfg.QueryOptions == nil {
-		var filterTags []string
-		filter := ""
-
-		if registration != nil {
-			filterTags = registration.Tags
-		} else {
-			filterTags = cfg.Tags
-		}
-
-		for i, tag := range filterTags {
-			if i != 0 {
-				filter += " and "
-			}
-			filter += fmt.Sprintf("Checks.ServiceTags contains %s", tag)
-		}
-
 		return &consul.QueryOptions{
-			Filter:   filter,
 			UseCache: true,
 		}
 	}

@@ -401,7 +401,6 @@ func TestGetConfig(t *testing.T) {
 
 				// QueryOptions
 				assert.NotNil(t, actual.QueryOptions)
-				assert.Equal(t, "Checks.ServiceTags contains dapr", actual.QueryOptions.Filter)
 				assert.Equal(t, true, actual.QueryOptions.UseCache)
 
 				// DaprPortMetaKey
@@ -430,38 +429,15 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "15s", check.Interval)
 				assert.Equal(t, fmt.Sprintf("http://%s:%s/v1.0/healthz", metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), check.HTTP)
 
-				// Tags
-				assert.Equal(t, 1, len(actual.Registration.Tags))
-				assert.Equal(t, "dapr", actual.Registration.Tags[0])
-
 				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))
 				assert.Equal(t, "50001", actual.Registration.Meta["DAPR_PORT"])
 
 				// QueryOptions
-				assert.Equal(t, "Checks.ServiceTags contains dapr", actual.QueryOptions.Filter)
 				assert.Equal(t, true, actual.QueryOptions.UseCache)
 
 				// DaprPortMetaKey
 				assert.Equal(t, "DAPR_PORT", actual.DaprPortMetaKey)
-			},
-		},
-		{
-			"tags without queryOptions should generate filter",
-			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
-				Configuration: configSpec{
-					Tags: []string{"dapr-A", "dapr-B", "dapr-C"},
-				},
-			},
-			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-				actual, _ := getConfig(metadata)
-				// QueryOptions
-				filter := "Checks.ServiceTags contains dapr-A and " +
-					"Checks.ServiceTags contains dapr-B and " +
-					"Checks.ServiceTags contains dapr-C"
-				assert.Equal(t, filter, actual.QueryOptions.Filter)
 			},
 		},
 		{
@@ -739,7 +715,6 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "random health check name", actual.Registration.Checks[0].Name)
 				assert.Equal(t, "000", actual.Registration.Meta["APP_PORT"])
 				assert.Equal(t, "random-tag", actual.Registration.Tags[0])
-				assert.Equal(t, "Checks.ServiceTags contains random-tag", actual.QueryOptions.Filter)
 			},
 		},
 	}

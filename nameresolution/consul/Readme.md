@@ -1,12 +1,12 @@
 # Consul Name Resolution
 
-The consul name resolution component gives the ability to register and resolve other "daprized" services register on a consul estate. It is flexible in that it allows for complex to minimal configurations driving the behaviour on init and resolution.
+The consul name resolution component gives the ability to register and resolve other "daprized" services registered on a consul estate. It is flexible in that it allows for complex to minimal configurations driving the behaviour on init and resolution.
 
 ## Behaviour
 
-On init the consul component will either validate the connection to the configured (or default) agent or register the service if configured to do so. The name resolution interface does not cater for a on shutdown pattern so please consider this if using Dapr to register services to consul.
+On init the consul component will either validate the connection to the configured (or default) agent or register the service if configured to do so. The name resolution interface does not cater for an "on shutdown" pattern so please consider this if using Dapr to register services to consul as it will not deregister services.
 
-The component resolves target apps by filtering healthy services and looks for a `DAPR_PORT` in the metadata (key is configurable) in order to retreive the Dapr sidecar port. Consul service.meta is used over service.port so as to not interfere with existing consul estates.
+The component resolves target apps by filtering healthy services and looks for a `DAPR_PORT` in the metadata (key is configurable) in order to retrieve the Dapr sidecar port. Consul service.meta is used over service.port so as to not interfere with existing consul estates.
 
 
 ## Configuration Spec
@@ -14,12 +14,12 @@ The component resolves target apps by filtering healthy services and looks for a
 | Name          | Type              | Description      |
 | :------------ |------------------:| :----------------|
 | ClientConfig  | [*api.Config](https://pkg.go.dev/github.com/hashicorp/consul/api#Config) | Configures client connection to the consul agent. If blank it will use the sdk defaults, which in this case is just an address of `127.0.0.1:8500` |
-| QueryOptions  | [*api.QueryOptions](https://pkg.go.dev/github.com/hashicorp/consul/api#QueryOptions) | Configures query used for resolving healthy services, if blank it will default to `UseCache` as `true` and will generate a filter that matches on each configured tag |
-| Checks | [[]*api.AgentServiceCheck](https://pkg.go.dev/github.com/hashicorp/consul/api#AgentServiceCheck) | Configures health checks if/when registering. If blank it will default to a single healt check on the Dapr sidecar health endpoint |
-| Tags | `[]string` | Used for filtering services during service resolution and is also included in registration if enabled. If blank it will default to a single tag `dapr` |
+| QueryOptions  | [*api.QueryOptions](https://pkg.go.dev/github.com/hashicorp/consul/api#QueryOptions) | Configures query used for resolving healthy services, if blank it will default to `UseCache` as `true` |
+| Checks | [[]*api.AgentServiceCheck](https://pkg.go.dev/github.com/hashicorp/consul/api#AgentServiceCheck) | Configures health checks if/when registering. If blank it will default to a single health check on the Dapr sidecar health endpoint |
+| Tags | `[]string` | Configures any tags to include if/when registering services |
 | Meta | `map[string]string` | Configures any additional metadata to include if/when registering services |
 | DaprPortMetaKey | `string` | The key used for getting the Dapr sidecar port from consul service metadata during service resolution, it will also be used to set the Dapr sidecar port in metadata during registration. If blank it will default to `DAPR_PORT` |
-| SelfRegister | `bool` | Controls if Dapr will register the service to consul. The name resolution interface does not cater for a "on shutdown" pattern so please consider this if using Dapr to register services to consul. |
+| SelfRegister | `bool` | Controls if Dapr will register the service to consul. The name resolution interface does not cater for an "on shutdown" pattern so please consider this if using Dapr to register services to consul as it will not deregister services. |
 | AdvancedRegistration | [*api.AgentServiceRegistration](https://pkg.go.dev/github.com/hashicorp/consul/api#AgentServiceRegistration) | Gives full control of service registration through configuration. If configured the component will ignore any configuration of Checks, Tags, Meta and SelfRegister. |
 
 ## Samples Configurations
@@ -72,7 +72,7 @@ spec:
 
 ### Advanced registration
 
-Configuring the advanced registration gives you full control over all the properties possible when registering. When using advanced registration the query options will not default and must be configured as well.
+Configuring the advanced registration gives you full control over all the properties possible when registering.
 
 ```yaml
 spec:

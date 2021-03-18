@@ -141,6 +141,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 		}
 		go p.listenMessage(consumer, handler)
 	}
+	
 	return nil
 }
 

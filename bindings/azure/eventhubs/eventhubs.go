@@ -259,7 +259,8 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 
 	_, err = processor.RegisterHandler(context.Background(),
 		func(c context.Context, e *eventhub.Event) error {
-			_, err := handler(&bindings.ReadResponse{Data: e.Data})
+			_, err = handler(&bindings.ReadResponse{Data: e.Data})
+
 			return err
 		})
 	if err != nil {

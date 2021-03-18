@@ -88,7 +88,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 			case "POST":
 				bodyBytes := ctx.PostBody()
 
-				_, err := handler(&bindings.ReadResponse{
+				_, err = handler(&bindings.ReadResponse{
 					Data: bodyBytes,
 				})
 				if err != nil {

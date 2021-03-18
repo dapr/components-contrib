@@ -76,7 +76,7 @@ func (t *Binding) Operations() []bindings.OperationKind {
 }
 
 // Read triggers the Twitter search and events on each result tweet
-func (t *Binding) Read(handler func(*bindings.ReadResponse) error) error {
+func (t *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	if t.query == "" {
 		return nil
 	}

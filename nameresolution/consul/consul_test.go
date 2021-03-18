@@ -198,6 +198,18 @@ func TestResolveID(t *testing.T) {
 								},
 							},
 						},
+						{
+							Node: &consul.Node{
+								Address: "999.888.777",
+							},
+							Service: &consul.AgentService{
+								Address: "",
+								Port:    8600,
+								Meta: map[string]string{
+									"DAPR_PORT": "50005",
+								},
+							},
+						},
 					}, nil)
 
 				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)

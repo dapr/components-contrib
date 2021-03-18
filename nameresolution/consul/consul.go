@@ -2,10 +2,11 @@ package consul
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strconv"
+	"time"
 
 	consul "github.com/hashicorp/consul/api"
 
@@ -136,8 +137,9 @@ func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	}
 
 	shuffle := func(services []*consul.ServiceEntry) []*consul.ServiceEntry {
+		rand.Seed(time.Now().UnixNano())
 		for i := len(services) - 1; i > 0; i-- {
-			j, _ := rand.Read(make([]byte, i+1))
+			j := rand.Intn(i + 1)
 			services[i], services[j] = services[j], services[i]
 		}
 
@@ -162,7 +164,7 @@ func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 		return "", fmt.Errorf("target service AppID:%s found but DAPR_PORT missing from meta", req.ID)
 	}
 
-	return addr, fmt.Errorf("error resolving AppID:%s: %w", req.ID, err)
+	return addr, nil
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode

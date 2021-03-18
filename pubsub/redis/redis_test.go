@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis/v7"
 	"github.com/stretchr/testify/assert"
@@ -21,15 +22,15 @@ import (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		consumerID:        "fakeConsumer",
-		host:              "fake.redis.com",
-		password:          "fakePassword",
-		enableTLS:         "true",
-		dialTimeoutInSec:  "5",
-		readTimeoutInSec:  "5",
-		writeTimeoutInSec: "5",
-		poolSize:          "20",
-		maxConnAgeInSec:   "200",
+		consumerID:   "fakeConsumer",
+		host:         "fake.redis.com",
+		password:     "fakePassword",
+		enableTLS:    "true",
+		dialTimeout:  "5s",
+		readTimeout:  "5s",
+		writeTimeout: "50000",
+		poolSize:     "20",
+		maxConnAge:   "200s",
 	}
 }
 
@@ -50,11 +51,11 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[password], m.password)
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
 		assert.Equal(t, true, m.enableTLS)
-		assert.Equal(t, 5, m.dialTimeoutInSec)
-		assert.Equal(t, 5, m.readTimeoutInSec)
-		assert.Equal(t, 5, m.writeTimeoutInSec)
+		assert.Equal(t, 5 * time.Second, m.dialTimeout)
+		assert.Equal(t, 5 * time.Second, m.readTimeout)
+		assert.Equal(t, 50000 * time.Millisecond, m.writeTimeout)
 		assert.Equal(t, 20, m.poolSize)
-		assert.Equal(t, 200, m.maxConnAgeInSec)
+		assert.Equal(t, 200 * time.Second, m.maxConnAge)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {
@@ -90,6 +91,21 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[host], m.host)
 		assert.Equal(t, fakeProperties[password], m.password)
 		assert.Empty(t, m.consumerID)
+	})
+
+	t.Run("readTimeout can be set as -1", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[readTimeout] = "-1"
+
+		// act
+		m, err := parseRedisMetadata(fakeMetaData)
+		// assert
+		assert.NoError(t, err)
+		assert.True(t, m.readTimeout == -1)
 	})
 }
 

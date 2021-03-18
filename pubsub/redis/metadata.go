@@ -15,16 +15,16 @@ type metadata struct {
 	// The Redis password
 	password string
 	// Dial timeout for establishing new connections.
-	dialTimeoutInSec int
+	dialTimeout time.Duration
 	// Timeout for socket reads. If reached, commands will fail
 	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
-	readTimeoutInSec int
+	readTimeout time.Duration
 	// Timeout for socket writes. If reached, commands will fail
-	writeTimeoutInSec int
+	writeTimeout time.Duration
 	// Maximum number of socket connections.
 	poolSize int
 	// Connection age at which client retires (closes) the connection.
-	maxConnAgeInSec int
+	maxConnAge time.Duration
 	// The consumer identifier
 	consumerID string
 	// A flag to enables TLS by setting InsecureSkipVerify to true

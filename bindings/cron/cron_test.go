@@ -59,7 +59,7 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
 	testsNum := 3
 	i := 0
-	err := c.Read(func(res *bindings.ReadResponse) error {
+	err := c.Read(func(res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
 		assert.LessOrEqualf(t, i, testsNum, "Invoke didn't stop the schedule")
 		i++
@@ -73,7 +73,7 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 			assert.Equal(t, schedule, scheduleVal)
 		}
 
-		return nil
+		return nil, nil
 	})
 	assert.NoErrorf(t, err, "error on read")
 }

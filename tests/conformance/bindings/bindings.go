@@ -217,10 +217,10 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 }
 
 func readFromInputBinding(binding bindings.InputBinding, reads *int, readChan chan int) {
-	binding.Read(func(r *bindings.ReadResponse) error {
+	binding.Read(func(r *bindings.ReadResponse) ([]byte, error) {
 		(*reads)++
 		readChan <- (*reads)
 
-		return nil
+		return nil, nil
 	})
 }

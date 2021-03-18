@@ -67,12 +67,12 @@ const (
 // recordProcessorFactory
 type recordProcessorFactory struct {
 	logger  logger.Logger
-	handler func(*bindings.ReadResponse) error
+	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
 type recordProcessor struct {
 	logger  logger.Logger
-	handler func(*bindings.ReadResponse) error
+	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
 // NewAWSKinesis returns a new AWS Kinesis instance
@@ -140,7 +140,7 @@ func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	return nil, err
 }
 
-func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) error) error {
+func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		a.worker = worker.NewWorker(a.recordProcessorFactory(handler), a.workerConfig, nil)
 		err := a.worker.Start()
@@ -170,7 +170,7 @@ func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) error) error {
 }
 
 // Subscribe to all shards
-func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDescription, handler func(*bindings.ReadResponse) error) error {
+func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDescription, handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	consumerARN, err := a.ensureConsumer(streamDesc.StreamARN)
 	if err != nil {
 		a.logger.Error(err)
@@ -320,7 +320,7 @@ func (a *AWSKinesis) parseMetadata(metadata bindings.Metadata) (*kinesisMetadata
 	return &m, nil
 }
 
-func (a *AWSKinesis) recordProcessorFactory(handler func(*bindings.ReadResponse) error) interfaces.IRecordProcessorFactory {
+func (a *AWSKinesis) recordProcessorFactory(handler func(*bindings.ReadResponse) ([]byte, error)) interfaces.IRecordProcessorFactory {
 	return &recordProcessorFactory{logger: a.logger, handler: handler}
 }
 

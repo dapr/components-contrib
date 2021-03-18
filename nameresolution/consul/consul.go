@@ -79,14 +79,20 @@ func (c *consulResolver) RegisterService(registration *consul.AgentServiceRegist
 
 func (c *consulResolver) CheckAgent() error {
 	_, err := c.client.Agent().Self()
+	if err != nil {
+		return fmt.Errorf("consul api error getting agent metadata: %w", err)
+	}
 
-	return fmt.Errorf("consul api error getting agent metadata: %w", err)
+	return nil
 }
 
 func (c *consulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
 	services, _, err := c.client.Health().Service(serviceID, "", true, queryOptions)
+	if err != nil {
+		return nil, fmt.Errorf("consul api error querying health service: %w", err)
+	}
 
-	return services, fmt.Errorf("consul api error querying health service: %w", err)
+	return services, nil
 }
 
 // Init will configure component. It will also register service or validate client connection based on config

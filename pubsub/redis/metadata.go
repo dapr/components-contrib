@@ -19,13 +19,13 @@ type metadata struct {
 
 	// Maximum number of retries before giving up.
 	// Default is to not retry failed commands.
-	maxRetries int
+	backoffMaxRetries int
 	// Minimum backoff between each retry.
 	// Default is 8 milliseconds; -1 disables backoff.
-	minRetryBackoff time.Duration
+	backOffMinInterval time.Duration
 	// Maximum backoff between each retry.
 	// Default is 512 milliseconds; -1 disables backoff.
-	maxRetryBackoff time.Duration
+	backOffMaxInterval time.Duration
 
 	// Dial timeout for establishing new connections.
 	dialTimeout time.Duration

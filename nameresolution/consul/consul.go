@@ -2,11 +2,11 @@ package consul
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"strconv"
-	"time"
 
 	consul "github.com/hashicorp/consul/api"
 
@@ -137,9 +137,10 @@ func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	}
 
 	shuffle := func(services []*consul.ServiceEntry) []*consul.ServiceEntry {
-		rand.Seed(time.Now().UnixNano())
 		for i := len(services) - 1; i > 0; i-- {
-			j := rand.Intn(i + 1)
+			rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+			j := rndbig.Int64()
+
 			services[i], services[j] = services[j], services[i]
 		}
 

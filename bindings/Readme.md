@@ -18,7 +18,7 @@ Input binding:
 ```go
 type InputBinding interface {
 	Init(metadata Metadata) error
-	Read(handler func(*ReadResponse) error) error
+	Read(handler func(*ReadResponse) ([]byte, error) error
 }
 ```
 

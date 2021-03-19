@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 package mysql
@@ -15,11 +15,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -172,7 +173,7 @@ func multiWithSetOnly(t *testing.T, mys *MySQL) {
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
-		deleteItem(t, mys, set.Key, "")
+		deleteItem(t, mys, set.Key, nil)
 	}
 }
 
@@ -183,7 +184,7 @@ func multiWithDeleteOnly(t *testing.T, mys *MySQL) {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
-		setItem(t, mys, req.Key, randomJSON(), "")
+		setItem(t, mys, req.Key, randomJSON(), nil)
 
 		// Add the item to a slice of delete requests
 		deleteRequests = append(deleteRequests, req)
@@ -212,7 +213,7 @@ func multiWithDeleteAndSet(t *testing.T, mys *MySQL) {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
-		setItem(t, mys, req.Key, randomJSON(), "")
+		setItem(t, mys, req.Key, randomJSON(), nil)
 
 		// Add the item to a slice of delete requests
 		deleteRequests = append(deleteRequests, req)
@@ -249,7 +250,7 @@ func multiWithDeleteAndSet(t *testing.T, mys *MySQL) {
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
-		deleteItem(t, mys, set.Key, "")
+		deleteItem(t, mys, set.Key, nil)
 	}
 }
 
@@ -276,7 +277,7 @@ func deleteWithInvalidEtagFails(t *testing.T, mys *MySQL) {
 	// Create new item
 	key := randomKey()
 	value := &fakeItem{Color: "mauve"}
-	setItem(t, mys, key, value, "")
+	setItem(t, mys, key, value, nil)
 
 	eTag := "1234"
 
@@ -310,7 +311,7 @@ func updateWithOldETagFails(t *testing.T, mys *MySQL) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "gray"}
-	setItem(t, mys, key, value, "")
+	setItem(t, mys, key, value, nil)
 
 	getResponse, _ := getItem(t, mys, key)
 	assert.NotNil(t, getResponse.ETag)
@@ -327,7 +328,7 @@ func updateWithOldETagFails(t *testing.T, mys *MySQL) {
 	newValue = &fakeItem{Color: "maroon"}
 	setReq := &state.SetRequest{
 		Key:   key,
-		ETag:  &originalEtag,
+		ETag:  originalEtag,
 		Value: newValue,
 	}
 
@@ -339,7 +340,7 @@ func updateAndDeleteWithETagSucceeds(t *testing.T, mys *MySQL) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "hazel"}
-	setItem(t, mys, key, value, "")
+	setItem(t, mys, key, value, nil)
 	getResponse, _ := getItem(t, mys, key)
 	assert.NotNil(t, getResponse.ETag)
 
@@ -405,7 +406,7 @@ func setItemWithNoKey(t *testing.T, mys *MySQL) {
 func setUpdatesTheUpdatedateField(t *testing.T, mys *MySQL) {
 	key := randomKey()
 	value := &fakeItem{Color: "orange"}
-	setItem(t, mys, key, value, "")
+	setItem(t, mys, key, value, nil)
 
 	// insertdate and updatedate should have a value
 	_, insertdate, updatedate, eTag := getRowData(t, key)
@@ -414,12 +415,12 @@ func setUpdatesTheUpdatedateField(t *testing.T, mys *MySQL) {
 
 	// insertdate should not change, updatedate should have a value
 	value = &fakeItem{Color: "aqua"}
-	setItem(t, mys, key, value, "")
+	setItem(t, mys, key, value, nil)
 	_, newinsertdate, _, newETag := getRowData(t, key)
 	assert.Equal(t, insertdate, newinsertdate, "InsertDate was changed")
 	assert.NotEqual(t, eTag, newETag, "eTag was not updated")
 
-	deleteItem(t, mys, key, "")
+	deleteItem(t, mys, key, nil)
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing
@@ -449,7 +450,7 @@ func setGetUpdateDeleteOneItem(t *testing.T, mys *MySQL) {
 	key := randomKey()
 	value := &fakeItem{Color: "yellow"}
 
-	setItem(t, mys, key, value, "")
+	setItem(t, mys, key, value, nil)
 
 	getResponse, outputObject := getItem(t, mys, key)
 	assert.Equal(t, value, outputObject)
@@ -550,10 +551,10 @@ func dropTable(t *testing.T, db *sql.DB, tableName string) {
 	assert.Nil(t, err)
 }
 
-func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag string) {
+func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag *string) {
 	setReq := &state.SetRequest{
 		Key:   key,
-		ETag:  &eTag,
+		ETag:  eTag,
 		Value: value,
 	}
 
@@ -578,10 +579,10 @@ func getItem(t *testing.T, mys *MySQL, key string) (*state.GetResponse, *fakeIte
 	return response, outputObject
 }
 
-func deleteItem(t *testing.T, mys *MySQL, key string, eTag string) {
+func deleteItem(t *testing.T, mys *MySQL, key string, eTag *string) {
 	deleteReq := &state.DeleteRequest{
 		Key:     key,
-		ETag:    &eTag,
+		ETag:    eTag,
 		Options: state.DeleteStateOption{},
 	}
 

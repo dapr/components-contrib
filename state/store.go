@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -11,6 +11,7 @@ import "fmt"
 type Store interface {
 	BulkStore
 	Init(metadata Metadata) error
+	Features() []Feature
 	Delete(req *DeleteRequest) error
 	Get(req *GetRequest) (*GetResponse, error)
 	Set(req *SetRequest) error
@@ -35,6 +36,11 @@ func NewDefaultBulkStore(store Store) DefaultBulkStore {
 	defaultBulkStore.s = store
 
 	return defaultBulkStore
+}
+
+// Features returns the features of the encapsulated store
+func (b *DefaultBulkStore) Features() []Feature {
+	return b.s.Features()
 }
 
 // BulkGet performs a bulks get operations

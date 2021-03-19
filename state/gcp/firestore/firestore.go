@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -75,6 +75,11 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 	f.client = client
 	f.entityKind = meta.EntityKind
 
+	return nil
+}
+
+// Features returns the features available in this state store
+func (f *Firestore) Features() []state.Feature {
 	return nil
 }
 

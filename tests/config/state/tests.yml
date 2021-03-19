@@ -1,25 +1,9 @@
+# Supported operations: set, get, delete, bulkset, bulkdelete, transaction
 componentType: state
 components:
   - component: redis
     allOperations: true
-    config:
-      maxInitDuration: 30
-      maxSetDuration: 20
   - component: mongodb
     allOperations: true
-    config:
-      maxInitDuration: 900
-      maxSetDuration: 700
-      maxGetDuration: 300
-      maxBulkSetDuration: 300
-      maxBulkDeleteDuration: 600
-      maxDeleteDuration: 300
   - component: cosmosdb
     allOperations: true
-    config:
-      maxInitDuration: 900
-      maxSetDuration: 300
-      maxGetDuration: 300
-      maxBulkSetDuration: 300
-      maxBulkDeleteDuration: 300
-      maxDeleteDuration: 300

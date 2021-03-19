@@ -10,7 +10,7 @@ require (
 	fortio.org/fortio v1.11.5
 	github.com/Azure/azure-event-hubs-go v1.3.1
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
-	github.com/Azure/azure-service-bus-go v0.10.6
+	github.com/Azure/azure-service-bus-go v0.10.10
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-autorest/autorest v0.11.12
@@ -20,27 +20,30 @@ require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
 	github.com/aerospike/aerospike-client-go v2.7.0+incompatible
+	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/aws/aws-sdk-go v1.27.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/dapr v1.0.0-rc.2
+	github.com/dapr/dapr v1.0.1-0.20210303190006-b2271c9a8a58
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
 	github.com/dghubble/oauth1 v0.6.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/didip/tollbooth v4.0.2+incompatible
-	github.com/eclipse/paho.mqtt.golang v1.2.0
+	github.com/eclipse/paho.mqtt.golang v1.3.2
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/go-redis/redis/v7 v7.0.1
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.2.0
+	github.com/gorilla/mux v1.7.3
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.3.0
 	github.com/hashicorp/go-multierror v1.0.0
@@ -49,6 +52,7 @@ require (
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/json-iterator/go v1.1.10
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
+	github.com/mitchellh/mapstructure v1.3.3
 	github.com/nats-io/go-nats v1.7.2
 	github.com/nats-io/nats.go v1.9.1
 	github.com/nats-io/stan.go v0.6.0
@@ -57,23 +61,23 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/satori/go.uuid v1.2.0
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.6.1
-	github.com/valyala/fasthttp v1.16.0
+	github.com/valyala/fasthttp v1.19.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
-	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
+	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	google.golang.org/api v0.32.0
-	google.golang.org/genproto v0.0.0-20201022181438-0ff5f38871d5
-	google.golang.org/grpc v1.33.1
+	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
+	google.golang.org/grpc v1.34.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.0
-	k8s.io/apiextensions-apiserver v0.17.2
+	k8s.io/apiextensions-apiserver v0.20.0
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v0.20.0
 )

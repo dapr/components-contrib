@@ -1,0 +1,33 @@
+# Supported operations: create, operations and read
+# Config map:
+## output: A map of strings that will be part of the request for the output binding
+## readBindingTimeout : timeout to wait to receive test event
+## url: specific to http component, url of the http server
+## method: specific to http component, what method to use
+componentType: bindings
+components:
+  - component: redis
+    operations: ["create", "operations"]
+    config:
+      output:
+        key: $((uuid))
+  - component: azure.blobstorage
+    operations: ["create", "operations", "get"]
+    config:
+      output:
+        blobName: $((uuid))
+  - component: azure.eventgrid
+    operations: ["create", "operations", "read"]
+    config:
+      readBindingTimeout: 240s
+  - component: azure.storagequeues
+    operations: ["create", "operations", "read"]
+  - component: azure.servicebusqueues
+    operations: ["create", "operations", "read"]
+  - component: kafka
+    operations: ["create", "operations"]
+  - component: http
+    operations: ["create", "operations"]
+    config:
+      url: "localhost:22222"
+      method: "POST"

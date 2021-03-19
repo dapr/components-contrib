@@ -51,6 +51,11 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (d *StateStore) Features() []state.Feature {
+	return nil
+}
+
 // Get retrieves a dynamoDB item
 func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	input := &dynamodb.GetItemInput{
@@ -207,9 +212,8 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 	if err != nil {
 		return nil, err
 	}
-
-	if meta.SecretKey == "" || meta.AccessKey == "" || meta.Region == "" || meta.SessionToken == "" {
-		return nil, fmt.Errorf("missing aws credentials in metadata")
+	if meta.Table == "" {
+		return nil, fmt.Errorf("missing dynamodb table name")
 	}
 
 	return &meta, nil

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -96,6 +96,11 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 
 	c.table = fmt.Sprintf("%s.%s", meta.keyspace, meta.table)
 
+	return nil
+}
+
+// Features returns the features available in this state store
+func (c *Cassandra) Features() []state.Feature {
 	return nil
 }
 

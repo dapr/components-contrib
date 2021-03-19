@@ -1,20 +1,22 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
 package cosmosdb
 
 import (
-	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/a8m/documentdb"
+	"github.com/agrea/ptr"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 // StateStore is a CosmosDB state store
@@ -25,7 +27,8 @@ type StateStore struct {
 	db         *documentdb.Database
 	sp         *documentdb.Sproc
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type credentials struct {
@@ -40,17 +43,8 @@ type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
+	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
-}
-
-// CosmosItemWithRawMessage is a version of CosmosItem with a Value of RawMessage so this field
-// is not marshalled.  If it is marshalled it will end up in a form that
-// cannot be unmarshalled.  This type is used when SetRequest.Value arrives as bytes.
-type CosmosItemWithRawMessage struct {
-	documentdb.Document
-	ID           string              `json:"id"`
-	Value        jsoniter.RawMessage `json:"value"`
-	PartitionKey string              `json:"partitionKey"`
 }
 
 type storedProcedureDefinition struct {
@@ -66,7 +60,10 @@ const (
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
-	s := &StateStore{logger: logger}
+	s := &StateStore{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
+	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
@@ -153,6 +150,11 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (c *StateStore) Features() []state.Feature {
+	return c.features
+}
+
 // Get retrieves a CosmosDB item
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
@@ -179,6 +181,15 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, nil
 	}
 
+	if items[0].IsBinary {
+		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+
+		return &state.GetResponse{
+			Data: bytes,
+			ETag: ptr.String(items[0].Etag),
+		}, nil
+	}
+
 	b, err := jsoniter.ConfigFastest.Marshal(&items[0].Value)
 	if err != nil {
 		return nil, err
@@ -186,7 +197,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: items[0].Etag,
+		ETag: ptr.String(items[0].Etag),
 	}, nil
 }
 
@@ -214,20 +225,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	b, ok := req.Value.([]uint8)
-	if ok {
-		// data arrived in bytes and already json.  Don't marshal the Value field again.
-		item := CosmosItemWithRawMessage{ID: req.Key, Value: b, PartitionKey: partitionKey}
-		var marshalled []byte
-		marshalled, err = convertToJSONWithoutEscapes(item)
-		if err != nil {
-			return err
-		}
-		_, err = c.client.UpsertDocument(c.collection.Self, marshalled, options...)
-	} else {
-		// data arrived as non-bytes, just pass it through.
-		_, err = c.client.UpsertDocument(c.collection.Self, CosmosItem{ID: req.Key, Value: req.Value, PartitionKey: partitionKey}, options...)
-	}
+	doc := createUpsertItem(*req, partitionKey)
+	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
 
 	if err != nil {
 		if req.ETag != nil {
@@ -306,13 +305,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			// Value need not be marshaled here. It is handled by cosmosdb client.
-			upsertOperation := CosmosItem{
-				ID:           req.Key,
-				Value:        req.Value,
-				PartitionKey: partitionKey,
-			}
-
+			upsertOperation := createUpsertItem(req, partitionKey)
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -352,11 +345,13 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	return key
 }
 
-func convertToJSONWithoutEscapes(t interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := jsoniter.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(t)
+func createUpsertItem(req state.SetRequest, partitionKey string) CosmosItem {
+	_, isBinary := req.Value.([]uint8)
 
-	return buffer.Bytes(), err
+	return CosmosItem{
+		ID:           req.Key,
+		Value:        req.Value,
+		PartitionKey: partitionKey,
+		IsBinary:     isBinary,
+	}
 }

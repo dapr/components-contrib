@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -80,10 +80,10 @@ func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	return b, err
 }
 
-func (g *GCPPubSub) Read(handler func(*bindings.ReadResponse) error) error {
+func (g *GCPPubSub) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	sub := g.client.Subscription(g.metadata.Subscription)
 	err := sub.Receive(context.Background(), func(ctx context.Context, m *pubsub.Message) {
-		err := handler(&bindings.ReadResponse{
+		_, err := handler(&bindings.ReadResponse{
 			Data:     m.Data,
 			Metadata: map[string]string{id: m.ID, publishTime: m.PublishTime.String()},
 		})

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agrea/ptr"
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/google/uuid"
 )
 
 // Optimistic Concurrency is implemented using a string column that stores
@@ -67,6 +69,8 @@ type MySQL struct {
 	// Instance of the database to issue commands to
 	db *sql.DB
 
+	features []state.Feature
+
 	// Logger used in a functions
 	logger logger.Logger
 
@@ -87,8 +91,9 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
 	return &MySQL{
-		logger:  logger,
-		factory: factory,
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
+		factory:  factory,
 	}
 }
 
@@ -142,6 +147,11 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 
 	// will be nil if everything is good or an err that needs to be returned
 	return m.finishInit(db, err)
+}
+
+// Features returns the features available in this state store
+func (m *MySQL) Features() []state.Feature {
+	return m.features
 }
 
 // Separated out to make this portion of code testable.
@@ -331,7 +341,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	response := &state.GetResponse{
-		ETag:     eTag,
+		ETag:     ptr.String(eTag),
 		Metadata: req.Metadata,
 		Data:     []byte(value),
 	}

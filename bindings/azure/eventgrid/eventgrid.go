@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -63,7 +63,7 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error {
+func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 			case "POST":
 				bodyBytes := ctx.PostBody()
 
-				err = handler(&bindings.ReadResponse{
+				_, err = handler(&bindings.ReadResponse{
 					Data: bodyBytes,
 				})
 				if err != nil {
@@ -99,9 +99,11 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) error) error 
 		}
 	}
 
-	fasthttp.ListenAndServe(fmt.Sprintf(":%s", a.metadata.HandshakePort), m)
-
-	a.logger.Debugf("listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
+	a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
+	err = fasthttp.ListenAndServe(fmt.Sprintf(":%s", a.metadata.HandshakePort), m)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -143,6 +145,8 @@ func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 
 		return nil, errors.New(string(body))
 	}
+
+	a.logger.Debugf("Successfully posted event to %s", a.metadata.TopicEndpoint)
 
 	return nil, nil
 }
@@ -238,6 +242,8 @@ func (a *AzureEventGrid) createSubscription() error {
 	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
 	result, err := subscriptionClient.CreateOrUpdate(context.Background(), a.metadata.Scope, a.metadata.EventSubscriptionName, eventInfo)
 	if err != nil {
+		a.logger.Debugf("Failed to create or update Event Grid subscription: %v", err)
+
 		return err
 	}
 
@@ -246,11 +252,18 @@ func (a *AzureEventGrid) createSubscription() error {
 	if res.StatusCode != fasthttp.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
+			a.logger.Debugf("Failed reading error body when creating or updating Event Grid subscription: %v", err)
+
 			return err
 		}
 
-		return errors.New(string(bodyBytes))
+		bodyStr := string(bodyBytes)
+		a.logger.Debugf("Code HTTP %d in response to create or update Event Grid subscription: %s", res.StatusCode, bodyStr)
+
+		return errors.New(bodyStr)
 	}
+
+	a.logger.Debugf("Succeeded to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
 
 	return nil
 }

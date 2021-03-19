@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 package sqlserver
@@ -17,10 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
 	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -145,13 +147,13 @@ func assertUserExists(t *testing.T, store *SQLServer, key string) (user, string)
 	assert.Nil(t, err)
 	assert.NotNil(t, getRes)
 	assert.NotNil(t, getRes.Data, "No data was returned")
-	assert.NotEmpty(t, getRes.ETag)
+	require.NotNil(t, getRes.ETag)
 
 	var loaded user
 	err = json.Unmarshal(getRes.Data, &loaded)
 	assert.Nil(t, err)
 
-	return loaded, getRes.ETag
+	return loaded, *getRes.ETag
 }
 
 func assertLoadedUserIsEqual(t *testing.T, store *SQLServer, key string, expected user) (user, string) {

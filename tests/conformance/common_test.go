@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package conformance
 
 import (
@@ -99,7 +104,7 @@ func TestConvertMetadataToProperties(t *testing.T) {
 }
 
 func TestParseConfigurationMap(t *testing.T) {
-	testMap := map[string]string{
+	testMap := map[string]interface{}{
 		"key":  "$((uuid))",
 		"blob": "testblob",
 	}
@@ -107,15 +112,15 @@ func TestParseConfigurationMap(t *testing.T) {
 	ParseConfigurationMap(t, testMap)
 	assert.Equal(t, 2, len(testMap))
 	assert.Equal(t, "testblob", testMap["blob"])
-	_, err := uuid.ParseBytes([]byte(testMap["key"]))
+	_, err := uuid.ParseBytes([]byte(testMap["key"].(string)))
 	assert.NoError(t, err)
 }
 
 func TestConvertComponentNameToPath(t *testing.T) {
-	val := convertComponentNameToPath("azure.servicebus")
+	val := convertComponentNameToPath("azure.servicebus", "")
 	assert.Equal(t, "azure/servicebus", val)
-	val = convertComponentNameToPath("a.b.c")
+	val = convertComponentNameToPath("a.b.c", "")
 	assert.Equal(t, "a/b/c", val)
-	val = convertComponentNameToPath("redis")
+	val = convertComponentNameToPath("redis", "")
 	assert.Equal(t, "redis", val)
 }

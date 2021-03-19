@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package utils
 
 import (
@@ -5,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestHasOperation(t *testing.T) {
@@ -21,7 +25,7 @@ func TestHasOperation(t *testing.T) {
 		cc := CommonConfig{
 			ComponentType: "state",
 			ComponentName: "redis",
-			Operations:    sets.NewString("op1", "op2"),
+			Operations:    NewStringSet("op1", "op2"),
 		}
 		assert.True(t, cc.HasOperation("op1"))
 		assert.True(t, cc.HasOperation("op2"))

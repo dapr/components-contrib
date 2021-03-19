@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -95,7 +95,7 @@ func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, er
 	return nil, nil
 }
 
-func (m *MQTT) Read(handler func(*bindings.ReadResponse) error) error {
+func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 

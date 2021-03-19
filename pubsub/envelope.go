@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -31,6 +31,7 @@ const (
 	ExpirationField                  = "expiration"
 	DataContentTypeField             = "datacontenttype"
 	DataField                        = "data"
+	DataBase64Field                  = "data_base64"
 	SpecVersionField                 = "specversion"
 	TypeField                        = "type"
 	SourceField                      = "source"
@@ -55,31 +56,39 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	}
 
 	var ceData interface{}
+	ceDataField := DataField
 	var err error
 	if contrib_contenttype.IsJSONContentType(dataContentType) {
 		err = jsoniter.Unmarshal(data, &ceData)
-	} else if contrib_contenttype.IsStringContentType(dataContentType) {
-		ceData = string(data)
-	} else {
+	} else if contrib_contenttype.IsBinaryContentType(dataContentType) {
 		ceData = base64.StdEncoding.EncodeToString(data)
+		ceDataField = DataBase64Field
+	} else {
+		ceData = string(data)
 	}
 
 	if err != nil {
 		ceData = string(data)
 	}
 
-	return map[string]interface{}{
+	ce := map[string]interface{}{
 		IDField:              id,
 		SpecVersionField:     CloudEventsSpecVersion,
 		DataContentTypeField: dataContentType,
 		SourceField:          source,
 		TypeField:            eventType,
-		SubjectField:         subject,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
-		DataField:            ceData,
 		TraceIDField:         traceID,
 	}
+
+	ce[ceDataField] = ceData
+
+	if subject != "" {
+		ce[SubjectField] = subject
+	}
+
+	return ce
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON

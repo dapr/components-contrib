@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -235,7 +235,8 @@ type CRDT struct {
 	metadata   *crdtMetadata
 	json       jsoniter.API
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type crdtMetadata struct {
@@ -245,8 +246,9 @@ type crdtMetadata struct {
 
 func NewCRDT(logger logger.Logger) *CRDT {
 	return &CRDT{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 }
 
@@ -261,6 +263,11 @@ func (c *CRDT) Init(metadata state.Metadata) error {
 	go c.startServer()
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (c *CRDT) Features() []state.Feature {
+	return c.features
 }
 
 func (c *CRDT) startServer() error {

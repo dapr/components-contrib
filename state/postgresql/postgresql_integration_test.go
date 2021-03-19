@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 package postgresql
@@ -11,10 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
@@ -135,7 +136,7 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	value := &fakeItem{Color: "yellow"}
 
-	setItem(t, pgs, key, value, "")
+	setItem(t, pgs, key, value, nil)
 
 	getResponse, outputObject := getItem(t, pgs, key)
 	assert.Equal(t, value, outputObject)
@@ -206,7 +207,7 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
-		deleteItem(t, pgs, set.Key, "")
+		deleteItem(t, pgs, set.Key, nil)
 	}
 }
 
@@ -217,7 +218,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
-		setItem(t, pgs, req.Key, randomJSON(), "") // Add the item to the database
+		setItem(t, pgs, req.Key, randomJSON(), nil) // Add the item to the database
 
 		// Add the item to a slice of delete requests
 		deleteRequests = append(deleteRequests, req)
@@ -246,7 +247,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 		req := state.DeleteRequest{Key: randomKey()}
 
 		// Add the item to the database
-		setItem(t, pgs, req.Key, randomJSON(), "") // Add the item to the database
+		setItem(t, pgs, req.Key, randomJSON(), nil) // Add the item to the database
 
 		// Add the item to a slice of delete requests
 		deleteRequests = append(deleteRequests, req)
@@ -283,7 +284,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
-		deleteItem(t, pgs, set.Key, "")
+		deleteItem(t, pgs, set.Key, nil)
 	}
 }
 
@@ -291,7 +292,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 	// Create new item
 	key := randomKey()
 	value := &fakeItem{Color: "mauve"}
-	setItem(t, pgs, key, value, "")
+	setItem(t, pgs, key, value, nil)
 
 	etag := "1234"
 	// Delete the item with a fake etag
@@ -330,7 +331,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "gray"}
-	setItem(t, pgs, key, value, "")
+	setItem(t, pgs, key, value, nil)
 	getResponse, _ := getItem(t, pgs, key)
 	assert.NotNil(t, getResponse.ETag)
 	originalEtag := getResponse.ETag
@@ -345,7 +346,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 	newValue = &fakeItem{Color: "maroon"}
 	setReq := &state.SetRequest{
 		Key:   key,
-		ETag:  &originalEtag,
+		ETag:  originalEtag,
 		Value: newValue,
 	}
 	err := pgs.Set(setReq)
@@ -356,7 +357,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *PostgreSQL) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "hazel"}
-	setItem(t, pgs, key, value, "")
+	setItem(t, pgs, key, value, nil)
 	getResponse, _ := getItem(t, pgs, key)
 	assert.NotNil(t, getResponse.ETag)
 
@@ -399,7 +400,7 @@ func getItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 func setUpdatesTheUpdatedateField(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	value := &fakeItem{Color: "orange"}
-	setItem(t, pgs, key, value, "")
+	setItem(t, pgs, key, value, nil)
 
 	// insertdate should have a value and updatedate should be nil
 	_, insertdate, updatedate := getRowData(t, key)
@@ -408,12 +409,12 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *PostgreSQL) {
 
 	// insertdate should not change, updatedate should have a value
 	value = &fakeItem{Color: "aqua"}
-	setItem(t, pgs, key, value, "")
+	setItem(t, pgs, key, value, nil)
 	_, newinsertdate, updatedate := getRowData(t, key)
 	assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
 	assert.NotEqual(t, "", updatedate.String)
 
-	deleteItem(t, pgs, key, "")
+	deleteItem(t, pgs, key, nil)
 }
 
 func setItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
@@ -502,10 +503,10 @@ func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
-func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag string) {
+func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag *string) {
 	setReq := &state.SetRequest{
 		Key:   key,
-		ETag:  &etag,
+		ETag:  etag,
 		Value: value,
 	}
 
@@ -530,10 +531,10 @@ func getItem(t *testing.T, pgs *PostgreSQL, key string) (*state.GetResponse, *fa
 	return response, outputObject
 }
 
-func deleteItem(t *testing.T, pgs *PostgreSQL, key string, etag string) {
+func deleteItem(t *testing.T, pgs *PostgreSQL, key string, etag *string) {
 	deleteReq := &state.DeleteRequest{
 		Key:     key,
-		ETag:    &etag,
+		ETag:    etag,
 		Options: state.DeleteStateOption{},
 	}
 

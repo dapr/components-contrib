@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -72,7 +72,7 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) error) error {
+func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",

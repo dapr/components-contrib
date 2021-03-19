@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -9,12 +9,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agrea/ptr"
 	miniredis "github.com/alicebob/miniredis/v2"
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
 	redis "github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 func TestGetKeyVersion(t *testing.T) {
@@ -23,7 +25,7 @@ func TestGetKeyVersion(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
 		assert.Equal(t, nil, err, "failed to read all fields")
 		assert.Equal(t, "TEST_KEY", key, "failed to read key")
-		assert.Equal(t, "TEST_VER", ver, "failed to read version")
+		assert.Equal(t, ptr.String("TEST_VER"), ver, "failed to read version")
 	})
 	t.Run("With missing data", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{"version", "TEST_VER"})
@@ -37,7 +39,7 @@ func TestGetKeyVersion(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"version", "TEST_VER", "dragon", "TEST_DRAGON", "data", "TEST_KEY"})
 		assert.Equal(t, nil, err, "failed to read all fields")
 		assert.Equal(t, "TEST_KEY", key, "failed to read key")
-		assert.Equal(t, "TEST_VER", ver, "failed to read version")
+		assert.Equal(t, ptr.String("TEST_VER"), ver, "failed to read version")
 	})
 	t.Run("With no fields", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{})
@@ -138,7 +140,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	vals := res.([]interface{})
 	data, version, err := ss.getKeyVersion(vals)
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "1", version)
+	assert.Equal(t, ptr.String("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 }
 

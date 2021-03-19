@@ -1,3 +1,12 @@
+# Supported operation: publish, subscribe 
+# Config map:
+## pubsubName : name of the pubsub 
+## testTopicName: name of the test topic to use
+## publish: A map of strings that will be part of the publish metadata in the Publish call
+## subscribe: A map of strings that will be part of the subscribe metadata in the Subscribe call
+## maxReadDuration: duration to wait for read to complete
+## messageCount: no. of messages to publish
+## checkInOrderProcessing: false disables in-order message processing checking
 componentType: pubsub
 components:
   - component: azure.servicebus
@@ -5,7 +14,29 @@ components:
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
-      maxReadDuration: 1000
+      checkInOrderProcessing: false
   - component: redis
     allOperations: true
-  
+    config:
+      checkInOrderProcessing: false
+  - component: natsstreaming
+    allOperations: true
+  - component: kafka
+    allOperations: true
+  - component: pulsar
+    allOperations: true
+  - component: mqtt
+    profile: mosquitto
+    allOperations: true
+  - component: mqtt
+    profile: emqx
+    allOperations: true
+  - component: mqtt
+    profile: vernemq
+    allOperations: true
+  - component: hazelcast
+    allOperations: true
+  - component: rabbitmq
+    allOperations: true
+    config:
+      checkInOrderProcessing: false

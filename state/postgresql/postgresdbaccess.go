@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/agrea/ptr"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/dapr/pkg/logger"
@@ -148,7 +149,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 	response := &state.GetResponse{
 		Data:     []byte(value),
-		ETag:     strconv.Itoa(etag),
+		ETag:     ptr.String(strconv.Itoa(etag)),
 		Metadata: req.Metadata,
 	}
 

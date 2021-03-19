@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -78,7 +78,7 @@ func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, err
 }
 
-func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) error) error {
+func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	for {
 		result, err := a.Client.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl: a.QueueURL,
@@ -101,7 +101,7 @@ func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) error) error {
 				res := bindings.ReadResponse{
 					Data: []byte(*body),
 				}
-				err := handler(&res)
+				_, err := handler(&res)
 				if err == nil {
 					msgHandle := m.ReceiptHandle
 

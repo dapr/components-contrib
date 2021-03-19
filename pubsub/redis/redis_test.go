@@ -32,9 +32,9 @@ func getFakeProperties() map[string]string {
 		poolSize:           "20",
 		maxConnAge:         "200s",
 		db:                 "1",
-		maxRetries:         "1",
-		minRetryBackoff:    "8ms",
-		maxRetryBackoff:    "1s",
+		backoffMaxRetries:  "1",
+		backOffMinInterval: "8ms",
+		backOffMaxInterval: "1s",
 		minIdleConns:       "1",
 		poolTimeout:        "1s",
 		idleTimeout:        "1s",
@@ -65,9 +65,9 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, 20, m.poolSize)
 		assert.Equal(t, 200*time.Second, m.maxConnAge)
 		assert.Equal(t, 1, m.db)
-		assert.Equal(t, 1, m.maxRetries)
-		assert.Equal(t, 8*time.Millisecond, m.minRetryBackoff)
-		assert.Equal(t, 1*time.Second, m.maxRetryBackoff)
+		assert.Equal(t, 1, m.backoffMaxRetries)
+		assert.Equal(t, 8*time.Millisecond, m.backOffMinInterval)
+		assert.Equal(t, 1*time.Second, m.backOffMaxInterval)
 		assert.Equal(t, 1, m.minIdleConns)
 		assert.Equal(t, 1*time.Second, m.poolTimeout)
 		assert.Equal(t, 1*time.Second, m.idleTimeout)
@@ -118,8 +118,8 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeMetaData.Properties[readTimeout] = "-1"
 		fakeMetaData.Properties[idleTimeout] = "-1"
 		fakeMetaData.Properties[idleCheckFrequency] = "-1"
-		fakeMetaData.Properties[maxRetryBackoff] = "-1"
-		fakeMetaData.Properties[minRetryBackoff] = "-1"
+		fakeMetaData.Properties[backOffMaxInterval] = "-1"
+		fakeMetaData.Properties[backOffMinInterval] = "-1"
 
 		// act
 		m, err := parseRedisMetadata(fakeMetaData)
@@ -128,8 +128,8 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.True(t, m.readTimeout == -1)
 		assert.True(t, m.idleTimeout == -1)
 		assert.True(t, m.idleCheckFrequency == -1)
-		assert.True(t, m.maxRetryBackoff == -1)
-		assert.True(t, m.minRetryBackoff == -1)
+		assert.True(t, m.backOffMaxInterval == -1)
+		assert.True(t, m.backOffMinInterval == -1)
 	})
 }
 

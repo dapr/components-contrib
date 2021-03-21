@@ -138,6 +138,10 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return r.writeFile(req)
 }
 
+func (r *StateStore) Ping() error {
+	return nil
+}
+
 // NewAzureBlobStorageStore instance
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{

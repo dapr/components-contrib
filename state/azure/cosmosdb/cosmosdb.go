@@ -359,6 +359,10 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
+func (c *StateStore) Ping() error {
+	return nil
+}
+
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) CosmosItem {
 	byteArray, isBinary := req.Value.([]uint8)
 	if isBinary {

@@ -151,6 +151,10 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 	return nil
 }
 
+func (m *MongoDB) Ping() error {
+	return nil
+}
+
 func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error {
 	var vStr string
 	b, ok := req.Value.([]byte)

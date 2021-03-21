@@ -130,6 +130,10 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 	return m, nil
 }
 
+func (r *StateStore) Ping() error {
+	return nil
+}
+
 // Init does metadata and connection parsing
 func (r *StateStore) Init(metadata state.Metadata) error {
 	m, err := parseRedisMetadata(metadata)

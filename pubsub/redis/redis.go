@@ -279,6 +279,11 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 // by calling `enqueueMessages`.
 func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubsub.NewMessage) error) {
 	for {
+		// Return on cancelation
+		if r.ctx.Err() != nil {
+			return
+		}
+
 		// Read messages
 		streams, err := r.client.XReadGroup(&redis.XReadGroupArgs{
 			Group:    r.metadata.consumerID,
@@ -296,11 +301,6 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubs
 		// Enqueue messages for the returned streams
 		for _, s := range streams {
 			r.enqueueMessages(s.Stream, handler, s.Messages)
-		}
-
-		// Return on cancelation
-		if r.ctx.Err() != nil {
-			return
 		}
 	}
 }

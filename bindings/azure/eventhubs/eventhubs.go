@@ -168,7 +168,7 @@ func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 }
 
 // Read gets messages from eventhubs in a non-blocking fashion
-func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error {
+func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	if !a.metadata.partitioned() {
 		if err := a.RegisterEventProcessor(handler); err != nil {
 			return err
@@ -190,7 +190,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) error) error 
 }
 
 // RegisterPartitionedEventProcessor - receive eventhub messages by partitionID
-func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*bindings.ReadResponse) error) error {
+func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	ctx := context.Background()
 
 	runtimeInfo, err := a.hub.GetRuntimeInformation(ctx)
@@ -241,7 +241,7 @@ func contains(arr []string, str string) bool {
 
 // RegisterEventProcessor - receive eventhub messages by eventprocessor
 // host by balancing partitions
-func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) error) error {
+func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	cred, err := azblob.NewSharedKeyCredential(a.metadata.storageAccountName, a.metadata.storageAccountKey)
 	if err != nil {
 		return err
@@ -259,7 +259,9 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 
 	_, err = processor.RegisterHandler(context.Background(),
 		func(c context.Context, e *eventhub.Event) error {
-			return handler(&bindings.ReadResponse{Data: e.Data})
+			_, err = handler(&bindings.ReadResponse{Data: e.Data})
+
+			return err
 		})
 	if err != nil {
 		return err

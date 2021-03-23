@@ -233,7 +233,7 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 			Topic: topic.ID(),
 		}
 
-		err := handler(context.Background(), msg)
+		err := handler(ctx, msg)
 
 		if err == nil {
 			m.Ack()

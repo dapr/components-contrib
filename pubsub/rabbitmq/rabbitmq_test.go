@@ -47,8 +47,9 @@ func TestNoConsumer(t *testing.T) {
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "missing RabbitMQ consumerID")
+	assert.NoError(t, err)
+	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{}, nil)
+	assert.Contains(t, err.Error(), "consumerID is required for subscriptions")
 }
 
 func TestConcurrencyMode(t *testing.T) {

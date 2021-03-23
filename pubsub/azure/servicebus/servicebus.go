@@ -34,6 +34,8 @@ const (
 	prefetchCount                  = "prefetchCount"
 	maxActiveMessages              = "maxActiveMessages"
 	maxActiveMessagesRecoveryInSec = "maxActiveMessagesRecoveryInSec"
+	maxReconnectionAttempts        = "maxReconnectionAttempts"
+	connectionRecoveryInSec        = "connectionRecoveryInSec"
 	errorMessagePrefix             = "azure service bus error:"
 
 	// Defaults
@@ -45,9 +47,8 @@ const (
 	defaultMaxActiveMessages              = 10000
 	defaultMaxActiveMessagesRecoveryInSec = 2
 	defaultDisableEntityManagement        = false
-
-	maxReconnAttempts       = 10
-	connectionRecoveryInSec = 2
+	defaultMaxReconnectionAttempts        = 30
+	defaultConnectionRecoveryInSec        = 2
 )
 
 type handler = struct{}
@@ -142,6 +143,24 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.MaxActiveMessagesRecoveryInSec, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("%s invalid recoveryInSec %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
+	if val, ok := meta.Properties[maxReconnectionAttempts]; ok && val != "" {
+		var err error
+		m.MaxReconnectionAttempts, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid maxReconnectionAttempts %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.ConnectionRecoveryInSec = defaultConnectionRecoveryInSec
+	if val, ok := meta.Properties[connectionRecoveryInSec]; ok && val != "" {
+		var err error
+		m.ConnectionRecoveryInSec, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid connectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -272,8 +291,8 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 
 	go func() {
 		// Limit the number of attempted reconnects we make
-		reconnAttempts := make(chan struct{}, maxReconnAttempts)
-		for i := 0; i < maxReconnAttempts; i++ {
+		reconnAttempts := make(chan struct{}, a.metadata.MaxReconnectionAttempts)
+		for i := 0; i < a.metadata.MaxReconnectionAttempts; i++ {
 			reconnAttempts <- struct{}{}
 		}
 
@@ -294,7 +313,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 					return
 				case <-time.After(2 * time.Minute):
 					attempts := readAttemptsStale()
-					if attempts < maxReconnAttempts {
+					if attempts < a.metadata.MaxReconnectionAttempts {
 						reconnAttempts <- struct{}{}
 					}
 					a.logger.Debugf("Number of reconnect attempts remaining for topic %s: %d", req.Topic, attempts)
@@ -344,13 +363,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 
 			attempts := readAttemptsStale()
 			if attempts == 0 {
-				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, maxReconnAttempts)
+				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, a.metadata.MaxReconnectionAttempts)
 
 				return
 			}
 
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, maxReconnAttempts-attempts, maxReconnAttempts)
-			time.Sleep(time.Second * connectionRecoveryInSec)
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, a.metadata.MaxReconnectionAttempts-attempts, a.metadata.MaxReconnectionAttempts)
+			time.Sleep(time.Second * time.Duration(a.metadata.ConnectionRecoveryInSec))
 			<-reconnAttempts
 		}
 	}()

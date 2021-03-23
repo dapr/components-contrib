@@ -260,7 +260,7 @@ func (r *redisStreams) worker() {
 // by `reclaimPendingMessagesLoop`.
 func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	r.logger.Debugf("Processing Redis message %s", msg.messageID)
-	if err := msg.handler(context.Background(), &msg.message); err != nil {
+	if err := msg.handler(r.ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 
 		return err

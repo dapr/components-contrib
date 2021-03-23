@@ -218,7 +218,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 				}
 				if err := pubsub.RetryNotifyRecover(func() error {
 					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-					if err := handler(context.Background(), &msg); err != nil {
+					if err := handler(m.ctx, &msg); err != nil {
 						return err
 					}
 

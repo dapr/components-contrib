@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	fileName = "fileName"
+	fileNameMetadataKey = "fileName"
 )
 
 // LocalStorage allows saving files to disk
@@ -49,7 +49,7 @@ func (ls *LocalStorage) Init(metadata bindings.Metadata) error {
 	}
 	ls.metadata = m
 
-	err = os.MkdirAll(ls.metadata.RootPath, 0666)
+	err = os.MkdirAll(ls.metadata.RootPath, 0777)
 	if err != nil {
 		return fmt.Errorf("unable to create directory specified by 'rootPath': %s", ls.metadata.RootPath)
 	}
@@ -99,7 +99,7 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 		return nil, err
 	}
 
-	err = os.MkdirAll(filepath.Dir(absPath), 0666)
+	err = os.MkdirAll(filepath.Dir(absPath), 0777)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func walkPath(root string) ([]string, error) {
 // Invoke is called for output bindings
 func (ls *LocalStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	filename := ""
-	if val, ok := req.Metadata[fileName]; ok && val != "" {
+	if val, ok := req.Metadata[fileNameMetadataKey]; ok && val != "" {
 		filename = val
 	} else {
 		filename = uuid.New().String()

@@ -6,24 +6,24 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/signal"
-	"time"
+
+	"github.com/gorilla/mux"
 
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/gorilla/mux"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type CommonConfig struct {
 	ComponentType string
 	ComponentName string
 	AllOperations bool
-	Operations    sets.String
+	Operations    map[string]struct{}
 }
 
 type server struct {
@@ -37,7 +37,12 @@ var (
 )
 
 func (cc CommonConfig) HasOperation(operation string) bool {
-	return cc.AllOperations || cc.Operations.Has(operation)
+	if cc.AllOperations {
+		return true
+	}
+	_, exists := cc.Operations[operation]
+
+	return exists
 }
 
 func (cc CommonConfig) CopyMap(config map[string]string) map[string]string {
@@ -50,32 +55,33 @@ func (cc CommonConfig) CopyMap(config map[string]string) map[string]string {
 }
 
 func StartHTTPServer(port int, ready chan bool) {
-	s = server{}
-	srv := http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: appRouter(),
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		testLogger.Errorf("Error starting test HTTP serer: %v", err)
+
+		return
 	}
 
 	testLogger.Info(("Starting HTTP Server"))
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			testLogger.Errorf("Error with http server: %s", err.Error())
-		}
-	}()
+	ts := httptest.NewUnstartedServer(appRouter())
+	// NewUnstartedServer creates a listener. Close that listener and replace
+	// with the one we created.
+	ts.Listener.Close()
+	ts.Listener = l
+
+	// Start the server.
+	ts.Start()
+	defer ts.Close()
+
+	ready <- true
 
 	testLogger.Info(("Registering Signal"))
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
-	ready <- true
+
 	testLogger.Info(("Waiting to stop Server"))
 	<-stop
 	testLogger.Info(("Stopping Server"))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		testLogger.Errorf("Error shutting down http server: %s", err.Error())
-	}
 }
 
 func appRouter() *mux.Router {
@@ -110,4 +116,13 @@ func (s *server) handlePost(r *http.Request) {
 	if err == nil {
 		s.Data = data
 	}
+}
+
+func NewStringSet(values ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		set[value] = struct{}{}
+	}
+
+	return set
 }

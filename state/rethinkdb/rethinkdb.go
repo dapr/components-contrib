@@ -12,10 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agrea/ptr"
 	r "github.com/dancannon/gorethink"
+	"github.com/pkg/errors"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -27,9 +29,10 @@ const (
 
 // RethinkDB is a state store implementation with transactional support for RethinkDB.
 type RethinkDB struct {
-	session *r.Session
-	config  *stateConfig
-	logger  logger.Logger
+	session  *r.Session
+	config   *stateConfig
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type stateConfig struct {
@@ -48,7 +51,8 @@ type stateRecord struct {
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 	return &RethinkDB{
-		logger: logger,
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
 	}
 }
 
@@ -119,6 +123,11 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (s *RethinkDB) Features() []state.Feature {
+	return s.features
+}
+
 func tableExists(arr []string, table string) bool {
 	for _, a := range arr {
 		if a == table {
@@ -154,7 +163,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, errors.Wrap(err, "error parsing database content")
 	}
 
-	resp := &state.GetResponse{ETag: doc.Hash}
+	resp := &state.GetResponse{ETag: ptr.String(doc.Hash)}
 	b, ok := doc.Data.([]byte)
 	if ok {
 		resp.Data = b

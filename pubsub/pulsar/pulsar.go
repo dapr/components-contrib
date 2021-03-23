@@ -151,7 +151,7 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 
 	return pubsub.RetryNotifyRecover(func() error {
 		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
-		err := handler(context.Background(), &pubsubMsg)
+		err := handler(p.ctx, &pubsubMsg)
 		if err == nil {
 			msg.Ack(msg.Message)
 		}

@@ -154,7 +154,7 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 	return pubsub.RetryNotifyRecover(func() error {
 		l.p.logger.Debug("Processing Hazelcast message")
 
-		return l.pubsubHandler(context.Background(), &pubsubMsg)
+		return l.pubsubHandler(l.p.ctx, &pubsubMsg)
 	}, b, func(err error, d time.Duration) {
 		l.p.logger.Error("Error processing Hazelcast message. Retrying...")
 	}, func() {

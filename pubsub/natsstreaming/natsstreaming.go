@@ -228,7 +228,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 		}
 		pubsub.RetryNotifyRecover(func() error {
 			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
-			herr := handler(context.Background(), &msg)
+			herr := handler(n.ctx, &msg)
 			if herr == nil {
 				// we only send a successful ACK if there is no error from Dapr runtime
 				natsMsg.Ack()

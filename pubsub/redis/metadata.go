@@ -19,13 +19,13 @@ type metadata struct {
 
 	// Maximum number of retries before giving up.
 	// Default is to not retry failed commands.
-	backoffMaxRetries int
+	redisMaxRetries int
 	// Minimum backoff between each retry.
 	// Default is 8 milliseconds; -1 disables backoff.
-	backOffMinInterval time.Duration
+	redisMinRetryInterval time.Duration
 	// Maximum backoff between each retry.
 	// Default is 512 milliseconds; -1 disables backoff.
-	backOffMaxInterval time.Duration
+	redisMaxRetryInterval time.Duration
 
 	// Dial timeout for establishing new connections.
 	dialTimeout time.Duration

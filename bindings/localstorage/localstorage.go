@@ -236,7 +236,7 @@ func (ls *LocalStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	filename := ""
 	if val, ok := req.Metadata[fileNameMetadataKey]; ok && val != "" {
 		filename = val
-	} else {
+	} else if req.Operation == bindings.CreateOperation {
 		filename = uuid.New().String()
 	}
 

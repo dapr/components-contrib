@@ -36,6 +36,10 @@ type Metadata struct {
 	RootPath string `json:"rootPath"`
 }
 
+type createResponse struct {
+	FileName string `json:"fileName"`
+}
+
 // NewLocalStorage returns a new LocalStorage instance
 func NewLocalStorage(logger logger.Logger) *LocalStorage {
 	return &LocalStorage{logger: logger}
@@ -94,7 +98,7 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 		req.Data = decoded
 	}
 
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
+	absPath, relPath, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +121,18 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 
 	ls.logger.Debugf("wrote file: %s. numBytes: %d", absPath, numBytes)
 
-	return nil, nil
+	resp := createResponse{
+		FileName: relPath,
+	}
+
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bindings.InvokeResponse{
+		Data: b,
+	}, nil
 }
 
 func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

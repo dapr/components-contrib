@@ -214,6 +214,7 @@ func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error 
 	}
 	m.consumer = c
 
+	m.logger.Debugf("mqtt subscribing to topic %s", m.metadata.topic)
 	token := m.consumer.Subscribe(m.metadata.topic, m.metadata.qos, func(client mqtt.Client, mqttMsg mqtt.Message) {
 		msg := bindings.ReadResponse{Data: mqttMsg.Payload()}
 

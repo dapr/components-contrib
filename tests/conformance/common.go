@@ -23,6 +23,7 @@ import (
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
+	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
@@ -385,6 +386,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
+	case "mqtt":
+		binding = b_mqtt.NewMQTT(testLogger)
 	default:
 		return nil
 	}
@@ -404,6 +407,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
+	case "mqtt":
+		binding = b_mqtt.NewMQTT(testLogger)
 	default:
 		return nil
 	}

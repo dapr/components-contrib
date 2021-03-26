@@ -67,7 +67,6 @@ spec:
       queryOptions:
         useCache: true
         filter: "Checks.ServiceTags contains dapr"
-}
 ```
 
 ### Advanced registration

@@ -60,6 +60,7 @@ import (
 const (
 	redis        = "redis"
 	kafka        = "kafka"
+	mqtt         = "mqtt"
 	generateUUID = "$((uuid))"
 )
 
@@ -321,7 +322,7 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":
 		pubsub = p_pulsar.NewPulsar(testLogger)
-	case "mqtt":
+	case mqtt:
 		pubsub = p_mqtt.NewMQTTPubSub(testLogger)
 	case "hazelcast":
 		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
@@ -386,7 +387,7 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
-	case "mqtt":
+	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
 	default:
 		return nil
@@ -407,7 +408,7 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
-	case "mqtt":
+	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
 	default:
 		return nil

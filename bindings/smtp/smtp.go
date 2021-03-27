@@ -60,17 +60,16 @@ func (s *Mailer) Operations() []bindings.OperationKind {
 
 // Invoke sends an email message
 func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	// Merge config metadata with request metadata
 	metadata := s.metadata.mergeWithRequestMetadata(req)
 	if metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("SMTP binding error: fromEmail property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: fromEmail property not supplied in configuration- or request-metadata")
 	}
 	if metadata.EmailTo == "" {
-		return nil, fmt.Errorf("SMTP binding error: emailTo property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: emailTo property not supplied in configuration- or request-metadata")
 	}
 	if metadata.Subject == "" {
-		return nil, fmt.Errorf("SMTP binding error: subject property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: subject property not supplied in configuration- or request-metadata")
 	}
 
 	// Compose message
@@ -90,11 +89,11 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	if err := dialer.DialAndSend(msg); err != nil {
-		return nil, fmt.Errorf("Error from SMTP binding, sending email failed: %+v", err)
+		return nil, fmt.Errorf("error from smtp binding, sending email failed: %+v", err)
 	}
 
 	// Log success
-	s.logger.Debug("SMTP binding: sent email successfully")
+	s.logger.Debug("smtp binding: sent email successfully")
 
 	return nil, nil
 }
@@ -106,16 +105,16 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	// required metadata properties
 	if meta.Properties["host"] == "" || meta.Properties["port"] == "" ||
 		meta.Properties["user"] == "" || meta.Properties["password"] == "" {
-		return smtpMeta, errors.New("SMTP binding error: host, port, user and password fields are required in metadata")
+		return smtpMeta, errors.New("smtp binding error: host, port, user and password fields are required in metadata")
 	}
 	smtpMeta.Host = meta.Properties["host"]
 	port, err := strconv.Atoi(meta.Properties["port"])
 	if err != nil {
-		return smtpMeta, fmt.Errorf("SMTP binding error: Unable to parse specified port to integer value")
+		return smtpMeta, fmt.Errorf("smtp binding error: Unable to parse specified port to integer value")
 	}
 	smtpMeta.Port = port
 
-	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, s.metadata.Port)
+	s.logger.Debugf("smtp binding: using server %v:%v", s.metadata.Host, s.metadata.Port)
 
 	smtpMeta.User = meta.Properties["user"]
 	smtpMeta.Password = meta.Properties["password"]
@@ -125,7 +124,7 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	if err == nil {
 		smtpMeta.SkipTLSVerify = skipTLSVerify
 		if smtpMeta.SkipTLSVerify {
-			s.logger.Warn("SMTP Binding warning: Skip TLS Verification is enabled. This is insecure and is NOT recommended for production scenarios.")
+			s.logger.Warn("smtp binding warning: Skip TLS Verification is enabled. This is insecure and is NOT recommended for production scenarios.")
 		}
 	}
 	smtpMeta.EmailTo = meta.Properties["emailTo"]

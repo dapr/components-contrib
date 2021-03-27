@@ -25,7 +25,7 @@ type Mailer struct {
 // Metadata holds standard email properties
 type Metadata struct {
 	Host          string `json:"host"`
-	Port          string `json:"port"`
+	Port          int    `json:"port"`
 	User          string `json:"user"`
 	SkipTLSVerify bool   `json:"skipTLSVerify"`
 	Password      string `json:"password"`
@@ -60,12 +60,6 @@ func (s *Mailer) Operations() []bindings.OperationKind {
 
 // Invoke sends an email message
 func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	// Determine host and port
-	port, err := strconv.Atoi(s.metadata.Port)
-	if err != nil {
-		s.logger.Fatal("SMTP binding error: Unable to parse specified port to integer value")
-	}
-	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, port)
 
 	// Merge config metadata with request metadata
 	metadata := s.metadata.mergeWithRequestMetadata(req)
@@ -90,17 +84,17 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	msg.SetBody("text/html", body)
 
 	// Send message
-	dialer := gomail.NewDialer(metadata.Host, port, metadata.User, metadata.Password)
+	dialer := gomail.NewDialer(metadata.Host, metadata.Port, metadata.User, metadata.Password)
 	if metadata.SkipTLSVerify {
 		/* #nosec */
 		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	if err := dialer.DialAndSend(msg); err != nil {
-		s.logger.Fatal(err)
+		return nil, fmt.Errorf("Error from SMTP binding, sending email failed: %+v", err)
 	}
 
 	// Log success
-	s.logger.Debug("SMTP binding: sent email")
+	s.logger.Debug("SMTP binding: sent email successfully")
 
 	return nil, nil
 }
@@ -115,12 +109,18 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 		return smtpMeta, errors.New("SMTP binding error: host, port, user and password fields are required in metadata")
 	}
 	smtpMeta.Host = meta.Properties["host"]
-	smtpMeta.Port = meta.Properties["port"]
+	port, err := strconv.Atoi(meta.Properties["port"])
+	if err != nil {
+		return smtpMeta, fmt.Errorf("SMTP binding error: Unable to parse specified port to integer value")
+	}
+	smtpMeta.Port = port
+
+	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, s.metadata.Port)
+
 	smtpMeta.User = meta.Properties["user"]
 	smtpMeta.Password = meta.Properties["password"]
 
 	// Optional properties (override per request)
-	smtpMeta.SkipTLSVerify = false
 	skipTLSVerify, err := strconv.ParseBool(meta.Properties["skipTLSVerify"])
 	if err == nil {
 		smtpMeta.SkipTLSVerify = skipTLSVerify
@@ -140,24 +140,25 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 // Helper to merge config and request metadata
 func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) Metadata {
 	merged := metadata
-	if req.Metadata["emailFrom"] != "" {
-		merged.EmailFrom = req.Metadata["emailFrom"]
+
+	if emailFrom := req.Metadata["emailFrom"]; emailFrom != "" {
+		merged.EmailFrom = emailFrom
 	}
 
-	if req.Metadata["emailTo"] != "" {
-		merged.EmailTo = req.Metadata["emailTo"]
+	if emailTo := req.Metadata["emailTo"]; emailTo != "" {
+		merged.EmailTo = emailTo
 	}
 
-	if req.Metadata["emailCC"] != "" {
-		merged.EmailCC = req.Metadata["emailCC"]
+	if emailCC := req.Metadata["emailCC"]; emailCC != "" {
+		merged.EmailCC = emailCC
 	}
 
-	if req.Metadata["emailBCC"] != "" {
-		merged.EmailBCC = req.Metadata["emailBCC"]
+	if emailBCC := req.Metadata["emailBCC"]; emailBCC != "" {
+		merged.EmailBCC = emailBCC
 	}
 
-	if req.Metadata["subject"] != "" {
-		merged.Subject = req.Metadata["subject"]
+	if subject := req.Metadata["subject"]; subject != "" {
+		merged.Subject = subject
 	}
 
 	return merged

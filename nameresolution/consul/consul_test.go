@@ -5,39 +5,49 @@ import (
 	"strconv"
 	"testing"
 
-	nr "github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/dapr/pkg/logger"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+
+	nr "github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/dapr/pkg/logger"
 )
 
 type mockConsulResolver struct {
-	mock.Mock
+	consulResolverInterface
+
+	initClientCalled         int
+	initClientErr            error
+	registerServiceCalled    int
+	registerServiceErr       error
+	checkAgentCalled         int
+	checkAgentErr            error
+	getHealthyServicesCalled int
+	getHealthyServicesResult []*consul.ServiceEntry
+	getHealthyServicesErr    error
 }
 
 func (c *mockConsulResolver) InitClient(config *consul.Config) error {
-	args := c.Called(config)
+	c.initClientCalled++
 
-	return args.Error(0)
+	return c.initClientErr
 }
 
 func (c *mockConsulResolver) RegisterService(registration *consul.AgentServiceRegistration) error {
-	args := c.Called(registration)
+	c.registerServiceCalled++
 
-	return args.Error(0)
+	return c.registerServiceErr
 }
 
 func (c *mockConsulResolver) CheckAgent() error {
-	args := c.Called()
+	c.checkAgentCalled++
 
-	return args.Error(0)
+	return c.checkAgentErr
 }
 
 func (c *mockConsulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
-	args := c.Called(serviceID, queryOptions)
+	c.getHealthyServicesCalled++
 
-	return args.Get(0).([]*consul.ServiceEntry), args.Error(1)
+	return c.getHealthyServicesResult, c.getHealthyServicesErr
 }
 
 func TestInit(t *testing.T) {
@@ -57,15 +67,12 @@ func TestInit(t *testing.T) {
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
 				mockResolver := &mockConsulResolver{}
-				mockResolver.On("InitClient", mock.Anything).Return(nil)
-				mockResolver.On("RegisterService", mock.Anything).Return(nil)
-				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
 
 				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
 
-				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
-				mockResolver.AssertNumberOfCalls(t, "RegisterService", 0)
-				mockResolver.AssertNumberOfCalls(t, "CheckAgent", 1)
+				assert.Equal(t, 1, mockResolver.initClientCalled)
+				assert.Equal(t, 0, mockResolver.registerServiceCalled)
+				assert.Equal(t, 1, mockResolver.checkAgentCalled)
 			},
 		},
 		{
@@ -79,15 +86,12 @@ func TestInit(t *testing.T) {
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
 				mockResolver := &mockConsulResolver{}
-				mockResolver.On("InitClient", mock.Anything).Return(nil)
-				mockResolver.On("RegisterService", mock.Anything).Return(nil)
-				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
 
 				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
 
-				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
-				mockResolver.AssertNumberOfCalls(t, "RegisterService", 1)
-				mockResolver.AssertNumberOfCalls(t, "CheckAgent", 0)
+				assert.Equal(t, 1, mockResolver.initClientCalled)
+				assert.Equal(t, 1, mockResolver.registerServiceCalled)
+				assert.Equal(t, 0, mockResolver.checkAgentCalled)
 			},
 		},
 		{
@@ -102,15 +106,12 @@ func TestInit(t *testing.T) {
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
 				mockResolver := &mockConsulResolver{}
-				mockResolver.On("InitClient", mock.Anything).Return(nil)
-				mockResolver.On("RegisterService", mock.Anything).Return(nil)
-				mockResolver.On("CheckAgent", mock.Anything).Return(nil)
 
 				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
 
-				mockResolver.AssertNumberOfCalls(t, "InitClient", 1)
-				mockResolver.AssertNumberOfCalls(t, "RegisterService", 1)
-				mockResolver.AssertNumberOfCalls(t, "CheckAgent", 0)
+				assert.Equal(t, 1, mockResolver.initClientCalled)
+				assert.Equal(t, 1, mockResolver.registerServiceCalled)
+				assert.Equal(t, 0, mockResolver.checkAgentCalled)
 			},
 		},
 	}
@@ -142,11 +143,12 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
-				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return([]*consul.ServiceEntry{}, nil)
+				mockResolver := &mockConsulResolver{
+					getHealthyServicesResult: []*consul.ServiceEntry{},
+				}
 
 				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
-				mockResolver.AssertNumberOfCalls(t, "GetHealthyServices", 1)
+				assert.Equal(t, 1, mockResolver.getHealthyServicesCalled)
 				assert.Error(t, err)
 			},
 		},
@@ -157,9 +159,8 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
-				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
-					[]*consul.ServiceEntry{
+				mockResolver := &mockConsulResolver{
+					getHealthyServicesResult: []*consul.ServiceEntry{
 						{
 							Service: &consul.AgentService{
 								Address: "123.234.345.456",
@@ -169,7 +170,8 @@ func TestResolveID(t *testing.T) {
 								},
 							},
 						},
-					}, nil)
+					},
+				}
 
 				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
@@ -183,9 +185,8 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
-				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
-					[]*consul.ServiceEntry{
+				mockResolver := &mockConsulResolver{
+					getHealthyServicesResult: []*consul.ServiceEntry{
 						{
 							Node: &consul.Node{
 								Address: "999.888.777",
@@ -210,7 +211,8 @@ func TestResolveID(t *testing.T) {
 								},
 							},
 						},
-					}, nil)
+					},
+				}
 
 				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
@@ -224,9 +226,8 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
-				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
-					[]*consul.ServiceEntry{
+				mockResolver := &mockConsulResolver{
+					getHealthyServicesResult: []*consul.ServiceEntry{
 						{
 							Node: &consul.Node{},
 							Service: &consul.AgentService{
@@ -236,7 +237,8 @@ func TestResolveID(t *testing.T) {
 								},
 							},
 						},
-					}, nil)
+					},
+				}
 
 				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 
@@ -250,16 +252,16 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
-				mockResolver.On("GetHealthyServices", req.ID, mock.Anything).Return(
-					[]*consul.ServiceEntry{
+				mockResolver := &mockConsulResolver{
+					getHealthyServicesResult: []*consul.ServiceEntry{
 						{
 							Service: &consul.AgentService{
 								Address: "123.234.345.456",
 								Port:    8600,
 							},
 						},
-					}, nil)
+					},
+				}
 
 				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
 

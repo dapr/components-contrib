@@ -30,7 +30,6 @@ package blobstorage
 import (
 	"bytes"
 	"context"
-	b64 "encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -44,17 +43,10 @@ import (
 )
 
 const (
-	keyDelimiter       = "||"
-	accountNameKey     = "accountName"
-	accountKeyKey      = "accountKey"
-	containerNameKey   = "containerName"
-	blobName           = "blobName"
-	contentType        = "ContentType"
-	contentMD5         = "ContentMD5"
-	contentEncoding    = "ContentEncoding"
-	contentLanguage    = "ContentLanguage"
-	contentDisposition = "ContentDisposition"
-	cacheControl       = "CacheControl"
+	keyDelimiter     = "||"
+	accountNameKey   = "accountName"
+	accountKeyKey    = "accountKey"
+	containerNameKey = "containerName"
 )
 
 // StateStore Type
@@ -199,6 +191,8 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
 }
 
 func (r *StateStore) writeFile(req *state.SetRequest) error {
+	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
+
 	accessConditions := azblob.BlobAccessConditions{}
 
 	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {
@@ -209,43 +203,10 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
-	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
-
-	var blobHTTPHeaders azblob.BlobHTTPHeaders
-	if val, ok := req.Metadata[contentType]; ok && val != "" {
-		blobHTTPHeaders.ContentType = val
-		delete(req.Metadata, contentType)
-	}
-	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
-		sDec, err := b64.StdEncoding.DecodeString(val)
-		if err != nil || len(sDec) != 16 {
-			return fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
-		}
-		blobHTTPHeaders.ContentMD5 = sDec
-		delete(req.Metadata, contentMD5)
-	}
-	if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
-		blobHTTPHeaders.ContentEncoding = val
-		delete(req.Metadata, contentEncoding)
-	}
-	if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
-		blobHTTPHeaders.ContentLanguage = val
-		delete(req.Metadata, contentLanguage)
-	}
-	if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
-		blobHTTPHeaders.ContentDisposition = val
-		delete(req.Metadata, contentDisposition)
-	}
-	if val, ok := req.Metadata[cacheControl]; ok && val != "" {
-		blobHTTPHeaders.CacheControl = val
-		delete(req.Metadata, cacheControl)
-	}
-
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:      16,
 		Metadata:         req.Metadata,
 		AccessConditions: accessConditions,
-		BlobHTTPHeaders:  blobHTTPHeaders,
 	})
 	if err != nil {
 		r.logger.Debugf("write file %s, err %s", req.Key, err)

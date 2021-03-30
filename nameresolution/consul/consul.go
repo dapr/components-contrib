@@ -178,7 +178,7 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 	props := metadata.Properties
 
 	if daprPort, ok = props[nr.DaprPort]; !ok {
-		return resolverCfg, fmt.Errorf("nr metadata property missing: %s", nr.DaprPort)
+		return resolverCfg, fmt.Errorf("metadata property missing: %s", nr.DaprPort)
 	}
 
 	cfg, err := parseConfig(metadata.Configuration)
@@ -235,19 +235,23 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	var ok bool
 
 	if appID, ok = props[nr.AppID]; !ok {
-		return nil, fmt.Errorf("nr metadata property missing: %s", nr.AppID)
+		return nil, fmt.Errorf("metadata property missing: %s", nr.AppID)
 	}
 
 	if appPort, ok = props[nr.AppPort]; !ok {
-		return nil, fmt.Errorf("nr metadata property missing: %s", nr.AppPort)
+		return nil, fmt.Errorf("metadata property missing: %s", nr.AppPort)
 	}
 
 	if host, ok = props[nr.HostAddress]; !ok {
-		return nil, fmt.Errorf("nr metadata property missing: %s", nr.HostAddress)
+		return nil, fmt.Errorf("metadata property missing: %s", nr.HostAddress)
 	}
 
 	if httpPort, ok = props[nr.DaprHTTPPort]; !ok {
-		return nil, fmt.Errorf("nr metadata property missing: %s", nr.DaprHTTPPort)
+		return nil, fmt.Errorf("metadata property missing: %s", nr.DaprHTTPPort)
+	} else {
+		if _, err := strconv.ParseUint(httpPort, 10, 0); err != nil {
+			return nil, fmt.Errorf("error parsing %s: %w", nr.DaprHTTPPort, err)
+		}
 	}
 
 	// if no health checks configured add dapr sidecar health check by default
@@ -257,14 +261,14 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 				Name:     "Dapr Health Status",
 				CheckID:  fmt.Sprintf("daprHealth:%s", appID),
 				Interval: "15s",
-				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort), // default assumes consul agent on svc host
+				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort),
 			},
 		}
 	}
 
 	appPortInt, err := strconv.Atoi(appPort)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing app port: %w", err)
+		return nil, fmt.Errorf("error parsing %s: %w", nr.AppPort, err)
 	}
 
 	return &consul.AgentServiceRegistration{
@@ -290,7 +294,10 @@ func getQueryOptionsConfig(cfg configSpec) *consul.QueryOptions {
 
 func parseConfig(rawConfig interface{}) (configSpec, error) {
 	config := configSpec{}
-	rawConfig = convertGenericConfig(rawConfig)
+	rawConfig, err := convertGenericConfig(rawConfig)
+	if err != nil {
+		return config, err
+	}
 
 	data, err := json.Marshal(rawConfig)
 	if err != nil {
@@ -308,20 +315,29 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 }
 
 // helper function for transforming interface{} into json serializable
-func convertGenericConfig(i interface{}) interface{} {
+func convertGenericConfig(i interface{}) (interface{}, error) {
+	var err error
 	switch x := i.(type) {
 	case map[interface{}]interface{}:
 		m2 := map[string]interface{}{}
 		for k, v := range x {
-			m2[k.(string)] = convertGenericConfig(v)
+			if strKey, ok := k.(string); ok {
+				if m2[strKey], err = convertGenericConfig(v); err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, fmt.Errorf("error parsing config field: %v", k)
+			}
 		}
 
-		return m2
+		return m2, nil
 	case []interface{}:
 		for i, v := range x {
-			x[i] = convertGenericConfig(v)
+			if x[i], err = convertGenericConfig(v); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return i
+	return i, nil
 }

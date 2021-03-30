@@ -369,6 +369,17 @@ func TestParseConfig(t *testing.T) {
 			nil,
 			configSpec{},
 		},
+		{
+			"fail on unsupported map key",
+			false,
+			map[interface{}]interface{}{
+				1000: map[interface{}]interface{}{
+					"DAPR_HTTP_PORT": "3500",
+					"DAPR_GRPC_PORT": "50005",
+				},
+			},
+			configSpec{},
+		},
 	}
 
 	for _, tt := range tests {

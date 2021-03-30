@@ -3,6 +3,9 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
+// +build linux
+// +build amd64
+
 package bpf
 
 import (
@@ -48,7 +51,7 @@ func TestValidateMetadata(t *testing.T) {
 	})
 	t.Run("with missing keySize", func(t *testing.T) {
 		props := map[string]string{
-			valueSize:  "4",
+			valueSize: "4",
 		}
 		metadata := state.Metadata{Properties: props}
 		err := validateMetadata(metadata)

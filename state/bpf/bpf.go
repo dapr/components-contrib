@@ -3,6 +3,9 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
+// +build linux
+// +build amd64
+
 package bpf
 
 import (

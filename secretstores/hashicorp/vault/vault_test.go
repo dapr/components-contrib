@@ -84,6 +84,28 @@ func TestVaultTLSConfig(t *testing.T) {
 	})
 }
 
+func TestDefaultVaultAddress(t *testing.T) {
+	t.Run("with blank vaultAddr", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultTokenMountPath": "./vault.txt",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
+	})
+}
+
 func getCertificate() []byte {
 	certificateBytes, _ := base64.StdEncoding.DecodeString(certificate)
 

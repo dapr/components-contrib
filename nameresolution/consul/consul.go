@@ -34,39 +34,14 @@ type resolverConfig struct {
 	DaprPortMetaKey string
 }
 
-type resolver struct {
-	config resolverConfig
-	consul consulResolverInterface
-	logger logger.Logger
+type client struct {
+	*consul.Client
 }
 
-// NewResolver creates Consul name resolver.
-func NewResolver(logger logger.Logger) nr.Resolver {
-	return newConsulResolver(logger, &consulResolver{}, resolverConfig{})
-}
-
-func newConsulResolver(logger logger.Logger, consul consulResolverInterface, config resolverConfig) nr.Resolver {
-	return &resolver{
-		logger: logger,
-		consul: consul,
-		config: config,
-	}
-}
-
-type consulResolverInterface interface {
-	InitClient(config *consul.Config) error
-	CheckAgent() error
-	RegisterService(registration *consul.AgentServiceRegistration) error
-	GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error)
-}
-
-type consulResolver struct {
-	client *consul.Client
-}
-
-func (c *consulResolver) InitClient(config *consul.Config) error {
+func (c *client) InitClient(config *consul.Config) error {
 	var err error
-	c.client, err = consul.NewClient(config)
+
+	c.Client, err = consul.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("consul api error initing client: %w", err)
 	}
@@ -74,49 +49,69 @@ func (c *consulResolver) InitClient(config *consul.Config) error {
 	return nil
 }
 
-func (c *consulResolver) RegisterService(registration *consul.AgentServiceRegistration) error {
-	return c.client.Agent().ServiceRegister(registration)
+func (c *client) Agent() agentInterface {
+	return c.Client.Agent()
 }
 
-func (c *consulResolver) CheckAgent() error {
-	_, err := c.client.Agent().Self()
-	if err != nil {
-		return fmt.Errorf("consul api error getting agent metadata: %w", err)
-	}
-
-	return nil
+func (c *client) Health() healthInterface {
+	return c.Client.Health()
 }
 
-func (c *consulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
-	services, _, err := c.client.Health().Service(serviceID, "", true, queryOptions)
-	if err != nil {
-		return nil, fmt.Errorf("consul api error querying health service: %w", err)
-	}
+type clientInterface interface {
+	InitClient(config *consul.Config) error
+	Agent() agentInterface
+	Health() healthInterface
+}
 
-	return services, nil
+type agentInterface interface {
+	Self() (map[string]map[string]interface{}, error)
+	ServiceRegister(service *consul.AgentServiceRegistration) error
+}
+
+type healthInterface interface {
+	Service(service, tag string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error)
+}
+
+type resolver struct {
+	config resolverConfig
+	logger logger.Logger
+	client clientInterface
+}
+
+// NewResolver creates Consul name resolver.
+func NewResolver(logger logger.Logger) nr.Resolver {
+	return newResolver(logger, resolverConfig{}, &client{})
+}
+
+func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface) nr.Resolver {
+	return &resolver{
+		logger: logger,
+		config: resolverConfig,
+		client: client,
+	}
 }
 
 // Init will configure component. It will also register service or validate client connection based on config
-func (c *resolver) Init(metadata nr.Metadata) error {
+func (r *resolver) Init(metadata nr.Metadata) error {
 	var err error
 
-	c.config, err = getConfig(metadata)
+	r.config, err = getConfig(metadata)
 	if err != nil {
 		return err
 	}
 
-	if err = c.consul.InitClient(c.config.ClientConfig); err != nil {
+	if err = r.client.InitClient(r.config.ClientConfig); err != nil {
 		return fmt.Errorf("failed to init consul client: %w", err)
 	}
 
 	// register service to consul
-	if c.config.Registration != nil {
-		if err := c.consul.RegisterService(c.config.Registration); err != nil {
+	if r.config.Registration != nil {
+		if err := r.client.Agent().ServiceRegister(r.config.Registration); err != nil {
 			return fmt.Errorf("failed to register consul service: %w", err)
 		}
 
-		c.logger.Infof("service:%s registered on consul agent", c.config.Registration.Name)
-	} else if err := c.consul.CheckAgent(); err != nil {
+		r.logger.Infof("service:%s registered on consul agent", r.config.Registration.Name)
+	} else if _, err := r.client.Agent().Self(); err != nil {
 		return fmt.Errorf("failed check on consul agent: %w", err)
 	}
 
@@ -124,9 +119,9 @@ func (c *resolver) Init(metadata nr.Metadata) error {
 }
 
 // ResolveID resolves name to address via consul
-func (c *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
-	cfg := c.config
-	services, err := c.consul.GetHealthyServices(req.ID, cfg.QueryOptions)
+func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
+	cfg := r.config
+	services, _, err := r.client.Health().Service(req.ID, "", true, cfg.QueryOptions)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to query healthy consul services: %w", err)
@@ -248,10 +243,8 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 
 	if httpPort, ok = props[nr.DaprHTTPPort]; !ok {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.DaprHTTPPort)
-	} else {
-		if _, err := strconv.ParseUint(httpPort, 10, 0); err != nil {
-			return nil, fmt.Errorf("error parsing %s: %w", nr.DaprHTTPPort, err)
-		}
+	} else if _, err := strconv.ParseUint(httpPort, 10, 0); err != nil {
+		return nil, fmt.Errorf("error parsing %s: %w", nr.DaprHTTPPort, err)
 	}
 
 	// if no health checks configured add dapr sidecar health check by default

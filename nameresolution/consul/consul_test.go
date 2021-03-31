@@ -12,42 +12,59 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
-type mockConsulResolver struct {
-	consulResolverInterface
+type mockClient struct {
+	mockAgent
+	mockHealth
 
-	initClientCalled         int
-	initClientErr            error
-	registerServiceCalled    int
-	registerServiceErr       error
-	checkAgentCalled         int
-	checkAgentErr            error
-	getHealthyServicesCalled int
-	getHealthyServicesResult []*consul.ServiceEntry
-	getHealthyServicesErr    error
+	initClientCalled int
+	initClientErr    error
 }
 
-func (c *mockConsulResolver) InitClient(config *consul.Config) error {
-	c.initClientCalled++
+func (m *mockClient) InitClient(config *consul.Config) error {
+	m.initClientCalled++
 
-	return c.initClientErr
+	return m.initClientErr
 }
 
-func (c *mockConsulResolver) RegisterService(registration *consul.AgentServiceRegistration) error {
-	c.registerServiceCalled++
-
-	return c.registerServiceErr
+func (m *mockClient) Health() healthInterface {
+	return &m.mockHealth
 }
 
-func (c *mockConsulResolver) CheckAgent() error {
-	c.checkAgentCalled++
-
-	return c.checkAgentErr
+func (m *mockClient) Agent() agentInterface {
+	return &m.mockAgent
 }
 
-func (c *mockConsulResolver) GetHealthyServices(serviceID string, queryOptions *consul.QueryOptions) ([]*consul.ServiceEntry, error) {
-	c.getHealthyServicesCalled++
+type mockHealth struct {
+	serviceCalled int
+	serviceErr    error
+	serviceResult []*consul.ServiceEntry
+	serviceMeta   *consul.QueryMeta
+}
 
-	return c.getHealthyServicesResult, c.getHealthyServicesErr
+func (m *mockHealth) Service(service, tag string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
+	m.serviceCalled++
+
+	return m.serviceResult, m.serviceMeta, m.serviceErr
+}
+
+type mockAgent struct {
+	selfCalled            int
+	selfErr               error
+	selfResult            map[string]map[string]interface{}
+	serviceRegisterCalled int
+	serviceRegisterErr    error
+}
+
+func (m *mockAgent) Self() (map[string]map[string]interface{}, error) {
+	m.selfCalled++
+
+	return m.selfResult, m.selfErr
+}
+
+func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) error {
+	m.serviceRegisterCalled++
+
+	return m.serviceRegisterErr
 }
 
 func TestInit(t *testing.T) {
@@ -66,13 +83,15 @@ func TestInit(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
 
-				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
+				var mock mockClient
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock)
 
-				assert.Equal(t, 1, mockResolver.initClientCalled)
-				assert.Equal(t, 0, mockResolver.registerServiceCalled)
-				assert.Equal(t, 1, mockResolver.checkAgentCalled)
+				_ = resolver.Init(metadata)
+
+				assert.Equal(t, 1, mock.initClientCalled)
+				assert.Equal(t, 0, mock.mockAgent.serviceRegisterCalled)
+				assert.Equal(t, 1, mock.mockAgent.selfCalled)
 			},
 		},
 		{
@@ -85,13 +104,15 @@ func TestInit(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
 
-				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
+				var mock mockClient
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock)
 
-				assert.Equal(t, 1, mockResolver.initClientCalled)
-				assert.Equal(t, 1, mockResolver.registerServiceCalled)
-				assert.Equal(t, 0, mockResolver.checkAgentCalled)
+				_ = resolver.Init(metadata)
+
+				assert.Equal(t, 1, mock.initClientCalled)
+				assert.Equal(t, 1, mock.mockAgent.serviceRegisterCalled)
+				assert.Equal(t, 0, mock.mockAgent.selfCalled)
 			},
 		},
 		{
@@ -105,13 +126,15 @@ func TestInit(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{}
 
-				_ = newConsulResolver(logger.NewLogger("test"), mockResolver, resolverConfig{}).Init(metadata)
+				var mock mockClient
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock)
 
-				assert.Equal(t, 1, mockResolver.initClientCalled)
-				assert.Equal(t, 1, mockResolver.registerServiceCalled)
-				assert.Equal(t, 0, mockResolver.checkAgentCalled)
+				_ = resolver.Init(metadata)
+
+				assert.Equal(t, 1, mock.initClientCalled)
+				assert.Equal(t, 1, mock.mockAgent.serviceRegisterCalled)
+				assert.Equal(t, 0, mock.mockAgent.selfCalled)
 			},
 		},
 	}
@@ -143,12 +166,15 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{
-					getHealthyServicesResult: []*consul.ServiceEntry{},
+				var mock = mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{},
+					},
 				}
+				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
 
-				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
-				assert.Equal(t, 1, mockResolver.getHealthyServicesCalled)
+				_, err := resolver.ResolveID(req)
+				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Error(t, err)
 			},
 		},
@@ -159,21 +185,24 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{
-					getHealthyServicesResult: []*consul.ServiceEntry{
-						{
-							Service: &consul.AgentService{
-								Address: "123.234.345.456",
-								Port:    8600,
-								Meta: map[string]string{
-									"DAPR_PORT": "50005",
+				var mock = mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "123.234.345.456",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
 								},
 							},
 						},
 					},
 				}
+				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
 
-				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
+				addr, _ := resolver.ResolveID(req)
 
 				assert.Equal(t, "123.234.345.456:50005", addr)
 			},
@@ -185,36 +214,39 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{
-					getHealthyServicesResult: []*consul.ServiceEntry{
-						{
-							Node: &consul.Node{
-								Address: "999.888.777",
-							},
-							Service: &consul.AgentService{
-								Address: "",
-								Port:    8600,
-								Meta: map[string]string{
-									"DAPR_PORT": "50005",
+				var mock = mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Node: &consul.Node{
+									Address: "999.888.777",
+								},
+								Service: &consul.AgentService{
+									Address: "",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
 								},
 							},
-						},
-						{
-							Node: &consul.Node{
-								Address: "999.888.777",
-							},
-							Service: &consul.AgentService{
-								Address: "",
-								Port:    8600,
-								Meta: map[string]string{
-									"DAPR_PORT": "50005",
+							{
+								Node: &consul.Node{
+									Address: "999.888.777",
+								},
+								Service: &consul.AgentService{
+									Address: "",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
 								},
 							},
 						},
 					},
 				}
+				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
 
-				addr, _ := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
+				addr, _ := resolver.ResolveID(req)
 
 				assert.Equal(t, "999.888.777:50005", addr)
 			},
@@ -226,21 +258,23 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{
-					getHealthyServicesResult: []*consul.ServiceEntry{
-						{
-							Node: &consul.Node{},
-							Service: &consul.AgentService{
-								Port: 8600,
-								Meta: map[string]string{
-									"DAPR_PORT": "50005",
+				var mock = mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Node: &consul.Node{},
+								Service: &consul.AgentService{
+									Port: 8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
 								},
-							},
-						},
+							}},
 					},
 				}
+				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
 
-				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
+				_, err := resolver.ResolveID(req)
 
 				assert.Error(t, err)
 			},
@@ -252,18 +286,21 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				mockResolver := &mockConsulResolver{
-					getHealthyServicesResult: []*consul.ServiceEntry{
-						{
-							Service: &consul.AgentService{
-								Address: "123.234.345.456",
-								Port:    8600,
+				var mock = mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "123.234.345.456",
+									Port:    8600,
+								},
 							},
 						},
 					},
 				}
+				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
 
-				_, err := newConsulResolver(logger.NewLogger("test"), mockResolver, *testConfig).ResolveID(req)
+				_, err := resolver.ResolveID(req)
 
 				assert.Error(t, err)
 			},

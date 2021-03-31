@@ -2,6 +2,31 @@
 
 The consul name resolution component gives the ability to register and resolve other "daprized" services registered on a consul estate. It is flexible in that it allows for complex to minimal configurations driving the behaviour on init and resolution.
 
+## How To Use
+
+### Dapr Registration
+
+If you are using the dapr sidecar to register your service to consul then you will need the following configuration:
+
+```yaml
+spec:
+  nameResolution:
+    component: "consul"
+    configuration:
+      selfRegister: true
+```
+
+### External Registration
+
+If consul service registration is managed externally from dapr you need to ensure that the dapr-to-dapr internal grpc port is added to the service metadata under `DAPR_PORT` (this key is configurable). The config should then look as follows:
+
+```yaml
+spec:
+  nameResolution:
+    component: "consul"
+```
+
+
 ## Behaviour
 
 On init the consul component will either validate the connection to the configured (or default) agent or register the service if configured to do so. The name resolution interface does not cater for an "on shutdown" pattern so please consider this if using Dapr to register services to consul as it will not deregister services.

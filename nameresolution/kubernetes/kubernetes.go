@@ -12,6 +12,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	DefaultClusterDomain = "cluster.local"
+	ClusterDomainKey     = "clusterDomain"
+)
+
 type resolver struct {
 	logger logger.Logger
 }
@@ -28,6 +33,11 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 
 // ResolveID resolves name to address in Kubernetes.
 func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+	clusterDomain := req.Data[ClusterDomainKey]
+	if clusterDomain == "" {
+		clusterDomain = DefaultClusterDomain
+	}
+
 	// Dapr requires this formatting for Kubernetes services
-	return fmt.Sprintf("%s-dapr.%s.svc.cluster.local:%d", req.ID, req.Namespace, req.Port), nil
+	return fmt.Sprintf("%s-dapr.%s.svc.%s:%d", req.ID, req.Namespace, clusterDomain, req.Port), nil
 }

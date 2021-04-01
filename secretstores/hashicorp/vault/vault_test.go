@@ -60,6 +60,18 @@ func TestReadVaultToken(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotEqual(t, "thisistheroottoken", token)
 	})
+
+	t.Run("read token from vaultToken", func(t *testing.T) {
+		expectedToken := "myRootToken"
+		v := vaultSecretStore{
+			vaultToken: expectedToken,
+		}
+
+		actualToken, err := v.readVaultToken()
+
+		assert.Nil(t, err)
+		assert.Equal(t, expectedToken, actualToken)
+	})
 }
 
 func TestVaultTLSConfig(t *testing.T) {
@@ -81,6 +93,103 @@ func TestVaultTLSConfig(t *testing.T) {
 		assert.Equal(t, properties["caCert"], tlsConfig.vaultCACert)
 		assert.Equal(t, skipVerify, tlsConfig.vaultSkipVerify)
 		assert.Equal(t, properties["tlsServerName"], tlsConfig.vaultServerName)
+	})
+}
+
+func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
+	t.Run("without vaultTokenMount or vaultToken", func(t *testing.T) {
+		properties := map[string]string{}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+
+		assert.Equal(t, "", target.vaultToken)
+		assert.Equal(t, "", target.vaultTokenMountPath)
+		assert.NotNil(t, err)
+		assert.Equal(t, "token mount path and token not set", err.Error())
+	})
+
+	t.Run("with vaultTokenMount", func(t *testing.T) {
+		expectedValue := "./vault.txt"
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedValue,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, "", target.vaultToken)
+		assert.Equal(t, expectedValue, target.vaultTokenMountPath)
+	})
+
+	t.Run("with vaultToken", func(t *testing.T) {
+		expectedValue := "myRootToken"
+		properties := map[string]string{
+			"vaultToken": expectedValue,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, "", target.vaultTokenMountPath)
+		assert.Equal(t, expectedValue, target.vaultToken)
+	})
+
+	t.Run("with vaultTokenMount and vaultToken", func(t *testing.T) {
+		expectedPath := "./vault.txt"
+		expectedToken := "myRootToken"
+		properties := map[string]string{
+			"vaultToken":          expectedToken,
+			"vaultTokenMountPath": expectedPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+
+		assert.Equal(t, expectedPath, target.vaultTokenMountPath)
+		assert.Equal(t, expectedToken, target.vaultToken)
+		assert.NotNil(t, err)
+		assert.Equal(t, "token mount path and token both set", err.Error())
 	})
 }
 

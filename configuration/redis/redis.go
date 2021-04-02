@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/configuration"
+	"github.com/dapr/components-contrib/configuration/redis/internal"
 	redis "github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
 
@@ -41,20 +42,19 @@ const (
 
 // ConfigurationStore is a Redis configuration store
 type ConfigurationStore struct {
-
 	client   *redis.Client
 	json     jsoniter.API
 	metadata metadata
 	replicas int
 
-	logger   logger.Logger
+	logger logger.Logger
 }
 
 // NewRedisConfigurationStore returns a new redis state store
 func NewRedisConfigurationStore(logger logger.Logger) *ConfigurationStore {
 	s := &ConfigurationStore{
-		json:     jsoniter.ConfigFastest,
-		logger:   logger,
+		json:   jsoniter.ConfigFastest,
+		logger: logger,
 	}
 
 	return s
@@ -143,7 +143,6 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	return err
 }
 
-
 func (r *ConfigurationStore) newClient(m metadata) *redis.Client {
 	opts := &redis.Options{
 		Addr:            m.host,
@@ -213,31 +212,123 @@ func (r *ConfigurationStore) parseConnectedSlaves(res string) int {
 }
 
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest, handler func(e *configuration.UpdateEvent) error) (*configuration.GetResponse, error) {
-	items  := make([]*configuration.Item, 0, len(req.Keys))
-	for _, key := range req.Keys {
-		items = append(items, &configuration.Item{
-			Key: key,
-			Content: fmt.Sprintf("content-of-%s", key),
-			Group: req.Group,
-			Label: req.Label,
-			Tags: map[string]string{
-				"tag1": "value1",
-				"tag2": "value2",
-			},
-			Metadata: map[string]string{},
-		})
+	if len(req.Keys) == 0 {
+		return &configuration.GetResponse{}, nil
 	}
 
-	return &configuration.GetResponse {
+	items := make([]*configuration.Item, 0, len(req.Keys))
+
+	for _, key := range req.Keys {
+		redisKey, err := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
+		if err != nil {
+			return &configuration.GetResponse{}, fmt.Errorf("fail to build redis key for key=%s: %s", key, err)
+		}
+		redisValueMap, err := r.client.HGetAll(redisKey).Result()
+		if err != nil {
+			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for key=%s, redis key=%s: %s", key, redisKey, err)
+		}
+		if len(redisValueMap) == 0 {
+			// Hash key not exist
+			continue
+		}
+
+		item := &configuration.Item{
+			Key:      key,
+			Group:    req.Group,
+			Label:    req.Label,
+			Metadata: map[string]string{},
+			Tags:     map[string]string{},
+		}
+		internal.ParseRedisValue(redisValueMap, item)
+		if item.Content != "" {
+			// Hash key/value exist but Content in Hash value exist
+			items = append(items, item)
+		}
+	}
+
+	return &configuration.GetResponse{
 		Items: items,
 	}, nil
 }
 
 func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRequest) error {
+	if len(req.Items) == 0 {
+		return nil
+	}
+
+	// 1. prepare redis keys/values to delete or save
+	deleteRedisKeys := make([]string, 0, len(req.Items))
+	saveRedisKeyValues := make(map[string]map[string]string)
+
+	for _, item := range req.Items {
+		if item.Content == "" {
+			// Content is empty: delete the configuration item
+			redisKey, err := internal.BuildRedisKey(req.AppID, item.Group, item.Label, item.Key)
+			if err != nil {
+				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Key, err)
+			}
+			deleteRedisKeys = append(deleteRedisKeys, redisKey)
+		} else {
+			// save configuration item
+			redisKey, err := internal.BuildRedisKey(req.AppID, item.Group, item.Label, item.Key)
+			if err != nil {
+				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Key, err)
+			}
+			redisValue, err := internal.BuildRedisValue(item.Content, item.Tags)
+			if err != nil {
+				return fmt.Errorf("fail to build redis value for key=%s: %s", item.Key, err)
+			}
+			saveRedisKeyValues[redisKey] = redisValue
+		}
+	}
+
+	// 2. execute all the delete in a transaction
+	pipe := r.client.TxPipeline()
+	//for _, redisKey := range deleteRedisKeys {
+	//	pipe.Do("DEL", redisKey)
+	//}
+	if len(deleteRedisKeys) > 0 {
+		pipe.Del(deleteRedisKeys...)
+	}
+	for saveRedisKey, saveRedisValue := range saveRedisKeyValues {
+		valueSlides := make([]interface{}, len(saveRedisKey)*2)
+		for k, v := range saveRedisValue {
+			valueSlides = append(valueSlides, k)
+			valueSlides = append(valueSlides, v)
+		}
+		pipe.HMSet(saveRedisKey, valueSlides...)
+	}
+	_, err := pipe.Exec()
+	if err != nil {
+		return fmt.Errorf("fail to save configuration into redis: %s", err)
+	}
+
 	return nil
 }
 
 func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.DeleteRequest) error {
+	if len(req.Keys) == 0 {
+		return nil
+	}
+
+	// 1. prepare redis keys to delete
+	redisKeys := make([]string, 0, len(req.Keys))
+	for _, key := range req.Keys {
+		redisKey, err := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
+		if err != nil {
+			return fmt.Errorf("fail to build redis key for key=%s: %s", key, err)
+		}
+		redisKeys = append(redisKeys, redisKey)
+	}
+
+	// 2. execute all the delete in a transaction
+	pipe := r.client.TxPipeline()
+	pipe.Del(redisKeys...)
+	_, err := pipe.Exec()
+
+	if err != nil {
+		return fmt.Errorf("fail to delete configuration from redis: %s", err)
+	}
+
 	return nil
 }
-

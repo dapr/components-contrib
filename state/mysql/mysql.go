@@ -52,6 +52,9 @@ const (
 	// The connection string should be in the following format
 	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
 	pemPathKey = "pemPath"
+
+	// Used in K8s where you can't mount the pem file path.
+	pemContentsKey = "pemContents"
 )
 
 // MySQL state store
@@ -132,10 +135,25 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 		return fmt.Errorf(errMissingConnectionString)
 	}
 
+	// This is when the user provides a path to the pem file
+	// This works well when not in K8s
 	val, ok = metadata.Properties[pemPathKey]
 
 	if ok && val != "" {
-		err := m.factory.RegisterTLSConfig(val)
+		err := m.factory.RegisterTLSConfigWithFile(val)
+		if err != nil {
+			m.logger.Error(err)
+
+			return err
+		}
+	}
+
+	// This is for when they are running in K8s and can't
+	// mount the pem file into the sidecar
+	val, ok = metadata.Properties[pemContentsKey]
+
+	if ok && val != "" {
+		err := m.factory.RegisterTLSConfigWithString(val)
 		if err != nil {
 			m.logger.Error(err)
 

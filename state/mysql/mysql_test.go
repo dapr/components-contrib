@@ -530,7 +530,7 @@ func TestInitReturnsErrorOnFailOpen(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
+func TestInitHandlesRegisterTLSConfigWithFileError(t *testing.T) {
 	// Arrange
 	t.Parallel()
 	m, _ := mockDatabase(t)
@@ -539,6 +539,28 @@ func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
 	metadata := &state.Metadata{
 		Properties: map[string]string{
 			pemPathKey:          "./ssl.pem",
+			tableNameKey:        "stateStore",
+			connectionStringKey: fakeConnectionString,
+		},
+	}
+
+	// Act
+	err := m.mySQL.Init(*metadata)
+
+	// Assert
+	assert.NotNil(t, err)
+	assert.Equal(t, "registerTLSConfigError", err.Error(), "wrong error")
+}
+
+func TestInitHandlesRegisterTLSConfigStringFileError(t *testing.T) {
+	// Arrange
+	t.Parallel()
+	m, _ := mockDatabase(t)
+	m.factory.registerErr = fmt.Errorf("registerTLSConfigError")
+
+	metadata := &state.Metadata{
+		Properties: map[string]string{
+			pemContentsKey:      "SecretInfo",
 			tableNameKey:        "stateStore",
 			connectionStringKey: fakeConnectionString,
 		},
@@ -837,6 +859,10 @@ func (f *fakeMySQLFactory) Open(connectionString string) (*sql.DB, error) {
 	return f.db2, f.openErr
 }
 
-func (f *fakeMySQLFactory) RegisterTLSConfig(pemPath string) error {
+func (f *fakeMySQLFactory) RegisterTLSConfigWithFile(pemPath string) error {
+	return f.registerErr
+}
+
+func (f *fakeMySQLFactory) RegisterTLSConfigWithString(pemContents string) error {
 	return f.registerErr
 }

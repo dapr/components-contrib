@@ -30,8 +30,7 @@ func (m *mySQLFactory) Open(connectionString string) (*sql.DB, error) {
 	return sql.Open("mysql", connectionString)
 }
 
-func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
-	rootCertPool := x509.NewCertPool()
+func (m *mySQLFactory) RegisterTLSConfigWithFile(pemPath string) error {
 	pem, readErr := ioutil.ReadFile(pemPath)
 
 	if readErr != nil {
@@ -40,7 +39,19 @@ func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
 		return readErr
 	}
 
-	ok := rootCertPool.AppendCertsFromPEM(pem)
+	return m.registerTLSConfig(pem)
+}
+
+// Used when running in k8s and reading the pem contents from a secret. This
+// is needed because you can't mount a volume to the sidecar
+func (m *mySQLFactory) RegisterTLSConfigWithString(pemContents string) error {
+	return m.registerTLSConfig([]byte(pemContents))
+}
+
+func (m *mySQLFactory) registerTLSConfig(pemContents []byte) error {
+	rootCertPool := x509.NewCertPool()
+
+	ok := rootCertPool.AppendCertsFromPEM(pemContents)
 
 	if !ok {
 		return fmt.Errorf("failed to append PEM")

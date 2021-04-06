@@ -51,14 +51,16 @@ type StateStore struct {
 	metadata metadata
 	replicas int
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 // NewRedisStateStore returns a new redis state store
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -100,7 +102,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
+			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
 		}
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
@@ -146,6 +148,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.replicas, err = r.getConnectedSlaves()
 
 	return err
+}
+
+// Features returns the features available in this state store
+func (r *StateStore) Features() []state.Feature {
+	return r.features
 }
 
 func (r *StateStore) newClient(m metadata) *redis.Client {

@@ -8,6 +8,7 @@ package cosmosdb
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/dapr/pkg/logger"
 )
@@ -22,19 +24,22 @@ import (
 // StateStore is a CosmosDB state store
 type StateStore struct {
 	state.DefaultBulkStore
-	client     *documentdb.DocumentDB
-	collection *documentdb.Collection
-	db         *documentdb.Database
-	sp         *documentdb.Sproc
+	client      *documentdb.DocumentDB
+	collection  *documentdb.Collection
+	db          *documentdb.Database
+	sp          *documentdb.Sproc
+	contentType string
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
-type credentials struct {
-	URL        string `json:"url"`
-	MasterKey  string `json:"masterKey"`
-	Database   string `json:"database"`
-	Collection string `json:"collection"`
+type metadata struct {
+	URL         string `json:"url"`
+	MasterKey   string `json:"masterKey"`
+	Database    string `json:"database"`
+	Collection  string `json:"collection"`
+	ContentType string `json:"contentType"`
 }
 
 // CosmosItem is a wrapper around a CosmosDB document
@@ -59,61 +64,84 @@ const (
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
-	s := &StateStore{logger: logger}
+	s := &StateStore{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
+	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
 }
 
 // Init does metadata and connection parsing
-func (c *StateStore) Init(metadata state.Metadata) error {
+func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
-	connInfo := metadata.Properties
+	connInfo := meta.Properties
 	b, err := json.Marshal(connInfo)
 	if err != nil {
 		return err
 	}
 
-	var creds credentials
-	err = json.Unmarshal(b, &creds)
+	m := metadata{
+		ContentType: "application/json",
+	}
+
+	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return err
 	}
 
-	client := documentdb.New(creds.URL, &documentdb.Config{
+	if m.URL == "" {
+		return errors.New("url is required")
+	}
+	if m.MasterKey == "" {
+		return errors.New("masterKey is required")
+	}
+	if m.Database == "" {
+		return errors.New("database is required")
+	}
+	if m.Collection == "" {
+		return errors.New("collection is required")
+	}
+	if m.ContentType == "" {
+		return errors.New("contentType is required")
+	}
+
+	client := documentdb.New(m.URL, &documentdb.Config{
 		MasterKey: &documentdb.Key{
-			Key: creds.MasterKey,
+			Key: m.MasterKey,
 		},
 	})
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
 		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
 		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: creds.Database},
+			{Name: "@id", Value: m.Database},
 		},
 	})
 	if err != nil {
 		return err
 	} else if len(dbs) == 0 {
-		return fmt.Errorf("database %s for CosmosDB state store not found", creds.Database)
+		return fmt.Errorf("database %s for CosmosDB state store not found", m.Database)
 	}
 
 	c.db = &dbs[0]
 	colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
 		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
 		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: creds.Collection},
+			{Name: "@id", Value: m.Collection},
 		},
 	})
 	if err != nil {
 		return err
 	} else if len(colls) == 0 {
-		return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", creds.Collection)
+		return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection)
 	}
 
 	c.collection = &colls[0]
 	c.client = client
+	c.contentType = m.ContentType
 
 	sps, err := c.client.ReadStoredProcedures(c.collection.Self)
 	if err != nil {
@@ -144,6 +172,11 @@ func (c *StateStore) Init(metadata state.Metadata) error {
 	c.logger.Debug("cosmos Init done")
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (c *StateStore) Features() []state.Feature {
+	return c.features
 }
 
 // Get retrieves a CosmosDB item
@@ -216,7 +249,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	doc := createUpsertItem(*req, partitionKey)
+	doc := createUpsertItem(c.contentType, *req, partitionKey)
 	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
 
 	if err != nil {
@@ -296,7 +329,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			upsertOperation := createUpsertItem(req, partitionKey)
+			upsertOperation := createUpsertItem(c.contentType, req, partitionKey)
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -326,6 +359,40 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
+func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) CosmosItem {
+	byteArray, isBinary := req.Value.([]uint8)
+	if isBinary {
+		if contenttype.IsJSONContentType(contentType) {
+			var value map[string]interface{}
+			err := json.Unmarshal(byteArray, &value)
+			// if byte array is not a valid JSON, so keep it as-is to be Base64 encoded in CosmosDB.
+			// otherwise, we save it as JSON
+			if err == nil {
+				return CosmosItem{
+					ID:           req.Key,
+					Value:        value,
+					PartitionKey: partitionKey,
+					IsBinary:     false,
+				}
+			}
+		} else if contenttype.IsStringContentType(contentType) {
+			return CosmosItem{
+				ID:           req.Key,
+				Value:        string(byteArray),
+				PartitionKey: partitionKey,
+				IsBinary:     false,
+			}
+		}
+	}
+
+	return CosmosItem{
+		ID:           req.Key,
+		Value:        req.Value,
+		PartitionKey: partitionKey,
+		IsBinary:     isBinary,
+	}
+}
+
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,
 // use that, otherwise use what's in "key".
 func populatePartitionMetadata(key string, requestMetadata map[string]string) string {
@@ -334,15 +401,4 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	}
 
 	return key
-}
-
-func createUpsertItem(req state.SetRequest, partitionKey string) CosmosItem {
-	_, isBinary := req.Value.([]uint8)
-
-	return CosmosItem{
-		ID:           req.Key,
-		Value:        req.Value,
-		PartitionKey: partitionKey,
-		IsBinary:     isBinary,
-	}
 }

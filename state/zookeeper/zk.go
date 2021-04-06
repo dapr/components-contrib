@@ -111,7 +111,8 @@ type StateStore struct {
 	*config
 	conn Conn
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 var (
@@ -121,7 +122,10 @@ var (
 
 // NewZookeeperStateStore returns a new Zookeeper state store
 func NewZookeeperStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{logger: logger}
+	return &StateStore{
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
+	}
 }
 
 func (s *StateStore) Init(metadata state.Metadata) (err error) {
@@ -141,6 +145,11 @@ func (s *StateStore) Init(metadata state.Metadata) (err error) {
 	s.conn = conn
 
 	return
+}
+
+// Features returns the features available in this state store
+func (s *StateStore) Features() []state.Feature {
+	return s.features
 }
 
 // Get retrieves state from Zookeeper with a key

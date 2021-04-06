@@ -32,6 +32,8 @@ func getFakeProperties() map[string]string {
 		prefetchCount:                  "10",
 		maxActiveMessages:              "100",
 		maxActiveMessagesRecoveryInSec: "5",
+		maxReconnectionAttempts:        "30",
+		connectionRecoveryInSec:        "5",
 	}
 }
 
@@ -60,6 +62,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 100, m.MaxActiveMessages)
 		assert.NotNil(t, m.MaxActiveMessagesRecoveryInSec)
 		assert.Equal(t, 5, m.MaxActiveMessagesRecoveryInSec)
+		assert.NotNil(t, m.MaxReconnectionAttempts)
+		assert.Equal(t, 30, m.MaxReconnectionAttempts)
+		assert.NotNil(t, m.ConnectionRecoveryInSec)
+		assert.Equal(t, 5, m.ConnectionRecoveryInSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
 		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
@@ -292,6 +298,70 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxReconnectionAttempts", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxReconnectionAttempts] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 30, m.MaxReconnectionAttempts)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxReconnectionAttempts", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxReconnectionAttempts] = invalidNumber
+
+		// act
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional connectionRecoveryInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[connectionRecoveryInSec] = ""
+
+		// act
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert
+		assert.Equal(t, 2, m.ConnectionRecoveryInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional connectionRecoveryInSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[connectionRecoveryInSec] = invalidNumber
 
 		// act
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

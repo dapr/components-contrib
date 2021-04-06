@@ -52,13 +52,13 @@ type kafkaMetadata struct {
 
 type consumer struct {
 	ready    chan bool
-	callback func(*bindings.ReadResponse) error
+	callback func(*bindings.ReadResponse) ([]byte, error)
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
-			err := consumer.callback(&bindings.ReadResponse{
+			_, err := consumer.callback(&bindings.ReadResponse{
 				Data: message.Value,
 			})
 			if err == nil {
@@ -207,7 +207,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	return producer, nil
 }
 
-func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
+func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
 	// ignore SASL properties if authRequired is false

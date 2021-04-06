@@ -28,6 +28,7 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/coreos/go-oidc v2.1.0+incompatible
+	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/dapr v1.0.1-0.20210303190006-b2271c9a8a58
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73

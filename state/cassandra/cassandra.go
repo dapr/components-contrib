@@ -99,6 +99,11 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (c *Cassandra) Features() []state.Feature {
+	return nil
+}
+
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {
 	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
 }

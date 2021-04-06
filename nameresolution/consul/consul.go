@@ -1,9 +1,7 @@
 package consul
 
 import (
-	"bytes"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -14,25 +12,7 @@ import (
 	"github.com/dapr/dapr/pkg/logger"
 )
 
-type configSpec struct {
-	ClientConfig         *consul.Config
-	Checks               []*consul.AgentServiceCheck
-	Tags                 []string
-	Meta                 map[string]string
-	QueryOptions         *consul.QueryOptions
-	AdvancedRegistration *consul.AgentServiceRegistration // advanced use-case
-	SelfRegister         bool
-	DaprPortMetaKey      string
-}
-
 const daprMeta string = "DAPR_PORT" // default key for DAPR_PORT metadata
-
-type resolverConfig struct {
-	ClientConfig    *consul.Config
-	QueryOptions    *consul.QueryOptions
-	Registration    *consul.AgentServiceRegistration
-	DaprPortMetaKey string
-}
 
 type client struct {
 	*consul.Client
@@ -78,6 +58,13 @@ type resolver struct {
 	client clientInterface
 }
 
+type resolverConfig struct {
+	Client          *consul.Config
+	QueryOptions    *consul.QueryOptions
+	Registration    *consul.AgentServiceRegistration
+	DaprPortMetaKey string
+}
+
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
 	return newResolver(logger, resolverConfig{}, &client{})
@@ -100,7 +87,7 @@ func (r *resolver) Init(metadata nr.Metadata) error {
 		return err
 	}
 
-	if err = r.client.InitClient(r.config.ClientConfig); err != nil {
+	if err = r.client.InitClient(r.config.Client); err != nil {
 		return fmt.Errorf("failed to init consul client: %w", err)
 	}
 
@@ -188,7 +175,7 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 		resolverCfg.DaprPortMetaKey = cfg.DaprPortMetaKey
 	}
 
-	resolverCfg.ClientConfig = getClientConfig(cfg)
+	resolverCfg.Client = getClientConfig(cfg)
 	if resolverCfg.Registration, err = getRegistrationConfig(cfg, props); err != nil {
 		return resolverCfg, err
 	}
@@ -208,8 +195,8 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 
 func getClientConfig(cfg configSpec) *consul.Config {
 	// If no client config use library defaults
-	if cfg.ClientConfig != nil {
-		return cfg.ClientConfig
+	if cfg.Client != nil {
+		return cfg.Client
 	}
 
 	return consul.DefaultConfig()
@@ -283,54 +270,4 @@ func getQueryOptionsConfig(cfg configSpec) *consul.QueryOptions {
 	}
 
 	return cfg.QueryOptions
-}
-
-func parseConfig(rawConfig interface{}) (configSpec, error) {
-	config := configSpec{}
-	rawConfig, err := convertGenericConfig(rawConfig)
-	if err != nil {
-		return config, err
-	}
-
-	data, err := json.Marshal(rawConfig)
-	if err != nil {
-		return config, fmt.Errorf("error serializing to json: %w", err)
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&config); err != nil {
-		return config, fmt.Errorf("error deserializing to configSpec: %w", err)
-	}
-
-	return config, nil
-}
-
-// helper function for transforming interface{} into json serializable
-func convertGenericConfig(i interface{}) (interface{}, error) {
-	var err error
-	switch x := i.(type) {
-	case map[interface{}]interface{}:
-		m2 := map[string]interface{}{}
-		for k, v := range x {
-			if strKey, ok := k.(string); ok {
-				if m2[strKey], err = convertGenericConfig(v); err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, fmt.Errorf("error parsing config field: %v", k)
-			}
-		}
-
-		return m2, nil
-	case []interface{}:
-		for i, v := range x {
-			if x[i], err = convertGenericConfig(v); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return i, nil
 }

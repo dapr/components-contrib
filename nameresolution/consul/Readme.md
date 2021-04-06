@@ -18,7 +18,7 @@ spec:
 
 ### External Registration
 
-If consul service registration is managed externally from dapr you need to ensure that the dapr-to-dapr internal grpc port is added to the service metadata under `DAPR_PORT` (this key is configurable). The config should then look as follows:
+If consul service registration is managed externally from dapr you need to ensure that the dapr-to-dapr internal grpc port is added to the service metadata under `DAPR_PORT` (this key is configurable) and that the consul service Id matches the dapr app Id. The config should then look as follows:
 
 ```yaml
 spec:
@@ -36,16 +36,18 @@ The component resolves target apps by filtering healthy services and looks for a
 
 ## Configuration Spec
 
+As of writing the configuration spec is fixed to v1.3.0 of the consul api
+
 | Name          | Type              | Description      |
 | :------------ |------------------:| :----------------|
-| ClientConfig  | [*api.Config](https://pkg.go.dev/github.com/hashicorp/consul/api#Config) | Configures client connection to the consul agent. If blank it will use the sdk defaults, which in this case is just an address of `127.0.0.1:8500` |
-| QueryOptions  | [*api.QueryOptions](https://pkg.go.dev/github.com/hashicorp/consul/api#QueryOptions) | Configures query used for resolving healthy services, if blank it will default to `UseCache` as `true` |
-| Checks | [[]*api.AgentServiceCheck](https://pkg.go.dev/github.com/hashicorp/consul/api#AgentServiceCheck) | Configures health checks if/when registering. If blank it will default to a single health check on the Dapr sidecar health endpoint |
+| Client  | [*api.Config](https://pkg.go.dev/github.com/hashicorp/consul/api@v1.3.0#Config) | Configures client connection to the consul agent. If blank it will use the sdk defaults, which in this case is just an address of `127.0.0.1:8500` |
+| QueryOptions  | [*api.QueryOptions](https://pkg.go.dev/github.com/hashicorp/consul/api@v1.3.0#QueryOptions) | Configures query used for resolving healthy services, if blank it will default to `UseCache` as `true` |
+| Checks | [[]*api.AgentServiceCheck](https://pkg.go.dev/github.com/hashicorp/consul/api@v1.3.0#AgentServiceCheck) | Configures health checks if/when registering. If blank it will default to a single health check on the Dapr sidecar health endpoint |
 | Tags | `[]string` | Configures any tags to include if/when registering services |
 | Meta | `map[string]string` | Configures any additional metadata to include if/when registering services |
 | DaprPortMetaKey | `string` | The key used for getting the Dapr sidecar port from consul service metadata during service resolution, it will also be used to set the Dapr sidecar port in metadata during registration. If blank it will default to `DAPR_PORT` |
 | SelfRegister | `bool` | Controls if Dapr will register the service to consul. The name resolution interface does not cater for an "on shutdown" pattern so please consider this if using Dapr to register services to consul as it will not deregister services. |
-| AdvancedRegistration | [*api.AgentServiceRegistration](https://pkg.go.dev/github.com/hashicorp/consul/api#AgentServiceRegistration) | Gives full control of service registration through configuration. If configured the component will ignore any configuration of Checks, Tags, Meta and SelfRegister. |
+| AdvancedRegistration | [*api.AgentServiceRegistration](https://pkg.go.dev/github.com/hashicorp/consul/api@v1.3.0#AgentServiceRegistration) | Gives full control of service registration through configuration. If configured the component will ignore any configuration of Checks, Tags, Meta and SelfRegister. |
 
 ## Samples Configurations
 
@@ -69,7 +71,7 @@ spec:
   nameResolution:
     component: "consul"
     configuration:
-      clientConfig:
+      client:
         address: "127.0.0.1:8500"
       selfRegister: true
       checks:
@@ -103,7 +105,7 @@ spec:
   nameResolution:
     component: "consul"
     configuration:
-      clientConfig:
+      client:
           address: "127.0.0.1:8500"
       selfRegister: false
       queryOptions:

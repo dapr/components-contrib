@@ -446,7 +446,7 @@ func TestGetConfig(t *testing.T) {
 		test     func(*testing.T, nr.Metadata)
 	}{
 		{
-			"empty configuration should only return ClientConfig, QueryOptions and DaprPortMetaKey",
+			"empty configuration should only return Client, QueryOptions and DaprPortMetaKey",
 			nr.Metadata{
 				Properties:    getTestPropsWithoutKey(""),
 				Configuration: nil,
@@ -456,7 +456,7 @@ func TestGetConfig(t *testing.T) {
 				actual, _ := getConfig(metadata)
 
 				// Client
-				assert.Equal(t, consul.DefaultConfig().Address, actual.ClientConfig.Address)
+				assert.Equal(t, consul.DefaultConfig().Address, actual.Client.Address)
 
 				// Registration
 				assert.Nil(t, actual.Registration)
@@ -481,7 +481,7 @@ func TestGetConfig(t *testing.T) {
 				t.Helper()
 				actual, _ := getConfig(metadata)
 				// Client
-				assert.Equal(t, consul.DefaultConfig().Address, actual.ClientConfig.Address)
+				assert.Equal(t, consul.DefaultConfig().Address, actual.Client.Address)
 
 				// Checks
 				assert.Equal(t, 1, len(actual.Registration.Checks))
@@ -788,6 +788,443 @@ func TestGetConfig(t *testing.T) {
 			tt.test(t, tt.metadata)
 		})
 	}
+}
+
+func TestMapConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should map full configuration", func(t *testing.T) {
+		t.Helper()
+
+		expected := intermediateConfig{
+			Client: &Config{
+				Address:    "Address",
+				Scheme:     "Scheme",
+				Datacenter: "Datacenter",
+				HttpAuth: &HttpBasicAuth{
+					Username: "Username",
+					Password: "Password",
+				},
+				WaitTime:  10,
+				Token:     "Token",
+				TokenFile: "TokenFile",
+				TLSConfig: TLSConfig{
+					Address:            "Address",
+					CAFile:             "CAFile",
+					CAPath:             "CAPath",
+					CertFile:           "CertFile",
+					KeyFile:            "KeyFile",
+					InsecureSkipVerify: true,
+				},
+			},
+			Checks: []*AgentServiceCheck{
+				{
+					Args: []string{
+						"arg1",
+						"arg2",
+					},
+					CheckID:                        "CheckID",
+					Name:                           "Name",
+					DockerContainerID:              "DockerContainerID",
+					Shell:                          "Shell",
+					Interval:                       "Interval",
+					Timeout:                        "Timeout",
+					TTL:                            "TTL",
+					HTTP:                           "HTTP",
+					Method:                         "Method",
+					TCP:                            "TCP",
+					Status:                         "Status",
+					Notes:                          "Notes",
+					GRPC:                           "GRPC",
+					AliasNode:                      "AliasNode",
+					AliasService:                   "AliasService",
+					DeregisterCriticalServiceAfter: "DeregisterCriticalServiceAfter",
+					Header: map[string][]string{
+						"M":  {"Key", "Value"},
+						"M2": {"Key2", "Value2"},
+					},
+					TLSSkipVerify: true,
+					GRPCUseTLS:    true,
+				},
+				{
+					Args: []string{
+						"arg1",
+						"arg2",
+					},
+					CheckID:                        "CheckID2",
+					Name:                           "Name2",
+					DockerContainerID:              "DockerContainerID2",
+					Shell:                          "Shell2",
+					Interval:                       "Interval2",
+					Timeout:                        "Timeout2",
+					TTL:                            "TTL2",
+					HTTP:                           "HTTP2",
+					Method:                         "Method2",
+					TCP:                            "TCP2",
+					Status:                         "Status2",
+					Notes:                          "Notes2",
+					GRPC:                           "GRPC2",
+					AliasNode:                      "AliasNode2",
+					AliasService:                   "AliasService2",
+					DeregisterCriticalServiceAfter: "DeregisterCriticalServiceAfter2",
+					Header: map[string][]string{
+						"M":  {"Key", "Value"},
+						"M2": {"Key2", "Value2"},
+					},
+					TLSSkipVerify: true,
+					GRPCUseTLS:    true,
+				},
+			},
+			Tags: []string{
+				"tag1",
+				"tag2",
+			},
+			Meta: map[string]string{
+				"M":  "Value",
+				"M2": "Value2",
+			},
+			QueryOptions: &QueryOptions{
+				Datacenter:   "Datacenter",
+				WaitHash:     "WaitHash",
+				Token:        "Token",
+				Near:         "Near",
+				Filter:       "Filter",
+				MaxAge:       11,
+				StaleIfError: 22,
+				WaitIndex:    33,
+				WaitTime:     44,
+				NodeMeta: map[string]string{
+					"M":  "Value",
+					"M2": "Value2",
+				},
+				AllowStale:        true,
+				RequireConsistent: true,
+				UseCache:          true,
+				RelayFactor:       55,
+				LocalOnly:         true,
+				Connect:           true,
+			},
+			AdvancedRegistration: &AgentServiceRegistration{
+				Kind: "Kind",
+				ID:   "ID",
+				Name: "Name",
+				Tags: []string{
+					"tag1",
+					"tag2",
+				},
+				Meta: map[string]string{
+					"M":  "Value",
+					"M2": "Value2",
+				},
+				Port:    123456,
+				Address: "Address",
+				TaggedAddresses: map[string]ServiceAddress{
+					"T1": {
+						Address: "Address",
+						Port:    234567,
+					},
+					"T2": {
+						Address: "Address",
+						Port:    345678,
+					},
+				},
+				EnableTagOverride: true,
+				Weights: &AgentWeights{
+					Passing: 123,
+					Warning: 321,
+				},
+				Check: &AgentServiceCheck{
+					Args: []string{
+						"arg1",
+						"arg2",
+					},
+					CheckID:                        "CheckID2",
+					Name:                           "Name2",
+					DockerContainerID:              "DockerContainerID2",
+					Shell:                          "Shell2",
+					Interval:                       "Interval2",
+					Timeout:                        "Timeout2",
+					TTL:                            "TTL2",
+					HTTP:                           "HTTP2",
+					Method:                         "Method2",
+					TCP:                            "TCP2",
+					Status:                         "Status2",
+					Notes:                          "Notes2",
+					GRPC:                           "GRPC2",
+					AliasNode:                      "AliasNode2",
+					AliasService:                   "AliasService2",
+					DeregisterCriticalServiceAfter: "DeregisterCriticalServiceAfter2",
+					Header: map[string][]string{
+						"M":  {"Key", "Value"},
+						"M2": {"Key2", "Value2"},
+					},
+					TLSSkipVerify: true,
+					GRPCUseTLS:    true,
+				},
+				Checks: AgentServiceChecks{
+					{
+						Args: []string{
+							"arg1",
+							"arg2",
+						},
+						CheckID:                        "CheckID",
+						Name:                           "Name",
+						DockerContainerID:              "DockerContainerID",
+						Shell:                          "Shell",
+						Interval:                       "Interval",
+						Timeout:                        "Timeout",
+						TTL:                            "TTL",
+						HTTP:                           "HTTP",
+						Method:                         "Method",
+						TCP:                            "TCP",
+						Status:                         "Status",
+						Notes:                          "Notes",
+						GRPC:                           "GRPC",
+						AliasNode:                      "AliasNode",
+						AliasService:                   "AliasService",
+						DeregisterCriticalServiceAfter: "DeregisterCriticalServiceAfter",
+						Header: map[string][]string{
+							"M":  {"Key", "Value"},
+							"M2": {"Key2", "Value2"},
+						},
+						TLSSkipVerify: true,
+						GRPCUseTLS:    true,
+					},
+					{
+						Args: []string{
+							"arg1",
+							"arg2",
+						},
+						CheckID:                        "CheckID2",
+						Name:                           "Name2",
+						DockerContainerID:              "DockerContainerID2",
+						Shell:                          "Shell2",
+						Interval:                       "Interval2",
+						Timeout:                        "Timeout2",
+						TTL:                            "TTL2",
+						HTTP:                           "HTTP2",
+						Method:                         "Method2",
+						TCP:                            "TCP2",
+						Status:                         "Status2",
+						Notes:                          "Notes2",
+						GRPC:                           "GRPC2",
+						AliasNode:                      "AliasNode2",
+						AliasService:                   "AliasService2",
+						DeregisterCriticalServiceAfter: "DeregisterCriticalServiceAfter2",
+						Header: map[string][]string{
+							"M":  {"Key", "Value"},
+							"M2": {"Key2", "Value2"},
+						},
+						TLSSkipVerify: true,
+						GRPCUseTLS:    true,
+					},
+				},
+				Proxy: &AgentServiceConnectProxyConfig{
+					DestinationServiceName: "DestinationServiceName",
+					DestinationServiceID:   "DestinationServiceID",
+					LocalServiceAddress:    "LocalServiceAddress",
+					LocalServicePort:       123456,
+					Config: map[string]interface{}{
+						"Random": 123123,
+					},
+					Upstreams: []Upstream{
+						{
+							DestinationType:      "DestinationType",
+							DestinationNamespace: "DestinationNamespace",
+							DestinationName:      "DestinationName",
+							Datacenter:           "Datacenter",
+							LocalBindAddress:     "LocalBindAddress",
+							LocalBindPort:        234567,
+							Config: map[string]interface{}{
+								"Random": 321321,
+							},
+							MeshGateway: MeshGatewayConfig{
+								Mode: "Mode",
+							},
+						},
+					},
+					MeshGateway: MeshGatewayConfig{
+						Mode: "Mode2",
+					},
+					Expose: ExposeConfig{
+						Checks: true,
+						Paths: []ExposePath{
+							{
+								ListenerPort:    123456,
+								Path:            "Path",
+								LocalPathPort:   234567,
+								Protocol:        "Protocol",
+								ParsedFromCheck: true,
+							},
+						},
+					},
+				},
+				Connect: &AgentServiceConnect{
+					Native:         true,
+					SidecarService: nil,
+				},
+			},
+			SelfRegister:    true,
+			DaprPortMetaKey: "SOMETHINGSOMETHING",
+		}
+
+		actual := mapConfig(expected)
+
+		compareQueryOptions(t, expected.QueryOptions, actual.QueryOptions)
+		compareRegistration(t, expected.AdvancedRegistration, actual.AdvancedRegistration)
+		compareClientConfig(t, expected.Client, actual.Client)
+
+		for i := 0; i < len(expected.Checks); i++ {
+			compareCheck(t, expected.Checks[i], actual.Checks[i])
+		}
+
+		assert.Equal(t, expected.Tags, actual.Tags)
+		assert.Equal(t, expected.Meta, actual.Meta)
+		assert.Equal(t, expected.SelfRegister, actual.SelfRegister)
+		assert.Equal(t, expected.DaprPortMetaKey, actual.DaprPortMetaKey)
+	})
+
+	t.Run("should map empty configuration", func(t *testing.T) {
+		t.Helper()
+
+		expected := intermediateConfig{}
+
+		actual := mapConfig(expected)
+
+		assert.Equal(t, configSpec{}, actual)
+	})
+
+}
+
+func compareQueryOptions(t *testing.T, expected *QueryOptions, actual *consul.QueryOptions) {
+	assert.Equal(t, expected.Datacenter, actual.Datacenter)
+	assert.Equal(t, expected.AllowStale, actual.AllowStale)
+	assert.Equal(t, expected.RequireConsistent, actual.RequireConsistent)
+	assert.Equal(t, expected.UseCache, actual.UseCache)
+	assert.Equal(t, expected.MaxAge, actual.MaxAge)
+	assert.Equal(t, expected.StaleIfError, actual.StaleIfError)
+	assert.Equal(t, expected.WaitIndex, actual.WaitIndex)
+	assert.Equal(t, expected.WaitHash, actual.WaitHash)
+	assert.Equal(t, expected.WaitTime, actual.WaitTime)
+	assert.Equal(t, expected.Token, actual.Token)
+	assert.Equal(t, expected.Near, actual.Near)
+	assert.Equal(t, expected.NodeMeta, actual.NodeMeta)
+	assert.Equal(t, expected.RelayFactor, actual.RelayFactor)
+	assert.Equal(t, expected.LocalOnly, actual.LocalOnly)
+	assert.Equal(t, expected.Connect, actual.Connect)
+	assert.Equal(t, expected.Filter, actual.Filter)
+}
+
+func compareClientConfig(t *testing.T, expected *Config, actual *consul.Config) {
+	assert.Equal(t, expected.Address, actual.Address)
+	assert.Equal(t, expected.Datacenter, actual.Datacenter)
+
+	if expected.HttpAuth != nil {
+		assert.Equal(t, expected.HttpAuth.Username, actual.HttpAuth.Username)
+		assert.Equal(t, expected.HttpAuth.Password, actual.HttpAuth.Password)
+	}
+
+	assert.Equal(t, expected.Scheme, actual.Scheme)
+
+	assert.Equal(t, expected.TLSConfig.Address, actual.TLSConfig.Address)
+	assert.Equal(t, expected.TLSConfig.CAFile, actual.TLSConfig.CAFile)
+	assert.Equal(t, expected.TLSConfig.CAPath, actual.TLSConfig.CAPath)
+	assert.Equal(t, expected.TLSConfig.CertFile, actual.TLSConfig.CertFile)
+	assert.Equal(t, expected.TLSConfig.InsecureSkipVerify, actual.TLSConfig.InsecureSkipVerify)
+	assert.Equal(t, expected.TLSConfig.KeyFile, actual.TLSConfig.KeyFile)
+
+	assert.Equal(t, expected.Token, actual.Token)
+	assert.Equal(t, expected.TokenFile, actual.TokenFile)
+	assert.Equal(t, expected.WaitTime, actual.WaitTime)
+}
+
+func compareRegistration(t *testing.T, expected *AgentServiceRegistration, actual *consul.AgentServiceRegistration) {
+	assert.Equal(t, expected.Kind, string(actual.Kind))
+	assert.Equal(t, expected.ID, actual.ID)
+	assert.Equal(t, expected.Name, actual.Name)
+	assert.Equal(t, expected.Tags, actual.Tags)
+	assert.Equal(t, expected.Port, actual.Port)
+	assert.Equal(t, expected.Address, actual.Address)
+
+	if expected.TaggedAddresses != nil {
+		for k := range expected.TaggedAddresses {
+			assert.Equal(t, expected.TaggedAddresses[k].Address, actual.TaggedAddresses[k].Address)
+			assert.Equal(t, expected.TaggedAddresses[k].Port, actual.TaggedAddresses[k].Port)
+		}
+	}
+
+	assert.Equal(t, expected.EnableTagOverride, actual.EnableTagOverride)
+	assert.Equal(t, expected.Meta, actual.Meta)
+
+	if expected.Weights != nil {
+		assert.Equal(t, expected.Weights.Passing, actual.Weights.Passing)
+		assert.Equal(t, expected.Weights.Warning, actual.Weights.Warning)
+	}
+
+	compareCheck(t, expected.Check, actual.Check)
+
+	for i := 0; i < len(expected.Checks); i++ {
+		compareCheck(t, expected.Checks[i], actual.Checks[i])
+	}
+
+	if expected.Proxy != nil {
+		assert.Equal(t, expected.Proxy.DestinationServiceName, actual.Proxy.DestinationServiceName)
+		assert.Equal(t, expected.Proxy.DestinationServiceID, actual.Proxy.DestinationServiceID)
+		assert.Equal(t, expected.Proxy.LocalServiceAddress, actual.Proxy.LocalServiceAddress)
+		assert.Equal(t, expected.Proxy.LocalServicePort, actual.Proxy.LocalServicePort)
+		assert.Equal(t, expected.Proxy.Config, actual.Proxy.Config)
+
+		for i := 0; i < len(expected.Proxy.Upstreams); i++ {
+			assert.Equal(t, string(expected.Proxy.Upstreams[i].DestinationType), string(actual.Proxy.Upstreams[i].DestinationType))
+			assert.Equal(t, expected.Proxy.Upstreams[i].DestinationNamespace, actual.Proxy.Upstreams[i].DestinationNamespace)
+			assert.Equal(t, expected.Proxy.Upstreams[i].DestinationName, actual.Proxy.Upstreams[i].DestinationName)
+			assert.Equal(t, expected.Proxy.Upstreams[i].Datacenter, actual.Proxy.Upstreams[i].Datacenter)
+			assert.Equal(t, expected.Proxy.Upstreams[i].LocalBindAddress, actual.Proxy.Upstreams[i].LocalBindAddress)
+			assert.Equal(t, expected.Proxy.Upstreams[i].LocalBindPort, actual.Proxy.Upstreams[i].LocalBindPort)
+			assert.Equal(t, expected.Proxy.Upstreams[i].Config, actual.Proxy.Upstreams[i].Config)
+			assert.Equal(t, string(expected.Proxy.Upstreams[i].MeshGateway.Mode), string(actual.Proxy.Upstreams[i].MeshGateway.Mode))
+		}
+
+		assert.Equal(t, string(expected.Proxy.MeshGateway.Mode), string(actual.Proxy.MeshGateway.Mode))
+
+		assert.Equal(t, expected.Proxy.Expose.Checks, actual.Proxy.Expose.Checks)
+
+		for i := 0; i < len(expected.Proxy.Expose.Paths); i++ {
+			assert.Equal(t, expected.Proxy.Expose.Paths[i].ListenerPort, actual.Proxy.Expose.Paths[i].ListenerPort)
+			assert.Equal(t, expected.Proxy.Expose.Paths[i].LocalPathPort, actual.Proxy.Expose.Paths[i].LocalPathPort)
+			assert.Equal(t, expected.Proxy.Expose.Paths[i].ParsedFromCheck, actual.Proxy.Expose.Paths[i].ParsedFromCheck)
+			assert.Equal(t, expected.Proxy.Expose.Paths[i].Path, actual.Proxy.Expose.Paths[i].Path)
+			assert.Equal(t, expected.Proxy.Expose.Paths[i].Protocol, actual.Proxy.Expose.Paths[i].Protocol)
+		}
+	}
+	assert.Equal(t, expected.Connect.Native, actual.Connect.Native)
+
+	if expected.Connect.SidecarService != nil {
+		compareRegistration(t, expected.Connect.SidecarService, actual.Connect.SidecarService)
+	}
+}
+
+func compareCheck(t *testing.T, expected *AgentServiceCheck, actual *consul.AgentServiceCheck) {
+	assert.Equal(t, expected.Args, actual.Args)
+	assert.Equal(t, expected.CheckID, actual.CheckID)
+	assert.Equal(t, expected.Name, actual.Name)
+	assert.Equal(t, expected.DockerContainerID, actual.DockerContainerID)
+	assert.Equal(t, expected.Shell, actual.Shell)
+	assert.Equal(t, expected.Interval, actual.Interval)
+	assert.Equal(t, expected.Timeout, actual.Timeout)
+	assert.Equal(t, expected.TTL, actual.TTL)
+	assert.Equal(t, expected.HTTP, actual.HTTP)
+	assert.Equal(t, expected.Method, actual.Method)
+	assert.Equal(t, expected.TCP, actual.TCP)
+	assert.Equal(t, expected.Status, actual.Status)
+	assert.Equal(t, expected.Notes, actual.Notes)
+	assert.Equal(t, expected.GRPC, actual.GRPC)
+	assert.Equal(t, expected.AliasNode, actual.AliasNode)
+	assert.Equal(t, expected.AliasService, actual.AliasService)
+	assert.Equal(t, expected.DeregisterCriticalServiceAfter, actual.DeregisterCriticalServiceAfter)
+	assert.Equal(t, expected.Header, actual.Header)
+	assert.Equal(t, expected.TLSSkipVerify, actual.TLSSkipVerify)
+	assert.Equal(t, expected.GRPCUseTLS, actual.GRPCUseTLS)
 }
 
 func getTestPropsWithoutKey(removeKey string) map[string]string {

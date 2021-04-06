@@ -293,7 +293,15 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	opts := mqtt.NewClientOptions()
 	opts.SetClientID(clientID)
 	opts.SetCleanSession(m.metadata.cleanSession)
-	opts.AddBroker(uri.Scheme + "://" + uri.Host)
+	// URL scheme backward compatibility
+	scheme := uri.Scheme
+	switch scheme {
+	case "mqtt":
+		scheme = "tcp"
+	case "mqtts":
+		scheme = "ssl"
+	}
+	opts.AddBroker(scheme + "://" + uri.Host)
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)

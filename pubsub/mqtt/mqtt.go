@@ -291,7 +291,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	switch scheme {
 	case "mqtt":
 		scheme = "tcp"
-	case "mqtts":
+	case "mqtts", "tcps":
 		scheme = "ssl"
 	}
 	opts.AddBroker(scheme + "://" + uri.Host)

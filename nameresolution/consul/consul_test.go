@@ -1093,7 +1093,6 @@ func TestMapConfig(t *testing.T) {
 
 		assert.Equal(t, configSpec{}, actual)
 	})
-
 }
 
 func compareQueryOptions(t *testing.T, expected *QueryOptions, actual *consul.QueryOptions) {

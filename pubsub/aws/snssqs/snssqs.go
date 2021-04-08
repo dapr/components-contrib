@@ -1,6 +1,7 @@
 package snssqs
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -362,7 +363,7 @@ func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) erro
 	return err
 }
 
-func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, handler func(msg *pubsub.NewMessage) error) error {
+func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, handler pubsub.Handler) error {
 	// if this message has been received > x times, delete from queue, it's borked
 	recvCount, ok := message.Attributes[sqs.MessageSystemAttributeNameApproximateReceiveCount]
 
@@ -397,7 +398,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 
 	topic := parseTopicArn(messageBody.TopicArn)
 	topic = s.topicHash[topic]
-	err = handler(&pubsub.NewMessage{
+	err = handler(context.Background(), &pubsub.NewMessage{
 		Data:  []byte(messageBody.Message),
 		Topic: topic,
 	})
@@ -410,7 +411,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	return s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle)
 }
 
-func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *pubsub.NewMessage) error) {
+func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler pubsub.Handler) {
 	go func() {
 		for {
 			messageResponse, err := s.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
@@ -447,7 +448,7 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler func(msg *
 	}()
 }
 
-func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	// subscribers declare a topic ARN
 	// and declare a SQS queue to use
 	// these should be idempotent

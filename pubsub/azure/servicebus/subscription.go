@@ -198,7 +198,7 @@ func (s *subscription) tryRenewLocks() {
 	s.logger.Debugf("Trying to renew %d active message lock(s) for topic %s", len(msgs), s.topic)
 	err := s.entity.RenewLocks(context.Background(), msgs...)
 	if err != nil {
-		s.logger.Warnf("Couldn't renew all active message lock(s) for topic %s, ", s.topic, err)
+		s.logger.Debugf("Couldn't renew all active message lock(s) for topic %s, ", s.topic, err)
 	}
 }
 

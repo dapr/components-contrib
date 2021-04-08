@@ -185,7 +185,7 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe to the mqtt pub sub topic.
-func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	m.topics[req.Topic] = m.metadata.qos
 
 	// reset synchronization
@@ -218,7 +218,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 				}
 				if err := pubsub.RetryNotifyRecover(func() error {
 					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-					if err := handler(&msg); err != nil {
+					if err := handler(m.ctx, &msg); err != nil {
 						return err
 					}
 

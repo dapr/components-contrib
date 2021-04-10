@@ -15,7 +15,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
-	redis "github.com/go-redis/redis/v7"
+	redis "github.com/go-redis/redis/v8"
 )
 
 const (
@@ -66,7 +66,7 @@ func (r *Redis) Init(meta bindings.Metadata) error {
 	}
 
 	r.client = redis.NewClient(opts)
-	_, err = r.client.Ping().Result()
+	_, err = r.client.Ping(context.Background()).Result()
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", m.host, err)
 	}
@@ -124,7 +124,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.client.DoContext(context.Background(), "SET", key, req.Data).Result()
+		_, err := r.client.Do(context.Background(), "SET", key, req.Data).Result()
 		if err != nil {
 			return nil, err
 		}

@@ -38,7 +38,7 @@ require (
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/eclipse/paho.mqtt.golang v1.3.2
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
-	github.com/go-redis/redis/v7 v7.0.1
+	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.4
@@ -64,7 +64,7 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	github.com/valyala/fasthttp v1.19.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2

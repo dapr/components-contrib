@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/agrea/ptr"
-	redis "github.com/go-redis/redis/v7"
+	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
@@ -141,7 +141,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		r.client = r.newClient(m)
 	}
 
-	if _, err = r.client.Ping().Result(); err != nil {
+	if _, err = r.client.Ping(context.Background()).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
 	}
 
@@ -195,7 +195,7 @@ func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.DoContext(context.Background(), "INFO", "replication").Result()
+	res, err := r.client.Do(context.Background(), "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}
@@ -228,7 +228,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 		etag := "0"
 		req.ETag = &etag
 	}
-	_, err := r.client.DoContext(context.Background(), "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err := r.client.Do(context.Background(), "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -247,7 +247,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.DoContext(context.Background(), "GET", req.Key).Result()
+	res, err := r.client.Do(context.Background(), "GET", req.Key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 
 // Get retrieves state from redis with a key
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.DoContext(context.Background(), "HGETALL", req.Key).Result() // Prefer values with ETags
+	res, err := r.client.Do(context.Background(), "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
@@ -300,7 +300,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
-	_, err = r.client.DoContext(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt).Result()
+	_, err = r.client.Do(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt).Result()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -310,7 +310,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		_, err = r.client.DoContext(context.Background(), "WAIT", r.replicas, 1000).Result()
+		_, err = r.client.Do(context.Background(), "WAIT", r.replicas, 1000).Result()
 		if err != nil {
 			return fmt.Errorf("timed out while waiting for %v replicas to acknowledge write", r.replicas)
 		}
@@ -335,18 +335,18 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
-			pipe.Do("EVAL", setQuery, 1, req.Key, ver, bt)
+			pipe.Do(context.Background(), "EVAL", setQuery, 1, req.Key, ver, bt)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			if req.ETag == nil {
 				etag := "0"
 				req.ETag = &etag
 			}
-			pipe.Do("EVAL", delQuery, 1, req.Key, *req.ETag)
+			pipe.Do(context.Background(), "EVAL", delQuery, 1, req.Key, *req.ETag)
 		}
 	}
 
-	_, err := pipe.Exec()
+	_, err := pipe.Exec(context.Background())
 
 	return err
 }

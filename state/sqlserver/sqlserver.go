@@ -153,97 +153,24 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 		return fmt.Errorf("missing connection string")
 	}
 
-	if val, ok := metadata.Properties[tableNameKey]; ok && val != "" {
-		if !isValidSQLName(val) {
-			return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-
-		s.tableName = val
-	} else {
-		s.tableName = defaultTable
+	if err := s.getTable(metadata); err != nil {
+		return err
 	}
 
-	if val, ok := metadata.Properties[databaseNameKey]; ok && val != "" {
-		if !isValidSQLName(val) {
-			return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-
-		s.databaseName = val
-	} else {
-		s.databaseName = defaultDatabase
+	if err := s.getDatabase(metadata); err != nil {
+		return err
 	}
 
-	if val, ok := metadata.Properties[keyTypeKey]; ok && val != "" {
-		kt, err := KeyTypeFromString(val)
-		if err != nil {
-			return err
-		}
-		s.keyType = kt
-	} else {
-		s.keyType = StringKeyType
+	if err := s.getKeyType(metadata); err != nil {
+		return err
 	}
 
-	//nolint:nestif
-	if s.keyType == StringKeyType {
-		if val, ok := metadata.Properties[keyLengthKey]; ok && val != "" {
-			var err error
-			s.keyLength, err = strconv.Atoi(val)
-			if err != nil {
-				return err
-			}
-
-			if s.keyLength <= 0 {
-				return fmt.Errorf("invalid key length value of %d", s.keyLength)
-			}
-		} else {
-			s.keyLength = defaultKeyLength
-		}
+	if err := s.getSchema(metadata); err != nil {
+		return err
 	}
 
-	if val, ok := metadata.Properties[schemaKey]; ok && val != "" {
-		if !isValidSQLName(val) {
-			return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-		s.schema = val
-	} else {
-		s.schema = defaultSchema
-	}
-
-	//nolint:nestif
-	if val, ok := metadata.Properties[indexedPropertiesKey]; ok && val != "" {
-		var indexedProperties []IndexedProperty
-		err := json.Unmarshal([]byte(val), &indexedProperties)
-		if err != nil {
-			return err
-		}
-
-		for _, p := range indexedProperties {
-			if p.ColumnName == "" {
-				return errors.New("indexed property column cannot be empty")
-			}
-
-			if p.Property == "" {
-				return errors.New("indexed property name cannot be empty")
-			}
-
-			if p.Type == "" {
-				return errors.New("indexed property type cannot be empty")
-			}
-
-			if !isValidSQLName(p.ColumnName) {
-				return fmt.Errorf("invalid indexed property column name, accepted characters are (A-Z, a-z, 0-9, _)")
-			}
-
-			if !isValidIndexedPropertyName(p.Property) {
-				return fmt.Errorf("invalid indexed property name, accepted characters are (A-Z, a-z, 0-9, _, ., [, ])")
-			}
-
-			if !isValidIndexedPropertyType(p.Type) {
-				return fmt.Errorf("invalid indexed property type, accepted characters are (A-Z, a-z, 0-9, _, (, ))")
-			}
-		}
-
-		s.indexedProperties = indexedProperties
+	if err := s.getIndexedProperties(metadata); err != nil {
+		return err
 	}
 
 	migration := s.migratorFactory(s)
@@ -262,6 +189,136 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 	s.db, err = sql.Open("sqlserver", s.connectionString)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Returns validated index properties
+func (s *SQLServer) getIndexedProperties(metadata state.Metadata) error {
+	if val, ok := metadata.Properties[indexedPropertiesKey]; ok && val != "" {
+		var indexedProperties []IndexedProperty
+		err := json.Unmarshal([]byte(val), &indexedProperties)
+		if err != nil {
+			return err
+		}
+
+		err = s.validateIndexedProperties(indexedProperties)
+		if err != nil {
+			return err
+		}
+
+		s.indexedProperties = indexedProperties
+	}
+
+	return nil
+}
+
+// Validates that all the mandator index properties are supplied and that the
+// values are valid.
+func (s *SQLServer) validateIndexedProperties(indexedProperties []IndexedProperty) error {
+	for _, p := range indexedProperties {
+		if p.ColumnName == "" {
+			return errors.New("indexed property column cannot be empty")
+		}
+
+		if p.Property == "" {
+			return errors.New("indexed property name cannot be empty")
+		}
+
+		if p.Type == "" {
+			return errors.New("indexed property type cannot be empty")
+		}
+
+		if !isValidSQLName(p.ColumnName) {
+			return fmt.Errorf("invalid indexed property column name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
+
+		if !isValidIndexedPropertyName(p.Property) {
+			return fmt.Errorf("invalid indexed property name, accepted characters are (A-Z, a-z, 0-9, _, ., [, ])")
+		}
+
+		if !isValidIndexedPropertyType(p.Type) {
+			return fmt.Errorf("invalid indexed property type, accepted characters are (A-Z, a-z, 0-9, _, (, ))")
+		}
+	}
+
+	return nil
+}
+
+// Validates and returns the key type
+func (s *SQLServer) getKeyType(metadata state.Metadata) error {
+	if val, ok := metadata.Properties[keyTypeKey]; ok && val != "" {
+		kt, err := KeyTypeFromString(val)
+		if err != nil {
+			return err
+		}
+
+		s.keyType = kt
+	} else {
+		s.keyType = StringKeyType
+	}
+
+	if s.keyType != StringKeyType {
+		return nil
+	}
+
+	if val, ok := metadata.Properties[keyLengthKey]; ok && val != "" {
+		var err error
+		s.keyLength, err = strconv.Atoi(val)
+		if err != nil {
+			return err
+		}
+
+		if s.keyLength <= 0 {
+			return fmt.Errorf("invalid key length value of %d", s.keyLength)
+		}
+	} else {
+		s.keyLength = defaultKeyLength
+	}
+
+	return nil
+}
+
+// Returns the schema name if set or the default value otherwise
+func (s *SQLServer) getSchema(metadata state.Metadata) error {
+	if val, ok := metadata.Properties[schemaKey]; ok && val != "" {
+		if !isValidSQLName(val) {
+			return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
+		s.schema = val
+	} else {
+		s.schema = defaultSchema
+	}
+
+	return nil
+}
+
+// Returns the database name if set or the default value otherwise
+func (s *SQLServer) getDatabase(metadata state.Metadata) error {
+	if val, ok := metadata.Properties[databaseNameKey]; ok && val != "" {
+		if !isValidSQLName(val) {
+			return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
+
+		s.databaseName = val
+	} else {
+		s.databaseName = defaultDatabase
+	}
+
+	return nil
+}
+
+// Returns the table name if set or the default value otherwise
+func (s *SQLServer) getTable(metadata state.Metadata) error {
+	if val, ok := metadata.Properties[tableNameKey]; ok && val != "" {
+		if !isValidSQLName(val) {
+			return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
+
+		s.tableName = val
+	} else {
+		s.tableName = defaultTable
 	}
 
 	return nil
@@ -305,6 +362,7 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
+// Returns the set requests
 func (s *SQLServer) getSets(req state.TransactionalStateOperation) ([]state.SetRequest, error) {
 	var sets []state.SetRequest
 
@@ -322,6 +380,7 @@ func (s *SQLServer) getSets(req state.TransactionalStateOperation) ([]state.SetR
 	return sets, nil
 }
 
+// Returns the delete requests
 func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) ([]state.DeleteRequest, error) {
 	var deletes []state.DeleteRequest
 

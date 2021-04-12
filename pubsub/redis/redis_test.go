@@ -142,7 +142,7 @@ func TestProcessStreams(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	fakeHandler := func(msg *pubsub.NewMessage) error {
+	fakeHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		defer wg.Done()
 
 		messageCount++

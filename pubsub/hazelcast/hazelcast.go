@@ -94,7 +94,7 @@ func (p *Hazelcast) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	topic, err := p.client.GetTopic(req.Topic)
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to get topic for %s", req.Topic)
@@ -122,7 +122,7 @@ func (p *Hazelcast) Features() []pubsub.Feature {
 type hazelcastMessageListener struct {
 	p             *Hazelcast
 	topicName     string
-	pubsubHandler func(msg *pubsub.NewMessage) error
+	pubsubHandler pubsub.Handler
 }
 
 func (l *hazelcastMessageListener) OnMessage(message hazelcastCore.Message) error {
@@ -154,7 +154,7 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 	return pubsub.RetryNotifyRecover(func() error {
 		l.p.logger.Debug("Processing Hazelcast message")
 
-		return l.pubsubHandler(&pubsubMsg)
+		return l.pubsubHandler(l.p.ctx, &pubsubMsg)
 	}, b, func(err error, d time.Duration) {
 		l.p.logger.Error("Error processing Hazelcast message. Retrying...")
 	}, func() {

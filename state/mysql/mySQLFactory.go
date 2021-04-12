@@ -9,9 +9,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
-	"encoding/base64"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-sql-driver/mysql"
@@ -50,11 +50,10 @@ func (m *mySQLFactory) RegisterTLSConfigWithString(pemContents string) error {
 	// Base64 Standard Decoding
 	decodedContents, err := base64.StdEncoding.DecodeString(pemContents)
 	if err != nil {
-		fmt.Errorf("Error decoding string: %s ", err.Error())
-		return err
+		return fmt.Errorf("error decoding string: %s ", err.Error())
 	}
 
-	return m.registerTLSConfig([]byte(decodedContents))
+	return m.registerTLSConfig(decodedContents)
 }
 
 func (m *mySQLFactory) registerTLSConfig(pemContents []byte) error {

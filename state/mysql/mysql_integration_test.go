@@ -65,9 +65,8 @@ func TestMySQLIntegrationWithFile(t *testing.T) {
 		defer mys.Close()
 	})
 
-	error := mys.Init(metadata)
-	if error != nil {
-		t.Fatal(error)
+	if err := mys.Init(metadata); err != nil {
+		t.Fatal(err)
 	}
 
 	t.Run("Create table succeeds", func(t *testing.T) {
@@ -178,9 +177,8 @@ func TestMySQLIntegrationWithString(t *testing.T) {
 		defer mys.Close()
 	})
 
-	error := mys.Init(metadata)
-	if error != nil {
-		t.Fatal(error)
+	if err := mys.Init(metadata); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -654,8 +652,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 
 // Connects to MySQL using SSL if required
 func connectToDB(t *testing.T) (*sql.DB, error) {
-	val := getPemPath()
-	if val != "" {
+	if val := getPemPath(); val != "" {
 		rootCertPool := x509.NewCertPool()
 		pem, readErr := ioutil.ReadFile(val)
 
@@ -703,5 +700,6 @@ func getPemPath() string {
 
 func getPemContents() string {
 	pem, _ := ioutil.ReadFile(getPemPath())
+
 	return string(pem)
 }

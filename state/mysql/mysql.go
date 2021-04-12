@@ -109,27 +109,11 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 func (m *MySQL) Init(metadata state.Metadata) error {
 	m.logger.Debug("MySql state store: Initializing")
 
-	val, ok := metadata.Properties[tableNameKey]
+	m.getTableName(metadata)
 
-	if ok && val != "" {
-		m.tableName = val
-	} else {
-		// Default to the constant
-		m.tableName = defaultTableName
-	}
+	m.getSchemaName(metadata)
 
-	m.logger.Debugf("MySql state store: tableName = %s", m.tableName)
-
-	val, ok = metadata.Properties[schemaNameKey]
-
-	if ok && val != "" {
-		m.schemaName = val
-	} else {
-		// Default to the constant
-		m.schemaName = defaultSchemaName
-	}
-
-	m.logger.Debugf("MySql state store: schemaName = %s", m.schemaName)
+	var ok bool
 
 	m.connectionString, ok = metadata.Properties[connectionStringKey]
 
@@ -141,7 +125,7 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 
 	// This is when the user provides a path to the pem file
 	// This works well when not in K8s
-	val, ok = metadata.Properties[pemPathKey]
+	val, ok := metadata.Properties[pemPathKey]
 
 	if ok && val != "" {
 		m.logger.Debug("MySql state store: RegisterTLSConfigWithFile")
@@ -174,6 +158,32 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 
 	// will be nil if everything is good or an err that needs to be returned
 	return m.finishInit(db, err)
+}
+
+func (m *MySQL) getTableName(metadata state.Metadata) {
+	val, ok := metadata.Properties[tableNameKey]
+
+	if ok && val != "" {
+		m.tableName = val
+	} else {
+		// Default to the constant
+		m.tableName = defaultTableName
+	}
+
+	m.logger.Debugf("MySql state store: tableName = %s", m.tableName)
+}
+
+func (m *MySQL) getSchemaName(metadata state.Metadata) {
+	val, ok := metadata.Properties[schemaNameKey]
+
+	if ok && val != "" {
+		m.schemaName = val
+	} else {
+		// Default to the constant
+		m.schemaName = defaultSchemaName
+	}
+
+	m.logger.Debugf("MySql state store: schemaName = %s", m.schemaName)
 }
 
 // Features returns the features available in this state store

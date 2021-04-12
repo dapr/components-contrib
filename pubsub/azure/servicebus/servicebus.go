@@ -51,7 +51,7 @@ const (
 	defaultConnectionRecoveryInSec        = 2
 )
 
-type handler = struct{}
+type handle = struct{}
 
 type azureServiceBus struct {
 	metadata      metadata
@@ -280,7 +280,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func(msg *pubsub.NewMessage) error) error {
+func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
 		err := a.ensureSubscription(subID, req.Topic)
@@ -350,7 +350,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, appHandler func
 			// we exhaust the number of reconnect attempts.
 			ctx, cancel := context.WithCancel(context.Background())
 			innerErr := sub.ReceiveAndBlock(ctx,
-				appHandler,
+				handler,
 				a.metadata.LockRenewalInSec,
 				a.metadata.HandlerTimeoutInSec,
 				a.metadata.TimeoutInSec,

@@ -145,8 +145,21 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 	readChan := make(chan int)
 	if config.HasOperation("read") {
 		t.Run("read", func(t *testing.T) {
-			go readFromInputBinding(inputBinding, &inputBindingCall, readChan)
+			go func() {
+				err := inputBinding.Read(func(r *bindings.ReadResponse) ([]byte, error) {
+					inputBindingCall++
+					readChan <- inputBindingCall
+
+					return nil, nil
+				})
+				assert.NoError(t, err, "input binding read returned an error")
+			}()
 		})
+		// Special case for message brokers that are also bindings
+		// Need a small wait here because with brokers like MQTT
+		// if you publish before there is a consumer, the message is thrown out
+		// Currently, there is no way to know when Read is successfully subscribed.
+		time.Sleep(1000 * time.Millisecond)
 	}
 
 	// CreateOperation
@@ -157,7 +170,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.CreateOperation
 			_, err := outputBinding.Invoke(&req)
-			assert.Nil(t, err, "expected no error invoking output binding")
+			assert.NoError(t, err, "expected no error invoking output binding")
 			createPerformed = true
 		})
 	}
@@ -181,7 +194,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			_, err := outputBinding.Invoke(&req)
-			assert.Nil(t, err, "expected no error invoking output binding")
+			assert.NoError(t, err, "expected no error invoking output binding")
 		})
 	}
 
@@ -208,19 +221,10 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
 				req.Operation = bindings.GetOperation
 				resp, err := outputBinding.Invoke(&req)
-				assert.Nil(t, err, "expected no error invoking output binding")
+				assert.NoError(t, err, "expected no error invoking output binding")
 				assert.NotNil(t, resp)
 				assert.Nil(t, resp.Data)
 			}
 		})
 	}
-}
-
-func readFromInputBinding(binding bindings.InputBinding, reads *int, readChan chan int) {
-	binding.Read(func(r *bindings.ReadResponse) ([]byte, error) {
-		(*reads)++
-		readChan <- (*reads)
-
-		return nil, nil
-	})
 }

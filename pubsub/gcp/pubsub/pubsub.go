@@ -205,7 +205,7 @@ func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe to the GCP Pubsub topic
-func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg *pubsub.NewMessage) error) error {
+func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if !g.metadata.DisableEntityManagement {
 		topicErr := g.ensureTopic(req.Topic)
 		if topicErr != nil {
@@ -221,19 +221,19 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, daprHandler func(msg 
 	topic := g.getTopic(req.Topic)
 	sub := g.getSubscription(g.metadata.consumerID + "-" + req.Topic)
 
-	go g.handleSubscriptionMessages(topic, sub, daprHandler)
+	go g.handleSubscriptionMessages(topic, sub, handler)
 
 	return nil
 }
 
-func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcppubsub.Subscription, daprHandler func(msg *pubsub.NewMessage) error) error {
+func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {
 	err := sub.Receive(context.Background(), func(ctx context.Context, m *gcppubsub.Message) {
 		msg := &pubsub.NewMessage{
 			Data:  m.Data,
 			Topic: topic.ID(),
 		}
 
-		err := daprHandler(msg)
+		err := handler(ctx, msg)
 
 		if err == nil {
 			m.Ack()

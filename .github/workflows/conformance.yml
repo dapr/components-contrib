@@ -32,6 +32,9 @@ jobs:
         - bindings.http
         - bindings.kafka
         - bindings.redis
+        - bindings.mqtt-mosquitto
+        - bindings.mqtt-emqx
+        - bindings.mqtt-vernemq
         - pubsub.redis
         - pubsub.natsstreaming
         - pubsub.kafka

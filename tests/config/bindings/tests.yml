@@ -31,3 +31,12 @@ components:
     config:
       url: "localhost:22222"
       method: "POST"
+  - component: mqtt
+    profile: mosquitto
+    operations: ["create", "operations", "read"]
+  - component: mqtt
+    profile: emqx
+    operations: ["create", "operations", "read"]
+  - component: mqtt
+    profile: vernemq
+    operations: ["create", "operations", "read"]

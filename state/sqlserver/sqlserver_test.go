@@ -41,6 +41,7 @@ func TestValidConfiguration(t *testing.T) {
 				schema:           defaultSchema,
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -52,6 +53,7 @@ func TestValidConfiguration(t *testing.T) {
 				schema:           "mytest",
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -63,6 +65,7 @@ func TestValidConfiguration(t *testing.T) {
 				tableName:        sampleUserTableName,
 				keyType:          UUIDKeyType,
 				keyLength:        0,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -74,6 +77,7 @@ func TestValidConfiguration(t *testing.T) {
 				tableName:        sampleUserTableName,
 				keyType:          IntegerKeyType,
 				keyLength:        0,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -85,6 +89,7 @@ func TestValidConfiguration(t *testing.T) {
 				tableName:        sampleUserTableName,
 				keyType:          StringKeyType,
 				keyLength:        100,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -99,6 +104,7 @@ func TestValidConfiguration(t *testing.T) {
 				indexedProperties: []IndexedProperty{
 					{ColumnName: "Age", Property: "age", Type: "int"},
 				},
+				databaseName: defaultDatabase,
 			},
 		},
 		{
@@ -114,6 +120,18 @@ func TestValidConfiguration(t *testing.T) {
 					{ColumnName: "Age", Property: "age", Type: "int"},
 					{ColumnName: "Name", Property: "name", Type: "nvarchar(100)"},
 				},
+				databaseName: defaultDatabase,
+			},
+		},
+		{
+			name:  "Custom database",
+			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				schema:           defaultSchema,
+				tableName:        sampleUserTableName,
+				keyType:          StringKeyType,
+				databaseName:     "dapr_test_table",
 			},
 		},
 	}
@@ -136,6 +154,7 @@ func TestValidConfiguration(t *testing.T) {
 			assert.Equal(t, tt.expected.schema, sqlStore.schema)
 			assert.Equal(t, tt.expected.keyType, sqlStore.keyType)
 			assert.Equal(t, tt.expected.keyLength, sqlStore.keyLength)
+			assert.Equal(t, tt.expected.databaseName, sqlStore.databaseName)
 
 			assert.Equal(t, len(tt.expected.indexedProperties), len(sqlStore.indexedProperties))
 			if len(tt.expected.indexedProperties) > 0 && len(tt.expected.indexedProperties) == len(sqlStore.indexedProperties) {
@@ -164,11 +183,6 @@ func TestInvalidConfiguration(t *testing.T) {
 			name:        "Empty connection string",
 			props:       map[string]string{connectionStringKey: ""},
 			expectedErr: "missing connection string",
-		},
-		{
-			name:        "Empty table name",
-			props:       map[string]string{connectionStringKey: sampleConnectionString},
-			expectedErr: "missing table name",
 		},
 		{
 			name:        "Invalid maxKeyLength value",
@@ -210,7 +224,6 @@ func TestInvalidConfiguration(t *testing.T) {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"test GO DROP DATABASE dapr_test", "property": "age", "type": "INT"}]`},
 			expectedErr: "invalid indexed property column name",
 		},
-
 		{
 			name:        "Invalid index property name with ;",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "test;", "type": "INT"}]`},
@@ -230,6 +243,16 @@ func TestInvalidConfiguration(t *testing.T) {
 			name:        "Invalid index property type with space",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": "INT GO DROP DATABASE dapr_test"}]`},
 			expectedErr: "invalid indexed property type",
+		},
+		{
+			name:        "Invalid database name with ;",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test;"},
+			expectedErr: "invalid database name",
+		},
+		{
+			name:        "Invalid database name with space",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test GO DROP DATABASE dapr_test"},
+			expectedErr: "invalid database name",
 		},
 	}
 

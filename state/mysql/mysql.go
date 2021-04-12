@@ -228,7 +228,7 @@ func (m *MySQL) ensureStateSchema() error {
 	}
 
 	if !exists {
-		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
+		m.logger.Infof("MySql state store: Creating schema '%s'", m.schemaName)
 
 		createTable := fmt.Sprintf("CREATE DATABASE %s;", m.schemaName)
 
@@ -267,7 +267,7 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 	}
 
 	if !exists {
-		m.logger.Infof("Creating MySql state table '%s'", stateTableName)
+		m.logger.Infof("MySql state store: Creating state table '%s'", stateTableName)
 
 		// updateDate is updated automactically on every UPDATE commands so you
 		// never need to pass it in.
@@ -326,10 +326,10 @@ func (m *MySQL) Delete(req *state.DeleteRequest) error {
 // deleteValue is an internal implementation of delete to enable passing the
 // logic to state.DeleteWithRetries as a func.
 func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
-	m.logger.Debug("Deleting state value from MySql")
+	m.logger.Debug("MySql state store: Deleting state value")
 
 	if req.Key == "" {
-		return fmt.Errorf("missing key in delete operation")
+		return fmt.Errorf("MySql state store: missing key in delete operation")
 	}
 
 	var err error
@@ -357,10 +357,10 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 // Get returns an entity from store
 // Store Interface
 func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	m.logger.Debug("Getting state value from MySql")
+	m.logger.Debug("MySql state store: Getting state value")
 
 	if req.Key == "" {
-		return nil, fmt.Errorf("missing key in get operation")
+		return nil, fmt.Errorf("MySql state store: missing key in get operation")
 	}
 
 	var eTag, value string
@@ -395,7 +395,7 @@ func (m *MySQL) Set(req *state.SetRequest) error {
 // setValue is an internal implementation of set to enable passing the logic
 // to state.SetWithRetries as a func.
 func (m *MySQL) setValue(req *state.SetRequest) error {
-	m.logger.Debug("Setting state value in MySql")
+	m.logger.Debug("MySql state store: Setting state value")
 
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -403,7 +403,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	}
 
 	if req.Key == "" {
-		return fmt.Errorf("missing key in set operation")
+		return fmt.Errorf("MySql state store: missing key in set operation")
 	}
 
 	// Convert to json string
@@ -455,7 +455,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 			if ok {
 				sets = append(sets, setReq)
 			} else {
-				return fmt.Errorf("expecting set request")
+				return fmt.Errorf("MySql state store: expecting set request")
 			}
 
 		case state.Delete:
@@ -464,11 +464,11 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 			if ok {
 				deletes = append(deletes, delReq)
 			} else {
-				return fmt.Errorf("expecting delete request")
+				return fmt.Errorf("MySql state store: expecting delete request")
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
+			return fmt.Errorf("MySql state store: unsupported operation: %s", req.Operation)
 		}
 	}
 
@@ -496,7 +496,7 @@ func (m *MySQL) Close() error {
 }
 
 func (m *MySQL) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
-	m.logger.Debug("Executing multiple MySql operations")
+	m.logger.Debug("MySql state store: Executing multiple operations")
 
 	tx, err := m.db.Begin()
 	if err != nil {

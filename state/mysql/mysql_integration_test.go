@@ -35,7 +35,7 @@ type fakeItem struct {
 	Color string
 }
 
-func TestMySQLIntegration(t *testing.T) {
+func TestMySQLIntegrationWithFile(t *testing.T) {
 	t.Parallel()
 
 	// When the connection string is not set these tests will simply be skipped.
@@ -149,6 +149,39 @@ func TestMySQLIntegration(t *testing.T) {
 		t.Parallel()
 		multiWithSetOnly(t, mys)
 	})
+}
+
+func TestMySQLIntegrationWithString(t *testing.T) {
+	t.Parallel()
+
+	// When the connection string is not set these tests will simply be skipped.
+	// This makes sure the test do not try to run during any CI builds.
+	connectionString := getConnectionString("")
+	if connectionString == "" {
+		t.Skipf(
+			`MySQL state integration tests skipped.
+			To enable define the connection string
+			using environment variable '%s'
+			(example 'export %s="root:password@tcp(localhost:3306)/")`,
+			connectionStringEnvKey, connectionStringEnvKey)
+	}
+
+	// This simulate getting the contents from a k8s secret
+	pemContents := getPemContents()
+
+	metadata := state.Metadata{
+		Properties: map[string]string{connectionStringKey: connectionString, pemContentsKey: pemContents},
+	}
+
+	mys := NewMySQLStateStore(logger.NewLogger("test"))
+	t.Cleanup(func() {
+		defer mys.Close()
+	})
+
+	error := mys.Init(metadata)
+	if error != nil {
+		t.Fatal(error)
+	}
 }
 
 func multiWithSetOnly(t *testing.T, mys *MySQL) {
@@ -666,4 +699,9 @@ func getConnectionString(database string) string {
 // The value is read from an environment variable
 func getPemPath() string {
 	return os.Getenv(pemPathEnvKey)
+}
+
+func getPemContents() string {
+	pem, _ := ioutil.ReadFile(getPemPath())
+	return string(pem)
 }

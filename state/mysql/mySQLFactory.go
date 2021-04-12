@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/ioutil"
+	"encoding/base64"
 
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/go-sql-driver/mysql"
@@ -30,8 +31,7 @@ func (m *mySQLFactory) Open(connectionString string) (*sql.DB, error) {
 	return sql.Open("mysql", connectionString)
 }
 
-func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
-	rootCertPool := x509.NewCertPool()
+func (m *mySQLFactory) RegisterTLSConfigWithFile(pemPath string) error {
 	pem, readErr := ioutil.ReadFile(pemPath)
 
 	if readErr != nil {
@@ -40,7 +40,27 @@ func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
 		return readErr
 	}
 
-	ok := rootCertPool.AppendCertsFromPEM(pem)
+	return m.registerTLSConfig(pem)
+}
+
+// Used when running in k8s and reading the pem contents from a secret. This
+// is needed because you can't mount a volume to the sidecar
+// The string must be saves as a 64 bit encoded value so we have to decode it.
+func (m *mySQLFactory) RegisterTLSConfigWithString(pemContents string) error {
+	// Base64 Standard Decoding
+	decodedContents, err := base64.StdEncoding.DecodeString(pemContents)
+	if err != nil {
+		fmt.Errorf("Error decoding string: %s ", err.Error())
+		return err
+	}
+
+	return m.registerTLSConfig([]byte(decodedContents))
+}
+
+func (m *mySQLFactory) registerTLSConfig(pemContents []byte) error {
+	rootCertPool := x509.NewCertPool()
+
+	ok := rootCertPool.AppendCertsFromPEM(pemContents)
 
 	if !ok {
 		return fmt.Errorf("failed to append PEM")

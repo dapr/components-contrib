@@ -52,6 +52,9 @@ const (
 	// The connection string should be in the following format
 	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
 	pemPathKey = "pemPath"
+
+	// Used in K8s where you can't mount the pem file path.
+	pemContentsKey = "pemContents"
 )
 
 // MySQL state store
@@ -104,7 +107,7 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 // Populate the rest of the MySQL object by reading the metadata and opening
 // a connection to the server.
 func (m *MySQL) Init(metadata state.Metadata) error {
-	m.logger.Debug("Initializing MySql state store")
+	m.logger.Debug("MySql state store: Initializing")
 
 	val, ok := metadata.Properties[tableNameKey]
 
@@ -115,6 +118,8 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 		m.tableName = defaultTableName
 	}
 
+	m.logger.Debugf("MySql state store: tableName = %s", m.tableName)
+
 	val, ok = metadata.Properties[schemaNameKey]
 
 	if ok && val != "" {
@@ -124,18 +129,40 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 		m.schemaName = defaultSchemaName
 	}
 
+	m.logger.Debugf("MySql state store: schemaName = %s", m.schemaName)
+
 	m.connectionString, ok = metadata.Properties[connectionStringKey]
 
 	if !ok || m.connectionString == "" {
-		m.logger.Error("Missing MySql connection string")
+		m.logger.Error("MySql state store: Missing connection string")
 
 		return fmt.Errorf(errMissingConnectionString)
 	}
 
+	// This is when the user provides a path to the pem file
+	// This works well when not in K8s
 	val, ok = metadata.Properties[pemPathKey]
 
 	if ok && val != "" {
-		err := m.factory.RegisterTLSConfig(val)
+		m.logger.Debug("MySql state store: RegisterTLSConfigWithFile")
+		m.logger.Debugf("MySql state store: pemPathKey = %s", val)
+
+		err := m.factory.RegisterTLSConfigWithFile(val)
+		if err != nil {
+			m.logger.Error(err)
+
+			return err
+		}
+	}
+
+	// This is for when they are running in K8s and can't
+	// mount the pem file into the sidecar
+	val, ok = metadata.Properties[pemContentsKey]
+
+	if ok && val != "" {
+		m.logger.Debug("MySql state store: RegisterTLSConfigWithString")
+
+		err := m.factory.RegisterTLSConfigWithString(val)
 		if err != nil {
 			m.logger.Error(err)
 

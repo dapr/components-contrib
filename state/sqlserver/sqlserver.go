@@ -62,9 +62,12 @@ const (
 	indexedPropertiesKey = "indexedProperties"
 	keyColumnName        = "Key"
 	rowVersionColumnName = "RowVersion"
+	databaseNameKey      = "databaseName"
 
 	defaultKeyLength = 200
 	defaultSchema    = "dbo"
+	defaultDatabase  = "dapr"
+	defaultTable     = "state"
 )
 
 // NewSQLServerStateStore creates a new instance of a Sql Server transaction store
@@ -88,6 +91,7 @@ type IndexedProperty struct {
 // SQLServer defines a Ms SQL Server based state store
 type SQLServer struct {
 	connectionString  string
+	databaseName      string
 	tableName         string
 	schema            string
 	keyType           KeyType
@@ -156,7 +160,17 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 
 		s.tableName = val
 	} else {
-		return fmt.Errorf("missing table name")
+		s.tableName = defaultTable
+	}
+
+	if val, ok := metadata.Properties[databaseNameKey]; ok && val != "" {
+		if !isValidSQLName(val) {
+			return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
+		}
+
+		s.databaseName = val
+	} else {
+		s.databaseName = defaultDatabase
 	}
 
 	if val, ok := metadata.Properties[keyTypeKey]; ok && val != "" {
@@ -260,34 +274,24 @@ func (s *SQLServer) Features() []state.Feature {
 
 // Multi performs multiple updates on a Sql server store
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
-	var deletes []state.DeleteRequest
+	var err error
 	var sets []state.SetRequest
+	var deletes []state.DeleteRequest
 	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
-			setReq, ok := req.Request.(state.SetRequest)
-			if !ok {
-				return fmt.Errorf("expecting set request")
-			}
+			sets, err = s.getSets(req)
 
-			if setReq.Key == "" {
-				return fmt.Errorf("missing key in upsert operation")
+			if err != nil {
+				return err
 			}
-
-			sets = append(sets, setReq)
 
 		case state.Delete:
+			deletes, err = s.getDeletes(req)
 
-			delReq, ok := req.Request.(state.DeleteRequest)
-			if !ok {
-				return fmt.Errorf("expecting delete request")
+			if err != nil {
+				return err
 			}
-
-			if delReq.Key == "" {
-				return fmt.Errorf("missing key in upsert operation")
-			}
-
-			deletes = append(deletes, delReq)
 
 		default:
 			return fmt.Errorf("unsupported operation: %s", req.Operation)
@@ -299,6 +303,40 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	}
 
 	return nil
+}
+
+func (s *SQLServer) getSets(req state.TransactionalStateOperation) ([]state.SetRequest, error) {
+	var sets []state.SetRequest
+
+	setReq, ok := req.Request.(state.SetRequest)
+	if !ok {
+		return nil, fmt.Errorf("expecting set request")
+	}
+
+	if setReq.Key == "" {
+		return nil, fmt.Errorf("missing key in upsert operation")
+	}
+
+	sets = append(sets, setReq)
+
+	return sets, nil
+}
+
+func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) ([]state.DeleteRequest, error) {
+	var deletes []state.DeleteRequest
+
+	delReq, ok := req.Request.(state.DeleteRequest)
+	if !ok {
+		return nil, fmt.Errorf("expecting delete request")
+	}
+
+	if delReq.Key == "" {
+		return nil, fmt.Errorf("missing key in upsert operation")
+	}
+
+	deletes = append(deletes, delReq)
+
+	return deletes, nil
 }
 
 func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {

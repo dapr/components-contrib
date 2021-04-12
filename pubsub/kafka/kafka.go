@@ -56,7 +56,7 @@ type consumer struct {
 	logger   logger.Logger
 	backOff  backoff.BackOff
 	ready    chan bool
-	callback func(msg *pubsub.NewMessage) error
+	callback pubsub.Handler
 	once     sync.Once
 }
 
@@ -73,7 +73,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		}
 		if err := pubsub.RetryNotifyRecover(func() error {
 			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-			err := consumer.callback(&msg)
+			err := consumer.callback(session.Context(), &msg)
 			if err == nil {
 				session.MarkMessage(message, "")
 			}
@@ -205,7 +205,7 @@ func (k *Kafka) closeSubscripionResources() {
 
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
-func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerID must be set to subscribe")
 	}

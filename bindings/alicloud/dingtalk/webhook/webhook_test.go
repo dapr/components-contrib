@@ -6,32 +6,33 @@
 package webhook
 
 import (
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{
-		"url": "a", "secret": "b", "id": "c",
-	}
+func TestParseMetadata(t *testing.T) { //nolint:paralleltest
+	m := bindings.Metadata{Name: "test",
+		Properties: map[string]string{
+			"url": "a", "secret": "b", "id": "c",
+		}}
+
 	meta, err := parseMetadata(m)
 	assert.NoError(t, err)
 	assert.Equal(t, "a", meta.url)
 	assert.Equal(t, "b", meta.secret)
 	assert.Equal(t, "c", meta.id)
-
 }
 
-func TestPublishMsg(t *testing.T) {
+func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	msg := "{\"type\": \"text\",\"text\": {\"content\": \"hello\"}}"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,30 +52,31 @@ func TestPublishMsg(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{
+	m := bindings.Metadata{Name: "test", Properties: map[string]string{
 		"url":    ts.URL + "/test",
 		"secret": "",
-		"id":  "x",
-	}
+		"id":     "x",
+	}}
+
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)
 	require.NoError(t, err)
 
-	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation}
+	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
 	_, err = d.Invoke(req)
 	require.NoError(t, err)
 }
 
-func TestBindingReadAndInvoke(t *testing.T) {
+func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	msg := "{\"type\": \"text\",\"text\": {\"content\": \"hello\"}}"
 
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{
-		"url":    "/test",
-		"secret": "",
-		"id":  "x",
-	}
+	m := bindings.Metadata{Name: "test",
+		Properties: map[string]string{
+			"url":    "/test",
+			"secret": "",
+			"id":     "x",
+		}}
+
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)
 	assert.NoError(t, err)
@@ -83,6 +85,7 @@ func TestBindingReadAndInvoke(t *testing.T) {
 	handler := func(in *bindings.ReadResponse) ([]byte, error) {
 		assert.Equal(t, msg, string(in.Data))
 		atomic.AddInt32(&count, 1)
+
 		return nil, nil
 	}
 
@@ -93,7 +96,7 @@ func TestBindingReadAndInvoke(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation}
+	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation, Metadata: map[string]string{}}
 	_, err = d.Invoke(req)
 	require.NoError(t, err)
 

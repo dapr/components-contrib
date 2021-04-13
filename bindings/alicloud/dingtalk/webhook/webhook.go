@@ -7,13 +7,13 @@ package webhook
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -22,12 +22,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 )
 
 const (
 	webhookContentType       = "application/json"
-	defaultHttpClientTimeout = time.Second * 30
+	defaultHTTPClientTimeout = time.Second * 30
 )
 
 type DingTalkWebhook struct {
@@ -45,12 +46,12 @@ type outgoingWebhook struct {
 	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
-var webhooks sync.Map
+var webhooks sync.Map //nolint:gochecknoglobals
 
 func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
-	return &DingTalkWebhook{
+	return &DingTalkWebhook{ //nolint:exhaustivestruct
 		logger:     l,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: defaultHTTPClientTimeout}, //nolint:exhaustivestruct
 	}
 }
 
@@ -61,12 +62,12 @@ func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	t.httpClient.Timeout = defaultHttpClientTimeout
+
 	return nil
 }
 
 func parseMetadata(meta bindings.Metadata) (metadata, error) {
-	m := metadata{}
+	m := metadata{id: "", url: "", secret: ""}
 
 	if val, ok := meta.Properties["id"]; ok && val != "" {
 		m.id = val
@@ -90,8 +91,7 @@ func parseMetadata(meta bindings.Metadata) (metadata, error) {
 // Read triggers the outgoing webhook, not yet production ready
 func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
-	item := &outgoingWebhook{}
-	item.handler = handler
+	item := &outgoingWebhook{handler: handler}
 
 	_, loaded := webhooks.LoadOrStore(t.metadata.id, item)
 	if loaded {
@@ -107,12 +107,14 @@ func (t *DingTalkWebhook) Operations() []bindings.OperationKind {
 }
 
 func (t *DingTalkWebhook) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	rst := &bindings.InvokeResponse{}
+	rst := &bindings.InvokeResponse{Metadata: map[string]string{}, Data: nil}
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return rst, t.sendMessage(req)
 	case bindings.GetOperation:
 		return rst, t.receivedMessage(req)
+	case bindings.DeleteOperation, bindings.ListOperation:
+		return rst, fmt.Errorf("dingtalk webhook error: unsupported operation %s", req.Operation)
 	default:
 		return rst, fmt.Errorf("dingtalk webhook error: unsupported operation %s", req.Operation)
 	}
@@ -123,7 +125,11 @@ func (t *DingTalkWebhook) getOutgoingWebhook() (*outgoingWebhook, error) {
 	if !loaded {
 		return nil, fmt.Errorf("dingtalk webhook error: invalid component metadata.id %s", t.metadata.id)
 	}
-	item := routeItem.(*outgoingWebhook)
+	item, ok := routeItem.(*outgoingWebhook)
+	if !ok {
+		return nil, fmt.Errorf("type [outgoingWebhook] convert failed. ")
+	}
+
 	return item, nil
 }
 
@@ -137,18 +143,22 @@ func (t *DingTalkWebhook) receivedMessage(req *bindings.InvokeRequest) error {
 	if _, err = item.handler(in); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (t *DingTalkWebhook) sendMessage(req *bindings.InvokeRequest) error {
 	msg := req.Data
 
-	postUrl, err := getPostUrl(t.metadata.url, t.metadata.secret)
+	postURL, err := getPostURL(t.metadata.url, t.metadata.secret)
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: get url failed. %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", postUrl, bytes.NewReader(msg))
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPClientTimeout)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", postURL, bytes.NewReader(msg))
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: new request failed. %w", err)
 	}
@@ -172,11 +182,13 @@ func (t *DingTalkWebhook) sendMessage(req *bindings.InvokeRequest) error {
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: read body failed. %w", err)
 	}
+
 	var rst webhookResult
 	err = json.Unmarshal(data, &rst)
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: unmarshal body failed. %w", err)
 	}
+
 	if rst.ErrCode != 0 {
 		return fmt.Errorf("dingtalk webhook error: send msg failed. %v", rst.ErrMsg)
 	}
@@ -184,7 +196,7 @@ func (t *DingTalkWebhook) sendMessage(req *bindings.InvokeRequest) error {
 	return nil
 }
 
-func getPostUrl(urlPath, secret string) (string, error) {
+func getPostURL(urlPath, secret string) (string, error) {
 	if secret == "" {
 		return urlPath, nil
 	}
@@ -198,6 +210,7 @@ func getPostUrl(urlPath, secret string) (string, error) {
 	query := url.Values{}
 	query.Set("timestamp", timestamp)
 	query.Set("sign", sign)
+
 	return urlPath + "&" + query.Encode(), nil
 }
 
@@ -205,7 +218,8 @@ func sign(secret, timestamp string) (string, error) {
 	stringToSign := fmt.Sprintf("%s\n%s", timestamp, secret)
 	h := hmac.New(sha256.New, []byte(secret))
 	if _, err := io.WriteString(h, stringToSign); err != nil {
-		return "", err
+		return "", fmt.Errorf("sign failed. %w", err)
 	}
+
 	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }

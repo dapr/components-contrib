@@ -9,6 +9,10 @@ The consul name resolution component gives the ability to register and resolve o
 If you are using the dapr sidecar to register your service to consul then you will need the following configuration:
 
 ```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: appconfig
 spec:
   nameResolution:
     component: "consul"
@@ -21,6 +25,10 @@ spec:
 If consul service registration is managed externally from dapr you need to ensure that the dapr-to-dapr internal grpc port is added to the service metadata under `DAPR_PORT` (this key is configurable) and that the consul service Id matches the dapr app Id. The config should then look as follows:
 
 ```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: appconfig
 spec:
   nameResolution:
     component: "consul"
@@ -56,10 +64,13 @@ As of writing the configuration spec is fixed to v1.3.0 of the consul api
 The minimum configuration needed is the following:
 
 ```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: appconfig
 spec:
   nameResolution:
     component: "consul"
-}
 ```
 
 ### Registration with additional customizations
@@ -67,6 +78,10 @@ spec:
 Enabling `SelfRegister` it is then possible to customize the checks, tags and meta
 
 ```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: appconfig
 spec:
   nameResolution:
     component: "consul"
@@ -101,6 +116,10 @@ spec:
 Configuring the advanced registration gives you full control over all the properties possible when registering.
 
 ```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: appconfig
 spec:
   nameResolution:
     component: "consul"

@@ -131,8 +131,6 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 
 	svc := shuffle(services)[0]
 
-	// TODO - kubernetes behaviour?
-
 	addr := ""
 
 	if port, ok := svc.Service.Meta[cfg.DaprPortMetaKey]; ok {

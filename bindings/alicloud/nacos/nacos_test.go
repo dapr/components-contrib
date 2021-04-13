@@ -7,22 +7,28 @@ package nacos
 
 import (
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{
-		"Endpoint": "a", "Region": "b", "Namespace": "c", "AccessKey": "d", "SecretKey": "e",
-	}
+func TestParseMetadata(t *testing.T) { //nolint:paralleltest
+	m := bindings.Metadata{Name: "test",
+		Properties: map[string]string{
+			"Endpoint":  "a",
+			"Region":    "b",
+			"Namespace": "c",
+			"AccessKey": "d",
+			"SecretKey": "e",
+		}}
+
 	meta, err := parseMetadata(m)
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.Endpoint)
@@ -32,20 +38,19 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "e", meta.SecretKey)
 }
 
-func TestInputBindingRead(t *testing.T) {
-	m := bindings.Metadata{}
+func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
+	m := bindings.Metadata{Name: "test", Properties: nil}
 	var err error
 	m.Properties, err = getNacosLocalCacheMetadata()
 	require.NoError(t, err)
-
 	n := NewNacos(logger.NewLogger("test"))
 	err = n.Init(m)
 	require.NoError(t, err)
-
 	var count int32
 	handler := func(in *bindings.ReadResponse) ([]byte, error) {
 		require.Equal(t, "hello", string(in.Data))
 		atomic.AddInt32(&count, 1)
+
 		return nil, nil
 	}
 	go func() {
@@ -59,17 +64,17 @@ func TestInputBindingRead(t *testing.T) {
 
 func getNacosLocalCacheMetadata() (map[string]string, error) {
 	tmpDir := "/tmp/config"
-	dataId := "test"
+	dataID := "test"
 	group := "DEFAULT_GROUP"
 
 	if err := os.MkdirAll(tmpDir, os.ModePerm); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create dir failed. %w", err)
 	}
 
-	cfgFile := path.Join(tmpDir, fmt.Sprintf("%s@@%s@@", dataId, group))
+	cfgFile := path.Join(tmpDir, fmt.Sprintf("%s@@%s@@", dataID, group))
 	file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil || file == nil {
-		return nil, fmt.Errorf("open %s failed. %v", cfgFile, err)
+		return nil, fmt.Errorf("open %s failed. %w", cfgFile, err)
 	}
 
 	defer func() {
@@ -77,12 +82,12 @@ func getNacosLocalCacheMetadata() (map[string]string, error) {
 	}()
 
 	if _, err = file.WriteString("hello"); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("write file failed. %w", err)
 	}
 
 	return map[string]string{
 		"cacheDir":   "/tmp", // default
 		"nameServer": "localhost:8080/fake",
-		"watches":    fmt.Sprintf("%s:%s", dataId, group),
+		"watches":    fmt.Sprintf("%s:%s", dataID, group),
 	}, nil
 }

@@ -27,14 +27,14 @@ import (
 
 const (
 	defaultGroup           = "DEFAULT_GROUP"
-	metadataConfigId       = "config-id"
+	metadataConfigID       = "config-id"
 	metadataConfigGroup    = "config-group"
 	metadataConfigOnchange = "config-onchange"
 )
 
 // Config type
 type configParam struct {
-	dataId string
+	dataID string
 	group  string
 }
 
@@ -54,7 +54,7 @@ type Nacos struct {
 
 // NewNacos returns a new Nacos instance
 func NewNacos(logger logger.Logger) *Nacos {
-	return &Nacos{logger: logger}
+	return &Nacos{logger: logger} //nolint:exhaustivestruct
 }
 
 // Init implements InputBinding/OutputBinding's Init method
@@ -68,6 +68,7 @@ func (n *Nacos) Init(metadata bindings.Metadata) (err error) {
 	n.metadata, err = parseMetadata(metadata)
 	if err != nil {
 		err = fmt.Errorf("nacos config error: %w", err)
+
 		return
 	}
 
@@ -75,15 +76,14 @@ func (n *Nacos) Init(metadata bindings.Metadata) (err error) {
 		n.metadata.TimeoutMs = 10000
 	}
 
-	if n.metadata.Endpoint == "" && n.metadata.NameServer == "" {
-		err = errors.New("nacos config error: must config endpoint or nameserver")
-		return
-	}
-
 	if n.metadata.Endpoint != "" {
 		n.logger.Infof("nacos server's url: %s", n.metadata.Endpoint)
-	} else {
+	} else if n.metadata.NameServer != "" {
 		n.logger.Infof("nacos nameserver: %s", n.metadata.NameServer)
+	} else {
+		err = errors.New("nacos config error: must config endpoint or nameserver")
+
+		return
 	}
 
 	if n.metadata.Config != "" {
@@ -96,13 +96,18 @@ func (n *Nacos) Init(metadata bindings.Metadata) (err error) {
 	if err != nil {
 		return
 	}
+
 	n.servers, err = convertServers(n.metadata.Endpoint)
 	if err != nil {
 		return
 	}
 
+	return n.createConfigClient()
+}
+
+func (n *Nacos) createConfigClient() error {
 	config := map[string]interface{}{}
-	config["clientConfig"] = constant.ClientConfig{
+	config["clientConfig"] = constant.ClientConfig{ //nolint:exhaustivestruct
 		TimeoutMs:            uint64(n.metadata.TimeoutMs),
 		NamespaceId:          n.metadata.NamespaceID,
 		Endpoint:             n.metadata.NameServer,
@@ -125,11 +130,13 @@ func (n *Nacos) Init(metadata bindings.Metadata) (err error) {
 	if len(n.servers) > 0 {
 		config["serverConfigs"] = n.servers
 	}
+
+	var err error
 	n.configClient, err = clients.CreateConfigClient(config)
 	if err != nil {
-		err = fmt.Errorf("nacos config error: create config client failed. %w ", err)
-		return
+		return fmt.Errorf("nacos config error: create config client failed. %w ", err)
 	}
+
 	return nil
 }
 
@@ -145,6 +152,7 @@ func (n *Nacos) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	<-exitChan
 	n.cancelListener()
+
 	return nil
 }
 
@@ -155,6 +163,8 @@ func (n *Nacos) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		return n.publish(req)
 	case bindings.GetOperation:
 		return n.fetch(req)
+	case bindings.DeleteOperation, bindings.ListOperation:
+		return nil, fmt.Errorf("nacos error: unsupported operation %s", req.Operation)
 	default:
 		return nil, fmt.Errorf("nacos error: unsupported operation %s", req.Operation)
 	}
@@ -172,24 +182,29 @@ func (n *Nacos) startListen(config configParam) {
 
 func (n *Nacos) fetchAndNotify(config *configParam) {
 	content, err := n.configClient.GetConfig(vo.ConfigParam{
-		DataId: config.dataId,
-		Group:  config.group,
+		DataId:   config.dataID,
+		Group:    config.group,
+		Content:  "",
+		DatumId:  "",
+		OnChange: nil,
 	})
 	if err != nil {
-		n.logger.Warnf("failed to receive nacos config %s:%s, error: %v", config.dataId, config.group, err)
+		n.logger.Warnf("failed to receive nacos config %s:%s, error: %v", config.dataID, config.group, err)
 	} else {
-		n.notifyApp(config.group, config.dataId, content)
+		n.notifyApp(config.group, config.dataID, content)
 	}
 }
 
 func (n *Nacos) addListener(config *configParam) {
 	err := n.configClient.ListenConfig(vo.ConfigParam{
-		DataId:   config.dataId,
+		DataId:   config.dataID,
 		Group:    config.group,
+		Content:  "",
+		DatumId:  "",
 		OnChange: n.listener,
 	})
 	if err != nil {
-		n.logger.Warnf("failed to add nacos listener for %s:%s, error: %v", config.dataId, config.group, err)
+		n.logger.Warnf("failed to add nacos listener for %s:%s, error: %v", config.dataID, config.group, err)
 	}
 }
 
@@ -206,11 +221,13 @@ func (n *Nacos) publish(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	}
 
 	if _, err := n.configClient.PublishConfig(vo.ConfigParam{
-		DataId:  config.dataId,
-		Group:   config.group,
-		Content: string(req.Data),
+		DataId:   config.dataID,
+		Group:    config.group,
+		Content:  string(req.Data),
+		DatumId:  "",
+		OnChange: nil,
 	}); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("publish failed. %w", err)
 	}
 
 	return nil, nil
@@ -223,18 +240,21 @@ func (n *Nacos) fetch(req *bindings.InvokeRequest) (*bindings.InvokeResponse, er
 	}
 
 	rst, err := n.configClient.GetConfig(vo.ConfigParam{
-		DataId: config.dataId,
-		Group:  config.group,
+		DataId:   config.dataID,
+		Group:    config.group,
+		Content:  "",
+		DatumId:  "",
+		OnChange: nil,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch failed. err:%w", err)
 	}
 
 	if onchange := req.Metadata[metadataConfigOnchange]; onchange == "true" || onchange == "TRUE" {
 		go n.addListener4InputBinding(config)
 	}
 
-	return &bindings.InvokeResponse{Data: []byte(rst)}, nil
+	return &bindings.InvokeResponse{Data: []byte(rst), Metadata: map[string]string{}}, nil
 }
 
 func (n *Nacos) addToWatches(c *configParam) bool {
@@ -242,30 +262,32 @@ func (n *Nacos) addToWatches(c *configParam) bool {
 	defer n.mu.Unlock()
 	if n.watches != nil {
 		for _, watch := range n.watches {
-			if c.dataId == watch.dataId && c.group == watch.group {
+			if c.dataID == watch.dataID && c.group == watch.group {
 				return false
 			}
 		}
 	}
 	n.watches = append(n.watches, *c)
+
 	return true
 }
 
 func (n *Nacos) findConfig(md map[string]string) (*configParam, error) {
 	config := n.config
-	if _, ok := md[metadataConfigId]; ok {
+	if _, ok := md[metadataConfigID]; ok {
 		config = configParam{
-			dataId: md[metadataConfigId],
+			dataID: md[metadataConfigID],
 			group:  md[metadataConfigGroup],
 		}
 	}
 
-	if config.dataId == "" {
-		return nil, fmt.Errorf("nacos config error: invalid metadata, no dataId found: %v", md)
+	if config.dataID == "" {
+		return nil, fmt.Errorf("nacos config error: invalid metadata, no dataID found: %v", md)
 	}
 	if config.group == "" {
 		config.group = defaultGroup
 	}
+
 	return &config, nil
 }
 
@@ -275,8 +297,8 @@ func (n *Nacos) listener(_, group, dataID, data string) {
 
 func (n *Nacos) cancelListener() {
 	for _, config := range n.watches {
-		if err := n.configClient.CancelListenConfig(vo.ConfigParam{
-			DataId: config.dataId,
+		if err := n.configClient.CancelListenConfig(vo.ConfigParam{ //nolint:exhaustivestruct
+			DataId: config.dataID,
 			Group:  config.group,
 		}); err != nil {
 			n.logger.Warnf("nacos cancel listener failed err: %v", err)
@@ -286,7 +308,7 @@ func (n *Nacos) cancelListener() {
 
 func (n *Nacos) notifyApp(group, dataID, content string) {
 	metadata := make(map[string]string, 2)
-	metadata[metadataConfigId] = dataID
+	metadata[metadataConfigID] = dataID
 	metadata[metadataConfigGroup] = group
 	var err error
 	if n.readHandler != nil {
@@ -304,32 +326,37 @@ func (n *Nacos) notifyApp(group, dataID, content string) {
 func parseMetadata(metadata bindings.Metadata) (*nacosMetadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error:%w", err)
 	}
 
 	var md nacosMetadata
 	err = json.Unmarshal(b, &md)
-	return &md, err
+	if err != nil {
+		return nil, fmt.Errorf("parse error:%w", err)
+	}
+
+	return &md, nil
 }
 
 func convertConfig(s string) (configParam, error) {
-	config := configParam{}
+	config := configParam{dataID: "", group: ""}
 	pair := strings.Split(s, ":")
-	config.dataId = strings.TrimSpace(pair[0])
+	config.dataID = strings.TrimSpace(pair[0])
 	if len(pair) == 2 {
 		config.group = strings.TrimSpace(pair[1])
 	}
 	if config.group == "" {
 		config.group = defaultGroup
 	}
-	if config.dataId == "" || config.group == "" {
+	if config.dataID == "" || config.group == "" {
 		return config, fmt.Errorf("nacos config error: invalid config keys, no config-id defined: %s", s)
 	}
+
 	return config, nil
 }
 
 func convertConfigs(ss string) ([]configParam, error) {
-	var configs []configParam
+	configs := make([]configParam, 0)
 	if ss == "" {
 		return configs, nil
 	}
@@ -341,48 +368,59 @@ func convertConfigs(ss string) ([]configParam, error) {
 		}
 		configs = append(configs, config)
 	}
+
 	return configs, nil
 }
 
 func convertServers(ss string) ([]constant.ServerConfig, error) {
-	var serverConfigs []constant.ServerConfig
+	serverConfigs := make([]constant.ServerConfig, 0)
 	if ss == "" {
 		return serverConfigs, nil
 	}
 
-	for _, s := range strings.Split(ss, ",") {
-		if !strings.HasPrefix(s, "http") {
-			s = "http://" + s
-		}
-		u, err := url.Parse(s)
+	array := strings.Split(ss, ",")
+	for _, s := range array {
+		cfg, err := parseServerURL(s)
 		if err != nil {
-			return nil, fmt.Errorf("nacos config error: server url %s error: %v", s, err)
+			return serverConfigs, fmt.Errorf("%w", err)
 		}
-
-		port := uint64(80)
-		if u.Scheme == "" {
-			u.Scheme = "http"
-		} else if u.Scheme == "https" {
-			port = uint64(443)
-		}
-
-		if u.Port() != "" {
-			port, err = strconv.ParseUint(u.Port(), 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("nacos config error: server port %s err: %v", u.Port(), err)
-			}
-		}
-
-		if u.Path == "" || u.Path == "/" {
-			u.Path = "/nacos"
-		}
-
-		serverConfigs = append(serverConfigs, constant.ServerConfig{
-			ContextPath: u.Path,
-			IpAddr:      u.Hostname(),
-			Port:        port,
-			Scheme:      u.Scheme,
-		})
+		serverConfigs = append(serverConfigs, *cfg)
 	}
+
 	return serverConfigs, nil
+}
+
+func parseServerURL(s string) (*constant.ServerConfig, error) {
+	if !strings.HasPrefix(s, "http") {
+		s = "http://" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("nacos config error: server url %s error: %w", s, err)
+	}
+
+	port := uint64(80)
+	if u.Scheme == "" {
+		u.Scheme = "http"
+	} else if u.Scheme == "https" {
+		port = uint64(443)
+	}
+
+	if u.Port() != "" {
+		port, err = strconv.ParseUint(u.Port(), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("nacos config error: server port %s err: %w", u.Port(), err)
+		}
+	}
+
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/nacos"
+	}
+
+	return &constant.ServerConfig{
+		ContextPath: u.Path,
+		IpAddr:      u.Hostname(),
+		Port:        port,
+		Scheme:      u.Scheme,
+	}, nil
 }

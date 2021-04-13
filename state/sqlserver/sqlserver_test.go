@@ -131,6 +131,7 @@ func TestValidConfiguration(t *testing.T) {
 				schema:           defaultSchema,
 				tableName:        sampleUserTableName,
 				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
 				databaseName:     "dapr_test_table",
 			},
 		},

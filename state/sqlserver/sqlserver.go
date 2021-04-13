@@ -331,24 +331,27 @@ func (s *SQLServer) Features() []state.Feature {
 
 // Multi performs multiple updates on a Sql server store
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
-	var err error
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
 	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
-			sets, err = s.getSets(req)
+			setReq, err := s.getSets(req)
 
 			if err != nil {
 				return err
 			}
+
+			sets = append(sets, setReq)
 
 		case state.Delete:
-			deletes, err = s.getDeletes(req)
+			delReq, err := s.getDeletes(req)
 
 			if err != nil {
 				return err
 			}
+
+			deletes = append(deletes, delReq)
 
 		default:
 			return fmt.Errorf("unsupported operation: %s", req.Operation)
@@ -363,39 +366,31 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 }
 
 // Returns the set requests
-func (s *SQLServer) getSets(req state.TransactionalStateOperation) ([]state.SetRequest, error) {
-	var sets []state.SetRequest
-
+func (s *SQLServer) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
 	setReq, ok := req.Request.(state.SetRequest)
 	if !ok {
-		return nil, fmt.Errorf("expecting set request")
+		return setReq, fmt.Errorf("expecting set request")
 	}
 
 	if setReq.Key == "" {
-		return nil, fmt.Errorf("missing key in upsert operation")
+		return setReq, fmt.Errorf("missing key in upsert operation")
 	}
 
-	sets = append(sets, setReq)
-
-	return sets, nil
+	return setReq, nil
 }
 
 // Returns the delete requests
-func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) ([]state.DeleteRequest, error) {
-	var deletes []state.DeleteRequest
-
+func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
 	delReq, ok := req.Request.(state.DeleteRequest)
 	if !ok {
-		return nil, fmt.Errorf("expecting delete request")
+		return delReq, fmt.Errorf("expecting delete request")
 	}
 
 	if delReq.Key == "" {
-		return nil, fmt.Errorf("missing key in upsert operation")
+		return delReq, fmt.Errorf("missing key in upsert operation")
 	}
 
-	deletes = append(deletes, delReq)
-
-	return deletes, nil
+	return delReq, nil
 }
 
 func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {

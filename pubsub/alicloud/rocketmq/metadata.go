@@ -7,12 +7,12 @@ package rocketmq
 
 import (
 	"encoding/json"
+	"fmt"
 
-	"github.com/dapr/components-contrib/pubsub"
 	mqw "github.com/cinience/go_rocketmq"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
-//rocketmq
 const (
 	metadataRocketmqTag           = "rocketmq-tag"
 	metadataRocketmqKey           = "rocketmq-key"
@@ -39,7 +39,7 @@ type metadata struct {
 	Endpoint string `json:"endpoint"`
 
 	// rocketmq's instanceId, optional
-	InstanceId string `json:"instanceId"`
+	InstanceID string `json:"instanceId"`
 
 	// consumer group for rocketmq's subscribers, suggested to provide
 	ConsumerGroup string `json:"consumerGroup"`
@@ -68,12 +68,12 @@ type metadata struct {
 func parseMetadata(md pubsub.Metadata) (*metadata, error) {
 	b, err := json.Marshal(md.Properties)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
 	var m metadata
 	if err = json.Unmarshal(b, &m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
 	if m.ContentType == "" {
@@ -82,21 +82,23 @@ func parseMetadata(md pubsub.Metadata) (*metadata, error) {
 
 	c, err := pubsub.Concurrency(md.Properties)
 	if err != nil {
-		return &m, err
+		return &m, fmt.Errorf("parse error: %w", err)
 	}
 	m.concurrency = c
+
 	return &m, nil
 }
 
 func parseCommonMetadata(md *metadata) (*mqw.Metadata, error) {
 	str, err := json.Marshal(md)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
 	var m mqw.Metadata
 	if err = json.Unmarshal(str, &m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
+
 	return &m, nil
 }

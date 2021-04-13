@@ -9,13 +9,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
 	jsoniter "github.com/json-iterator/go"
-	"time"
 )
 
 type rocketMQ struct {
@@ -30,7 +31,15 @@ type rocketMQ struct {
 
 // NewRocketMQ creates a new RocketMQ pub/sub
 func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
-	return &rocketMQ{logger: logger, name: "rocketmq"}
+	return &rocketMQ{
+		name:     "rocketmq",
+		metadata: nil,
+		producer: nil,
+		consumer: nil,
+		logger:   logger,
+		json:     nil,
+		topics:   nil,
+	}
 }
 
 // Init does metadata parsing and connection creation
@@ -52,8 +61,10 @@ func (r *rocketMQ) Init(md pubsub.Metadata) error {
 	r.consumer, err = r.setupConsumer()
 	if err != nil {
 		r.logger.Errorf("rocketmq init consumer failed: %v", err)
+
 		return err
 	}
+
 	return nil
 }
 
@@ -66,9 +77,10 @@ func (r *rocketMQ) setupPublisher() (mqw.Producer, error) {
 		if err = producer.Init(md); err != nil {
 			r.logger.Debugf("rocketmq producer init failed: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("setupPublisher failed. %w", err)
 		}
 		r.logger.Infof("rocketmq proto: %s", r.metadata.AccessProto)
+
 		return producer, nil
 	}
 
@@ -83,9 +95,11 @@ func (r *rocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 		}
 		if err = consumer.Init(md); err != nil {
 			r.logger.Errorf("rocketmq consumer init failed: %v", err)
-			return nil, err
+
+			return nil, fmt.Errorf("setupConsumer failed. %w", err)
 		}
 		r.logger.Infof("rocketmq access proto: %s", r.metadata.AccessProto)
+
 		return consumer, nil
 	}
 
@@ -106,8 +120,10 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 
 	if err != nil {
 		r.logger.Errorf("error send message topic:%s : %v", req.Topic, err)
-		return err
+
+		return fmt.Errorf("publish message failed. %w", err)
 	}
+
 	return nil
 }
 
@@ -151,6 +167,7 @@ func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 		(mqType != string(mqc.SQL92) &&
 			mqType != string(mqc.TAG)) {
 		r.logger.Warnf("rocketmq subscribe to topic %s failed because some illegal type(%s).", req.Topic, req.Metadata[metadataRocketmqType])
+
 		return nil
 	}
 
@@ -163,22 +180,37 @@ func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 
 	topics := r.addTopic(req.Topic, mqc.MessageSelector{Type: mqc.ExpressionType(mqType), Expression: mqExpr})
 
+	err = r.subscribeAllTopics(topics, consumerGroup, handler)
+	if err != nil {
+		return fmt.Errorf("rocketmq error: %w", err)
+	}
+
+	err = r.consumer.Start()
+	if err != nil {
+		return fmt.Errorf("consumer start failed. %w", err)
+	}
+
+	return nil
+}
+
+func (r *rocketMQ) subscribeAllTopics(topics []string, consumerGroup string, handler pubsub.Handler) error {
 	for _, topic := range topics {
 		selector, ok := r.topics[topic]
 		if !ok {
-			return fmt.Errorf("rocketmq error: cannot found topic:%s selector", topic)
+			return fmt.Errorf("cannot found topic:%s selector", topic)
 		}
 
-		r.logger.Debugf("rocketmq start subscribe:%s group:%s type:%s expr:%s", topic, consumerGroup, mqType, selector.Expression)
+		r.logger.Debugf("rocketmq start subscribe:%s group:%s type:%s expr:%s", topic, consumerGroup, string(selector.Type), selector.Expression)
 
 		err := r.consumer.Subscribe(topic, selector, r.adaptCallback(topic, consumerGroup, string(selector.Type), selector.Expression, handler))
 		if err != nil {
 			r.logger.Errorf("rocketmq error to subscribe: %s", err)
-			return err
+
+			return fmt.Errorf("subscribe %s failed. %w", topic, err)
 		}
 	}
 
-	return r.consumer.Start()
+	return nil
 }
 
 func (r *rocketMQ) Features() []pubsub.Feature {
@@ -189,9 +221,11 @@ func (r *rocketMQ) Close() error {
 	if r.consumer != nil {
 		_ = r.consumer.Shutdown()
 	}
+
 	if r.producer != nil {
 		_ = r.producer.Shutdown()
 	}
+
 	return nil
 }
 
@@ -208,6 +242,7 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 			if err != nil {
 				r.logger.Warn("rocketmq fail to marshal data message, topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), err)
 				success = false
+
 				continue
 			}
 			metadata := make(map[string]string, 4)
@@ -227,9 +262,11 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 				success = false
 			}
 		}
+
 		if !success {
 			return mqc.ConsumeRetryLater, nil
 		}
+
 		return mqc.ConsumeSuccess, nil
 	}
 }

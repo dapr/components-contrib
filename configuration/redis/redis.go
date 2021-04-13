@@ -218,6 +218,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 	items := make([]*configuration.Item, 0, len(req.Keys))
 
+	// query by keys
 	for _, key := range req.Keys {
 		redisKey, err := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
 		if err != nil {
@@ -241,14 +242,63 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		}
 		internal.ParseRedisValue(redisValueMap, item)
 		if item.Content != "" {
-			// Hash key/value exist but Content in Hash value exist
+			// Hash key/value exist and "Content" filed in Hash value exist
 			items = append(items, item)
 		}
+	}
+	if req.SubscribeUpdate && handler != nil {
+		go r.startSubscribeUpdate(req, handler)
 	}
 
 	return &configuration.GetResponse{
 		Items: items,
 	}, nil
+}
+
+func (r *ConfigurationStore) startSubscribeUpdate(req *configuration.GetRequest, handler func(e *configuration.UpdateEvent) error) {
+	redisKeys := make([]string, 0, len(req.Keys))
+	for _, key := range req.Keys {
+		redisKey, _ := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
+		redisKeys = append(redisKeys, fmt.Sprintf("__key*__:%s", redisKey))
+	}
+
+	// enable notify-keyspace-events by redis Set command
+	r.client.ConfigSet("notify-keyspace-events", "Kghxe")
+	p := r.client.PSubscribe(redisKeys...)
+
+	for msg := range p.Channel() {
+		redisKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
+		if err != nil {
+			continue
+		}
+
+		var item = &configuration.Item{}
+		err = internal.ParseRedisKey(redisKey, item)
+		if err != nil {
+			continue
+		}
+
+		switch msg.Payload {
+		case "hset":
+			redisValueMap, _ := r.client.HGetAll(redisKey).Result()
+			internal.ParseRedisValue(redisValueMap, item)
+		case "del":
+			// left item.Content to empty
+		}
+
+		e := &configuration.UpdateEvent{
+			AppID: req.AppID,
+			Items: []*configuration.Item{
+				item,
+			},
+		}
+
+		err = handler(e)
+		if err != nil {
+			r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+		}
+	}
+
 }
 
 func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRequest) error {

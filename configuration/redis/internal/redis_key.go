@@ -10,6 +10,7 @@ import (
 
 const separator = "/"
 const prefix = "dapr/configuration"
+const channelPrefix = "__keyspace@0__:"
 const defaultGroup = "default"
 const defaultLabel = ""
 const contentKey = "content"
@@ -62,4 +63,13 @@ func ParseRedisKey(redisKey string, item *configuration.Item) error {
 	item.Key = split[5]
 
 	return nil
+}
+
+func ParseRedisKeyFromEvent(eventChannel string) (string, error) {
+	index := strings.Index(eventChannel, channelPrefix)
+	if index == -1 {
+		return "", errors.New(fmt.Sprintf("wrong format of event channel, it should start with '%s': eventChannel=%s", channelPrefix, eventChannel))
+	}
+
+	return eventChannel[len(channelPrefix):], nil
 }

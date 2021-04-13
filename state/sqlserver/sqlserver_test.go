@@ -5,6 +5,7 @@
 package sqlserver
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
@@ -24,6 +25,15 @@ func (m *mockMigrator) executeMigrations() (migrationResult, error) {
 	r := migrationResult{}
 
 	return r, nil
+}
+
+type mockFailingMigrator struct {
+}
+
+func (m *mockFailingMigrator) executeMigrations() (migrationResult, error) {
+	r := migrationResult{}
+
+	return r, errors.New("migration failed")
 }
 
 func TestValidConfiguration(t *testing.T) {
@@ -51,6 +61,18 @@ func TestValidConfiguration(t *testing.T) {
 				connectionString: sampleConnectionString,
 				tableName:        sampleUserTableName,
 				schema:           "mytest",
+				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
+			},
+		},
+		{
+			name:  "String key type",
+			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "string"},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				schema:           defaultSchema,
+				tableName:        sampleUserTableName,
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
 				databaseName:     defaultDatabase,
@@ -135,6 +157,18 @@ func TestValidConfiguration(t *testing.T) {
 				databaseName:     "dapr_test_table",
 			},
 		},
+		{
+			name:  "No table",
+			props: map[string]string{connectionStringKey: sampleConnectionString},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				tableName:        defaultTable,
+				schema:           defaultSchema,
+				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -189,6 +223,11 @@ func TestInvalidConfiguration(t *testing.T) {
 			name:        "Invalid maxKeyLength value",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "aa"},
 			expectedErr: "parsing \"aa\"",
+		},
+		{
+			name:        "Negative maxKeyLength value",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "-1"},
+			expectedErr: "invalid key length value of -1",
 		},
 		{
 			name:        "Indexes properties are not valid json",
@@ -246,6 +285,21 @@ func TestInvalidConfiguration(t *testing.T) {
 			expectedErr: "invalid indexed property type",
 		},
 		{
+			name:        "Index property column cannot be empty",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"", "property": "age", "type": "INT"}]`},
+			expectedErr: "indexed property column cannot be empty",
+		},
+		{
+			name:        "Invalid property name cannot be empty",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "", "type": "INT"}]`},
+			expectedErr: "indexed property name cannot be empty",
+		},
+		{
+			name:        "Invalid property type cannot be empty",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": ""}]`},
+			expectedErr: "indexed property type cannot be empty",
+		},
+		{
 			name:        "Invalid database name with ;",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test;"},
 			expectedErr: "invalid database name",
@@ -254,6 +308,11 @@ func TestInvalidConfiguration(t *testing.T) {
 			name:        "Invalid database name with space",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test GO DROP DATABASE dapr_test"},
 			expectedErr: "invalid database name",
+		},
+		{
+			name:        "Invalid key type invalid",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyTypeKey: "invalid"},
+			expectedErr: "invalid key type",
 		},
 	}
 
@@ -273,4 +332,28 @@ func TestInvalidConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test that if the migration fails the error is reported
+func TestExecuteMigrationFails(t *testing.T) {
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+	sqlStore.migratorFactory = func(s *SQLServer) migrator {
+		return &mockFailingMigrator{}
+	}
+
+	metadata := state.Metadata{
+		Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
+	}
+
+	err := sqlStore.Init(metadata)
+	assert.NotNil(t, err)
+}
+
+func TestSupportedFeatures(t *testing.T) {
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+
+	actual := sqlStore.Features()
+	assert.NotNil(t, actual)
+	assert.Equal(t, state.FeatureETag, actual[0])
+	assert.Equal(t, state.FeatureTransactional, actual[1])
 }

@@ -7,11 +7,13 @@ package rocketmq
 
 import (
 	"encoding/json"
-	"github.com/dapr/components-contrib/bindings"
+	"fmt"
+
 	mqw "github.com/cinience/go_rocketmq"
+	"github.com/dapr/components-contrib/bindings"
 )
 
-//rocketmq
+// rocketmq
 const (
 	metadataRocketmqTopic         = "rocketmq-topic"
 	metadataRocketmqTag           = "rocketmq-tag"
@@ -49,7 +51,7 @@ type metadata struct {
 	ConsumerThreadNums int `json:"consumerThreadNums,string"`
 
 	// rocketmq's namespace, optional
-	InstanceId string `json:"instanceId"`
+	InstanceID string `json:"instanceId"`
 
 	// rocketmq's name server domain, optional
 	NameServerDomain string `json:"nameServerDomain"`
@@ -64,25 +66,27 @@ type metadata struct {
 func parseMetadata(md bindings.Metadata) (*metadata, error) {
 	b, err := json.Marshal(md.Properties)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error:%w", err)
 	}
 
 	var m metadata
 	if err = json.Unmarshal(b, &m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error:%w", err)
 	}
+
 	return &m, nil
 }
 
 func parseCommonMetadata(md *metadata) (*mqw.Metadata, error) {
 	str, err := json.Marshal(md)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error:%w", err)
 	}
 
 	var m mqw.Metadata
 	if err = json.Unmarshal(str, &m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse error:%w", err)
 	}
+
 	return &m, nil
 }

@@ -6,20 +6,20 @@
 package rocketmq
 
 import (
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/dapr/pkg/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestInit(t *testing.T) {
-	t.Run("metadata is correct", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
+func TestInit(t *testing.T) { //nolint:paralleltest
+	m := bindings.Metadata{Name: "test",
+		Properties: map[string]string{
 			"accessProto":   "http",
 			"accessKey":     "**",
 			"secretKey":     "***",
@@ -28,25 +28,24 @@ func TestInit(t *testing.T) {
 			"consumerGroup": "defaultGroup",
 			"instanceId":    "defaultNamespace",
 			"topics":        "defaultTopic",
-		}
-		b, err := parseMetadata(m)
-		assert.Nil(t, err)
+		}}
+	b, err := parseMetadata(m)
+	assert.Nil(t, err)
 
-		assert.Equal(t, "http", b.AccessProto)
-		assert.Equal(t, "**", b.AccessKey)
-		assert.Equal(t, "***", b.SecretKey)
-		assert.Equal(t, "http://test.endpoint", b.Endpoint)
-		assert.Equal(t, "defaultGroup", b.ConsumerGroup)
-		assert.Equal(t, "defaultNamespace", b.InstanceId)
-		assert.Equal(t, "defaultTopic", b.Topics)
-	})
+	assert.Equal(t, "http", b.AccessProto)
+	assert.Equal(t, "**", b.AccessKey)
+	assert.Equal(t, "***", b.SecretKey)
+	assert.Equal(t, "http://test.endpoint", b.Endpoint)
+	assert.Equal(t, "defaultGroup", b.ConsumerGroup)
+	assert.Equal(t, "defaultNamespace", b.InstanceID)
+	assert.Equal(t, "defaultTopic", b.Topics)
 }
 
-func TestInputBindingRead(t *testing.T) {
+func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	if !isLiveTest() {
 		return
 	}
-	m := bindings.Metadata{}
+	var m = bindings.Metadata{} //nolint:exhaustivestruct
 	m.Properties = getTestMetadata()
 	r := NewAliCloudRocketMQ(logger.NewLogger("test"))
 	err := r.Init(m)
@@ -56,6 +55,7 @@ func TestInputBindingRead(t *testing.T) {
 	handler := func(in *bindings.ReadResponse) ([]byte, error) {
 		require.Equal(t, "hello", string(in.Data))
 		atomic.AddInt32(&count, 1)
+
 		return nil, nil
 	}
 	go func() {
@@ -65,7 +65,7 @@ func TestInputBindingRead(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 	atomic.StoreInt32(&count, 0)
-	req := &bindings.InvokeRequest{Data: []byte("hello"), Operation: bindings.CreateOperation}
+	var req = &bindings.InvokeRequest{Data: []byte("hello"), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
 	_, err = r.Invoke(req)
 	require.NoError(t, err)
 

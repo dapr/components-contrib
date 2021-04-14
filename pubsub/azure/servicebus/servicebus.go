@@ -281,7 +281,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	if sender == nil {
 		// Ensure the topic exists the first time it is referenced.
 		if !a.metadata.DisableEntityManagement {
-			if err := a.ensureTopic(req.Topic); err != nil {
+			if err = a.ensureTopic(req.Topic); err != nil {
 				return err
 			}
 		}
@@ -301,16 +301,20 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		msg.TTL = &ttl
 	}
 
+	return a.doPublish(sender, msg)
+}
+
+func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebus.Message) error {
 	ebo := backoff.NewExponentialBackOff()
 	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
 	bo = backoff.WithContext(bo, a.ctx)
 
-	err = pubsub.RetryNotifyRecover(func() error {
+	return pubsub.RetryNotifyRecover(func() error {
 		ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 		defer cancel()
 
-		err = sender.Send(ctx, msg)
+		err := sender.Send(ctx, msg)
 		if err == nil {
 			return nil
 		}
@@ -329,8 +333,6 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	}, func() {
 		a.logger.Debug("Successfully published service bus message after it previously failed")
 	})
-
-	return err
 }
 
 func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {

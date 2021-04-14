@@ -17,6 +17,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+	"github.com/dapr/components-contrib/internal/retry"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -310,7 +311,7 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
 	bo = backoff.WithContext(bo, a.ctx)
 
-	return pubsub.RetryNotifyRecover(func() error {
+	return retry.RetryNotifyRecover(func() error {
 		ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 		defer cancel()
 

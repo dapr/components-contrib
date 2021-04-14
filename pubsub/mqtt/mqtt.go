@@ -18,6 +18,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
+	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -216,7 +217,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 				if m.metadata.backOffMaxRetries >= 0 {
 					b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
 				}
-				if err := pubsub.RetryNotifyRecover(func() error {
+				if err := retry.RetryNotifyRecover(func() error {
 					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
 					if err := handler(m.ctx, &msg); err != nil {
 						return err

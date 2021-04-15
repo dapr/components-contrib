@@ -9,6 +9,7 @@ import (
 )
 
 type metadata struct {
+	queueName        string
 	consumerID       string
 	host             string
 	deleteWhenUnused bool
@@ -36,6 +37,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 	if val, found := pubSubMetadata.Properties[metadataConsumerIDKey]; found && val != "" {
 		result.consumerID = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataQueueNameKey]; found && val != "" {
+		result.queueName = val
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataDeliveryModeKey]; found && val != "" {

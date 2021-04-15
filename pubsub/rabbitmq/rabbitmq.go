@@ -21,6 +21,7 @@ const (
 	errorChannelConnection = "channel/connection is not open"
 
 	metadataHostKey              = "host"
+	metadataQueueNameKey         = "queueName"
 	metadataConsumerIDKey        = "consumerID"
 	metadataDeleteWhenUnusedKey  = "deletedWhenUnused"
 	metadataAutoAckKey           = "autoAck"
@@ -198,7 +199,11 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 		return errors.New("consumerID is required for subscriptions")
 	}
 
-	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
+	queueName := r.metadata.queueName
+
+	if queueName == "" {
+		queueName = fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
+	}
 
 	go r.subscribeForever(req, queueName, handler)
 

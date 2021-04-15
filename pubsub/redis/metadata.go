@@ -16,6 +16,8 @@ type metadata struct {
 	password string
 	// Database to be selected after connecting to the server.
 	db int
+	// The redis type node or cluster
+	redisType string
 
 	// Maximum number of retries before giving up.
 	// Default is to not retry failed commands.

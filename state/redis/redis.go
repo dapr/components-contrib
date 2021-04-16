@@ -178,6 +178,7 @@ func (r *StateStore) newClient(m metadata) *redis.Client {
 func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
 	opts := &redis.FailoverOptions{
 		MasterName:      r.metadata.sentinelMasterName,
+		Password:        m.password,
 		SentinelAddrs:   []string{r.metadata.host},
 		DB:              defaultDB,
 		MaxRetries:      m.maxRetries,

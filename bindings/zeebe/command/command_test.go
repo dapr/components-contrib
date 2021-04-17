@@ -7,7 +7,6 @@ package command
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -73,7 +72,7 @@ func TestInvoke(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, fmt.Sprintf(unsupportedOperationErrorMsg, bindings.DeleteOperation))
+		assert.Error(t, err, ErrUnsupportedOperation(bindings.DeleteOperation))
 	})
 }
 

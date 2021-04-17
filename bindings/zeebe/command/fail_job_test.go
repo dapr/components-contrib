@@ -59,7 +59,7 @@ func TestFailJob(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: failJobOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingJobKeyErrorMsg)
+		assert.Error(t, err, ErrMissingJobKey)
 	})
 
 	t.Run("retries is mandatory", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestFailJob(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: failJobOperation}
 		_, err = message.Invoke(req)
-		assert.Error(t, err, missingRetriesErrorMsg)
+		assert.Error(t, err, ErrMissingRetries)
 	})
 
 	t.Run("fail a job", func(t *testing.T) {

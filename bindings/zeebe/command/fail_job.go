@@ -14,9 +14,8 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-const (
-	// errors
-	missingRetriesErrorMsg = "retries is a required attribute"
+var (
+	ErrMissingRetries = errors.New("retries is a required attribute")
 )
 
 type failJobPayload struct {
@@ -33,11 +32,11 @@ func (z *ZeebeCommand) failJob(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	}
 
 	if payload.JobKey == nil {
-		return nil, errors.New(missingJobKeyErrorMsg)
+		return nil, ErrMissingJobKey
 	}
 
 	if payload.Retries == nil {
-		return nil, errors.New(missingRetriesErrorMsg)
+		return nil, ErrMissingRetries
 	}
 
 	cmd := z.client.NewFailJobCommand().
@@ -50,7 +49,7 @@ func (z *ZeebeCommand) failJob(req *bindings.InvokeRequest) (*bindings.InvokeRes
 
 	_, err = cmd.Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot fail job for key %d: %s", payload.JobKey, err)
+		return nil, fmt.Errorf("cannot fail job for key %d: %w", payload.JobKey, err)
 	}
 
 	return &bindings.InvokeResponse{}, nil

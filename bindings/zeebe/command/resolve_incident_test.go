@@ -47,7 +47,7 @@ func TestResolveIncident(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: resolveIncidentOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingIncidentKeyErrorMsg)
+		assert.Error(t, err, ErrMissingIncidentKey)
 	})
 
 	t.Run("resolve a incident", func(t *testing.T) {

@@ -16,12 +16,12 @@ import (
 func (z *ZeebeCommand) topology() (*bindings.InvokeResponse, error) {
 	response, err := z.client.NewTopologyCommand().Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot get zeebe toplogy: %s", err)
+		return nil, fmt.Errorf("cannot get zeebe toplogy: %w", err)
 	}
 
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal response to json: %s", err)
+		return nil, fmt.Errorf("cannot marshal response to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

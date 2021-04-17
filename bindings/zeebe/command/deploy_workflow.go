@@ -20,11 +20,12 @@ const (
 	// metadata
 	fileName = "fileName"
 	fileType = "fileType"
+)
 
-	// errors
-	missingFileNameErrorMsg = "fileName is a required attribute"
-	missingFileTypeErrorMsg = "cannot determine file type from file name. Please specify a fileType"
-	invalidFileTypeErrorMsg = "fileType must be either 'bpmn' of 'file'"
+var (
+	ErrMissingFileName = errors.New("fileName is a required attribute")
+	ErrMissingFileType = errors.New("cannot determine file type from file name. Please specify a fileType")
+	ErrInvalidFileType = errors.New("fileType must be either 'bpmn' of 'file'")
 )
 
 func (z *ZeebeCommand) deployWorkflow(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -34,7 +35,7 @@ func (z *ZeebeCommand) deployWorkflow(req *bindings.InvokeRequest) (*bindings.In
 	if val, ok := req.Metadata[fileName]; ok && val != "" {
 		deployFileName = val
 	} else {
-		return nil, errors.New(missingFileNameErrorMsg)
+		return nil, ErrMissingFileName
 	}
 
 	if val, ok := req.Metadata[fileType]; ok && val != "" {
@@ -42,7 +43,7 @@ func (z *ZeebeCommand) deployWorkflow(req *bindings.InvokeRequest) (*bindings.In
 	} else {
 		var extension = filepath.Ext(deployFileName)
 		if extension == "" {
-			return nil, errors.New(missingFileTypeErrorMsg)
+			return nil, ErrMissingFileType
 		}
 
 		if extension == ".bpmn" {
@@ -58,19 +59,19 @@ func (z *ZeebeCommand) deployWorkflow(req *bindings.InvokeRequest) (*bindings.In
 	} else if deployFileType == "file" {
 		resourceType = pb.WorkflowRequestObject_FILE
 	} else {
-		return nil, errors.New(invalidFileTypeErrorMsg)
+		return nil, ErrInvalidFileType
 	}
 
 	response, err := z.client.NewDeployWorkflowCommand().
 		AddResource(req.Data, deployFileName, resourceType).
 		Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot deploy workflow with fileName %s: %s", deployFileName, err)
+		return nil, fmt.Errorf("cannot deploy workflow with fileName %s: %w", deployFileName, err)
 	}
 
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal response to json: %s", err)
+		return nil, fmt.Errorf("cannot marshal response to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

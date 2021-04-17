@@ -59,7 +59,7 @@ func TestThrowError(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: throwErrorOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingJobKeyErrorMsg)
+		assert.Error(t, err, ErrMissingJobKey)
 	})
 
 	t.Run("errorCode is mandatory", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestThrowError(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: throwErrorOperation}
 		_, err = message.Invoke(req)
-		assert.Error(t, err, missingErrorCodeErrorMsg)
+		assert.Error(t, err, ErrMissingErrorCode)
 	})
 
 	t.Run("throw an error", func(t *testing.T) {

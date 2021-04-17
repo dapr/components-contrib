@@ -6,6 +6,7 @@
 package command
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -15,10 +16,6 @@ import (
 )
 
 const (
-	// errors
-	unsupportedOperationErrorMsg = "unsupported operation: %v"
-	missingJobKeyErrorMsg        = "jobKey is a required attribute"
-
 	// operations
 	topologyOperation         bindings.OperationKind = "topology"
 	deployWorkflowOperation   bindings.OperationKind = "deploy-workflow"
@@ -32,6 +29,13 @@ const (
 	failJobOperation          bindings.OperationKind = "fail-job"
 	updateJobRetriesOperation bindings.OperationKind = "update-job-retries"
 	throwErrorOperation       bindings.OperationKind = "throw-error"
+)
+
+var (
+	ErrMissingJobKey        = errors.New("jobKey is a required attribute")
+	ErrUnsupportedOperation = func(operation bindings.OperationKind) error {
+		return fmt.Errorf("unsupported operation: %v", operation)
+	}
 )
 
 // ZeebeCommand executes Zeebe commands
@@ -110,6 +114,6 @@ func (z *ZeebeCommand) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResp
 	case bindings.ListOperation:
 		fallthrough
 	default:
-		return nil, fmt.Errorf(unsupportedOperationErrorMsg, req.Operation)
+		return nil, ErrUnsupportedOperation(req.Operation)
 	}
 }

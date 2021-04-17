@@ -37,7 +37,7 @@ func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
 	meta, err := client.parseMetadata(m)
 	assert.Nil(t, meta)
 	assert.Error(t, err)
-	assert.Equal(t, err.Error(), missingGatewayAddrErrorMsg)
+	assert.Equal(t, err, ErrMissingGatewayAddr)
 }
 
 func TestParseMetadataDefaultValues(t *testing.T) {

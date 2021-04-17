@@ -47,7 +47,7 @@ func TestCancelInstance(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: cancelInstanceOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingWorkflowInstanceKeyErrorMsg)
+		assert.Error(t, err, ErrMissingWorkflowInstanceKey)
 	})
 
 	t.Run("cancel a command", func(t *testing.T) {

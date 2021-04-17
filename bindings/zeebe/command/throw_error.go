@@ -14,9 +14,8 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-const (
-	// errors
-	missingErrorCodeErrorMsg = "errorCode is a required attribute"
+var (
+	ErrMissingErrorCode = errors.New("errorCode is a required attribute")
 )
 
 type throwErrorPayload struct {
@@ -33,11 +32,11 @@ func (z *ZeebeCommand) throwError(req *bindings.InvokeRequest) (*bindings.Invoke
 	}
 
 	if payload.JobKey == nil {
-		return nil, errors.New(missingJobKeyErrorMsg)
+		return nil, ErrMissingJobKey
 	}
 
 	if payload.ErrorCode == "" {
-		return nil, errors.New(missingErrorCodeErrorMsg)
+		return nil, ErrMissingErrorCode
 	}
 
 	cmd := z.client.NewThrowErrorCommand().
@@ -50,7 +49,7 @@ func (z *ZeebeCommand) throwError(req *bindings.InvokeRequest) (*bindings.Invoke
 
 	_, err = cmd.Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot throw error for job key %d: %s", payload.JobKey, err)
+		return nil, fmt.Errorf("cannot throw error for job key %d: %w", payload.JobKey, err)
 	}
 
 	return &bindings.InvokeResponse{}, nil

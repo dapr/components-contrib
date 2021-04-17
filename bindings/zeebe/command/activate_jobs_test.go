@@ -69,7 +69,7 @@ func TestActivateJobs(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: activateJobsOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingJobTypeErrorMsg)
+		assert.Error(t, err, ErrMissingJobType)
 	})
 
 	t.Run("maxJobsToActivate is mandatory", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestActivateJobs(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
 		_, err = message.Invoke(req)
-		assert.Error(t, err, missingMaxJobsToActivateErrorMsg)
+		assert.Error(t, err, ErrMissingMaxJobsToActivate)
 	})
 
 	t.Run("activate jobs with mandatory fields", func(t *testing.T) {

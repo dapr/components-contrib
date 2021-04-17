@@ -8,7 +8,6 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -28,7 +27,7 @@ func (z *ZeebeCommand) completeJob(req *bindings.InvokeRequest) (*bindings.Invok
 	}
 
 	if payload.JobKey == nil {
-		return nil, errors.New(missingJobKeyErrorMsg)
+		return nil, ErrMissingJobKey
 	}
 
 	cmd1 := z.client.NewCompleteJobCommand()
@@ -43,7 +42,7 @@ func (z *ZeebeCommand) completeJob(req *bindings.InvokeRequest) (*bindings.Invok
 
 	_, err = cmd3.Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot complete job for key %d: %s", payload.JobKey, err)
+		return nil, fmt.Errorf("cannot complete job for key %d: %w", payload.JobKey, err)
 	}
 
 	return &bindings.InvokeResponse{}, nil

@@ -62,7 +62,7 @@ func TestSetVariables(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: setVariablesOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingElementInstanceKeyErrorMsg)
+		assert.Error(t, err, ErrMissingElementInstanceKey)
 	})
 
 	t.Run("variables is mandatory", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestSetVariables(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 		_, err = message.Invoke(req)
-		assert.Error(t, err, missingVariablesErrorMsg)
+		assert.Error(t, err, ErrMissingVariables)
 	})
 
 	t.Run("set variables", func(t *testing.T) {

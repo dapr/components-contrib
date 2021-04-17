@@ -8,7 +8,6 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -28,7 +27,7 @@ func (z *ZeebeCommand) updateJobRetries(req *bindings.InvokeRequest) (*bindings.
 	}
 
 	if payload.JobKey == nil {
-		return nil, errors.New(missingJobKeyErrorMsg)
+		return nil, ErrMissingJobKey
 	}
 
 	cmd1 := z.client.NewUpdateJobRetriesCommand().JobKey(*payload.JobKey)
@@ -39,7 +38,7 @@ func (z *ZeebeCommand) updateJobRetries(req *bindings.InvokeRequest) (*bindings.
 
 	_, err = cmd2.Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot uodate job retries for key %d: %s", payload.JobKey, err)
+		return nil, fmt.Errorf("cannot uodate job retries for key %d: %w", payload.JobKey, err)
 	}
 
 	return &bindings.InvokeResponse{}, nil

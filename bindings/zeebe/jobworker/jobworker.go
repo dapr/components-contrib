@@ -128,7 +128,7 @@ func (z *ZeebeJobWorker) getJobWorker(handler jobHandler) worker.JobWorker {
 func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	headers, err := job.GetCustomHeadersAsMap()
 	if err != nil {
-		h.failJob(client, job, err.Error())
+		h.failJob(client, job, err)
 
 		return
 	}
@@ -138,7 +138,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 		Metadata: headers,
 	})
 	if err != nil {
-		h.failJob(client, job, err.Error())
+		h.failJob(client, job, err)
 
 		return
 	}
@@ -146,7 +146,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	variablesMap := make(map[string]interface{})
 	err = json.Unmarshal(resultVariables, &variablesMap)
 	if err != nil {
-		h.failJob(client, job, fmt.Sprintf("Cannot parse variables from binding result %s; got error %s", string(resultVariables), err.Error()))
+		h.failJob(client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
 
 		return
 	}
@@ -154,7 +154,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	jobKey := job.GetKey()
 	request, err := client.NewCompleteJobCommand().JobKey(jobKey).VariablesFromMap(variablesMap)
 	if err != nil {
-		h.failJob(client, job, err.Error())
+		h.failJob(client, job, err)
 
 		return
 	}
@@ -170,8 +170,8 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	h.logger.Debug("Successfully completed job")
 }
 
-func (h *jobHandler) failJob(client worker.JobClient, job entities.Job, reason string) {
-	h.logger.Errorf("Failed to complete job `%s` reason: %s", job.GetKey(), reason)
+func (h *jobHandler) failJob(client worker.JobClient, job entities.Job, reason error) {
+	h.logger.Errorf("Failed to complete job `%s` reason: %w", job.GetKey(), reason)
 
 	ctx := context.Background()
 	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).Send(ctx)

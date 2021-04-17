@@ -15,9 +15,8 @@ import (
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-const (
-	// errors
-	missingGatewayAddrErrorMsg = "gatewayAddr is a required attribute"
+var (
+	ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
 )
 
 // ClientFactory enables injection for testing
@@ -74,7 +73,7 @@ func (c *ClientFactoryImpl) parseMetadata(metadata bindings.Metadata) (*clientMe
 	}
 
 	if m.GatewayAddr == "" {
-		return nil, errors.New(missingGatewayAddrErrorMsg)
+		return nil, ErrMissingGatewayAddr
 	}
 
 	return &m, nil

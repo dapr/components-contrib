@@ -14,10 +14,9 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-const (
-	// errors
-	missingElementInstanceKeyErrorMsg = "elementInstanceKey is a required attribute"
-	missingVariablesErrorMsg          = "variables is a required attribute"
+var (
+	ErrMissingElementInstanceKey = errors.New("elementInstanceKey is a required attribute")
+	ErrMissingVariables          = errors.New("variables is a required attribute")
 )
 
 type setVariablesPayload struct {
@@ -34,11 +33,11 @@ func (z *ZeebeCommand) setVariables(req *bindings.InvokeRequest) (*bindings.Invo
 	}
 
 	if payload.ElementInstanceKey == nil {
-		return nil, errors.New(missingElementInstanceKeyErrorMsg)
+		return nil, ErrMissingElementInstanceKey
 	}
 
 	if payload.Variables == nil {
-		return nil, errors.New(missingVariablesErrorMsg)
+		return nil, ErrMissingVariables
 	}
 
 	cmd, err := z.client.NewSetVariablesCommand().
@@ -50,12 +49,12 @@ func (z *ZeebeCommand) setVariables(req *bindings.InvokeRequest) (*bindings.Invo
 
 	response, err := cmd.Local(payload.Local).Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot set variables for element instance key %d: %s", payload.ElementInstanceKey, err)
+		return nil, fmt.Errorf("cannot set variables for element instance key %d: %w", payload.ElementInstanceKey, err)
 	}
 
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal response to json: %s", err)
+		return nil, fmt.Errorf("cannot marshal response to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

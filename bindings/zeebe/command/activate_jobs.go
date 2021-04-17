@@ -16,10 +16,9 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 )
 
-const (
-	// errors
-	missingJobTypeErrorMsg           = "jobType is a required attribute"
-	missingMaxJobsToActivateErrorMsg = "maxJobsToActivate is a required attribute"
+var (
+	ErrMissingJobType           = errors.New("jobType is a required attribute")
+	ErrMissingMaxJobsToActivate = errors.New("maxJobsToActivate is a required attribute")
 )
 
 type activateJobsPayload struct {
@@ -38,11 +37,11 @@ func (z *ZeebeCommand) activateJobs(req *bindings.InvokeRequest) (*bindings.Invo
 	}
 
 	if payload.JobType == "" {
-		return nil, errors.New(missingJobTypeErrorMsg)
+		return nil, ErrMissingJobType
 	}
 
 	if payload.MaxJobsToActivate == nil {
-		return nil, errors.New(missingMaxJobsToActivateErrorMsg)
+		return nil, ErrMissingMaxJobsToActivate
 	}
 
 	cmd := z.client.NewActivateJobsCommand().
@@ -64,12 +63,12 @@ func (z *ZeebeCommand) activateJobs(req *bindings.InvokeRequest) (*bindings.Invo
 	ctx := context.Background()
 	response, err := cmd.Send(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("cannot activate jobs for type %s: %s", payload.JobType, err)
+		return nil, fmt.Errorf("cannot activate jobs for type %s: %w", payload.JobType, err)
 	}
 
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal response to json: %s", err)
+		return nil, fmt.Errorf("cannot marshal response to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

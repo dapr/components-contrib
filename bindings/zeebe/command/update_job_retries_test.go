@@ -51,7 +51,7 @@ func TestUpdateJobRetries(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: updateJobRetriesOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingJobKeyErrorMsg)
+		assert.Error(t, err, ErrMissingJobKey)
 	})
 
 	t.Run("update job retries", func(t *testing.T) {

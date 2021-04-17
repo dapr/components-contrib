@@ -20,7 +20,7 @@ func TestDeployWorkflow(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: deployWorkflowOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingFileNameErrorMsg)
+		assert.Error(t, err, ErrMissingFileName)
 	})
 
 	t.Run("return error if file type recognition doesn't work because of missing file extension", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestDeployWorkflow(t *testing.T) {
 			"fileName": "test",
 		}}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingFileTypeErrorMsg)
+		assert.Error(t, err, ErrMissingFileType)
 	})
 
 	t.Run("return error if file type isn't supported", func(t *testing.T) {
@@ -39,6 +39,6 @@ func TestDeployWorkflow(t *testing.T) {
 			"fileType": "unsupported",
 		}}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, invalidFileTypeErrorMsg)
+		assert.Error(t, err, ErrInvalidFileType)
 	})
 }

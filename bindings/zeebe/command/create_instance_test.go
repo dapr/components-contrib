@@ -84,7 +84,7 @@ func TestCreateInstance(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
-		assert.Error(t, err, ambiguousCreationVarsErrorMsg)
+		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
 
 	t.Run("create command with bpmnProcessId and specific version", func(t *testing.T) {

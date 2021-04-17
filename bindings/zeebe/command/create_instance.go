@@ -15,9 +15,8 @@ import (
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 )
 
-const (
-	// errors
-	ambiguousCreationVarsErrorMsg = "either 'bpmnProcessId' or 'workflowKey' must be passed, not both at the same time"
+var (
+	ErrAmbiguousCreationVars = errors.New("either 'bpmnProcessId' or 'workflowKey' must be passed, not both at the same time")
 )
 
 type createInstancePayload struct {
@@ -40,7 +39,7 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 	var errorDetail string
 
 	if payload.BpmnProcessID != "" && payload.WorkflowKey != nil {
-		return nil, errors.New(ambiguousCreationVarsErrorMsg)
+		return nil, ErrAmbiguousCreationVars
 	} else if payload.BpmnProcessID != "" {
 		cmd2 = cmd1.BPMNProcessId(payload.BpmnProcessID)
 		if payload.Version != nil {
@@ -64,12 +63,12 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 
 	response, err := cmd3.Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot create instane for %s: %s", errorDetail, err)
+		return nil, fmt.Errorf("cannot create instane for %s: %w", errorDetail, err)
 	}
 
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal response to json: %s", err)
+		return nil, fmt.Errorf("cannot marshal response to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

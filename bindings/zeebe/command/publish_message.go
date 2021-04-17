@@ -16,9 +16,8 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 )
 
-const (
-	// errors
-	missingMessageNameErrorMsg = "messageName is a required attribute"
+var (
+	ErrMissingMessageName = errors.New("messageName is a required attribute")
 )
 
 type publishMessagePayload struct {
@@ -37,7 +36,7 @@ func (z *ZeebeCommand) publishMessage(req *bindings.InvokeRequest) (*bindings.In
 	}
 
 	if payload.MessageName == "" {
-		return nil, errors.New(missingMessageNameErrorMsg)
+		return nil, ErrMissingMessageName
 	}
 
 	cmd := z.client.NewPublishMessageCommand().
@@ -62,12 +61,12 @@ func (z *ZeebeCommand) publishMessage(req *bindings.InvokeRequest) (*bindings.In
 	ctx := context.Background()
 	response, err := cmd.Send(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("cannot publish message with name %s: %s", payload.MessageName, err)
+		return nil, fmt.Errorf("cannot publish message with name %s: %w", payload.MessageName, err)
 	}
 
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal response to json: %s", err)
+		return nil, fmt.Errorf("cannot marshal response to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

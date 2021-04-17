@@ -73,7 +73,7 @@ func TestPublishMessage(t *testing.T) {
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: publishMessageOperation}
 		_, err := message.Invoke(req)
-		assert.Error(t, err, missingMessageNameErrorMsg)
+		assert.Error(t, err, ErrMissingMessageName)
 	})
 
 	t.Run("send message with mandatory fields", func(t *testing.T) {

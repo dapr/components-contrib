@@ -14,9 +14,8 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-const (
-	// errors
-	missingWorkflowInstanceKeyErrorMsg = "workflowInstanceKey is a required attribute"
+var (
+	ErrMissingWorkflowInstanceKey = errors.New("workflowInstanceKey is a required attribute")
 )
 
 type cancelInstancePayload struct {
@@ -31,14 +30,14 @@ func (z *ZeebeCommand) cancelInstance(req *bindings.InvokeRequest) (*bindings.In
 	}
 
 	if payload.WorkflowInstanceKey == nil {
-		return nil, errors.New(missingWorkflowInstanceKeyErrorMsg)
+		return nil, ErrMissingWorkflowInstanceKey
 	}
 
 	_, err = z.client.NewCancelInstanceCommand().
 		WorkflowInstanceKey(*payload.WorkflowInstanceKey).
 		Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot cancel instance for workflow instance key %d: %s", payload.WorkflowInstanceKey, err)
+		return nil, fmt.Errorf("cannot cancel instance for workflow instance key %d: %w", payload.WorkflowInstanceKey, err)
 	}
 
 	return &bindings.InvokeResponse{}, nil

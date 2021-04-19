@@ -58,6 +58,7 @@ func newDataSource(rules string, handlers ...datasource.PropertyHandler) (dataso
 	for _, h := range handlers {
 		ds.AddPropertyHandler(h)
 	}
+
 	return ds, nil
 }
 
@@ -69,8 +70,10 @@ func (p propertyDataSource) Initialize() error {
 	src, err := p.ReadSource()
 	if err != nil {
 		err = errors.Errorf("Fail to read source, err: %+v", err)
+
 		return err
 	}
+
 	return p.Handle(src)
 }
 

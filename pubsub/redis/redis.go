@@ -16,7 +16,7 @@ import (
 	"github.com/go-redis/redis/v7"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

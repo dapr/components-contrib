@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // Consul is a state store implementation for HashiCorp Consul.

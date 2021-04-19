@@ -11,8 +11,8 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
-	nats "github.com/nats-io/go-nats"
+	"github.com/dapr/kit/logger"
+	nats "github.com/nats-io/nats.go"
 )
 
 const (

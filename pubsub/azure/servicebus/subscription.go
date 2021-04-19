@@ -102,7 +102,7 @@ func (s *subscription) close(ctx context.Context) {
 
 	// Ensure subscription entity is closed
 	if err := s.entity.Close(ctx); err != nil {
-		s.logger.Errorf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
+		s.logger.Infof("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
 	}
 }
 

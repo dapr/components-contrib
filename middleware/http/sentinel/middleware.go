@@ -22,15 +22,6 @@ type middlewareMetadata struct {
 	AppName string `json:"appName"`
 	// LogConfig
 	LogDir    string `json:"logDir"`
-	LogUsePid bool   `json:"logUsePid,string"`
-	// StatConfig
-	GlobalStatisticSampleCountTotal uint32 `yaml:"globalStatisticSampleCountTotal"`
-	GlobalStatisticIntervalMsTotal  uint32 `yaml:"globalStatisticIntervalMsTotal"`
-	MetricStatisticSampleCount      uint32 `yaml:"metricStatisticSampleCount"`
-	MetricStatisticIntervalMs       uint32 `yaml:"metricStatisticIntervalMs"`
-	// SystemStatConfig
-	CollectIntervalMs uint32 `yaml:"collectIntervalMs"`
-	UseCacheTime      bool   `yaml:"useCacheTime"`
 	// Rules
 	FlowRules           string `yaml:"flowRules"`
 	CircuitBreakerRules string `yaml:"circuitBreakerRules"`
@@ -39,8 +30,8 @@ type middlewareMetadata struct {
 	SystemRules         string `yaml:"systemRules"`
 }
 
-// NewSentinelMiddleware returns a new sentinel middleware
-func NewSentinelMiddleware(logger logger.Logger) *Middleware {
+// NewMiddleware returns a new sentinel middleware
+func NewMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
@@ -147,34 +138,7 @@ func (m *Middleware) newSentinelConfig(metadata *middlewareMetadata) *config.Ent
 		conf.Sentinel.Log.Dir = metadata.LogDir
 	}
 
-	if metadata.LogUsePid {
-		conf.Sentinel.Log.UsePid = metadata.LogUsePid
-	}
-
-	if metadata.GlobalStatisticSampleCountTotal > 0 {
-		conf.Sentinel.Stat.GlobalStatisticSampleCountTotal = metadata.GlobalStatisticSampleCountTotal
-	}
-
-	if metadata.GlobalStatisticIntervalMsTotal > 0 {
-		conf.Sentinel.Stat.GlobalStatisticIntervalMsTotal = metadata.GlobalStatisticIntervalMsTotal
-	}
-
-	if metadata.MetricStatisticSampleCount > 0 {
-		conf.Sentinel.Stat.MetricStatisticSampleCount = metadata.MetricStatisticSampleCount
-	}
-
-	if metadata.MetricStatisticIntervalMs > 0 {
-		conf.Sentinel.Stat.MetricStatisticIntervalMs = metadata.MetricStatisticIntervalMs
-	}
-
-	if metadata.CollectIntervalMs > 0 {
-		conf.Sentinel.Stat.System.CollectIntervalMs = metadata.CollectIntervalMs
-	}
-
-	if metadata.UseCacheTime {
-		conf.Sentinel.UseCacheTime = metadata.UseCacheTime
-	}
-
+	conf.Sentinel.Log.Logger = &loggerAdaptor{m.logger}
 	return conf
 }
 

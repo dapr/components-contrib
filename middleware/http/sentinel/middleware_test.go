@@ -21,7 +21,7 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 		"appName": "test-app",
 		"flowRules": `[
 	{
-		"resource": "GET:/v1.0/healthz",
+		"resource": "GET:/v1.0/nodeapp/healthz",
 		"threshold": 10,
 		"tokenCalculateStrategy": 0,
 		"controlBehavior": 0
@@ -30,13 +30,13 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 	}}
 
 	log := logger.NewLogger("sentinel.test")
-	sentinel := NewSentinelMiddleware(log)
+	sentinel := NewMiddleware(log)
 	handler, err := sentinel.GetHandler(meta)
 	assert.Nil(t, err)
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.SetHost("localhost:5001")
-	ctx.Request.SetRequestURI("/v1.0/healthz")
+	ctx.Request.SetRequestURI("/v1.0/nodeapp/healthz")
 	ctx.Request.Header.SetMethod("GET")
 
 	counter := &counter{}

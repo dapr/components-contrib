@@ -8,7 +8,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type subscription struct {

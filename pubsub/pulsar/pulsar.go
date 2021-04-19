@@ -22,6 +22,7 @@ const (
 type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
+	producer pulsar.Producer
 	metadata pulsarMetadata
 
 	ctx     context.Context
@@ -82,21 +83,27 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
-	producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
-		Topic: req.Topic,
-	})
-	if err != nil {
-		return err
+	if p.producer == nil || p.producer.Topic() != req.Topic {
+		if p.producer != nil {
+			p.producer.Close()
+		}
+
+		producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
+			Topic: req.Topic,
+		})
+		if err != nil {
+			return err
+		}
+
+		p.producer = producer
 	}
 
-	_, err = producer.Send(context.Background(), &pulsar.ProducerMessage{
+	_, err := p.producer.Send(context.Background(), &pulsar.ProducerMessage{
 		Payload: req.Data,
 	})
 	if err != nil {
 		return err
 	}
-
-	defer producer.Close()
 
 	return nil
 }
@@ -166,6 +173,7 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 
 func (p *Pulsar) Close() error {
 	p.cancel()
+	p.producer.Close()
 	p.client.Close()
 
 	return nil

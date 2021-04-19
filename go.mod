@@ -13,6 +13,7 @@ require (
 	github.com/Azure/azure-service-bus-go v0.10.10
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
+	github.com/Azure/go-amqp v0.13.1
 	github.com/Azure/go-autorest/autorest v0.11.12
 	github.com/Azure/go-autorest/autorest/adal v0.9.5
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
@@ -28,6 +29,7 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/coreos/go-oidc v2.1.0+incompatible
+	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/dapr v1.0.1-0.20210303190006-b2271c9a8a58
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
@@ -62,8 +64,9 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
+	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	github.com/valyala/fasthttp v1.19.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	go.mongodb.org/mongo-driver v1.1.2

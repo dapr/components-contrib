@@ -102,7 +102,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
+			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
 		}
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
@@ -178,6 +178,7 @@ func (r *StateStore) newClient(m metadata) *redis.Client {
 func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
 	opts := &redis.FailoverOptions{
 		MasterName:      r.metadata.sentinelMasterName,
+		Password:        m.password,
 		SentinelAddrs:   []string{r.metadata.host},
 		DB:              defaultDB,
 		MaxRetries:      m.maxRetries,

@@ -2,11 +2,12 @@ package sentinel
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/alibaba/sentinel-golang/core/circuitbreaker"
 	"github.com/alibaba/sentinel-golang/core/flow"
 	"github.com/alibaba/sentinel-golang/core/isolation"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestFlowRules(t *testing.T) {

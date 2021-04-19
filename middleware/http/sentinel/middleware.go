@@ -21,7 +21,7 @@ import (
 type middlewareMetadata struct {
 	AppName string `json:"appName"`
 	// LogConfig
-	LogDir    string `json:"logDir"`
+	LogDir string `json:"logDir"`
 	// Rules
 	FlowRules           string `yaml:"flowRules"`
 	CircuitBreakerRules string `yaml:"circuitBreakerRules"`
@@ -74,6 +74,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 			if err != nil {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusTooManyRequests), fasthttp.StatusTooManyRequests)
+
 				return
 			}
 
@@ -88,6 +89,7 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.FlowRules, newFlowRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel flow rules: %s", meta.FlowRules)
+
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -96,6 +98,7 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.IsolationRules, newIsolationRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel isolation rules: %s", meta.IsolationRules)
+
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -104,6 +107,7 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.CircuitBreakerRules, newCircuitBreakerRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel circuit breaker rules: %s", meta.CircuitBreakerRules)
+
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -112,6 +116,7 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.HotSpotParamRules, newHotSpotParamRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel hotspot param rules: %s", meta.HotSpotParamRules)
+
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -120,6 +125,7 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.SystemRules, newSystemRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel system rules: %s", meta.SystemRules)
+
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -139,6 +145,7 @@ func (m *Middleware) newSentinelConfig(metadata *middlewareMetadata) *config.Ent
 	}
 
 	conf.Sentinel.Log.Logger = &loggerAdaptor{m.logger}
+
 	return conf
 }
 

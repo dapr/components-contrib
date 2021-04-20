@@ -58,7 +58,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 
 func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	// initialize lru cache with size 100
-	c, err := lru.NewWithEvict(2, func(k interface{}, v interface{}) {
+	c, err := lru.NewWithEvict(100, func(k interface{}, v interface{}) {
 		producer := v.(pulsar.Producer)
 		if producer != nil {
 			producer.Close()

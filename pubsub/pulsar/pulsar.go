@@ -9,6 +9,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/cenkalti/backoff/v4"
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/dapr/pkg/logger"
@@ -28,6 +29,7 @@ type Pulsar struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	backOff backoff.BackOff
+	cache   *lru.Cache
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -55,6 +57,19 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 }
 
 func (p *Pulsar) Init(metadata pubsub.Metadata) error {
+	// initialize lru cache with size 100
+	c, err := lru.NewWithEvict(2, func(k interface{}, v interface{}) {
+		producer := v.(pulsar.Producer)
+		if producer != nil {
+			producer.Close()
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("could not initialize pulsar lru cache for publisher")
+	}
+	p.cache = c
+	defer p.cache.Purge()
+
 	m, err := parsePulsarMetadata(metadata)
 	if err != nil {
 		return err
@@ -83,11 +98,9 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
-	if p.producer == nil || p.producer.Topic() != req.Topic {
-		if p.producer != nil {
-			p.producer.Close()
-		}
-
+	producer, _ := p.cache.Get(req.Topic)
+	if producer == nil {
+		p.logger.Debugf("creating producer for topic %s", req.Topic)
 		producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
 			Topic: req.Topic,
 		})
@@ -95,7 +108,10 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 			return err
 		}
 
+		p.cache.Add(req.Topic, producer)
 		p.producer = producer
+	} else {
+		p.producer = producer.(pulsar.Producer)
 	}
 
 	_, err := p.producer.Send(context.Background(), &pulsar.ProducerMessage{
@@ -173,7 +189,10 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 
 func (p *Pulsar) Close() error {
 	p.cancel()
-	p.producer.Close()
+	for _, k := range p.cache.Keys() {
+		producer, _ := p.cache.Get(k)
+		producer.(pulsar.Producer).Close()
+	}
 	p.client.Close()
 
 	return nil

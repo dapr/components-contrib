@@ -190,7 +190,7 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 func (p *Pulsar) Close() error {
 	p.cancel()
 	for _, k := range p.cache.Keys() {
-		producer, _ := p.cache.Get(k)
+		producer, _ := p.cache.Peek(k)
 		producer.(pulsar.Producer).Close()
 	}
 	p.client.Close()

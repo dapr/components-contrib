@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 func getFakeProperties() map[string]string {

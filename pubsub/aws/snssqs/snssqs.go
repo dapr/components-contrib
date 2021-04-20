@@ -14,7 +14,7 @@ import (
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type snsSqs struct {

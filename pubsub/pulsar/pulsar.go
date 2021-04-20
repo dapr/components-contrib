@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	host      = "host"
-	enableTLS = "enableTLS"
+	host              = "host"
+	enableTLS         = "enableTLS"
+	cachedNumProducer = 10
 )
 
 type Pulsar struct {
@@ -72,8 +73,9 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	}
 	defer client.Close()
 
-	// initialize lru cache with size 100
-	c, err := lru.NewWithEvict(100, func(k interface{}, v interface{}) {
+	// initialize lru cache with size 10
+	// TODO: make this number configurable in pulsar metadata
+	c, err := lru.NewWithEvict(cachedNumProducer, func(k interface{}, v interface{}) {
 		producer := v.(pulsar.Producer)
 		if producer != nil {
 			producer.Close()

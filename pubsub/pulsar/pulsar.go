@@ -57,19 +57,6 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 }
 
 func (p *Pulsar) Init(metadata pubsub.Metadata) error {
-	// initialize lru cache with size 100
-	c, err := lru.NewWithEvict(100, func(k interface{}, v interface{}) {
-		producer := v.(pulsar.Producer)
-		if producer != nil {
-			producer.Close()
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("could not initialize pulsar lru cache for publisher")
-	}
-	p.cache = c
-	defer p.cache.Purge()
-
 	m, err := parsePulsarMetadata(metadata)
 	if err != nil {
 		return err
@@ -84,6 +71,19 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)
 	}
 	defer client.Close()
+
+	// initialize lru cache with size 100
+	c, err := lru.NewWithEvict(100, func(k interface{}, v interface{}) {
+		producer := v.(pulsar.Producer)
+		if producer != nil {
+			producer.Close()
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("could not initialize pulsar lru cache for publisher")
+	}
+	p.cache = c
+	defer p.cache.Purge()
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 

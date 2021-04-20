@@ -16,18 +16,31 @@ import (
 	"github.com/go-redis/redis/v7"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
-	host              = "redisHost"
-	password          = "redisPassword"
-	consumerID        = "consumerID"
-	enableTLS         = "enableTLS"
-	processingTimeout = "processingTimeout"
-	redeliverInterval = "redeliverInterval"
-	queueDepth        = "queueDepth"
-	concurrency       = "concurrency"
+	host                  = "redisHost"
+	password              = "redisPassword"
+	db                    = "redisDB"
+	redisMaxRetries       = "redisMaxRetries"
+	redisMinRetryInterval = "redisMinRetryInterval"
+	redisMaxRetryInterval = "redisMaxRetryInterval"
+	dialTimeout           = "dialTimeout"
+	readTimeout           = "readTimeout"
+	writeTimeout          = "writeTimeout"
+	poolSize              = "poolSize"
+	minIdleConns          = "minIdleConns"
+	poolTimeout           = "poolTimeout"
+	idleTimeout           = "idleTimeout"
+	idleCheckFrequency    = "idleCheckFrequency"
+	maxConnAge            = "maxConnAge"
+	consumerID            = "consumerID"
+	enableTLS             = "enableTLS"
+	processingTimeout     = "processingTimeout"
+	redeliverInterval     = "redeliverInterval"
+	queueDepth            = "queueDepth"
+	concurrency           = "concurrency"
 )
 
 // redisStreams handles consuming from a Redis stream using
@@ -53,7 +66,7 @@ type redisStreams struct {
 type redisMessageWrapper struct {
 	messageID string
 	message   pubsub.NewMessage
-	handler   func(msg *pubsub.NewMessage) error
+	handler   pubsub.Handler
 }
 
 // NewRedisStreams returns a new redis streams pub-sub implementation
@@ -77,6 +90,14 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 
 	if val, ok := meta.Properties[password]; ok && val != "" {
 		m.password = val
+	}
+
+	if val, ok := meta.Properties[db]; ok && val != "" {
+		db, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: can't parse db field: %s", err)
+		}
+		m.db = db
 	}
 
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
@@ -129,6 +150,130 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.concurrency = uint(concurrency)
 	}
 
+	if val, ok := meta.Properties[redisMaxRetries]; ok && val != "" {
+		redisMaxRetries, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: can't parse redisMaxRetries field: %s", err)
+		}
+		m.redisMaxRetries = redisMaxRetries
+	}
+
+	if val, ok := meta.Properties[redisMinRetryInterval]; ok && val != "" {
+		if val == "-1" {
+			m.redisMinRetryInterval = -1
+		} else if redisMinRetryIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.redisMinRetryInterval = time.Duration(redisMinRetryIntervalMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.redisMinRetryInterval = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid redisMinRetryInterval %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[redisMaxRetryInterval]; ok && val != "" {
+		if val == "-1" {
+			m.redisMaxRetryInterval = -1
+		} else if redisMaxRetryIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.redisMaxRetryInterval = time.Duration(redisMaxRetryIntervalMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.redisMaxRetryInterval = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid redisMaxRetryInterval %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[dialTimeout]; ok && val != "" {
+		if dialTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.dialTimeout = time.Duration(dialTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.dialTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid dialTimeout %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[readTimeout]; ok && val != "" {
+		if val == "-1" {
+			m.readTimeout = -1
+		} else if readTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.readTimeout = time.Duration(readTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.readTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid readTimeout %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[writeTimeout]; ok && val != "" {
+		if writeTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.writeTimeout = time.Duration(writeTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.writeTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid writeTimeout %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[poolSize]; ok && val != "" {
+		var err error
+		m.poolSize, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: invalid poolSize %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[maxConnAge]; ok && val != "" {
+		if maxConnAgeMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.maxConnAge = time.Duration(maxConnAgeMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.maxConnAge = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid maxConnAge %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[minIdleConns]; ok && val != "" {
+		minIdleConns, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: can't parse minIdleConns field: %s", err)
+		}
+		m.minIdleConns = minIdleConns
+	}
+
+	if val, ok := meta.Properties[poolTimeout]; ok && val != "" {
+		if poolTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.poolTimeout = time.Duration(poolTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.poolTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid poolTimeout %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[idleTimeout]; ok && val != "" {
+		if val == "-1" {
+			m.idleTimeout = -1
+		} else if idleTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.idleTimeout = time.Duration(idleTimeoutMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.idleTimeout = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid idleTimeout %s, %s", val, err)
+		}
+	}
+
+	if val, ok := meta.Properties[idleCheckFrequency]; ok && val != "" {
+		if val == "-1" {
+			m.idleCheckFrequency = -1
+		} else if idleCheckFrequencyMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+			m.idleCheckFrequency = time.Duration(idleCheckFrequencyMs) * time.Millisecond
+		} else if d, err := time.ParseDuration(val); err == nil {
+			m.idleCheckFrequency = d
+		} else {
+			return m, fmt.Errorf("redis streams error: invalid idleCheckFrequency %s, %s", val, err)
+		}
+	}
+
 	return m, nil
 }
 
@@ -140,11 +285,21 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	r.metadata = m
 
 	options := &redis.Options{
-		Addr:            m.host,
-		Password:        m.password,
-		DB:              0,
-		MaxRetries:      3,
-		MaxRetryBackoff: time.Second * 2,
+		Addr:               m.host,
+		Password:           m.password,
+		DB:                 m.db,
+		MaxRetries:         m.redisMaxRetries,
+		MaxRetryBackoff:    m.redisMaxRetryInterval,
+		MinRetryBackoff:    m.redisMinRetryInterval,
+		DialTimeout:        m.dialTimeout,
+		ReadTimeout:        m.readTimeout,
+		WriteTimeout:       m.writeTimeout,
+		PoolSize:           m.poolSize,
+		MaxConnAge:         m.maxConnAge,
+		MinIdleConns:       m.minIdleConns,
+		PoolTimeout:        m.poolTimeout,
+		IdleCheckFrequency: m.idleCheckFrequency,
+		IdleTimeout:        m.idleTimeout,
 	}
 
 	/* #nosec */
@@ -183,7 +338,7 @@ func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	err := r.client.XGroupCreateMkStream(req.Topic, r.metadata.consumerID, "0").Err()
 	// Ignore BUSYGROUP errors
 	if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
@@ -201,7 +356,7 @@ func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler func(msg *
 // enqueueMessages is a shared function that funnels new messages (via polling)
 // and redelivered messages (via reclaiming) to a channel where workers can
 // pick them up for processing.
-func (r *redisStreams) enqueueMessages(stream string, handler func(msg *pubsub.NewMessage) error, msgs []redis.XMessage) {
+func (r *redisStreams) enqueueMessages(stream string, handler pubsub.Handler, msgs []redis.XMessage) {
 	for _, msg := range msgs {
 		rmsg := createRedisMessageWrapper(stream, handler, msg)
 
@@ -218,7 +373,7 @@ func (r *redisStreams) enqueueMessages(stream string, handler func(msg *pubsub.N
 
 // createRedisMessageWrapper encapsulates the Redis message, message identifier, and handler
 // in `redisMessage` for processing.
-func createRedisMessageWrapper(stream string, handler func(msg *pubsub.NewMessage) error, msg redis.XMessage) redisMessageWrapper {
+func createRedisMessageWrapper(stream string, handler pubsub.Handler, msg redis.XMessage) redisMessageWrapper {
 	var data []byte
 	if dataValue, exists := msg.Values["data"]; exists && dataValue != nil {
 		switch v := dataValue.(type) {
@@ -260,7 +415,7 @@ func (r *redisStreams) worker() {
 // by `reclaimPendingMessagesLoop`.
 func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	r.logger.Debugf("Processing Redis message %s", msg.messageID)
-	if err := msg.handler(&msg.message); err != nil {
+	if err := msg.handler(r.ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 
 		return err
@@ -277,7 +432,7 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 
 // pollMessagesLoop calls `XReadGroup` for new messages and funnels them to the message channel
 // by calling `enqueueMessages`.
-func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) pollNewMessagesLoop(stream string, handler pubsub.Handler) {
 	for {
 		// Return on cancelation
 		if r.ctx.Err() != nil {
@@ -307,7 +462,7 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler func(msg *pubs
 
 // reclaimPendingMessagesLoop periodically reclaims pending messages
 // based on the `redeliverInterval` setting.
-func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler pubsub.Handler) {
 	// Having a `processingTimeout` or `redeliverInterval` means that
 	// redelivery is disabled so we just return out of the goroutine.
 	if r.metadata.processingTimeout == 0 || r.metadata.redeliverInterval == 0 {
@@ -332,7 +487,7 @@ func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler func(ms
 
 // reclaimPendingMessages handles reclaiming messages that previously failed to process and
 // funneling them to the message channel by calling `enqueueMessages`.
-func (r *redisStreams) reclaimPendingMessages(stream string, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) reclaimPendingMessages(stream string, handler pubsub.Handler) {
 	for {
 		// Retrieve pending messages for this stream and consumer
 		pendingResult, err := r.client.XPendingExt(&redis.XPendingExtArgs{
@@ -399,7 +554,7 @@ func (r *redisStreams) reclaimPendingMessages(stream string, handler func(msg *p
 
 // removeMessagesThatNoLongerExistFromPending attempts to claim messages individually so that messages in the pending list
 // that no longer exist can be removed from the pending list. This is done by calling `XACK`.
-func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string, messageIDs map[string]struct{}, handler func(msg *pubsub.NewMessage) error) {
+func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string, messageIDs map[string]struct{}, handler pubsub.Handler) {
 	// Check each message ID individually.
 	for pendingID := range messageIDs {
 		claimResultSingleMsg, err := r.client.XClaim(&redis.XClaimArgs{

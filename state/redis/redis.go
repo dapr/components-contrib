@@ -20,7 +20,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -178,6 +178,7 @@ func (r *StateStore) newClient(m metadata) *redis.Client {
 func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
 	opts := &redis.FailoverOptions{
 		MasterName:      r.metadata.sentinelMasterName,
+		Password:        m.password,
 		SentinelAddrs:   []string{r.metadata.host},
 		DB:              defaultDB,
 		MaxRetries:      m.maxRetries,

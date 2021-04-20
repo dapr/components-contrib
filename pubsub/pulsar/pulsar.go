@@ -11,7 +11,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -107,7 +107,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
 	if p.metadata.Exclusive == "true" {
@@ -145,7 +145,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub
 	return nil
 }
 
-func (p *Pulsar) listenMessage(consumer pulsar.Consumer, handler func(msg *pubsub.NewMessage) error) {
+func (p *Pulsar) listenMessage(consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
 	for {
@@ -164,7 +164,7 @@ func (p *Pulsar) listenMessage(consumer pulsar.Consumer, handler func(msg *pubsu
 	}
 }
 
-func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
 	pubsubMsg := pubsub.NewMessage{
 		Data:     msg.Payload(),
 		Topic:    msg.Topic(),
@@ -173,7 +173,7 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler func(msg *pub
 
 	return pubsub.RetryNotifyRecover(func() error {
 		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
-		err := handler(&pubsubMsg)
+		err := handler(p.ctx, &pubsubMsg)
 		if err == nil {
 			msg.Ack(msg.Message)
 		}

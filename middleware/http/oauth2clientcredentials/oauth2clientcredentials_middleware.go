@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/patrickmn/go-cache"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/oauth2"

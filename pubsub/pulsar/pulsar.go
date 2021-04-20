@@ -12,7 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

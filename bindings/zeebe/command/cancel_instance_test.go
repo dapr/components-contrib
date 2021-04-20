@@ -13,31 +13,41 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockCancelInstanceCommandStep1 struct {
-	mock.Mock
+type mockClient struct {
+	zbc.Client
+	cmd1 *mockCancelInstanceStep1
 }
 
-type MockCancelInstanceCommandStep2 struct {
-	mock.Mock
+type mockCancelInstanceStep1 struct {
+	commands.CancelInstanceStep1
+	cmd2 *mockDispatchCancelWorkflowInstanceCommand
 }
 
-func (mc *MockClient) NewCancelInstanceCommand() commands.CancelInstanceStep1 {
-	return mc.Called().Get(0).(commands.CancelInstanceStep1)
+type mockDispatchCancelWorkflowInstanceCommand struct {
+	commands.DispatchCancelWorkflowInstanceCommand
+	workflowInstanceKey int64
 }
 
-func (cmd1 *MockCancelInstanceCommandStep1) WorkflowInstanceKey(workflowInstanceKey int64) commands.DispatchCancelWorkflowInstanceCommand {
-	return cmd1.Called(workflowInstanceKey).Get(0).(commands.DispatchCancelWorkflowInstanceCommand)
+func (mc *mockClient) NewCancelInstanceCommand() commands.CancelInstanceStep1 {
+	mc.cmd1 = new(mockCancelInstanceStep1)
+
+	return mc.cmd1
 }
 
-func (cmd2 *MockCancelInstanceCommandStep2) Send(context context.Context) (*pb.CancelWorkflowInstanceResponse, error) {
-	args := cmd2.Called(context)
+func (cmd1 *mockCancelInstanceStep1) WorkflowInstanceKey(workflowInstanceKey int64) commands.DispatchCancelWorkflowInstanceCommand {
+	cmd1.cmd2 = new(mockDispatchCancelWorkflowInstanceCommand)
+	cmd1.cmd2.workflowInstanceKey = workflowInstanceKey
 
-	return args.Get(0).(*pb.CancelWorkflowInstanceResponse), args.Error(1)
+	return cmd1.cmd2
+}
+
+func (cmd2 *mockDispatchCancelWorkflowInstanceCommand) Send(context.Context) (*pb.CancelWorkflowInstanceResponse, error) {
+	return &pb.CancelWorkflowInstanceResponse{}, nil
 }
 
 func TestCancelInstance(t *testing.T) {
@@ -59,20 +69,12 @@ func TestCancelInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: cancelInstanceOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockCancelInstanceCommandStep1)
-		cmd2 := new(MockCancelInstanceCommandStep2)
-
-		mc.On("NewCancelInstanceCommand").Return(cmd1)
-		cmd1.On("WorkflowInstanceKey", *payload.WorkflowInstanceKey).Return(cmd2)
-		cmd2.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.CancelWorkflowInstanceResponse), nil)
+		mc := new(mockClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
+		assert.Equal(t, *payload.WorkflowInstanceKey, mc.cmd1.cmd2.workflowInstanceKey)
 	})
 }

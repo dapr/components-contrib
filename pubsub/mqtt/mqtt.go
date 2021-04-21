@@ -19,7 +19,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -185,7 +185,7 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe to the mqtt pub sub topic.
-func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	m.topics[req.Topic] = m.metadata.qos
 
 	// reset synchronization
@@ -218,7 +218,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 				}
 				if err := pubsub.RetryNotifyRecover(func() error {
 					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-					if err := handler(&msg); err != nil {
+					if err := handler(m.ctx, &msg); err != nil {
 						return err
 					}
 
@@ -286,7 +286,15 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	opts := mqtt.NewClientOptions()
 	opts.SetClientID(clientID)
 	opts.SetCleanSession(m.metadata.cleanSession)
-	opts.AddBroker(uri.Scheme + "://" + uri.Host)
+	// URL scheme backward compatibility
+	scheme := uri.Scheme
+	switch scheme {
+	case "mqtt":
+		scheme = "tcp"
+	case "mqtts", "tcps", "tls":
+		scheme = "ssl"
+	}
+	opts.AddBroker(scheme + "://" + uri.Host)
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)

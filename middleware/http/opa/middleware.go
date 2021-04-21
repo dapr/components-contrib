@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/valyala/fasthttp"
 )

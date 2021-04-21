@@ -6,12 +6,13 @@
 package nats
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
-	nats "github.com/nats-io/go-nats"
+	"github.com/dapr/kit/logger"
+	nats "github.com/nats-io/nats.go"
 )
 
 const (
@@ -75,9 +76,9 @@ func (n *natsPubSub) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (n *natsPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub, err := n.natsConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, func(natsMsg *nats.Msg) {
-		handler(&pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
+		handler(context.Background(), &pubsub.NewMessage{Topic: req.Topic, Data: natsMsg.Data})
 	})
 	if err != nil {
 		n.logger.Warnf("nats: error subscribe: %s", err)

@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package kubernetes
+package dns
 
 import (
 	"fmt"
@@ -16,18 +16,17 @@ type resolver struct {
 	logger logger.Logger
 }
 
-// NewResolver creates Kubernetes name resolver.
+// NewResolver creates DNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	return &resolver{logger: logger}
 }
 
-// Init initializes Kubernetes name resolver.
+// Init initializes DNS name resolver.
 func (k *resolver) Init(metadata nameresolution.Metadata) error {
 	return nil
 }
 
-// ResolveID resolves name to address in Kubernetes.
+// ResolveID resolves name to address in orchestrator.
 func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	// Dapr requires this formatting for Kubernetes services
-	return fmt.Sprintf("%s-dapr.%s.svc.cluster.local:%d", req.ID, req.Namespace, req.Port), nil
+	return fmt.Sprintf("%s-dapr.%s.svc:%d", req.ID, req.Namespace, req.Port), nil
 }

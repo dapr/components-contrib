@@ -3,21 +3,23 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package localstorage
+package dns
 
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"rootPath": "/files"}
-	localStorage := NewLocalStorage(logger.NewLogger("test"))
-	meta, err := localStorage.parseMetadata(m)
+func TestResolve(t *testing.T) {
+	resolver := NewResolver(logger.NewLogger("test"))
+	request := nameresolution.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
+
+	u := "myid-dapr.abc.svc:1234"
+	target, err := resolver.ResolveID(request)
+
 	assert.Nil(t, err)
-	assert.Equal(t, "/files", meta.RootPath)
+	assert.Equal(t, target, u)
 }

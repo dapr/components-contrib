@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"golang.org/x/net/http2"
 )
 

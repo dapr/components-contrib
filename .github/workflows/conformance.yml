@@ -222,7 +222,8 @@ jobs:
       uses: actions/setup-go@v2
     
     - name: Download Go dependencies
-      run: go mod download
+      run: |
+        go mod download
 
     - name: Run tests
       continue-on-error: true

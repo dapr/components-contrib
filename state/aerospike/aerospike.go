@@ -18,7 +18,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // metadata values

@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/preview/eventgrid/mgmt/2020-04-01-preview/eventgrid"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/valyala/fasthttp"
 )
 

@@ -13,7 +13,7 @@ import (
 	hazelcastCore "github.com/hazelcast/hazelcast-go-client/core"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

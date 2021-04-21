@@ -127,7 +127,6 @@ func (z *ZeebeJobWorker) getJobWorker(handler jobHandler) worker.JobWorker {
 		RequestTimeout(z.metadata.RequestTimeout.Duration).
 		MaxJobsActive(z.metadata.MaxJobsActive).
 		Concurrency(z.metadata.Concurrency).
-		Concurrency(z.metadata.Concurrency).
 		PollInterval(z.metadata.PollInterval.Duration).
 		PollThreshold(z.metadata.PollThreshold).
 		FetchVariables(zeebe.VariableStringToArray(z.metadata.FetchVariables)...).

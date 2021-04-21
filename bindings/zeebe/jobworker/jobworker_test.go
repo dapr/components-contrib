@@ -62,6 +62,7 @@ func TestInit(t *testing.T) {
 
 		mc, err := mcf.Get(metadata)
 
+		assert.Nil(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
 	})

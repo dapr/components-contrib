@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type mockClient struct {

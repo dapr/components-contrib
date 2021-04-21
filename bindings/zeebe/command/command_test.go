@@ -40,15 +40,15 @@ func TestInit(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
-		errorMsg := "error on parsing metadata"
+		errParsing := errors.New("error on parsing metadata")
 		metadata := bindings.Metadata{}
 		mcf := mockClientFactory{
-			error: errors.New(errorMsg),
+			error: errParsing,
 		}
 
 		command := ZeebeCommand{clientFactory: mcf, logger: testLogger}
 		err := command.Init(metadata)
-		assert.Error(t, err, errorMsg)
+		assert.Error(t, err, errParsing)
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {

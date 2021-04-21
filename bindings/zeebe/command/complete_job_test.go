@@ -13,42 +13,54 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockCompleteJobCommandStep1 struct {
-	mock.Mock
+type mockCompleteJobClient struct {
+	zbc.Client
+	cmd1 *mockCompleteJobCommandStep1
 }
 
-type MockCompleteJobCommandStep2 struct {
+type mockCompleteJobCommandStep1 struct {
+	commands.CompleteJobCommandStep1
+	cmd2   *mockCompleteJobCommandStep2
+	jobKey int64
+}
+
+type mockCompleteJobCommandStep2 struct {
 	commands.CompleteJobCommandStep2
-	mock.Mock
+	cmd3      *mockDispatchCompleteJobCommand
+	variables interface{}
 }
 
-type MockCompleteJobCommandStep3 struct {
-	mock.Mock
+type mockDispatchCompleteJobCommand struct {
+	commands.DispatchCompleteJobCommand
 }
 
-func (mc *MockClient) NewCompleteJobCommand() commands.CompleteJobCommandStep1 {
-	return mc.Called().Get(0).(commands.CompleteJobCommandStep1)
+func (mc *mockCompleteJobClient) NewCompleteJobCommand() commands.CompleteJobCommandStep1 {
+	mc.cmd1 = new(mockCompleteJobCommandStep1)
+	mc.cmd1.cmd2 = new(mockCompleteJobCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockDispatchCompleteJobCommand)
+
+	return mc.cmd1
 }
 
-func (cmd1 *MockCompleteJobCommandStep1) JobKey(jobKey int64) commands.CompleteJobCommandStep2 {
-	return cmd1.Called(jobKey).Get(0).(commands.CompleteJobCommandStep2)
+func (cmd1 *mockCompleteJobCommandStep1) JobKey(jobKey int64) commands.CompleteJobCommandStep2 {
+	cmd1.jobKey = jobKey
+
+	return cmd1.cmd2
 }
 
-func (cmd2 *MockCompleteJobCommandStep2) VariablesFromObject(variables interface{}) (commands.DispatchCompleteJobCommand, error) {
-	args := cmd2.Called(variables)
+func (cmd2 *mockCompleteJobCommandStep2) VariablesFromObject(variables interface{}) (commands.DispatchCompleteJobCommand, error) {
+	cmd2.variables = variables
 
-	return args.Get(0).(commands.DispatchCompleteJobCommand), args.Error(1)
+	return cmd2.cmd3, nil
 }
 
-func (cmd3 *MockCompleteJobCommandStep3) Send(context context.Context) (*pb.CompleteJobResponse, error) {
-	args := cmd3.Called(context)
-
-	return args.Get(0).(*pb.CompleteJobResponse), args.Error(1)
+func (cmd3 *mockDispatchCompleteJobCommand) Send(context.Context) (*pb.CompleteJobResponse, error) {
+	return &pb.CompleteJobResponse{}, nil
 }
 
 func TestCompleteJob(t *testing.T) {
@@ -73,23 +85,13 @@ func TestCompleteJob(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: completeJobOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockCompleteJobCommandStep1)
-		cmd2 := new(MockCompleteJobCommandStep2)
-		cmd3 := new(MockCompleteJobCommandStep3)
-
-		mc.On("NewCompleteJobCommand").Return(cmd1)
-		cmd1.On("JobKey", *payload.JobKey).Return(cmd2)
-		cmd2.On("VariablesFromObject", payload.Variables).Return(cmd3, nil)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.CompleteJobResponse), nil)
+		mc := new(mockCompleteJobClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
+		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)
 	})
 }

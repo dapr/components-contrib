@@ -15,55 +15,76 @@ import (
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockPublishMessageCommandStep1 struct {
-	mock.Mock
+type mockPublishMessageClient struct {
+	zbc.Client
+	cmd1 *mockPublishMessageCommandStep1
 }
 
-type MockPublishMessageCommandStep2 struct {
-	mock.Mock
+type mockPublishMessageCommandStep1 struct {
+	commands.PublishMessageCommandStep1
+	cmd2        *mockPublishMessageCommandStep2
+	messageName string
 }
 
-type MockPublishMessageCommandStep3 struct {
+type mockPublishMessageCommandStep2 struct {
+	commands.PublishMessageCommandStep2
+	cmd3           *mockPublishMessageCommandStep3
+	correlationKey string
+}
+
+type mockPublishMessageCommandStep3 struct {
 	commands.PublishMessageCommandStep3
-	mock.Mock
+	messageID  string
+	timeToLive time.Duration
+	variables  interface{}
 }
 
-func (mc *MockClient) NewPublishMessageCommand() commands.PublishMessageCommandStep1 {
-	return mc.Called().Get(0).(commands.PublishMessageCommandStep1)
+func (mc *mockPublishMessageClient) NewPublishMessageCommand() commands.PublishMessageCommandStep1 {
+	mc.cmd1 = new(mockPublishMessageCommandStep1)
+	mc.cmd1.cmd2 = new(mockPublishMessageCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockPublishMessageCommandStep3)
+
+	return mc.cmd1
 }
 
-func (cmd1 *MockPublishMessageCommandStep1) MessageName(messageName string) commands.PublishMessageCommandStep2 {
-	return cmd1.Called(messageName).Get(0).(commands.PublishMessageCommandStep2)
+func (cmd1 *mockPublishMessageCommandStep1) MessageName(messageName string) commands.PublishMessageCommandStep2 {
+	cmd1.messageName = messageName
+
+	return cmd1.cmd2
 }
 
-func (cmd2 *MockPublishMessageCommandStep2) CorrelationKey(correlationKey string) commands.PublishMessageCommandStep3 {
-	return cmd2.Called(correlationKey).Get(0).(commands.PublishMessageCommandStep3)
+func (cmd2 *mockPublishMessageCommandStep2) CorrelationKey(correlationKey string) commands.PublishMessageCommandStep3 {
+	cmd2.correlationKey = correlationKey
+
+	return cmd2.cmd3
 }
 
 //nolint // MessageId comes from the Zeebe client API and cannot be written as MessageID
-func (cmd3 *MockPublishMessageCommandStep3) MessageId(messageID string) commands.PublishMessageCommandStep3 {
-	return cmd3.Called(messageID).Get(0).(commands.PublishMessageCommandStep3)
+func (cmd3 *mockPublishMessageCommandStep3) MessageId(messageID string) commands.PublishMessageCommandStep3 {
+	cmd3.messageID = messageID
+
+	return cmd3
 }
 
-func (cmd3 *MockPublishMessageCommandStep3) TimeToLive(duration time.Duration) commands.PublishMessageCommandStep3 {
-	return cmd3.Called(duration).Get(0).(commands.PublishMessageCommandStep3)
+func (cmd3 *mockPublishMessageCommandStep3) TimeToLive(timeToLive time.Duration) commands.PublishMessageCommandStep3 {
+	cmd3.timeToLive = timeToLive
+
+	return cmd3
 }
 
-func (cmd3 *MockPublishMessageCommandStep3) VariablesFromObject(variables interface{}) (commands.PublishMessageCommandStep3, error) {
-	args := cmd3.Called(variables)
+func (cmd3 *mockPublishMessageCommandStep3) VariablesFromObject(variables interface{}) (commands.PublishMessageCommandStep3, error) {
+	cmd3.variables = variables
 
-	return args.Get(0).(commands.PublishMessageCommandStep3), args.Error(1)
+	return cmd3, nil
 }
 
-func (cmd3 *MockPublishMessageCommandStep3) Send(context context.Context) (*pb.PublishMessageResponse, error) {
-	args := cmd3.Called(context)
-
-	return args.Get(0).(*pb.PublishMessageResponse), args.Error(1)
+func (cmd3 *mockPublishMessageCommandStep3) Send(context.Context) (*pb.PublishMessageResponse, error) {
+	return &pb.PublishMessageResponse{}, nil
 }
 
 func TestPublishMessage(t *testing.T) {
@@ -85,24 +106,14 @@ func TestPublishMessage(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockPublishMessageCommandStep1)
-		cmd2 := new(MockPublishMessageCommandStep2)
-		cmd3 := new(MockPublishMessageCommandStep3)
-
-		mc.On("NewPublishMessageCommand").Return(cmd1)
-		cmd1.On("MessageName", payload.MessageName).Return(cmd2)
-		cmd2.On("CorrelationKey", payload.CorrelationKey).Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.PublishMessageResponse), nil)
+		mc := new(mockPublishMessageClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
+		assert.Equal(t, payload.CorrelationKey, mc.cmd1.cmd2.correlationKey)
 	})
 
 	t.Run("send message with optional fields", func(t *testing.T) {
@@ -120,26 +131,16 @@ func TestPublishMessage(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockPublishMessageCommandStep1)
-		cmd2 := new(MockPublishMessageCommandStep2)
-		cmd3 := new(MockPublishMessageCommandStep3)
-
-		mc.On("NewPublishMessageCommand").Return(cmd1)
-		cmd1.On("MessageName", payload.MessageName).Return(cmd2)
-		cmd2.On("CorrelationKey", payload.CorrelationKey).Return(cmd3)
-		cmd3.On("MessageId", payload.MessageID).Return(cmd3)
-		cmd3.On("TimeToLive", payload.TimeToLive.Duration).Return(cmd3)
-		cmd3.On("VariablesFromObject", payload.Variables).Return(cmd3, nil)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.PublishMessageResponse), nil)
+		mc := new(mockPublishMessageClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
+		assert.Equal(t, payload.CorrelationKey, mc.cmd1.cmd2.correlationKey)
+		assert.Equal(t, payload.MessageID, mc.cmd1.cmd2.cmd3.messageID)
+		assert.Equal(t, payload.TimeToLive.Duration, mc.cmd1.cmd2.cmd3.timeToLive)
+		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.cmd3.variables)
 	})
 }

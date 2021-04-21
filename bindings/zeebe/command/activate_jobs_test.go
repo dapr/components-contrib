@@ -15,51 +15,75 @@ import (
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/entities"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockActivateJobsCommandStep1 struct {
-	mock.Mock
+type mockActivateJobsClient struct {
+	zbc.Client
+	cmd1 *mockActivateJobsCommandStep1
 }
 
-type MockActivateJobsCommandStep2 struct {
-	mock.Mock
+type mockActivateJobsCommandStep1 struct {
+	commands.ActivateJobsCommandStep1
+	cmd2    *mockActivateJobsCommandStep2
+	jobType string
 }
 
-type MockActivateJobsCommandStep3 struct {
-	mock.Mock
+type mockActivateJobsCommandStep2 struct {
+	commands.ActivateJobsCommandStep2
+	cmd3              *mockActivateJobsCommandStep3
+	maxJobsToActivate int32
 }
 
-func (mc *MockClient) NewActivateJobsCommand() commands.ActivateJobsCommandStep1 {
-	return mc.Called().Get(0).(commands.ActivateJobsCommandStep1)
+type mockActivateJobsCommandStep3 struct {
+	commands.ActivateJobsCommandStep3
+	timeout        time.Duration
+	workerName     string
+	fetchVariables []string
 }
 
-func (cmd1 *MockActivateJobsCommandStep1) JobType(jobType string) commands.ActivateJobsCommandStep2 {
-	return cmd1.Called(jobType).Get(0).(commands.ActivateJobsCommandStep2)
+func (mc *mockActivateJobsClient) NewActivateJobsCommand() commands.ActivateJobsCommandStep1 {
+	mc.cmd1 = new(mockActivateJobsCommandStep1)
+	mc.cmd1.cmd2 = new(mockActivateJobsCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockActivateJobsCommandStep3)
+
+	return mc.cmd1
 }
 
-func (cmd2 *MockActivateJobsCommandStep2) MaxJobsToActivate(maxJobsToActivate int32) commands.ActivateJobsCommandStep3 {
-	return cmd2.Called(maxJobsToActivate).Get(0).(commands.ActivateJobsCommandStep3)
+func (cmd1 *mockActivateJobsCommandStep1) JobType(jobType string) commands.ActivateJobsCommandStep2 {
+	cmd1.jobType = jobType
+
+	return cmd1.cmd2
 }
 
-func (cmd3 *MockActivateJobsCommandStep3) Timeout(timeout time.Duration) commands.ActivateJobsCommandStep3 {
-	return cmd3.Called(timeout).Get(0).(commands.ActivateJobsCommandStep3)
+func (cmd2 *mockActivateJobsCommandStep2) MaxJobsToActivate(maxJobsToActivate int32) commands.ActivateJobsCommandStep3 {
+	cmd2.maxJobsToActivate = maxJobsToActivate
+
+	return cmd2.cmd3
 }
 
-func (cmd3 *MockActivateJobsCommandStep3) WorkerName(workerName string) commands.ActivateJobsCommandStep3 {
-	return cmd3.Called(workerName).Get(0).(commands.ActivateJobsCommandStep3)
+func (cmd3 *mockActivateJobsCommandStep3) Timeout(timeout time.Duration) commands.ActivateJobsCommandStep3 {
+	cmd3.timeout = timeout
+
+	return cmd3
 }
 
-func (cmd3 *MockActivateJobsCommandStep3) FetchVariables(fetchVariables ...string) commands.ActivateJobsCommandStep3 {
-	return cmd3.Called(fetchVariables).Get(0).(commands.ActivateJobsCommandStep3)
+func (cmd3 *mockActivateJobsCommandStep3) WorkerName(workerName string) commands.ActivateJobsCommandStep3 {
+	cmd3.workerName = workerName
+
+	return cmd3
 }
 
-func (cmd3 *MockActivateJobsCommandStep3) Send(context context.Context) ([]entities.Job, error) {
-	args := cmd3.Called(context)
+func (cmd3 *mockActivateJobsCommandStep3) FetchVariables(fetchVariables ...string) commands.ActivateJobsCommandStep3 {
+	cmd3.fetchVariables = fetchVariables
 
-	return cmd3.Called(context).Get(0).([]entities.Job), args.Error(1)
+	return cmd3
+}
+
+func (cmd3 *mockActivateJobsCommandStep3) Send(context.Context) ([]entities.Job, error) {
+	return []entities.Job{}, nil
 }
 
 func TestActivateJobs(t *testing.T) {
@@ -95,24 +119,14 @@ func TestActivateJobs(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockActivateJobsCommandStep1)
-		cmd2 := new(MockActivateJobsCommandStep2)
-		cmd3 := new(MockActivateJobsCommandStep3)
-
-		mc.On("NewActivateJobsCommand").Return(cmd1)
-		cmd1.On("JobType", payload.JobType).Return(cmd2)
-		cmd2.On("MaxJobsToActivate", *payload.MaxJobsToActivate).Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return([]entities.Job{}, nil)
+		mc := new(mockActivateJobsClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
+		assert.Equal(t, *payload.MaxJobsToActivate, mc.cmd1.cmd2.maxJobsToActivate)
 	})
 
 	t.Run("send message with optional fields", func(t *testing.T) {
@@ -128,26 +142,16 @@ func TestActivateJobs(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockActivateJobsCommandStep1)
-		cmd2 := new(MockActivateJobsCommandStep2)
-		cmd3 := new(MockActivateJobsCommandStep3)
-
-		mc.On("NewActivateJobsCommand").Return(cmd1)
-		cmd1.On("JobType", payload.JobType).Return(cmd2)
-		cmd2.On("MaxJobsToActivate", *payload.MaxJobsToActivate).Return(cmd3)
-		cmd3.On("Timeout", payload.Timeout.Duration).Return(cmd3)
-		cmd3.On("WorkerName", payload.WorkerName).Return(cmd3)
-		cmd3.On("FetchVariables", []string{"a", "b", "c"}).Return(cmd3, nil)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return([]entities.Job{}, nil)
+		mc := new(mockActivateJobsClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
+		assert.Equal(t, *payload.MaxJobsToActivate, mc.cmd1.cmd2.maxJobsToActivate)
+		assert.Equal(t, payload.Timeout.Duration, mc.cmd1.cmd2.cmd3.timeout)
+		assert.Equal(t, payload.WorkerName, mc.cmd1.cmd2.cmd3.workerName)
+		assert.Equal(t, []string{"a", "b", "c"}, mc.cmd1.cmd2.cmd3.fetchVariables)
 	})
 }

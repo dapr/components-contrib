@@ -18,7 +18,7 @@ import (
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type mockClient struct {
+type mockCancelInstanceClient struct {
 	zbc.Client
 	cmd1 *mockCancelInstanceStep1
 }
@@ -33,14 +33,14 @@ type mockDispatchCancelWorkflowInstanceCommand struct {
 	workflowInstanceKey int64
 }
 
-func (mc *mockClient) NewCancelInstanceCommand() commands.CancelInstanceStep1 {
+func (mc *mockCancelInstanceClient) NewCancelInstanceCommand() commands.CancelInstanceStep1 {
 	mc.cmd1 = new(mockCancelInstanceStep1)
+	mc.cmd1.cmd2 = new(mockDispatchCancelWorkflowInstanceCommand)
 
 	return mc.cmd1
 }
 
 func (cmd1 *mockCancelInstanceStep1) WorkflowInstanceKey(workflowInstanceKey int64) commands.DispatchCancelWorkflowInstanceCommand {
-	cmd1.cmd2 = new(mockDispatchCancelWorkflowInstanceCommand)
 	cmd1.cmd2.workflowInstanceKey = workflowInstanceKey
 
 	return cmd1.cmd2
@@ -69,7 +69,7 @@ func TestCancelInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: cancelInstanceOperation}
 
-		mc := new(mockClient)
+		mc := new(mockCancelInstanceClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)

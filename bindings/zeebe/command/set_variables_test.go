@@ -13,46 +13,61 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockSetVariablesCommandStep1 struct {
-	mock.Mock
+type mockSetVariableClient struct {
+	zbc.Client
+	cmd1 *mockSetVariablesCommandStep1
 }
 
-type MockSetVariablesCommandStep2 struct {
+type mockSetVariablesCommandStep1 struct {
+	commands.SetVariablesCommandStep1
+	cmd2               *mockSetVariablesCommandStep2
+	elementInstanceKey int64
+}
+
+type mockSetVariablesCommandStep2 struct {
 	commands.SetVariablesCommandStep2
-	mock.Mock
+	cmd3      *mockDispatchSetVariablesCommand
+	variables interface{}
 }
 
-type MockSetVariablesCommandStep3 struct {
-	mock.Mock
+type mockDispatchSetVariablesCommand struct {
+	commands.DispatchSetVariablesCommand
+	local bool
 }
 
-func (mc *MockClient) NewSetVariablesCommand() commands.SetVariablesCommandStep1 {
-	return mc.Called().Get(0).(commands.SetVariablesCommandStep1)
+func (mc *mockSetVariableClient) NewSetVariablesCommand() commands.SetVariablesCommandStep1 {
+	mc.cmd1 = new(mockSetVariablesCommandStep1)
+	mc.cmd1.cmd2 = new(mockSetVariablesCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockDispatchSetVariablesCommand)
+
+	return mc.cmd1
 }
 
-func (cmd1 *MockSetVariablesCommandStep1) ElementInstanceKey(elementInstanceKey int64) commands.SetVariablesCommandStep2 {
-	return cmd1.Called(elementInstanceKey).Get(0).(commands.SetVariablesCommandStep2)
+func (cmd1 *mockSetVariablesCommandStep1) ElementInstanceKey(elementInstanceKey int64) commands.SetVariablesCommandStep2 {
+	cmd1.elementInstanceKey = elementInstanceKey
+
+	return cmd1.cmd2
 }
 
-func (cmd2 *MockSetVariablesCommandStep2) VariablesFromObject(variables interface{}) (commands.DispatchSetVariablesCommand, error) {
-	args := cmd2.Called(variables)
+func (cmd2 *mockSetVariablesCommandStep2) VariablesFromObject(variables interface{}) (commands.DispatchSetVariablesCommand, error) {
+	cmd2.variables = variables
 
-	return args.Get(0).(commands.DispatchSetVariablesCommand), args.Error(1)
+	return cmd2.cmd3, nil
 }
 
-func (cmd3 *MockSetVariablesCommandStep3) Local(local bool) commands.DispatchSetVariablesCommand {
-	return cmd3.Called(local).Get(0).(commands.DispatchSetVariablesCommand)
+func (cmd3 *mockDispatchSetVariablesCommand) Local(local bool) commands.DispatchSetVariablesCommand {
+	cmd3.local = local
+
+	return cmd3
 }
 
-func (cmd3 *MockSetVariablesCommandStep3) Send(context context.Context) (*pb.SetVariablesResponse, error) {
-	args := cmd3.Called(context)
-
-	return args.Get(0).(*pb.SetVariablesResponse), args.Error(1)
+func (cmd3 *mockDispatchSetVariablesCommand) Send(context.Context) (*pb.SetVariablesResponse, error) {
+	return &pb.SetVariablesResponse{}, nil
 }
 
 func TestSetVariables(t *testing.T) {
@@ -90,25 +105,15 @@ func TestSetVariables(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockSetVariablesCommandStep1)
-		cmd2 := new(MockSetVariablesCommandStep2)
-		cmd3 := new(MockSetVariablesCommandStep3)
-
-		mc.On("NewSetVariablesCommand").Return(cmd1)
-		cmd1.On("ElementInstanceKey", *payload.ElementInstanceKey).Return(cmd2)
-		cmd2.On("VariablesFromObject", payload.Variables).Return(cmd3, nil)
-		cmd3.On("Local", false).Return(cmd3, nil)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.SetVariablesResponse), nil)
+		mc := new(mockSetVariableClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
+		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)
+		assert.Equal(t, false, mc.cmd1.cmd2.cmd3.local)
 	})
 
 	t.Run("set local variables", func(t *testing.T) {
@@ -124,24 +129,14 @@ func TestSetVariables(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockSetVariablesCommandStep1)
-		cmd2 := new(MockSetVariablesCommandStep2)
-		cmd3 := new(MockSetVariablesCommandStep3)
-
-		mc.On("NewSetVariablesCommand").Return(cmd1)
-		cmd1.On("ElementInstanceKey", *payload.ElementInstanceKey).Return(cmd2)
-		cmd2.On("VariablesFromObject", payload.Variables).Return(cmd3, nil)
-		cmd3.On("Local", true).Return(cmd3, nil)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.SetVariablesResponse), nil)
+		mc := new(mockSetVariableClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
+		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)
+		assert.Equal(t, true, mc.cmd1.cmd2.cmd3.local)
 	})
 }

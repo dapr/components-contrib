@@ -10,25 +10,30 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockClientFactory struct {
-	mock.Mock
+type mockClientFactory struct {
+	zeebe.ClientFactory
+	metadata bindings.Metadata
+	error    error
 }
 
-type MockClient struct {
+type mockClient struct {
 	zbc.Client
-	mock.Mock
 }
 
-func (mcf *MockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
-	args := mcf.Called(metadata)
+func (mcf mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
+	mcf.metadata = metadata
 
-	return args.Get(0).(zbc.Client), args.Error(1)
+	if mcf.error != nil {
+		return nil, mcf.error
+	}
+
+	return mockClient{}, nil
 }
 
 func TestInit(t *testing.T) {
@@ -37,30 +42,27 @@ func TestInit(t *testing.T) {
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
 		errorMsg := "error on parsing metadata"
 		metadata := bindings.Metadata{}
-		mcf := new(MockClientFactory)
-		mc := new(MockClient)
+		mcf := mockClientFactory{
+			error: errors.New(errorMsg),
+		}
 
-		mcf.On("Get", metadata).Return(mc, errors.New(errorMsg))
-
-		message := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := message.Init(metadata)
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
+		err := jobWorker.Init(metadata)
 		assert.Error(t, err, errorMsg)
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
 		metadata := bindings.Metadata{}
-		mcf := new(MockClientFactory)
-		mc := new(MockClient)
+		mcf := mockClientFactory{}
 
-		mcf.On("Get", metadata).Return(mc, nil)
-
-		message := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := message.Init(metadata)
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
+		err := jobWorker.Init(metadata)
 
 		assert.Nil(t, err)
-		assert.Equal(t, mc, message.client)
 
-		mcf.AssertExpectations(t)
-		mc.AssertExpectations(t)
+		mc, err := mcf.Get(metadata)
+
+		assert.Equal(t, mc, jobWorker.client)
+		assert.Equal(t, metadata, mcf.metadata)
 	})
 }

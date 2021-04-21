@@ -13,55 +13,76 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockCreateInstanceCommandStep1 struct {
-	mock.Mock
+type mockCreateInstanceClient struct {
+	zbc.Client
+	cmd1 *mockCreateInstanceCommandStep1
 }
 
-type MockCreateInstanceCommandStep2 struct {
-	mock.Mock
+type mockCreateInstanceCommandStep1 struct {
+	commands.CreateInstanceCommandStep1
+	cmd2          *mockCreateInstanceCommandStep2
+	bpmnProcessID string
+	workflowKey   int64
 }
 
-type MockCreateInstanceCommandStep3 struct {
+type mockCreateInstanceCommandStep2 struct {
+	commands.CreateInstanceCommandStep2
+	cmd3          *mockCreateInstanceCommandStep3
+	version       int32
+	latestVersion bool
+}
+
+type mockCreateInstanceCommandStep3 struct {
 	commands.CreateInstanceCommandStep3
-	mock.Mock
+	variables interface{}
 }
 
-func (mc *MockClient) NewCreateInstanceCommand() commands.CreateInstanceCommandStep1 {
-	return mc.Called().Get(0).(commands.CreateInstanceCommandStep1)
+func (mc *mockCreateInstanceClient) NewCreateInstanceCommand() commands.CreateInstanceCommandStep1 {
+	mc.cmd1 = new(mockCreateInstanceCommandStep1)
+	mc.cmd1.cmd2 = new(mockCreateInstanceCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockCreateInstanceCommandStep3)
+
+	return mc.cmd1
 }
 
 //nolint // BPMNProcessId comes from the Zeebe client API and cannot be written as BPMNProcessID
-func (cmd1 *MockCreateInstanceCommandStep1) BPMNProcessId(bpmnProcessID string) commands.CreateInstanceCommandStep2 {
-	return cmd1.Called(bpmnProcessID).Get(0).(commands.CreateInstanceCommandStep2)
+func (cmd1 *mockCreateInstanceCommandStep1) BPMNProcessId(bpmnProcessID string) commands.CreateInstanceCommandStep2 {
+	cmd1.bpmnProcessID = bpmnProcessID
+
+	return cmd1.cmd2
 }
 
-func (cmd1 *MockCreateInstanceCommandStep1) WorkflowKey(workflowKey int64) commands.CreateInstanceCommandStep3 {
-	return cmd1.Called(workflowKey).Get(0).(commands.CreateInstanceCommandStep3)
+func (cmd1 *mockCreateInstanceCommandStep1) WorkflowKey(workflowKey int64) commands.CreateInstanceCommandStep3 {
+	cmd1.workflowKey = workflowKey
+
+	return cmd1.cmd2.cmd3
 }
 
-func (cmd2 *MockCreateInstanceCommandStep2) Version(version int32) commands.CreateInstanceCommandStep3 {
-	return cmd2.Called(version).Get(0).(commands.CreateInstanceCommandStep3)
+func (cmd2 *mockCreateInstanceCommandStep2) Version(version int32) commands.CreateInstanceCommandStep3 {
+	cmd2.version = version
+
+	return cmd2.cmd3
 }
 
-func (cmd2 *MockCreateInstanceCommandStep2) LatestVersion() commands.CreateInstanceCommandStep3 {
-	return cmd2.Called().Get(0).(commands.CreateInstanceCommandStep3)
+func (cmd2 *mockCreateInstanceCommandStep2) LatestVersion() commands.CreateInstanceCommandStep3 {
+	cmd2.latestVersion = true
+
+	return cmd2.cmd3
 }
 
-func (cmd3 *MockCreateInstanceCommandStep3) VariablesFromObject(variables interface{}) (commands.CreateInstanceCommandStep3, error) {
-	args := cmd3.Called(variables)
+func (cmd3 *mockCreateInstanceCommandStep3) VariablesFromObject(variables interface{}) (commands.CreateInstanceCommandStep3, error) {
+	cmd3.variables = variables
 
-	return args.Get(0).(commands.CreateInstanceCommandStep3), args.Error(1)
+	return cmd3, nil
 }
 
-func (cmd3 *MockCreateInstanceCommandStep3) Send(context context.Context) (*pb.CreateWorkflowInstanceResponse, error) {
-	args := cmd3.Called(context)
-
-	return args.Get(0).(*pb.CreateWorkflowInstanceResponse), args.Error(1)
+func (cmd3 *mockCreateInstanceCommandStep3) Send(context.Context) (*pb.CreateWorkflowInstanceResponse, error) {
+	return &pb.CreateWorkflowInstanceResponse{}, nil
 }
 
 func TestCreateInstance(t *testing.T) {
@@ -77,10 +98,7 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(MockClient)
-		create1 := new(MockCreateInstanceCommandStep1)
-
-		mc.On("NewCreateInstanceCommand").Return(create1)
+		mc := new(mockCreateInstanceClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
@@ -97,24 +115,14 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockCreateInstanceCommandStep1)
-		cmd2 := new(MockCreateInstanceCommandStep2)
-		cmd3 := new(MockCreateInstanceCommandStep3)
-
-		mc.On("NewCreateInstanceCommand").Return(cmd1)
-		cmd1.On("BPMNProcessId", payload.BpmnProcessID).Return(cmd2)
-		cmd2.On("Version", *payload.Version).Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.CreateWorkflowInstanceResponse), nil)
+		mc := new(mockCreateInstanceClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
+		assert.Equal(t, *payload.Version, mc.cmd1.cmd2.version)
 	})
 
 	t.Run("create command with bpmnProcessId and latest version", func(t *testing.T) {
@@ -126,24 +134,14 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockCreateInstanceCommandStep1)
-		cmd2 := new(MockCreateInstanceCommandStep2)
-		cmd3 := new(MockCreateInstanceCommandStep3)
-
-		mc.On("NewCreateInstanceCommand").Return(cmd1)
-		cmd1.On("BPMNProcessId", payload.BpmnProcessID).Return(cmd2)
-		cmd2.On("LatestVersion").Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.CreateWorkflowInstanceResponse), nil)
+		mc := new(mockCreateInstanceClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
+		assert.Equal(t, true, mc.cmd1.cmd2.latestVersion)
 	})
 
 	t.Run("create command with workflowKey", func(t *testing.T) {
@@ -155,23 +153,13 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockCreateInstanceCommandStep1)
-		cmd2 := new(MockCreateInstanceCommandStep2)
-		cmd3 := new(MockCreateInstanceCommandStep3)
-
-		mc.On("NewCreateInstanceCommand").Return(cmd1)
-		cmd1.On("WorkflowKey", *payload.WorkflowKey).Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.CreateWorkflowInstanceResponse), nil)
+		mc := new(mockCreateInstanceClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.WorkflowKey, mc.cmd1.workflowKey)
 	})
 
 	t.Run("create command with variables", func(t *testing.T) {
@@ -186,23 +174,13 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockCreateInstanceCommandStep1)
-		cmd2 := new(MockCreateInstanceCommandStep2)
-		cmd3 := new(MockCreateInstanceCommandStep3)
-
-		mc.On("NewCreateInstanceCommand").Return(cmd1)
-		cmd1.On("WorkflowKey", *payload.WorkflowKey).Return(cmd3)
-		cmd3.On("VariablesFromObject", payload.Variables).Return(cmd3, nil)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.CreateWorkflowInstanceResponse), nil)
+		mc := new(mockCreateInstanceClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.WorkflowKey, mc.cmd1.workflowKey)
+		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.cmd3.variables)
 	})
 }

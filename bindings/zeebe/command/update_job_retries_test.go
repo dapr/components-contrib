@@ -13,35 +13,48 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockUpdateJobRetriesCommandStep1 struct {
-	mock.Mock
+type mockUpdateJobRetriesClient struct {
+	zbc.Client
+	cmd1 *mockUpdateJobRetriesCommandStep1
 }
 
-type MockUpdateJobRetriesCommandStep2 struct {
-	mock.Mock
+type mockUpdateJobRetriesCommandStep1 struct {
+	commands.UpdateJobRetriesCommandStep1
+	cmd2   *mockUpdateJobRetriesCommandStep2
+	jobKey int64
 }
 
-func (mc *MockClient) NewUpdateJobRetriesCommand() commands.UpdateJobRetriesCommandStep1 {
-	return mc.Called().Get(0).(commands.UpdateJobRetriesCommandStep1)
+type mockUpdateJobRetriesCommandStep2 struct {
+	commands.UpdateJobRetriesCommandStep2
+	retries int32
 }
 
-func (cmd1 *MockUpdateJobRetriesCommandStep1) JobKey(jobKey int64) commands.UpdateJobRetriesCommandStep2 {
-	return cmd1.Called(jobKey).Get(0).(commands.UpdateJobRetriesCommandStep2)
+func (mc *mockUpdateJobRetriesClient) NewUpdateJobRetriesCommand() commands.UpdateJobRetriesCommandStep1 {
+	mc.cmd1 = new(mockUpdateJobRetriesCommandStep1)
+	mc.cmd1.cmd2 = new(mockUpdateJobRetriesCommandStep2)
+
+	return mc.cmd1
 }
 
-func (cmd2 *MockUpdateJobRetriesCommandStep2) Retries(retries int32) commands.DispatchUpdateJobRetriesCommand {
-	return cmd2.Called(retries).Get(0).(commands.DispatchUpdateJobRetriesCommand)
+func (cmd1 *mockUpdateJobRetriesCommandStep1) JobKey(jobKey int64) commands.UpdateJobRetriesCommandStep2 {
+	cmd1.jobKey = jobKey
+
+	return cmd1.cmd2
 }
 
-func (cmd2 *MockUpdateJobRetriesCommandStep2) Send(context context.Context) (*pb.UpdateJobRetriesResponse, error) {
-	args := cmd2.Called(context)
+func (cmd2 *mockUpdateJobRetriesCommandStep2) Retries(retries int32) commands.DispatchUpdateJobRetriesCommand {
+	cmd2.retries = retries
 
-	return args.Get(0).(*pb.UpdateJobRetriesResponse), args.Error(1)
+	return cmd2
+}
+
+func (cmd2 *mockUpdateJobRetriesCommandStep2) Send(context.Context) (*pb.UpdateJobRetriesResponse, error) {
+	return &pb.UpdateJobRetriesResponse{}, nil
 }
 
 func TestUpdateJobRetries(t *testing.T) {
@@ -64,21 +77,13 @@ func TestUpdateJobRetries(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: updateJobRetriesOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockUpdateJobRetriesCommandStep1)
-		cmd2 := new(MockUpdateJobRetriesCommandStep2)
-
-		mc.On("NewUpdateJobRetriesCommand").Return(cmd1)
-		cmd1.On("JobKey", *payload.JobKey).Return(cmd2)
-		cmd2.On("Retries", *payload.Retries).Return(cmd2)
-		cmd2.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.UpdateJobRetriesResponse), nil)
+		mc := new(mockUpdateJobRetriesClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
+		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
+		assert.Equal(t, *payload.Retries, mc.cmd1.cmd2.retries)
 	})
 }

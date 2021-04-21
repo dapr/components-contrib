@@ -13,43 +13,61 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockThrowErrorCommandStep1 struct {
-	mock.Mock
+type mockThrowErrorClient struct {
+	zbc.Client
+	cmd1 *mockThrowErrorCommandStep1
 }
 
-type MockThrowErrorCommandStep2 struct {
-	mock.Mock
+type mockThrowErrorCommandStep1 struct {
+	commands.ThrowErrorCommandStep1
+	cmd2   *mockThrowErrorCommandStep2
+	jobKey int64
 }
 
-type MockThrowErrorCommandStep3 struct {
-	mock.Mock
+type mockThrowErrorCommandStep2 struct {
+	commands.ThrowErrorCommandStep2
+	cmd3      *mockDispatchThrowErrorCommand
+	errorCode string
 }
 
-func (mc *MockClient) NewThrowErrorCommand() commands.ThrowErrorCommandStep1 {
-	return mc.Called().Get(0).(commands.ThrowErrorCommandStep1)
+type mockDispatchThrowErrorCommand struct {
+	commands.DispatchThrowErrorCommand
+	errorMessage string
 }
 
-func (cmd1 *MockThrowErrorCommandStep1) JobKey(jobKey int64) commands.ThrowErrorCommandStep2 {
-	return cmd1.Called(jobKey).Get(0).(commands.ThrowErrorCommandStep2)
+func (mc *mockThrowErrorClient) NewThrowErrorCommand() commands.ThrowErrorCommandStep1 {
+	mc.cmd1 = new(mockThrowErrorCommandStep1)
+	mc.cmd1.cmd2 = new(mockThrowErrorCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockDispatchThrowErrorCommand)
+
+	return mc.cmd1
 }
 
-func (cmd2 *MockThrowErrorCommandStep2) ErrorCode(errorCode string) commands.DispatchThrowErrorCommand {
-	return cmd2.Called(errorCode).Get(0).(commands.DispatchThrowErrorCommand)
+func (cmd1 *mockThrowErrorCommandStep1) JobKey(jobKey int64) commands.ThrowErrorCommandStep2 {
+	cmd1.jobKey = jobKey
+
+	return cmd1.cmd2
 }
 
-func (cmd3 *MockThrowErrorCommandStep3) ErrorMessage(errorMessage string) commands.DispatchThrowErrorCommand {
-	return cmd3.Called(errorMessage).Get(0).(commands.DispatchThrowErrorCommand)
+func (cmd2 *mockThrowErrorCommandStep2) ErrorCode(errorCode string) commands.DispatchThrowErrorCommand {
+	cmd2.errorCode = errorCode
+
+	return cmd2.cmd3
 }
 
-func (cmd3 *MockThrowErrorCommandStep3) Send(context context.Context) (*pb.ThrowErrorResponse, error) {
-	args := cmd3.Called(context)
+func (cmd3 *mockDispatchThrowErrorCommand) ErrorMessage(errorMessage string) commands.DispatchThrowErrorCommand {
+	cmd3.errorMessage = errorMessage
 
-	return args.Get(0).(*pb.ThrowErrorResponse), args.Error(1)
+	return cmd3
+}
+
+func (cmd3 *mockDispatchThrowErrorCommand) Send(context.Context) (*pb.ThrowErrorResponse, error) {
+	return &pb.ThrowErrorResponse{}, nil
 }
 
 func TestThrowError(t *testing.T) {
@@ -86,24 +104,14 @@ func TestThrowError(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: throwErrorOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockThrowErrorCommandStep1)
-		cmd2 := new(MockThrowErrorCommandStep2)
-		cmd3 := new(MockThrowErrorCommandStep3)
-
-		mc.On("NewThrowErrorCommand").Return(cmd1)
-		cmd1.On("JobKey", *payload.JobKey).Return(cmd2)
-		cmd2.On("ErrorCode", payload.ErrorCode).Return(cmd3)
-		cmd3.On("ErrorMessage", payload.ErrorMessage).Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.ThrowErrorResponse), nil)
+		mc := new(mockThrowErrorClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
+		assert.Equal(t, payload.ErrorCode, mc.cmd1.cmd2.errorCode)
+		assert.Equal(t, payload.ErrorMessage, mc.cmd1.cmd2.cmd3.errorMessage)
 	})
 }

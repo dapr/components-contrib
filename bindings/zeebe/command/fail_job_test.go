@@ -13,43 +13,61 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type MockFailJobCommandStep1 struct {
-	mock.Mock
+type mockFailJobClient struct {
+	zbc.Client
+	cmd1 *mockFailJobCommandStep1
 }
 
-type MockFailJobCommandStep2 struct {
-	mock.Mock
+type mockFailJobCommandStep1 struct {
+	commands.FailJobCommandStep1
+	cmd2   *mockFailJobCommandStep2
+	jobKey int64
 }
 
-type MockFailJobCommandStep3 struct {
-	mock.Mock
+type mockFailJobCommandStep2 struct {
+	commands.FailJobCommandStep2
+	cmd3    *mockFailJobCommandStep3
+	retries int32
 }
 
-func (mc *MockClient) NewFailJobCommand() commands.FailJobCommandStep1 {
-	return mc.Called().Get(0).(commands.FailJobCommandStep1)
+type mockFailJobCommandStep3 struct {
+	commands.FailJobCommandStep3
+	errorMessage string
 }
 
-func (cmd1 *MockFailJobCommandStep1) JobKey(jobKey int64) commands.FailJobCommandStep2 {
-	return cmd1.Called(jobKey).Get(0).(commands.FailJobCommandStep2)
+func (mc *mockFailJobClient) NewFailJobCommand() commands.FailJobCommandStep1 {
+	mc.cmd1 = new(mockFailJobCommandStep1)
+	mc.cmd1.cmd2 = new(mockFailJobCommandStep2)
+	mc.cmd1.cmd2.cmd3 = new(mockFailJobCommandStep3)
+
+	return mc.cmd1
 }
 
-func (cmd2 *MockFailJobCommandStep2) Retries(retries int32) commands.FailJobCommandStep3 {
-	return cmd2.Called(retries).Get(0).(commands.FailJobCommandStep3)
+func (cmd1 *mockFailJobCommandStep1) JobKey(jobKey int64) commands.FailJobCommandStep2 {
+	cmd1.jobKey = jobKey
+
+	return cmd1.cmd2
 }
 
-func (cmd3 *MockFailJobCommandStep3) ErrorMessage(errorMessage string) commands.FailJobCommandStep3 {
-	return cmd3.Called(errorMessage).Get(0).(commands.FailJobCommandStep3)
+func (cmd2 *mockFailJobCommandStep2) Retries(retries int32) commands.FailJobCommandStep3 {
+	cmd2.retries = retries
+
+	return cmd2.cmd3
 }
 
-func (cmd3 *MockFailJobCommandStep3) Send(context context.Context) (*pb.FailJobResponse, error) {
-	args := cmd3.Called(context)
+func (cmd3 *mockFailJobCommandStep3) ErrorMessage(errorMessage string) commands.FailJobCommandStep3 {
+	cmd3.errorMessage = errorMessage
 
-	return args.Get(0).(*pb.FailJobResponse), args.Error(1)
+	return cmd3
+}
+
+func (cmd3 *mockFailJobCommandStep3) Send(context.Context) (*pb.FailJobResponse, error) {
+	return &pb.FailJobResponse{}, nil
 }
 
 func TestFailJob(t *testing.T) {
@@ -86,24 +104,14 @@ func TestFailJob(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: failJobOperation}
 
-		mc := new(MockClient)
-		cmd1 := new(MockFailJobCommandStep1)
-		cmd2 := new(MockFailJobCommandStep2)
-		cmd3 := new(MockFailJobCommandStep3)
-
-		mc.On("NewFailJobCommand").Return(cmd1)
-		cmd1.On("JobKey", *payload.JobKey).Return(cmd2)
-		cmd2.On("Retries", *payload.Retries).Return(cmd3)
-		cmd3.On("ErrorMessage", payload.ErrorMessage).Return(cmd3)
-		cmd3.On("Send", mock.AnythingOfType("*context.emptyCtx")).Return(new(pb.FailJobResponse), nil)
+		mc := new(mockFailJobClient)
 
 		message := ZeebeCommand{logger: testLogger, client: mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
-		mc.AssertExpectations(t)
-		cmd1.AssertExpectations(t)
-		cmd2.AssertExpectations(t)
-		cmd3.AssertExpectations(t)
+		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
+		assert.Equal(t, *payload.Retries, mc.cmd1.cmd2.retries)
+		assert.Equal(t, payload.ErrorMessage, mc.cmd1.cmd2.cmd3.errorMessage)
 	})
 }

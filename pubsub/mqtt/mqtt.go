@@ -19,7 +19,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

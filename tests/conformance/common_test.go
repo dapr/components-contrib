@@ -9,7 +9,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -70,16 +69,16 @@ func TestLookUpEnv(t *testing.T) {
 }
 
 func TestConvertMetadataToProperties(t *testing.T) {
-	items := []v1alpha1.MetadataItem{
+	items := []MetadataItem{
 		{
 			Name: "test_key",
-			Value: v1alpha1.DynamicValue{
+			Value: DynamicValue{
 				JSON: v1.JSON{Raw: []byte("test")},
 			},
 		},
 		{
 			Name: "env_var_sub",
-			Value: v1alpha1.DynamicValue{
+			Value: DynamicValue{
 				JSON: v1.JSON{Raw: []byte("${{CONF_TEST_KEY}}")},
 			},
 		},

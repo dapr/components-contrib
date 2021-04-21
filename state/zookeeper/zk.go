@@ -18,7 +18,7 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

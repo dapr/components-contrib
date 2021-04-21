@@ -39,6 +39,35 @@ func (mcf mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error)
 func TestInit(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
+	t.Run("jobType is mandatory", func(t *testing.T) {
+		metadata := bindings.Metadata{}
+		mcf := mockClientFactory{}
+
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
+		err := jobWorker.Init(metadata)
+
+		assert.Error(t, err, ErrMissingJobType)
+	})
+
+	t.Run("sets client from client factory", func(t *testing.T) {
+		metadata := bindings.Metadata{
+			Properties: map[string]string{"jobType": "a"},
+		}
+		mcf := mockClientFactory{
+			metadata: metadata,
+		}
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
+		err := jobWorker.Init(metadata)
+
+		assert.Nil(t, err)
+
+		mc, err := mcf.Get(metadata)
+
+		assert.Nil(t, err)
+		assert.Equal(t, mc, jobWorker.client)
+		assert.Equal(t, metadata, mcf.metadata)
+	})
+
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
 		errParsing := errors.New("error on parsing metadata")
 		metadata := bindings.Metadata{}
@@ -52,8 +81,12 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
-		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{}
+		metadata := bindings.Metadata{
+			Properties: map[string]string{"jobType": "a"},
+		}
+		mcf := mockClientFactory{
+			metadata: metadata,
+		}
 
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
 		err := jobWorker.Init(metadata)

@@ -8,6 +8,7 @@ package jobworker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,6 +21,10 @@ import (
 	"github.com/zeebe-io/zeebe/clients/go/pkg/entities"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/worker"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+)
+
+var (
+	ErrMissingJobType = errors.New("jobType is a required attribute")
 )
 
 // ZeebeJobWorker allows handling jobs from the Zeebe command engine
@@ -58,6 +63,10 @@ func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 	meta, err := z.parseMetadata(metadata)
 	if err != nil {
 		return err
+	}
+
+	if meta.JobType == "" {
+		return ErrMissingJobType
 	}
 
 	client, err := z.clientFactory.Get(metadata)

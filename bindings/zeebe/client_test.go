@@ -15,12 +15,11 @@ import (
 )
 
 func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{
+	m := bindings.Metadata{Properties: map[string]string{
 		"gatewayAddr":            "172.0.0.1:1234",
 		"gatewayKeepAlive":       "5s",
 		"caCertificatePath":      "/cert/path",
-		"usePlaintextConnection": "true"}
+		"usePlaintextConnection": "true"}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.Nil(t, err)
@@ -32,7 +31,6 @@ func TestParseMetadata(t *testing.T) {
 
 func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.Nil(t, meta)
@@ -41,8 +39,7 @@ func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
 }
 
 func TestParseMetadataDefaultValues(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"gatewayAddr": "172.0.0.1:1234"}
+	m := bindings.Metadata{Properties: map[string]string{"gatewayAddr": "172.0.0.1:1234"}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.Nil(t, err)

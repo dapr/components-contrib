@@ -9,7 +9,7 @@ import (
 	consul "github.com/hashicorp/consul/api"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const daprMeta string = "DAPR_PORT" // default key for DAPR_PORT metadata

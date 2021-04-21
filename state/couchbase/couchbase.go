@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/couchbase/gocb.v1"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -37,14 +39,16 @@ type Couchbase struct {
 	numReplicasDurablePersistence uint
 	json                          jsoniter.API
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
 	s := &Couchbase{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -126,6 +130,11 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (cbs *Couchbase) Features() []state.Feature {
+	return cbs.features
+}
+
 // Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
 func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
@@ -184,7 +193,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: data.([]byte),
-		ETag: fmt.Sprintf("%d", cas),
+		ETag: ptr.String(strconv.FormatUint(uint64(cas), 10)),
 	}, nil
 }
 

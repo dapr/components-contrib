@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/go-sql-driver/mysql"
 )
 

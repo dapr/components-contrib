@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -11,7 +11,7 @@ import (
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/components-contrib/middleware/http/nethttpadaptor"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/didip/tollbooth"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"

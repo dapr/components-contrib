@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -15,21 +15,24 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 const (
 	// Keys
-	mqttURL          = "url"
-	mqttQOS          = "qos"
-	mqttRetain       = "retain"
-	mqttClientID     = "consumerID"
-	mqttCleanSession = "cleanSession"
-	mqttCACert       = "caCert"
-	mqttClientCert   = "clientCert"
-	mqttClientKey    = "clientKey"
+	mqttURL               = "url"
+	mqttQOS               = "qos"
+	mqttRetain            = "retain"
+	mqttClientID          = "consumerID"
+	mqttCleanSession      = "cleanSession"
+	mqttCACert            = "caCert"
+	mqttClientCert        = "clientCert"
+	mqttClientKey         = "clientKey"
+	mqttBackOffMaxRetries = "backOffMaxRetries"
 
 	// errors
 	errorMsgPrefix = "mqtt pub sub error:"
@@ -48,7 +51,10 @@ type mqttPubSub struct {
 	metadata *metadata
 	logger   logger.Logger
 	topics   map[string]byte
-	cancel   context.CancelFunc
+
+	ctx     context.Context
+	cancel  context.CancelFunc
+	backOff backoff.BackOff
 }
 
 // NewMQTTPubSub returns a new mqttPubSub instance.
@@ -126,6 +132,14 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 		m.tlsCfg.clientKey = val
 	}
 
+	if val, ok := md.Properties[mqttBackOffMaxRetries]; ok && val != "" {
+		backOffMaxRetriesInt, err := strconv.Atoi(val)
+		if err != nil {
+			return &m, fmt.Errorf("%s invalid backOffMaxRetries %s, %s", errorMsgPrefix, val, err)
+		}
+		m.backOffMaxRetries = backOffMaxRetriesInt
+	}
+
 	return &m, nil
 }
 
@@ -143,6 +157,12 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	m.ctx, m.cancel = context.WithCancel(context.Background())
+
+	// TODO: Make the backoff configurable for constant or exponential
+	b := backoff.NewConstantBackOff(5 * time.Second)
+	m.backOff = backoff.WithContext(b, m.ctx)
 
 	m.producer = p
 	m.topics = make(map[string]byte)
@@ -165,14 +185,14 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe to the mqtt pub sub topic.
-func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	m.topics[req.Topic] = m.metadata.qos
 
 	// reset synchronization
 	if m.consumer != nil {
 		m.logger.Warnf("re-initializing the subscriber")
-		m.cancel()
 		m.consumer.Disconnect(0)
+		m.consumer = nil
 	}
 
 	// mqtt broker allows only one connection at a given time from a clientID.
@@ -183,21 +203,39 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pu
 	}
 	m.consumer = c
 
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
-
 	go func() {
 		token := m.consumer.SubscribeMultiple(
 			m.topics,
 			func(client mqtt.Client, mqttMsg mqtt.Message) {
-				handler(&pubsub.NewMessage{Topic: req.Topic, Data: mqttMsg.Payload()})
-			})
+				msg := pubsub.NewMessage{
+					Topic: mqttMsg.Topic(),
+					Data:  mqttMsg.Payload(),
+				}
+
+				b := m.backOff
+				if m.metadata.backOffMaxRetries >= 0 {
+					b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
+				}
+				if err := pubsub.RetryNotifyRecover(func() error {
+					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+					if err := handler(m.ctx, &msg); err != nil {
+						return err
+					}
+
+					mqttMsg.Ack()
+
+					return nil
+				}, b, func(err error, d time.Duration) {
+					m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
+				}, func() {
+					m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+				}); err != nil {
+					m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+				}
+			},
+		)
 		if err := token.Error(); err != nil {
 			m.logger.Errorf("mqtt error from subscribe: %v", err)
-		}
-
-		if ctx.Err() != nil {
-			return
 		}
 	}()
 
@@ -248,7 +286,15 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	opts := mqtt.NewClientOptions()
 	opts.SetClientID(clientID)
 	opts.SetCleanSession(m.metadata.cleanSession)
-	opts.AddBroker(uri.Scheme + "://" + uri.Host)
+	// URL scheme backward compatibility
+	scheme := uri.Scheme
+	switch scheme {
+	case "mqtt":
+		scheme = "tcp"
+	case "mqtts", "tcps", "tls":
+		scheme = "ssl"
+	}
+	opts.AddBroker(scheme + "://" + uri.Host)
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)
@@ -259,7 +305,11 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 }
 
 func (m *mqttPubSub) Close() error {
-	m.consumer.Disconnect(0)
+	m.cancel()
+
+	if m.consumer != nil {
+		m.consumer.Disconnect(0)
+	}
 	m.producer.Disconnect(0)
 
 	return nil

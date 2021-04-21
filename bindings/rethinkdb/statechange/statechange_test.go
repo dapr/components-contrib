@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -64,11 +64,11 @@ func TestBinding(t *testing.T) {
 	assert.NoErrorf(t, err, "error initializing")
 
 	go func() {
-		err = b.Read(func(res *bindings.ReadResponse) error {
+		err = b.Read(func(res *bindings.ReadResponse) ([]byte, error) {
 			assert.NotNil(t, res)
 			t.Logf("state change event:\n%s", string(res.Data))
 
-			return nil
+			return nil, nil
 		})
 		assert.NoErrorf(t, err, "error on read")
 	}()

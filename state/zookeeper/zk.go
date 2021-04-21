@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,11 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/samuel/go-zookeeper/zk"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -109,7 +111,8 @@ type StateStore struct {
 	*config
 	conn Conn
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 var (
@@ -119,7 +122,10 @@ var (
 
 // NewZookeeperStateStore returns a new Zookeeper state store
 func NewZookeeperStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{logger: logger}
+	return &StateStore{
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
+	}
 }
 
 func (s *StateStore) Init(metadata state.Metadata) (err error) {
@@ -141,6 +147,11 @@ func (s *StateStore) Init(metadata state.Metadata) (err error) {
 	return
 }
 
+// Features returns the features available in this state store
+func (s *StateStore) Features() []state.Feature {
+	return s.features
+}
+
 // Get retrieves state from Zookeeper with a key
 func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
@@ -154,7 +165,7 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: strconv.Itoa(int(stat.Version)),
+		ETag: ptr.String(strconv.Itoa(int(stat.Version))),
 	}, nil
 }
 

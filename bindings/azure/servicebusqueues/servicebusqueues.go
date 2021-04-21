@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -13,7 +13,7 @@ import (
 	servicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -158,9 +158,9 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 	return nil, a.client.Send(ctx, msg)
 }
 
-func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) error) error {
+func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	var sbHandler servicebus.HandlerFunc = func(ctx context.Context, msg *servicebus.Message) error {
-		err := handler(&bindings.ReadResponse{
+		_, err := handler(&bindings.ReadResponse{
 			Data:     msg.Data,
 			Metadata: map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label},
 		})

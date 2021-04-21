@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -196,6 +196,38 @@ func TestParseMetadata(t *testing.T) {
 		assert.True(t, meta.AuthRequired)
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
+	})
+
+	t.Run("correct metadata (maxMessageBytes 2048)", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"consumerGroup": "a", "publishTopic": "a", "brokers": "a", "topics": "a", "authRequired": "1", "saslUsername": "foo", "saslPassword": "bar", "maxMessageBytes": "2048"}
+		k := Kafka{logger: logger}
+		meta, err := k.getKafkaMetadata(m)
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Brokers[0])
+		assert.Equal(t, "a", meta.ConsumerGroup)
+		assert.Equal(t, "a", meta.PublishTopic)
+		assert.Equal(t, "a", meta.Topics[0])
+		assert.True(t, meta.AuthRequired)
+		assert.Equal(t, "foo", meta.SaslUsername)
+		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, 2048, meta.MaxMessageBytes)
+	})
+
+	t.Run("correct metadata (no maxMessageBytes)", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"consumerGroup": "a", "publishTopic": "a", "brokers": "a", "topics": "a", "authRequired": "1", "saslUsername": "foo", "saslPassword": "bar"}
+		k := Kafka{logger: logger}
+		meta, err := k.getKafkaMetadata(m)
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Brokers[0])
+		assert.Equal(t, "a", meta.ConsumerGroup)
+		assert.Equal(t, "a", meta.PublishTopic)
+		assert.Equal(t, "a", meta.Topics[0])
+		assert.True(t, meta.AuthRequired)
+		assert.Equal(t, "foo", meta.SaslUsername)
+		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, 0, meta.MaxMessageBytes)
 	})
 
 	t.Run("missing authRequired", func(t *testing.T) {

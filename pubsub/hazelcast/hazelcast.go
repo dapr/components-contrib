@@ -1,23 +1,34 @@
 package hazelcast
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/hazelcast/hazelcast-go-client"
 	hazelcastCore "github.com/hazelcast/hazelcast-go-client/core"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 const (
-	hazelcastServers = "hazelcastServers"
+	hazelcastServers           = "hazelcastServers"
+	hazelcastBackOffMaxRetries = "backOffMaxRetries"
 )
 
 type Hazelcast struct {
-	client hazelcast.Client
-	logger logger.Logger
+	client   hazelcast.Client
+	logger   logger.Logger
+	metadata metadata
+
+	ctx     context.Context
+	cancel  context.CancelFunc
+	backOff backoff.BackOff
 }
 
 // NewHazelcastPubSub returns a new hazelcast pub-sub implementation
@@ -33,6 +44,14 @@ func parseHazelcastMetadata(meta pubsub.Metadata) (metadata, error) {
 		return m, errors.New("hazelcast error: missing hazelcast servers")
 	}
 
+	if val, ok := meta.Properties[hazelcastBackOffMaxRetries]; ok && val != "" {
+		backOffMaxRetriesInt, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("hazelcast error: invalid backOffMaxRetries %s, %v", val, err)
+		}
+		m.backOffMaxRetries = backOffMaxRetriesInt
+	}
+
 	return m, nil
 }
 
@@ -42,6 +61,7 @@ func (p *Hazelcast) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
+	p.metadata = m
 	hzConfig := hazelcast.NewConfig()
 
 	servers := m.hazelcastServers
@@ -51,6 +71,12 @@ func (p *Hazelcast) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to create new client, %v", err)
 	}
+
+	p.ctx, p.cancel = context.WithCancel(context.Background())
+
+	// TODO: Make the backoff configurable for constant or exponential
+	b := backoff.NewConstantBackOff(5 * time.Second)
+	p.backOff = backoff.WithContext(b, p.ctx)
 
 	return nil
 }
@@ -68,13 +94,13 @@ func (p *Hazelcast) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	topic, err := p.client.GetTopic(req.Topic)
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to get topic for %s", req.Topic)
 	}
 
-	_, err = topic.AddMessageListener(&hazelcastMessageListener{topic.Name(), handler})
+	_, err = topic.AddMessageListener(&hazelcastMessageListener{p, topic.Name(), handler})
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to add new listener, %v", err)
 	}
@@ -83,6 +109,7 @@ func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pub
 }
 
 func (p *Hazelcast) Close() error {
+	p.cancel()
 	p.client.Shutdown()
 
 	return nil
@@ -93,8 +120,9 @@ func (p *Hazelcast) Features() []pubsub.Feature {
 }
 
 type hazelcastMessageListener struct {
+	p             *Hazelcast
 	topicName     string
-	pubsubHandler func(msg *pubsub.NewMessage) error
+	pubsubHandler pubsub.Handler
 }
 
 func (l *hazelcastMessageListener) OnMessage(message hazelcastCore.Message) error {
@@ -103,14 +131,33 @@ func (l *hazelcastMessageListener) OnMessage(message hazelcastCore.Message) erro
 		return errors.New("hazelcast error: cannot cast message to byte array")
 	}
 
-	return l.handleMessageObject(msg)
+	if err := l.handleMessageObject(msg); err != nil {
+		l.p.logger.Error("Failure processing Hazelcast message")
+
+		return err
+	}
+
+	return nil
 }
 
 func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
-	pubsubMsg := &pubsub.NewMessage{
+	pubsubMsg := pubsub.NewMessage{
 		Data:  message,
 		Topic: l.topicName,
 	}
 
-	return l.pubsubHandler(pubsubMsg)
+	b := l.p.backOff
+	if l.p.metadata.backOffMaxRetries >= 0 {
+		b = backoff.WithMaxRetries(b, uint64(l.p.metadata.backOffMaxRetries))
+	}
+
+	return pubsub.RetryNotifyRecover(func() error {
+		l.p.logger.Debug("Processing Hazelcast message")
+
+		return l.pubsubHandler(l.p.ctx, &pubsubMsg)
+	}, b, func(err error, d time.Duration) {
+		l.p.logger.Error("Error processing Hazelcast message. Retrying...")
+	}, func() {
+		l.p.logger.Info("Successfully processed Hazelcast message after it previously failed")
+	})
 }

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -16,7 +16,7 @@ import (
 
 	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -72,7 +72,7 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) error) error {
+func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",

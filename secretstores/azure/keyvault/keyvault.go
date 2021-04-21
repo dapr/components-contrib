@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -13,7 +13,7 @@ import (
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // Keyvault secret store component metadata properties
@@ -25,6 +25,7 @@ const (
 	componentSPNTenantID            = "spnTenantId"
 	componentVaultName              = "vaultName"
 	VersionID                       = "version_id"
+	secretItemIDPrefix              = "/secrets/"
 )
 
 type keyvaultSecretStore struct {
@@ -101,21 +102,26 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 		Data: map[string]map[string]string{},
 	}
 
+	secretIDPrefix := vaultURI + secretItemIDPrefix
+
 	for secretsResp.NotDone() {
-		secretItem := secretsResp.Value()
-		secretName := strings.TrimPrefix(*secretItem.ID, vaultURI)
+		secretEnabled := secretsResp.Value().Attributes.Enabled
+		if *secretEnabled {
+			secretItem := secretsResp.Value()
+			secretName := strings.TrimPrefix(*secretItem.ID, secretIDPrefix)
 
-		secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
-		if err != nil {
-			return secretstores.BulkGetSecretResponse{}, err
+			secretResp, err := k.vaultClient.GetSecret(context.Background(), vaultURI, secretName, "")
+			if err != nil {
+				return secretstores.BulkGetSecretResponse{}, err
+			}
+
+			secretValue := ""
+			if secretResp.Value != nil {
+				secretValue = *secretResp.Value
+			}
+
+			resp.Data[secretName] = map[string]string{secretName: secretValue}
 		}
-
-		secretValue := ""
-		if secretResp.Value != nil {
-			secretValue = *secretResp.Value
-		}
-
-		resp.Data[secretName] = map[string]string{secretName: secretValue}
 
 		secretsResp.NextWithContext(context.Background())
 	}

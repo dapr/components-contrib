@@ -1,13 +1,18 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package secretstores
 
 import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // creating this struct so that it can be expanded later
@@ -21,7 +26,7 @@ func NewTestConfig(name string, allOperations bool, operations []string) TestCon
 			ComponentType: "secretstores",
 			ComponentName: name,
 			AllOperations: allOperations,
-			Operations:    sets.NewString(operations...),
+			Operations:    utils.NewStringSet(operations...),
 		},
 	}
 
@@ -65,14 +70,12 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	// Bulkget
 	if config.HasOperation("bulkget") {
 		bulkReq := secretstores.BulkGetSecretRequest{}
-		bulkResponse := secretstores.BulkGetSecretResponse{
-			Data: map[string]map[string]string{
-				"conftestsecret": {
-					"conftestsecret": "abcd",
-				},
-				"secondsecret": {
-					"secondsecret": "efgh",
-				},
+		expectedData := map[string]map[string]string{
+			"conftestsecret": {
+				"conftestsecret": "abcd",
+			},
+			"secondsecret": {
+				"secondsecret": "efgh",
 			},
 		}
 
@@ -81,7 +84,17 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 			assert.NoError(t, err, "expected no error on getting secret %v", bulkReq)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")
-			assert.Equal(t, bulkResponse.Data, resp.Data, "expected values to be equal")
+
+			// Many secret stores don't allow us to start with an
+			// empty set of secrets.  For example, every Kubernetes
+			// namespace will contain a secret token.
+			//
+			// As a result, here we can only confirm that the secret
+			// store contains all that we expected, but it is possible that
+			// it may have more.
+			for k, m := range expectedData {
+				assert.Equal(t, m, resp.Data[k], "expected values to be equal")
+			}
 		})
 	}
 }

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -96,6 +96,11 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 
 	c.table = fmt.Sprintf("%s.%s", meta.keyspace, meta.table)
 
+	return nil
+}
+
+// Features returns the features available in this state store
+func (c *Cassandra) Features() []state.Feature {
 	return nil
 }
 

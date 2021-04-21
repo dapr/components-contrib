@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -8,14 +8,22 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
+)
+
+const (
+	key = "partitionKey"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group
@@ -31,33 +39,52 @@ type Kafka struct {
 	topics        map[string]bool
 	cancel        context.CancelFunc
 	consumer      consumer
+	backOff       backoff.BackOff
 	config        *sarama.Config
 }
 
 type kafkaMetadata struct {
-	Brokers      []string `json:"brokers"`
-	ConsumerID   string   `json:"consumerID"`
-	AuthRequired bool     `json:"authRequired"`
-	SaslUsername string   `json:"saslUsername"`
-	SaslPassword string   `json:"saslPassword"`
+	Brokers         []string `json:"brokers"`
+	ConsumerID      string   `json:"consumerID"`
+	AuthRequired    bool     `json:"authRequired"`
+	SaslUsername    string   `json:"saslUsername"`
+	SaslPassword    string   `json:"saslPassword"`
+	MaxMessageBytes int      `json:"maxMessageBytes"`
 }
 
 type consumer struct {
+	logger   logger.Logger
+	backOff  backoff.BackOff
 	ready    chan bool
-	callback func(msg *pubsub.NewMessage) error
+	callback pubsub.Handler
 	once     sync.Once
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	if consumer.callback == nil {
+		return fmt.Errorf("nil consumer callback")
+	}
+
+	bo := backoff.WithContext(consumer.backOff, session.Context())
 	for message := range claim.Messages() {
-		if consumer.callback != nil {
-			err := consumer.callback(&pubsub.NewMessage{
-				Topic: claim.Topic(),
-				Data:  message.Value,
-			})
+		msg := pubsub.NewMessage{
+			Topic: message.Topic,
+			Data:  message.Value,
+		}
+		if err := pubsub.RetryNotifyRecover(func() error {
+			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+			err := consumer.callback(session.Context(), &msg)
 			if err == nil {
 				session.MarkMessage(message, "")
 			}
+
+			return err
+		}, bo, func(err error, d time.Duration) {
+			consumer.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		}, func() {
+			consumer.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		}); err != nil {
+			return err
 		}
 	}
 
@@ -113,6 +140,9 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.topics = make(map[string]bool)
 
+	// TODO: Make the backoff configurable for constant or exponential
+	k.backOff = backoff.NewConstantBackOff(5 * time.Second)
+
 	k.logger.Debug("Kafka message bus initialization complete")
 
 	return nil
@@ -121,10 +151,17 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 // Publish message to Kafka cluster
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	k.logger.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
-	partition, offset, err := k.producer.SendMessage(&sarama.ProducerMessage{
+
+	msg := &sarama.ProducerMessage{
 		Topic: req.Topic,
 		Value: sarama.ByteEncoder(req.Data),
-	})
+	}
+
+	if val, ok := req.Metadata[key]; ok && val != "" {
+		msg.Key = sarama.StringEncoder(val)
+	}
+
+	partition, offset, err := k.producer.SendMessage(msg)
 
 	k.logger.Debugf("Partition: %v, offset: %v", partition, offset)
 
@@ -168,7 +205,11 @@ func (k *Kafka) closeSubscripionResources() {
 
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
-func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if k.consumerGroup == "" {
+		return errors.New("kafka: consumerID must be set to subscribe")
+	}
+
 	topics := k.addTopic(req.Topic)
 
 	// Close resources and reset synchronization primitives
@@ -186,6 +227,8 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 
 	ready := make(chan bool)
 	k.consumer = consumer{
+		logger:   k.logger,
+		backOff:  k.backOff,
 		ready:    ready,
 		callback: handler,
 	}
@@ -202,6 +245,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {
+			k.logger.Debugf("Starting loop to consume.")
 			// Consume the requested topic
 			innerError := k.cg.Consume(ctx, topics, &(k.consumer))
 			if innerError != nil {
@@ -211,6 +255,8 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
 			// us out of the consume loop
 			if ctx.Err() != nil {
+				k.logger.Debugf("Context error, stopping consumer: %v", ctx.Err())
+
 				return
 			}
 		}
@@ -264,6 +310,15 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		}
 	}
 
+	if val, ok := metadata.Properties["maxMessageBytes"]; ok && val != "" {
+		maxBytes, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %s", err)
+		}
+
+		meta.MaxMessageBytes = maxBytes
+	}
+
 	return &meta, nil
 }
 
@@ -275,6 +330,10 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 
 	if k.authRequired {
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+
+	if meta.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = meta.MaxMessageBytes
 	}
 
 	producer, err := sarama.NewSyncProducer(meta.Brokers, config)
@@ -307,4 +366,14 @@ func (k *Kafka) Close() error {
 
 func (k *Kafka) Features() []pubsub.Feature {
 	return nil
+}
+
+// asBase64String implements the `fmt.Stringer` interface in order to print
+// `[]byte` as a base 64 encoded string.
+// It is used above to log the message key. The call to `EncodeToString`
+// only occurs for logs that are written based on the logging level.
+type asBase64String []byte
+
+func (s asBase64String) String() string {
+	return base64.StdEncoding.EncodeToString(s)
 }

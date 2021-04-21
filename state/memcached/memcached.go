@@ -10,7 +10,7 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -63,6 +63,11 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 		return err
 	}
 
+	return nil
+}
+
+// Features returns the features available in this state store
+func (m *Memcached) Features() []state.Feature {
 	return nil
 }
 

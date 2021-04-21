@@ -1,10 +1,14 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package conformance
 
 import (
 	"os"
 	"testing"
 
-	"github.com/dapr/dapr/pkg/apis/components/v1alpha1"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -65,16 +69,16 @@ func TestLookUpEnv(t *testing.T) {
 }
 
 func TestConvertMetadataToProperties(t *testing.T) {
-	items := []v1alpha1.MetadataItem{
+	items := []MetadataItem{
 		{
 			Name: "test_key",
-			Value: v1alpha1.DynamicValue{
+			Value: DynamicValue{
 				JSON: v1.JSON{Raw: []byte("test")},
 			},
 		},
 		{
 			Name: "env_var_sub",
-			Value: v1alpha1.DynamicValue{
+			Value: DynamicValue{
 				JSON: v1.JSON{Raw: []byte("${{CONF_TEST_KEY}}")},
 			},
 		},
@@ -99,7 +103,7 @@ func TestConvertMetadataToProperties(t *testing.T) {
 }
 
 func TestParseConfigurationMap(t *testing.T) {
-	testMap := map[string]string{
+	testMap := map[string]interface{}{
 		"key":  "$((uuid))",
 		"blob": "testblob",
 	}
@@ -107,15 +111,15 @@ func TestParseConfigurationMap(t *testing.T) {
 	ParseConfigurationMap(t, testMap)
 	assert.Equal(t, 2, len(testMap))
 	assert.Equal(t, "testblob", testMap["blob"])
-	_, err := uuid.ParseBytes([]byte(testMap["key"]))
+	_, err := uuid.ParseBytes([]byte(testMap["key"].(string)))
 	assert.NoError(t, err)
 }
 
 func TestConvertComponentNameToPath(t *testing.T) {
-	val := convertComponentNameToPath("azure.servicebus")
+	val := convertComponentNameToPath("azure.servicebus", "")
 	assert.Equal(t, "azure/servicebus", val)
-	val = convertComponentNameToPath("a.b.c")
+	val = convertComponentNameToPath("a.b.c", "")
 	assert.Equal(t, "a/b/c", val)
-	val = convertComponentNameToPath("redis")
+	val = convertComponentNameToPath("redis", "")
 	assert.Equal(t, "redis", val)
 }

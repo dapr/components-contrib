@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -14,14 +14,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
+	"github.com/google/uuid"
 	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -36,6 +39,7 @@ const (
 	params           = "params"
 	id               = "_id"
 	value            = "value"
+	etag             = "_etag"
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -55,7 +59,8 @@ type MongoDB struct {
 	collection       *mongo.Collection
 	operationTimeout time.Duration
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type mongoDBMetadata struct {
@@ -74,11 +79,15 @@ type mongoDBMetadata struct {
 type Item struct {
 	Key   string `bson:"_id"`
 	Value string `bson:"value"`
+	Etag  string `bson:"_etag"`
 }
 
 // NewMongoDB returns a new MongoDB state store
 func NewMongoDB(logger logger.Logger) *MongoDB {
-	s := &MongoDB{logger: logger}
+	s := &MongoDB{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
+	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
@@ -124,6 +133,11 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (m *MongoDB) Features() []state.Feature {
+	return m.features
+}
+
 // Set saves state into MongoDB
 func (m *MongoDB) Set(req *state.SetRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
@@ -148,7 +162,11 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}
-	update := bson.M{"$set": bson.M{id: req.Key, value: vStr}}
+	if req.ETag != nil {
+		filter[etag] = *req.ETag
+	}
+
+	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
 		return err
@@ -167,6 +185,12 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
+		if err.Error() == "mongo: no documents in result" {
+			// Key not found, not an error.
+			// To behave the same as other state stores in conf tests.
+			return &state.GetResponse{}, nil
+		}
+
 		return &state.GetResponse{}, err
 	}
 
@@ -174,6 +198,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: value,
+		ETag: ptr.String(result.Etag),
 	}, nil
 }
 
@@ -192,9 +217,16 @@ func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
-	_, err := m.collection.DeleteOne(ctx, filter)
+	if req.ETag != nil {
+		filter[etag] = *req.ETag
+	}
+	result, err := m.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
+	}
+
+	if result.DeletedCount == 0 && req.ETag != nil {
+		return errors.New("key or etag not found")
 	}
 
 	return nil

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -14,11 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
 	redis "github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -49,14 +51,16 @@ type StateStore struct {
 	metadata metadata
 	replicas int
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 // NewRedisStateStore returns a new redis state store
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -98,7 +102,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
+			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
 		}
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
@@ -146,6 +150,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return err
 }
 
+// Features returns the features available in this state store
+func (r *StateStore) Features() []state.Feature {
+	return r.features
+}
+
 func (r *StateStore) newClient(m metadata) *redis.Client {
 	opts := &redis.Options{
 		Addr:            m.host,
@@ -169,6 +178,7 @@ func (r *StateStore) newClient(m metadata) *redis.Client {
 func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
 	opts := &redis.FailoverOptions{
 		MasterName:      r.metadata.sentinelMasterName,
+		Password:        m.password,
 		SentinelAddrs:   []string{r.metadata.host},
 		DB:              defaultDB,
 		MaxRetries:      m.maxRetries,
@@ -303,7 +313,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
 		_, err = r.client.DoContext(context.Background(), "WAIT", r.replicas, 1000).Result()
 		if err != nil {
-			return fmt.Errorf("timed out while waiting for %v replicas to acknowledge write", r.replicas)
+			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
 		}
 	}
 
@@ -342,7 +352,7 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	return err
 }
 
-func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version string, err error) {
+func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *string, err error) {
 	seenData := false
 	seenVersion := false
 	for i := 0; i < len(vals); i += 2 {
@@ -352,12 +362,13 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version str
 			data, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
 			seenData = true
 		case "version":
-			version, _ = strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
+			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
+			version = ptr.String(versionVal)
 			seenVersion = true
 		}
 	}
 	if !seenData || !seenVersion {
-		return "", "", errors.New("required hash field 'data' or 'version' was not found")
+		return "", nil, errors.New("required hash field 'data' or 'version' was not found")
 	}
 
 	return data, version, nil

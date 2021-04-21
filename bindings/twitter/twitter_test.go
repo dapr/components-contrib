@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/stretchr/testify/assert"
 )
@@ -60,11 +60,11 @@ func TestReadError(t *testing.T) {
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 
-	tw.Read(func(res *bindings.ReadResponse) error {
+	tw.Read(func(res *bindings.ReadResponse) ([]byte, error) {
 		t.Logf("result: %+v", res)
 		assert.NotNilf(t, err, "no error on read with invalid credentials")
 
-		return nil
+		return nil, nil
 	})
 }
 
@@ -84,7 +84,7 @@ func TestReed(t *testing.T) {
 	assert.Nilf(t, err, "error initializing read")
 
 	counter := 0
-	err = tw.Read(func(res *bindings.ReadResponse) error {
+	err = tw.Read(func(res *bindings.ReadResponse) ([]byte, error) {
 		counter++
 		t.Logf("tweet[%d]", counter)
 		var tweet twitter.Tweet
@@ -92,7 +92,7 @@ func TestReed(t *testing.T) {
 		assert.NotEmpty(t, tweet.IDStr, "tweet should have an ID")
 		os.Exit(0)
 
-		return nil
+		return nil, nil
 	})
 	assert.Nilf(t, err, "error on read")
 }

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -16,7 +16,7 @@ import (
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 )
 
@@ -28,6 +28,7 @@ const (
 	contentLanguage          = "ContentLanguage"
 	contentDisposition       = "ContentDisposition"
 	cacheControl             = "CacheControl"
+	deleteSnapshotOptions    = "DeleteSnapshotOptions"
 	defaultGetBlobRetryCount = 10
 )
 
@@ -105,7 +106,7 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 }
 
 func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation}
+	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation, bindings.DeleteOperation}
 }
 
 func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -194,6 +195,12 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 	}, nil
 }
 
+func (a *AzureBlobStorage) delete(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionType(req.Metadata[deleteSnapshotOptions]), azblob.BlobAccessConditions{})
+
+	return nil, err
+}
+
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	name := ""
 	if val, ok := req.Metadata[blobName]; ok && val != "" {
@@ -209,7 +216,9 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 		return a.create(blobURL, req)
 	case bindings.GetOperation:
 		return a.get(blobURL, req)
-	case bindings.DeleteOperation, bindings.ListOperation:
+	case bindings.DeleteOperation:
+		return a.delete(blobURL, req)
+	case bindings.ListOperation:
 		fallthrough
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)

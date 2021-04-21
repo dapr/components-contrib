@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 )
@@ -55,7 +55,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the Cron scheduler
-func (b *Binding) Read(handler func(*bindings.ReadResponse) error) error {
+func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	c := cron.New(cron.WithParser(b.parser))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("schedule fired: %v", time.Now())

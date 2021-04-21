@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -31,6 +31,11 @@ func IsStringContentType(contentType string) bool {
 	}
 
 	return isContentType(contentType, "application/xml")
+}
+
+// IsBinaryContentType determines if content type is byte[]
+func IsBinaryContentType(contentType string) bool {
+	return isContentType(contentType, "application/octet-stream")
 }
 
 func isContentType(contentType string, expected string) bool {

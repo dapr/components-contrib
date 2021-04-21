@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: conftestsecret
+type: Opaque
+stringData:
+  conftestsecret: abcd
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secondsecret
+type: Opaque
+stringData:
+  secondsecret: efgh

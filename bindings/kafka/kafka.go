@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -18,7 +19,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -39,24 +40,25 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers       []string `json:"brokers"`
-	Topics        []string `json:"topics"`
-	PublishTopic  string   `json:"publishTopic"`
-	ConsumerGroup string   `json:"consumerGroup"`
-	AuthRequired  bool     `json:"authRequired"`
-	SaslUsername  string   `json:"saslUsername"`
-	SaslPassword  string   `json:"saslPassword"`
+	Brokers         []string `json:"brokers"`
+	Topics          []string `json:"topics"`
+	PublishTopic    string   `json:"publishTopic"`
+	ConsumerGroup   string   `json:"consumerGroup"`
+	AuthRequired    bool     `json:"authRequired"`
+	SaslUsername    string   `json:"saslUsername"`
+	SaslPassword    string   `json:"saslPassword"`
+	MaxMessageBytes int
 }
 
 type consumer struct {
 	ready    chan bool
-	callback func(*bindings.ReadResponse) error
+	callback func(*bindings.ReadResponse) ([]byte, error)
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
-			err := consumer.callback(&bindings.ReadResponse{
+			_, err := consumer.callback(&bindings.ReadResponse{
 				Data: message.Value,
 			})
 			if err == nil {
@@ -169,6 +171,15 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 		}
 	}
 
+	if val, ok := metadata.Properties["maxMessageBytes"]; ok && val != "" {
+		maxBytes, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %s", err)
+		}
+
+		meta.MaxMessageBytes = maxBytes
+	}
+
 	return &meta, nil
 }
 
@@ -184,6 +195,10 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 		updateAuthInfo(config, meta.SaslUsername, meta.SaslPassword)
 	}
 
+	if meta.MaxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = meta.MaxMessageBytes
+	}
+
 	producer, err := sarama.NewSyncProducer(meta.Brokers, config)
 	if err != nil {
 		return nil, err
@@ -192,7 +207,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	return producer, nil
 }
 
-func (k *Kafka) Read(handler func(*bindings.ReadResponse) error) error {
+func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
 	// ignore SASL properties if authRequired is false

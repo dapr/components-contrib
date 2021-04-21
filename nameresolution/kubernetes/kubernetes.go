@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type resolver struct {

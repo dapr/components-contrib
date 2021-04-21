@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -30,21 +30,30 @@ package blobstorage
 import (
 	"bytes"
 	"context"
+	b64 "encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
-	keyDelimiter     = "||"
-	accountNameKey   = "accountName"
-	accountKeyKey    = "accountKey"
-	containerNameKey = "containerName"
+	keyDelimiter       = "||"
+	accountNameKey     = "accountName"
+	accountKeyKey      = "accountKey"
+	containerNameKey   = "containerName"
+	contentType        = "ContentType"
+	contentMD5         = "ContentMD5"
+	contentEncoding    = "ContentEncoding"
+	contentLanguage    = "ContentLanguage"
+	contentDisposition = "ContentDisposition"
+	cacheControl       = "CacheControl"
 )
 
 // StateStore Type
@@ -53,7 +62,8 @@ type StateStore struct {
 	containerURL azblob.ContainerURL
 	json         jsoniter.API
 
-	logger logger.Logger
+	features []state.Feature
+	logger   logger.Logger
 }
 
 type blobStorageMetadata struct {
@@ -89,6 +99,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+// Features returns the features available in this state store
+func (r *StateStore) Features() []state.Feature {
+	return r.features
+}
+
 // Delete the state
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
@@ -112,7 +127,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: data,
-		ETag: etag,
+		ETag: ptr.String(etag),
 	}, err
 }
 
@@ -126,8 +141,9 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 // NewAzureBlobStorageStore instance
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		json:   jsoniter.ConfigFastest,
-		logger: logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -182,8 +198,6 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
 }
 
 func (r *StateStore) writeFile(req *state.SetRequest) error {
-	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
-
 	accessConditions := azblob.BlobAccessConditions{}
 
 	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {
@@ -194,10 +208,43 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
+	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
+
+	var blobHTTPHeaders azblob.BlobHTTPHeaders
+	if val, ok := req.Metadata[contentType]; ok && val != "" {
+		blobHTTPHeaders.ContentType = val
+		delete(req.Metadata, contentType)
+	}
+	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
+		sDec, err := b64.StdEncoding.DecodeString(val)
+		if err != nil || len(sDec) != 16 {
+			return fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+		}
+		blobHTTPHeaders.ContentMD5 = sDec
+		delete(req.Metadata, contentMD5)
+	}
+	if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
+		blobHTTPHeaders.ContentEncoding = val
+		delete(req.Metadata, contentEncoding)
+	}
+	if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
+		blobHTTPHeaders.ContentLanguage = val
+		delete(req.Metadata, contentLanguage)
+	}
+	if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
+		blobHTTPHeaders.ContentDisposition = val
+		delete(req.Metadata, contentDisposition)
+	}
+	if val, ok := req.Metadata[cacheControl]; ok && val != "" {
+		blobHTTPHeaders.CacheControl = val
+		delete(req.Metadata, cacheControl)
+	}
+
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:      16,
 		Metadata:         req.Metadata,
 		AccessConditions: accessConditions,
+		BlobHTTPHeaders:  blobHTTPHeaders,
 	})
 	if err != nil {
 		r.logger.Debugf("write file %s, err %s", req.Key, err)

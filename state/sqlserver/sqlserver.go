@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/agrea/ptr"
+	mssql "github.com/denisenkom/go-mssqldb"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
-	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/dapr/kit/logger"
 )
 
 // KeyType defines type of the table identifier
@@ -67,7 +69,10 @@ const (
 
 // NewSQLServerStateStore creates a new instance of a Sql Server transaction store
 func NewSQLServerStateStore(logger logger.Logger) *SQLServer {
-	store := SQLServer{logger: logger}
+	store := SQLServer{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
+	}
 	store.migratorFactory = newMigration
 
 	return &store
@@ -97,8 +102,9 @@ type SQLServer struct {
 	deleteWithETagCommand    string
 	deleteWithoutETagCommand string
 
-	logger logger.Logger
-	db     *sql.DB
+	features []state.Feature
+	logger   logger.Logger
+	db       *sql.DB
 }
 
 func isLetterOrNumber(c rune) bool {
@@ -245,6 +251,11 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 	}
 
 	return nil
+}
+
+// Features returns the features available in this state store
+func (s *SQLServer) Features() []state.Feature {
+	return s.features
 }
 
 // Multi performs multiple updates on a Sql server store
@@ -446,7 +457,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: []byte(data),
-		ETag: etag,
+		ETag: ptr.String(etag),
 	}, nil
 }
 

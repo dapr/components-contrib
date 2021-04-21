@@ -36,8 +36,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 	if val, found := pubSubMetadata.Properties[metadataConsumerIDKey]; found && val != "" {
 		result.consumerID = val
-	} else {
-		return &result, fmt.Errorf("%s missing RabbitMQ consumerID", errorMessagePrefix)
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataDeliveryModeKey]; found && val != "" {

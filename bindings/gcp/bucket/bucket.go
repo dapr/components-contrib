@@ -1,5 +1,5 @@
 // ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
@@ -11,8 +11,8 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
-	uuid "github.com/satori/go.uuid"
+	"github.com/dapr/kit/logger"
+	"github.com/google/uuid"
 	"google.golang.org/api/option"
 )
 
@@ -81,11 +81,15 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 }
 
 func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	name := ""
+	var name string
 	if val, ok := req.Metadata["name"]; ok && val != "" {
 		name = val
 	} else {
-		name = uuid.NewV4().String()
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return nil, err
+		}
+		name = id.String()
 	}
 	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(context.Background())
 	defer h.Close()

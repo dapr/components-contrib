@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/hazelcast/hazelcast-go-client"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
@@ -68,6 +68,11 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 		return fmt.Errorf("hazelcast error: %v", err)
 	}
 
+	return nil
+}
+
+// Features returns the features available in this state store
+func (store *Hazelcast) Features() []state.Feature {
 	return nil
 }
 

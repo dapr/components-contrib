@@ -43,6 +43,7 @@ const (
 	redeliverInterval     = "redeliverInterval"
 	queueDepth            = "queueDepth"
 	concurrency           = "concurrency"
+	maxLenApprox          = "maxLenApprox"
 )
 
 const (
@@ -288,6 +289,14 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
+	if val, ok := meta.Properties[maxLenApprox]; ok && val != "" {
+		maxLenApprox, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: invalid maxLenApprox %s, %s", val, err)
+		}
+		m.maxLenApprox = maxLenApprox
+	}
+
 	return m, nil
 }
 
@@ -370,6 +379,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 	_, err := r.client.XAdd(&redis.XAddArgs{
 		Stream: req.Topic,
+		MaxLenApprox: r.metadata.maxLenApprox,
 		Values: map[string]interface{}{"data": req.Data},
 	}).Result()
 	if err != nil {

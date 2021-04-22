@@ -104,9 +104,9 @@ func TestFailJob(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: failJobOperation}
 
-		mc := new(mockFailJobClient)
+		var mc mockFailJobClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

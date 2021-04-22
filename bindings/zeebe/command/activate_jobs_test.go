@@ -119,9 +119,9 @@ func TestActivateJobs(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
 
-		mc := new(mockActivateJobsClient)
+		var mc mockActivateJobsClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
@@ -142,9 +142,9 @@ func TestActivateJobs(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
 
-		mc := new(mockActivateJobsClient)
+		var mc mockActivateJobsClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

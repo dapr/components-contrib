@@ -106,9 +106,9 @@ func TestPublishMessage(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
 
-		mc := new(mockPublishMessageClient)
+		var mc mockPublishMessageClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
@@ -131,9 +131,9 @@ func TestPublishMessage(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
 
-		mc := new(mockPublishMessageClient)
+		var mc mockPublishMessageClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

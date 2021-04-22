@@ -98,9 +98,9 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(mockCreateInstanceClient)
+		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
@@ -115,9 +115,9 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(mockCreateInstanceClient)
+		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
@@ -134,9 +134,9 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(mockCreateInstanceClient)
+		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
@@ -153,9 +153,9 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(mockCreateInstanceClient)
+		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
@@ -174,9 +174,9 @@ func TestCreateInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
-		mc := new(mockCreateInstanceClient)
+		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

@@ -18,7 +18,7 @@ import (
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
 )
 
-type mockResolveIncident struct {
+type mockResolveIncidentClient struct {
 	zbc.Client
 	cmd1 *mockResolveIncidentCommandStep1
 }
@@ -33,7 +33,7 @@ type mockResolveIncidentCommandStep2 struct {
 	commands.ResolveIncidentCommandStep2
 }
 
-func (mc *mockResolveIncident) NewResolveIncidentCommand() commands.ResolveIncidentCommandStep1 {
+func (mc *mockResolveIncidentClient) NewResolveIncidentCommand() commands.ResolveIncidentCommandStep1 {
 	mc.cmd1 = new(mockResolveIncidentCommandStep1)
 	mc.cmd1.cmd2 = new(mockResolveIncidentCommandStep2)
 
@@ -69,9 +69,9 @@ func TestResolveIncident(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: resolveIncidentOperation}
 
-		mc := new(mockResolveIncident)
+		var mc mockResolveIncidentClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

@@ -85,9 +85,9 @@ func TestCompleteJob(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: completeJobOperation}
 
-		mc := new(mockCompleteJobClient)
+		var mc mockCompleteJobClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

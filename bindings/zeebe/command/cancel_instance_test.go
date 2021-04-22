@@ -69,9 +69,9 @@ func TestCancelInstance(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: cancelInstanceOperation}
 
-		mc := new(mockCancelInstanceClient)
+		var mc mockCancelInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

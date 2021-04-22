@@ -105,9 +105,9 @@ func TestSetVariables(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 
-		mc := new(mockSetVariableClient)
+		var mc mockSetVariableClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 
@@ -129,9 +129,9 @@ func TestSetVariables(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 
-		mc := new(mockSetVariableClient)
+		var mc mockSetVariableClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

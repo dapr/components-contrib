@@ -104,9 +104,9 @@ func TestThrowError(t *testing.T) {
 
 		req := &bindings.InvokeRequest{Data: data, Operation: throwErrorOperation}
 
-		mc := new(mockThrowErrorClient)
+		var mc mockThrowErrorClient
 
-		message := ZeebeCommand{logger: testLogger, client: mc}
+		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
 		assert.Nil(t, err)
 

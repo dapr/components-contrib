@@ -105,6 +105,20 @@ func TestCreateInstance(t *testing.T) {
 		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
 
+	t.Run("either bpmnProcessId or workflowKey must be given", func(t *testing.T) {
+		payload := createInstancePayload{}
+		data, err := json.Marshal(payload)
+		assert.Nil(t, err)
+
+		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+
+		var mc mockCreateInstanceClient
+
+		message := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = message.Invoke(req)
+		assert.Error(t, err, ErrMissingCreationVars)
+	})
+
 	t.Run("create command with bpmnProcessId and specific version", func(t *testing.T) {
 		payload := createInstancePayload{
 			BpmnProcessID: "some-id",

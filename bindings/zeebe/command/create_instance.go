@@ -17,6 +17,7 @@ import (
 
 var (
 	ErrAmbiguousCreationVars = errors.New("either 'bpmnProcessId' or 'workflowKey' must be passed, not both at the same time")
+	ErrMissingCreationVars   = errors.New("either 'bpmnProcessId' or 'workflowKey' must be passed")
 )
 
 type createInstancePayload struct {
@@ -49,9 +50,11 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 			cmd3 = cmd2.LatestVersion()
 			errorDetail = fmt.Sprintf("bpmnProcessId %s and lates version", payload.BpmnProcessID)
 		}
-	} else {
+	} else if payload.WorkflowKey != nil {
 		cmd3 = cmd1.WorkflowKey(*payload.WorkflowKey)
 		errorDetail = fmt.Sprintf("workflowKey %d", payload.WorkflowKey)
+	} else {
+		return nil, ErrMissingCreationVars
 	}
 
 	if payload.Variables != nil {

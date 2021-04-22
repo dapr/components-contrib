@@ -18,7 +18,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	pb "github.com/dapr/components-contrib/state/cloudstate/proto"
 	kvstore_pb "github.com/dapr/components-contrib/state/cloudstate/proto/kv_store"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 	empty "github.com/golang/protobuf/ptypes/empty"

@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type localSecretStoreMetaData struct {

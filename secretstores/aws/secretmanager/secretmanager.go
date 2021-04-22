@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

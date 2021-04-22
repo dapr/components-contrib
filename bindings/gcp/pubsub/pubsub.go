@@ -12,7 +12,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"google.golang.org/api/option"
 )
 

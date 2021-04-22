@@ -10,12 +10,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 type mockCompleteJobClient struct {
@@ -40,9 +41,11 @@ type mockDispatchCompleteJobCommand struct {
 }
 
 func (mc *mockCompleteJobClient) NewCompleteJobCommand() commands.CompleteJobCommandStep1 {
-	mc.cmd1 = new(mockCompleteJobCommandStep1)
-	mc.cmd1.cmd2 = new(mockCompleteJobCommandStep2)
-	mc.cmd1.cmd2.cmd3 = new(mockDispatchCompleteJobCommand)
+	mc.cmd1 = &mockCompleteJobCommandStep1{
+		cmd2: &mockCompleteJobCommandStep2{
+			cmd3: &mockDispatchCompleteJobCommand{},
+		},
+	}
 
 	return mc.cmd1
 }
@@ -81,7 +84,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: completeJobOperation}
 
@@ -89,7 +92,7 @@ func TestCompleteJob(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)

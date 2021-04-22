@@ -10,12 +10,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 type mockFailJobClient struct {
@@ -41,9 +42,11 @@ type mockFailJobCommandStep3 struct {
 }
 
 func (mc *mockFailJobClient) NewFailJobCommand() commands.FailJobCommandStep1 {
-	mc.cmd1 = new(mockFailJobCommandStep1)
-	mc.cmd1.cmd2 = new(mockFailJobCommandStep2)
-	mc.cmd1.cmd2.cmd3 = new(mockFailJobCommandStep3)
+	mc.cmd1 = &mockFailJobCommandStep1{
+		cmd2: &mockFailJobCommandStep2{
+			cmd3: &mockFailJobCommandStep3{},
+		},
+	}
 
 	return mc.cmd1
 }
@@ -85,7 +88,7 @@ func TestFailJob(t *testing.T) {
 			JobKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: failJobOperation}
@@ -100,7 +103,7 @@ func TestFailJob(t *testing.T) {
 			ErrorMessage: "a",
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: failJobOperation}
 
@@ -108,7 +111,7 @@ func TestFailJob(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)
 		assert.Equal(t, *payload.Retries, mc.cmd1.cmd2.retries)

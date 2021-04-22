@@ -10,12 +10,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 type mockCreateInstanceClient struct {
@@ -43,9 +44,11 @@ type mockCreateInstanceCommandStep3 struct {
 }
 
 func (mc *mockCreateInstanceClient) NewCreateInstanceCommand() commands.CreateInstanceCommandStep1 {
-	mc.cmd1 = new(mockCreateInstanceCommandStep1)
-	mc.cmd1.cmd2 = new(mockCreateInstanceCommandStep2)
-	mc.cmd1.cmd2.cmd3 = new(mockCreateInstanceCommandStep3)
+	mc.cmd1 = &mockCreateInstanceCommandStep1{
+		cmd2: &mockCreateInstanceCommandStep2{
+			cmd3: &mockCreateInstanceCommandStep3{},
+		},
+	}
 
 	return mc.cmd1
 }
@@ -108,7 +111,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("either bpmnProcessId or workflowKey must be given", func(t *testing.T) {
 		payload := createInstancePayload{}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
@@ -125,7 +128,7 @@ func TestCreateInstance(t *testing.T) {
 			Version:       new(int32),
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
@@ -133,7 +136,7 @@ func TestCreateInstance(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
 		assert.Equal(t, *payload.Version, mc.cmd1.cmd2.version)
@@ -144,7 +147,7 @@ func TestCreateInstance(t *testing.T) {
 			BpmnProcessID: "some-id",
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
@@ -152,7 +155,7 @@ func TestCreateInstance(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
 		assert.Equal(t, true, mc.cmd1.cmd2.latestVersion)
@@ -163,7 +166,7 @@ func TestCreateInstance(t *testing.T) {
 			WorkflowKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
@@ -171,7 +174,7 @@ func TestCreateInstance(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.WorkflowKey, mc.cmd1.workflowKey)
 	})
@@ -184,7 +187,7 @@ func TestCreateInstance(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
 
@@ -192,7 +195,7 @@ func TestCreateInstance(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.WorkflowKey, mc.cmd1.workflowKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.cmd3.variables)

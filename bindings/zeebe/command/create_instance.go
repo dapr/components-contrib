@@ -11,8 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/dapr/components-contrib/bindings"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
+
+	"github.com/dapr/components-contrib/bindings"
 )
 
 var (

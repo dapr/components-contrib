@@ -10,12 +10,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 type mockResolveIncidentClient struct {
@@ -34,8 +35,9 @@ type mockResolveIncidentCommandStep2 struct {
 }
 
 func (mc *mockResolveIncidentClient) NewResolveIncidentCommand() commands.ResolveIncidentCommandStep1 {
-	mc.cmd1 = new(mockResolveIncidentCommandStep1)
-	mc.cmd1.cmd2 = new(mockResolveIncidentCommandStep2)
+	mc.cmd1 = &mockResolveIncidentCommandStep1{
+		cmd2: &mockResolveIncidentCommandStep2{},
+	}
 
 	return mc.cmd1
 }
@@ -65,7 +67,7 @@ func TestResolveIncident(t *testing.T) {
 			IncidentKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: resolveIncidentOperation}
 
@@ -73,7 +75,7 @@ func TestResolveIncident(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.IncidentKey, mc.cmd1.incidentKey)
 	})

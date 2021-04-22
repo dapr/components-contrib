@@ -8,9 +8,10 @@ package command
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 func TestDeployWorkflow(t *testing.T) {

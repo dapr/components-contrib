@@ -9,11 +9,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
-	"github.com/dapr/dapr/pkg/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+	"github.com/dapr/kit/logger"
 )
 
 type mockClientFactory struct {
@@ -58,11 +60,11 @@ func TestInit(t *testing.T) {
 		command := ZeebeCommand{clientFactory: mcf, logger: testLogger}
 		err := command.Init(metadata)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, mc, command.client)
 		assert.Equal(t, metadata, mcf.metadata)
 	})
@@ -82,7 +84,7 @@ func TestInvoke(t *testing.T) {
 func TestOperations(t *testing.T) {
 	testBinding := ZeebeCommand{logger: logger.NewLogger("test")}
 	operations := testBinding.Operations()
-	assert.Equal(t, 12, len(operations))
+	require.Equal(t, 12, len(operations))
 	assert.Equal(t, topologyOperation, operations[0])
 	assert.Equal(t, deployWorkflowOperation, operations[1])
 	assert.Equal(t, createInstanceOperation, operations[2])

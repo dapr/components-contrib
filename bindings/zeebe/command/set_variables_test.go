@@ -10,12 +10,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 type mockSetVariableClient struct {
@@ -41,9 +42,11 @@ type mockDispatchSetVariablesCommand struct {
 }
 
 func (mc *mockSetVariableClient) NewSetVariablesCommand() commands.SetVariablesCommandStep1 {
-	mc.cmd1 = new(mockSetVariablesCommandStep1)
-	mc.cmd1.cmd2 = new(mockSetVariablesCommandStep2)
-	mc.cmd1.cmd2.cmd3 = new(mockDispatchSetVariablesCommand)
+	mc.cmd1 = &mockSetVariablesCommandStep1{
+		cmd2: &mockSetVariablesCommandStep2{
+			cmd3: &mockDispatchSetVariablesCommand{},
+		},
+	}
 
 	return mc.cmd1
 }
@@ -85,7 +88,7 @@ func TestSetVariables(t *testing.T) {
 			ElementInstanceKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		message := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
@@ -101,7 +104,7 @@ func TestSetVariables(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 
@@ -109,7 +112,7 @@ func TestSetVariables(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)
@@ -125,7 +128,7 @@ func TestSetVariables(t *testing.T) {
 			Local: true,
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
 
@@ -133,7 +136,7 @@ func TestSetVariables(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.variables)

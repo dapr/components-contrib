@@ -9,11 +9,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/bindings/zeebe"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings/zeebe"
+	"github.com/dapr/kit/logger"
 )
 
 type mockClientFactory struct {
@@ -41,9 +42,9 @@ func TestInit(t *testing.T) {
 
 	t.Run("jobType is mandatory", func(t *testing.T) {
 		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{}
+		var mcf mockClientFactory
 
-		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
+		jobWorker := ZeebeJobWorker{clientFactory: &mcf, logger: testLogger}
 		err := jobWorker.Init(metadata)
 
 		assert.Error(t, err, ErrMissingJobType)
@@ -59,11 +60,11 @@ func TestInit(t *testing.T) {
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
 		err := jobWorker.Init(metadata)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
 	})
@@ -91,11 +92,11 @@ func TestInit(t *testing.T) {
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
 		err := jobWorker.Init(metadata)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
 	})

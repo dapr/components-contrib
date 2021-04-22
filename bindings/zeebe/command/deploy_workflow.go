@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/dapr/components-contrib/bindings"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
+
+	"github.com/dapr/components-contrib/bindings"
 )
 
 const (

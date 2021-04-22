@@ -14,13 +14,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/bindings/zeebe"
-	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/entities"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/worker"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings/zeebe"
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 var (

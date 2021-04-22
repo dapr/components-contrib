@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/components-contrib/bindings"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/dapr/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
 	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
+
+	"github.com/dapr/components-contrib/bindings"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 type mockPublishMessageClient struct {
@@ -45,9 +46,11 @@ type mockPublishMessageCommandStep3 struct {
 }
 
 func (mc *mockPublishMessageClient) NewPublishMessageCommand() commands.PublishMessageCommandStep1 {
-	mc.cmd1 = new(mockPublishMessageCommandStep1)
-	mc.cmd1.cmd2 = new(mockPublishMessageCommandStep2)
-	mc.cmd1.cmd2.cmd3 = new(mockPublishMessageCommandStep3)
+	mc.cmd1 = &mockPublishMessageCommandStep1{
+		cmd2: &mockPublishMessageCommandStep2{
+			cmd3: &mockPublishMessageCommandStep3{},
+		},
+	}
 
 	return mc.cmd1
 }
@@ -102,7 +105,7 @@ func TestPublishMessage(t *testing.T) {
 			MessageName: "a",
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
 
@@ -110,7 +113,7 @@ func TestPublishMessage(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
 		assert.Equal(t, payload.CorrelationKey, mc.cmd1.cmd2.correlationKey)
@@ -127,7 +130,7 @@ func TestPublishMessage(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
 
@@ -135,7 +138,7 @@ func TestPublishMessage(t *testing.T) {
 
 		message := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = message.Invoke(req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
 		assert.Equal(t, payload.CorrelationKey, mc.cmd1.cmd2.correlationKey)

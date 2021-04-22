@@ -2,7 +2,7 @@ package sentinel
 
 import (
 	"github.com/alibaba/sentinel-golang/logging"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type loggerAdaptor struct {

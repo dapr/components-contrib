@@ -40,9 +40,11 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 	var cmd3 commands.CreateInstanceCommandStep3
 	var errorDetail string
 
-	if payload.BpmnProcessID != "" && payload.WorkflowKey != nil {
-		return nil, ErrAmbiguousCreationVars
-	} else if payload.BpmnProcessID != "" {
+	if payload.BpmnProcessID != "" {
+		if payload.WorkflowKey != nil {
+			return nil, ErrAmbiguousCreationVars
+		}
+
 		cmd2 = cmd1.BPMNProcessId(payload.BpmnProcessID)
 		if payload.Version != nil {
 			cmd3 = cmd2.Version(*payload.Version)

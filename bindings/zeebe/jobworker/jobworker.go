@@ -96,11 +96,7 @@ func (z *ZeebeJobWorker) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 	jobWorker.Close()
 	jobWorker.AwaitClose()
 
-	if err := z.client.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return z.client.Close()
 }
 
 func (z *ZeebeJobWorker) parseMetadata(metadata bindings.Metadata) (*jobWorkerMetadata, error) {

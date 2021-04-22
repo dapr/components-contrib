@@ -40,7 +40,7 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 	var cmd3 commands.CreateInstanceCommandStep3
 	var errorDetail string
 
-	if payload.BpmnProcessID != "" {
+	if payload.BpmnProcessID != "" { //nolint:nestif
 		if payload.WorkflowKey != nil {
 			return nil, ErrAmbiguousCreationVars
 		}

@@ -19,7 +19,7 @@ const (
 	host              = "host"
 	enableTLS         = "enableTLS"
 	cachedNumProducer = 10
-  exclusive         = "exclusive"
+	exclusive         = "exclusive"
 )
 
 type Pulsar struct {

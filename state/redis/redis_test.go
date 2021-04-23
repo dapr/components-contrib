@@ -122,6 +122,7 @@ func TestTransactionalUpsert(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	err := ss.Multi(&state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{{
@@ -153,6 +154,7 @@ func TestTransactionalDelete(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
 	ss.Set(&state.SetRequest{
@@ -188,6 +190,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
 	ss.Set(&state.SetRequest{

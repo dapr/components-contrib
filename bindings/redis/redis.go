@@ -36,6 +36,9 @@ const (
 type Redis struct {
 	client *redis.Client
 	logger logger.Logger
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewRedis returns a new redis bindings instance
@@ -66,7 +69,9 @@ func (r *Redis) Init(meta bindings.Metadata) error {
 	}
 
 	r.client = redis.NewClient(opts)
-	_, err = r.client.Ping(context.Background()).Result()
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+
+	_, err = r.client.Ping(r.ctx).Result()
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", m.host, err)
 	}
@@ -124,7 +129,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.client.Do(context.Background(), "SET", key, req.Data).Result()
+		_, err := r.client.Do(r.ctx, "SET", key, req.Data).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -133,4 +138,10 @@ func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	}
 
 	return nil, errors.New("redis binding: missing key on write request metadata")
+}
+
+func (r *Redis) Close() error {
+	r.cancel()
+
+	return r.client.Close()
 }

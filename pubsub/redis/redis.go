@@ -102,7 +102,7 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 
 	if val, ok := meta.Properties[redisType]; ok && val != "" {
 		if val != NodeType && val != ClusterType {
-			return m, errors.New("redis type error: unknown redis type")
+			return m, fmt.Errorf("redis type error: unknown redis type: %s", val)
 		}
 		m.redisType = val
 	}

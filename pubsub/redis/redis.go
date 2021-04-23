@@ -352,11 +352,11 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		r.client = redis.NewClient(options)
 	}
 
-	if _, err = r.client.Ping(context.Background()).Result(); err != nil {
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+
+	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", m.host, err)
 	}
-
-	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	r.queue = make(chan redisMessageWrapper, int(r.metadata.queueDepth))
 

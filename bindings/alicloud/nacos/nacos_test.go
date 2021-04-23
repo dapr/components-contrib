@@ -22,11 +22,12 @@ import (
 func TestParseMetadata(t *testing.T) { //nolint:paralleltest
 	m := bindings.Metadata{Name: "test",
 		Properties: map[string]string{
-			"Endpoint":  "a",
-			"Region":    "b",
-			"Namespace": "c",
-			"AccessKey": "d",
-			"SecretKey": "e",
+			"Endpoint":        "a",
+			"Region":          "b",
+			"Namespace":       "c",
+			"AccessKey":       "d",
+			"SecretKey":       "e",
+			"updateThreadNum": "3",
 		}}
 
 	meta, err := parseMetadata(m)
@@ -36,6 +37,7 @@ func TestParseMetadata(t *testing.T) { //nolint:paralleltest
 	assert.Equal(t, "c", meta.NamespaceID)
 	assert.Equal(t, "d", meta.AccessKey)
 	assert.Equal(t, "e", meta.SecretKey)
+	assert.Equal(t, 3, meta.UpdateThreadNum)
 }
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
@@ -47,19 +49,27 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	err = n.Init(m)
 	require.NoError(t, err)
 	var count int32
+	ch := make(chan bool, 1)
+
 	handler := func(in *bindings.ReadResponse) ([]byte, error) {
 		require.Equal(t, "hello", string(in.Data))
 		atomic.AddInt32(&count, 1)
+		ch <- true
 
 		return nil, nil
 	}
+
 	go func() {
 		err = n.Read(handler)
 		require.NoError(t, err)
 	}()
 
-	time.Sleep(time.Second)
-	require.Equal(t, int32(1), atomic.LoadInt32(&count))
+	select {
+	case <-ch:
+		require.Equal(t, int32(1), atomic.LoadInt32(&count))
+	case <-time.After(time.Second):
+		require.FailNow(t, "read timeout")
+	}
 }
 
 func getNacosLocalCacheMetadata() (map[string]string, error) {

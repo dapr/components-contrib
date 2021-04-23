@@ -9,24 +9,26 @@
 
 package nacos
 
+import "time"
+
 type nacosMetadata struct {
-	NameServer           string `json:"nameServer"`
-	Endpoint             string `json:"endpoint"`
-	RegionID             string `json:"region"`
-	NamespaceID          string `json:"namespace"`
-	AccessKey            string `json:"accessKey"`
-	SecretKey            string `json:"secretKey"`
-	TimeoutMs            int    `json:"timeout,string"`
-	CacheDir             string `json:"cacheDir"`
-	UpdateThreadNum      int    `json:"updateThreadNum,string"`
-	NotLoadCacheAtStart  bool   `json:"notLoadCacheAtStart,string"`
-	UpdateCacheWhenEmpty bool   `json:"updateCacheWhenEmpty,string"`
-	Username             string `json:"username"`
-	Password             string `json:"password"`
-	LogDir               string `json:"logDir"`
-	RotateTime           string `json:"rotateTime"`
-	MaxAge               int    `json:"maxAge,string"`
-	LogLevel             string `json:"logLevel"`
-	Config               string `json:"config"`
-	Watches              string `json:"watches"`
+	NameServer           string        `mapstructure:"nameServer"`
+	Endpoint             string        `mapstructure:"endpoint"`
+	RegionID             string        `mapstructure:"region"`
+	NamespaceID          string        `mapstructure:"namespace"`
+	AccessKey            string        `mapstructure:"accessKey"`
+	SecretKey            string        `mapstructure:"secretKey"`
+	Timeout              time.Duration `mapstructure:"TimeoutMs"`
+	CacheDir             string        `mapstructure:"cacheDir"`
+	UpdateThreadNum      int           `mapstructure:"updateThreadNum"`
+	NotLoadCacheAtStart  bool          `mapstructure:"notLoadCacheAtStart"`
+	UpdateCacheWhenEmpty bool          `mapstructure:"updateCacheWhenEmpty"`
+	Username             string        `mapstructure:"username"`
+	Password             string        `mapstructure:"password"`
+	LogDir               string        `mapstructure:"logDir"`
+	RotateTime           string        `mapstructure:"rotateTime"`
+	MaxAge               int           `mapstructure:"maxAge"`
+	LogLevel             string        `mapstructure:"logLevel"`
+	Config               string        `mapstructure:"config"`
+	Watches              string        `mapstructure:"watches"`
 }

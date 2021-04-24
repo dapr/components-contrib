@@ -64,10 +64,10 @@ lint:
 	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################
-# Target: go.mod                                                               #
+# Target: modtidy                                                              #
 ################################################################################
-.PHONY: go.mod
-go.mod:
+.PHONY: modtidy
+modtidy:
 	go mod tidy
 
 ################################################################################
@@ -76,6 +76,7 @@ go.mod:
 .PHONY: check-diff
 check-diff:
 	git diff --exit-code ./go.mod # check no changes
+	git diff --exit-code ./go.sum # check no changes
 
 ################################################################################
 # Target: conf-tests                                                           #

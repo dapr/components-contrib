@@ -64,6 +64,8 @@ require (
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
+	github.com/machinebox/graphql v0.2.2
+	github.com/matryer/is v1.4.0 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.7 // indirect
 	github.com/mitchellh/mapstructure v1.3.3
 	github.com/moul/http2curl v1.0.0 // indirect

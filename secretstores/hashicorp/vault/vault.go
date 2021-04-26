@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -37,6 +38,7 @@ const (
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
+	DataStr                      string = "data"
 )
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault
@@ -45,6 +47,8 @@ type vaultSecretStore struct {
 	vaultAddress        string
 	vaultTokenMountPath string
 	vaultKVPrefix       string
+
+	json jsoniter.API
 
 	logger logger.Logger
 }
@@ -77,6 +81,7 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 	return &vaultSecretStore{
 		client: &http.Client{},
 		logger: logger,
+		json:   jsoniter.ConfigFastest,
 	}
 }
 
@@ -138,28 +143,28 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
+func (v *vaultSecretStore) getSecret(secret string) (string, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Create get secret url
 	// TODO: Add support for versioned secrets when the secretstore request has support for it
-	vaultSecretPathAddr := fmt.Sprintf("%s/v1/secret/data/%s/%s?version=0", v.vaultAddress, v.vaultKVPrefix, secret)
+	vaultSecretPathAddr := fmt.Sprintf("%s/v1/secret/data/%s/%s?version=1", v.vaultAddress, v.vaultKVPrefix, secret)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
+	if err != nil {
+		return "", fmt.Errorf("couldn't generate request: %s", err)
+	}
 	// Set vault token.
 	httpReq.Header.Set(vaultHTTPHeader, token)
 	// Set X-Vault-Request header
 	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate request: %s", err)
-	}
 
 	httpresp, err := v.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get secret: %s", err)
+		return "", fmt.Errorf("couldn't get secret: %s", err)
 	}
 
 	defer httpresp.Body.Close()
@@ -168,17 +173,19 @@ func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 
-		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
+		return "", fmt.Errorf("couldn't to get successful response: %#v, %s",
 			httpresp, b.String())
 	}
 
-	var d vaultKVResponse
-
-	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
-		return nil, fmt.Errorf("couldn't decode response body: %s", err)
+	b, err := ioutil.ReadAll(httpresp.Body)
+	if err != nil {
+		return "", fmt.Errorf("couldn't read response: %s", err)
 	}
 
-	return &d, nil
+	// Only using secret data and ignore metadata
+	// TODO: add support for metadata response when secretstores support it.
+	res := v.json.Get(b, DataStr, DataStr).ToString()
+	return res, nil
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
@@ -188,17 +195,11 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 		return secretstores.GetSecretResponse{Data: nil}, err
 	}
 
-	resp := secretstores.GetSecretResponse{
-		Data: map[string]string{},
-	}
-
-	// Only using secret data and ignore metadata
-	// TODO: add support for metadata response when secretstores support it.
-	for k, v := range d.Data.Data {
-		resp.Data[k] = v
-	}
-
-	return resp, nil
+	return secretstores.GetSecretResponse{
+		Data: map[string]string{
+			req.Name: d,
+		},
+	}, nil
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
@@ -252,9 +253,8 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}
 
-		for k, v := range secrets.Data.Data {
-			keyValues[k] = v
-		}
+		keyValues[key] = secrets
+
 		resp.Data[key] = keyValues
 	}
 

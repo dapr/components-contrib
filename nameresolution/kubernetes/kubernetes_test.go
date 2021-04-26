@@ -26,12 +26,12 @@ func TestResolve(t *testing.T) {
 
 func TestResolveWithCustomClusterDomain(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
-	request := nameresolution.ResolveRequest{
-		ID:        "myid",
-		Namespace: "abc",
-		Port:      1234,
-		Data:      map[string]string{"clusterDomain": "mydomain.com"},
-	}
+	_ = resolver.Init(nameresolution.Metadata{
+		Configuration: map[string]string{
+			"clusterDomain": "mydomain.com",
+		},
+	})
+	request := nameresolution.ResolveRequest{ID: "myid", Namespace: "abc", Port: 1234}
 
 	u := "myid-dapr.abc.svc.mydomain.com:1234"
 	target, err := resolver.ResolveID(request)

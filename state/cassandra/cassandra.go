@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
 )

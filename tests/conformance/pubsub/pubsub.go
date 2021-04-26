@@ -191,13 +191,15 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	if config.HasOperation("subscribe") {
 		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+			timer := time.NewTimer(config.MaxReadDuration)
+			defer timer.Stop()
 			waiting := true
 			for waiting {
 				select {
 				case processed := <-processedC:
 					delete(awaitingMessages, processed)
 					waiting = len(awaitingMessages) > 0
-				case <-time.After(config.MaxReadDuration):
+				case <-timer.C:
 					// Break out after the mamimum read duration has elapsed
 					waiting = false
 				}

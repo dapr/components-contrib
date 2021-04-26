@@ -22,7 +22,7 @@ import (
 	"github.com/nats-io/stan.go/pb"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // compulsory options

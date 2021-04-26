@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	fileName = "FileName"
+	fileName = "bpfFile"
 )
 
 type Map struct {
@@ -44,7 +44,7 @@ func NewBPFStateStore(logger logger.Logger) *Map {
 // Init initializes the BPF map state store
 func (m *Map) Init(metadata state.Metadata) error {
 	if metadata.Properties[fileName] == "" {
-		return errors.New("ebpf map error: FileName is missing")
+		return errors.New("ebpf map error: bpfFile is missing")
 	}
 	newClient, err := ebpf.LoadPinnedMap(metadata.Properties[fileName], &ebpf.LoadPinOptions{ReadOnly: true})
 	if err != nil {

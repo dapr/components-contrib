@@ -19,7 +19,7 @@ import (
 	redis "github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (

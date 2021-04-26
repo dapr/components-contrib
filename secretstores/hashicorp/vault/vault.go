@@ -62,13 +62,6 @@ type tlsConfig struct {
 	vaultServerName string
 }
 
-// vaultKVResponse is the response data from Vault KV.
-type vaultKVResponse struct {
-	Data struct {
-		Data map[string]string `json:"data"`
-	} `json:"data"`
-}
-
 // vaultListKVResponse is the response data from Vault KV.
 type vaultListKVResponse struct {
 	Data struct {

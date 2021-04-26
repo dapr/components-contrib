@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/net/http2"
 )
 
@@ -178,6 +178,7 @@ func (v *vaultSecretStore) getSecret(secret string) (string, error) {
 	// Only using secret data and ignore metadata
 	// TODO: add support for metadata response when secretstores support it.
 	res := v.json.Get(b, DataStr, DataStr).ToString()
+
 	return res, nil
 }
 

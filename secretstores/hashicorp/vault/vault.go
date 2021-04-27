@@ -212,7 +212,7 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	}
 
 	// Create list secrets url
-	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/secret/metadata/%s", v.vaultAddress, v.vaultKVPrefix)
+	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/%s/metadata/%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
 	if err != nil {

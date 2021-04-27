@@ -1,6 +1,7 @@
 package rabbitmq
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -9,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/streadway/amqp"
 )
 
@@ -192,7 +193,7 @@ func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler func(msg *pubsub.NewMessage) error) error {
+func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if r.metadata.consumerID == "" {
 		return errors.New("consumerID is required for subscriptions")
 	}
@@ -236,7 +237,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 func (r *rabbitMQ) subscribeForever(
 	req pubsub.SubscribeRequest,
 	queueName string,
-	handler func(msg *pubsub.NewMessage) error) {
+	handler pubsub.Handler) {
 	var err error
 	var connectionCount int
 	var channel rabbitMQChannelBroker
@@ -288,14 +289,14 @@ func (r *rabbitMQ) subscribeForever(
 	}
 }
 
-func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) error {
+func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler pubsub.Handler) error {
 	var err error
 	for d := range msgs {
 		switch r.metadata.concurrency {
 		case pubsub.Single:
 			err = r.handleMessage(channel, d, topic, handler)
 		case pubsub.Parallel:
-			go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) {
+			go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) {
 				err = r.handleMessage(channel, d, topic, handler)
 			}(channel, d, topic, handler)
 		}
@@ -307,13 +308,13 @@ func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amq
 	return nil
 }
 
-func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler func(msg *pubsub.NewMessage) error) error {
+func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) error {
 	pubsubMsg := &pubsub.NewMessage{
 		Data:  d.Body,
 		Topic: topic,
 	}
 
-	err := handler(pubsubMsg)
+	err := handler(context.Background(), pubsubMsg)
 	if err != nil {
 		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 	}

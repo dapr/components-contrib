@@ -32,6 +32,9 @@ jobs:
         - bindings.http
         - bindings.kafka
         - bindings.redis
+        - bindings.mqtt-mosquitto
+        - bindings.mqtt-emqx
+        - bindings.mqtt-vernemq
         - pubsub.redis
         - pubsub.natsstreaming
         - pubsub.kafka
@@ -217,6 +220,10 @@ jobs:
 
     - name: Set up Go
       uses: actions/setup-go@v2
+    
+    - name: Download Go dependencies
+      run: |
+        go mod download
 
     - name: Run tests
       continue-on-error: true
@@ -233,7 +240,7 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         set +e
-        go test -v -tags=conftests -count=1 ./tests/conformance \
+        go test -timeout=15m -v -tags=conftests -count=1 ./tests/conformance \
           --run="Test${KIND_UPPER}Conformance/${NAME}" 2>&1 | tee output.log
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "

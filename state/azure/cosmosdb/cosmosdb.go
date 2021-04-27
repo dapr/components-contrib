@@ -18,7 +18,7 @@ import (
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // StateStore is a CosmosDB state store

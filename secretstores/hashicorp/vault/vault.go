@@ -281,22 +281,25 @@ func (v *vaultSecretStore) readVaultToken() (string, error) {
 }
 
 func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {
-	rootCAPools, err := v.getRootCAsPools(config.vaultCAPem, config.vaultCAPath, config.vaultCACert)
-	if err != nil {
-		return nil, err
-	}
-
-	tlsClientConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    rootCAPools,
-	}
-
+	var tlsClientConfig *tls.Config
 	if config.vaultSkipVerify {
-		tlsClientConfig.InsecureSkipVerify = true
-	}
+		tlsClientConfig =  &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	} else {
+		rootCAPools, err := v.getRootCAsPools(config.vaultCAPem, config.vaultCAPath, config.vaultCACert)
+		if err != nil {
+			return nil, err
+		}
 
-	if config.vaultServerName != "" {
-		tlsClientConfig.ServerName = config.vaultServerName
+		tlsClientConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    rootCAPools,
+		}
+
+		if config.vaultServerName != "" {
+			tlsClientConfig.ServerName = config.vaultServerName
+		}
 	}
 
 	// Setup http transport
@@ -305,7 +308,7 @@ func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, er
 	}
 
 	// Configure http2 client
-	err = http2.ConfigureTransport(transport)
+	err := http2.ConfigureTransport(transport)
 	if err != nil {
 		return nil, errors.New("failed to configure http2")
 	}

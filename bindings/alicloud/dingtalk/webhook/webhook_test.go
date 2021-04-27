@@ -83,24 +83,27 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	assert.NoError(t, err)
 
 	var count int32
+	ch := make(chan bool, 1)
+
 	handler := func(in *bindings.ReadResponse) ([]byte, error) {
 		assert.Equal(t, msg, string(in.Data))
 		atomic.AddInt32(&count, 1)
+		ch <- true
 
 		return nil, nil
 	}
 
-	go func() {
-		err = d.Read(handler)
-		require.NoError(t, err)
-	}()
-
-	time.Sleep(time.Second)
+	err = d.Read(handler)
+	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation, Metadata: map[string]string{}}
 	_, err = d.Invoke(req)
 	require.NoError(t, err)
 
-	time.Sleep(1 * time.Second)
-	require.True(t, atomic.LoadInt32(&count) > 0)
+	select {
+	case <-ch:
+		require.True(t, atomic.LoadInt32(&count) > 0)
+	case <-time.After(time.Second):
+		require.FailNow(t, "read timeout")
+	}
 }

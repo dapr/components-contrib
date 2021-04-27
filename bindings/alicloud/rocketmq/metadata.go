@@ -6,11 +6,11 @@
 package rocketmq
 
 import (
-	"encoding/json"
 	"fmt"
 
 	mqw "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/config"
 )
 
 // rocketmq
@@ -27,66 +27,49 @@ const (
 
 type metadata struct {
 	// sdk proto (tcp, tcp-cgo，http)
-	AccessProto string `json:"accessProto"`
-
+	AccessProto string `mapstructure:"accessProto"`
 	// rocketmq Credentials
-	AccessKey string `json:"accessKey"`
-
+	AccessKey string `mapstructure:"accessKey"`
 	// rocketmq Credentials
-	SecretKey string `json:"secretKey"`
-
+	SecretKey string `mapstructure:"secretKey"`
 	// rocketmq's name server, optional
-	NameServer string `json:"nameServer"`
-
+	NameServer string `mapstructure:"nameServer"`
 	// rocketmq's endpoint, optional, just for http proto
-	Endpoint string `json:"endpoint"`
-
+	Endpoint string `mapstructure:"endpoint"`
 	// consumer group for rocketmq's subscribers, suggested to provide
-	ConsumerGroup string `json:"consumerGroup"`
-
+	ConsumerGroup string `mapstructure:"consumerGroup"`
 	// consumer group for rocketmq's subscribers, suggested to provide
-	ConsumerBatchSize int `json:"consumerBatchSize,string"`
-
+	ConsumerBatchSize int `mapstructure:"consumerBatchSize,string"`
 	// consumer group for rocketmq's subscribers, suggested to provide, just for tcp-cgo proto
-	ConsumerThreadNums int `json:"consumerThreadNums,string"`
-
+	ConsumerThreadNums int `mapstructure:"consumerThreadNums,string"`
 	// rocketmq's namespace, optional
-	InstanceID string `json:"instanceId"`
-
+	InstanceID string `mapstructure:"instanceId"`
 	// rocketmq's name server domain, optional
-	NameServerDomain string `json:"nameServerDomain"`
-
+	NameServerDomain string `mapstructure:"nameServerDomain"`
 	// retry times to connect rocketmq's broker, optional
-	Retries int `json:"retries,string"`
-
+	Retries int `mapstructure:"retries,string"`
 	// topics to subscribe, use delimiter ',' to separate if more than one topics are configured, optional
-	Topics string `json:"topics"`
+	Topics string `mapstructure:"topics"`
 }
 
 func parseMetadata(md bindings.Metadata) (*metadata, error) {
-	b, err := json.Marshal(md.Properties)
+	var result metadata
+	err := config.Decode(md.Properties, &result)
 	if err != nil {
 		return nil, fmt.Errorf("parse error:%w", err)
 	}
 
-	var m metadata
-	if err = json.Unmarshal(b, &m); err != nil {
-		return nil, fmt.Errorf("parse error:%w", err)
-	}
-
-	return &m, nil
+	return &result, nil
 }
 
-func parseCommonMetadata(md *metadata) (*mqw.Metadata, error) {
-	str, err := json.Marshal(md)
-	if err != nil {
-		return nil, fmt.Errorf("parse error:%w", err)
+func parseCommonMetadata(md *metadata) *mqw.Metadata {
+	m := mqw.Metadata{
+		AccessProto: md.AccessProto, AccessKey: md.AccessKey, SecretKey: md.SecretKey,
+		NameServer: md.NameServer, Endpoint: md.Endpoint, InstanceId: md.InstanceID,
+		ConsumerGroup: md.ConsumerGroup, ConsumerBatchSize: md.ConsumerBatchSize,
+		ConsumerThreadNums: md.ConsumerThreadNums, NameServerDomain: md.NameServerDomain,
+		Retries: md.Retries, Topics: md.Topics,
 	}
 
-	var m mqw.Metadata
-	if err = json.Unmarshal(str, &m); err != nil {
-		return nil, fmt.Errorf("parse error:%w", err)
-	}
-
-	return &m, nil
+	return &m
 }

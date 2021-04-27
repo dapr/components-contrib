@@ -26,6 +26,7 @@ type AliCloudRocketMQ struct {
 	logger   logger.Logger
 	metadata *metadata
 	producer mqw.Producer
+	consumer mqw.PushConsumer
 }
 
 func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
@@ -33,6 +34,7 @@ func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
 		logger:   l,
 		metadata: nil,
 		producer: nil,
+		consumer: nil,
 	}
 }
 
@@ -43,6 +45,7 @@ func (t *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+
 	t.producer, err = t.setupPublisher()
 	if err != nil {
 		return err
@@ -55,7 +58,8 @@ func (t *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 func (t *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	t.logger.Debugf("binding rocketmq: start read input binding")
 
-	consumer, err := t.setupConsumer()
+	var err error
+	t.consumer, err = t.setupConsumer()
 	if err != nil {
 		return fmt.Errorf("binding-rocketmq error: %w", err)
 	}
@@ -72,7 +76,7 @@ func (t *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, er
 		if err != nil {
 			return err
 		}
-		if err := consumer.Subscribe(
+		if err := t.consumer.Subscribe(
 			topic,
 			mqc.MessageSelector{
 				Type:       mqc.ExpressionType(mqType),
@@ -84,7 +88,7 @@ func (t *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, er
 		}
 	}
 
-	if err := consumer.Start(); err != nil {
+	if err := t.consumer.Start(); err != nil {
 		return fmt.Errorf("binding-rocketmq: consumer start failed. %w", err)
 	}
 
@@ -92,7 +96,15 @@ func (t *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, er
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	<-exitChan
 	t.logger.Info("binding-rocketmq: shutdown.")
-	_ = consumer.Shutdown()
+
+	return nil
+}
+
+// Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
+func (t *AliCloudRocketMQ) Close() error {
+	if t.consumer != nil {
+		_ = t.consumer.Shutdown()
+	}
 
 	return nil
 }
@@ -118,11 +130,8 @@ func parseTopic(key string) (mqType, mqExpression, topic string, err error) {
 
 func (t *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	if consumer, ok := mqw.Consumers[t.metadata.AccessProto]; ok {
-		md, err := parseCommonMetadata(t.metadata)
-		if err != nil {
-			return nil, err
-		}
-		if err = consumer.Init(md); err != nil {
+		md := parseCommonMetadata(t.metadata)
+		if err := consumer.Init(md); err != nil {
 			t.logger.Errorf("rocketmq consumer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupConsumer %w", err)
@@ -138,18 +147,15 @@ func (t *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 
 func (t *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
 	if producer, ok := mqw.Producers[t.metadata.AccessProto]; ok {
-		md, err := parseCommonMetadata(t.metadata)
-		if err != nil {
-			return nil, err
-		}
-		if err = producer.Init(md); err != nil {
+		md := parseCommonMetadata(t.metadata)
+		if err := producer.Init(md); err != nil {
 			t.logger.Debugf("rocketmq producer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupPublisher err:%w", err)
 		}
 
 		t.logger.Infof("rocketmq proto: %s", t.metadata.AccessProto)
-		if err = producer.Start(); err != nil {
+		if err := producer.Start(); err != nil {
 			t.logger.Errorf("rocketmq producer start failed %v", err)
 
 			return nil, fmt.Errorf("setupPublisher err:%w", err)

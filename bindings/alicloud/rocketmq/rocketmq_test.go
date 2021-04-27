@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInit(t *testing.T) { //nolint:paralleltest
+func TestParseMetadata(t *testing.T) { //nolint:paralleltest
 	m := bindings.Metadata{Name: "test",
 		Properties: map[string]string{
 			"accessProto":   "http",

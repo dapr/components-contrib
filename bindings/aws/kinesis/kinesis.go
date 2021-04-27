@@ -21,7 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/interfaces"

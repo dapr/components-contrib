@@ -15,7 +15,7 @@ import (
 	"github.com/agrea/ptr"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 
 	// Blank import for the underlying PostgreSQL driver
 	_ "github.com/jackc/pgx/v4/stdlib"

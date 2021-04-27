@@ -281,7 +281,7 @@ func (v *vaultSecretStore) readVaultToken() (string, error) {
 }
 
 func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {
-	tlsClientConfig := &tls.Config{}
+	tlsClientConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 
 	tlsClientConfig.InsecureSkipVerify = config.vaultSkipVerify
 	if !config.vaultSkipVerify {
@@ -290,10 +290,7 @@ func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, er
 			return nil, err
 		}
 
-		tlsClientConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    rootCAPools,
-		}
+		tlsClientConfig.RootCAs = rootCAPools
 
 		if config.vaultServerName != "" {
 			tlsClientConfig.ServerName = config.vaultServerName

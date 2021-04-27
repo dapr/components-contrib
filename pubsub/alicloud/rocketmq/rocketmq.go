@@ -70,11 +70,8 @@ func (r *rocketMQ) Init(md pubsub.Metadata) error {
 
 func (r *rocketMQ) setupPublisher() (mqw.Producer, error) {
 	if producer, ok := mqw.Producers[r.metadata.AccessProto]; ok {
-		md, err := parseCommonMetadata(r.metadata)
-		if err != nil {
-			return nil, err
-		}
-		if err = producer.Init(md); err != nil {
+		md := parseCommonMetadata(r.metadata)
+		if err := producer.Init(md); err != nil {
 			r.logger.Debugf("rocketmq producer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupPublisher failed. %w", err)
@@ -89,11 +86,8 @@ func (r *rocketMQ) setupPublisher() (mqw.Producer, error) {
 
 func (r *rocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	if consumer, ok := mqw.Consumers[r.metadata.AccessProto]; ok {
-		md, err := parseCommonMetadata(r.metadata)
-		if err != nil {
-			return nil, err
-		}
-		if err = consumer.Init(md); err != nil {
+		md := parseCommonMetadata(r.metadata)
+		if err := consumer.Init(md); err != nil {
 			r.logger.Errorf("rocketmq consumer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupConsumer failed. %w", err)
@@ -245,10 +239,11 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 
 				continue
 			}
-			metadata := make(map[string]string, 4)
-			metadata[metadataRocketmqType] = mqType
-			metadata[metadataRocketmqExpression] = mqExpr
-			metadata[metadataRocketmqConsumerGroup] = consumerGroup
+			metadata := map[string]string{
+				metadataRocketmqType:          mqType,
+				metadataRocketmqExpression:    mqExpr,
+				metadataRocketmqConsumerGroup: consumerGroup,
+			}
 			if v.Queue != nil {
 				metadata[metadataRocketmqBrokerName] = v.Queue.BrokerName
 			}

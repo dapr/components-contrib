@@ -84,6 +84,24 @@ func TestVaultTLSConfig(t *testing.T) {
 	})
 }
 
+func TestVaultEnginePath(t *testing.T) {
+	t.Run("without engine path config", func(t *testing.T) {
+		v := vaultSecretStore{}
+
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock"}})
+		assert.Nil(t, err)
+		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
+	})
+
+	t.Run("with engine path config", func(t *testing.T) {
+		v := vaultSecretStore{}
+
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", vaultEnginePath: "kv"}})
+		assert.Nil(t, err)
+		assert.Equal(t, v.vaultEnginePath, "kv")
+	})
+}
+
 func getCertificate() []byte {
 	certificateBytes, _ := base64.StdEncoding.DecodeString(certificate)
 

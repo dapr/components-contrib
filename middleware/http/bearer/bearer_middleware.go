@@ -12,7 +12,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/valyala/fasthttp"
 )
 

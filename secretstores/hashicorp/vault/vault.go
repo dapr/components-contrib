@@ -41,6 +41,7 @@ const (
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
 	vaultEnginePath              string = "enginePath"
 	DataStr                      string = "data"
+	versionID                    string = "version_id"
 )
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault
@@ -144,7 +145,7 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-func (v *vaultSecretStore) getSecret(secret string) (string, error) {
+func (v *vaultSecretStore) getSecret(secret, version string) (string, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
 		return "", err
@@ -152,7 +153,7 @@ func (v *vaultSecretStore) getSecret(secret string) (string, error) {
 
 	// Create get secret url
 	// TODO: Add support for versioned secrets when the secretstore request has support for it
-	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=0", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret)
+	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
 	if err != nil {
@@ -192,7 +193,12 @@ func (v *vaultSecretStore) getSecret(secret string) (string, error) {
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
-	d, err := v.getSecret(req.Name)
+	// version 0 represent for latest version
+	version := "0"
+	if value, ok := req.Metadata[versionID]; ok {
+		version = value
+	}
+	d, err := v.getSecret(req.Name, version)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, err
 	}
@@ -206,6 +212,8 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
 func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+	version := "0"
+
 	token, err := v.readVaultToken()
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{Data: nil}, err
@@ -250,7 +258,7 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 
 	for _, key := range d.Data.Keys {
 		keyValues := map[string]string{}
-		secrets, err := v.getSecret(key)
+		secrets, err := v.getSecret(key, version)
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}

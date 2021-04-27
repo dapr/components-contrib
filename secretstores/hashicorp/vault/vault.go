@@ -281,12 +281,10 @@ func (v *vaultSecretStore) readVaultToken() (string, error) {
 }
 
 func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {
-	var tlsClientConfig *tls.Config
-	if config.vaultSkipVerify {
-		tlsClientConfig =  &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	} else {
+	tlsClientConfig := &tls.Config{}
+
+	tlsClientConfig.InsecureSkipVerify = config.vaultSkipVerify
+	if !config.vaultSkipVerify {
 		rootCAPools, err := v.getRootCAsPools(config.vaultCAPem, config.vaultCAPath, config.vaultCACert)
 		if err != nil {
 			return nil, err

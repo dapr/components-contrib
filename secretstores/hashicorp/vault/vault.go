@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultVaultAddress          string = "https://127.0.0.1:8200"
-	defaultVaultEngineName       string = "secret"
+	defaultVaultEnginePath       string = "secret"
 	componentVaultAddress        string = "vaultAddr"
 	componentCaCert              string = "caCert"
 	componentCaPath              string = "caPath"
@@ -39,7 +39,7 @@ const (
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
-	vaultEngineName              string = "engineName"
+	vaultEnginePath              string = "enginePath"
 	DataStr                      string = "data"
 )
 
@@ -49,6 +49,7 @@ type vaultSecretStore struct {
 	vaultAddress        string
 	vaultTokenMountPath string
 	vaultKVPrefix       string
+	vaultEnginePath     string
 
 	json jsoniter.API
 
@@ -91,6 +92,11 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	}
 
 	v.vaultAddress = address
+
+	v.vaultEnginePath = defaultVaultEnginePath
+	if val, ok := props[vaultEnginePath]; ok && val != "" {
+		v.vaultEnginePath = val
+	}
 
 	// Generate TLS config
 	tlsConf := metadataToTLSConfig(props)
@@ -138,7 +144,7 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-func (v *vaultSecretStore) getSecret(engine, secret string) (string, error) {
+func (v *vaultSecretStore) getSecret(secret string) (string, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
 		return "", err
@@ -146,7 +152,7 @@ func (v *vaultSecretStore) getSecret(engine, secret string) (string, error) {
 
 	// Create get secret url
 	// TODO: Add support for versioned secrets when the secretstore request has support for it
-	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=0", v.vaultAddress, engine, v.vaultKVPrefix, secret)
+	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=0", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
 	if err != nil {
@@ -186,11 +192,7 @@ func (v *vaultSecretStore) getSecret(engine, secret string) (string, error) {
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
 func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
-	engineName := req.Metadata[vaultEngineName]
-	if engineName == "" {
-		engineName = defaultVaultEngineName
-	}
-	d, err := v.getSecret(engineName, req.Name)
+	d, err := v.getSecret(req.Name)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, err
 	}
@@ -204,10 +206,6 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
 func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
-	engineName := req.Metadata[vaultEngineName]
-	if engineName == "" {
-		engineName = defaultVaultEngineName
-	}
 	token, err := v.readVaultToken()
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{Data: nil}, err
@@ -252,7 +250,7 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 
 	for _, key := range d.Data.Keys {
 		keyValues := map[string]string{}
-		secrets, err := v.getSecret(engineName, key)
+		secrets, err := v.getSecret(key)
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}

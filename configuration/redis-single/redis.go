@@ -3,11 +3,12 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package redis
+package redis_single
 
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/configuration"
-	"github.com/dapr/components-contrib/configuration/redis/internal"
+	"github.com/dapr/components-contrib/configuration/redis-single/internal"
 	redis "github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
 
@@ -51,7 +52,7 @@ type ConfigurationStore struct {
 }
 
 // NewRedisConfigurationStore returns a new redis state store
-func NewRedisConfigurationStore(logger logger.Logger) *ConfigurationStore {
+func NewRedisConfigurationStore(logger logger.Logger) configuration.Store {
 	s := &ConfigurationStore{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
@@ -211,60 +212,45 @@ func (r *ConfigurationStore) parseConnectedSlaves(res string) int {
 	return 0
 }
 
-func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest, handler func(e *configuration.UpdateEvent) error) (*configuration.GetResponse, error) {
-	if len(req.Keys) == 0 {
-		return &configuration.GetResponse{}, nil
+func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
+	redisKey, err := internal.BuildRedisKey(req.AppID)
+	if err != nil {
+		return nil, err
 	}
 
-	items := make([]*configuration.Item, 0, len(req.Keys))
-
-	// query by keys
-	for _, key := range req.Keys {
-		redisKey, err := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
-		if err != nil {
-			return &configuration.GetResponse{}, fmt.Errorf("fail to build redis key for key=%s: %s", key, err)
-		}
-		redisValueMap, err := r.client.HGetAll(redisKey).Result()
-		if err != nil {
-			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for key=%s, redis key=%s: %s", key, redisKey, err)
-		}
-		if len(redisValueMap) == 0 {
-			// Hash key not exist
-			continue
-		}
-
-		item := &configuration.Item{
-			Key:      key,
-			Group:    req.Group,
-			Label:    req.Label,
-			Metadata: map[string]string{},
-			Tags:     map[string]string{},
-		}
-		internal.ParseRedisValue(redisValueMap, item)
-		if item.Content != "" {
-			// Hash key/value exist and "Content" filed in Hash value exist
-			items = append(items, item)
-		}
-	}
-	if req.SubscribeUpdate && handler != nil {
-		go r.startSubscribeUpdate(req, handler)
+	bytes, err := r.client.Get(redisKey).Bytes()
+	if err != nil {
+		return nil, err
 	}
 
-	return &configuration.GetResponse{
-		Items: items,
+	d := &configuration.Document{}
+	err = json.Unmarshal(bytes, d)
+	if err != nil {
+		return nil, err
+	}
+
+	return &configuration.GetResponse {
+		AppID: req.AppID,
+		Revision: d.Revision,
+		Items: d.Items,
 	}, nil
 }
 
-func (r *ConfigurationStore) startSubscribeUpdate(req *configuration.GetRequest, handler func(e *configuration.UpdateEvent) error) {
-	redisKeys := make([]string, 0, len(req.Keys))
-	for _, key := range req.Keys {
-		redisKey, _ := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
-		redisKeys = append(redisKeys, fmt.Sprintf("__key*__:%s", redisKey))
+func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) error {
+	redisKey, err := internal.BuildRedisKey(req.AppID)
+	if err != nil {
+		return err
 	}
 
+	go r.startSubscribe(ctx, req, handler, redisKey)
+	return nil
+}
+
+func (r *ConfigurationStore) startSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisKey string) error {
 	// enable notify-keyspace-events by redis Set command
-	r.client.ConfigSet("notify-keyspace-events", "Kghxe")
-	p := r.client.PSubscribe(redisKeys...)
+	// r.client.ConfigSet("notify-keyspace-events", "KA")
+	channel := fmt.Sprintf("__keyspace*__:%s", redisKey)
+	p := r.client.PSubscribe(channel)
 
 	for msg := range p.Channel() {
 		redisKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
@@ -272,112 +258,67 @@ func (r *ConfigurationStore) startSubscribeUpdate(req *configuration.GetRequest,
 			continue
 		}
 
-		var item = &configuration.Item{}
-		err = internal.ParseRedisKey(redisKey, item)
+		appID, err := internal.ParseRedisKey(redisKey)
+		if err != nil {
+			continue
+		}
+		if appID != req.AppID {
+			continue
+		}
+
+		getRequest := configuration.GetRequest{
+			AppID: req.AppID,
+			Metadata: req.Metadata,
+		}
+		getResponse, err := r.Get(ctx, &getRequest)
 		if err != nil {
 			continue
 		}
 
-		switch msg.Payload {
-		case "hset":
-			redisValueMap, _ := r.client.HGetAll(redisKey).Result()
-			internal.ParseRedisValue(redisValueMap, item)
-		case "del":
-			// left item.Content to empty
-		}
-
+		//TODO: filter by keys in req
 		e := &configuration.UpdateEvent{
 			AppID: req.AppID,
-			Items: []*configuration.Item{
-				item,
-			},
+			Revision: getResponse.Revision,
+			Items: getResponse.Items,
 		}
 
-		err = handler(e)
+		err = handler(ctx, e)
 		if err != nil {
 			r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
 		}
-	}
-
-}
-
-func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRequest) error {
-	if len(req.Items) == 0 {
-		return nil
-	}
-
-	// 1. prepare redis keys/values to delete or save
-	deleteRedisKeys := make([]string, 0, len(req.Items))
-	saveRedisKeyValues := make(map[string]map[string]string)
-
-	for _, item := range req.Items {
-		if item.Content == "" {
-			// Content is empty: delete the configuration item
-			redisKey, err := internal.BuildRedisKey(req.AppID, item.Group, item.Label, item.Key)
-			if err != nil {
-				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Key, err)
-			}
-			deleteRedisKeys = append(deleteRedisKeys, redisKey)
-		} else {
-			// save configuration item
-			redisKey, err := internal.BuildRedisKey(req.AppID, item.Group, item.Label, item.Key)
-			if err != nil {
-				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Key, err)
-			}
-			redisValue, err := internal.BuildRedisValue(item.Content, item.Tags)
-			if err != nil {
-				return fmt.Errorf("fail to build redis value for key=%s: %s", item.Key, err)
-			}
-			saveRedisKeyValues[redisKey] = redisValue
-		}
-	}
-
-	// 2. execute all the delete in a transaction
-	pipe := r.client.TxPipeline()
-	//for _, redisKey := range deleteRedisKeys {
-	//	pipe.Do("DEL", redisKey)
-	//}
-	if len(deleteRedisKeys) > 0 {
-		pipe.Del(deleteRedisKeys...)
-	}
-	for saveRedisKey, saveRedisValue := range saveRedisKeyValues {
-		valueSlides := make([]interface{}, len(saveRedisKey)*2)
-		for k, v := range saveRedisValue {
-			valueSlides = append(valueSlides, k)
-			valueSlides = append(valueSlides, v)
-		}
-		pipe.HMSet(saveRedisKey, valueSlides...)
-	}
-	_, err := pipe.Exec()
-	if err != nil {
-		return fmt.Errorf("fail to save configuration into redis: %s", err)
 	}
 
 	return nil
 }
 
 func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.DeleteRequest) error {
-	if len(req.Keys) == 0 {
-		return nil
+	saveRequest := &configuration.SaveRequest{
+		AppID:    req.AppID,
+		Items: []*configuration.Item{},
+	}
+	return r.Save(ctx, saveRequest)
+}
+
+func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRequest) error {
+	d := configuration.Document{
+		AppID:    req.AppID,
+		Revision: fmt.Sprintf("%d", time.Now().Unix()),
+		Items:    req.Items,
 	}
 
-	// 1. prepare redis keys to delete
-	redisKeys := make([]string, 0, len(req.Keys))
-	for _, key := range req.Keys {
-		redisKey, err := internal.BuildRedisKey(req.AppID, req.Group, req.Label, key)
-		if err != nil {
-			return fmt.Errorf("fail to build redis key for key=%s: %s", key, err)
-		}
-		redisKeys = append(redisKeys, redisKey)
-	}
-
-	// 2. execute all the delete in a transaction
-	pipe := r.client.TxPipeline()
-	pipe.Del(redisKeys...)
-	_, err := pipe.Exec()
-
+	b, err := json.Marshal(d)
 	if err != nil {
-		return fmt.Errorf("fail to delete configuration from redis: %s", err)
+		return err
+	}
+
+	redisKey, err := internal.BuildRedisKey(req.AppID)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.client.Set(redisKey, b, 0).Result()
+	if err != nil {
+		return err
 	}
 
 	return nil

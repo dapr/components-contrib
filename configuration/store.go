@@ -12,8 +12,11 @@ type Store interface {
 	// Init configuration store
 	Init(metadata Metadata) error
 
-	// Get configuration and subscribe update event.
-	Get(ctx context.Context, req *GetRequest, handler func(e *UpdateEvent) error) (*GetResponse, error)
+	// Get configuration
+	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
+
+	// Subscribe configuration by update event.
+	Subscribe(ctx context.Context, req *SubscribeRequest, handler UpdateHandler) error
 
 	// Save configuration
 	Save(ctx context.Context, req *SaveRequest) error
@@ -22,4 +25,12 @@ type Store interface {
 	Delete(ctx context.Context, req *DeleteRequest) error
 }
 
+// Handler is the handler used to invoke the app handler
+type UpdateHandler func(ctx context.Context, e *UpdateEvent) error
 
+// ConfigurationDocument is a big document to save all the configuration of specified application.
+type Document struct {
+	AppID    string            `json:"appID"`
+	Revision string            `json:"revision"`
+	Items    []*Item           `json:"items"`
+}

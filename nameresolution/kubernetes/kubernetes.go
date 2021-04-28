@@ -32,7 +32,11 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 
 // Init initializes Kubernetes name resolver.
 func (k *resolver) Init(metadata nameresolution.Metadata) error {
-	if config, ok := metadata.Configuration.(map[string]string); ok {
+	configInterface, err := nameresolution.ConvertConfig(metadata.Configuration)
+	if err != nil {
+		return err
+	}
+	if config, ok := configInterface.(map[string]string); ok {
 		clusterDomain := config[ClusterDomainKey]
 		if clusterDomain != "" {
 			k.clusterDomain = clusterDomain

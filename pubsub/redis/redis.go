@@ -466,7 +466,13 @@ func (r *redisStreams) worker() {
 // by `reclaimPendingMessagesLoop`.
 func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	r.logger.Debugf("Processing Redis message %s", msg.messageID)
-	if err := msg.handler(r.ctx, &msg.message); err != nil {
+	ctx := r.ctx
+	var cancel context.CancelFunc
+	if r.metadata.processingTimeout != 0 && r.metadata.redeliverInterval != 0 {
+		ctx, cancel = context.WithTimeout(ctx, r.metadata.processingTimeout)
+		defer cancel()
+	}
+	if err := msg.handler(ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 
 		return err

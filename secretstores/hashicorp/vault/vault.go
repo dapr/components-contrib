@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"golang.org/x/net/http2"
 )
 
@@ -87,7 +87,7 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	// Get Vault address
 	address := props[componentVaultAddress]
 	if address == "" {
-		v.vaultAddress = defaultVaultAddress
+		address = defaultVaultAddress
 	}
 
 	v.vaultAddress = address

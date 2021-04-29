@@ -62,12 +62,13 @@ go mod edit -replace github.com/dapr/components-contrib=../components-contrib
 4. Register your component in dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)(e.g. binding)
 5. Build debuggable dapr binary
 ```bash
+go mod tidy
 make DEBUG=1 build
 ```
 6. Replace the installed daprd with the test binary (then dapr cli will use the test binary)
 ```bash
 # Back up the current daprd
-mv /usr/local/bin/daprd /usr/local/bin/daprd.bak
+cp ~/.dapr/bin/daprd ~/.dapr/bin/daprd.bak
 cp ./dist/darwin_amd64/debug/daprd ~/.dapr/bin
 ```
 > Linux Debuggable Binary: ./dist/linux_amd64/debug/daprd

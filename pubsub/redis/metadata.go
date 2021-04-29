@@ -70,4 +70,7 @@ type metadata struct {
 	queueDepth uint
 	// The number of concurrent workers that are processing messages
 	concurrency uint
+
+	// the max len of stream
+	maxLenApprox int64
 }

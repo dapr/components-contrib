@@ -54,9 +54,9 @@ jobs:
         uses: golangci/golangci-lint-action@v2.2.1
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
-      - name: Run make go.mod check-diff
-        if: matrix.target_arch != 'arm'
-        run: make go.mod check-diff
+      - name: Run go mod tidy check diff
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
+        run: make modtidy check-diff
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"

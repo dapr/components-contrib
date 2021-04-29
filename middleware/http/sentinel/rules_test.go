@@ -2,12 +2,12 @@ package sentinel
 
 import (
 	"encoding/json"
-	"github.com/alibaba/sentinel-golang/core/system"
 	"testing"
 
 	"github.com/alibaba/sentinel-golang/core/circuitbreaker"
 	"github.com/alibaba/sentinel-golang/core/flow"
 	"github.com/alibaba/sentinel-golang/core/isolation"
+	"github.com/alibaba/sentinel-golang/core/system"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 

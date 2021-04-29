@@ -11,18 +11,20 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v7"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
 	host                  = "redisHost"
 	password              = "redisPassword"
 	db                    = "redisDB"
+	redisType             = "redisType"
 	redisMaxRetries       = "redisMaxRetries"
 	redisMinRetryInterval = "redisMinRetryInterval"
 	redisMaxRetryInterval = "redisMaxRetryInterval"
@@ -41,6 +43,12 @@ const (
 	redeliverInterval     = "redeliverInterval"
 	queueDepth            = "queueDepth"
 	concurrency           = "concurrency"
+	maxLenApprox          = "maxLenApprox"
+)
+
+const (
+	ClusterType = "cluster"
+	NodeType    = "node"
 )
 
 // redisStreams handles consuming from a Redis stream using
@@ -51,7 +59,7 @@ const (
 // on the mechanics of Redis Streams.
 type redisStreams struct {
 	metadata metadata
-	client   *redis.Client
+	client   redis.UniversalClient
 
 	logger logger.Logger
 
@@ -90,6 +98,13 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 
 	if val, ok := meta.Properties[password]; ok && val != "" {
 		m.password = val
+	}
+
+	if val, ok := meta.Properties[redisType]; ok && val != "" {
+		if val != NodeType && val != ClusterType {
+			return m, fmt.Errorf("redis type error: unknown redis type: %s", val)
+		}
+		m.redisType = val
 	}
 
 	if val, ok := meta.Properties[db]; ok && val != "" {
@@ -274,6 +289,14 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
+	if val, ok := meta.Properties[maxLenApprox]; ok && val != "" {
+		maxLenApprox, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: invalid maxLenApprox %s, %s", val, err)
+		}
+		m.maxLenApprox = maxLenApprox
+	}
+
 	return m, nil
 }
 
@@ -284,40 +307,67 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	}
 	r.metadata = m
 
-	options := &redis.Options{
-		Addr:               m.host,
-		Password:           m.password,
-		DB:                 m.db,
-		MaxRetries:         m.redisMaxRetries,
-		MaxRetryBackoff:    m.redisMaxRetryInterval,
-		MinRetryBackoff:    m.redisMinRetryInterval,
-		DialTimeout:        m.dialTimeout,
-		ReadTimeout:        m.readTimeout,
-		WriteTimeout:       m.writeTimeout,
-		PoolSize:           m.poolSize,
-		MaxConnAge:         m.maxConnAge,
-		MinIdleConns:       m.minIdleConns,
-		PoolTimeout:        m.poolTimeout,
-		IdleCheckFrequency: m.idleCheckFrequency,
-		IdleTimeout:        m.idleTimeout,
-	}
-
-	/* #nosec */
-	if r.metadata.enableTLS {
-		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: r.metadata.enableTLS,
+	if m.redisType == ClusterType {
+		options := &redis.ClusterOptions{
+			Addrs:              strings.Split(m.host, ","),
+			Password:           m.password,
+			MaxRetries:         m.redisMaxRetries,
+			MaxRetryBackoff:    m.redisMaxRetryInterval,
+			MinRetryBackoff:    m.redisMinRetryInterval,
+			DialTimeout:        m.dialTimeout,
+			ReadTimeout:        m.readTimeout,
+			WriteTimeout:       m.writeTimeout,
+			PoolSize:           m.poolSize,
+			MaxConnAge:         m.maxConnAge,
+			MinIdleConns:       m.minIdleConns,
+			PoolTimeout:        m.poolTimeout,
+			IdleCheckFrequency: m.idleCheckFrequency,
+			IdleTimeout:        m.idleTimeout,
 		}
+		/* #nosec */
+		if r.metadata.enableTLS {
+			options.TLSConfig = &tls.Config{
+				InsecureSkipVerify: r.metadata.enableTLS,
+			}
+		}
+
+		r.client = redis.NewClusterClient(options)
+	} else {
+		options := &redis.Options{
+			Addr:               m.host,
+			Password:           m.password,
+			DB:                 m.db,
+			MaxRetries:         m.redisMaxRetries,
+			MaxRetryBackoff:    m.redisMaxRetryInterval,
+			MinRetryBackoff:    m.redisMinRetryInterval,
+			DialTimeout:        m.dialTimeout,
+			ReadTimeout:        m.readTimeout,
+			WriteTimeout:       m.writeTimeout,
+			PoolSize:           m.poolSize,
+			MaxConnAge:         m.maxConnAge,
+			MinIdleConns:       m.minIdleConns,
+			PoolTimeout:        m.poolTimeout,
+			IdleCheckFrequency: m.idleCheckFrequency,
+			IdleTimeout:        m.idleTimeout,
+		}
+
+		/* #nosec */
+		if r.metadata.enableTLS {
+			options.TLSConfig = &tls.Config{
+				InsecureSkipVerify: r.metadata.enableTLS,
+			}
+		}
+
+		r.client = redis.NewClient(options)
 	}
 
-	client := redis.NewClient(options)
-	if _, err = client.Ping().Result(); err != nil {
+	if _, err = r.client.Ping().Result(); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", m.host, err)
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	r.queue = make(chan redisMessageWrapper, int(r.metadata.queueDepth))
-	r.client = client
 
 	for i := uint(0); i < r.metadata.concurrency; i++ {
 		go r.worker()
@@ -328,8 +378,9 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 
 func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 	_, err := r.client.XAdd(&redis.XAddArgs{
-		Stream: req.Topic,
-		Values: map[string]interface{}{"data": req.Data},
+		Stream:       req.Topic,
+		MaxLenApprox: r.metadata.maxLenApprox,
+		Values:       map[string]interface{}{"data": req.Data},
 	}).Result()
 	if err != nil {
 		return fmt.Errorf("redis streams: error from publish: %s", err)
@@ -415,7 +466,13 @@ func (r *redisStreams) worker() {
 // by `reclaimPendingMessagesLoop`.
 func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	r.logger.Debugf("Processing Redis message %s", msg.messageID)
-	if err := msg.handler(r.ctx, &msg.message); err != nil {
+	ctx := r.ctx
+	var cancel context.CancelFunc
+	if r.metadata.processingTimeout != 0 && r.metadata.redeliverInterval != 0 {
+		ctx, cancel = context.WithTimeout(ctx, r.metadata.processingTimeout)
+		defer cancel()
+	}
+	if err := msg.handler(ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 
 		return err

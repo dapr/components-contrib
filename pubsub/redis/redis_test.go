@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 func getFakeProperties() map[string]string {
@@ -25,6 +25,7 @@ func getFakeProperties() map[string]string {
 		consumerID:            "fakeConsumer",
 		host:                  "fake.redis.com",
 		password:              "fakePassword",
+		redisType:             "node",
 		enableTLS:             "true",
 		dialTimeout:           "5s",
 		readTimeout:           "5s",
@@ -39,6 +40,7 @@ func getFakeProperties() map[string]string {
 		poolTimeout:           "1s",
 		idleTimeout:           "1s",
 		idleCheckFrequency:    "1s",
+		maxLenApprox:          "1000",
 	}
 }
 
@@ -57,6 +59,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[host], m.host)
 		assert.Equal(t, fakeProperties[password], m.password)
+		assert.Equal(t, fakeProperties[redisType], m.redisType)
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
 		assert.Equal(t, true, m.enableTLS)
 		assert.Equal(t, 5*time.Second, m.dialTimeout)
@@ -72,6 +75,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, 1*time.Second, m.poolTimeout)
 		assert.Equal(t, 1*time.Second, m.idleTimeout)
 		assert.Equal(t, 1*time.Second, m.idleCheckFrequency)
+		assert.Equal(t, int64(1000), m.maxLenApprox)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {

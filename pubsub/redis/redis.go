@@ -43,6 +43,7 @@ const (
 	redeliverInterval     = "redeliverInterval"
 	queueDepth            = "queueDepth"
 	concurrency           = "concurrency"
+	maxLenApprox          = "maxLenApprox"
 )
 
 const (
@@ -101,7 +102,7 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 
 	if val, ok := meta.Properties[redisType]; ok && val != "" {
 		if val != NodeType && val != ClusterType {
-			return m, errors.New("redis type error: unknown redis type")
+			return m, fmt.Errorf("redis type error: unknown redis type: %s", val)
 		}
 		m.redisType = val
 	}
@@ -288,6 +289,14 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
+	if val, ok := meta.Properties[maxLenApprox]; ok && val != "" {
+		maxLenApprox, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return m, fmt.Errorf("redis streams error: invalid maxLenApprox %s, %s", val, err)
+		}
+		m.maxLenApprox = maxLenApprox
+	}
+
 	return m, nil
 }
 
@@ -369,8 +378,9 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 
 func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 	_, err := r.client.XAdd(r.ctx, &redis.XAddArgs{
-		Stream: req.Topic,
-		Values: map[string]interface{}{"data": req.Data},
+		Stream:       req.Topic,
+		MaxLenApprox: r.metadata.maxLenApprox,
+		Values:       map[string]interface{}{"data": req.Data},
 	}).Result()
 	if err != nil {
 		return fmt.Errorf("redis streams: error from publish: %s", err)
@@ -456,7 +466,13 @@ func (r *redisStreams) worker() {
 // by `reclaimPendingMessagesLoop`.
 func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 	r.logger.Debugf("Processing Redis message %s", msg.messageID)
-	if err := msg.handler(r.ctx, &msg.message); err != nil {
+	ctx := r.ctx
+	var cancel context.CancelFunc
+	if r.metadata.processingTimeout != 0 && r.metadata.redeliverInterval != 0 {
+		ctx, cancel = context.WithTimeout(ctx, r.metadata.processingTimeout)
+		defer cancel()
+	}
+	if err := msg.handler(ctx, &msg.message); err != nil {
 		r.logger.Errorf("Error processing Redis message %s: %v", msg.messageID, err)
 
 		return err

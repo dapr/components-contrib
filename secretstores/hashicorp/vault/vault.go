@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -40,8 +41,11 @@ const (
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
 	vaultEnginePath              string = "enginePath"
-	DataStr                      string = "data"
+	parseAsMap                   string = "parseAsMap"
 	versionID                    string = "version_id"
+
+	DataStr  string = "data"
+	FalseStr string = "false"
 )
 
 // vaultSecretStore is a secret store implementation for HashiCorp Vault
@@ -51,6 +55,7 @@ type vaultSecretStore struct {
 	vaultTokenMountPath string
 	vaultKVPrefix       string
 	vaultEnginePath     string
+	parseAsMap          bool
 
 	json jsoniter.API
 
@@ -64,6 +69,13 @@ type tlsConfig struct {
 	vaultCAPath     string
 	vaultSkipVerify bool
 	vaultServerName string
+}
+
+// vaultKVResponse is the response data from Vault KV.
+type vaultKVResponse struct {
+	Data struct {
+		Data map[string]string `json:"data"`
+	} `json:"data"`
 }
 
 // vaultListKVResponse is the response data from Vault KV.
@@ -97,6 +109,11 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	v.vaultEnginePath = defaultVaultEnginePath
 	if val, ok := props[vaultEnginePath]; ok && val != "" {
 		v.vaultEnginePath = val
+	}
+
+	v.parseAsMap = true
+	if val, ok := props[parseAsMap]; ok && strings.EqualFold(val, FalseStr) {
+		v.parseAsMap = false
 	}
 
 	// Generate TLS config
@@ -145,19 +162,18 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
-func (v *vaultSecretStore) getSecret(secret, version string) (string, error) {
+func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Create get secret url
-	// TODO: Add support for versioned secrets when the secretstore request has support for it
 	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
 	if err != nil {
-		return "", fmt.Errorf("couldn't generate request: %s", err)
+		return nil, fmt.Errorf("couldn't generate request: %s", err)
 	}
 	// Set vault token.
 	httpReq.Header.Set(vaultHTTPHeader, token)
@@ -166,7 +182,7 @@ func (v *vaultSecretStore) getSecret(secret, version string) (string, error) {
 
 	httpresp, err := v.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("couldn't get secret: %s", err)
+		return nil, fmt.Errorf("couldn't get secret: %s", err)
 	}
 
 	defer httpresp.Body.Close()
@@ -175,20 +191,33 @@ func (v *vaultSecretStore) getSecret(secret, version string) (string, error) {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 
-		return "", fmt.Errorf("couldn't to get successful response: %#v, %s",
+		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
 			httpresp, b.String())
 	}
 
-	b, err := ioutil.ReadAll(httpresp.Body)
-	if err != nil {
-		return "", fmt.Errorf("couldn't read response: %s", err)
-	}
+	var d vaultKVResponse
 
 	// Only using secret data and ignore metadata
 	// TODO: add support for metadata response when secretstores support it.
-	res := v.json.Get(b, DataStr, DataStr).ToString()
 
-	return res, nil
+	if v.parseAsMap {
+		// parse the secret value to map[string]string
+		if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
+			return nil, fmt.Errorf("couldn't decode response body: %s", err)
+		}
+	} else {
+		// treat the secret as string
+		b, err := ioutil.ReadAll(httpresp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't read response: %s", err)
+		}
+		res := v.json.Get(b, DataStr, DataStr).ToString()
+		d.Data.Data = map[string]string{
+			secret: res,
+		}
+	}
+
+	return &d, nil
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
@@ -203,11 +232,11 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 		return secretstores.GetSecretResponse{Data: nil}, err
 	}
 
-	return secretstores.GetSecretResponse{
-		Data: map[string]string{
-			req.Name: d,
-		},
-	}, nil
+	resp := secretstores.GetSecretResponse{
+		Data: d.Data.Data,
+	}
+
+	return resp, nil
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
@@ -263,8 +292,9 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}
 
-		keyValues[key] = secrets
-
+		for k, v := range secrets.Data.Data {
+			keyValues[k] = v
+		}
 		resp.Data[key] = keyValues
 	}
 

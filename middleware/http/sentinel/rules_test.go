@@ -2,6 +2,7 @@ package sentinel
 
 import (
 	"encoding/json"
+	"github.com/alibaba/sentinel-golang/core/system"
 	"testing"
 
 	"github.com/alibaba/sentinel-golang/core/circuitbreaker"
@@ -74,5 +75,21 @@ func TestIsolationRules(t *testing.T) {
 	b, _ := json.Marshal(rules)
 	t.Logf("%s", b)
 	err := loadRules(string(b), newIsolationRuleDataSource)
+	assert.Nil(t, err)
+}
+
+func TestSystemRules(t *testing.T) {
+	rules := []*system.Rule{
+		{
+			ID:           "test-id",
+			MetricType:   system.InboundQPS,
+			TriggerCount: 1000,
+			Strategy:     system.BBR,
+		},
+	}
+
+	b, _ := json.Marshal(rules)
+	t.Logf("%s", b)
+	err := loadRules(string(b), newSystemRuleDataSource)
 	assert.Nil(t, err)
 }

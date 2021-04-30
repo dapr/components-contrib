@@ -9,11 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -140,9 +137,12 @@ func (n *Nacos) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error
 		go n.startListen(watch)
 	}
 
-	exitChan := make(chan os.Signal, 1)
-	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
-	<-exitChan
+	return nil
+}
+
+// Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
+func (n *Nacos) Close() error {
+	n.cancelListener()
 
 	return nil
 }
@@ -159,13 +159,6 @@ func (n *Nacos) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	default:
 		return nil, fmt.Errorf("nacos error: unsupported operation %s", req.Operation)
 	}
-}
-
-// Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
-func (n *Nacos) Close() error {
-	n.cancelListener()
-
-	return nil
 }
 
 // Operations implements OutputBinding's Operations method
@@ -374,7 +367,7 @@ func convertServers(ss string) ([]constant.ServerConfig, error) {
 	for _, s := range array {
 		cfg, err := parseServerURL(s)
 		if err != nil {
-			return serverConfigs, fmt.Errorf("%w", err)
+			return serverConfigs, fmt.Errorf("parse url:%s error:%w", s, err)
 		}
 		serverConfigs = append(serverConfigs, *cfg)
 	}

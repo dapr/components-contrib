@@ -208,7 +208,7 @@ func TestRetryNotifyRecoverCancel(t *testing.T) {
 		})
 	}()
 
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	cancel()
 
 	err := <-errC

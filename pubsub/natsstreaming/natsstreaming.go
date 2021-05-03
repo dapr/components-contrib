@@ -228,7 +228,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 		}
 		b := n.backOffConfig.NewBackOffWithContext(n.ctx)
 
-		err := retry.NotifyRecover(func() error {
+		rerr := retry.NotifyRecover(func() error {
 			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
 			herr := handler(n.ctx, &msg)
 			if herr == nil {
@@ -242,7 +242,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 		}, func() {
 			n.logger.Infof("Successfully processed NATS Streaming message after it previously failed: %s/%d", natsMsg.Subject, natsMsg.Sequence)
 		})
-		if err != nil && !errors.Is(err, context.Canceled) {
+		if rerr != nil && !errors.Is(rerr, context.Canceled) {
 			n.logger.Errorf("Error processing message and retries are exhausted:  %s/%d.", natsMsg.Subject, natsMsg.Sequence)
 		}
 	}

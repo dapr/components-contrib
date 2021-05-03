@@ -15,7 +15,7 @@ var errRetry = errors.New("Testing")
 
 func TestDecode(t *testing.T) {
 	tests := map[string]struct {
-		config    map[string]interface{}
+		config    interface{}
 		overrides func(config *retry.BackOffConfig)
 		err       string
 	}{
@@ -24,7 +24,7 @@ func TestDecode(t *testing.T) {
 				"backOffPolicy": "invalid",
 			},
 			overrides: nil,
-			err:       "1 error(s) decoding:\n\n* error decoding 'backOffPolicy': invalid PolicyType \"invalid\": unexpected back off policy type: invalid",
+			err:       "1 error(s) decoding:\n\n* error decoding 'policy': invalid PolicyType \"invalid\": unexpected back off policy type: invalid",
 		},
 		"default": {
 			config:    map[string]interface{}{},
@@ -95,11 +95,30 @@ func TestDecode(t *testing.T) {
 			},
 			err: "",
 		},
+		"map[string]string settings": {
+			config: map[string]string{
+				"backOffPolicy":              "exponential",
+				"backOffInitialInterval":     "1000ms", // 1s
+				"backOffRandomizationFactor": "1.0",
+				"backOffMultiplier":          "2.0",
+				"backOffMaxInterval":         "120s", // 2m
+				"backOffMaxElapsedTime":      "30m",  // 30m
+			},
+			overrides: func(config *retry.BackOffConfig) {
+				config.Policy = retry.PolicyExponential
+				config.InitialInterval = 1 * time.Second
+				config.RandomizationFactor = 1.0
+				config.Multiplier = 2.0
+				config.MaxInterval = 2 * time.Minute
+				config.MaxElapsedTime = 30 * time.Minute
+			},
+			err: "",
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actual, err := retry.DecodeConfig(tc.config)
+			actual, err := retry.DecodeConfigWithPrefix(tc.config, "backOff")
 			if tc.err != "" {
 				if assert.Error(t, err) {
 					assert.Equal(t, tc.err, err.Error())

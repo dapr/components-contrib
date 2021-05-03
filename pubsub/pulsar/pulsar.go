@@ -92,7 +92,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	p.client = client
 	p.metadata = *m
 
-	backOffConfig, err := retry.DecodeConfig(metadata.Properties)
+	backOffConfig, err := retry.DecodeConfigWithPrefix(metadata.Properties, "backOff")
 	if err != nil {
 		return err
 	}

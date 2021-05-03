@@ -24,20 +24,20 @@ const (
 
 // BackOffConfig encapsulates the back off policy configuration.
 type BackOffConfig struct {
-	Policy PolicyType `mapstructure:"backOffPolicy"`
+	Policy PolicyType `mapstructure:"policy"`
 
 	// Constant back off
-	Duration time.Duration `mapstructure:"backOffDuration"`
+	Duration time.Duration `mapstructure:"duration"`
 
 	// Exponential back off
-	InitialInterval     time.Duration `mapstructure:"backOffInitialInterval"`
-	RandomizationFactor float32       `mapstructure:"backOffRandomizationFactor"`
-	Multiplier          float32       `mapstructure:"backOffMultiplier"`
-	MaxInterval         time.Duration `mapstructure:"backOffMaxInterval"`
-	MaxElapsedTime      time.Duration `mapstructure:"backOffMaxElapsedTime"`
+	InitialInterval     time.Duration `mapstructure:"initialInterval"`
+	RandomizationFactor float32       `mapstructure:"randomizationFactor"`
+	Multiplier          float32       `mapstructure:"multiplier"`
+	MaxInterval         time.Duration `mapstructure:"maxInterval"`
+	MaxElapsedTime      time.Duration `mapstructure:"maxElapsedTime"`
 
 	// Additional options
-	MaxRetries int64 `mapstructure:"backOffMaxRetries"`
+	MaxRetries int64 `mapstructure:"maxRetries"`
 }
 
 // DefaultBackOffConfig represents the default configuration for a
@@ -59,6 +59,15 @@ func DecodeConfig(input interface{}) (BackOffConfig, error) {
 	err := config.Decode(input, &c)
 
 	return c, err
+}
+
+// DecodeConfigWithPrefix decodes a Go struct into a `BackOffConfig`.
+func DecodeConfigWithPrefix(input interface{}, prefix string) (BackOffConfig, error) {
+	if input, err := config.PrefixedBy(input, prefix); err != nil {
+		return DefaultBackOffConfig, err
+	} else {
+		return DecodeConfig(input)
+	}
 }
 
 // NewBackOff returns a BackOff instance for use with `RetryNotifyRecover`

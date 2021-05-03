@@ -141,7 +141,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.topics = make(map[string]bool)
 
-	backOffConfig, err := retry.DecodeConfig(metadata.Properties)
+	backOffConfig, err := retry.DecodeConfigWithPrefix(metadata.Properties, "backOff")
 	if err != nil {
 		return err
 	}

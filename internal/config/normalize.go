@@ -3,22 +3,22 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package nameresolution
+package config
 
 import (
 	"fmt"
 )
 
-// ConvertConfig converts map[interface{}]interface{} to map[string]interface{} to normalize
+// Normalize converts map[interface{}]interface{} to map[string]interface{} to normalize
 // for JSON and usage in component initialization.
-func ConvertConfig(i interface{}) (interface{}, error) {
+func Normalize(i interface{}) (interface{}, error) {
 	var err error
 	switch x := i.(type) {
 	case map[interface{}]interface{}:
 		m2 := map[string]interface{}{}
 		for k, v := range x {
 			if strKey, ok := k.(string); ok {
-				if m2[strKey], err = ConvertConfig(v); err != nil {
+				if m2[strKey], err = Normalize(v); err != nil {
 					return nil, err
 				}
 			} else {
@@ -30,7 +30,7 @@ func ConvertConfig(i interface{}) (interface{}, error) {
 	case map[string]interface{}:
 		m2 := map[string]interface{}{}
 		for k, v := range x {
-			if m2[k], err = ConvertConfig(v); err != nil {
+			if m2[k], err = Normalize(v); err != nil {
 				return nil, err
 			}
 		}
@@ -38,7 +38,7 @@ func ConvertConfig(i interface{}) (interface{}, error) {
 		return m2, nil
 	case []interface{}:
 		for i, v := range x {
-			if x[i], err = ConvertConfig(v); err != nil {
+			if x[i], err = Normalize(v); err != nil {
 				return nil, err
 			}
 		}

@@ -228,7 +228,7 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 		}
 		b := n.backOffConfig.NewBackOffWithContext(n.ctx)
 
-		err := retry.RetryNotifyRecover(func() error {
+		err := retry.NotifyRecover(func() error {
 			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
 			herr := handler(n.ctx, &msg)
 			if herr == nil {

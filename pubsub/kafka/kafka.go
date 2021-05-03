@@ -72,7 +72,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			Topic: message.Topic,
 			Data:  message.Value,
 		}
-		if err := retry.RetryNotifyRecover(func() error {
+		if err := retry.NotifyRecover(func() error {
 			consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 			err := consumer.callback(session.Context(), &msg)
 			if err == nil {

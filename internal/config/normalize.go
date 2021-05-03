@@ -11,6 +11,7 @@ import (
 
 // Normalize converts map[interface{}]interface{} to map[string]interface{} to normalize
 // for JSON and usage in component initialization.
+// nolint:cyclop
 func Normalize(i interface{}) (interface{}, error) {
 	var err error
 	switch x := i.(type) {

@@ -223,7 +223,7 @@ func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error 
 		if m.metadata.backOffMaxRetries >= 0 {
 			b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
 		}
-		if err := retry.RetryNotifyRecover(func() error {
+		if err := retry.NotifyRecover(func() error {
 			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
 			if _, err := handler(&msg); err != nil {
 				return err

@@ -124,7 +124,7 @@ func TestDecode(t *testing.T) {
 					assert.Equal(t, tc.err, err.Error())
 				}
 			} else {
-				config := retry.DefaultBackOffConfig
+				config := retry.DefaultBackOffConfig()
 				if tc.overrides != nil {
 					tc.overrides(&config)
 				}
@@ -135,14 +135,14 @@ func TestDecode(t *testing.T) {
 }
 
 func TestRetryNotifyRecoverMaxRetries(t *testing.T) {
-	config := retry.DefaultBackOffConfig
+	config := retry.DefaultBackOffConfig()
 	config.MaxRetries = 3
 	config.Duration = 1
 
 	var operationCalls, notifyCalls, recoveryCalls int
 
 	b := config.NewBackOff()
-	err := retry.RetryNotifyRecover(func() error {
+	err := retry.NotifyRecover(func() error {
 		operationCalls++
 
 		return errRetry
@@ -160,14 +160,14 @@ func TestRetryNotifyRecoverMaxRetries(t *testing.T) {
 }
 
 func TestRetryNotifyRecoverRecovery(t *testing.T) {
-	config := retry.DefaultBackOffConfig
+	config := retry.DefaultBackOffConfig()
 	config.MaxRetries = 3
 	config.Duration = 1
 
 	var operationCalls, notifyCalls, recoveryCalls int
 
 	b := config.NewBackOff()
-	err := retry.RetryNotifyRecover(func() error {
+	err := retry.NotifyRecover(func() error {
 		operationCalls++
 
 		if operationCalls >= 2 {
@@ -188,7 +188,7 @@ func TestRetryNotifyRecoverRecovery(t *testing.T) {
 }
 
 func TestRetryNotifyRecoverCancel(t *testing.T) {
-	config := retry.DefaultBackOffConfig
+	config := retry.DefaultBackOffConfig()
 	config.Policy = retry.PolicyExponential
 	config.InitialInterval = 10 * time.Millisecond
 
@@ -199,7 +199,7 @@ func TestRetryNotifyRecoverCancel(t *testing.T) {
 	errC := make(chan error, 1)
 
 	go func() {
-		errC <- retry.RetryNotifyRecover(func() error {
+		errC <- retry.NotifyRecover(func() error {
 			return errRetry
 		}, b, func(err error, d time.Duration) {
 			notifyCalls++

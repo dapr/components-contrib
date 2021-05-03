@@ -178,7 +178,7 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 
 	b := p.backOffConfig.NewBackOffWithContext(p.ctx)
 
-	return retry.RetryNotifyRecover(func() error {
+	return retry.NotifyRecover(func() error {
 		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
 		err := handler(p.ctx, &pubsubMsg)
 		if err == nil {

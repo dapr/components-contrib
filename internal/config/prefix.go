@@ -48,5 +48,6 @@ func uncapitalize(str string) string {
 
 	vv := []rune(str) // Introduced later
 	vv[0] = unicode.ToLower(vv[0])
+
 	return string(vv)
 }

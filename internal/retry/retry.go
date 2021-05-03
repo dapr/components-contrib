@@ -42,20 +42,22 @@ type BackOffConfig struct {
 
 // DefaultBackOffConfig represents the default configuration for a
 // `BackOffConfig`.
-var DefaultBackOffConfig = BackOffConfig{
-	Policy:              PolicyConstant,
-	Duration:            5 * time.Second,
-	InitialInterval:     backoff.DefaultInitialInterval,
-	RandomizationFactor: backoff.DefaultRandomizationFactor,
-	Multiplier:          backoff.DefaultMultiplier,
-	MaxInterval:         backoff.DefaultMaxInterval,
-	MaxElapsedTime:      backoff.DefaultMaxElapsedTime,
-	MaxRetries:          -1,
+func DefaultBackOffConfig() BackOffConfig {
+	return BackOffConfig{
+		Policy:              PolicyConstant,
+		Duration:            5 * time.Second,
+		InitialInterval:     backoff.DefaultInitialInterval,
+		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		Multiplier:          backoff.DefaultMultiplier,
+		MaxInterval:         backoff.DefaultMaxInterval,
+		MaxElapsedTime:      backoff.DefaultMaxElapsedTime,
+		MaxRetries:          -1,
+	}
 }
 
 // DecodeConfig decodes a Go struct into a `BackOffConfig`.
 func DecodeConfig(input interface{}) (BackOffConfig, error) {
-	c := DefaultBackOffConfig
+	c := DefaultBackOffConfig()
 	err := config.Decode(input, &c)
 
 	return c, err
@@ -63,11 +65,12 @@ func DecodeConfig(input interface{}) (BackOffConfig, error) {
 
 // DecodeConfigWithPrefix decodes a Go struct into a `BackOffConfig`.
 func DecodeConfigWithPrefix(input interface{}, prefix string) (BackOffConfig, error) {
-	if input, err := config.PrefixedBy(input, prefix); err != nil {
-		return DefaultBackOffConfig, err
-	} else {
-		return DecodeConfig(input)
+	input, err := config.PrefixedBy(input, prefix)
+	if err != nil {
+		return DefaultBackOffConfig(), err
 	}
+
+	return DecodeConfig(input)
 }
 
 // NewBackOff returns a BackOff instance for use with `RetryNotifyRecover`
@@ -113,11 +116,11 @@ func (c *BackOffConfig) NewBackOffWithContext(ctx context.Context) backoff.BackO
 	return backoff.WithContext(b, ctx)
 }
 
-// RetryNotifyRecover is a wrapper around backoff.RetryNotify that adds another callback for when an operation
+// NotifyRecover is a wrapper around backoff.RetryNotify that adds another callback for when an operation
 // previously failed but has since recovered. The main purpose of this wrapper is to call `notify` only when
 // the operations fails the first time and `recovered` when it finally succeeds. This can be helpful in limiting
 // log messages to only the events that operators need to be alerted on.
-func RetryNotifyRecover(operation backoff.Operation, b backoff.BackOff, notify backoff.Notify, recovered func()) error {
+func NotifyRecover(operation backoff.Operation, b backoff.BackOff, notify backoff.Notify, recovered func()) error {
 	var notified bool
 
 	return backoff.RetryNotify(func() error {

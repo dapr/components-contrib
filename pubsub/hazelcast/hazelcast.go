@@ -152,7 +152,7 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		b = backoff.WithMaxRetries(b, uint64(l.p.metadata.backOffMaxRetries))
 	}
 
-	return retry.RetryNotifyRecover(func() error {
+	return retry.NotifyRecover(func() error {
 		l.p.logger.Debug("Processing Hazelcast message")
 
 		return l.pubsubHandler(l.p.ctx, &pubsubMsg)

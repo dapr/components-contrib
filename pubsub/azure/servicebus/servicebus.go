@@ -311,7 +311,7 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
 	bo = backoff.WithContext(bo, a.ctx)
 
-	return retry.RetryNotifyRecover(func() error {
+	return retry.NotifyRecover(func() error {
 		ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 		defer cancel()
 

@@ -8,7 +8,7 @@ import (
 func PrefixedBy(input interface{}, prefix string) (interface{}, error) {
 	normalized, err := Normalize(input)
 	if err != nil {
-		// The only error that cano come from normalize is if
+		// The only error that can come from normalize is if
 		// input is a map[interface{}]interface{} and contains
 		// a key that is not a string.
 		return input, err

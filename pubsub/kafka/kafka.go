@@ -42,7 +42,7 @@ type Kafka struct {
 	consumer      consumer
 	config        *sarama.Config
 
-	backOffConfig retry.BackOffConfig
+	backOffConfig retry.Config
 }
 
 type kafkaMetadata struct {

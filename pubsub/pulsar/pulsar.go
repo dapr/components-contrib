@@ -29,7 +29,7 @@ type Pulsar struct {
 
 	ctx           context.Context
 	cancel        context.CancelFunc
-	backOffConfig retry.BackOffConfig
+	backOffConfig retry.Config
 	cache         *lru.Cache
 }
 

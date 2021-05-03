@@ -22,8 +22,8 @@ const (
 	PolicyExponential
 )
 
-// BackOffConfig encapsulates the back off policy configuration.
-type BackOffConfig struct {
+// Config encapsulates the back off policy configuration.
+type Config struct {
 	Policy PolicyType `mapstructure:"policy"`
 
 	// Constant back off
@@ -40,10 +40,10 @@ type BackOffConfig struct {
 	MaxRetries int64 `mapstructure:"maxRetries"`
 }
 
-// DefaultBackOffConfig represents the default configuration for a
-// `BackOffConfig`.
-func DefaultBackOffConfig() BackOffConfig {
-	return BackOffConfig{
+// DefaultConfig represents the default configuration for a
+// `Config`.
+func DefaultConfig() Config {
+	return Config{
 		Policy:              PolicyConstant,
 		Duration:            5 * time.Second,
 		InitialInterval:     backoff.DefaultInitialInterval,
@@ -55,18 +55,19 @@ func DefaultBackOffConfig() BackOffConfig {
 	}
 }
 
-// DecodeConfig decodes a Go struct into a `BackOffConfig`.
-func DecodeConfig(c *BackOffConfig, input interface{}) error {
+// DecodeConfig decodes a Go struct into a `Config`.
+func DecodeConfig(c *Config, input interface{}) error {
 	// Use the deefault config if `c` is empty/zero value.
-	var emptyConfig BackOffConfig
+	var emptyConfig Config
 	if *c == emptyConfig {
-		*c = DefaultBackOffConfig()
+		*c = DefaultConfig()
 	}
+
 	return config.Decode(input, c)
 }
 
-// DecodeConfigWithPrefix decodes a Go struct into a `BackOffConfig`.
-func DecodeConfigWithPrefix(c *BackOffConfig, input interface{}, prefix string) error {
+// DecodeConfigWithPrefix decodes a Go struct into a `Config`.
+func DecodeConfigWithPrefix(c *Config, input interface{}, prefix string) error {
 	input, err := config.PrefixedBy(input, prefix)
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func DecodeConfigWithPrefix(c *BackOffConfig, input interface{}, prefix string) 
 // Since the underlying backoff implementations are not always thread safe,
 // `NewBackOff` or `NewBackOffWithContext` should be called each time
 // `RetryNotifyRecover` or `backoff.RetryNotify` is used.
-func (c *BackOffConfig) NewBackOff() backoff.BackOff {
+func (c *Config) NewBackOff() backoff.BackOff {
 	var b backoff.BackOff
 	switch c.Policy {
 	case PolicyConstant:
@@ -112,7 +113,7 @@ func (c *BackOffConfig) NewBackOff() backoff.BackOff {
 // Since the underlying backoff implementations are not always thread safe,
 // `NewBackOff` or `NewBackOffWithContext` should be called each time
 // `RetryNotifyRecover` or `backoff.RetryNotify` is used.
-func (c *BackOffConfig) NewBackOffWithContext(ctx context.Context) backoff.BackOff {
+func (c *Config) NewBackOffWithContext(ctx context.Context) backoff.BackOff {
 	b := c.NewBackOff()
 
 	return backoff.WithContext(b, ctx)

@@ -16,7 +16,7 @@ var errRetry = errors.New("Testing")
 func TestDecode(t *testing.T) {
 	tests := map[string]struct {
 		config    interface{}
-		overrides func(config *retry.BackOffConfig)
+		overrides func(config *retry.Config)
 		err       string
 	}{
 		"invalid policy type": {
@@ -43,7 +43,7 @@ func TestDecode(t *testing.T) {
 				"backOffPolicy":   "constant",
 				"backOffDuration": "10s",
 			},
-			overrides: func(config *retry.BackOffConfig) {
+			overrides: func(config *retry.Config) {
 				config.Duration = 10 * time.Second
 			},
 			err: "",
@@ -52,7 +52,7 @@ func TestDecode(t *testing.T) {
 			config: map[string]interface{}{
 				"backOffPolicy": "exponential",
 			},
-			overrides: func(config *retry.BackOffConfig) {
+			overrides: func(config *retry.Config) {
 				config.Policy = retry.PolicyExponential
 			},
 			err: "",
@@ -66,7 +66,7 @@ func TestDecode(t *testing.T) {
 				"backOffMaxInterval":         "120000",  // 2m
 				"backOffMaxElapsedTime":      "1800000", // 30m
 			},
-			overrides: func(config *retry.BackOffConfig) {
+			overrides: func(config *retry.Config) {
 				config.Policy = retry.PolicyExponential
 				config.InitialInterval = 1 * time.Second
 				config.RandomizationFactor = 1.0
@@ -85,7 +85,7 @@ func TestDecode(t *testing.T) {
 				"backOffMaxInterval":         "120s", // 2m
 				"backOffMaxElapsedTime":      "30m",  // 30m
 			},
-			overrides: func(config *retry.BackOffConfig) {
+			overrides: func(config *retry.Config) {
 				config.Policy = retry.PolicyExponential
 				config.InitialInterval = 1 * time.Second
 				config.RandomizationFactor = 1.0
@@ -104,7 +104,7 @@ func TestDecode(t *testing.T) {
 				"backOffMaxInterval":         "120s", // 2m
 				"backOffMaxElapsedTime":      "30m",  // 30m
 			},
-			overrides: func(config *retry.BackOffConfig) {
+			overrides: func(config *retry.Config) {
 				config.Policy = retry.PolicyExponential
 				config.InitialInterval = 1 * time.Second
 				config.RandomizationFactor = 1.0
@@ -118,14 +118,14 @@ func TestDecode(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			var actual retry.BackOffConfig
+			var actual retry.Config
 			err := retry.DecodeConfigWithPrefix(&actual, tc.config, "backOff")
 			if tc.err != "" {
 				if assert.Error(t, err) {
 					assert.Equal(t, tc.err, err.Error())
 				}
 			} else {
-				config := retry.DefaultBackOffConfig()
+				config := retry.DefaultConfig()
 				if tc.overrides != nil {
 					tc.overrides(&config)
 				}
@@ -136,7 +136,7 @@ func TestDecode(t *testing.T) {
 }
 
 func TestRetryNotifyRecoverMaxRetries(t *testing.T) {
-	config := retry.DefaultBackOffConfig()
+	config := retry.DefaultConfig()
 	config.MaxRetries = 3
 	config.Duration = 1
 
@@ -161,7 +161,7 @@ func TestRetryNotifyRecoverMaxRetries(t *testing.T) {
 }
 
 func TestRetryNotifyRecoverRecovery(t *testing.T) {
-	config := retry.DefaultBackOffConfig()
+	config := retry.DefaultConfig()
 	config.MaxRetries = 3
 	config.Duration = 1
 
@@ -189,7 +189,7 @@ func TestRetryNotifyRecoverRecovery(t *testing.T) {
 }
 
 func TestRetryNotifyRecoverCancel(t *testing.T) {
-	config := retry.DefaultBackOffConfig()
+	config := retry.DefaultConfig()
 	config.Policy = retry.PolicyExponential
 	config.InitialInterval = 10 * time.Millisecond
 
@@ -220,9 +220,9 @@ func TestRetryNotifyRecoverCancel(t *testing.T) {
 }
 
 func TestCheckEmptyConfig(t *testing.T) {
-	var config retry.BackOffConfig
+	var config retry.Config
 	err := retry.DecodeConfig(&config, map[string]interface{}{})
 	assert.NoError(t, err)
-	defaultConfig := retry.DefaultBackOffConfig()
+	defaultConfig := retry.DefaultConfig()
 	assert.Equal(t, config, defaultConfig)
 }

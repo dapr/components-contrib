@@ -67,7 +67,7 @@ type natsStreamingPubSub struct {
 
 	ctx           context.Context
 	cancel        context.CancelFunc
-	backOffConfig retry.BackOffConfig
+	backOffConfig retry.Config
 }
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation

@@ -118,7 +118,8 @@ func TestDecode(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actual, err := retry.DecodeConfigWithPrefix(tc.config, "backOff")
+			var actual retry.BackOffConfig
+			err := retry.DecodeConfigWithPrefix(&actual, tc.config, "backOff")
 			if tc.err != "" {
 				if assert.Error(t, err) {
 					assert.Equal(t, tc.err, err.Error())
@@ -216,4 +217,12 @@ func TestRetryNotifyRecoverCancel(t *testing.T) {
 	assert.True(t, errors.Is(err, context.Canceled))
 	assert.Equal(t, 1, notifyCalls)
 	assert.Equal(t, 0, recoveryCalls)
+}
+
+func TestCheckEmptyConfig(t *testing.T) {
+	var config retry.BackOffConfig
+	err := retry.DecodeConfig(&config, map[string]interface{}{})
+	assert.NoError(t, err)
+	defaultConfig := retry.DefaultBackOffConfig()
+	assert.Equal(t, config, defaultConfig)
 }

@@ -141,11 +141,14 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.topics = make(map[string]bool)
 
-	backOffConfig, err := retry.DecodeConfigWithPrefix(metadata.Properties, "backOff")
-	if err != nil {
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&k.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
 		return err
 	}
-	k.backOffConfig = backOffConfig
 
 	k.logger.Debug("Kafka message bus initialization complete")
 

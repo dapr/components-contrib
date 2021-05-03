@@ -195,11 +195,14 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 
 	n.ctx, n.cancel = context.WithCancel(context.Background())
 
-	backOffConfig, err := retry.DecodeConfigWithPrefix(metadata.Properties, "backOff")
-	if err != nil {
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&n.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
 		return err
 	}
-	n.backOffConfig = backOffConfig
 
 	n.natStreamingConn = natStreamingConn
 

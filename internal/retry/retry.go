@@ -56,21 +56,23 @@ func DefaultBackOffConfig() BackOffConfig {
 }
 
 // DecodeConfig decodes a Go struct into a `BackOffConfig`.
-func DecodeConfig(input interface{}) (BackOffConfig, error) {
-	c := DefaultBackOffConfig()
-	err := config.Decode(input, &c)
-
-	return c, err
+func DecodeConfig(c *BackOffConfig, input interface{}) error {
+	// Use the deefault config if `c` is empty/zero value.
+	var emptyConfig BackOffConfig
+	if *c == emptyConfig {
+		*c = DefaultBackOffConfig()
+	}
+	return config.Decode(input, c)
 }
 
 // DecodeConfigWithPrefix decodes a Go struct into a `BackOffConfig`.
-func DecodeConfigWithPrefix(input interface{}, prefix string) (BackOffConfig, error) {
+func DecodeConfigWithPrefix(c *BackOffConfig, input interface{}, prefix string) error {
 	input, err := config.PrefixedBy(input, prefix)
 	if err != nil {
-		return DefaultBackOffConfig(), err
+		return err
 	}
 
-	return DecodeConfig(input)
+	return DecodeConfig(c, input)
 }
 
 // NewBackOff returns a BackOff instance for use with `RetryNotifyRecover`

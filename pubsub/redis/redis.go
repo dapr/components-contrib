@@ -502,10 +502,12 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler pubsub.Handler
 			Consumer: r.metadata.consumerID,
 			Streams:  []string{stream, ">"},
 			Count:    int64(r.metadata.queueDepth),
-			Block:    0,
+			Block:    r.metadata.readTimeout,
 		}).Result()
 		if err != nil {
-			r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+			if !errors.Is(err, redis.Nil) {
+				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+			}
 
 			continue
 		}

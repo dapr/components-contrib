@@ -31,7 +31,6 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
 	if strings.TrimSpace(req.Namespace) != "" {
 		return fmt.Sprintf("%s-dapr.%s.svc:%d", req.ID, req.Namespace, req.Port), nil
-	} else {
-		return fmt.Sprintf("%s-dapr:%d", req.ID, req.Port), nil
 	}
+	return fmt.Sprintf("%s-dapr:%d", req.ID, req.Port), nil
 }

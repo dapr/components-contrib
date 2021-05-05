@@ -7,6 +7,7 @@ package dns
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -28,5 +29,9 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 
 // ResolveID resolves name to address in orchestrator.
 func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	return fmt.Sprintf("%s-dapr.%s.svc:%d", req.ID, req.Namespace, req.Port), nil
+	if strings.TrimSpace(req.Namespace) != "" {
+		return fmt.Sprintf("%s-dapr.%s.svc:%d", req.ID, req.Namespace, req.Port), nil
+	} else {
+		return fmt.Sprintf("%s-dapr:%d", req.ID, req.Port), nil
+	}
 }

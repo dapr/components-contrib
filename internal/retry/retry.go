@@ -76,7 +76,7 @@ func DecodeConfigWithPrefix(c *Config, input interface{}, prefix string) error {
 	return DecodeConfig(c, input)
 }
 
-// NewBackOff returns a BackOff instance for use with `RetryNotifyRecover`
+// NewBackOff returns a BackOff instance for use with `NotifyRecover`
 // or `backoff.RetryNotify` directly. The instance will not stop due to
 // context cancellation. To support cancellation (recommended), use
 // `NewBackOffWithContext`.

@@ -20,19 +20,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func TestParseMetadata(t *testing.T) { //nolint:paralleltest
-	m := bindings.Metadata{Name: "test",
-		Properties: map[string]string{
-			"url": "a", "secret": "b", "id": "c",
-		}}
-
-	meta, err := parseMetadata(m)
-	assert.NoError(t, err)
-	assert.Equal(t, "a", meta.url)
-	assert.Equal(t, "b", meta.secret)
-	assert.Equal(t, "c", meta.id)
-}
-
 func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	msg := "{\"type\": \"text\",\"text\": {\"content\": \"hello\"}}"
 

@@ -12,10 +12,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -33,8 +33,9 @@ const (
 
 type DingTalkWebhook struct {
 	logger     logger.Logger
-	metadata   metadata
+	settings   Settings
 	httpClient *http.Client
+	webhooks   sync.Map
 }
 
 type webhookResult struct {
@@ -46,56 +47,47 @@ type outgoingWebhook struct {
 	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
-var webhooks sync.Map //nolint:gochecknoglobals
-
 func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
+	// See guidance on proper HTTP client settings here:
+	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+	var netTransport = &http.Transport{
+		Dial:                dialer.Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	httpClient := &http.Client{
+		Timeout:   defaultHTTPClientTimeout,
+		Transport: netTransport,
+	}
+
 	return &DingTalkWebhook{ //nolint:exhaustivestruct
 		logger:     l,
-		httpClient: &http.Client{Timeout: defaultHTTPClientTimeout}, //nolint:exhaustivestruct
+		httpClient: httpClient, //nolint:exhaustivestruct
 	}
 }
 
 // Init performs metadata parsing
 func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 	var err error
-	t.metadata, err = parseMetadata(metadata)
-	if err != nil {
-		return err
+	if err = t.settings.Decode(metadata.Properties); err != nil {
+		return fmt.Errorf("dingtalk configuration error: %w", err)
+	}
+	if err = t.settings.Validate(); err != nil {
+		return fmt.Errorf("dingtalk configuration error: %w", err)
 	}
 
 	return nil
 }
 
-func parseMetadata(meta bindings.Metadata) (metadata, error) {
-	m := metadata{id: "", url: "", secret: ""}
-
-	if val, ok := meta.Properties["id"]; ok && val != "" {
-		m.id = val
-	} else {
-		return m, errors.New("webhook error: missing webhook id")
-	}
-
-	if val, ok := meta.Properties["url"]; ok && val != "" {
-		m.url = val
-	} else {
-		return m, errors.New("webhook error: missing webhook url")
-	}
-
-	if val, ok := meta.Properties["secret"]; ok && val != "" {
-		m.secret = val
-	}
-
-	return m, nil
-}
-
 // Read triggers the outgoing webhook, not yet production ready
 func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
-	item := &outgoingWebhook{handler: handler}
+	item := outgoingWebhook{handler: handler}
 
-	_, loaded := webhooks.LoadOrStore(t.metadata.id, item)
-	if loaded {
-		return fmt.Errorf("dingtalk webhook error: duplicate id %s", t.metadata.id)
+	if _, loaded := t.webhooks.LoadOrStore(t.settings.ID, &item); loaded {
+		return fmt.Errorf("dingtalk webhook error: duplicate id %s", t.settings.ID)
 	}
 
 	return nil
@@ -121,9 +113,9 @@ func (t *DingTalkWebhook) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeR
 }
 
 func (t *DingTalkWebhook) getOutgoingWebhook() (*outgoingWebhook, error) {
-	routeItem, loaded := webhooks.Load(t.metadata.id)
+	routeItem, loaded := t.webhooks.Load(t.settings.ID)
 	if !loaded {
-		return nil, fmt.Errorf("dingtalk webhook error: invalid component metadata.id %s", t.metadata.id)
+		return nil, fmt.Errorf("dingtalk webhook error: invalid component metadata.id %s", t.settings.ID)
 	}
 	item, ok := routeItem.(*outgoingWebhook)
 	if !ok {
@@ -150,7 +142,7 @@ func (t *DingTalkWebhook) receivedMessage(req *bindings.InvokeRequest) error {
 func (t *DingTalkWebhook) sendMessage(req *bindings.InvokeRequest) error {
 	msg := req.Data
 
-	postURL, err := getPostURL(t.metadata.url, t.metadata.secret)
+	postURL, err := getPostURL(t.settings.URL, t.settings.Secret)
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: get url failed. %w", err)
 	}

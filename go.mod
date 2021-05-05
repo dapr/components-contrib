@@ -51,7 +51,7 @@ require (
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.3.0 // indirect
-	github.com/go-redis/redis/v7 v7.0.1
+	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
 	github.com/golang/mock v1.4.4
@@ -82,8 +82,6 @@ require (
 	github.com/nats-io/nats.go v1.10.1-0.20210330225420-a0b1f60162f8
 	github.com/nats-io/stan.go v0.8.3
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/onsi/ginkgo v1.14.1 // indirect
-	github.com/onsi/gomega v1.10.2 // indirect
 	github.com/open-policy-agent/opa v0.23.2
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible

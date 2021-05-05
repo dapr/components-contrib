@@ -6,11 +6,11 @@
 package redis
 
 import (
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"testing"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +18,7 @@ import (
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"redisHost": "host", "redisPassword": "password", "enableTLS": "true", "maxRetries": "3", "maxRetryBackoff": "10000"}
-	r := Redis{logger: logger.NewLogger("test"), ComponentClient: &rediscomponent.ComponentClient{},}
+	r := Redis{logger: logger.NewLogger("test"), ComponentClient: &rediscomponent.ComponentClient{}}
 	redisM, err := r.parseMetadata(m)
 	assert.Nil(t, err)
 	assert.Equal(t, 3, redisM.maxRetries)

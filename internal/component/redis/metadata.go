@@ -55,7 +55,7 @@ type Metadata struct {
 	// but idle connections are still discarded by the client
 	// if IdleTimeout is set.
 	idleCheckFrequency time.Duration
-	//The master name
+	// The master name
 	sentinelMasterName string
 	// Use Redis Sentinel for automatic failover.
 	failover bool

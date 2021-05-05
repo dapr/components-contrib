@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"

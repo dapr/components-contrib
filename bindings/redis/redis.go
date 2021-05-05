@@ -9,11 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"strconv"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/kit/logger"
 )
 

@@ -9,21 +9,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
-	"github.com/go-redis/redis/v8"
-	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
+
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		consumerID:            "fakeConsumer",
-		enableTLS:             "true",
-		maxLenApprox:          "1000",
+		consumerID:   "fakeConsumer",
+		enableTLS:    "true",
+		maxLenApprox: "1000",
 	}
 }
 
@@ -43,7 +44,6 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
 		assert.Equal(t, int64(1000), m.maxLenApprox)
 	})
-
 
 	t.Run("consumerID is not given", func(t *testing.T) {
 		fakeProperties := getFakeProperties()

@@ -7,7 +7,6 @@ package redis
 
 import (
 	"context"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"testing"
 
 	"github.com/agrea/ptr"
@@ -16,6 +15,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )

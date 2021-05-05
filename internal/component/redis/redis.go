@@ -245,6 +245,7 @@ func (r *ComponentClient) Init(properties map[string]string) error {
 	} else {
 		r.Client = r.newClient(m)
 	}
+
 	return nil
 }
 
@@ -277,8 +278,10 @@ func (r *ComponentClient) newFailoverClient(m Metadata) redis.UniversalClient {
 
 	if m.redisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(m.Host, ",")
+
 		return redis.NewFailoverClusterClient(opts)
 	}
+
 	return redis.NewFailoverClient(opts)
 }
 

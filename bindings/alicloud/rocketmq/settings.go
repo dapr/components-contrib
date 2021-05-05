@@ -6,10 +6,7 @@
 package rocketmq
 
 import (
-	"fmt"
-
-	mqw "github.com/cinience/go_rocketmq"
-	"github.com/dapr/components-contrib/bindings"
+	rocketmq "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/internal/config"
 )
 
@@ -25,7 +22,7 @@ const (
 	topicSeparator                = "||"
 )
 
-type metadata struct {
+type Settings struct {
 	// sdk proto (tcp, tcp-cgo，http)
 	AccessProto string `mapstructure:"accessProto"`
 	// rocketmq Credentials
@@ -52,24 +49,23 @@ type metadata struct {
 	Topics string `mapstructure:"topics"`
 }
 
-func parseMetadata(md bindings.Metadata) (*metadata, error) {
-	var result metadata
-	err := config.Decode(md.Properties, &result)
-	if err != nil {
-		return nil, fmt.Errorf("parse error:%w", err)
-	}
-
-	return &result, nil
+func (s *Settings) Decode(in interface{}) error {
+	return config.Decode(in, s)
 }
 
-func parseCommonMetadata(md *metadata) *mqw.Metadata {
-	m := mqw.Metadata{
-		AccessProto: md.AccessProto, AccessKey: md.AccessKey, SecretKey: md.SecretKey,
-		NameServer: md.NameServer, Endpoint: md.Endpoint, InstanceId: md.InstanceID,
-		ConsumerGroup: md.ConsumerGroup, ConsumerBatchSize: md.ConsumerBatchSize,
-		ConsumerThreadNums: md.ConsumerThreadNums, NameServerDomain: md.NameServerDomain,
-		Retries: md.Retries, Topics: md.Topics,
+func (s *Settings) ToRocketMQMetadata() *rocketmq.Metadata {
+	return &rocketmq.Metadata{
+		AccessProto:        s.AccessProto,
+		AccessKey:          s.AccessKey,
+		SecretKey:          s.SecretKey,
+		NameServer:         s.NameServer,
+		Endpoint:           s.Endpoint,
+		InstanceId:         s.InstanceID,
+		ConsumerGroup:      s.ConsumerGroup,
+		ConsumerBatchSize:  s.ConsumerBatchSize,
+		ConsumerThreadNums: s.ConsumerThreadNums,
+		NameServerDomain:   s.NameServerDomain,
+		Retries:            s.Retries,
+		Topics:             s.Topics,
 	}
-
-	return &m
 }

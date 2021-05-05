@@ -11,35 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
-
-func TestParseMetadata(t *testing.T) { //nolint:paralleltest
-	m := bindings.Metadata{Name: "test",
-		Properties: map[string]string{
-			"accessProto":   "http",
-			"accessKey":     "**",
-			"secretKey":     "***",
-			"endpoint":      "http://test.endpoint",
-			"nameServer":    "http://test.nameserver",
-			"consumerGroup": "defaultGroup",
-			"instanceId":    "defaultNamespace",
-			"topics":        "defaultTopic",
-		}}
-	b, err := parseMetadata(m)
-	assert.Nil(t, err)
-
-	assert.Equal(t, "http", b.AccessProto)
-	assert.Equal(t, "**", b.AccessKey)
-	assert.Equal(t, "***", b.SecretKey)
-	assert.Equal(t, "http://test.endpoint", b.Endpoint)
-	assert.Equal(t, "defaultGroup", b.ConsumerGroup)
-	assert.Equal(t, "defaultNamespace", b.InstanceID)
-	assert.Equal(t, "defaultTopic", b.Topics)
-}
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	if !isLiveTest() {

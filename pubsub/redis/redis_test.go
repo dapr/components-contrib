@@ -9,12 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
-	"testing"
-	"time"
-
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
+	"sync"
+	"testing"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -23,23 +22,7 @@ import (
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		consumerID:            "fakeConsumer",
-		host:                  "fake.redis.com",
-		password:              "fakePassword",
-		redisType:             "node",
 		enableTLS:             "true",
-		dialTimeout:           "5s",
-		readTimeout:           "5s",
-		writeTimeout:          "50000",
-		poolSize:              "20",
-		maxConnAge:            "200s",
-		db:                    "1",
-		redisMaxRetries:       "1",
-		redisMinRetryInterval: "8ms",
-		redisMaxRetryInterval: "1s",
-		minIdleConns:          "1",
-		poolTimeout:           "1s",
-		idleTimeout:           "1s",
-		idleCheckFrequency:    "1s",
 		maxLenApprox:          "1000",
 	}
 }
@@ -57,44 +40,10 @@ func TestParseRedisMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[host], m.host)
-		assert.Equal(t, fakeProperties[password], m.password)
-		assert.Equal(t, fakeProperties[redisType], m.redisType)
 		assert.Equal(t, fakeProperties[consumerID], m.consumerID)
-		assert.Equal(t, true, m.enableTLS)
-		assert.Equal(t, 5*time.Second, m.dialTimeout)
-		assert.Equal(t, 5*time.Second, m.readTimeout)
-		assert.Equal(t, 50000*time.Millisecond, m.writeTimeout)
-		assert.Equal(t, 20, m.poolSize)
-		assert.Equal(t, 200*time.Second, m.maxConnAge)
-		assert.Equal(t, 1, m.db)
-		assert.Equal(t, 1, m.redisMaxRetries)
-		assert.Equal(t, 8*time.Millisecond, m.redisMinRetryInterval)
-		assert.Equal(t, 1*time.Second, m.redisMaxRetryInterval)
-		assert.Equal(t, 1, m.minIdleConns)
-		assert.Equal(t, 1*time.Second, m.poolTimeout)
-		assert.Equal(t, 1*time.Second, m.idleTimeout)
-		assert.Equal(t, 1*time.Second, m.idleCheckFrequency)
 		assert.Equal(t, int64(1000), m.maxLenApprox)
 	})
 
-	t.Run("host is not given", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[host] = ""
-
-		// act
-		m, err := parseRedisMetadata(fakeMetaData)
-
-		// assert
-		assert.Error(t, errors.New("redis streams error: missing host address"), err)
-		assert.Empty(t, m.host)
-		assert.Empty(t, m.password)
-		assert.Empty(t, m.consumerID)
-	})
 
 	t.Run("consumerID is not given", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
@@ -108,32 +57,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		m, err := parseRedisMetadata(fakeMetaData)
 		// assert
 		assert.Error(t, errors.New("redis streams error: missing consumerID"), err)
-		assert.Equal(t, fakeProperties[host], m.host)
-		assert.Equal(t, fakeProperties[password], m.password)
 		assert.Empty(t, m.consumerID)
-	})
-
-	t.Run("check values can be set as -1", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[readTimeout] = "-1"
-		fakeMetaData.Properties[idleTimeout] = "-1"
-		fakeMetaData.Properties[idleCheckFrequency] = "-1"
-		fakeMetaData.Properties[redisMaxRetryInterval] = "-1"
-		fakeMetaData.Properties[redisMinRetryInterval] = "-1"
-
-		// act
-		m, err := parseRedisMetadata(fakeMetaData)
-		// assert
-		assert.NoError(t, err)
-		assert.True(t, m.readTimeout == -1)
-		assert.True(t, m.idleTimeout == -1)
-		assert.True(t, m.idleCheckFrequency == -1)
-		assert.True(t, m.redisMaxRetryInterval == -1)
-		assert.True(t, m.redisMinRetryInterval == -1)
 	})
 }
 
@@ -162,8 +86,8 @@ func TestProcessStreams(t *testing.T) {
 	}
 
 	// act
-	testRedisStream := &redisStreams{logger: logger.NewLogger("test")}
-	testRedisStream.ctx, testRedisStream.cancel = context.WithCancel(context.Background())
+	testRedisStream := &redisStreams{logger: logger.NewLogger("test"), ComponentClient: &rediscomponent.ComponentClient{}}
+	testRedisStream.ctx, testRedisStream.Cancel = context.WithCancel(context.Background())
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
 	testRedisStream.enqueueMessages(fakeConsumerID, fakeHandler, generateRedisStreamTestData(2, 3, expectedData))

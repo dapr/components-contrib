@@ -34,6 +34,8 @@ const (
 	idleCheckFrequency    = "idleCheckFrequency"
 	maxConnAge            = "maxConnAge"
 	enableTLS             = "enableTLS"
+	failover              = "failover"
+	sentinelMasterName    = "sentinelMasterName"
 )
 
 const (
@@ -51,7 +53,6 @@ type ComponentClient struct {
 	ClientMetadata Metadata
 	Client         redis.UniversalClient
 }
-
 
 func parseRedisMetadata(properties map[string]string) (Metadata, error) {
 	// Default values
@@ -213,6 +214,23 @@ func parseRedisMetadata(properties map[string]string) (Metadata, error) {
 		}
 	}
 
+	if val, ok := properties[failover]; ok && val != "" {
+		failover, err := strconv.ParseBool(val)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
+		}
+		m.failover = failover
+	}
+
+	// set the sentinelMasterName only with failover == true.
+	if m.failover {
+		if val, ok := properties[sentinelMasterName]; ok && val != "" {
+			m.sentinelMasterName = val
+		} else {
+			return m, errors.New("redis store error: missing sentinelMasterName")
+		}
+	}
+
 	return m, nil
 }
 
@@ -222,7 +240,49 @@ func (r *ComponentClient) Init(properties map[string]string) error {
 		return err
 	}
 	r.ClientMetadata = m
+	if r.ClientMetadata.failover {
+		r.Client = r.newFailoverClient(m)
+	} else {
+		r.Client = r.newClient(m)
+	}
+	return nil
+}
 
+func (r *ComponentClient) newFailoverClient(m Metadata) redis.UniversalClient {
+	opts := &redis.FailoverOptions{
+		MasterName:         m.sentinelMasterName,
+		SentinelAddrs:      []string{m.Host},
+		Password:           m.password,
+		DB:                 m.db,
+		MaxRetries:         m.redisMaxRetries,
+		MaxRetryBackoff:    m.redisMaxRetryInterval,
+		MinRetryBackoff:    m.redisMinRetryInterval,
+		DialTimeout:        m.dialTimeout,
+		ReadTimeout:        m.ReadTimeout,
+		WriteTimeout:       m.writeTimeout,
+		PoolSize:           m.poolSize,
+		MaxConnAge:         m.maxConnAge,
+		MinIdleConns:       m.minIdleConns,
+		PoolTimeout:        m.poolTimeout,
+		IdleCheckFrequency: m.idleCheckFrequency,
+		IdleTimeout:        m.idleTimeout,
+	}
+
+	/* #nosec */
+	if m.enableTLS {
+		opts.TLSConfig = &tls.Config{
+			InsecureSkipVerify: m.enableTLS,
+		}
+	}
+
+	if m.redisType == ClusterType {
+		opts.SentinelAddrs = strings.Split(m.Host, ",")
+		return redis.NewFailoverClusterClient(opts)
+	}
+	return redis.NewFailoverClient(opts)
+}
+
+func (r *ComponentClient) newClient(m Metadata) redis.UniversalClient {
 	if m.redisType == ClusterType {
 		options := &redis.ClusterOptions{
 			Addrs:              strings.Split(m.Host, ","),
@@ -247,35 +307,33 @@ func (r *ComponentClient) Init(properties map[string]string) error {
 			}
 		}
 
-		r.Client = redis.NewClusterClient(options)
-	} else {
-		options := &redis.Options{
-			Addr:               m.Host,
-			Password:           m.password,
-			DB:                 m.db,
-			MaxRetries:         m.redisMaxRetries,
-			MaxRetryBackoff:    m.redisMaxRetryInterval,
-			MinRetryBackoff:    m.redisMinRetryInterval,
-			DialTimeout:        m.dialTimeout,
-			ReadTimeout:        m.ReadTimeout,
-			WriteTimeout:       m.writeTimeout,
-			PoolSize:           m.poolSize,
-			MaxConnAge:         m.maxConnAge,
-			MinIdleConns:       m.minIdleConns,
-			PoolTimeout:        m.poolTimeout,
-			IdleCheckFrequency: m.idleCheckFrequency,
-			IdleTimeout:        m.idleTimeout,
-		}
-
-		/* #nosec */
-		if r.ClientMetadata.enableTLS {
-			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: r.ClientMetadata.enableTLS,
-			}
-		}
-
-		r.Client = redis.NewClient(options)
+		return redis.NewClusterClient(options)
 	}
 
-	return nil
+	options := &redis.Options{
+		Addr:               m.Host,
+		Password:           m.password,
+		DB:                 m.db,
+		MaxRetries:         m.redisMaxRetries,
+		MaxRetryBackoff:    m.redisMaxRetryInterval,
+		MinRetryBackoff:    m.redisMinRetryInterval,
+		DialTimeout:        m.dialTimeout,
+		ReadTimeout:        m.ReadTimeout,
+		WriteTimeout:       m.writeTimeout,
+		PoolSize:           m.poolSize,
+		MaxConnAge:         m.maxConnAge,
+		MinIdleConns:       m.minIdleConns,
+		PoolTimeout:        m.poolTimeout,
+		IdleCheckFrequency: m.idleCheckFrequency,
+		IdleTimeout:        m.idleTimeout,
+	}
+
+	/* #nosec */
+	if r.ClientMetadata.enableTLS {
+		options.TLSConfig = &tls.Config{
+			InsecureSkipVerify: r.ClientMetadata.enableTLS,
+		}
+	}
+
+	return redis.NewClient(options)
 }

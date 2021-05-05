@@ -7,15 +7,14 @@ package redis
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/agrea/ptr"
-	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
@@ -28,25 +27,19 @@ const (
 	delQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if not var1 or type(var1)==\"table\" or var1 == ARGV[1] or var1 == \"\" or ARGV[1] == \"0\" then return redis.call(\"DEL\", KEYS[1]) else return error(\"failed to delete \" .. KEYS[1]) end"
 	connectedSlavesReplicas  = "connected_slaves:"
 	infoReplicationDelimiter = "\r\n"
-	host                     = "redisHost"
-	password                 = "redisPassword"
-	enableTLS                = "enableTLS"
 	maxRetries               = "maxRetries"
 	maxRetryBackoff          = "maxRetryBackoff"
-	failover                 = "failover"
-	sentinelMasterName       = "sentinelMasterName"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
 	defaultMaxRetries        = 3
 	defaultMaxRetryBackoff   = time.Second * 2
-	defaultEnableTLS         = false
 )
 
 // StateStore is a Redis state store
 type StateStore struct {
 	state.DefaultBulkStore
-	client   *redis.Client
+	*rediscomponent.ComponentClient
 	json     jsoniter.API
 	metadata metadata
 	replicas int
@@ -61,9 +54,10 @@ type StateStore struct {
 // NewRedisStateStore returns a new redis state store
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-		logger:   logger,
+		ComponentClient: &rediscomponent.ComponentClient{},
+		json:            jsoniter.ConfigFastest,
+		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:          logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -72,25 +66,6 @@ func NewRedisStateStore(logger logger.Logger) *StateStore {
 
 func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 	m := metadata{}
-
-	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.host = val
-	} else {
-		return m, errors.New("redis store error: missing host address")
-	}
-
-	if val, ok := meta.Properties[password]; ok && val != "" {
-		m.password = val
-	}
-
-	m.enableTLS = defaultEnableTLS
-	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
-		tls, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse enableTLS field: %s", err)
-		}
-		m.enableTLS = tls
-	}
 
 	m.maxRetries = defaultMaxRetries
 	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
@@ -110,23 +85,6 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
 
-	if val, ok := meta.Properties[failover]; ok && val != "" {
-		failover, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
-		}
-		m.failover = failover
-	}
-
-	// set the sentinelMasterName only with failover == true.
-	if m.failover {
-		if val, ok := meta.Properties[sentinelMasterName]; ok && val != "" {
-			m.sentinelMasterName = val
-		} else {
-			return m, errors.New("redis store error: missing sentinelMasterName")
-		}
-	}
-
 	return m, nil
 }
 
@@ -138,16 +96,15 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	r.metadata = m
 
-	if r.metadata.failover {
-		r.client = r.newFailoverClient(m)
-	} else {
-		r.client = r.newClient(m)
+	err = r.ComponentClient.Init(metadata.Properties)
+	if err != nil {
+		return err
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
+	if _, err = r.Client.Ping(r.ctx).Result(); err != nil {
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.ClientMetadata.Host, err)
 	}
 
 	r.replicas, err = r.getConnectedSlaves()
@@ -160,48 +117,8 @@ func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 
-func (r *StateStore) newClient(m metadata) *redis.Client {
-	opts := &redis.Options{
-		Addr:            m.host,
-		Password:        m.password,
-		DB:              defaultDB,
-		MaxRetries:      m.maxRetries,
-		MaxRetryBackoff: m.maxRetryBackoff,
-	}
-
-	// tell the linter to skip a check here.
-	/* #nosec */
-	if m.enableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.enableTLS,
-		}
-	}
-
-	return redis.NewClient(opts)
-}
-
-func (r *StateStore) newFailoverClient(m metadata) *redis.Client {
-	opts := &redis.FailoverOptions{
-		MasterName:      r.metadata.sentinelMasterName,
-		Password:        m.password,
-		SentinelAddrs:   []string{r.metadata.host},
-		DB:              defaultDB,
-		MaxRetries:      m.maxRetries,
-		MaxRetryBackoff: m.maxRetryBackoff,
-	}
-
-	/* #nosec */
-	if m.enableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.enableTLS,
-		}
-	}
-
-	return redis.NewFailoverClient(opts)
-}
-
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.Do(r.ctx, "INFO", "replication").Result()
+	res, err := r.Client.Do(r.ctx, "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}
@@ -234,7 +151,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 		etag := "0"
 		req.ETag = &etag
 	}
-	_, err := r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err := r.Client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -253,7 +170,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "GET", req.Key).Result()
+	res, err := r.Client.Do(r.ctx, "GET", req.Key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +188,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 
 // Get retrieves state from redis with a key
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+	res, err := r.Client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
@@ -306,7 +223,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
-	_, err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt).Result()
+	_, err = r.Client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt).Result()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -316,7 +233,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		_, err = r.client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		_, err = r.Client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
 		if err != nil {
 			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
 		}
@@ -332,7 +249,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
-	pipe := r.client.TxPipeline()
+	pipe := r.Client.TxPipeline()
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
@@ -394,5 +311,5 @@ func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
 func (r *StateStore) Close() error {
 	r.cancel()
 
-	return r.client.Close()
+	return r.Client.Close()
 }

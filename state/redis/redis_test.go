@@ -7,6 +7,7 @@ package redis
 
 import (
 	"context"
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"testing"
 
 	"github.com/agrea/ptr"
@@ -118,9 +119,9 @@ func TestTransactionalUpsert(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		ComponentClient: &rediscomponent.ComponentClient{Client: c},
+		json:            jsoniter.ConfigFastest,
+		logger:          logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -150,9 +151,9 @@ func TestTransactionalDelete(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		ComponentClient: &rediscomponent.ComponentClient{Client: c},
+		json:            jsoniter.ConfigFastest,
+		logger:          logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -186,9 +187,9 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		ComponentClient: &rediscomponent.ComponentClient{Client: c},
+		json:            jsoniter.ConfigFastest,
+		logger:          logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 

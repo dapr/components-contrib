@@ -32,5 +32,6 @@ func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	if strings.TrimSpace(req.Namespace) != "" {
 		return fmt.Sprintf("%s-dapr.%s.svc:%d", req.ID, req.Namespace, req.Port), nil
 	}
+	
 	return fmt.Sprintf("%s-dapr:%d", req.ID, req.Port), nil
 }

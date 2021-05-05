@@ -15,30 +15,8 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestParseMetadata(t *testing.T) { //nolint:paralleltest
-	m := bindings.Metadata{Name: "test",
-		Properties: map[string]string{
-			"Endpoint":        "a",
-			"Region":          "b",
-			"Namespace":       "c",
-			"AccessKey":       "d",
-			"SecretKey":       "e",
-			"updateThreadNum": "3",
-		}}
-
-	meta, err := parseMetadata(m)
-	assert.Nil(t, err)
-	assert.Equal(t, "a", meta.Endpoint)
-	assert.Equal(t, "b", meta.RegionID)
-	assert.Equal(t, "c", meta.NamespaceID)
-	assert.Equal(t, "d", meta.AccessKey)
-	assert.Equal(t, "e", meta.SecretKey)
-	assert.Equal(t, 3, meta.UpdateThreadNum)
-}
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	m := bindings.Metadata{Name: "test", Properties: nil}

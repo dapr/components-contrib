@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/kit/logger"
 	"github.com/nacos-group/nacos-sdk-go/clients"
 	"github.com/nacos-group/nacos-sdk-go/clients/config_client"
@@ -38,7 +37,7 @@ type configParam struct {
 
 // Nacos allows reading/writing to a Nacos server
 type Nacos struct {
-	metadata     *nacosMetadata
+	settings     Settings
 	config       configParam
 	watches      []configParam
 	servers      []constant.ServerConfig
@@ -53,42 +52,39 @@ func NewNacos(logger logger.Logger) *Nacos {
 }
 
 // Init implements InputBinding/OutputBinding's Init method
-func (n *Nacos) Init(metadata bindings.Metadata) (err error) {
-	n.metadata, err = parseMetadata(metadata)
+func (n *Nacos) Init(metadata bindings.Metadata) error {
+	n.settings = Settings{
+		Timeout: defaultTimeout,
+	}
+	err := n.settings.Decode(metadata.Properties)
 	if err != nil {
-		err = fmt.Errorf("nacos config error: %w", err)
-
-		return
+		return fmt.Errorf("nacos config error: %w", err)
 	}
 
-	if n.metadata.Timeout <= 0 {
-		n.metadata.Timeout = defaultTimeout
+	if err = n.settings.Validate(); err != nil {
+		return fmt.Errorf("nacos config error: %w", err)
 	}
 
-	if n.metadata.Endpoint != "" {
-		n.logger.Infof("nacos server's url: %s", n.metadata.Endpoint)
-	} else if n.metadata.NameServer != "" {
-		n.logger.Infof("nacos nameserver: %s", n.metadata.NameServer)
-	} else {
-		err = errors.New("nacos config error: must config endpoint or nameserver")
-
-		return
+	if n.settings.Endpoint != "" {
+		n.logger.Infof("nacos server url: %s", n.settings.Endpoint)
+	} else if n.settings.NameServer != "" {
+		n.logger.Infof("nacos nameserver: %s", n.settings.NameServer)
 	}
 
-	if n.metadata.Config != "" {
-		n.config, err = convertConfig(n.metadata.Config)
+	if n.settings.Config != "" {
+		n.config, err = convertConfig(n.settings.Config)
 		if err != nil {
-			return
+			return err
 		}
 	}
-	n.watches, err = convertConfigs(n.metadata.Watches)
+	n.watches, err = convertConfigs(n.settings.Watches)
 	if err != nil {
-		return
+		return err
 	}
 
-	n.servers, err = convertServers(n.metadata.Endpoint)
+	n.servers, err = convertServers(n.settings.Endpoint)
 	if err != nil {
-		return
+		return err
 	}
 
 	return n.createConfigClient()
@@ -97,23 +93,23 @@ func (n *Nacos) Init(metadata bindings.Metadata) (err error) {
 func (n *Nacos) createConfigClient() error {
 	nacosConfig := map[string]interface{}{}
 	nacosConfig["clientConfig"] = constant.ClientConfig{ //nolint:exhaustivestruct
-		TimeoutMs:            uint64(n.metadata.Timeout),
-		NamespaceId:          n.metadata.NamespaceID,
-		Endpoint:             n.metadata.NameServer,
-		RegionId:             n.metadata.RegionID,
-		AccessKey:            n.metadata.AccessKey,
-		SecretKey:            n.metadata.SecretKey,
-		OpenKMS:              n.metadata.AccessKey != "" && n.metadata.SecretKey != "",
-		CacheDir:             n.metadata.CacheDir,
-		UpdateThreadNum:      n.metadata.UpdateThreadNum,
-		NotLoadCacheAtStart:  n.metadata.NotLoadCacheAtStart,
-		UpdateCacheWhenEmpty: n.metadata.UpdateCacheWhenEmpty,
-		Username:             n.metadata.Username,
-		Password:             n.metadata.Password,
-		LogDir:               n.metadata.LogDir,
-		RotateTime:           n.metadata.RotateTime,
-		MaxAge:               int64(n.metadata.MaxAge),
-		LogLevel:             n.metadata.LogLevel,
+		TimeoutMs:            uint64(n.settings.Timeout),
+		NamespaceId:          n.settings.NamespaceID,
+		Endpoint:             n.settings.NameServer,
+		RegionId:             n.settings.RegionID,
+		AccessKey:            n.settings.AccessKey,
+		SecretKey:            n.settings.SecretKey,
+		OpenKMS:              n.settings.AccessKey != "" && n.settings.SecretKey != "",
+		CacheDir:             n.settings.CacheDir,
+		UpdateThreadNum:      n.settings.UpdateThreadNum,
+		NotLoadCacheAtStart:  n.settings.NotLoadCacheAtStart,
+		UpdateCacheWhenEmpty: n.settings.UpdateCacheWhenEmpty,
+		Username:             n.settings.Username,
+		Password:             n.settings.Password,
+		LogDir:               n.settings.LogDir,
+		RotateTime:           n.settings.RotateTime,
+		MaxAge:               int64(n.settings.MaxAge),
+		LogLevel:             n.settings.LogLevel,
 	}
 
 	if len(n.servers) > 0 {
@@ -311,16 +307,6 @@ func (n *Nacos) notifyApp(group, dataID, content string) {
 	if err != nil {
 		n.logger.Errorf("nacos config %s:%s failed to notify application, error: %v", dataID, group, err)
 	}
-}
-
-func parseMetadata(metadata bindings.Metadata) (*nacosMetadata, error) {
-	var md nacosMetadata
-	err := config.Decode(metadata.Properties, &md)
-	if err != nil {
-		return nil, fmt.Errorf("parse error:%w", err)
-	}
-
-	return &md, nil
 }
 
 func convertConfig(s string) (configParam, error) {

@@ -21,7 +21,7 @@ import (
 
 type rocketMQ struct {
 	name     string
-	metadata *metadata
+	settings Settings
 	producer mqw.Producer
 	consumer mqw.PushConsumer
 	logger   logger.Logger
@@ -33,7 +33,6 @@ type rocketMQ struct {
 func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
 	return &rocketMQ{
 		name:     "rocketmq",
-		metadata: nil,
 		producer: nil,
 		consumer: nil,
 		logger:   logger,
@@ -44,10 +43,13 @@ func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
 
 // Init does metadata parsing and connection creation
 func (r *rocketMQ) Init(md pubsub.Metadata) error {
-	var err error
-	r.metadata, err = parseMetadata(md)
+	// Settings default values
+	r.settings = Settings{
+		ContentType: pubsub.DefaultCloudEventDataContentType,
+	}
+	err := r.settings.Decode(md.Properties)
 	if err != nil {
-		return err
+		return fmt.Errorf("rocketmq configuration error: %w", err)
 	}
 
 	r.producer, err = r.setupPublisher()
@@ -69,14 +71,14 @@ func (r *rocketMQ) Init(md pubsub.Metadata) error {
 }
 
 func (r *rocketMQ) setupPublisher() (mqw.Producer, error) {
-	if producer, ok := mqw.Producers[r.metadata.AccessProto]; ok {
-		md := parseCommonMetadata(r.metadata)
+	if producer, ok := mqw.Producers[r.settings.AccessProto]; ok {
+		md := r.settings.ToRocketMQMetadata()
 		if err := producer.Init(md); err != nil {
 			r.logger.Debugf("rocketmq producer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupPublisher failed. %w", err)
 		}
-		r.logger.Infof("rocketmq proto: %s", r.metadata.AccessProto)
+		r.logger.Infof("rocketmq proto: %s", r.settings.AccessProto)
 
 		return producer, nil
 	}
@@ -85,14 +87,14 @@ func (r *rocketMQ) setupPublisher() (mqw.Producer, error) {
 }
 
 func (r *rocketMQ) setupConsumer() (mqw.PushConsumer, error) {
-	if consumer, ok := mqw.Consumers[r.metadata.AccessProto]; ok {
-		md := parseCommonMetadata(r.metadata)
+	if consumer, ok := mqw.Consumers[r.settings.AccessProto]; ok {
+		md := r.settings.ToRocketMQMetadata()
 		if err := consumer.Init(md); err != nil {
 			r.logger.Errorf("rocketmq consumer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupConsumer failed. %w", err)
 		}
-		r.logger.Infof("rocketmq access proto: %s", r.metadata.AccessProto)
+		r.logger.Infof("rocketmq access proto: %s", r.settings.AccessProto)
 
 		return consumer, nil
 	}
@@ -152,7 +154,7 @@ func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 
 	consumerGroup := req.Metadata[metadataRocketmqConsumerGroup]
 	if len(consumerGroup) == 0 {
-		consumerGroup = r.metadata.ConsumerGroup
+		consumerGroup = r.settings.ConsumerGroup
 	}
 
 	mqType := req.Metadata[metadataRocketmqType]
@@ -230,7 +232,7 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 		var success = true
 		for _, v := range msgs {
 			data := pubsub.NewCloudEventsEnvelope(v.MsgId, v.StoreHost, r.name,
-				v.GetProperty(primitive.PropertyKeys), v.Topic, r.name, r.metadata.ContentType, v.Body, "")
+				v.GetProperty(primitive.PropertyKeys), v.Topic, r.name, r.settings.ContentType, v.Body, "")
 			dataBytes, err := r.json.Marshal(data)
 
 			if err != nil {

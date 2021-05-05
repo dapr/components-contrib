@@ -20,56 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseMetadata(t *testing.T) { //nolint:paralleltest
-	m := pubsub.Metadata{Properties: map[string]string{
-		"accessProto":   "http",
-		"accessKey":     "**",
-		"secretKey":     "***",
-		"endpoint":      "http://test.endpoint",
-		"nameServer":    "http://test.nameserver",
-		"consumerGroup": "defaultGroup",
-		"instanceId":    "defaultNamespace",
-		"topics":        "defaultTopic",
-	}}
-
-	b, err := parseMetadata(m)
-	assert.Nil(t, err)
-
-	assert.Equal(t, "http", b.AccessProto)
-	assert.Equal(t, "**", b.AccessKey)
-	assert.Equal(t, "***", b.SecretKey)
-	assert.Equal(t, "http://test.endpoint", b.Endpoint)
-	assert.Equal(t, "defaultGroup", b.ConsumerGroup)
-	assert.Equal(t, "defaultNamespace", b.InstanceID)
-	assert.Equal(t, "defaultTopic", b.Topics)
-}
-
-func TestParseCommonMetadata(t *testing.T) { //nolint:paralleltest
-	m := pubsub.Metadata{Properties: map[string]string{
-		"accessProto":   "http",
-		"accessKey":     "**",
-		"secretKey":     "***",
-		"endpoint":      "http://test.endpoint",
-		"nameServer":    "http://test.nameserver",
-		"consumerGroup": "defaultGroup",
-		"instanceId":    "defaultNamespace",
-		"topics":        "defaultTopic",
-	}}
-
-	md, err := parseMetadata(m)
-	assert.Nil(t, err)
-
-	b := parseCommonMetadata(md)
-
-	assert.Equal(t, "http", b.AccessProto)
-	assert.Equal(t, "**", b.AccessKey)
-	assert.Equal(t, "***", b.SecretKey)
-	assert.Equal(t, "http://test.endpoint", b.Endpoint)
-	assert.Equal(t, "defaultGroup", b.ConsumerGroup)
-	assert.Equal(t, "defaultNamespace", b.InstanceId)
-	assert.Equal(t, "defaultTopic", b.Topics)
-}
-
 func TestPubSub(t *testing.T) { //nolint:paralleltest
 	if !isLiveTest() {
 		return

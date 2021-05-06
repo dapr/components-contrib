@@ -280,7 +280,6 @@ func (r *rabbitMQ) subscribeForever(
 		}
 
 		if r.stopped {
-
 			return
 		}
 

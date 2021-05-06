@@ -19,7 +19,8 @@ type Metadata struct {
 	// The redis type node or cluster
 	redisType string
 	// Maximum number of retries before giving up.
-	// Default is to not retry failed commands.
+	// A value of -1 (not 0) disables retries
+	// Default is 3 retries
 	redisMaxRetries int
 	// Minimum backoff between each retry.
 	// Default is 8 milliseconds; -1 disables backoff.

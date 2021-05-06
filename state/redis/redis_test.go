@@ -11,7 +11,7 @@ import (
 
 	"github.com/agrea/ptr"
 	miniredis "github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v7"
+	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
@@ -122,6 +122,7 @@ func TestTransactionalUpsert(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	err := ss.Multi(&state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{{
@@ -134,7 +135,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.DoContext(context.Background(), "HGETALL", "weapon").Result()
+	res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -153,6 +154,7 @@ func TestTransactionalDelete(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
 	ss.Set(&state.SetRequest{
@@ -172,7 +174,7 @@ func TestTransactionalDelete(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.DoContext(context.Background(), "HGETALL", "weapon").Result()
+	res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -188,6 +190,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
 	ss.Set(&state.SetRequest{
@@ -205,7 +208,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.DoContext(context.Background(), "HGETALL", "weapon100").Result()
+	res, err := c.Do(context.Background(), "HGETALL", "weapon100").Result()
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})

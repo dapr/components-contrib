@@ -279,6 +279,11 @@ func (r *rabbitMQ) subscribeForever(
 			}
 		}
 
+		if r.stopped {
+
+			return
+		}
+
 		r.logger.Errorf("%s error in subscription for %s, %s", logMessagePrefix, queueName, err)
 
 		if mustReconnect(channel, err) {

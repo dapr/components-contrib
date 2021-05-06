@@ -35,7 +35,6 @@ type DingTalkWebhook struct {
 	logger     logger.Logger
 	settings   Settings
 	httpClient *http.Client
-	webhooks   sync.Map
 }
 
 type webhookResult struct {
@@ -46,6 +45,8 @@ type webhookResult struct {
 type outgoingWebhook struct {
 	handler func(*bindings.ReadResponse) ([]byte, error)
 }
+
+var webhooks sync.Map //nolint:gochecknoglobals
 
 func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
 	// See guidance on proper HTTP client settings here:
@@ -86,7 +87,7 @@ func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, err
 	t.logger.Debugf("dingtalk webhook: start read input binding")
 	item := outgoingWebhook{handler: handler}
 
-	if _, loaded := t.webhooks.LoadOrStore(t.settings.ID, &item); loaded {
+	if _, loaded := webhooks.LoadOrStore(t.settings.ID, &item); loaded {
 		return fmt.Errorf("dingtalk webhook error: duplicate id %s", t.settings.ID)
 	}
 
@@ -113,7 +114,7 @@ func (t *DingTalkWebhook) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeR
 }
 
 func (t *DingTalkWebhook) getOutgoingWebhook() (*outgoingWebhook, error) {
-	routeItem, loaded := t.webhooks.Load(t.settings.ID)
+	routeItem, loaded := webhooks.Load(t.settings.ID)
 	if !loaded {
 		return nil, fmt.Errorf("dingtalk webhook error: invalid component metadata.id %s", t.settings.ID)
 	}

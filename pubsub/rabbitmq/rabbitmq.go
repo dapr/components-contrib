@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/streadway/amqp"
@@ -27,6 +28,7 @@ const (
 	metadataDeliveryModeKey      = "deliveryMode"
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
+	metadataBackOffEnable        = "backOffEnable"
 
 	defaultReconnectWaitSeconds = 10
 	metadataprefetchCount       = "prefetchCount"
@@ -44,7 +46,10 @@ type rabbitMQ struct {
 
 	connectionDial func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 
-	logger logger.Logger
+	logger        logger.Logger
+	backOffConfig retry.Config
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // interface used to allow unit testing
@@ -95,6 +100,18 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
+	if meta.backOffEnable {
+		// Default retry configuration is used if no
+		// backOff properties are set.
+		if err := retry.DecodeConfigWithPrefix(
+			&r.backOffConfig,
+			metadata.Properties,
+			"backOff"); err != nil {
+			return err
+		}
+	}
+
+	r.ctx, r.cancel = context.WithCancel(context.Background())
 	r.metadata = meta
 	r.reconnect(0)
 	// We do not return error on reconnect because it can cause problems if init() happens
@@ -313,10 +330,22 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 		Data:  d.Body,
 		Topic: topic,
 	}
-
-	err := handler(context.Background(), pubsubMsg)
-	if err != nil {
-		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+	var err error
+	if r.metadata.backOffEnable {
+		b := r.backOffConfig.NewBackOffWithContext(r.ctx)
+		err = retry.NotifyRecover(func() error {
+			err := handler(r.ctx, pubsubMsg)
+			return err
+		}, b, func(err error, d time.Duration) {
+			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+		}, func() {
+			r.logger.Infof("%s successfully processed message after it previously failed from topic '%s'", logMessagePrefix, topic)
+		})
+	} else {
+		err = handler(r.ctx, pubsubMsg)
+		if err != nil {
+			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+		}
 	}
 
 	//nolint:nestif
@@ -391,6 +420,7 @@ func (r *rabbitMQ) Close() error {
 
 	err := r.reset()
 	r.stopped = true
+	r.cancel()
 
 	return err
 }

@@ -334,8 +334,8 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 	if r.metadata.backOffEnable {
 		b := r.backOffConfig.NewBackOffWithContext(r.ctx)
 		err = retry.NotifyRecover(func() error {
-			err := handler(r.ctx, pubsubMsg)
-			return err
+
+			return handler(r.ctx, pubsubMsg)
 		}, b, func(err error, d time.Duration) {
 			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
 		}, func() {

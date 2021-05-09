@@ -347,7 +347,7 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 	m.ipv4Mu.RUnlock()
 
 	m.ipv6Mu.RLock()
-	numAppIPv6Addr := len(m.appAddressesIPv4)
+	numAppIPv6Addr := len(m.appAddressesIPv6)
 	m.ipv6Mu.RUnlock()
 
 	numApps := numAppIPv4Addr + numAppIPv6Addr

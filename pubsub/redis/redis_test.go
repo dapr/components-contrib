@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -40,6 +40,7 @@ func getFakeProperties() map[string]string {
 		poolTimeout:           "1s",
 		idleTimeout:           "1s",
 		idleCheckFrequency:    "1s",
+		maxLenApprox:          "1000",
 	}
 }
 
@@ -74,6 +75,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, 1*time.Second, m.poolTimeout)
 		assert.Equal(t, 1*time.Second, m.idleTimeout)
 		assert.Equal(t, 1*time.Second, m.idleCheckFrequency)
+		assert.Equal(t, int64(1000), m.maxLenApprox)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {

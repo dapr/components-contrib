@@ -70,8 +70,8 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 	return 0, false, nil
 }
 
-// TryIsRawPayload determines if payload should be used as-is.
-func TryIsRawPayload(props map[string]string) (bool, error) {
+// IsRawPayload determines if payload should be used as-is.
+func IsRawPayload(props map[string]string) (bool, error) {
 	if val, ok := props[RawPayloadKey]; ok && val != "" {
 		boolVal, err := strconv.ParseBool(val)
 		if err != nil {

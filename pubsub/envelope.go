@@ -109,7 +109,6 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[strin
 // FromRawPayload returns a CloudEvent for a raw payload on subscriber's end.
 func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
 	// Limitations of generating the CloudEvent on the subscriber side based on raw payload:
-	// - ID is supposed to be the app ID of the publisher but we get the subscriber's ID only.
 	// - The CloudEvent ID will be random, so the same message can be redelivered as a different ID.
 	// - TraceID is not useful since it is random and not from publisher side.
 	// - Data is always returned as `data_base64` since we don't know the actual content type.

@@ -13,7 +13,7 @@ import (
 
 func TestIsRawPayload(t *testing.T) {
 	t.Run("Metadata not found", func(t *testing.T) {
-		val, err := TryIsRawPayload(map[string]string{
+		val, err := IsRawPayload(map[string]string{
 			"notfound": "1",
 		})
 
@@ -22,14 +22,14 @@ func TestIsRawPayload(t *testing.T) {
 	})
 
 	t.Run("Metadata map is nil", func(t *testing.T) {
-		val, err := TryIsRawPayload(nil)
+		val, err := IsRawPayload(nil)
 
 		assert.Equal(t, false, val)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Metadata with bad value", func(t *testing.T) {
-		val, err := TryIsRawPayload(map[string]string{
+		val, err := IsRawPayload(map[string]string{
 			"rawPayload": "Not a boolean",
 		})
 
@@ -38,7 +38,7 @@ func TestIsRawPayload(t *testing.T) {
 	})
 
 	t.Run("Metadata with correct value as false", func(t *testing.T) {
-		val, err := TryIsRawPayload(map[string]string{
+		val, err := IsRawPayload(map[string]string{
 			"rawPayload": "false",
 		})
 
@@ -47,7 +47,7 @@ func TestIsRawPayload(t *testing.T) {
 	})
 
 	t.Run("Metadata with correct value as true", func(t *testing.T) {
-		val, err := TryIsRawPayload(map[string]string{
+		val, err := IsRawPayload(map[string]string{
 			"rawPayload": "true",
 		})
 

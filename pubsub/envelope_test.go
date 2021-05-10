@@ -258,3 +258,16 @@ func TestCreateFromBinaryPayload(t *testing.T) {
 	assert.Equal(t, base64Encoding, envelope[DataBase64Field])
 	assert.Nil(t, envelope[DataField])
 }
+
+func TestNewFromRawPayload(t *testing.T) {
+	t.Run("string data", func(t *testing.T) {
+		n := FromRawPayload([]byte("hello world"), "mytopic", "mypubsub")
+		assert.NotNil(t, n["id"])
+		assert.Equal(t, "1.0", n["specversion"])
+		assert.Equal(t, "mytopic", n["topic"])
+		assert.Equal(t, "mypubsub", n["pubsubname"])
+		assert.Nil(t, n["traceid"])
+		assert.Nil(t, n["data"])
+		assert.Equal(t, "aGVsbG8gd29ybGQ=", n["data_base64"])
+	})
+}

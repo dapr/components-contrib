@@ -17,7 +17,8 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/cenkalti/backoff/v4"
+
+	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -39,8 +40,9 @@ type Kafka struct {
 	topics        map[string]bool
 	cancel        context.CancelFunc
 	consumer      consumer
-	backOff       backoff.BackOff
 	config        *sarama.Config
+
+	backOffConfig retry.Config
 }
 
 type kafkaMetadata struct {
@@ -53,8 +55,7 @@ type kafkaMetadata struct {
 }
 
 type consumer struct {
-	logger   logger.Logger
-	backOff  backoff.BackOff
+	k        *Kafka
 	ready    chan bool
 	callback pubsub.Handler
 	once     sync.Once
@@ -65,24 +66,24 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		return fmt.Errorf("nil consumer callback")
 	}
 
-	bo := backoff.WithContext(consumer.backOff, session.Context())
+	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
 	for message := range claim.Messages() {
 		msg := pubsub.NewMessage{
 			Topic: message.Topic,
 			Data:  message.Value,
 		}
-		if err := pubsub.RetryNotifyRecover(func() error {
-			consumer.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		if err := retry.NotifyRecover(func() error {
+			consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 			err := consumer.callback(session.Context(), &msg)
 			if err == nil {
 				session.MarkMessage(message, "")
 			}
 
 			return err
-		}, bo, func(err error, d time.Duration) {
-			consumer.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+		}, b, func(err error, d time.Duration) {
+			consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 		}, func() {
-			consumer.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+			consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 		}); err != nil {
 			return err
 		}
@@ -140,8 +141,14 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.topics = make(map[string]bool)
 
-	// TODO: Make the backoff configurable for constant or exponential
-	k.backOff = backoff.NewConstantBackOff(5 * time.Second)
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&k.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return err
+	}
 
 	k.logger.Debug("Kafka message bus initialization complete")
 
@@ -227,8 +234,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 
 	ready := make(chan bool)
 	k.consumer = consumer{
-		logger:   k.logger,
-		backOff:  k.backOff,
+		k:        k,
 		ready:    ready,
 		callback: handler,
 	}

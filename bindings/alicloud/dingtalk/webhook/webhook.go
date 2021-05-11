@@ -46,7 +46,7 @@ type outgoingWebhook struct {
 	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
-var webhooks = struct {
+var webhooks = struct { // nolint: gochecknoglobals
 	sync.RWMutex
 	m map[string]*outgoingWebhook
 }{m: make(map[string]*outgoingWebhook)}
@@ -126,6 +126,7 @@ func (t *DingTalkWebhook) getOutgoingWebhook() (*outgoingWebhook, error) {
 	if !loaded {
 		return nil, fmt.Errorf("dingtalk webhook error: invalid component metadata.id %s", t.settings.ID)
 	}
+
 	return item, nil
 }
 

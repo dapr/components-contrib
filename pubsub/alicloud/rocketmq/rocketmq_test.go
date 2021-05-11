@@ -71,12 +71,11 @@ func isLiveTest() bool {
 func getTestMetadata() map[string]string {
 	return map[string]string{
 		"accessProto":        "tcp",
-		"nameServer":         "http://xx.mq-internet-access.mq-internet.aliyuncs.com:80",
+		"nameServer":         "http://**.mq-internet-access.mq-internet.aliyuncs.com:80",
 		"consumerGroup":      "GID_DAPR-MQ-TCP",
-		"topics":             "TOPIC_TEST",
-		"accessKey":          "xx",
-		"secretKey":          "xx",
-		"instanceId":         "MQ_INST_xx",
+		"accessKey":          "**",
+		"secretKey":          "**",
+		"instanceId":         "MQ_INST_**",
 		"consumerBatchSize":  "1",
 		"consumerThreadNums": "2",
 	}

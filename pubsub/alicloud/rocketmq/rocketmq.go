@@ -14,6 +14,7 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
+	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	jsoniter "github.com/json-iterator/go"
@@ -27,13 +28,16 @@ type rocketMQ struct {
 	logger   logger.Logger
 	json     jsoniter.API
 	topics   map[string]mqc.MessageSelector
+
+	ctx           context.Context
+	cancel        context.CancelFunc
+	backOffConfig retry.Config
 }
 
 // NewRocketMQ creates a new RocketMQ pub/sub
 func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
-	return &rocketMQ{
+	return &rocketMQ{ //nolint:exhaustivestruct
 		name:     "rocketmq",
-		producer: nil,
 		consumer: nil,
 		logger:   logger,
 		json:     nil,
@@ -44,7 +48,7 @@ func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
 // Init does metadata parsing and connection creation
 func (r *rocketMQ) Init(md pubsub.Metadata) error {
 	// Settings default values
-	r.settings = Settings{
+	r.settings = Settings{ //nolint:exhaustivestruct
 		ContentType: pubsub.DefaultCloudEventDataContentType,
 	}
 	err := r.settings.Decode(md.Properties)
@@ -52,9 +56,20 @@ func (r *rocketMQ) Init(md pubsub.Metadata) error {
 		return fmt.Errorf("rocketmq configuration error: %w", err)
 	}
 
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err = retry.DecodeConfigWithPrefix(
+		&r.backOffConfig,
+		md.Properties,
+		"backOff"); err != nil {
+		return fmt.Errorf("retry configuration error: %w", err)
+	}
+
 	r.producer, err = r.setupPublisher()
 	if err != nil {
-		return err
+		return fmt.Errorf("setupPublisher error: %w", err)
 	}
 
 	r.json = jsoniter.ConfigFastest
@@ -214,6 +229,8 @@ func (r *rocketMQ) Features() []pubsub.Feature {
 }
 
 func (r *rocketMQ) Close() error {
+	r.cancel()
+
 	if r.consumer != nil {
 		_ = r.consumer.Shutdown()
 	}
@@ -254,9 +271,24 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 				Data:     dataBytes,
 				Metadata: metadata,
 			}
-			if err := handler(ctx, &msg); err != nil {
-				r.logger.Errorf("rocketmq fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), err)
-				success = false
+
+			b := r.backOffConfig.NewBackOffWithContext(r.ctx)
+
+			rerr := retry.NotifyRecover(func() error {
+				herr := handler(ctx, &msg)
+				if herr != nil {
+					r.logger.Errorf("rocketmq error: fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), err)
+					success = false
+				}
+
+				return herr
+			}, b, func(err error, d time.Duration) {
+				r.logger.Errorf("rocketmq error: fail to processing message. topic:%s data-length:%d. Retrying...", v.Topic, len(v.Body))
+			}, func() {
+				r.logger.Infof("rocketmq successfully processed message after it previously failed. topic:%s data-length:%d.", v.Topic, len(v.Body))
+			})
+			if rerr != nil && !errors.Is(rerr, context.Canceled) {
+				r.logger.Errorf("rocketmq error: processing message and retries are exhausted. topic:%s data-length:%d.", v.Topic, len(v.Body))
 			}
 		}
 

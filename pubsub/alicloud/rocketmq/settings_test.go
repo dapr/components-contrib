@@ -34,7 +34,6 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 	assert.Equal(t, "http://test.endpoint", settings.Endpoint)
 	assert.Equal(t, "defaultGroup", settings.ConsumerGroup)
 	assert.Equal(t, "defaultNamespace", settings.InstanceID)
-	assert.Equal(t, "defaultTopic", settings.Topics)
 }
 
 func TestParseCommonMetadata(t *testing.T) { //nolint:paralleltest
@@ -61,5 +60,4 @@ func TestParseCommonMetadata(t *testing.T) { //nolint:paralleltest
 	assert.Equal(t, "http://test.endpoint", b.Endpoint)
 	assert.Equal(t, "defaultGroup", b.ConsumerGroup)
 	assert.Equal(t, "defaultNamespace", b.InstanceId)
-	assert.Equal(t, "defaultTopic", b.Topics)
 }

@@ -6,6 +6,8 @@
 package rocketmq
 
 import (
+	"fmt"
+
 	mqw "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/internal/config"
 )
@@ -41,15 +43,17 @@ type Settings struct {
 	// rocketmq's name server domain, optional
 	NameServerDomain string `mapstructure:"nameServerDomain"`
 	// retry times to connect rocketmq's broker, optional
-	Retries int `mapstructure:"retries,string"`
-	// topics to subscribe, use delimiter ',' to separate if more than one topics are configured, optional
-	Topics string `mapstructure:"topics"`
+	Retries int `mapstructure:"retries"`
 	// msg's content-type eg:"application/cloudevents+json; charset=utf-8", application/octet-stream
 	ContentType string `mapstructure:"content-type"`
 }
 
 func (s *Settings) Decode(in interface{}) error {
-	return config.Decode(in, s)
+	if err := config.Decode(in, s); err != nil {
+		return fmt.Errorf("decode failed. %w", err)
+	}
+
+	return nil
 }
 
 func (s *Settings) ToRocketMQMetadata() *mqw.Metadata {
@@ -65,6 +69,5 @@ func (s *Settings) ToRocketMQMetadata() *mqw.Metadata {
 		ConsumerThreadNums: s.ConsumerThreadNums,
 		NameServerDomain:   s.NameServerDomain,
 		Retries:            s.Retries,
-		Topics:             s.Topics,
 	}
 }

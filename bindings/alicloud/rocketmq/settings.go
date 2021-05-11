@@ -6,6 +6,9 @@
 package rocketmq
 
 import (
+	"fmt"
+	"strings"
+
 	rocketmq "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/internal/config"
 )
@@ -19,6 +22,7 @@ const (
 	metadataRocketmqType          = "rocketmq-sub-type"
 	metadataRocketmqExpression    = "rocketmq-sub-expression"
 	metadataRocketmqBrokerName    = "rocketmq-broker-name"
+	multiTopicsSeparator          = ","
 	topicSeparator                = "||"
 )
 
@@ -46,11 +50,15 @@ type Settings struct {
 	// retry times to connect rocketmq's broker, optional
 	Retries int `mapstructure:"retries,string"`
 	// topics to subscribe, use delimiter ',' to separate if more than one topics are configured, optional
-	Topics string `mapstructure:"topics"`
+	Topics TopicsDelimited `mapstructure:"topics"`
 }
 
 func (s *Settings) Decode(in interface{}) error {
-	return config.Decode(in, s)
+	if err := config.Decode(in, s); err != nil {
+		return fmt.Errorf("decode error: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Settings) ToRocketMQMetadata() *rocketmq.Metadata {
@@ -66,6 +74,17 @@ func (s *Settings) ToRocketMQMetadata() *rocketmq.Metadata {
 		ConsumerThreadNums: s.ConsumerThreadNums,
 		NameServerDomain:   s.NameServerDomain,
 		Retries:            s.Retries,
-		Topics:             s.Topics,
 	}
+}
+
+type TopicsDelimited []string
+
+func (t *TopicsDelimited) DecodeString(value string) error {
+	*t = strings.Split(value, multiTopicsSeparator)
+
+	return nil
+}
+
+func (t *TopicsDelimited) ToString() string {
+	return strings.Join(*t, multiTopicsSeparator)
 }

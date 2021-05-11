@@ -23,7 +23,7 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 		"nameServer":    "http://test.nameserver",
 		"consumerGroup": "defaultGroup",
 		"instanceId":    "defaultNamespace",
-		"topics":        "defaultTopic",
+		"topics":        "defaultTopic1,defaultTopic2",
 	}
 	var settings rocketmq.Settings
 	err := settings.Decode(props)
@@ -35,5 +35,5 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 	assert.Equal(t, "http://test.endpoint", settings.Endpoint)
 	assert.Equal(t, "defaultGroup", settings.ConsumerGroup)
 	assert.Equal(t, "defaultNamespace", settings.InstanceID)
-	assert.Equal(t, "defaultTopic", settings.Topics)
+	assert.Equal(t, "defaultTopic1,defaultTopic2", settings.Topics.ToString())
 }

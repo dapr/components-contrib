@@ -19,6 +19,7 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/kit/logger"
 )
 
@@ -27,10 +28,14 @@ type AliCloudRocketMQ struct {
 	settings Settings
 	producer mqw.Producer
 	consumer mqw.PushConsumer
+
+	ctx           context.Context
+	cancel        context.CancelFunc
+	backOffConfig retry.Config
 }
 
 func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
-	return &AliCloudRocketMQ{
+	return &AliCloudRocketMQ{ //nolint:exhaustivestruct
 		logger:   l,
 		producer: nil,
 		consumer: nil,
@@ -38,13 +43,24 @@ func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
 }
 
 // Init performs metadata parsing
-func (t *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
+func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 	var err error
-	if err = t.settings.Decode(metadata.Properties); err != nil {
+	if err = a.settings.Decode(metadata.Properties); err != nil {
 		return err
 	}
 
-	t.producer, err = t.setupPublisher()
+	a.ctx, a.cancel = context.WithCancel(context.Background())
+
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err = retry.DecodeConfigWithPrefix(
+		&a.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return fmt.Errorf("retry configuration error: %w", err)
+	}
+
+	a.producer, err = a.setupPublisher()
 	if err != nil {
 		return err
 	}
@@ -53,20 +69,20 @@ func (t *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the rocketmq subscription
-func (t *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
-	t.logger.Debugf("binding rocketmq: start read input binding")
+func (a *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+	a.logger.Debugf("binding rocketmq: start read input binding")
 
 	var err error
-	t.consumer, err = t.setupConsumer()
+	a.consumer, err = a.setupConsumer()
 	if err != nil {
 		return fmt.Errorf("binding-rocketmq error: %w", err)
 	}
 
-	if t.settings.Topics == "" {
+	if len(a.settings.Topics) == 0 {
 		return fmt.Errorf("binding-rocketmq error: must configure topics")
 	}
 
-	for _, topicStr := range strings.Split(t.settings.Topics, topicSeparator) {
+	for _, topicStr := range a.settings.Topics {
 		if topicStr == "" {
 			continue
 		}
@@ -74,34 +90,36 @@ func (t *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, er
 		if err != nil {
 			return err
 		}
-		if err := t.consumer.Subscribe(
+		if err := a.consumer.Subscribe(
 			topic,
 			mqc.MessageSelector{
 				Type:       mqc.ExpressionType(mqType),
 				Expression: mqExpression,
 			},
-			t.adaptCallback(topic, t.settings.ConsumerGroup, mqType, mqExpression, handler),
+			a.adaptCallback(topic, a.settings.ConsumerGroup, mqType, mqExpression, handler),
 		); err != nil {
 			return fmt.Errorf("binding-rocketmq: subscribe %s failed. %w", topic, err)
 		}
 	}
 
-	if err := t.consumer.Start(); err != nil {
+	if err := a.consumer.Start(); err != nil {
 		return fmt.Errorf("binding-rocketmq: consumer start failed. %w", err)
 	}
 
 	exitChan := make(chan os.Signal, 1)
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	<-exitChan
-	t.logger.Info("binding-rocketmq: shutdown.")
+	a.logger.Info("binding-rocketmq: shutdown.")
 
 	return nil
 }
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
-func (t *AliCloudRocketMQ) Close() error {
-	if t.consumer != nil {
-		_ = t.consumer.Shutdown()
+func (a *AliCloudRocketMQ) Close() error {
+	a.cancel()
+
+	if a.consumer != nil {
+		_ = a.consumer.Shutdown()
 	}
 
 	return nil
@@ -126,16 +144,16 @@ func parseTopic(key string) (mqType, mqExpression, topic string, err error) {
 	return
 }
 
-func (t *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
-	if consumer, ok := mqw.Consumers[t.settings.AccessProto]; ok {
-		md := t.settings.ToRocketMQMetadata()
+func (a *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
+	if consumer, ok := mqw.Consumers[a.settings.AccessProto]; ok {
+		md := a.settings.ToRocketMQMetadata()
 		if err := consumer.Init(md); err != nil {
-			t.logger.Errorf("rocketmq consumer init failed: %v", err)
+			a.logger.Errorf("rocketmq consumer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupConsumer %w", err)
 		}
 
-		t.logger.Infof("rocketmq access proto: %s", t.settings.AccessProto)
+		a.logger.Infof("rocketmq access proto: %s", a.settings.AccessProto)
 
 		return consumer, nil
 	}
@@ -143,18 +161,18 @@ func (t *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	return nil, errors.New("binding-rocketmq error: cannot found rocketmq consumer")
 }
 
-func (t *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
-	if producer, ok := mqw.Producers[t.settings.AccessProto]; ok {
-		md := t.settings.ToRocketMQMetadata()
+func (a *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
+	if producer, ok := mqw.Producers[a.settings.AccessProto]; ok {
+		md := a.settings.ToRocketMQMetadata()
 		if err := producer.Init(md); err != nil {
-			t.logger.Debugf("rocketmq producer init failed: %v", err)
+			a.logger.Debugf("rocketmq producer init failed: %v", err)
 
 			return nil, fmt.Errorf("setupPublisher err:%w", err)
 		}
 
-		t.logger.Infof("rocketmq proto: %s", t.settings.AccessProto)
+		a.logger.Infof("rocketmq proto: %s", a.settings.AccessProto)
 		if err := producer.Start(); err != nil {
-			t.logger.Errorf("rocketmq producer start failed %v", err)
+			a.logger.Errorf("rocketmq producer start failed %v", err)
 
 			return nil, fmt.Errorf("setupPublisher err:%w", err)
 		}
@@ -166,25 +184,25 @@ func (t *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
 }
 
 // Operations returns list of operations supported by rocketmq binding
-func (t *AliCloudRocketMQ) Operations() []bindings.OperationKind {
+func (a *AliCloudRocketMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (t *AliCloudRocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AliCloudRocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	rst := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 
 	if req.Operation != bindings.CreateOperation {
 		return rst, fmt.Errorf("binding-rocketmq error: unsupported operation %s", req.Operation)
 	}
 
-	return rst, t.sendMessage(req)
+	return rst, a.sendMessage(req)
 }
 
-func (t *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
+func (a *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 	topic := req.Metadata[metadataRocketmqTopic]
 
 	if topic != "" {
-		_, err := t.send(topic, req.Metadata[metadataRocketmqTag], req.Metadata[metadataRocketmqKey], req.Data)
+		_, err := a.send(topic, req.Metadata[metadataRocketmqTag], req.Metadata[metadataRocketmqKey], req.Data)
 		if err != nil {
 			return err
 		}
@@ -192,7 +210,7 @@ func (t *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 		return nil
 	}
 
-	for _, topicStr := range strings.Split(t.settings.Topics, topicSeparator) {
+	for _, topicStr := range a.settings.Topics {
 		if topicStr == "" {
 			continue
 		}
@@ -200,21 +218,21 @@ func (t *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 		if err != nil {
 			return err
 		}
-		_, err = t.send(topic, mqExpression, req.Metadata[metadataRocketmqKey], req.Data)
+		_, err = a.send(topic, mqExpression, req.Metadata[metadataRocketmqKey], req.Data)
 		if err != nil {
 			return err
 		}
-		t.logger.Debugf("binding-rocketmq send msg done, topic:%s tag:%s data-length:%d ", topic, mqExpression, len(req.Data))
+		a.logger.Debugf("binding-rocketmq send msg done, topic:%s tag:%s data-length:%d ", topic, mqExpression, len(req.Data))
 	}
 
 	return nil
 }
 
-func (t *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, error) {
+func (a *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, error) {
 	msg := primitive.NewMessage(topic, data).WithTag(mqExpr).WithKeys([]string{key})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	rst, err := t.producer.SendSync(ctx, msg)
+	rst, err := a.producer.SendSync(ctx, msg)
 	if err != nil {
 		return false, fmt.Errorf("binding-rocketmq: send failed err:%w", err)
 	}
@@ -227,7 +245,7 @@ func (t *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, e
 
 type mqCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
 
-func (t *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler func(*bindings.ReadResponse) ([]byte, error)) mqCallback {
+func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler func(*bindings.ReadResponse) ([]byte, error)) mqCallback {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		var success = true
 		for _, v := range msgs {
@@ -238,13 +256,28 @@ func (t *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string
 			if v.Queue != nil {
 				metadata[metadataRocketmqBrokerName] = v.Queue.BrokerName
 			}
-			t.logger.Debugf("binging-rocketmq handle msg, topic:%s msg-id:%s data-length:%d ", v.Topic, len(v.Body), v.MsgId)
+			a.logger.Debugf("binging-rocketmq handle msg, topic:%s msg-id:%s data-length:%d ", v.Topic, len(v.Body), v.MsgId)
 
 			msg := &bindings.ReadResponse{Data: v.Body,
 				Metadata: metadata}
-			if _, err := handler(msg); err != nil {
-				t.logger.Errorf("binging-rocketmq fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), err)
-				success = false
+
+			b := a.backOffConfig.NewBackOffWithContext(a.ctx)
+
+			rerr := retry.NotifyRecover(func() error {
+				_, herr := handler(msg)
+				if herr != nil {
+					a.logger.Errorf("rocketmq error: fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), herr)
+					success = false
+				}
+
+				return herr
+			}, b, func(err error, d time.Duration) {
+				a.logger.Errorf("rocketmq error: fail to processing message. topic:%s data-length:%d. Retrying...", v.Topic, len(v.Body))
+			}, func() {
+				a.logger.Infof("rocketmq successfully processed message after it previously failed. topic:%s data-length:%d.", v.Topic, len(v.Body))
+			})
+			if rerr != nil && !errors.Is(rerr, context.Canceled) {
+				a.logger.Errorf("rocketmq error: processing message and retries are exhausted. topic:%s data-length:%d.", v.Topic, len(v.Body))
 			}
 		}
 		if !success {

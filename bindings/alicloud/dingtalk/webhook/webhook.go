@@ -46,26 +46,29 @@ type outgoingWebhook struct {
 	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
-var webhooks sync.Map //nolint:gochecknoglobals
+var webhooks = struct {
+	sync.RWMutex
+	m map[string]*outgoingWebhook
+}{m: make(map[string]*outgoingWebhook)}
 
 func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
 	// See guidance on proper HTTP client settings here:
 	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
-	dialer := &net.Dialer{
+	dialer := &net.Dialer{ //nolint:exhaustivestruct
 		Timeout: 5 * time.Second,
 	}
-	var netTransport = &http.Transport{
-		Dial:                dialer.Dial,
+	var netTransport = &http.Transport{ //nolint:exhaustivestruct
+		DialContext:         dialer.DialContext,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
-	httpClient := &http.Client{
+	httpClient := &http.Client{ //nolint:exhaustivestruct
 		Timeout:   defaultHTTPClientTimeout,
 		Transport: netTransport,
 	}
 
 	return &DingTalkWebhook{ //nolint:exhaustivestruct
 		logger:     l,
-		httpClient: httpClient, //nolint:exhaustivestruct
+		httpClient: httpClient,
 	}
 }
 
@@ -85,11 +88,14 @@ func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 // Read triggers the outgoing webhook, not yet production ready
 func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
-	item := outgoingWebhook{handler: handler}
 
-	if _, loaded := webhooks.LoadOrStore(t.settings.ID, &item); loaded {
+	webhooks.Lock()
+	defer webhooks.Unlock()
+	_, loaded := webhooks.m[t.settings.ID]
+	if loaded {
 		return fmt.Errorf("dingtalk webhook error: duplicate id %s", t.settings.ID)
 	}
+	webhooks.m[t.settings.ID] = &outgoingWebhook{handler: handler}
 
 	return nil
 }
@@ -114,15 +120,12 @@ func (t *DingTalkWebhook) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeR
 }
 
 func (t *DingTalkWebhook) getOutgoingWebhook() (*outgoingWebhook, error) {
-	routeItem, loaded := webhooks.Load(t.settings.ID)
+	webhooks.RLock()
+	defer webhooks.RUnlock()
+	item, loaded := webhooks.m[t.settings.ID]
 	if !loaded {
 		return nil, fmt.Errorf("dingtalk webhook error: invalid component metadata.id %s", t.settings.ID)
 	}
-	item, ok := routeItem.(*outgoingWebhook)
-	if !ok {
-		return nil, fmt.Errorf("type [outgoingWebhook] convert failed. ")
-	}
-
 	return item, nil
 }
 

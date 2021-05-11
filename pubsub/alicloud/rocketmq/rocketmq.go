@@ -277,7 +277,7 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 			rerr := retry.NotifyRecover(func() error {
 				herr := handler(ctx, &msg)
 				if herr != nil {
-					r.logger.Errorf("rocketmq error: fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), err)
+					r.logger.Errorf("rocketmq error: fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), herr)
 					success = false
 				}
 

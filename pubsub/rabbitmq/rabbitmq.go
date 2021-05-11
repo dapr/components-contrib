@@ -279,7 +279,7 @@ func (r *rabbitMQ) subscribeForever(
 			}
 		}
 
-		if r.stopped {
+		if r.isStopped() {
 			return
 		}
 
@@ -387,6 +387,12 @@ func (r *rabbitMQ) reset() error {
 	}
 
 	return nil
+}
+
+func (r *rabbitMQ) isStopped() bool {
+	r.channelMutex.RLock()
+	defer r.channelMutex.RUnlock()
+	return r.stopped
 }
 
 func (r *rabbitMQ) Close() error {

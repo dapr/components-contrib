@@ -392,6 +392,7 @@ func (r *rabbitMQ) reset() error {
 func (r *rabbitMQ) isStopped() bool {
 	r.channelMutex.RLock()
 	defer r.channelMutex.RUnlock()
+
 	return r.stopped
 }
 

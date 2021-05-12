@@ -24,7 +24,6 @@ const (
 type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
-	producer pulsar.Producer
 	metadata pulsarMetadata
 
 	ctx           context.Context

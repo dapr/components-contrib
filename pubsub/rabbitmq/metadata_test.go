@@ -44,7 +44,6 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, false, m.autoAck)
 		assert.Equal(t, false, m.requeueInFailure)
 		assert.Equal(t, true, m.deleteWhenUnused)
-		assert.Equal(t, false, m.backOffEnable)
 		assert.Equal(t, uint8(0), m.deliveryMode)
 		assert.Equal(t, uint8(0), m.prefetchCount)
 	})
@@ -233,7 +232,6 @@ func TestCreateMetadata(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.backOffEnable)
 		})
 	}
 }

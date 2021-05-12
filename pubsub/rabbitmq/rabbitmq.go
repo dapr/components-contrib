@@ -100,15 +100,13 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
-	if meta.backOffEnable {
-		// Default retry configuration is used if no
-		// backOff properties are set.
-		if err := retry.DecodeConfigWithPrefix(
-			&r.backOffConfig,
-			metadata.Properties,
-			"backOff"); err != nil {
-			return err
-		}
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&r.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return err
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
@@ -330,22 +328,15 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 		Data:  d.Body,
 		Topic: topic,
 	}
-	var err error
-	if r.metadata.backOffEnable {
-		b := r.backOffConfig.NewBackOffWithContext(r.ctx)
-		err = retry.NotifyRecover(func() error {
-			return handler(r.ctx, pubsubMsg)
-		}, b, func(err error, d time.Duration) {
-			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
-		}, func() {
-			r.logger.Infof("%s successfully processed message after it previously failed from topic '%s'", logMessagePrefix, topic)
-		})
-	} else {
-		err = handler(r.ctx, pubsubMsg)
-		if err != nil {
-			r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
-		}
-	}
+
+	b := r.backOffConfig.NewBackOffWithContext(r.ctx)
+	err := retry.NotifyRecover(func() error {
+		return handler(r.ctx, pubsubMsg)
+	}, b, func(err error, d time.Duration) {
+		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
+	}, func() {
+		r.logger.Infof("%s successfully processed message after it previously failed from topic '%s'", logMessagePrefix, topic)
+	})
 
 	//nolint:nestif
 	// if message is not auto acked we need to ack/nack

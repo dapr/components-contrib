@@ -49,7 +49,7 @@ func (s *Settings) Validate() error {
 	}
 
 	if s.Endpoint == "" && s.NameServer == "" {
-		return errors.New("either endpoint or nameserver must be confit")
+		return errors.New("either endpoint or nameserver must be configured")
 	}
 
 	return nil

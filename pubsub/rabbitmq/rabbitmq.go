@@ -99,8 +99,9 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
-	// Default retry configuration is used if no
-	// backOff properties are set.
+	// Default retry configuration is used if no backOff properties are set.
+	// backOff max retry config is set to 0, which means not to retry by default.
+	r.backOffConfig = retry.DefaultConfigWithNoRetry()
 	if err := retry.DecodeConfigWithPrefix(
 		&r.backOffConfig,
 		metadata.Properties,

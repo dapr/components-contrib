@@ -190,6 +190,31 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 	})
 }
 
+func TestDefaultVaultAddress(t *testing.T) {
+	t.Run("with blank vaultAddr", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultTokenMountPath": "./vault.txt",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
+	})
+}
+
 func getCertificate() []byte {
 	certificateBytes, _ := base64.StdEncoding.DecodeString(certificate)
 

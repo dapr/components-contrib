@@ -89,7 +89,7 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	// Get Vault address
 	address := props[componentVaultAddress]
 	if address == "" {
-		v.vaultAddress = defaultVaultAddress
+		address = defaultVaultAddress
 	}
 
 	v.vaultAddress = address

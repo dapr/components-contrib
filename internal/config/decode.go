@@ -33,7 +33,7 @@ type StringDecoder interface {
 // Most of the heavy lifting is handled by the mapstructure library. A custom decoder is used to handle
 // decoding string values to the supported primitives.
 func Decode(input interface{}, output interface{}) error {
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{ // nolint:exhaustivestruct
 		Result:     output,
 		DecodeHook: decodeString,
 	})
@@ -44,6 +44,7 @@ func Decode(input interface{}, output interface{}) error {
 	return decoder.Decode(input)
 }
 
+// nolint:cyclop
 func decodeString(
 	f reflect.Type,
 	t reflect.Type,
@@ -59,7 +60,10 @@ func decodeString(
 		return data, nil
 	}
 
-	dataString := data.(string)
+	dataString, ok := data.(string)
+	if !ok {
+		return nil, errors.Errorf("expected string: got %s", reflect.TypeOf(data))
+	}
 
 	var result interface{}
 	var decoder StringDecoder

@@ -223,7 +223,6 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData := pubsub.Metadata{
 				Properties: fakeProperties,
 			}
-			fakeMetaData.Properties[metadataBackOffEnable] = tt.in
 
 			// act
 			m, err := createMetadata(fakeMetaData)

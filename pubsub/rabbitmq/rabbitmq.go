@@ -28,7 +28,6 @@ const (
 	metadataDeliveryModeKey      = "deliveryMode"
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
-	metadataBackOffEnable        = "backOffEnable"
 
 	defaultReconnectWaitSeconds = 10
 	metadataprefetchCount       = "prefetchCount"

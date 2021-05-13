@@ -28,9 +28,10 @@ type Store interface {
 // Handler is the handler used to invoke the app handler
 type UpdateHandler func(ctx context.Context, e *UpdateEvent) error
 
-// ConfigurationDocument is a big document to save all the configuration of specified application.
-type Document struct {
-	AppID    string            `json:"appID"`
-	Revision string            `json:"revision"`
-	Items    []*Item           `json:"items"`
+// Configuration is the whole configuration with all the configuration items for specified application.
+type Configuration struct {
+	AppID     string  `json:"appID"`
+	StoreName string  `json:"store_name"`
+	Revision  string  `json:"revision"`
+	Items     []*Item `json:"items"`
 }

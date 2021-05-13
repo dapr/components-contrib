@@ -9,7 +9,7 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-event-hubs-go v1.3.1
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
-	github.com/Azure/azure-service-bus-go v0.10.10git
+	github.com/Azure/azure-service-bus-go v0.10.10
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-amqp v0.13.1

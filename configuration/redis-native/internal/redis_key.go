@@ -69,7 +69,7 @@ func ParseRedisKey(redisKey string, item *configuration.Item) error {
 		return fmt.Errorf("format error for redis configuration key: %s", redisKey)
 	}
 
-	item.Key = split[3]
+	item.Name = split[3]
 
 	return nil
 }

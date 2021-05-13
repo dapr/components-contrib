@@ -37,5 +37,5 @@ func TestParseRedisKey(t *testing.T) {
 	err := ParseRedisKey("dapr/configuration/appid1/key1", item)
 
 	require.NoError(t, err)
-	assert.Equal(t, "key1", item.Key)
+	assert.Equal(t, "key1", item.Name)
 }

@@ -1,8 +1,8 @@
 package configuration
 
-// ConfigurationItem represents a configuration item with key, content and other information.
+// ConfigurationItem represents a configuration item with name, content and other information.
 type Item struct {
-	Key      string            `json:"key"`
+	Name     string            `json:"name"`
 	Content  string            `json:"content,omitempty"`
 	Tags     map[string]string `json:"tags,omitempty"`
 	Metadata map[string]string `json:"metadata"`
@@ -39,7 +39,7 @@ type SaveRequest struct {
 
 // DeleteRequest is the object describing a delete configuration request
 // It will remove all the configuration of specified application
-// If you want to delete some keys, please use save() method
+// If you want to delete some configuration items, please use save() method
 type DeleteRequest struct {
 	AppID    string            `json:"appID"`
 	Metadata map[string]string `json:"metadata"`

@@ -238,7 +238,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			// it should not happen, skip it
 			continue
 		}
-		if internal.IsRevisionKey(item.Key) {
+		if internal.IsRevisionKey(item.Name) {
 			revision, _ = r.client.Get(redisKey).Result()
 			continue
 		}
@@ -246,7 +246,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		redisValueMap, err := r.client.HGetAll(redisKey).Result()
 		if err != nil {
 			// TODO: should we return error or just skip this key?
-			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for key=%s, redis key=%s: %s", item.Key, redisKey, err)
+			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for key=%s, redis key=%s: %s", item.Name, redisKey, err)
 		}
 		if len(redisValueMap) == 0 {
 			// Hash key not exist: it should not happen, skip it
@@ -376,20 +376,20 @@ func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRe
 	for _, item := range req.Items {
 		if item.Content == "" {
 			// Content is empty: delete the configuration item
-			redisKey, err := internal.BuildRedisKey(req.AppID, item.Key)
+			redisKey, err := internal.BuildRedisKey(req.AppID, item.Name)
 			if err != nil {
-				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Key, err)
+				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Name, err)
 			}
 			deleteRedisKeys = append(deleteRedisKeys, redisKey)
 		} else {
 			// save configuration item
-			redisKey, err := internal.BuildRedisKey(req.AppID, item.Key)
+			redisKey, err := internal.BuildRedisKey(req.AppID, item.Name)
 			if err != nil {
-				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Key, err)
+				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Name, err)
 			}
 			redisValue, err := internal.BuildRedisValue(item.Content, item.Tags)
 			if err != nil {
-				return fmt.Errorf("fail to build redis value for key=%s: %s", item.Key, err)
+				return fmt.Errorf("fail to build redis value for key=%s: %s", item.Name, err)
 			}
 			saveRedisKeyValues[redisKey] = redisValue
 		}

@@ -223,16 +223,16 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		return nil, err
 	}
 
-	d := &configuration.Document{}
-	err = json.Unmarshal(bytes, d)
+	c := &configuration.Configuration{}
+	err = json.Unmarshal(bytes, c)
 	if err != nil {
 		return nil, err
 	}
 
 	return &configuration.GetResponse {
 		AppID: req.AppID,
-		Revision: d.Revision,
-		Items: d.Items,
+		Revision: c.Revision,
+		Items: c.Items,
 	}, nil
 }
 
@@ -248,7 +248,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 
 func (r *ConfigurationStore) startSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisKey string) error {
 	// enable notify-keyspace-events by redis Set command
-	// r.client.ConfigSet("notify-keyspace-events", "KA")
+	r.client.ConfigSet("notify-keyspace-events", "KA")
 	channel := fmt.Sprintf("__keyspace*__:%s", redisKey)
 	p := r.client.PSubscribe(channel)
 
@@ -300,13 +300,13 @@ func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.Dele
 }
 
 func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRequest) error {
-	d := configuration.Document{
+	c := configuration.Configuration{
 		AppID:    req.AppID,
 		Revision: fmt.Sprintf("%d", time.Now().Unix()),
 		Items:    req.Items,
 	}
 
-	b, err := json.Marshal(d)
+	b, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}

@@ -60,6 +60,7 @@ func DefaultConfig() Config {
 func DefaultConfigWithNoRetry() Config {
 	c := DefaultConfig()
 	c.MaxRetries = 0
+
 	return c
 }
 

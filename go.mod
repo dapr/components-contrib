@@ -19,10 +19,12 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.23.1
+	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
 	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/ajg/form v1.5.1 // indirect
+	github.com/alibaba/sentinel-golang v1.0.2
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/andybalholm/brotli v1.0.1 // indirect
@@ -51,6 +53,7 @@ require (
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.3.0 // indirect
+	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
@@ -77,6 +80,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.7 // indirect
 	github.com/mitchellh/mapstructure v1.3.3
 	github.com/moul/http2curl v1.0.0 // indirect
+	github.com/nacos-group/nacos-sdk-go v1.0.7
 	github.com/nats-io/nats-server/v2 v2.2.1 // indirect
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
 	github.com/nats-io/nats.go v1.10.1-0.20210330225420-a0b1f60162f8

@@ -105,7 +105,7 @@ func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		if (err == nil) {
 			data = buff.Bytes()
 		} else {
-			s.logger.Errorf("s3 GET operation exceptions: %s", err)
+			s.logger.Debugf("s3 GET operation exceptions: %s", err)
 		}
 		
 	case bindings.DeleteOperation:

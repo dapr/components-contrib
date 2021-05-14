@@ -71,53 +71,57 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 }
 
 func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	key := s.getKey(req)
-	
+	bucket := s.metadata.Bucket
+	data := []byte{}
+	key := ""
+	err := (error)(nil)
+	if (req.Operation == bindings.CreateOperation) {
+		key = s.getKey(req)
+	} else {
+		key, err = s.getReqParam(req, "key")
+		if (err != nil) {
+			return nil, err
+		}
+	}
+
 	switch op := req.Operation; op {
 	case bindings.CreateOperation:
 		r := bytes.NewReader(req.Data)
 		_, err := s.uploader.Upload(&s3manager.UploadInput{
-			Bucket: aws.String(s.metadata.Bucket),
+			Bucket: aws.String(bucket),
 			Key:    aws.String(key),
 			Body:   r,
 		})
 		if (err != nil) {
 			s.logger.Errorf("s3 CREATE operation exceptions: %s", err)
 		}
-		return nil, err
 
 	case bindings.GetOperation:
 		buff := &aws.WriteAtBuffer{}
-		_, err := s.downloader.Download(buff, &s3.GetObjectInput{
+		_, err = s.downloader.Download(buff, &s3.GetObjectInput{
 			Bucket: aws.String(s.metadata.Bucket),
 			Key:    aws.String(key),
 		})
-		resp := (*bindings.InvokeResponse) (nil)
 		if (err == nil) {
-			resp = &bindings.InvokeResponse{
-				Data: buff.Bytes(),
-			}
-		}  else {
+			data = buff.Bytes()
+		} else {
 			s.logger.Errorf("s3 GET operation exceptions: %s", err)
 		}
-		return resp, err
 		
 	case bindings.DeleteOperation:
-		_, err := s.svc.DeleteObject(&s3.DeleteObjectInput{
+		_, err = s.svc.DeleteObject(&s3.DeleteObjectInput{
 			Bucket: aws.String(s.metadata.Bucket),
 			Key:    aws.String(key),
 		})
 		if (err != nil) {
 			s.logger.Errorf("s3 DELETE operation exceptions: %s", err)
 		}
-		return nil, err
 
 	case CopyOperation:
 		source, err := s.getReqParam(req, "source")
 		if (err != nil) {
 			return nil, err
 		}
-
 		_, err = s.svc.CopyObject(&s3.CopyObjectInput{
 
 			CopySource: aws.String(url.PathEscape(source)),
@@ -127,10 +131,13 @@ func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		if (err != nil) {
 			s.logger.Errorf("s3 COPY operation exceptions: %s", err)
 		}
-		return nil, err
 	}
 
-	return nil, nil
+	resp := &bindings.InvokeResponse{
+		Data:     data,
+		Metadata: map[string]string{"bucket": bucket, "key": key},
+	}
+	return resp, err
 }
 
 func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {

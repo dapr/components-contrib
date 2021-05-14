@@ -111,7 +111,6 @@ require (
 	github.com/zeebe-io/zeebe/clients/go v0.26.3
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.5 // indirect
-	go.uber.org/atomic v1.6.0 // indirect
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b
 	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c

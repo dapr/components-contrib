@@ -24,7 +24,6 @@ const (
 type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
-	producer pulsar.Producer
 	metadata pulsarMetadata
 
 	ctx           context.Context
@@ -105,10 +104,14 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
-	producer, _ := p.cache.Get(req.Topic)
-	if producer == nil {
+	var (
+		producer pulsar.Producer
+		err      error
+	)
+	cache, _ := p.cache.Get(req.Topic)
+	if cache == nil {
 		p.logger.Debugf("creating producer for topic %s", req.Topic)
-		producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
+		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
 			Topic: req.Topic,
 		})
 		if err != nil {
@@ -116,12 +119,11 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		}
 
 		p.cache.Add(req.Topic, producer)
-		p.producer = producer
 	} else {
-		p.producer = producer.(pulsar.Producer)
+		producer = cache.(pulsar.Producer)
 	}
 
-	_, err := p.producer.Send(context.Background(), &pulsar.ProducerMessage{
+	_, err = producer.Send(context.Background(), &pulsar.ProducerMessage{
 		Payload: req.Data,
 	})
 	if err != nil {

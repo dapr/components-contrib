@@ -166,7 +166,7 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{},
 					},
@@ -185,7 +185,7 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{
@@ -214,7 +214,7 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{
@@ -258,7 +258,7 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{
@@ -269,7 +269,8 @@ func TestResolveID(t *testing.T) {
 										"DAPR_PORT": "50005",
 									},
 								},
-							}},
+							},
+						},
 					},
 				}
 				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
@@ -286,7 +287,7 @@ func TestResolveID(t *testing.T) {
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
 				t.Helper()
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{

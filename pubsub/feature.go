@@ -8,6 +8,8 @@ package pubsub
 const (
 	// FeatureMessageTTL is the feature to handle message TTL.
 	FeatureMessageTTL Feature = "MESSAGE_TTL"
+	// FeatureRawData is the feature not to use runtime_pubsub.NewCloudEvent but use Data from app.
+	FeatureRawData Feature = "RAW_DATA"
 )
 
 // Feature names a feature that can be implemented by PubSub components.

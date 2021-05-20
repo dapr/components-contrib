@@ -18,7 +18,7 @@ type Settings struct {
 	// The Redis password
 	Password string `mapstructure:"redisPassword"`
 	// Database to be selected after connecting to the server.
-	Db int `mapstructure:"redisDB"`
+	DB int `mapstructure:"redisDB"`
 	// The redis type node or cluster
 	RedisType string `mapstructure:"redisType"`
 	// Maximum number of retries before giving up.

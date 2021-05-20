@@ -78,7 +78,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, 50000*time.Millisecond, m.WriteTimeout)
 		assert.Equal(t, 20, m.PoolSize)
 		assert.Equal(t, 200*time.Second, m.MaxConnAge)
-		assert.Equal(t, 1, m.Db)
+		assert.Equal(t, 1, m.DB)
 		assert.Equal(t, 1, m.RedisMaxRetries)
 		assert.Equal(t, 8*time.Millisecond, m.RedisMinRetryInterval)
 		assert.Equal(t, 1*time.Second, m.RedisMaxRetryInterval)

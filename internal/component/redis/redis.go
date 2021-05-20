@@ -30,12 +30,12 @@ func ParseClientFromProperties(properties map[string]string) (client redis.Unive
 	return newClient(settings), settings, nil
 }
 
-
 func newFailoverClient(s *Settings) redis.UniversalClient {
 	if s == nil {
 		return nil
 	}
 	opts := &redis.FailoverOptions{
+		DB:                 s.DB,
 		MasterName:         s.SentinelMasterName,
 		SentinelAddrs:      []string{s.Host},
 		Password:           s.Password,
@@ -103,6 +103,7 @@ func newClient(s *Settings) redis.UniversalClient {
 	options := &redis.Options{
 		Addr:               s.Host,
 		Password:           s.Password,
+		DB:                 s.DB,
 		MaxRetries:         s.RedisMaxRetries,
 		MaxRetryBackoff:    s.RedisMaxRetryInterval,
 		MinRetryBackoff:    s.RedisMinRetryInterval,

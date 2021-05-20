@@ -8,8 +8,9 @@ package redis
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/go-redis/redis/v8"
 	"strings"
+
+	"github.com/go-redis/redis/v8"
 )
 
 const (

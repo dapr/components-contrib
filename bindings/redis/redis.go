@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/kit/logger"
@@ -28,8 +30,9 @@ const (
 
 // Redis is a redis output binding
 type Redis struct {
-	*rediscomponent.ComponentClient
-	logger logger.Logger
+	client         redis.UniversalClient
+	clientSettings *rediscomponent.Settings
+	logger         logger.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -37,7 +40,7 @@ type Redis struct {
 
 // NewRedis returns a new redis bindings instance
 func NewRedis(logger logger.Logger) *Redis {
-	return &Redis{logger: logger, ComponentClient: &rediscomponent.ComponentClient{}}
+	return &Redis{logger: logger}
 }
 
 // Init performs metadata parsing and connection creation
@@ -47,16 +50,16 @@ func (r *Redis) Init(meta bindings.Metadata) error {
 		return err
 	}
 
-	err = r.ComponentClient.Init(meta.Properties)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties)
 	if err != nil {
 		return err
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	_, err = r.Client.Ping(r.ctx).Result()
+	_, err = r.client.Ping(r.ctx).Result()
 	if err != nil {
-		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.ClientMetadata.Host, err)
+		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
 	return err
@@ -93,7 +96,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.Client.Do(r.ctx, "SET", key, req.Data).Result()
+		_, err := r.client.Do(r.ctx, "SET", key, req.Data).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -107,5 +110,5 @@ func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 func (r *Redis) Close() error {
 	r.cancel()
 
-	return r.Client.Close()
+	return r.client.Close()
 }

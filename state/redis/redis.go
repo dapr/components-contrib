@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/agrea/ptr"
+	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
@@ -39,10 +40,11 @@ const (
 // StateStore is a Redis state store
 type StateStore struct {
 	state.DefaultBulkStore
-	*rediscomponent.ComponentClient
-	json     jsoniter.API
-	metadata metadata
-	replicas int
+	client         redis.UniversalClient
+	clientSettings *rediscomponent.Settings
+	json           jsoniter.API
+	metadata       metadata
+	replicas       int
 
 	features []state.Feature
 	logger   logger.Logger
@@ -54,10 +56,9 @@ type StateStore struct {
 // NewRedisStateStore returns a new redis state store
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		ComponentClient: &rediscomponent.ComponentClient{},
-		json:            jsoniter.ConfigFastest,
-		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
-		logger:          logger,
+		json:     jsoniter.ConfigFastest,
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -96,15 +97,15 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	r.metadata = m
 
-	err = r.ComponentClient.Init(metadata.Properties)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties)
 	if err != nil {
 		return err
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	if _, err = r.Client.Ping(r.ctx).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.ClientMetadata.Host, err)
+	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
 	r.replicas, err = r.getConnectedSlaves()
@@ -118,7 +119,7 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.Client.Do(r.ctx, "INFO", "replication").Result()
+	res, err := r.client.Do(r.ctx, "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}
@@ -151,7 +152,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 		etag := "0"
 		req.ETag = &etag
 	}
-	_, err := r.Client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err := r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -170,7 +171,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.Client.Do(r.ctx, "GET", req.Key).Result()
+	res, err := r.client.Do(r.ctx, "GET", req.Key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +189,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 
 // Get retrieves state from redis with a key
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.Client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
@@ -223,7 +224,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
-	_, err = r.Client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt).Result()
+	_, err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt).Result()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -233,7 +234,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		_, err = r.Client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		_, err = r.client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
 		if err != nil {
 			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
 		}
@@ -249,7 +250,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
-	pipe := r.Client.TxPipeline()
+	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
@@ -311,5 +312,5 @@ func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
 func (r *StateStore) Close() error {
 	r.cancel()
 
-	return r.Client.Close()
+	return r.client.Close()
 }

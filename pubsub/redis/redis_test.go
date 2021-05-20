@@ -15,7 +15,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -86,7 +85,7 @@ func TestProcessStreams(t *testing.T) {
 	}
 
 	// act
-	testRedisStream := &redisStreams{logger: logger.NewLogger("test"), ComponentClient: &rediscomponent.ComponentClient{}}
+	testRedisStream := &redisStreams{logger: logger.NewLogger("test")}
 	testRedisStream.ctx, testRedisStream.cancel = context.WithCancel(context.Background())
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()

@@ -13,6 +13,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	host                  = "redisHost"
+	password              = "redisPassword"
+	db                    = "redisDB"
+	redisType             = "redisType"
+	redisMaxRetries       = "redisMaxRetries"
+	redisMinRetryInterval = "redisMinRetryInterval"
+	redisMaxRetryInterval = "redisMaxRetryInterval"
+	dialTimeout           = "dialTimeout"
+	readTimeout           = "readTimeout"
+	writeTimeout          = "writeTimeout"
+	poolSize              = "poolSize"
+	minIdleConns          = "minIdleConns"
+	poolTimeout           = "poolTimeout"
+	idleTimeout           = "idleTimeout"
+	idleCheckFrequency    = "idleCheckFrequency"
+	maxConnAge            = "maxConnAge"
+	enableTLS             = "enableTLS"
+	failover              = "failover"
+	sentinelMasterName    = "sentinelMasterName"
+)
+
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		host:                  "fake.redis.com",
@@ -32,6 +54,8 @@ func getFakeProperties() map[string]string {
 		poolTimeout:           "1s",
 		idleTimeout:           "1s",
 		idleCheckFrequency:    "1s",
+		failover:              "true",
+		sentinelMasterName:    "master",
 	}
 }
 
@@ -40,27 +64,30 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		// act
-		m, err := parseRedisMetadata(fakeProperties)
+		m := &Settings{}
+		err := m.Decode(fakeProperties)
 
 		// assert
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[host], m.Host)
-		assert.Equal(t, fakeProperties[password], m.password)
-		assert.Equal(t, fakeProperties[redisType], m.redisType)
-		assert.Equal(t, true, m.enableTLS)
-		assert.Equal(t, 5*time.Second, m.dialTimeout)
+		assert.Equal(t, fakeProperties[password], m.Password)
+		assert.Equal(t, fakeProperties[redisType], m.RedisType)
+		assert.Equal(t, true, m.EnableTLS)
+		assert.Equal(t, 5*time.Second, m.DialTimeout)
 		assert.Equal(t, 5*time.Second, m.ReadTimeout)
-		assert.Equal(t, 50000*time.Millisecond, m.writeTimeout)
-		assert.Equal(t, 20, m.poolSize)
-		assert.Equal(t, 200*time.Second, m.maxConnAge)
-		assert.Equal(t, 1, m.db)
-		assert.Equal(t, 1, m.redisMaxRetries)
-		assert.Equal(t, 8*time.Millisecond, m.redisMinRetryInterval)
-		assert.Equal(t, 1*time.Second, m.redisMaxRetryInterval)
-		assert.Equal(t, 1, m.minIdleConns)
-		assert.Equal(t, 1*time.Second, m.poolTimeout)
-		assert.Equal(t, 1*time.Second, m.idleTimeout)
-		assert.Equal(t, 1*time.Second, m.idleCheckFrequency)
+		assert.Equal(t, 50000*time.Millisecond, m.WriteTimeout)
+		assert.Equal(t, 20, m.PoolSize)
+		assert.Equal(t, 200*time.Second, m.MaxConnAge)
+		assert.Equal(t, 1, m.Db)
+		assert.Equal(t, 1, m.RedisMaxRetries)
+		assert.Equal(t, 8*time.Millisecond, m.RedisMinRetryInterval)
+		assert.Equal(t, 1*time.Second, m.RedisMaxRetryInterval)
+		assert.Equal(t, 1, m.MinIdleConns)
+		assert.Equal(t, 1*time.Second, m.PoolTimeout)
+		assert.Equal(t, 1*time.Second, m.IdleTimeout)
+		assert.Equal(t, 1*time.Second, m.IdleCheckFrequency)
+		assert.Equal(t, true, m.Failover)
+		assert.Equal(t, "master", m.SentinelMasterName)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {
@@ -69,12 +96,12 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeProperties[host] = ""
 
 		// act
-		m, err := parseRedisMetadata(fakeProperties)
+		m := &Settings{}
+		err := m.Decode(fakeProperties)
 
 		// assert
 		assert.Error(t, errors.New("redis streams error: missing host address"), err)
 		assert.Empty(t, m.Host)
-		assert.Empty(t, m.password)
 	})
 
 	t.Run("check values can be set as -1", func(t *testing.T) {
@@ -87,13 +114,14 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeProperties[redisMinRetryInterval] = "-1"
 
 		// act
-		m, err := parseRedisMetadata(fakeProperties)
+		m := &Settings{}
+		err := m.Decode(fakeProperties)
 		// assert
 		assert.NoError(t, err)
 		assert.True(t, m.ReadTimeout == -1)
-		assert.True(t, m.idleTimeout == -1)
-		assert.True(t, m.idleCheckFrequency == -1)
-		assert.True(t, m.redisMaxRetryInterval == -1)
-		assert.True(t, m.redisMinRetryInterval == -1)
+		assert.True(t, m.IdleTimeout == -1)
+		assert.True(t, m.IdleCheckFrequency == -1)
+		assert.True(t, m.RedisMaxRetryInterval == -1)
+		assert.True(t, m.RedisMinRetryInterval == -1)
 	})
 }

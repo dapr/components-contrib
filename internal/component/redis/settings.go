@@ -6,61 +6,72 @@
 package redis
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/dapr/components-contrib/internal/config"
 )
 
-type Metadata struct {
+type Settings struct {
 	// The Redis host
-	Host string
+	Host string `mapstructure:"redisHost"`
 	// The Redis password
-	password string
+	Password string `mapstructure:"redisPassword"`
 	// Database to be selected after connecting to the server.
-	db int
+	Db int `mapstructure:"redisDB"`
 	// The redis type node or cluster
-	redisType string
+	RedisType string `mapstructure:"redisType"`
 	// Maximum number of retries before giving up.
 	// A value of -1 (not 0) disables retries
 	// Default is 3 retries
-	redisMaxRetries int
+	RedisMaxRetries int `mapstructure:"redisMaxRetries"`
 	// Minimum backoff between each retry.
 	// Default is 8 milliseconds; -1 disables backoff.
-	redisMinRetryInterval time.Duration
+	RedisMinRetryInterval time.Duration `mapstructure:"redisMinRetryInterval"`
 	// Maximum backoff between each retry.
 	// Default is 512 milliseconds; -1 disables backoff.
-	redisMaxRetryInterval time.Duration
+	RedisMaxRetryInterval time.Duration `mapstructure:"redisMaxRetryInterval"`
 	// Dial timeout for establishing new connections.
-	dialTimeout time.Duration
+	DialTimeout time.Duration `mapstructure:"dialTimeout"`
 	// Timeout for socket reads. If reached, commands will fail
 	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
-	ReadTimeout time.Duration
+	ReadTimeout time.Duration `mapstructure:"readTimeout"`
 	// Timeout for socket writes. If reached, commands will fail
-	writeTimeout time.Duration
+	WriteTimeout time.Duration `mapstructure:"writeTimeout"`
 	// Maximum number of socket connections.
-	poolSize int
+	PoolSize int `mapstructure:"poolSize"`
 	// Minimum number of idle connections which is useful when establishing
 	// new connection is slow.
-	minIdleConns int
+	MinIdleConns int `mapstructure:"minIdleConns"`
 	// Connection age at which client retires (closes) the connection.
 	// Default is to not close aged connections.
-	maxConnAge time.Duration
+	MaxConnAge time.Duration `mapstructure:"maxConnAge"`
 	// Amount of time client waits for connection if all connections
 	// are busy before returning an error.
 	// Default is ReadTimeout + 1 second.
-	poolTimeout time.Duration
+	PoolTimeout time.Duration `mapstructure:"poolTimeout"`
 	// Amount of time after which client closes idle connections.
 	// Should be less than server's timeout.
 	// Default is 5 minutes. -1 disables idle timeout check.
-	idleTimeout time.Duration
+	IdleTimeout time.Duration `mapstructure:"idleTimeout"`
 	// Frequency of idle checks made by idle connections reaper.
 	// Default is 1 minute. -1 disables idle connections reaper,
 	// but idle connections are still discarded by the client
 	// if IdleTimeout is set.
-	idleCheckFrequency time.Duration
+	IdleCheckFrequency time.Duration `mapstructure:"idleCheckFrequency"`
 	// The master name
-	sentinelMasterName string
+	SentinelMasterName string `mapstructure:"sentinelMasterName"`
 	// Use Redis Sentinel for automatic failover.
-	failover bool
+	Failover bool `mapstructure:"failover"`
 
 	// A flag to enables TLS by setting InsecureSkipVerify to true
-	enableTLS bool
+	EnableTLS bool `mapstructure:"enableTLS"`
+}
+
+func (s *Settings) Decode(in interface{}) error {
+	if err := config.Decode(in, s); err != nil {
+		return fmt.Errorf("decode failed. %w", err)
+	}
+
+	return nil
 }

@@ -15,7 +15,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -119,9 +118,9 @@ func TestTransactionalUpsert(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		ComponentClient: &rediscomponent.ComponentClient{Client: c},
-		json:            jsoniter.ConfigFastest,
-		logger:          logger.NewLogger("test"),
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -151,9 +150,9 @@ func TestTransactionalDelete(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		ComponentClient: &rediscomponent.ComponentClient{Client: c},
-		json:            jsoniter.ConfigFastest,
-		logger:          logger.NewLogger("test"),
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -187,9 +186,9 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		ComponentClient: &rediscomponent.ComponentClient{Client: c},
-		json:            jsoniter.ConfigFastest,
-		logger:          logger.NewLogger("test"),
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 

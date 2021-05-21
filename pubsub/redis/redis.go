@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis/v8"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -361,11 +361,11 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		r.client = redis.NewClient(options)
 	}
 
-	if _, err = r.client.Ping().Result(); err != nil {
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+
+	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", m.host, err)
 	}
-
-	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	r.queue = make(chan redisMessageWrapper, int(r.metadata.queueDepth))
 
@@ -377,7 +377,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 }
 
 func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
-	_, err := r.client.XAdd(&redis.XAddArgs{
+	_, err := r.client.XAdd(r.ctx, &redis.XAddArgs{
 		Stream:       req.Topic,
 		MaxLenApprox: r.metadata.maxLenApprox,
 		Values:       map[string]interface{}{"data": req.Data},
@@ -390,7 +390,7 @@ func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (r *redisStreams) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	err := r.client.XGroupCreateMkStream(req.Topic, r.metadata.consumerID, "0").Err()
+	err := r.client.XGroupCreateMkStream(r.ctx, req.Topic, r.metadata.consumerID, "0").Err()
 	// Ignore BUSYGROUP errors
 	if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
 		r.logger.Errorf("redis streams: %s", err)
@@ -478,7 +478,7 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 		return err
 	}
 
-	if err := r.client.XAck(msg.message.Topic, r.metadata.consumerID, msg.messageID).Err(); err != nil {
+	if err := r.client.XAck(r.ctx, msg.message.Topic, r.metadata.consumerID, msg.messageID).Err(); err != nil {
 		r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
 
 		return err
@@ -497,15 +497,17 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler pubsub.Handler
 		}
 
 		// Read messages
-		streams, err := r.client.XReadGroup(&redis.XReadGroupArgs{
+		streams, err := r.client.XReadGroup(r.ctx, &redis.XReadGroupArgs{
 			Group:    r.metadata.consumerID,
 			Consumer: r.metadata.consumerID,
 			Streams:  []string{stream, ">"},
 			Count:    int64(r.metadata.queueDepth),
-			Block:    0,
+			Block:    r.metadata.readTimeout,
 		}).Result()
 		if err != nil {
-			r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+			if !errors.Is(err, redis.Nil) {
+				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
+			}
 
 			continue
 		}
@@ -547,7 +549,7 @@ func (r *redisStreams) reclaimPendingMessagesLoop(stream string, handler pubsub.
 func (r *redisStreams) reclaimPendingMessages(stream string, handler pubsub.Handler) {
 	for {
 		// Retrieve pending messages for this stream and consumer
-		pendingResult, err := r.client.XPendingExt(&redis.XPendingExtArgs{
+		pendingResult, err := r.client.XPendingExt(r.ctx, &redis.XPendingExtArgs{
 			Stream: stream,
 			Group:  r.metadata.consumerID,
 			Start:  "-",
@@ -574,7 +576,7 @@ func (r *redisStreams) reclaimPendingMessages(stream string, handler pubsub.Hand
 		}
 
 		// Attempt to claim the messages for the filtered IDs
-		claimResult, err := r.client.XClaim(&redis.XClaimArgs{
+		claimResult, err := r.client.XClaim(r.ctx, &redis.XClaimArgs{
 			Stream:   stream,
 			Group:    r.metadata.consumerID,
 			Consumer: r.metadata.consumerID,
@@ -614,7 +616,7 @@ func (r *redisStreams) reclaimPendingMessages(stream string, handler pubsub.Hand
 func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string, messageIDs map[string]struct{}, handler pubsub.Handler) {
 	// Check each message ID individually.
 	for pendingID := range messageIDs {
-		claimResultSingleMsg, err := r.client.XClaim(&redis.XClaimArgs{
+		claimResultSingleMsg, err := r.client.XClaim(r.ctx, &redis.XClaimArgs{
 			Stream:   stream,
 			Group:    r.metadata.consumerID,
 			Consumer: r.metadata.consumerID,
@@ -629,7 +631,7 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(stream string,
 
 		// Ack the message to remove it from the pending list.
 		if errors.Is(err, redis.Nil) {
-			if err = r.client.XAck(stream, r.metadata.consumerID, pendingID).Err(); err != nil {
+			if err = r.client.XAck(r.ctx, stream, r.metadata.consumerID, pendingID).Err(); err != nil {
 				r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
 			}
 		} else {

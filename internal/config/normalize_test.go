@@ -3,17 +3,18 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package nameresolution_test
+package config_test
 
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/internal/config"
 )
 
-func TestConfiguration(t *testing.T) {
+func TestNormalize(t *testing.T) {
 	tests := map[string]struct {
 		input    interface{}
 		expected interface{}
@@ -84,7 +85,7 @@ func TestConfiguration(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actual, err := nameresolution.ConvertConfig(tc.input)
+			actual, err := config.Normalize(tc.input)
 			if tc.err != "" {
 				require.Error(t, err)
 				assert.EqualError(t, err, tc.err)

@@ -106,6 +106,24 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[strin
 	return m, nil
 }
 
+// FromRawPayload returns a CloudEvent for a raw payload on subscriber's end.
+func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
+	// Limitations of generating the CloudEvent on the subscriber side based on raw payload:
+	// - The CloudEvent ID will be random, so the same message can be redelivered as a different ID.
+	// - TraceID is not useful since it is random and not from publisher side.
+	// - Data is always returned as `data_base64` since we don't know the actual content type.
+	return map[string]interface{}{
+		IDField:              uuid.New().String(),
+		SpecVersionField:     CloudEventsSpecVersion,
+		DataContentTypeField: "application/octet-stream",
+		SourceField:          DefaultCloudEventSource,
+		TypeField:            DefaultCloudEventType,
+		TopicField:           topic,
+		PubsubField:          pubsub,
+		DataBase64Field:      base64.StdEncoding.EncodeToString(data),
+	}
+}
+
 // HasExpired determines if the current cloud event has expired.
 func HasExpired(cloudEvent map[string]interface{}) bool {
 	e, ok := cloudEvent[ExpirationField]

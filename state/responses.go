@@ -12,6 +12,7 @@ type GetResponse struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
+// BulkGetResponse is the response object for bulk get response.
 type BulkGetResponse struct {
 	Key      string            `json:"key"`
 	Data     []byte            `json:"data"`

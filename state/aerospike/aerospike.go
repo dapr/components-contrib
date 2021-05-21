@@ -162,9 +162,11 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 	policy := &as.BasePolicy{}
 	if req.Options.Consistency == state.Strong {
-		policy.ConsistencyLevel = as.CONSISTENCY_ALL
+		policy.ReadModeAP = as.ReadModeAPAll
+		policy.ReadModeSC = as.ReadModeSCLinearize
 	} else {
-		policy.ConsistencyLevel = as.CONSISTENCY_ONE
+		policy.ReadModeAP = as.ReadModeAPOne
+		policy.ReadModeSC = as.ReadModeSCSession
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {

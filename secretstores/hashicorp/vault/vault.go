@@ -35,6 +35,7 @@ const (
 	componentCaPem               string = "caPem"
 	componentSkipVerify          string = "skipVerify"
 	componentTLSServerName       string = "tlsServerName"
+	componentVaultToken          string = "vaultToken"
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
 	defaultVaultKVPrefix         string = "dapr"
@@ -52,6 +53,7 @@ const (
 type vaultSecretStore struct {
 	client              *http.Client
 	vaultAddress        string
+	vaultToken          string
 	vaultTokenMountPath string
 	vaultKVPrefix       string
 	vaultEnginePath     string
@@ -116,6 +118,26 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 		v.parseAsMap = false
 	}
 
+	v.vaultToken = props[componentVaultToken]
+	v.vaultTokenMountPath = props[componentVaultTokenMountPath]
+
+	// Test that at least one of them are set if not return error
+	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
+		return fmt.Errorf("token mount path and token not set")
+	}
+
+	// Test that both are not set. If so return error
+	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
+		return fmt.Errorf("token mount path and token both set")
+	}
+
+	vaultKVPrefix := props[componentVaultKVPrefix]
+	if vaultKVPrefix == "" {
+		vaultKVPrefix = defaultVaultKVPrefix
+	}
+
+	v.vaultKVPrefix = vaultKVPrefix
+
 	// Generate TLS config
 	tlsConf := metadataToTLSConfig(props)
 
@@ -125,20 +147,6 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	}
 
 	v.client = client
-
-	tokenMountPath := props[componentVaultTokenMountPath]
-	if tokenMountPath == "" {
-		return fmt.Errorf("token mount path not set")
-	}
-
-	v.vaultTokenMountPath = tokenMountPath
-
-	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVPrefix == "" {
-		vaultKVPrefix = defaultVaultKVPrefix
-	}
-
-	v.vaultKVPrefix = vaultKVPrefix
 
 	return nil
 }
@@ -327,6 +335,10 @@ func (v *vaultSecretStore) isSecretPath(key string) bool {
 }
 
 func (v *vaultSecretStore) readVaultToken() (string, error) {
+	if v.vaultToken != "" {
+		return v.vaultToken, nil
+	}
+
 	data, err := ioutil.ReadFile(v.vaultTokenMountPath)
 	if err != nil {
 		return "", fmt.Errorf("couldn't read vault token: %s", err)

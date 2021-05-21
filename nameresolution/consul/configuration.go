@@ -8,7 +8,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 
-	"github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/components-contrib/internal/config"
 )
 
 // The intermediateConfig is based off of the consul api types. User configurations are
@@ -37,9 +37,8 @@ type configSpec struct {
 }
 
 func parseConfig(rawConfig interface{}) (configSpec, error) {
-	result := configSpec{}
-	config := intermediateConfig{}
-	rawConfig, err := nameresolution.ConvertConfig(rawConfig)
+	var result configSpec
+	rawConfig, err := config.Normalize(rawConfig)
 	if err != nil {
 		return result, err
 	}
@@ -52,11 +51,12 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
-	if err := decoder.Decode(&config); err != nil {
+	var configuration intermediateConfig
+	if err := decoder.Decode(&configuration); err != nil {
 		return result, fmt.Errorf("error deserializing to configSpec: %w", err)
 	}
 
-	result = mapConfig(config)
+	result = mapConfig(configuration)
 
 	return result, nil
 }

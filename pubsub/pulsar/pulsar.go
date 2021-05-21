@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -24,13 +24,12 @@ const (
 type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
-	producer pulsar.Producer
 	metadata pulsarMetadata
 
-	ctx     context.Context
-	cancel  context.CancelFunc
-	backOff backoff.BackOff
-	cache   *lru.Cache
+	ctx           context.Context
+	cancel        context.CancelFunc
+	backOffConfig retry.Config
+	cache         *lru.Cache
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -92,18 +91,27 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	p.client = client
 	p.metadata = *m
 
-	// TODO: Make the backoff configurable for constant or exponential
-	b := backoff.NewConstantBackOff(5 * time.Second)
-	p.backOff = backoff.WithContext(b, p.ctx)
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&p.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
-	producer, _ := p.cache.Get(req.Topic)
-	if producer == nil {
+	var (
+		producer pulsar.Producer
+		err      error
+	)
+	cache, _ := p.cache.Get(req.Topic)
+	if cache == nil {
 		p.logger.Debugf("creating producer for topic %s", req.Topic)
-		producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
+		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
 			Topic: req.Topic,
 		})
 		if err != nil {
@@ -111,12 +119,11 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		}
 
 		p.cache.Add(req.Topic, producer)
-		p.producer = producer
 	} else {
-		p.producer = producer.(pulsar.Producer)
+		producer = cache.(pulsar.Producer)
 	}
 
-	_, err := p.producer.Send(context.Background(), &pulsar.ProducerMessage{
+	_, err = producer.Send(context.Background(), &pulsar.ProducerMessage{
 		Payload: req.Data,
 	})
 	if err != nil {
@@ -174,7 +181,9 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 		Metadata: msg.Properties(),
 	}
 
-	return pubsub.RetryNotifyRecover(func() error {
+	b := p.backOffConfig.NewBackOffWithContext(p.ctx)
+
+	return retry.NotifyRecover(func() error {
 		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
 		err := handler(p.ctx, &pubsubMsg)
 		if err == nil {
@@ -182,7 +191,7 @@ func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handle
 		}
 
 		return err
-	}, p.backOff, func(err error, d time.Duration) {
+	}, b, func(err error, d time.Duration) {
 		p.logger.Errorf("Error processing Pulsar message: %s/%#v [key=%s]. Retrying...", msg.Topic(), msg.ID(), msg.Key())
 	}, func() {
 		p.logger.Infof("Successfully processed Pulsar message after it previously failed: %s/%#v [key=%s]", msg.Topic(), msg.ID(), msg.Key())

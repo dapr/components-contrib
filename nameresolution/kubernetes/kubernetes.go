@@ -8,6 +8,7 @@ package kubernetes
 import (
 	"fmt"
 
+	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -32,7 +33,7 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 
 // Init initializes Kubernetes name resolver.
 func (k *resolver) Init(metadata nameresolution.Metadata) error {
-	configInterface, err := nameresolution.ConvertConfig(metadata.Configuration)
+	configInterface, err := config.Normalize(metadata.Configuration)
 	if err != nil {
 		return err
 	}

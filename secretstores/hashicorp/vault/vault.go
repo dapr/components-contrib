@@ -197,9 +197,6 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 
 	var d vaultKVResponse
 
-	// Only using secret data and ignore metadata
-	// TODO: add support for metadata response when secretstores support it.
-
 	if v.parseAsMap {
 		// parse the secret value to map[string]string
 		if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
@@ -243,49 +240,16 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	version := "0"
 
-	token, err := v.readVaultToken()
-	if err != nil {
-		return secretstores.BulkGetSecretResponse{Data: nil}, err
-	}
-
-	// Create list secrets url
-	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/%s/metadata/%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix)
-
-	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
-	if err != nil {
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't generate request: %s", err)
-	}
-
-	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, token)
-	// Set X-Vault-Request header
-	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
-	httpresp, err := v.client.Do(httpReq)
-	if err != nil {
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)
-	}
-
-	defer httpresp.Body.Close()
-
-	if httpresp.StatusCode != 200 {
-		var b bytes.Buffer
-		io.Copy(&b, httpresp.Body)
-
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get successful response: %#v, %s",
-			httpresp, b.String())
-	}
-
-	var d vaultListKVResponse
-
-	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't decode response body: %s", err)
-	}
-
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},
 	}
 
-	for _, key := range d.Data.Keys {
+	keys, err := v.listKeysUnderPath("")
+	if err != nil {
+		return secretstores.BulkGetSecretResponse{}, err
+	}
+
+	for _, key := range keys {
 		keyValues := map[string]string{}
 		secrets, err := v.getSecret(key, version)
 		if err != nil {
@@ -299,6 +263,67 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	}
 
 	return resp, nil
+}
+
+// listKeysUnderPath get all the keys recursively under a given path.(returned keys including path as prefix)
+// path should not has `/` prefix.
+func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
+	token, err := v.readVaultToken()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create list secrets url
+	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/%s/metadata/%s/%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, path)
+
+	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate request: %s", err)
+	}
+	// Set vault token.
+	httpReq.Header.Set(vaultHTTPHeader, token)
+	// Set X-Vault-Request header
+	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
+	httpresp, err := v.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get secret: %s", err)
+	}
+
+	defer httpresp.Body.Close()
+
+	if httpresp.StatusCode != 200 {
+		var b bytes.Buffer
+		io.Copy(&b, httpresp.Body)
+
+		return nil, fmt.Errorf("couldn't get successful response, status code: %d, status: %s, response %s",
+			httpresp.StatusCode, httpresp.Status, b.String())
+	}
+
+	var d vaultListKVResponse
+
+	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
+		return nil, fmt.Errorf("couldn't decode response body: %s", err)
+	}
+	var res = make([]string, 0, len(d.Data.Keys))
+	for _, key := range d.Data.Keys {
+		if v.isSecretPath(key) {
+			res = append(res, path+key)
+		} else {
+			subKeys, err := v.listKeysUnderPath(path + key)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, subKeys...)
+		}
+	}
+
+	return res, nil
+}
+
+// isSecretPath checks if the key is a valid secret path
+// or it is part of the secret path
+func (v *vaultSecretStore) isSecretPath(key string) bool {
+	return !strings.HasSuffix(key, "/")
 }
 
 func (v *vaultSecretStore) readVaultToken() (string, error) {

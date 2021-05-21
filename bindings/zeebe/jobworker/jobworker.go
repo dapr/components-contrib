@@ -161,23 +161,27 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	h.logger.Debugf("Complete job %s of type %s", jobKey, job.Type)
+	h.logger.Debugf("Complete job `%d` of type `%s`", jobKey, job.Type)
 
 	ctx := context.Background()
 	_, err = request.Send(ctx)
 	if err != nil {
-		panic(err)
+		h.logger.Errorf("Cannot complete job `%d` of type `%s`; got error: %s", jobKey, job.Type, err.Error())
+
+		return
 	}
 
 	h.logger.Debug("Successfully completed job")
 }
 
 func (h *jobHandler) failJob(client worker.JobClient, job entities.Job, reason error) {
-	h.logger.Errorf("Failed to complete job `%s` reason: %w", job.GetKey(), reason)
+	h.logger.Errorf("Failed to complete job `%d` reason: %w", job.GetKey(), reason)
 
 	ctx := context.Background()
 	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).Send(ctx)
 	if err != nil {
-		panic(err)
+		h.logger.Errorf("Cannot fail job `%d` of type `%s`; got error: %s", job.GetKey(), job.Type, err.Error())
+
+		return
 	}
 }

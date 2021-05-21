@@ -175,7 +175,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 }
 
 func (h *jobHandler) failJob(client worker.JobClient, job entities.Job, reason error) {
-	h.logger.Errorf("Failed to complete job `%d` reason: %w", job.GetKey(), reason)
+	h.logger.Errorf("Failed to complete job `%d` reason: %s", job.GetKey(), reason.Error())
 
 	ctx := context.Background()
 	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).Send(ctx)

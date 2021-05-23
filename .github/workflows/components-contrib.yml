@@ -49,18 +49,14 @@ jobs:
           go-version: ${{ env.GOVER }}
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
-      - name: Download Go dependencies
-        if: matrix.target_arch != 'arm'
-        run: |
-          go mod download
       - name: Run golangci-lint
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
         uses: golangci/golangci-lint-action@v2.2.1
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
-      - name: Run make go.mod check-diff
-        if: matrix.target_arch != 'arm'
-        run: make go.mod check-diff
+      - name: Run go mod tidy check diff
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
+        run: make modtidy check-diff
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"

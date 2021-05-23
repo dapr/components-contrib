@@ -128,7 +128,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 	r.metadata = m
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, nil)
 	if err != nil {
 		return err
 	}

@@ -97,7 +97,8 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	r.metadata = m
 
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties)
+	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.maxRetries, RedisMaxRetryInterval: m.maxRetryBackoff}
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
 	if err != nil {
 		return err
 	}

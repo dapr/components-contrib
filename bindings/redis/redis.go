@@ -50,7 +50,7 @@ func (r *Redis) Init(meta bindings.Metadata) error {
 		return err
 	}
 
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
 	if err != nil {
 		return err
 	}

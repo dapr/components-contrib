@@ -18,8 +18,12 @@ const (
 	NodeType    = "node"
 )
 
-func ParseClientFromProperties(properties map[string]string) (client redis.UniversalClient, settings *Settings, err error) {
-	settings = &Settings{}
+func ParseClientFromProperties(properties map[string]string, defaultSettings *Settings) (client redis.UniversalClient, settings *Settings, err error) {
+	if defaultSettings == nil {
+		settings = &Settings{}
+	} else {
+		settings = defaultSettings
+	}
 	err = settings.Decode(properties)
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)

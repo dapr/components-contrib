@@ -5,6 +5,8 @@
 
 package bindings
 
+import "strings"
+
 // InvokeRequest is the object given to a dapr output binding
 type InvokeRequest struct {
 	Data      []byte            `json:"data"`
@@ -22,3 +24,9 @@ const (
 	DeleteOperation OperationKind = "delete"
 	ListOperation   OperationKind = "list"
 )
+
+// Equal compare OperationKind
+func (o OperationKind) Equal(target OperationKind) bool {
+	// ignore case-insensitivity
+	return strings.EqualFold(string(o), string(target))
+}

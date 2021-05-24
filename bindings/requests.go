@@ -25,8 +25,8 @@ const (
 	ListOperation   OperationKind = "list"
 )
 
-// Equal compare OperationKind
-func (o OperationKind) Equal(target OperationKind) bool {
+// EqualFold compare OperationKind
+func (o OperationKind) EqualFold(target OperationKind) bool {
 	// ignore case-insensitivity
 	return strings.EqualFold(string(o), string(target))
 }

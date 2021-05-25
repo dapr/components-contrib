@@ -217,14 +217,15 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
 	var args amqp.Table
 	if r.metadata.enableDeadLetter {
-		//declare dead letter exchange
+		// declare dead letter exchange
 		dlxName := fmt.Sprintf("%s-%s", defaultDeadLetterExchangeNamePrefix, queueName)
 		dlqName := fmt.Sprintf("%s-%s", defaultDeadLetterQueueNamePrefix, queueName)
-		err := r.ensureExchangeDeclared(channel, dlxName)
+		err = r.ensureExchangeDeclared(channel, dlxName)
 		if err != nil {
 			return nil, err
 		}
-		q, err := channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, nil)
+		var q amqp.Queue
+		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -57,7 +57,7 @@ require (
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
-	github.com/golang/mock v1.4.4
+	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
@@ -100,6 +100,7 @@ require (
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.7.0
+	github.com/supplyon/gremcos v0.1.0
 	github.com/tidwall/pretty v1.1.0 // indirect
 	github.com/valyala/fasthttp v1.21.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e

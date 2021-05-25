@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	fanoutExchangeKind     = "fanout"
-	logMessagePrefix       = "rabbitmq pub/sub:"
-	errorMessagePrefix     = "rabbitmq pub/sub error:"
-	errorChannelConnection = "channel/connection is not open"
+	fanoutExchangeKind                  = "fanout"
+	logMessagePrefix                    = "rabbitmq pub/sub:"
+	errorMessagePrefix                  = "rabbitmq pub/sub error:"
+	errorChannelConnection              = "channel/connection is not open"
+	defaultDeadLetterExchangeNamePrefix = "dlx"
+	defaultDeadLetterQueueNamePrefix    = "dlq"
 
 	metadataHostKey              = "host"
 	metadataConsumerIDKey        = "consumerID"
@@ -27,6 +29,7 @@ const (
 	metadataDeliveryModeKey      = "deliveryMode"
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
+	metadataEnableDeadLetter     = "enableDeadLetter"
 
 	defaultReconnectWaitSeconds = 10
 	metadataprefetchCount       = "prefetchCount"
@@ -212,7 +215,27 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
-	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, nil)
+	var args amqp.Table
+	if r.metadata.enableDeadLetter {
+		//declare dead letter exchange
+		dlxName := fmt.Sprintf("%s-%s", defaultDeadLetterExchangeNamePrefix, queueName)
+		dlqName := fmt.Sprintf("%s-%s", defaultDeadLetterQueueNamePrefix, queueName)
+		err := r.ensureExchangeDeclared(channel, dlxName)
+		if err != nil {
+			return nil, err
+		}
+		q, err := channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, nil)
+		if err != nil {
+			return nil, err
+		}
+		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
+		if err != nil {
+			return nil, err
+		}
+		r.logger.Debugf("declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", queueName, dlqName, dlxName)
+		args = amqp.Table{"x-dead-letter-exchange": dlxName}
+	}
+	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
 		return nil, err
 	}

@@ -83,9 +83,11 @@ func (r *Duration) DecodeString(value string) error {
 	if val, err := strconv.Atoi(value); err == nil {
 		if val < 0 {
 			*r = Duration(val)
+
 			return nil
 		}
 		*r = Duration(time.Duration(val) * time.Millisecond)
+
 		return nil
 	}
 
@@ -96,5 +98,6 @@ func (r *Duration) DecodeString(value string) error {
 	}
 
 	*r = Duration(d)
+
 	return nil
 }

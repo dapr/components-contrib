@@ -181,6 +181,24 @@ func TestTransactionalDelete(t *testing.T) {
 	assert.Equal(t, 0, len(vals))
 }
 
+func TestPing(t *testing.T) {
+	s, c := setupMiniredis()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	err := ss.Ping()
+	assert.Nil(t, err)
+
+	s.Close()
+
+	err = ss.Ping()
+	assert.NotNil(t, err)
+}
+
 func TestTransactionalDeleteNoEtag(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()

@@ -30,9 +30,17 @@ const (
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
 	metadataEnableDeadLetter     = "enableDeadLetter"
+	metadataMaxLen               = "maxLen"
+	metadataMaxLenBytes          = "maxLenBytes"
 
 	defaultReconnectWaitSeconds = 10
 	metadataprefetchCount       = "prefetchCount"
+
+	argQueueMode          = "x-queue-mode"
+	argMaxLength          = "x-max-length"
+	argMaxLengthBytes     = "x-max-length-bytes"
+	argDeadLetterExchange = "x-dead-letter-exchange"
+	queueModeLazy         = "lazy"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format
@@ -225,7 +233,10 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 			return nil, err
 		}
 		var q amqp.Queue
-		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, nil)
+		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
+		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
+		dlqArgs[argQueueMode] = queueModeLazy
+		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
 		if err != nil {
 			return nil, err
 		}
@@ -234,8 +245,9 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 			return nil, err
 		}
 		r.logger.Debugf("declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", queueName, dlqName, dlxName)
-		args = amqp.Table{"x-dead-letter-exchange": dlxName}
+		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
+	args = r.metadata.formatQueueDeclareArgs(args)
 	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
 		return nil, err

@@ -91,7 +91,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 
 func (r *StateStore) Ping() error {
 	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.metadata.host, err)
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	r.metadata = m
 
-	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.maxRetries, RedisMaxRetryInterval: m.maxRetryBackoff}
+	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.maxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.maxRetryBackoff)}
 	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
 	if err != nil {
 		return err

@@ -93,9 +93,6 @@ func decodeString(
 		// Check for simple integer value and if the value is positive treat it
 		// as milliseconds
 		if val, err := strconv.Atoi(dataString); err == nil {
-			if val < 0 {
-				return time.Duration(val), nil
-			}
 			return time.Duration(val) * time.Millisecond, nil
 		}
 

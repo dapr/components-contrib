@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -45,17 +46,17 @@ func newFailoverClient(s *Settings) redis.UniversalClient {
 		SentinelAddrs:      []string{s.Host},
 		Password:           s.Password,
 		MaxRetries:         s.RedisMaxRetries,
-		MaxRetryBackoff:    s.RedisMaxRetryInterval,
-		MinRetryBackoff:    s.RedisMinRetryInterval,
-		DialTimeout:        s.DialTimeout,
-		ReadTimeout:        s.ReadTimeout,
-		WriteTimeout:       s.WriteTimeout,
+		MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
+		MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
+		DialTimeout:        time.Duration(s.DialTimeout),
+		ReadTimeout:        time.Duration(s.ReadTimeout),
+		WriteTimeout:       time.Duration(s.WriteTimeout),
 		PoolSize:           s.PoolSize,
-		MaxConnAge:         s.MaxConnAge,
+		MaxConnAge:         time.Duration(s.MaxConnAge),
 		MinIdleConns:       s.MinIdleConns,
-		PoolTimeout:        s.PoolTimeout,
-		IdleCheckFrequency: s.IdleCheckFrequency,
-		IdleTimeout:        s.IdleTimeout,
+		PoolTimeout:        time.Duration(s.PoolTimeout),
+		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
+		IdleTimeout:        time.Duration(s.IdleTimeout),
 	}
 
 	/* #nosec */
@@ -83,17 +84,17 @@ func newClient(s *Settings) redis.UniversalClient {
 			Addrs:              strings.Split(s.Host, ","),
 			Password:           s.Password,
 			MaxRetries:         s.RedisMaxRetries,
-			MaxRetryBackoff:    s.RedisMaxRetryInterval,
-			MinRetryBackoff:    s.RedisMinRetryInterval,
-			DialTimeout:        s.DialTimeout,
-			ReadTimeout:        s.ReadTimeout,
-			WriteTimeout:       s.WriteTimeout,
+			MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
+			MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
+			DialTimeout:        time.Duration(s.DialTimeout),
+			ReadTimeout:        time.Duration(s.ReadTimeout),
+			WriteTimeout:       time.Duration(s.WriteTimeout),
 			PoolSize:           s.PoolSize,
-			MaxConnAge:         s.MaxConnAge,
+			MaxConnAge:         time.Duration(s.MaxConnAge),
 			MinIdleConns:       s.MinIdleConns,
-			PoolTimeout:        s.PoolTimeout,
-			IdleCheckFrequency: s.IdleCheckFrequency,
-			IdleTimeout:        s.IdleTimeout,
+			PoolTimeout:        time.Duration(s.PoolTimeout),
+			IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
+			IdleTimeout:        time.Duration(s.IdleTimeout),
 		}
 		/* #nosec */
 		if s.EnableTLS {
@@ -110,17 +111,17 @@ func newClient(s *Settings) redis.UniversalClient {
 		Password:           s.Password,
 		DB:                 s.DB,
 		MaxRetries:         s.RedisMaxRetries,
-		MaxRetryBackoff:    s.RedisMaxRetryInterval,
-		MinRetryBackoff:    s.RedisMinRetryInterval,
-		DialTimeout:        s.DialTimeout,
-		ReadTimeout:        s.ReadTimeout,
-		WriteTimeout:       s.WriteTimeout,
+		MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
+		MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
+		DialTimeout:        time.Duration(s.DialTimeout),
+		ReadTimeout:        time.Duration(s.ReadTimeout),
+		WriteTimeout:       time.Duration(s.WriteTimeout),
 		PoolSize:           s.PoolSize,
-		MaxConnAge:         s.MaxConnAge,
+		MaxConnAge:         time.Duration(s.MaxConnAge),
 		MinIdleConns:       s.MinIdleConns,
-		PoolTimeout:        s.PoolTimeout,
-		IdleCheckFrequency: s.IdleCheckFrequency,
-		IdleTimeout:        s.IdleTimeout,
+		PoolTimeout:        time.Duration(s.PoolTimeout),
+		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
+		IdleTimeout:        time.Duration(s.IdleTimeout),
 	}
 
 	/* #nosec */

@@ -273,7 +273,7 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler pubsub.Handler
 			Consumer: r.metadata.consumerID,
 			Streams:  []string{stream, ">"},
 			Count:    int64(r.metadata.queueDepth),
-			Block:    r.clientSettings.ReadTimeout,
+			Block:    time.Duration(r.clientSettings.ReadTimeout),
 		}).Result()
 		if err != nil {
 			if !errors.Is(err, redis.Nil) {

@@ -89,6 +89,14 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 	return m, nil
 }
 
+func (r *StateStore) Ping() error {
+	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.metadata.host, err)
+	}
+
+	return nil
+}
+
 // Init does metadata and connection parsing
 func (r *StateStore) Init(metadata state.Metadata) error {
 	m, err := parseRedisMetadata(metadata)

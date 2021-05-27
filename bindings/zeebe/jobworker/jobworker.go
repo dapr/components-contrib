@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/entities"
@@ -134,6 +135,18 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 
 		return
 	}
+
+	headers["X-Zeebe-Job-Key"] = strconv.FormatInt(job.Key, 10)
+	headers["X-Zeebe-Job-Type"] = job.Type
+	headers["X-Zeebe-Process-Instance-Key"] = strconv.FormatInt(job.ProcessInstanceKey, 10)
+	headers["X-Zeebe-Bpmn-Process-Id"] = job.BpmnProcessId
+	headers["X-Zeebe-Process-Definition-Version"] = strconv.FormatInt(int64(job.ProcessDefinitionVersion), 10)
+	headers["X-Zeebe-Process-Definition-Key"] = strconv.FormatInt(job.ProcessDefinitionKey, 10)
+	headers["X-Zeebe-Element-Id"] = job.ElementId
+	headers["X-Zeebe-Element-Instance-Key"] = strconv.FormatInt(job.ElementInstanceKey, 10)
+	headers["X-Zeebe-Worker"] = job.Worker
+	headers["X-Zeebe-Retries"] = strconv.FormatInt(int64(job.Retries), 10)
+	headers["X-Zeebe-Deadline"] = strconv.FormatInt(job.Deadline, 10)
 
 	resultVariables, err := h.callback(&bindings.ReadResponse{
 		Data:     []byte(job.Variables),

@@ -230,7 +230,6 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	for _, redisKey := range keys {
 		item := &configuration.Item{
 			Metadata: map[string]string{},
-			Tags:     map[string]string{},
 		}
 
 		err := internal.ParseRedisKey(redisKey, item)

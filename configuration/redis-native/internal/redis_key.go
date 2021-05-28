@@ -52,7 +52,7 @@ func BuildRedisKey4Revision(appID string) (string, error) {
 }
 
 func IsRevisionKey(key string) bool {
-	return key == revisionKey
+	return strings.HasSuffix(key, revisionKey)
 }
 
 func ParseRedisKey(redisKey string, item *configuration.Item) error {

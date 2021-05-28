@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package redis_single
+package redis_native
 
 import "time"
 

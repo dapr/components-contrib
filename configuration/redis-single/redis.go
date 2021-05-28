@@ -241,54 +241,52 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	if err != nil {
 		return err
 	}
+	go r.doSubscribe(ctx, req, handler, redisKey)
 
-	go r.startSubscribe(ctx, req, handler, redisKey)
 	return nil
 }
 
-func (r *ConfigurationStore) startSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisKey string) error {
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisKey string) error {
 	// enable notify-keyspace-events by redis Set command
 	r.client.ConfigSet("notify-keyspace-events", "KA")
 	channel := fmt.Sprintf("__keyspace*__:%s", redisKey)
 	p := r.client.PSubscribe(channel)
-
 	for msg := range p.Channel() {
-		redisKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
-		if err != nil {
-			continue
-		}
-
-		appID, err := internal.ParseRedisKey(redisKey)
-		if err != nil {
-			continue
-		}
-		if appID != req.AppID {
-			continue
-		}
-
-		getRequest := configuration.GetRequest{
-			AppID: req.AppID,
-			Metadata: req.Metadata,
-		}
-		getResponse, err := r.Get(ctx, &getRequest)
-		if err != nil {
-			continue
-		}
-
-		//TODO: filter by keys in req
-		e := &configuration.UpdateEvent{
-			AppID: req.AppID,
-			Revision: getResponse.Revision,
-			Items: getResponse.Items,
-		}
-
-		err = handler(ctx, e)
-		if err != nil {
-			r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
-		}
+		r.handleSubscribedChange(ctx, req, handler, msg)
 	}
 
 	return nil
+}
+
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message) {
+	defer func() {
+		if err := recover(); err != nil {
+			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
+		}
+	}()
+
+	_, err := internal.ParseRedisKeyFromEvent(msg.Channel)
+	if err != nil {
+		return
+	}
+
+	getResponse, err := r.Get(ctx, &configuration.GetRequest {
+		AppID: req.AppID,
+		Metadata: req.Metadata,
+	})
+	if err != nil {
+		return
+	}
+
+	e := &configuration.UpdateEvent{
+		AppID: req.AppID,
+		Revision: getResponse.Revision,
+		Items: getResponse.Items,
+	}
+	err = handler(ctx, e)
+	if err != nil {
+		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+	}
 }
 
 func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.DeleteRequest) error {

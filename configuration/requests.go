@@ -17,7 +17,8 @@ type GetRequest struct {
 // SubscribeRequest is the object describing a subscribe configuration request
 type SubscribeRequest struct {
 	AppID    string            `json:"appID"`
-	Keys     []string          `json:"keys"`
+	Names    []string          `json:"names"`
+	Revision string            `json:"revision"`
 	Metadata map[string]string `json:"metadata"`
 }
 

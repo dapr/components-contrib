@@ -19,9 +19,11 @@ type Store interface {
 	Subscribe(ctx context.Context, req *SubscribeRequest, handler UpdateHandler) error
 
 	// Save configuration
+	// Only used for integration test now.
 	Save(ctx context.Context, req *SaveRequest) error
 
 	// Delete configuration
+	// Only used for integration test now.
 	Delete(ctx context.Context, req *DeleteRequest) error
 }
 

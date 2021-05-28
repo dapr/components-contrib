@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package redis_single
+package redis_native
 
 import (
 	"context"
@@ -259,9 +259,6 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			items = append(items, item)
 		}
 	}
-	//if req.SubscribeUpdate && handler != nil {
-	//	go r.startSubscribeUpdate(req, handler)
-	//}
 
 	return &configuration.GetResponse{
 		AppID: req.AppID,
@@ -271,63 +268,57 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) error {
-	redisChannels := make([]string, 0, len(req.Keys))
-	for _, key := range req.Keys {
-		redisKey, err := internal.BuildRedisKey(req.AppID, key)
-		if err != nil {
-			return err
-		}
-		redisChannels = append(redisChannels, fmt.Sprintf("__keyspace*__:%s", redisKey))
+	// not subscribed yet, start to subscribe and save to cache
+	redisKey4revision, err := internal.BuildRedisKey4Revision(req.AppID)
+	if err != nil {
+		return err
 	}
+	redisChannel := fmt.Sprintf("__keyspace*__:%s", redisKey4revision)
+	go r.doSubscribe(ctx, req, handler, redisChannel)
 
-	go r.startSubscribe(ctx, req, handler, redisChannels)
 	return nil
 }
 
-func (r *ConfigurationStore) startSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannels []string) error {
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string) error {
 	// enable notify-keyspace-events by redis Set command
 	// r.client.ConfigSet("notify-keyspace-events", "KA")
-	p := r.client.PSubscribe(redisChannels...)
-
+	p := r.client.PSubscribe(redisChannel4revision)
 	for msg := range p.Channel() {
-		redisKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
-		if err != nil {
-			continue
-		}
-
-		var item = &configuration.Item{}
-		err = internal.ParseRedisKey(redisKey, item)
-		if err != nil {
-			continue
-		}
-
-		switch msg.Payload {
-		case "hset":
-			redisValueMap, _ := r.client.HGetAll(redisKey).Result()
-			internal.ParseRedisValue(redisValueMap, item)
-		case "del":
-			// left item.Content to empty
-		}
-
-		// get revision
-		revisionKey, _ := internal.BuildRedisKey4Revision(req.AppID)
-		revision, _ := r.client.Get(revisionKey).Result()
-
-		e := &configuration.UpdateEvent{
-			AppID: req.AppID,
-			Revision: revision,
-			Items: []*configuration.Item{
-				item,
-			},
-		}
-
-		err = handler(ctx, e)
-		if err != nil {
-			r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
-		}
+		r.handleSubscribedChange(ctx, req, handler, msg)
 	}
 
 	return nil
+}
+
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message) {
+	defer func() {
+		if err := recover(); err != nil {
+			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
+		}
+	}()
+
+	_, err := internal.ParseRedisKeyFromEvent(msg.Channel)
+	if err != nil {
+		return
+	}
+
+	getResponse, err := r.Get(ctx, &configuration.GetRequest {
+		AppID: req.AppID,
+		Metadata: req.Metadata,
+	})
+	if err != nil {
+		return
+	}
+
+	e := &configuration.UpdateEvent{
+		AppID: req.AppID,
+		Revision: getResponse.Revision,
+		Items: getResponse.Items,
+	}
+	err = handler(ctx, e)
+	if err != nil {
+		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+	}
 }
 
 func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.DeleteRequest) error {
@@ -341,6 +332,10 @@ func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.Dele
 		return err
 	}
 
+	if len(redisKeys) == 0 {
+		return nil
+	}
+
 	revisionKey, _ := internal.BuildRedisKey4Revision(req.AppID)
 	deleteKeys := make([]string, 0, len(redisKeys))
 	for _, key := range redisKeys {
@@ -350,38 +345,36 @@ func (r *ConfigurationStore) Delete(ctx context.Context, req *configuration.Dele
 	}
 
 	// 2. execute all the delete in a transaction
-	pipe := r.client.TxPipeline()
-	pipe.Del(deleteKeys...)
+	if len(deleteKeys) > 0 {
+		pipe := r.client.TxPipeline()
+		pipe.Del(deleteKeys...)
+		revision := fmt.Sprintf("%d", time.Now().Unix())
+		pipe.Set(revisionKey, revision, 0)
+		_, err = pipe.Exec()
 
-	revision := fmt.Sprintf("%d", time.Now().Unix())
-	pipe.Set(revisionKey, revision, 0)
-	_, err = pipe.Exec()
-
-	if err != nil {
-		return fmt.Errorf("fail to delete configuration from redis: %s", err)
+		if err != nil {
+			return fmt.Errorf("fail to delete configuration from redis: %s", err)
+		}
 	}
 
 	return nil
 }
 
 func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRequest) error {
-	if len(req.Items) == 0 {
-		return nil
+	// step1: get all the keys for this app
+	pattern, err := internal.BuildRedisKeyPattern(req.AppID)
+	if err != nil {
+		return err
+	}
+	currentKeys, err := r.client.Keys(pattern).Result()
+	if err != nil {
+		return err
 	}
 
-	// 1. prepare redis keys/values to delete or save
-	deleteRedisKeys := make([]string, 0, len(req.Items))
+	// step2. prepare redis keys/values to save
 	saveRedisKeyValues := make(map[string]map[string]string)
-
 	for _, item := range req.Items {
-		if item.Content == "" {
-			// Content is empty: delete the configuration item
-			redisKey, err := internal.BuildRedisKey(req.AppID, item.Name)
-			if err != nil {
-				return fmt.Errorf("fail to build redis key for key=%s: %s", item.Name, err)
-			}
-			deleteRedisKeys = append(deleteRedisKeys, redisKey)
-		} else {
+		if item.Content != "" {
 			// save configuration item
 			redisKey, err := internal.BuildRedisKey(req.AppID, item.Name)
 			if err != nil {
@@ -395,7 +388,18 @@ func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRe
 		}
 	}
 
-	// 2. execute all the "key delete"/"key save"/"revision set" in a transaction
+	// step3: prepare redis keys to delete: key exists in redis but not exist in request
+	deleteRedisKeys := make([]string, 0, len(req.Items))
+	for _, key := range currentKeys {
+		if internal.IsRevisionKey(key) {
+			continue
+		}
+		if _, ok := saveRedisKeyValues[key]; !ok {
+			deleteRedisKeys = append(deleteRedisKeys, key)
+		}
+	}
+
+	// step4. execute all the "key delete"/"key save"/"revision set" in a transaction
 	pipe := r.client.TxPipeline()
 	if len(deleteRedisKeys) > 0 {
 		pipe.Del(deleteRedisKeys...)
@@ -412,7 +416,7 @@ func (r *ConfigurationStore) Save(ctx context.Context, req *configuration.SaveRe
 	revisionKey, _ := internal.BuildRedisKey4Revision(req.AppID)
 	revision := fmt.Sprintf("%d", time.Now().Unix())
 	pipe.Set(revisionKey, revision, 0)
-	_, err := pipe.Exec()
+	_, err = pipe.Exec()
 	if err != nil {
 		return fmt.Errorf("fail to save configuration into redis: %s", err)
 	}

@@ -42,7 +42,7 @@ func (z *ZeebeCommand) deployWorkflow(req *bindings.InvokeRequest) (*bindings.In
 	if val, ok := req.Metadata[fileType]; ok && val != "" {
 		deployFileType = val
 	} else {
-		var extension = filepath.Ext(deployFileName)
+		extension := filepath.Ext(deployFileName)
 		if extension == "" {
 			return nil, ErrMissingFileType
 		}

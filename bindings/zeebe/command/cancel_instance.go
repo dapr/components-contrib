@@ -14,9 +14,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-var (
-	ErrMissingWorkflowInstanceKey = errors.New("workflowInstanceKey is a required attribute")
-)
+var ErrMissingWorkflowInstanceKey = errors.New("workflowInstanceKey is a required attribute")
 
 type cancelInstancePayload struct {
 	WorkflowInstanceKey *int64 `json:"workflowInstanceKey"`

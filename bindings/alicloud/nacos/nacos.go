@@ -333,7 +333,7 @@ func convertConfigs(ss string) ([]configParam, error) {
 	}
 
 	for _, s := range strings.Split(ss, ",") {
-		var nacosConfigParam, err = convertConfig(s)
+		nacosConfigParam, err := convertConfig(s)
 		if err != nil {
 			return nil, err
 		}

@@ -311,3 +311,10 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 
 	return opts
 }
+
+func (m *MQTT) Close() error {
+	m.consumer.Disconnect(1)
+	m.producer.Disconnect(1)
+
+	return nil
+}

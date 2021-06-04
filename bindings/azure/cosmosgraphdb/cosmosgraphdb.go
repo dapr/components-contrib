@@ -112,7 +112,7 @@ func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			respOpKey:        string(req.Operation),
-			respGremlinKey:   string(gq),
+			respGremlinKey:   gq,
 			respStartTimeKey: startTime.Format(time.RFC3339Nano),
 		},
 	}

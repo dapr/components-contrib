@@ -28,7 +28,8 @@ func TestParseMetadata(t *testing.T) {
 			"emailTo":       "to@dapr.io",
 			"emailCC":       "cc@dapr.io",
 			"emailBCC":      "bcc@dapr.io",
-			"subject":       "Test email"}
+			"subject":       "Test email",
+		}
 		r := Mailer{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
 		assert.Nil(t, err)
@@ -47,7 +48,7 @@ func TestParseMetadata(t *testing.T) {
 
 func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
-		var smtpMeta = Metadata{
+		smtpMeta := Metadata{
 			Host:          "mailserver.dapr.io",
 			Port:          25,
 			User:          "user@dapr.io",
@@ -57,15 +58,17 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			EmailTo:       "to@dapr.io",
 			EmailCC:       "cc@dapr.io",
 			EmailBCC:      "bcc@dapr.io",
-			Subject:       "Test email"}
+			Subject:       "Test email",
+		}
 
-		var request = bindings.InvokeRequest{}
+		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
 			"emailFrom": "req-from@dapr.io",
 			"emailTo":   "req-to@dapr.io",
 			"emailCC":   "req-cc@dapr.io",
 			"emailBCC":  "req-bcc@dapr.io",
-			"subject":   "req-Test email"}
+			"subject":   "req-Test email",
+		}
 
 		mergedMeta := smtpMeta.mergeWithRequestMetadata(&request)
 
@@ -84,7 +87,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 func TestMergeWithNoRequestMetadata(t *testing.T) {
 	t.Run("Has no merged metadata", func(t *testing.T) {
-		var smtpMeta = Metadata{
+		smtpMeta := Metadata{
 			Host:          "mailserver.dapr.io",
 			Port:          25,
 			User:          "user@dapr.io",
@@ -94,9 +97,10 @@ func TestMergeWithNoRequestMetadata(t *testing.T) {
 			EmailTo:       "to@dapr.io",
 			EmailCC:       "cc@dapr.io",
 			EmailBCC:      "bcc@dapr.io",
-			Subject:       "Test email"}
+			Subject:       "Test email",
+		}
 
-		var request = bindings.InvokeRequest{}
+		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{}
 
 		mergedMeta := smtpMeta.mergeWithRequestMetadata(&request)

@@ -154,7 +154,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	var err error
 
 	if metadata.PrivateKeyID != "" {
-		//TODO: validate that all auth json fields are filled
+		// TODO: validate that all auth json fields are filled
 		authJSON := &GCPAuthJSON{
 			ProjectID:           metadata.IdentityProjectID,
 			PrivateKeyID:        metadata.PrivateKeyID,

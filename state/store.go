@@ -13,6 +13,7 @@ type Store interface {
 	Delete(req *DeleteRequest) error
 	Get(req *GetRequest) (*GetResponse, error)
 	Set(req *SetRequest) error
+	Ping() error
 }
 
 // BulkStore is an interface to perform bulk operations on store

@@ -58,12 +58,14 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	msg := "{\"type\": \"text\",\"text\": {\"content\": \"hello\"}}"
 
-	m := bindings.Metadata{Name: "test",
+	m := bindings.Metadata{
+		Name: "test",
 		Properties: map[string]string{
 			"url":    "/test",
 			"secret": "",
 			"id":     "x",
-		}}
+		},
+	}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)

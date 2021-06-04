@@ -16,9 +16,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
-	ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
-)
+var ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
 
 // ClientFactory enables injection for testing
 type ClientFactory interface {

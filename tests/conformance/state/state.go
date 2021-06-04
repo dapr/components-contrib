@@ -196,6 +196,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		assert.Nil(t, err)
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		err := statestore.Ping()
+		assert.Nil(t, err)
+	})
+
 	if config.HasOperation("set") {
 		t.Run("set", func(t *testing.T) {
 			for _, scenario := range scenarios {

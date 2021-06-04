@@ -138,6 +138,16 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return r.writeFile(req)
 }
 
+func (r *StateStore) Ping() error {
+	accessConditions := azblob.BlobAccessConditions{}
+
+	if _, err := r.containerURL.GetProperties(context.Background(), accessConditions.LeaseAccessConditions); err != nil {
+		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerURL.URL().Host, err)
+	}
+
+	return nil
+}
+
 // NewAzureBlobStorageStore instance
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{

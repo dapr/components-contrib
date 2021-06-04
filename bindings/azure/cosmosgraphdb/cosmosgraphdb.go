@@ -8,7 +8,6 @@ package cosmosgraphdb
 import (
 	"encoding/json"
 	"errors"
-
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -41,8 +40,8 @@ type cosmosGraphDBCredentials struct {
 	URL       string `json:"url"`
 	MasterKey string `json:"masterKey"`
 	Username  string `json:"username"`
-	//NumMaxActiveConnections string `json:"NumMaxActiveConnections"`
-	//ConnectionIdleTimeout   string `json:"ConnectionIdleTimeout"`
+	// NumMaxActiveConnections string `json:"NumMaxActiveConnections"`
+	// ConnectionIdleTimeout   string `json:"ConnectionIdleTimeout"`
 }
 
 // NewCosmosGraphDB returns a new CosmosGraphDB instance
@@ -59,11 +58,10 @@ func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 	c.metadata = m
 	client, err := gremcos.New(c.metadata.URL,
 		gremcos.WithAuth(c.metadata.Username, c.metadata.MasterKey),
-		//gremcos.NumMaxActiveConnections(m.NumMaxActiveConnections),
-		//gremcos.ConnectionIdleTimeout(time.Second* int(m.ConnectionIdleTimeout)),
-		//gremcos.MetricsPrefix("CosmosGraphDB"),
+		// gremcos.NumMaxActiveConnections(m.NumMaxActiveConnections),
+		// gremcos.ConnectionIdleTimeout(time.Second* int(m.ConnectionIdleTimeout)),
+		// gremcos.MetricsPrefix("CosmosGraphDB"),
 	)
-
 	if err != nil {
 		return errors.New("failed to create the Cosmos Graph DB connector")
 	}
@@ -74,7 +72,6 @@ func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 }
 
 func (c *CosmosGraphDB) parseMetadata(metadata bindings.Metadata) (*cosmosGraphDBCredentials, error) {
-
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
 		return nil, err
@@ -94,7 +91,6 @@ func (c *CosmosGraphDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	// if !c.client.IsConnected() {
 	// 	return nil, errors.New("cosmosGraphDb is not connected")
 	// }

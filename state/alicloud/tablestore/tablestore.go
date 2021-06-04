@@ -102,6 +102,7 @@ func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.Bul
 
 	mqCriteria := new(tablestore.MultiRowQueryCriteria)
 	mqCriteria.TableName = s.metadata.TableName
+	mqCriteria.MaxVersion = 1
 
 	for _, req := range reqs {
 		mqCriteria.AddRow(s.getPK(req.Key))

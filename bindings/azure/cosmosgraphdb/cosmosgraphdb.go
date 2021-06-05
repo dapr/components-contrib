@@ -40,8 +40,6 @@ type cosmosGraphDBCredentials struct {
 	URL       string `json:"url"`
 	MasterKey string `json:"masterKey"`
 	Username  string `json:"username"`
-	// NumMaxActiveConnections string `json:"NumMaxActiveConnections"`
-	// ConnectionIdleTimeout   string `json:"ConnectionIdleTimeout"`
 }
 
 // NewCosmosGraphDB returns a new CosmosGraphDB instance
@@ -58,9 +56,6 @@ func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 	c.metadata = m
 	client, err := gremcos.New(c.metadata.URL,
 		gremcos.WithAuth(c.metadata.Username, c.metadata.MasterKey),
-		// gremcos.NumMaxActiveConnections(m.NumMaxActiveConnections),
-		// gremcos.ConnectionIdleTimeout(time.Second* int(m.ConnectionIdleTimeout)),
-		// gremcos.MetricsPrefix("CosmosGraphDB"),
 	)
 	if err != nil {
 		return errors.New("failed to create the Cosmos Graph DB connector")
@@ -91,9 +86,6 @@ func (c *CosmosGraphDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	// if !c.client.IsConnected() {
-	// 	return nil, errors.New("cosmosGraphDb is not connected")
-	// }
 
 	if req == nil {
 		return nil, errors.New("invoke request required")
@@ -102,7 +94,6 @@ func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	if req.Metadata == nil {
 		return nil, errors.New("metadata required")
 	}
-	// m.logger.Debugf("operation: %v", req.Operation)
 
 	gq, ok := req.Metadata[commandGremlinKey]
 	if !ok || gq == "" {

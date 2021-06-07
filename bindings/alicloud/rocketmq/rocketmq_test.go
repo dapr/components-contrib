@@ -42,7 +42,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 
 	time.Sleep(5 * time.Second)
 	atomic.StoreInt32(&count, 0)
-	var req = &bindings.InvokeRequest{Data: []byte("hello"), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
+	req := &bindings.InvokeRequest{Data: []byte("hello"), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
 	_, err = r.Invoke(req)
 	require.NoError(t, err)
 

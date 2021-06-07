@@ -14,9 +14,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-var (
-	ErrMissingIncidentKey = errors.New("incidentKey is a required attribute")
-)
+var ErrMissingIncidentKey = errors.New("incidentKey is a required attribute")
 
 type resolveIncidentPayload struct {
 	IncidentKey *int64 `json:"incidentKey"`

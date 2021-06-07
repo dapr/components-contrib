@@ -310,6 +310,7 @@ func prepareValues(columnTypes []*sql.ColumnType) []interface{} {
 	for i := range values {
 		values[i] = reflect.New(types[i]).Interface()
 	}
+
 	return values
 }
 

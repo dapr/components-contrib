@@ -24,9 +24,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
-	ErrMissingJobType = errors.New("jobType is a required attribute")
-)
+var ErrMissingJobType = errors.New("jobType is a required attribute")
 
 // ZeebeJobWorker allows handling jobs from the Zeebe command engine
 type ZeebeJobWorker struct {

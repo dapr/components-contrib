@@ -27,6 +27,7 @@ require (
 	github.com/alibaba/sentinel-golang v1.0.2
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
+	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.0

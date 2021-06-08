@@ -35,6 +35,7 @@ const (
 	componentVaultToken          string = "vaultToken"
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
+	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
@@ -107,9 +108,14 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 		return fmt.Errorf("token mount path and token both set")
 	}
 
+	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
 	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVPrefix == "" {
-		vaultKVPrefix = defaultVaultKVPrefix
+	if vaultKVUsePrefix == "false" {
+		vaultKVPrefix = ""
+	} else {
+		if vaultKVPrefix == "" {
+			vaultKVPrefix = defaultVaultKVPrefix
+		}
 	}
 
 	v.vaultKVPrefix = vaultKVPrefix

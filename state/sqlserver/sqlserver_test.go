@@ -18,8 +18,7 @@ const (
 	sampleUserTableName    = "Users"
 )
 
-type mockMigrator struct {
-}
+type mockMigrator struct{}
 
 func (m *mockMigrator) executeMigrations() (migrationResult, error) {
 	r := migrationResult{}

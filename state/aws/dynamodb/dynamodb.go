@@ -51,6 +51,10 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
+func (d *StateStore) Ping() error {
+	return nil
+}
+
 // Features returns the features available in this state store
 func (d *StateStore) Features() []state.Feature {
 	return nil

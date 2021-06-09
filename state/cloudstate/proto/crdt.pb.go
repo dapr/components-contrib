@@ -558,7 +558,7 @@ func (m *GCounterState) GetValue() uint64 {
 	return 0
 }
 
-// A Positve-Negative Counter
+// A Positive-Negative Counter
 //
 // A PN-Counter can be both incremented and decremented.
 type PNCounterState struct {

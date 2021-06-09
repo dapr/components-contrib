@@ -273,3 +273,13 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 		ClientAuth: 0,
 	}
 }
+
+func (k *Kafka) Close() error {
+	if err := k.producer.Close(); err != nil {
+		k.logger.Errorf("kafka error: failed to close producer: %v", err)
+
+		return err
+	}
+
+	return nil
+}

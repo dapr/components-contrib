@@ -58,6 +58,7 @@ type MongoDB struct {
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
+	metadata         mongoDBMetadata
 
 	features []state.Feature
 	logger   logger.Logger
@@ -125,6 +126,7 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 		return fmt.Errorf("error in getting read concern object: %s", err)
 	}
 
+	m.metadata = *meta
 	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
 	collection := m.client.Database(meta.databaseName).Collection(meta.collectionName, opts)
 
@@ -146,6 +148,14 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 	err := m.setInternal(ctx, req)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *MongoDB) Ping() error {
+	if err := m.client.Ping(context.Background(), nil); err != nil {
+		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.host, err)
 	}
 
 	return nil

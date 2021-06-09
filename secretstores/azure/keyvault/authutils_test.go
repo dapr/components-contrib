@@ -50,7 +50,7 @@ func TestGetClientCert(t *testing.T) {
 func TestAuthorizorWithCertFile(t *testing.T) {
 	testCertFileName := "./.cert.pfx"
 	certBytes := getTestCert()
-	err := ioutil.WriteFile(testCertFileName, certBytes, 0644)
+	err := ioutil.WriteFile(testCertFileName, certBytes, 0o644)
 	assert.NoError(t, err)
 
 	settings := EnvironmentSettings{

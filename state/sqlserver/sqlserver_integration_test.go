@@ -209,8 +209,7 @@ func (n *numbericKeyGenerator) NextKey() string {
 	return strconv.Itoa(int(val))
 }
 
-type uuidKeyGenerator struct {
-}
+type uuidKeyGenerator struct{}
 
 func (n uuidKeyGenerator) NextKey() string {
 	return uuid.New().String()

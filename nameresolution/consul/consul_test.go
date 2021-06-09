@@ -731,7 +731,7 @@ func TestGetConfig(t *testing.T) {
 				Configuration: configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{
 						Name:    "random-app-id",
-						Port:    000,
+						Port:    0o00,
 						Address: "123.345.678",
 						Tags:    []string{"random-tag"},
 						Meta: map[string]string{
@@ -774,7 +774,7 @@ func TestGetConfig(t *testing.T) {
 				assert.NotNil(t, actual.Registration)
 				assert.Equal(t, "random-app-id", actual.Registration.Name)
 				assert.Equal(t, "123.345.678", actual.Registration.Address)
-				assert.Equal(t, 000, actual.Registration.Port)
+				assert.Equal(t, 0o00, actual.Registration.Port)
 				assert.Equal(t, "random health check name", actual.Registration.Checks[0].Name)
 				assert.Equal(t, "000", actual.Registration.Meta["APP_PORT"])
 				assert.Equal(t, "random-tag", actual.Registration.Tags[0])

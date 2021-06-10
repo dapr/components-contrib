@@ -19,9 +19,7 @@ const (
 	fileName = "fileName"
 )
 
-var (
-	ErrMissingFileName = errors.New("fileName is a required attribute")
-)
+var ErrMissingFileName = errors.New("fileName is a required attribute")
 
 func (z *ZeebeCommand) deployProcess(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var deployFileName string

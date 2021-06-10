@@ -22,7 +22,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	if !isLiveTest() {
 		return
 	}
-	var m = bindings.Metadata{} //nolint:exhaustivestruct
+	m := bindings.Metadata{} //nolint:exhaustivestruct
 	m.Properties = getTestMetadata()
 	r := NewAliCloudRocketMQ(logger.NewLogger("test"))
 	err := r.Init(m)

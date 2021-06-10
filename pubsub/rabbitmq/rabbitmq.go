@@ -279,6 +279,10 @@ func (r *rabbitMQ) subscribeForever(
 			}
 		}
 
+		if r.isStopped() {
+			return
+		}
+
 		r.logger.Errorf("%s error in subscription for %s, %s", logMessagePrefix, queueName, err)
 
 		if mustReconnect(channel, err) {
@@ -383,6 +387,13 @@ func (r *rabbitMQ) reset() error {
 	}
 
 	return nil
+}
+
+func (r *rabbitMQ) isStopped() bool {
+	r.channelMutex.RLock()
+	defer r.channelMutex.RUnlock()
+
+	return r.stopped
 }
 
 func (r *rabbitMQ) Close() error {

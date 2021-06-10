@@ -15,7 +15,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// CosmosDB allows performing state operations on collections
+// CosmosDB allows performing state operations on collections.
 type CosmosDB struct {
 	client       *documentdb.DocumentDB
 	collection   *documentdb.Collection
@@ -33,12 +33,12 @@ type cosmosDBCredentials struct {
 	PartitionKey string `json:"partitionKey"`
 }
 
-// NewCosmosDB returns a new CosmosDB instance
+// NewCosmosDB returns a new CosmosDB instance.
 func NewCosmosDB(logger logger.Logger) *CosmosDB {
 	return &CosmosDB{logger: logger}
 }
 
-// Init performs CosmosDB connection parsing and connecting
+// Init performs CosmosDB connection parsing and connecting.
 func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	m, err := c.parseMetadata(metadata)
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// AWSS3 is a binding for an AWS S3 storage bucket
+// AWSS3 is a binding for an AWS S3 storage bucket.
 type AWSS3 struct {
 	metadata *s3Metadata
 	uploader *s3manager.Uploader
@@ -33,12 +33,12 @@ type s3Metadata struct {
 	Bucket       string `json:"bucket"`
 }
 
-// NewAWSS3 returns a new AWSS3 instance
+// NewAWSS3 returns a new AWSS3 instance.
 func NewAWSS3(logger logger.Logger) *AWSS3 {
 	return &AWSS3{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {

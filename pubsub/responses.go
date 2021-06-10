@@ -17,7 +17,7 @@ const (
 	Drop AppResponseStatus = "DROP"
 )
 
-// AppResponse is the object describing the response from user code after a pubsub event
+// AppResponse is the object describing the response from user code after a pubsub event.
 type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
 }

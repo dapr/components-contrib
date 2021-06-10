@@ -27,7 +27,7 @@ import (
 
 var ErrMissingJobType = errors.New("jobType is a required attribute")
 
-// ZeebeJobWorker allows handling jobs from the Zeebe command engine
+// ZeebeJobWorker allows handling jobs from the Zeebe command engine.
 type ZeebeJobWorker struct {
 	clientFactory zeebe.ClientFactory
 	client        zbc.Client
@@ -53,12 +53,12 @@ type jobHandler struct {
 	logger   logger.Logger
 }
 
-// NewZeebeJobWorker returns a new ZeebeJobWorker instance
+// NewZeebeJobWorker returns a new ZeebeJobWorker instance.
 func NewZeebeJobWorker(logger logger.Logger) *ZeebeJobWorker {
 	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 	meta, err := z.parseMetadata(metadata)
 	if err != nil {

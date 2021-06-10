@@ -18,7 +18,7 @@ const (
 	hosts              = "hosts"
 	maxIdleConnections = "maxIdleConnections"
 	timeout            = "timeout"
-	// These defaults are already provided by gomemcache
+	// These defaults are already provided by gomemcache.
 	defaultMaxIdleConnections = 2
 	defaultTimeout            = 1000 * time.Millisecond
 )
@@ -66,7 +66,7 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
 	return nil
 }

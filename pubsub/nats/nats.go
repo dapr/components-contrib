@@ -27,7 +27,7 @@ type natsPubSub struct {
 	logger logger.Logger
 }
 
-// NewNATSPubSub returns a new NATS pub-sub implementation
+// NewNATSPubSub returns a new NATS pub-sub implementation.
 func NewNATSPubSub(logger logger.Logger) pubsub.PubSub {
 	return &natsPubSub{logger: logger}
 }

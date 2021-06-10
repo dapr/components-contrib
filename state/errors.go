@@ -20,7 +20,7 @@ const (
 	ETagMismatch ETagErrorKind = "mismatch"
 )
 
-// ETagError is a custom error type for etag exceptions
+// ETagError is a custom error type for etag exceptions.
 type ETagError struct {
 	err  error
 	kind ETagErrorKind
@@ -47,7 +47,7 @@ func (e *ETagError) Error() string {
 	return errors.New(prefix).Error()
 }
 
-// NewETagError returns an ETagError wrapping an existing context error
+// NewETagError returns an ETagError wrapping an existing context error.
 func NewETagError(kind ETagErrorKind, err error) *ETagError {
 	return &ETagError{
 		err:  err,

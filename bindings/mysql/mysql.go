@@ -29,7 +29,7 @@ const (
 	queryOperation bindings.OperationKind = "query"
 	closeOperation bindings.OperationKind = "close"
 
-	// configurations to connect to Mysql, either a data source name represent by URL
+	// configurations to connect to Mysql, either a data source name represent by URL.
 	connectionURLKey = "url"
 
 	// To connect to MySQL running in Azure over SSL you have to download a
@@ -38,19 +38,19 @@ const (
 	// When the user provides a pem path their connection string must end with
 	// &tls=custom
 	// The connection string should be in the following format
-	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
+	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'.
 	pemPathKey = "pemPath"
 
-	// other general settings for DB connections
+	// other general settings for DB connections.
 	maxIdleConnsKey    = "maxIdleConns"
 	maxOpenConnsKey    = "maxOpenConns"
 	connMaxLifetimeKey = "connMaxLifetime"
 	connMaxIdleTimeKey = "connMaxIdleTime"
 
-	// keys from request's metadata
+	// keys from request's metadata.
 	commandSQLKey = "sql"
 
-	// keys from response's metadata
+	// keys from response's metadata.
 	respOpKey           = "operation"
 	respSQLKey          = "sql"
 	respStartTimeKey    = "start-time"
@@ -59,7 +59,7 @@ const (
 	respDurationKey     = "duration"
 )
 
-// Mysql represents MySQL output bindings
+// Mysql represents MySQL output bindings.
 type Mysql struct {
 	db     *sql.DB
 	logger logger.Logger
@@ -67,12 +67,12 @@ type Mysql struct {
 
 var _ = bindings.OutputBinding(&Mysql{})
 
-// NewMysql returns a new MySQL output binding
+// NewMysql returns a new MySQL output binding.
 func NewMysql(logger logger.Logger) *Mysql {
 	return &Mysql{logger: logger}
 }
 
-// Init initializes the MySQL binding
+// Init initializes the MySQL binding.
 func (m *Mysql) Init(metadata bindings.Metadata) error {
 	m.logger.Debug("Initializing MySql binding")
 
@@ -117,7 +117,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Invoke handles all invoke operations
+// Invoke handles all invoke operations.
 func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
@@ -174,7 +174,7 @@ func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	return resp, nil
 }
 
-// Operations returns list of operations supported by Mysql binding
+// Operations returns list of operations supported by Mysql binding.
 func (m *Mysql) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		execOperation,
@@ -183,7 +183,7 @@ func (m *Mysql) Operations() []bindings.OperationKind {
 	}
 }
 
-// Close will close the DB
+// Close will close the DB.
 func (m *Mysql) Close() error {
 	if m.db != nil {
 		return m.db.Close()

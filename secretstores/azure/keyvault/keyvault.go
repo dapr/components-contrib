@@ -16,7 +16,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Keyvault secret store component metadata properties
+// Keyvault secret store component metadata properties.
 const (
 	componentSPNCertificate         = "spnCertificate"
 	componentSPNCertificateFile     = "spnCertificateFile"
@@ -42,7 +42,7 @@ type keyvaultSecretStore struct {
 	logger logger.Logger
 }
 
-// NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
+// NewAzureKeyvaultSecretStore returns a new Kubernetes secret store.
 func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
@@ -51,7 +51,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 	}
 }
 
-// Init creates a Kubernetes client
+// Init creates a Kubernetes client.
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	settings := EnvironmentSettings{
 		Values: metadata.Properties,
@@ -67,7 +67,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	return err
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	versionID := ""
 	if value, ok := req.Metadata[VersionID]; ok {
@@ -91,7 +91,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 	}, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	vaultURI := k.getVaultURI()
 
@@ -136,7 +136,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 	return resp, nil
 }
 
-// getVaultURI returns Azure Key Vault URI
+// getVaultURI returns Azure Key Vault URI.
 func (k *keyvaultSecretStore) getVaultURI() string {
 	for _, suffix := range []string{AzureCloud, AzureChinaCloud, AzureGermanCloud, AzureUSGov} {
 		if strings.HasSuffix(k.vaultName, suffix) {

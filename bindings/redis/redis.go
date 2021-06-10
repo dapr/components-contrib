@@ -28,7 +28,7 @@ const (
 	defaultMaxRetryBackoff = time.Second * 2
 )
 
-// Redis is a redis output binding
+// Redis is a redis output binding.
 type Redis struct {
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
@@ -38,12 +38,12 @@ type Redis struct {
 	cancel context.CancelFunc
 }
 
-// NewRedis returns a new redis bindings instance
+// NewRedis returns a new redis bindings instance.
 func NewRedis(logger logger.Logger) *Redis {
 	return &Redis{logger: logger}
 }
 
-// Init performs metadata parsing and connection creation
+// Init performs metadata parsing and connection creation.
 func (r *Redis) Init(meta bindings.Metadata) error {
 	_, err := r.parseMetadata(meta)
 	if err != nil {

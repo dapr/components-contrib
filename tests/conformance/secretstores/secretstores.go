@@ -15,7 +15,7 @@ import (
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
 
-// creating this struct so that it can be expanded later
+// creating this struct so that it can be expanded later.
 type TestConfig struct {
 	utils.CommonConfig
 }

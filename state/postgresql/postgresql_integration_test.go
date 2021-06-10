@@ -312,7 +312,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *PostgreSQL) {
 	assert.NotNil(t, err)
 }
 
-// newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure
+// newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure.
 func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 	value := &fakeItem{Color: "teal"}
 	invalidEtag := "12345"
@@ -426,7 +426,7 @@ func setItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 	assert.NotNil(t, err)
 }
 
-// Tests valid bulk sets and deletes
+// Tests valid bulk sets and deletes.
 func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	setReq := []state.SetRequest{
 		{
@@ -459,7 +459,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	assert.False(t, storeItemExists(t, setReq[1].Key))
 }
 
-// testInitConfiguration tests valid and invalid config settings
+// testInitConfiguration tests valid and invalid config settings.
 func testInitConfiguration(t *testing.T) {
 	logger := logger.NewLogger("test")
 	tests := []struct {

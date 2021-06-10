@@ -30,17 +30,17 @@ type middlewareMetadata struct {
 	SystemRules         string `yaml:"systemRules"`
 }
 
-// NewMiddleware returns a new sentinel middleware
+// NewMiddleware returns a new sentinel middleware.
 func NewMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
-// Middleware is an sentinel middleware
+// Middleware is an sentinel middleware.
 type Middleware struct {
 	logger logger.Logger
 }
 
-// GetHandler returns the HTTP handler provided by sentinel middleware
+// GetHandler returns the HTTP handler provided by sentinel middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	var (
 		meta *middlewareMetadata

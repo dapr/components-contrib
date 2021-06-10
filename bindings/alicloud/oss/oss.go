@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// AliCloudOSS is a binding for an AliCloud OSS storage bucket
+// AliCloudOSS is a binding for an AliCloud OSS storage bucket.
 type AliCloudOSS struct {
 	metadata *ossMetadata
 	client   *oss.Client
@@ -29,12 +29,12 @@ type ossMetadata struct {
 	Bucket      string `json:"bucket"`
 }
 
-// NewAliCloudOSS returns a new  instance
+// NewAliCloudOSS returns a new  instance.
 func NewAliCloudOSS(logger logger.Logger) *AliCloudOSS {
 	return &AliCloudOSS{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (s *AliCloudOSS) Init(metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {

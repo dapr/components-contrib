@@ -32,7 +32,7 @@ const (
 	defaultBitSize             = 0
 )
 
-// RabbitMQ allows sending/receiving data to/from RabbitMQ
+// RabbitMQ allows sending/receiving data to/from RabbitMQ.
 type RabbitMQ struct {
 	connection *amqp.Connection
 	channel    *amqp.Channel
@@ -41,7 +41,7 @@ type RabbitMQ struct {
 	queue      amqp.Queue
 }
 
-// Metadata is the rabbitmq config
+// Metadata is the rabbitmq config.
 type rabbitMQMetadata struct {
 	Host             string `json:"host"`
 	QueueName        string `json:"queueName"`
@@ -53,12 +53,12 @@ type rabbitMQMetadata struct {
 	defaultQueueTTL  *time.Duration
 }
 
-// NewRabbitMQ returns a new rabbitmq instance
+// NewRabbitMQ returns a new rabbitmq instance.
 func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
 	return &RabbitMQ{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	err := r.parseMetadata(metadata)
 	if err != nil {

@@ -32,7 +32,7 @@ const (
 	defaultGetBlobRetryCount = 10
 )
 
-// AzureBlobStorage allows saving blobs to an Azure Blob Storage account
+// AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
 	metadata     *blobStorageMetadata
 	containerURL azblob.ContainerURL
@@ -53,12 +53,12 @@ type createResponse struct {
 	BlobURL string `json:"blobURL"`
 }
 
-// NewAzureBlobStorage returns a new Azure Blob Storage instance
+// NewAzureBlobStorage returns a new Azure Blob Storage instance.
 func NewAzureBlobStorage(logger logger.Logger) *AzureBlobStorage {
 	return &AzureBlobStorage{logger: logger}
 }
 
-// Init performs metadata parsing
+// Init performs metadata parsing.
 func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {

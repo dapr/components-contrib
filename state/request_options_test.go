@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestSetRequestWithOptions is used to test request options
+// TestSetRequestWithOptions is used to test request options.
 func TestSetRequestWithOptions(t *testing.T) {
 	t.Run("set with default options", func(t *testing.T) {
 		counter := 0
@@ -36,7 +36,7 @@ func TestSetRequestWithOptions(t *testing.T) {
 	})
 }
 
-// TestCheckRequestOptions is used to validate request options
+// TestCheckRequestOptions is used to validate request options.
 func TestCheckRequestOptions(t *testing.T) {
 	t.Run("set state options", func(t *testing.T) {
 		ro := SetStateOption{Concurrency: FirstWrite, Consistency: Eventual}

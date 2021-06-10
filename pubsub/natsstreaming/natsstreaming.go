@@ -25,13 +25,13 @@ import (
 	"github.com/dapr/kit/retry"
 )
 
-// compulsory options
+// compulsory options.
 const (
 	natsURL                = "natsURL"
 	natsStreamingClusterID = "natsStreamingClusterID"
 )
 
-// subscription options (optional)
+// subscription options (optional).
 const (
 	durableSubscriptionName = "durableSubscriptionName"
 	startAtSequence         = "startAtSequence"
@@ -45,7 +45,7 @@ const (
 	maxInFlight             = "maxInFlight"
 )
 
-// valid values for subscription options
+// valid values for subscription options.
 const (
 	subscriptionTypeQueueGroup = "queue"
 	subscriptionTypeTopic      = "topic"
@@ -70,7 +70,7 @@ type natsStreamingPubSub struct {
 	backOffConfig retry.Config
 }
 
-// NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation
+// NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation.
 func NewNATSStreamingPubSub(logger logger.Logger) pubsub.PubSub {
 	return &natsStreamingPubSub{logger: logger}
 }
@@ -312,7 +312,7 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 
 const inputs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 
-// generates a random string of length 20
+// generates a random string of length 20.
 func genRandomString(n int) string {
 	b := make([]byte, n)
 	s := rand.NewSource(int64(time.Now().Nanosecond()))

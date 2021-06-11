@@ -34,6 +34,7 @@ require (
 	github.com/aws/aws-sdk-go v1.27.0
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+	github.com/camunda-cloud/zeebe/clients/go v1.0.0
 	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible
@@ -57,7 +58,7 @@ require (
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
-	github.com/golang/mock v1.4.4
+	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
@@ -110,16 +111,15 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
-	github.com/zeebe-io/zeebe/clients/go v0.26.3
 	go.mongodb.org/mongo-driver v1.1.2
 	go.opencensus.io v0.22.5 // indirect
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b
 	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c
-	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
+	golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
-	google.golang.org/grpc v1.34.0
+	google.golang.org/grpc v1.36.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4

@@ -9,8 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"

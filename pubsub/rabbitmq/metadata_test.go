@@ -215,4 +215,22 @@ func TestCreateMetadata(t *testing.T) {
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		})
 	}
+
+	for _, tt := range booleanFlagTests {
+		t.Run(fmt.Sprintf("backOffEnable value=%s", tt.in), func(t *testing.T) {
+			fakeProperties := getFakeProperties()
+
+			fakeMetaData := pubsub.Metadata{
+				Properties: fakeProperties,
+			}
+
+			// act
+			m, err := createMetadata(fakeMetaData)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+		})
+	}
 }

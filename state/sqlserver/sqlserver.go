@@ -341,7 +341,6 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 		switch req.Operation {
 		case state.Upsert:
 			setReq, err := s.getSets(req)
-
 			if err != nil {
 				return err
 			}
@@ -350,7 +349,6 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 
 		case state.Delete:
 			delReq, err := s.getDeletes(req)
-
 			if err != nil {
 				return err
 			}

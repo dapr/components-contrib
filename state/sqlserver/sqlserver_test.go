@@ -26,8 +26,7 @@ func (m *mockMigrator) executeMigrations() (migrationResult, error) {
 	return r, nil
 }
 
-type mockFailingMigrator struct {
-}
+type mockFailingMigrator struct{}
 
 func (m *mockFailingMigrator) executeMigrations() (migrationResult, error) {
 	r := migrationResult{}

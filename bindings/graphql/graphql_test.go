@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package hasura
+package graphql
 
 import (
 	"testing"
@@ -14,7 +14,8 @@ import (
 func TestOperations(t *testing.T) {
 	t.Parallel()
 	t.Run("Get operation list", func(t *testing.T) {
-		b := NewHasura(nil)
+		t.Parallel()
+		b := NewGraphQL(nil)
 		assert.NotNil(t, b)
 		l := b.Operations()
 		assert.Equal(t, 2, len(l))

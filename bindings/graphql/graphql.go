@@ -65,8 +65,10 @@ func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 	gql.client = client
 	gql.header = make(map[string]string)
 	for k, v := range p {
-		if strings.HasPrefix(strings.ToLower(k), "header") {
-			gql.header[strings.Split(k, ":")[1]] = v
+		if strings.HasPrefix(k, "header:") {
+			gql.header[strings.TrimPrefix(k, "header:")] = v
+		} else if k != connectionEndPointKey {
+			return fmt.Errorf("GraphQL Error: Required headers not set: shoud start with \"header:\"")
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -64,8 +65,8 @@ func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 	gql.client = client
 	gql.header = make(map[string]string)
 	for k, v := range p {
-		if k != connectionEndPointKey {
-			gql.header[k] = v
+		if strings.HasPrefix(strings.ToLower(k), "header") {
+			gql.header[strings.Split(k, ":")[1]] = v
 		}
 	}
 

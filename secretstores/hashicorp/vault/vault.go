@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -110,12 +111,14 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
 	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVUsePrefix == "false" {
+	convertedVaultKVUsePrefix := true
+	if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
+		convertedVaultKVUsePrefix = v
+	}
+	if !convertedVaultKVUsePrefix {
 		vaultKVPrefix = ""
-	} else {
-		if vaultKVPrefix == "" {
-			vaultKVPrefix = defaultVaultKVPrefix
-		}
+	} else if vaultKVPrefix == "" {
+		vaultKVPrefix = defaultVaultKVPrefix
 	}
 
 	v.vaultKVPrefix = vaultKVPrefix

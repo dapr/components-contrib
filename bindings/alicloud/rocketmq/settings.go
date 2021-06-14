@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	rocketmq "github.com/cinience/go_rocketmq"
-	"github.com/dapr/components-contrib/internal/config"
+	"github.com/dapr/kit/config"
 )
 
 // rocketmq

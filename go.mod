@@ -57,9 +57,10 @@ require (
 	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
-	github.com/gocql/gocql v0.0.0-20191018090344-07ace3bab0f8
+	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.4.3
+	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/gorilla/mux v1.7.3

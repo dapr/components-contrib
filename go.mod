@@ -26,6 +26,7 @@ require (
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/alibaba/sentinel-golang v1.0.2
 	github.com/alicebob/miniredis/v2 v2.13.3
+	github.com/aliyun/aliyun-mns-go-sdk v0.0.0-20210305050620-d1b5875bda58
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/apache/pulsar-client-go v0.1.0

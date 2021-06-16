@@ -152,6 +152,8 @@ github.com/alicebob/miniredis/v2 v2.13.3 h1:kohgdtN58KW/r9ZDVmMJE3MrfbumwsDQStd0
 github.com/alicebob/miniredis/v2 v2.13.3/go.mod h1:uS970Sw5Gs9/iK3yBg0l9Uj9s25wXxSpQUE9EaJ/Blg=
 github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 h1:zOVTBdCKFd9JbCKz9/nt+FovbjPFmb7mUnp8nH9fQBA=
 github.com/aliyun/alibaba-cloud-sdk-go v1.61.18/go.mod h1:v8ESoHo4SyHmuB4b1tJqDHxfTGEciD+yhvOU/5s1Rfk=
+github.com/aliyun/aliyun-mns-go-sdk v0.0.0-20210305050620-d1b5875bda58 h1:hX1oYyN7d0y7GHwli6trhovosNAKo9f60uC3FPHMjoQ=
+github.com/aliyun/aliyun-mns-go-sdk v0.0.0-20210305050620-d1b5875bda58/go.mod h1:eD/mEH7SwtLSwI9p8fP9VTH2cYM3wFSY1WNaxEdLIFU=
 github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible h1:HXvOJsZw8JT/ldxjX74Aq4H2IY4ojV/mXMDPWFitpv8=
 github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible/go.mod h1:T/Aws4fEfogEE9v+HPhhw+CntffsBHJ8nXQCwKr0/g8=
 github.com/aliyunmq/mq-http-go-sdk v1.0.3 h1:/uhH7DUoaw9XTtsPgDp7zdPUyG5FBKj2GmJJph9z+6o=

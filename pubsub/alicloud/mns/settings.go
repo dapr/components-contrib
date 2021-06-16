@@ -28,29 +28,47 @@ type Settings struct {
 	AccessKeyId string `mapstructure:"accessKeyId"`
 	// mns access key secret
 	AccessKeySecret string `mapstructure:"accessKeySecret"`
+	// mns token, optional
+	Token string `mapstructure:"token"`
+	// timeout in seconds, default 35
+	TimeoutSecond int64 `mapstructure:"timeoutSecond" default:"35"`
 	// mns mode (queue or topic)
 	MnsMode string `mapstructure:"mnsMode"`
-	// queue argument: mns queue name
-	QueueName string `mapstructure:"queueName"`
-	// queue argument: mns delay seconds for the queue, default 0
-	DelaySeconds int32 `mapstructure:"DelaySeconds" default:"0"`
-	// queue/topic argument: max message size in bytes for the queue, default 65536
-	MaxMessageSize int32 `mapstructure:"maxMessageSize" default:"65536"`
-	// queue argument: message retention period, default 345600
-	MessageRetentionPeriod int32 `mapstructure:"messageRetentionPeriod" default:"345600"`
-	// queue argument: visible time out, default 30
-	VisibilityTimeout int32 `mapstructure:"visibilityTimeout" default:"30"`
-	// queue argument: polling wait time in seconds, default 0
-	PollingWaitSeconds int32 `mapstructure:"pollingWaitSeconds" default:"0"`
-	// queue argument: slices, default 2
-	Slices int32 `mapstructure:"slices" default:"2"`
-	// topic argument: whether enable logging
-	LoggingEnabled bool `mapstructure:"loggingEnabled"`
 	// msg's content-type eg:"application/cloudevents+json; charset=utf-8", application/octet-stream
 	ContentType string `mapstructure:"contentType"`
 }
 
+// request meta data
+type RequestMetaData struct {
+	// queue argument: mns delay seconds for the queue, default 0
+	QueueDelaySeconds int32 `mapstructure:"queueDelaySeconds"`
+	// queue argument: max message size in bytes for the queue, default 65536
+	QueueMaxMessageSize int32 `mapstructure:"queueMaxMessageSize" default:"65536"`
+	// queue argument: message retention period, default 345600
+	QueueMessageRetentionPeriod int32 `mapstructure:"queueMessageRetentionPeriod" default:"345600"`
+	// queue argument: visible time out, default 30
+	QueueVisibilityTimeout int32 `mapstructure:"queueVisibilityTimeout" default:"30"`
+	// queue argument: polling wait time in seconds, default 0
+	QueuePollingWaitSeconds int32 `mapstructure:"queuePollingWaitSeconds"`
+	// queue argument: slices, default 2
+	QueueSlices int32 `mapstructure:"queueSlices" default:"2"`
+	// topic argument: max message size in bytes for the queue, default 65536
+	TopicMaxMessageSize int32 `mapstructure:"TopicMaxMessageSize" default:"65536"`
+	// topic argument: whether enable logging
+	TopicLoggingEnabled bool `mapstructure:"TopicLoggingEnabled"`
+}
+
 func (s *Settings) Decode(in interface{}) error {
+	if err := config.Decode(in, s); err != nil {
+		return fmt.Errorf("decode failed. %w", err)
+	}
+
+	defaults.Set(s)
+
+	return nil
+}
+
+func (s *RequestMetaData) Decode(in interface{}) error {
 	if err := config.Decode(in, s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}

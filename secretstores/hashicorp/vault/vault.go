@@ -112,9 +112,14 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
 	vaultKVPrefix := props[componentVaultKVPrefix]
 	convertedVaultKVUsePrefix := true
-	if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
-		convertedVaultKVUsePrefix = v
+	if vaultKVUsePrefix != "" {
+		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
+			convertedVaultKVUsePrefix = v
+		} else if err != nil {
+			return fmt.Errorf("unable to convert Use Prefix to boolean")
+		}
 	}
+
 	if !convertedVaultKVUsePrefix {
 		vaultKVPrefix = ""
 	} else if vaultKVPrefix == "" {

@@ -26,6 +26,13 @@ const (
 	componentVaultName              = "vaultName"
 	VersionID                       = "version_id"
 	secretItemIDPrefix              = "/secrets/"
+
+	// AzureCloud urls refer to https://docs.microsoft.com/en-us/azure/key-vault/general/about-keys-secrets-certificates#dns-suffixes-for-base-url
+	AzureCloud       = ".vault.azure.net"
+	AzureChinaCloud  = ".vault.azure.cn"
+	AzureUSGov       = ".vault.usgovcloudapi.net"
+	AzureGermanCloud = ".vault.microsoftazure.de"
+	https            = "https://"
 )
 
 type keyvaultSecretStore struct {
@@ -131,7 +138,17 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 // getVaultURI returns Azure Key Vault URI
 func (k *keyvaultSecretStore) getVaultURI() string {
-	return fmt.Sprintf("https://%s.vault.azure.net", k.vaultName)
+	for _, suffix := range []string{AzureCloud, AzureChinaCloud, AzureGermanCloud, AzureUSGov} {
+		if strings.HasSuffix(k.vaultName, suffix) {
+			if strings.HasPrefix(k.vaultName, https) {
+				return k.vaultName
+			}
+
+			return fmt.Sprintf("%s%s", https, k.vaultName)
+		}
+	}
+
+	return fmt.Sprintf("%s%s%s", https, k.vaultName, AzureCloud)
 }
 
 func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]string) (*int32, error) {

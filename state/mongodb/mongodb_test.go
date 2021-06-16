@@ -123,4 +123,24 @@ func TestGetMongoDBMetadata(t *testing.T) {
 
 		assert.Equal(t, expected, uri)
 	})
+
+	t.Run("Valid connectionstring with DNS SRV", func(t *testing.T) {
+		properties := map[string]string{
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+			server:         "server.example.com",
+			params:         "?ssl=true",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+
+		metadata, err := getMongoDBMetaData(m)
+		assert.Nil(t, err)
+
+		uri := getMongoURI(metadata)
+		expected := "mongodb+srv://server.example.com/?ssl=true"
+
+		assert.Equal(t, expected, uri)
+	})
 }

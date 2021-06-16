@@ -33,6 +33,7 @@ const (
 	password         = "password"
 	databaseName     = "databaseName"
 	collectionName   = "collectionName"
+	server           = "server"
 	writeConcern     = "writeConcern"
 	readConcern      = "readConcern"
 	operationTimeout = "operationTimeout"
@@ -50,6 +51,9 @@ const (
 
 	// mongodb://<host>/<database><params>
 	connectionURIFormat = "mongodb://%s/%s%s"
+
+	// mongodb+srv://<server>/<params>
+	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 )
 
 // MongoDB is a state store implementation for MongoDB
@@ -70,6 +74,7 @@ type mongoDBMetadata struct {
 	password         string
 	databaseName     string
 	collectionName   string
+	server           string
 	writeconcern     string
 	readconcern      string
 	params           string
@@ -285,6 +290,10 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 }
 
 func getMongoURI(metadata *mongoDBMetadata) string {
+	if len(metadata.server) != 0 {
+		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.server, metadata.params)
+	}
+
 	if metadata.username != "" && metadata.password != "" {
 		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
 	}
@@ -319,8 +328,14 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 
 	if val, ok := metadata.Properties[host]; ok && val != "" {
 		meta.host = val
-	} else {
-		return nil, errors.New("missing or empty host field from metadata")
+	}
+
+	if val, ok := metadata.Properties[server]; ok && val != "" {
+		meta.server = val
+	}
+
+	if len(meta.host) == 0 && len(meta.server) == 0 {
+		return nil, errors.New("must set 'host' or 'server' fields in metadata")
 	}
 
 	if val, ok := metadata.Properties[username]; ok && val != "" {

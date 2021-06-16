@@ -338,6 +338,10 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 		return nil, errors.New("must set 'host' or 'server' fields in metadata")
 	}
 
+	if len(meta.host) != 0 && len(meta.server) != 0 {
+		return nil, errors.New("'host' or 'server' fields are mutually exclusive")
+	}
+
 	if val, ok := metadata.Properties[username]; ok && val != "" {
 		meta.username = val
 	}

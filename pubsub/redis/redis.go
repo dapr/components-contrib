@@ -7,48 +7,26 @@ package redis
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	host                  = "redisHost"
-	password              = "redisPassword"
-	db                    = "redisDB"
-	redisType             = "redisType"
-	redisMaxRetries       = "redisMaxRetries"
-	redisMinRetryInterval = "redisMinRetryInterval"
-	redisMaxRetryInterval = "redisMaxRetryInterval"
-	dialTimeout           = "dialTimeout"
-	readTimeout           = "readTimeout"
-	writeTimeout          = "writeTimeout"
-	poolSize              = "poolSize"
-	minIdleConns          = "minIdleConns"
-	poolTimeout           = "poolTimeout"
-	idleTimeout           = "idleTimeout"
-	idleCheckFrequency    = "idleCheckFrequency"
-	maxConnAge            = "maxConnAge"
-	consumerID            = "consumerID"
-	enableTLS             = "enableTLS"
-	processingTimeout     = "processingTimeout"
-	redeliverInterval     = "redeliverInterval"
-	queueDepth            = "queueDepth"
-	concurrency           = "concurrency"
-	maxLenApprox          = "maxLenApprox"
-)
-
-const (
-	ClusterType = "cluster"
-	NodeType    = "node"
+	consumerID        = "consumerID"
+	enableTLS         = "enableTLS"
+	processingTimeout = "processingTimeout"
+	redeliverInterval = "redeliverInterval"
+	queueDepth        = "queueDepth"
+	concurrency       = "concurrency"
+	maxLenApprox      = "maxLenApprox"
 )
 
 // redisStreams handles consuming from a Redis stream using
@@ -58,10 +36,10 @@ const (
 // See https://redis.io/topics/streams-intro for more information
 // on the mechanics of Redis Streams.
 type redisStreams struct {
-	metadata metadata
-	client   redis.UniversalClient
-
-	logger logger.Logger
+	metadata       metadata
+	client         redis.UniversalClient
+	clientSettings *rediscomponent.Settings
+	logger         logger.Logger
 
 	queue chan redisMessageWrapper
 
@@ -89,38 +67,6 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		redeliverInterval: 15 * time.Second,
 		queueDepth:        100,
 		concurrency:       10,
-	}
-	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.host = val
-	} else {
-		return m, errors.New("redis streams error: missing host address")
-	}
-
-	if val, ok := meta.Properties[password]; ok && val != "" {
-		m.password = val
-	}
-
-	if val, ok := meta.Properties[redisType]; ok && val != "" {
-		if val != NodeType && val != ClusterType {
-			return m, fmt.Errorf("redis type error: unknown redis type: %s", val)
-		}
-		m.redisType = val
-	}
-
-	if val, ok := meta.Properties[db]; ok && val != "" {
-		db, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: can't parse db field: %s", err)
-		}
-		m.db = db
-	}
-
-	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
-		tls, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: can't parse enableTLS field: %s", err)
-		}
-		m.enableTLS = tls
 	}
 
 	if val, ok := meta.Properties[consumerID]; ok && val != "" {
@@ -165,130 +111,6 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.concurrency = uint(concurrency)
 	}
 
-	if val, ok := meta.Properties[redisMaxRetries]; ok && val != "" {
-		redisMaxRetries, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: can't parse redisMaxRetries field: %s", err)
-		}
-		m.redisMaxRetries = redisMaxRetries
-	}
-
-	if val, ok := meta.Properties[redisMinRetryInterval]; ok && val != "" {
-		if val == "-1" {
-			m.redisMinRetryInterval = -1
-		} else if redisMinRetryIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.redisMinRetryInterval = time.Duration(redisMinRetryIntervalMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.redisMinRetryInterval = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid redisMinRetryInterval %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[redisMaxRetryInterval]; ok && val != "" {
-		if val == "-1" {
-			m.redisMaxRetryInterval = -1
-		} else if redisMaxRetryIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.redisMaxRetryInterval = time.Duration(redisMaxRetryIntervalMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.redisMaxRetryInterval = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid redisMaxRetryInterval %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[dialTimeout]; ok && val != "" {
-		if dialTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.dialTimeout = time.Duration(dialTimeoutMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.dialTimeout = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid dialTimeout %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[readTimeout]; ok && val != "" {
-		if val == "-1" {
-			m.readTimeout = -1
-		} else if readTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.readTimeout = time.Duration(readTimeoutMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.readTimeout = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid readTimeout %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[writeTimeout]; ok && val != "" {
-		if writeTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.writeTimeout = time.Duration(writeTimeoutMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.writeTimeout = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid writeTimeout %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[poolSize]; ok && val != "" {
-		var err error
-		m.poolSize, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: invalid poolSize %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[maxConnAge]; ok && val != "" {
-		if maxConnAgeMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.maxConnAge = time.Duration(maxConnAgeMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.maxConnAge = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid maxConnAge %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[minIdleConns]; ok && val != "" {
-		minIdleConns, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("redis streams error: can't parse minIdleConns field: %s", err)
-		}
-		m.minIdleConns = minIdleConns
-	}
-
-	if val, ok := meta.Properties[poolTimeout]; ok && val != "" {
-		if poolTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.poolTimeout = time.Duration(poolTimeoutMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.poolTimeout = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid poolTimeout %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[idleTimeout]; ok && val != "" {
-		if val == "-1" {
-			m.idleTimeout = -1
-		} else if idleTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.idleTimeout = time.Duration(idleTimeoutMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.idleTimeout = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid idleTimeout %s, %s", val, err)
-		}
-	}
-
-	if val, ok := meta.Properties[idleCheckFrequency]; ok && val != "" {
-		if val == "-1" {
-			m.idleCheckFrequency = -1
-		} else if idleCheckFrequencyMs, err := strconv.ParseUint(val, 10, 64); err == nil {
-			m.idleCheckFrequency = time.Duration(idleCheckFrequencyMs) * time.Millisecond
-		} else if d, err := time.ParseDuration(val); err == nil {
-			m.idleCheckFrequency = d
-		} else {
-			return m, fmt.Errorf("redis streams error: invalid idleCheckFrequency %s, %s", val, err)
-		}
-	}
-
 	if val, ok := meta.Properties[maxLenApprox]; ok && val != "" {
 		maxLenApprox, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
@@ -306,67 +128,16 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 	r.metadata = m
-
-	if m.redisType == ClusterType {
-		options := &redis.ClusterOptions{
-			Addrs:              strings.Split(m.host, ","),
-			Password:           m.password,
-			MaxRetries:         m.redisMaxRetries,
-			MaxRetryBackoff:    m.redisMaxRetryInterval,
-			MinRetryBackoff:    m.redisMinRetryInterval,
-			DialTimeout:        m.dialTimeout,
-			ReadTimeout:        m.readTimeout,
-			WriteTimeout:       m.writeTimeout,
-			PoolSize:           m.poolSize,
-			MaxConnAge:         m.maxConnAge,
-			MinIdleConns:       m.minIdleConns,
-			PoolTimeout:        m.poolTimeout,
-			IdleCheckFrequency: m.idleCheckFrequency,
-			IdleTimeout:        m.idleTimeout,
-		}
-		/* #nosec */
-		if r.metadata.enableTLS {
-			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: r.metadata.enableTLS,
-			}
-		}
-
-		r.client = redis.NewClusterClient(options)
-	} else {
-		options := &redis.Options{
-			Addr:               m.host,
-			Password:           m.password,
-			DB:                 m.db,
-			MaxRetries:         m.redisMaxRetries,
-			MaxRetryBackoff:    m.redisMaxRetryInterval,
-			MinRetryBackoff:    m.redisMinRetryInterval,
-			DialTimeout:        m.dialTimeout,
-			ReadTimeout:        m.readTimeout,
-			WriteTimeout:       m.writeTimeout,
-			PoolSize:           m.poolSize,
-			MaxConnAge:         m.maxConnAge,
-			MinIdleConns:       m.minIdleConns,
-			PoolTimeout:        m.poolTimeout,
-			IdleCheckFrequency: m.idleCheckFrequency,
-			IdleTimeout:        m.idleTimeout,
-		}
-
-		/* #nosec */
-		if r.metadata.enableTLS {
-			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: r.metadata.enableTLS,
-			}
-		}
-
-		r.client = redis.NewClient(options)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, nil)
+	if err != nil {
+		return err
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
-		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", m.host, err)
+		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
-
 	r.queue = make(chan redisMessageWrapper, int(r.metadata.queueDepth))
 
 	for i := uint(0); i < r.metadata.concurrency; i++ {
@@ -502,7 +273,7 @@ func (r *redisStreams) pollNewMessagesLoop(stream string, handler pubsub.Handler
 			Consumer: r.metadata.consumerID,
 			Streams:  []string{stream, ">"},
 			Count:    int64(r.metadata.queueDepth),
-			Block:    r.metadata.readTimeout,
+			Block:    time.Duration(r.clientSettings.ReadTimeout),
 		}).Result()
 		if err != nil {
 			if !errors.Is(err, redis.Nil) {

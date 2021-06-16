@@ -10,8 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
 	"github.com/dapr/components-contrib/bindings"
 )
 

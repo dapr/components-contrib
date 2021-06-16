@@ -38,6 +38,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible
+	github.com/creasty/defaults v1.5.1
 	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.0.1
@@ -132,6 +133,7 @@ require (
 	gopkg.in/kataras/go-serializer.v0 v0.0.4 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
+	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.20.0
 	k8s.io/apiextensions-apiserver v0.20.0
 	k8s.io/apimachinery v0.20.0

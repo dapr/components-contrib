@@ -44,6 +44,8 @@ type Settings struct {
 	PollingWaitSeconds int32 `mapstructure:"pollingWaitSeconds" default:"0"`
 	// slices, default 2
 	Slices int32 `mapstructure:"slices" default:"2"`
+	// msg's content-type eg:"application/cloudevents+json; charset=utf-8", application/octet-stream
+	ContentType string `mapstructure:"contentType"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

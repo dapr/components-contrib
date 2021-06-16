@@ -20,6 +20,7 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 		"visibilityTimeout":      "10",
 		"pollingWaitSeconds":     "20",
 		"slices":                 "3",
+		"loggingEnabled":         "true",
 		"contentType":            "application/octet-stream",
 	}
 
@@ -38,6 +39,7 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 	assert.Equal(t, int32(10), settings.VisibilityTimeout)
 	assert.Equal(t, int32(20), settings.PollingWaitSeconds)
 	assert.Equal(t, int32(3), settings.Slices)
+	assert.Equal(t, true, settings.LoggingEnabled)
 	assert.Equal(t, "application/octet-stream", settings.ContentType)
 }
 
@@ -65,4 +67,5 @@ func TestSettingsDecodeDefault(t *testing.T) { //nolint:paralleltest
 	assert.Equal(t, int32(30), settings.VisibilityTimeout)
 	assert.Equal(t, int32(0), settings.PollingWaitSeconds)
 	assert.Equal(t, int32(2), settings.Slices)
+	assert.Equal(t, false, settings.LoggingEnabled)
 }

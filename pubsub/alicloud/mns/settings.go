@@ -30,20 +30,22 @@ type Settings struct {
 	AccessKeySecret string `mapstructure:"accessKeySecret"`
 	// mns mode (queue or topic)
 	MnsMode string `mapstructure:"mnsMode"`
-	// mns queue name
+	// queue argument: mns queue name
 	QueueName string `mapstructure:"queueName"`
-	// mns delay seconds for the queue, default 0
+	// queue argument: mns delay seconds for the queue, default 0
 	DelaySeconds int32 `mapstructure:"DelaySeconds" default:"0"`
-	// max message size in bytes for the queue, default 65536
+	// queue/topic argument: max message size in bytes for the queue, default 65536
 	MaxMessageSize int32 `mapstructure:"maxMessageSize" default:"65536"`
-	// message retention period, default 345600
+	// queue argument: message retention period, default 345600
 	MessageRetentionPeriod int32 `mapstructure:"messageRetentionPeriod" default:"345600"`
-	// visible time out, default 30
+	// queue argument: visible time out, default 30
 	VisibilityTimeout int32 `mapstructure:"visibilityTimeout" default:"30"`
-	// polling wait time in seconds, default 0
+	// queue argument: polling wait time in seconds, default 0
 	PollingWaitSeconds int32 `mapstructure:"pollingWaitSeconds" default:"0"`
-	// slices, default 2
+	// queue argument: slices, default 2
 	Slices int32 `mapstructure:"slices" default:"2"`
+	// topic argument: whether enable logging
+	LoggingEnabled bool `mapstructure:"loggingEnabled"`
 	// msg's content-type eg:"application/cloudevents+json; charset=utf-8", application/octet-stream
 	ContentType string `mapstructure:"contentType"`
 }

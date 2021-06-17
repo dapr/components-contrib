@@ -106,7 +106,6 @@ func (r *resolver) runWatchPlan(p *watchPlan) {
 	for {
 		// invoke blocking call
 		blockParam, result, stale, err := r.watch(p)
-
 		// handle an error in the watch function
 		if err != nil {
 			// perform an exponential backoff

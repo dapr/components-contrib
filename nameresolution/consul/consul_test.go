@@ -300,7 +300,7 @@ func TestResolveID(t *testing.T) {
 					LastIndex: 0,
 				}
 				firstTime := true
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{
@@ -361,7 +361,7 @@ func TestResolveID(t *testing.T) {
 
 				var err error
 
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{
@@ -441,7 +441,7 @@ func TestResolveID(t *testing.T) {
 
 				err := fmt.Errorf("oh no")
 
-				var mock = mockClient{
+				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
 							{

@@ -219,7 +219,6 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	var addr string
 
 	svc, err := r.getService(req.ID)
-
 	if err != nil {
 		return "", err
 	}

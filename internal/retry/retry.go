@@ -55,6 +55,15 @@ func DefaultConfig() Config {
 	}
 }
 
+// DefaultConfigWithNoRetry represents the default configuration with `MaxRetries` set to 0.
+// This may be useful for those brokers which can handles retries on its own.
+func DefaultConfigWithNoRetry() Config {
+	c := DefaultConfig()
+	c.MaxRetries = 0
+
+	return c
+}
+
 // DecodeConfig decodes a Go struct into a `Config`.
 func DecodeConfig(c *Config, input interface{}) error {
 	// Use the deefault config if `c` is empty/zero value.

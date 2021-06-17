@@ -8,6 +8,7 @@ package mns
 import (
 	"fmt"
 
+	ali_mns "github.com/aliyun/aliyun-mns-go-sdk"
 	"github.com/creasty/defaults"
 	"github.com/dapr/components-contrib/internal/config"
 )
@@ -40,6 +41,8 @@ type Settings struct {
 
 // request meta data
 type RequestMetaData struct {
+	// queue argument: Queue name
+	QueueName string `mapstructure:"queueName" default:"defaultMnsQueue"`
 	// queue argument: mns delay seconds for the queue, default 0
 	QueueDelaySeconds int32 `mapstructure:"queueDelaySeconds"`
 	// queue argument: max message size in bytes for the queue, default 65536
@@ -56,6 +59,10 @@ type RequestMetaData struct {
 	TopicMaxMessageSize int32 `mapstructure:"TopicMaxMessageSize" default:"65536"`
 	// topic argument: whether enable logging
 	TopicLoggingEnabled bool `mapstructure:"TopicLoggingEnabled"`
+	// subscription argument: subscription name
+	SubscriptionName string `mapstructure:"subscriptionName"`
+	// subscription argument: notify content type, could be XML or SIMPLIFIED, default SIMPLIFIED
+	SubscriptionNotifyContentFormat ali_mns.NotifyContentFormatType `mapstructure:"subscriptionNotifyContentFormat" default:"SIMPLIFIED"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

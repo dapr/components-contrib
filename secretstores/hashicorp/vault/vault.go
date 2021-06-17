@@ -176,6 +176,7 @@ func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 
+		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
 		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
 			httpresp.StatusCode, b.String())
 	}
@@ -239,6 +240,7 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 
+		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("list keys couldn't get successful response, status code %d, body %s",
 			httpresp.StatusCode, b.String())
 	}

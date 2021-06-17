@@ -1,0 +1,144 @@
+package mns
+
+import (
+	"context"
+	"os"
+	"testing"
+	"time"
+
+	ali_mns "github.com/aliyun/aliyun-mns-go-sdk"
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestMNSQueue(t *testing.T) {
+	mns := NewMns(logger.NewLogger("mns-test"))
+	props := pubsub.Metadata{
+		Properties: map[string]string{
+			"url":             os.Getenv("MNS_URL"),
+			"accessKeyId":     os.Getenv("MNS_ACCESS_KEY"),
+			"accessKeySecret": os.Getenv("MNS_ACCESS_KEY_SECRET"),
+			"mnsMode":         MnsModeQueue,
+		},
+	}
+
+	t.Logf("%v", props)
+
+	mns.Init(props)
+
+	topicName := "dapr-test-topic"
+	queueName := "dapr-test-queue"
+	message := "dapr-test-msg"
+	subscriptionName := "dapr-test-subscription"
+
+	subscribeReq := pubsub.SubscribeRequest{
+		Topic: topicName,
+		Metadata: map[string]string{
+			"queueName":                     queueName,
+			"subscriptionName":              subscriptionName,
+			"subscriptionNotifyContentType": string(ali_mns.SIMPLIFIED),
+		},
+	}
+
+	messageCount := 0
+
+	err := mns.Subscribe(
+		subscribeReq,
+		func(ctx context.Context, msg *pubsub.NewMessage) error {
+			assert.Equal(t, message, string(msg.Data))
+			messageCount++
+			return nil
+		},
+	)
+	if err != nil {
+		t.Error(err)
+	}
+
+	publishReq := pubsub.PublishRequest{
+		Topic: topicName,
+		Data:  []byte(message),
+		Metadata: map[string]string{
+			"queueName":                     queueName,
+			"subscriptionName":              subscriptionName,
+			"subscriptionNotifyContentType": string(ali_mns.SIMPLIFIED),
+			"priority":                      "8",
+		},
+	}
+
+	err = mns.Publish(&publishReq)
+	if err != nil {
+		t.Error(err)
+	}
+
+	time.Sleep(5 * time.Second)
+	if messageCount == 0 {
+		t.Errorf("didn't receive any message")
+	}
+}
+
+func TestMNSTopic(t *testing.T) {
+	mns := NewMns(logger.NewLogger("mns-test"))
+	props := pubsub.Metadata{
+		Properties: map[string]string{
+			"url":             os.Getenv("MNS_URL"),
+			"accessKeyId":     os.Getenv("MNS_ACCESS_KEY"),
+			"accessKeySecret": os.Getenv("MNS_ACCESS_KEY_SECRET"),
+			"mnsMode":         MnsModeTopic,
+		},
+	}
+
+	t.Logf("%v", props)
+
+	mns.Init(props)
+
+	topicName := "dapr-test-topic"
+	queueName := "dapr-test-queue"
+	message := "dapr-test-msg"
+	subscriptionName := "dapr-test-subscription"
+
+	subscribeReq := pubsub.SubscribeRequest{
+		Topic: topicName,
+		Metadata: map[string]string{
+			"queueName":                     queueName,
+			"subscriptionName":              subscriptionName,
+			"subscriptionNotifyContentType": string(ali_mns.SIMPLIFIED),
+		},
+	}
+
+	messageCount := 0
+
+	err := mns.Subscribe(
+		subscribeReq,
+		func(ctx context.Context, msg *pubsub.NewMessage) error {
+			assert.Equal(t, message, string(msg.Data))
+			messageCount++
+			return nil
+		},
+	)
+	if err != nil {
+		t.Error(err)
+	}
+
+	publishReq := pubsub.PublishRequest{
+		Topic: topicName,
+		Data:  []byte(message),
+		Metadata: map[string]string{
+			"queueName":                     queueName,
+			"subscriptionName":              subscriptionName,
+			"subscriptionNotifyContentType": string(ali_mns.SIMPLIFIED),
+			"subject":                       "AAA中文",
+			"accountName":                   "BBB",
+		},
+	}
+
+	err = mns.Publish(&publishReq)
+	if err != nil {
+		t.Error(err)
+	}
+
+	time.Sleep(5 * time.Second)
+	if messageCount == 0 {
+		t.Errorf("didn't receive any message")
+	}
+}

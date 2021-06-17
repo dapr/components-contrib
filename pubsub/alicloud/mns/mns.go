@@ -8,6 +8,7 @@ package mns
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	ali_mns "github.com/aliyun/aliyun-mns-go-sdk"
@@ -19,7 +20,7 @@ import (
 
 var (
 	ReceivingMessageWaitTime          = 1000 * time.Microsecond
-	ReceivingMessagePeriod            = 60
+	ReceivingMessagePeriod            = 30
 	ReceivingMessageVisibilityTimeout = 5
 )
 
@@ -94,6 +95,21 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 	json.Unmarshal(jsonBody, &msgPublishReq)
 	json.Unmarshal(jsonBody, &mailAttr)
 
+	delaySeconds, _ := strconv.ParseInt(req.Metadata["delay_seconds"], 10, 64)
+	msgSendReq.DelaySeconds = delaySeconds
+
+	priority, _ := strconv.ParseInt(req.Metadata["priority"], 10, 64)
+	msgSendReq.Priority = priority
+
+	addressType, _ := strconv.ParseInt(req.Metadata["AddressType"], 10, 32)
+	mailAttr.AddressType = int32(addressType)
+
+	replyToAddress, _ := strconv.ParseInt(req.Metadata["ReplyToAddress"], 10, 32)
+	mailAttr.ReplyToAddress = int32(replyToAddress)
+
+	isHtml, _ := strconv.ParseBool(req.Metadata["IsHtml"])
+	mailAttr.IsHtml = isHtml
+
 	msgSendReq.MessageBody = string(req.Data)
 	msgPublishReq.MessageBody = string(req.Data)
 
@@ -117,7 +133,10 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 
 	case MnsModeQueue:
 		queue := ali_mns.NewMNSQueue(metaData.QueueName, m.client)
-		queue.SendMessage(msgSendReq)
+		_, err := queue.SendMessage(msgSendReq)
+		if err != nil {
+			return err
+		}
 
 	default:
 		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MnsMode)
@@ -166,7 +185,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 			NotifyContentFormat: metaData.SubscriptionNotifyContentFormat,
 		}
 
-		err = topic.Subscribe(fmt.Sprintf("Subscription_%v", req.Topic), sub)
+		err = topic.Subscribe(metaData.SubscriptionName, sub)
 		if err != nil && !ali_mns.ERR_MNS_SUBSCRIPTION_ALREADY_EXIST_AND_HAVE_SAME_ATTR.IsEqual(err) {
 			m.logger.Error(err)
 			return err

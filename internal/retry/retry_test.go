@@ -190,26 +190,28 @@ func TestRetryNotifyRecoverRecovery(t *testing.T) {
 
 func TestRetryNotifyRecoverCancel(t *testing.T) {
 	config := retry.DefaultConfig()
-	config.Policy = retry.PolicyExponential
-	config.InitialInterval = 10 * time.Millisecond
+	config.Policy = retry.PolicyConstant
+	config.Duration = 1 * time.Minute
 
 	var notifyCalls, recoveryCalls int
 
 	ctx, cancel := context.WithCancel(context.Background())
 	b := config.NewBackOffWithContext(ctx)
 	errC := make(chan error, 1)
+	startedC := make(chan struct{}, 100)
 
 	go func() {
 		errC <- retry.NotifyRecover(func() error {
 			return errRetry
 		}, b, func(err error, d time.Duration) {
 			notifyCalls++
+			startedC <- struct{}{}
 		}, func() {
 			recoveryCalls++
 		})
 	}()
 
-	time.Sleep(1 * time.Second)
+	<-startedC
 	cancel()
 
 	err := <-errC

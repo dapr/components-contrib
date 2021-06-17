@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,7 +42,7 @@ type GraphQL struct {
 
 var _ = bindings.OutputBinding(&GraphQL{})
 
-// NewHausura returns a new GraphQL binding instance
+// NewGraphQL returns a new GraphQL binding instance
 func NewGraphQL(logger logger.Logger) *GraphQL {
 	var gql GraphQL
 	gql.logger = logger
@@ -70,6 +71,7 @@ func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 		} else if k != connectionEndPointKey {
 			return fmt.Errorf("GraphQL Error: Required headers not set: should start with \"header:\"")
 		}
+
 	}
 
 	return nil
@@ -94,12 +96,6 @@ func (gql *GraphQL) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	}
 	gql.logger.Debugf("operation: %v", req.Operation)
 
-	q, okq := req.Metadata[commandQuery]
-	m, okm := req.Metadata[commandMutation]
-	if (!okq || q == "") && (!okm || m == "") {
-		return nil, fmt.Errorf("GraphQL Error: Required metadata not set: %s or %s", commandQuery, commandMutation)
-	}
-
 	startTime := time.Now().UTC()
 
 	resp := &bindings.InvokeResponse{
@@ -112,71 +108,65 @@ func (gql *GraphQL) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 
 	var graphqlResponse interface{}
 
-	switch req.Operation {
+	switch req.Operation { // nolint: exhaustive
 	case bindings.QueryOperation:
-		if !okq || q == "" {
-			return nil, fmt.Errorf("GraphQL Error: Required query not set")
+		if err := gql.runRequest(commandQuery, req, &graphqlResponse); err != nil {
+			return nil, err
 		}
-
-		graphqlRequest := graphql.NewRequest(req.Metadata[commandQuery])
-
-		for headerKey, headerValue := range gql.header {
-			graphqlRequest.Header.Set(headerKey, headerValue)
-		}
-
-		if err := gql.client.Run(context.Background(), graphqlRequest, &graphqlResponse); err != nil {
-			return nil, fmt.Errorf("GraphQL Error: %w", err)
-		}
-
-		b, err := json.Marshal(graphqlResponse)
-		if err != nil {
-			return nil, fmt.Errorf("GraphQL Error: %w", err)
-		}
-
-		resp.Data = b
 
 	case bindings.MutationOperation:
-		if !okm || m == "" {
-			return nil, fmt.Errorf("GraphQL Error: Required mutation not set")
+		if err := gql.runRequest(commandMutation, req, &graphqlResponse); err != nil {
+			return nil, err
 		}
-
-		graphqlRequest := graphql.NewRequest(req.Metadata[commandMutation])
-
-		for headerKey, headerValue := range gql.header {
-			graphqlRequest.Header.Set(headerKey, headerValue)
-		}
-
-		if err := gql.client.Run(context.Background(), graphqlRequest, &graphqlResponse); err != nil {
-			return nil, fmt.Errorf("GraphQL Error: %w", err)
-		}
-
-		b, err := json.Marshal(graphqlResponse)
-		if err != nil {
-			return nil, fmt.Errorf("GraphQL Error: %w", err)
-		}
-
-		resp.Data = b
-
-	case bindings.CreateOperation:
-		fallthrough
-
-	case bindings.GetOperation:
-		fallthrough
-
-	case bindings.DeleteOperation:
-		fallthrough
-
-	case bindings.ListOperation:
-		fallthrough
 
 	default:
 		return nil, fmt.Errorf("GraphQL Error: invalid operation type: %s. Expected %s or %s",
 			req.Operation, bindings.QueryOperation, bindings.MutationOperation)
 	}
 
+	b, err := json.Marshal(graphqlResponse)
+	if err != nil {
+		return nil, fmt.Errorf("GraphQL Error: %w", err)
+	}
+
+	resp.Data = b
+
 	endTime := time.Now().UTC()
 	resp.Metadata[respEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 
 	return resp, nil
+}
+
+func (gql *GraphQL) runRequest(requestKey string, req *bindings.InvokeRequest, response interface{}) error {
+	requestString, ok := req.Metadata[requestKey]
+	if !ok || requestString == "" {
+		return fmt.Errorf("GraphQL Error: required %q not set", requestKey)
+	}
+
+	// Check that the command is either a query or mutation based on the first keyword.
+	requestString = strings.TrimSpace(requestString)
+	re := regexp.MustCompile(`(?m)` + requestKey + `\b`)
+	matches := re.FindAllStringIndex(requestString, 1)
+	if len(matches) != 1 || matches[0][0] != 0 {
+		return fmt.Errorf("GraphQL Error: command is not a %s", requestKey)
+	}
+
+	request := graphql.NewRequest(requestString)
+
+	for headerKey, headerValue := range gql.header {
+		request.Header.Set(headerKey, headerValue)
+	}
+
+	for k, v := range req.Metadata {
+		if strings.HasPrefix(k, "header:") {
+			request.Header.Set(strings.TrimPrefix(k, "header:"), v)
+		}
+	}
+
+	if err := gql.client.Run(context.Background(), request, response); err != nil {
+		return fmt.Errorf("GraphQL Error: %w", err)
+	}
+
+	return nil
 }

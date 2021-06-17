@@ -6,6 +6,8 @@ labels: kind/bug
 assignees: ''
 
 ---
+<!-- If you need to report a security issue please visit https://docs.dapr.io/operations/support/support-security-issues -->
+
 ## Expected Behavior
 
 <!-- Briefly describe what you expect to happen -->
@@ -21,6 +23,7 @@ assignees: ''
 <!-- How can a maintainer reproduce this issue (be detailed) -->
 
 ## Release Note
+
 <!-- How should the fix for this issue be communicated in our release notes? It can be populated later. -->
 <!-- Keep it as a single line. Examples: -->
 

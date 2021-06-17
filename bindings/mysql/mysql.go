@@ -254,7 +254,6 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 	if pemPath != "" {
 		rootCertPool := x509.NewCertPool()
 		pem, err := ioutil.ReadFile(pemPath)
-
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
 		}

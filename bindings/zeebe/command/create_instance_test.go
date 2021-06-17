@@ -10,13 +10,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockCreateInstanceClient struct {
@@ -26,9 +25,9 @@ type mockCreateInstanceClient struct {
 
 type mockCreateInstanceCommandStep1 struct {
 	commands.CreateInstanceCommandStep1
-	cmd2          *mockCreateInstanceCommandStep2
-	bpmnProcessID string
-	workflowKey   int64
+	cmd2                 *mockCreateInstanceCommandStep2
+	bpmnProcessID        string
+	processDefinitionKey int64
 }
 
 type mockCreateInstanceCommandStep2 struct {
@@ -60,8 +59,8 @@ func (cmd1 *mockCreateInstanceCommandStep1) BPMNProcessId(bpmnProcessID string) 
 	return cmd1.cmd2
 }
 
-func (cmd1 *mockCreateInstanceCommandStep1) WorkflowKey(workflowKey int64) commands.CreateInstanceCommandStep3 {
-	cmd1.workflowKey = workflowKey
+func (cmd1 *mockCreateInstanceCommandStep1) ProcessDefinitionKey(processDefinitionKey int64) commands.CreateInstanceCommandStep3 {
+	cmd1.processDefinitionKey = processDefinitionKey
 
 	return cmd1.cmd2.cmd3
 }
@@ -84,17 +83,17 @@ func (cmd3 *mockCreateInstanceCommandStep3) VariablesFromObject(variables interf
 	return cmd3, nil
 }
 
-func (cmd3 *mockCreateInstanceCommandStep3) Send(context.Context) (*pb.CreateWorkflowInstanceResponse, error) {
-	return &pb.CreateWorkflowInstanceResponse{}, nil
+func (cmd3 *mockCreateInstanceCommandStep3) Send(context.Context) (*pb.CreateProcessInstanceResponse, error) {
+	return &pb.CreateProcessInstanceResponse{}, nil
 }
 
 func TestCreateInstance(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
-	t.Run("bpmnProcessId and workflowKey are not allowed at the same time", func(t *testing.T) {
+	t.Run("bpmnProcessId and processDefinitionKey are not allowed at the same time", func(t *testing.T) {
 		payload := createInstancePayload{
-			BpmnProcessID: "some-id",
-			WorkflowKey:   new(int64),
+			BpmnProcessID:        "some-id",
+			ProcessDefinitionKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
 		assert.Nil(t, err)
@@ -108,7 +107,7 @@ func TestCreateInstance(t *testing.T) {
 		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
 
-	t.Run("either bpmnProcessId or workflowKey must be given", func(t *testing.T) {
+	t.Run("either bpmnProcessId or processDefinitionKey must be given", func(t *testing.T) {
 		payload := createInstancePayload{}
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
@@ -161,9 +160,9 @@ func TestCreateInstance(t *testing.T) {
 		assert.Equal(t, true, mc.cmd1.cmd2.latestVersion)
 	})
 
-	t.Run("create command with workflowKey", func(t *testing.T) {
+	t.Run("create command with processDefinitionKey", func(t *testing.T) {
 		payload := createInstancePayload{
-			WorkflowKey: new(int64),
+			ProcessDefinitionKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
@@ -176,12 +175,12 @@ func TestCreateInstance(t *testing.T) {
 		_, err = message.Invoke(req)
 		assert.NoError(t, err)
 
-		assert.Equal(t, *payload.WorkflowKey, mc.cmd1.workflowKey)
+		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
 	})
 
 	t.Run("create command with variables", func(t *testing.T) {
 		payload := createInstancePayload{
-			WorkflowKey: new(int64),
+			ProcessDefinitionKey: new(int64),
 			Variables: map[string]interface{}{
 				"key": "value",
 			},
@@ -197,7 +196,7 @@ func TestCreateInstance(t *testing.T) {
 		_, err = message.Invoke(req)
 		assert.NoError(t, err)
 
-		assert.Equal(t, *payload.WorkflowKey, mc.cmd1.workflowKey)
+		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.cmd3.variables)
 	})
 }

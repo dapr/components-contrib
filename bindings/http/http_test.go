@@ -22,7 +22,8 @@ import (
 
 func TestOperations(t *testing.T) {
 	opers := (*binding_http.HTTPSource)(nil).Operations()
-	assert.Equal(t, []bindings.OperationKind{bindings.CreateOperation,
+	assert.Equal(t, []bindings.OperationKind{
+		bindings.CreateOperation,
 		"get",
 		"head",
 		"post",
@@ -30,7 +31,8 @@ func TestOperations(t *testing.T) {
 		"patch",
 		"delete",
 		"options",
-		"trace"}, opers)
+		"trace",
+	}, opers)
 }
 
 func TestInit(t *testing.T) {

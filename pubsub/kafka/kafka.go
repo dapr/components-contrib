@@ -195,7 +195,7 @@ func (k *Kafka) addTopic(newTopic string) []string {
 }
 
 // Close down consumer group resources, refresh once
-func (k *Kafka) closeSubscripionResources() {
+func (k *Kafka) closeSubscriptionResources() {
 	if k.cg != nil {
 		k.cancel()
 		err := k.cg.Close()
@@ -220,7 +220,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 	topics := k.addTopic(req.Topic)
 
 	// Close resources and reset synchronization primitives
-	k.closeSubscripionResources()
+	k.closeSubscriptionResources()
 
 	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
 	if err != nil {
@@ -365,7 +365,7 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 }
 
 func (k *Kafka) Close() error {
-	k.closeSubscripionResources()
+	k.closeSubscriptionResources()
 
 	return k.producer.Close()
 }

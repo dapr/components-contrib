@@ -71,7 +71,6 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				sentinel.WithResourceType(base.ResTypeWeb),
 				sentinel.WithTrafficType(base.Inbound),
 			)
-
 			if err != nil {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusTooManyRequests), fasthttp.StatusTooManyRequests)
 

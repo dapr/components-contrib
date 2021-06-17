@@ -35,8 +35,7 @@ func NewOAuth2Middleware() *Middleware {
 }
 
 // Middleware is an oAuth2 authentication middleware
-type Middleware struct {
-}
+type Middleware struct{}
 
 const (
 	stateParam   = "state"

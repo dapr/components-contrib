@@ -9,8 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/kit/logger"
@@ -19,7 +18,7 @@ import (
 const (
 	// operations
 	topologyOperation         bindings.OperationKind = "topology"
-	deployWorkflowOperation   bindings.OperationKind = "deploy-workflow"
+	deployProcessOperation    bindings.OperationKind = "deploy-process"
 	createInstanceOperation   bindings.OperationKind = "create-instance"
 	cancelInstanceOperation   bindings.OperationKind = "cancel-instance"
 	setVariablesOperation     bindings.OperationKind = "set-variables"
@@ -66,7 +65,7 @@ func (z *ZeebeCommand) Init(metadata bindings.Metadata) error {
 func (z *ZeebeCommand) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		topologyOperation,
-		deployWorkflowOperation,
+		deployProcessOperation,
 		createInstanceOperation,
 		cancelInstanceOperation,
 		setVariablesOperation,
@@ -84,8 +83,8 @@ func (z *ZeebeCommand) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResp
 	switch req.Operation {
 	case topologyOperation:
 		return z.topology()
-	case deployWorkflowOperation:
-		return z.deployWorkflow(req)
+	case deployProcessOperation:
+		return z.deployProcess(req)
 	case createInstanceOperation:
 		return z.createInstance(req)
 	case cancelInstanceOperation:

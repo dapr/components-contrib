@@ -28,6 +28,7 @@ type StateStore struct {
 	collection  *documentdb.Collection
 	db          *documentdb.Database
 	sp          *documentdb.Sproc
+	metadata    metadata
 	contentType string
 
 	features []state.Feature
@@ -139,6 +140,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection)
 	}
 
+	c.metadata = m
 	c.collection = &colls[0]
 	c.client = client
 	c.contentType = m.ContentType
@@ -354,6 +356,24 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		c.logger.Debugf("error=%e", err)
 
 		return err
+	}
+
+	return nil
+}
+
+func (c *StateStore) Ping() error {
+	m := c.metadata
+
+	colls, err := c.client.QueryCollections(c.db.Self, &documentdb.Query{
+		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+		Parameters: []documentdb.Parameter{
+			{Name: "@id", Value: m.Collection},
+		},
+	})
+	if err != nil {
+		return err
+	} else if len(colls) == 0 {
+		return fmt.Errorf("collection %s for CosmosDB state store not found", m.Collection)
 	}
 
 	return nil

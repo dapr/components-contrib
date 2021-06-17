@@ -90,7 +90,7 @@ func decodeString(
 
 	switch t {
 	case typeDuration:
-		// Check for simple integer values and treat them
+		// Check for simple integer value and if the value is positive treat it
 		// as milliseconds
 		if val, err := strconv.Atoi(dataString); err == nil {
 			return time.Duration(val) * time.Millisecond, nil

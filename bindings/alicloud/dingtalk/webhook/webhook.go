@@ -57,7 +57,7 @@ func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
 	dialer := &net.Dialer{ //nolint:exhaustivestruct
 		Timeout: 5 * time.Second,
 	}
-	var netTransport = &http.Transport{ //nolint:exhaustivestruct
+	netTransport := &http.Transport{ //nolint:exhaustivestruct
 		DialContext:         dialer.DialContext,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}

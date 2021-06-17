@@ -136,6 +136,10 @@ func (f *Firestore) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(f.setValue, req)
 }
 
+func (f *Firestore) Ping() error {
+	return nil
+}
+
 func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
 	ctx := context.Background()
 	key := datastore.NameKey(f.entityKind, req.Key, nil)

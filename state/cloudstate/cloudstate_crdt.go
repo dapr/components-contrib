@@ -265,6 +265,10 @@ func (c *CRDT) Init(metadata state.Metadata) error {
 	return nil
 }
 
+func (c *CRDT) Ping() error {
+	return nil
+}
+
 // Features returns the features available in this state store
 func (c *CRDT) Features() []state.Feature {
 	return c.features

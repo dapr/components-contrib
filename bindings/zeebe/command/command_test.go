@@ -9,13 +9,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockClientFactory struct {
@@ -86,7 +85,7 @@ func TestOperations(t *testing.T) {
 	operations := testBinding.Operations()
 	require.Equal(t, 12, len(operations))
 	assert.Equal(t, topologyOperation, operations[0])
-	assert.Equal(t, deployWorkflowOperation, operations[1])
+	assert.Equal(t, deployProcessOperation, operations[1])
 	assert.Equal(t, createInstanceOperation, operations[2])
 	assert.Equal(t, cancelInstanceOperation, operations[3])
 	assert.Equal(t, setVariablesOperation, operations[4])

@@ -69,6 +69,7 @@ type TestConfiguration struct {
 	ComponentType string          `yaml:"componentType,omitempty"`
 	Components    []TestComponent `yaml:"components,omitempty"`
 }
+
 type TestComponent struct {
 	Component     string                 `yaml:"component,omitempty"`
 	Profile       string                 `yaml:"profile,omitempty"`

@@ -15,6 +15,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -179,6 +180,25 @@ func TestTransactionalDelete(t *testing.T) {
 
 	vals := res.([]interface{})
 	assert.Equal(t, 0, len(vals))
+}
+
+func TestPing(t *testing.T) {
+	s, c := setupMiniredis()
+
+	ss := &StateStore{
+		client:         c,
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
+		clientSettings: &rediscomponent.Settings{},
+	}
+
+	err := ss.Ping()
+	assert.NoError(t, err)
+
+	s.Close()
+
+	err = ss.Ping()
+	assert.Error(t, err)
 }
 
 func TestTransactionalDeleteNoEtag(t *testing.T) {

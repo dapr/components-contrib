@@ -14,9 +14,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-var (
-	ErrMissingRetries = errors.New("retries is a required attribute")
-)
+var ErrMissingRetries = errors.New("retries is a required attribute")
 
 type failJobPayload struct {
 	JobKey       *int64 `json:"jobKey"`

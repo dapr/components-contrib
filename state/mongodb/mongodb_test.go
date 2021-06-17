@@ -123,4 +123,58 @@ func TestGetMongoDBMetadata(t *testing.T) {
 
 		assert.Equal(t, expected, uri)
 	})
+
+	t.Run("Valid connectionstring with DNS SRV", func(t *testing.T) {
+		properties := map[string]string{
+			server:         "server.example.com",
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+			params:         "?ssl=true",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+
+		metadata, err := getMongoDBMetaData(m)
+		assert.Nil(t, err)
+
+		uri := getMongoURI(metadata)
+		expected := "mongodb+srv://server.example.com/?ssl=true"
+
+		assert.Equal(t, expected, uri)
+	})
+
+	t.Run("Invalid without host/server", func(t *testing.T) {
+		properties := map[string]string{
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+
+		_, err := getMongoDBMetaData(m)
+		assert.NotNil(t, err)
+
+		expected := "must set 'host' or 'server' fields in metadata"
+		assert.Equal(t, expected, err.Error())
+	})
+
+	t.Run("Invalid with both host/server", func(t *testing.T) {
+		properties := map[string]string{
+			server:         "server.example.com",
+			host:           "127.0.0.2",
+			databaseName:   "TestDB",
+			collectionName: "TestCollection",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+
+		_, err := getMongoDBMetaData(m)
+		assert.NotNil(t, err)
+
+		expected := "'host' or 'server' fields are mutually exclusive"
+		assert.Equal(t, expected, err.Error())
+	})
 }

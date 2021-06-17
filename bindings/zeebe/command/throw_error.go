@@ -14,9 +14,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-var (
-	ErrMissingErrorCode = errors.New("errorCode is a required attribute")
-)
+var ErrMissingErrorCode = errors.New("errorCode is a required attribute")
 
 type throwErrorPayload struct {
 	JobKey       *int64 `json:"jobKey"`

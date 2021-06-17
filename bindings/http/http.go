@@ -52,7 +52,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	dialer := &net.Dialer{
 		Timeout: 5 * time.Second,
 	}
-	var netTransport = &http.Transport{
+	netTransport := &http.Transport{
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}

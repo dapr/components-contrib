@@ -109,7 +109,6 @@ func (r *resolver) Init(metadata nr.Metadata) error {
 func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	cfg := r.config
 	services, _, err := r.client.Health().Service(req.ID, "", true, cfg.QueryOptions)
-
 	if err != nil {
 		return "", fmt.Errorf("failed to query healthy consul services: %w", err)
 	}

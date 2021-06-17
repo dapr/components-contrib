@@ -228,5 +228,4 @@ linters:
     - godot
     - testpackage
     - goerr113
-    - gofumpt
     - gci

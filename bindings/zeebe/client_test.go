@@ -9,10 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -20,7 +19,8 @@ func TestParseMetadata(t *testing.T) {
 		"gatewayAddr":            "172.0.0.1:1234",
 		"gatewayKeepAlive":       "5s",
 		"caCertificatePath":      "/cert/path",
-		"usePlaintextConnection": "true"}}
+		"usePlaintextConnection": "true",
+	}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.NoError(t, err)

@@ -11,6 +11,8 @@ import (
 	"github.com/dapr/components-contrib/internal/config"
 )
 
+const defaultDaprPortMetaKey string = "DAPR_PORT" // default key for DaprPort in meta
+
 // The intermediateConfig is based off of the consul api types. User configurations are
 // deserialized into this type before being converted to the equivalent consul types
 // that way breaking changes in future versions of the consul api cannot break user configuration
@@ -21,8 +23,9 @@ type intermediateConfig struct {
 	Meta                 map[string]string
 	QueryOptions         *QueryOptions
 	AdvancedRegistration *AgentServiceRegistration // advanced use-case
-	SelfRegister         bool
 	DaprPortMetaKey      string
+	SelfRegister         bool
+	UseCache             bool
 }
 
 type configSpec struct {
@@ -32,8 +35,16 @@ type configSpec struct {
 	Meta                 map[string]string
 	QueryOptions         *consul.QueryOptions
 	AdvancedRegistration *consul.AgentServiceRegistration // advanced use-case
-	SelfRegister         bool
 	DaprPortMetaKey      string
+	SelfRegister         bool
+	UseCache             bool
+}
+
+func newIntermediateConfig() intermediateConfig {
+	return intermediateConfig{
+		UseCache:        true,
+		DaprPortMetaKey: defaultDaprPortMetaKey,
+	}
 }
 
 func parseConfig(rawConfig interface{}) (configSpec, error) {
@@ -51,7 +62,7 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
-	var configuration intermediateConfig
+	configuration := newIntermediateConfig()
 	if err := decoder.Decode(&configuration); err != nil {
 		return result, fmt.Errorf("error deserializing to configSpec: %w", err)
 	}
@@ -71,6 +82,7 @@ func mapConfig(config intermediateConfig) configSpec {
 		AdvancedRegistration: mapAdvancedRegistration(config.AdvancedRegistration),
 		SelfRegister:         config.SelfRegister,
 		DaprPortMetaKey:      config.DaprPortMetaKey,
+		UseCache:             config.UseCache,
 	}
 }
 

@@ -76,12 +76,15 @@ type registryEntry struct {
 }
 
 func (r *registry) get(service string) *registryEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	return r.entries[service]
 }
 
 func (e *registryEntry) next() *consul.ServiceEntry {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	if len(e.services) == 0 {
 		return nil
@@ -124,31 +127,32 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 func (r *registry) addOrUpdate(service string, services []*consul.ServiceEntry) {
 	var entry *registryEntry
 
-	if entry = r.get(service); entry == nil {
-		r.mu.Lock()
-		if _, ok := r.entries[service]; !ok {
-			r.entries[service] = &registryEntry{
-				services: services,
-			}
-		}
-		r.mu.Unlock()
+	// update
+	if entry = r.get(service); entry != nil {
+		entry.mu.Lock()
+		defer entry.mu.Unlock()
+
+		entry.services = services
 
 		return
 	}
 
-	entry.mu.Lock()
-	defer entry.mu.Unlock()
-
-	entry.services = services
+	// add
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.entries[service] = &registryEntry{
+		services: services,
+	}
 }
 
 func (r *registry) remove(service string) {
-	if entry := r.get(service); entry == nil {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.entries[service]; !ok {
 		return
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	delete(r.entries, service)
 }
 

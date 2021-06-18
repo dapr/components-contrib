@@ -17,10 +17,8 @@ type OperationKind string
 
 // Non exhaustive list of operations. A binding can add operations that are not in this list.
 const (
-	GetOperation      OperationKind = "get"
-	CreateOperation   OperationKind = "create"
-	DeleteOperation   OperationKind = "delete"
-	ListOperation     OperationKind = "list"
-	QueryOperation    OperationKind = "query"
-	MutationOperation OperationKind = "mutation"
+	GetOperation    OperationKind = "get"
+	CreateOperation OperationKind = "create"
+	DeleteOperation OperationKind = "delete"
+	ListOperation   OperationKind = "list"
 )

@@ -31,6 +31,9 @@ const (
 	respStartTimeKey = "start-time"
 	respEndTimeKey   = "end-time"
 	respDurationKey  = "duration"
+
+	QueryOperation    bindings.OperationKind = "query"
+	MutationOperation bindings.OperationKind = "mutation"
 )
 
 // GraphQL represents GraphQL output bindings
@@ -44,10 +47,7 @@ var _ = bindings.OutputBinding(&GraphQL{})
 
 // NewGraphQL returns a new GraphQL binding instance
 func NewGraphQL(logger logger.Logger) *GraphQL {
-	var gql GraphQL
-	gql.logger = logger
-
-	return &gql
+	return &GraphQL{logger: logger}
 }
 
 // Init initializes the GraphQL binding
@@ -68,10 +68,7 @@ func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 	for k, v := range p {
 		if strings.HasPrefix(k, "header:") {
 			gql.header[strings.TrimPrefix(k, "header:")] = v
-		} else if k != connectionEndPointKey {
-			return fmt.Errorf("GraphQL Error: Required headers not set: should start with \"header:\"")
 		}
-
 	}
 
 	return nil
@@ -80,8 +77,8 @@ func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 // Operations returns list of operations supported by GraphQL binding
 func (gql *GraphQL) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
-		bindings.QueryOperation,
-		bindings.MutationOperation,
+		QueryOperation,
+		MutationOperation,
 	}
 }
 
@@ -109,19 +106,19 @@ func (gql *GraphQL) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	var graphqlResponse interface{}
 
 	switch req.Operation { // nolint: exhaustive
-	case bindings.QueryOperation:
+	case QueryOperation:
 		if err := gql.runRequest(commandQuery, req, &graphqlResponse); err != nil {
 			return nil, err
 		}
 
-	case bindings.MutationOperation:
+	case MutationOperation:
 		if err := gql.runRequest(commandMutation, req, &graphqlResponse); err != nil {
 			return nil, err
 		}
 
 	default:
 		return nil, fmt.Errorf("GraphQL Error: invalid operation type: %s. Expected %s or %s",
-			req.Operation, bindings.QueryOperation, bindings.MutationOperation)
+			req.Operation, QueryOperation, MutationOperation)
 	}
 
 	b, err := json.Marshal(graphqlResponse)

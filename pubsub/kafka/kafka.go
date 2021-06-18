@@ -214,7 +214,7 @@ func (k *Kafka) closeSubscriptionResources() {
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if k.consumerGroup == "" {
-		return errors.New("kafka: consumerID must be set to subscribe")
+		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
 
 	topics := k.addTopic(req.Topic)

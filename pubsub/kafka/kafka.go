@@ -47,7 +47,7 @@ type Kafka struct {
 
 type kafkaMetadata struct {
 	Brokers         []string `json:"brokers"`
-	ConsumerID      string   `json:"consumerID"`
+	ConsumerGroup   string   `json:"consumerGroup"`
 	AuthRequired    bool     `json:"authRequired"`
 	SaslUsername    string   `json:"saslUsername"`
 	SaslPassword    string   `json:"saslPassword"`
@@ -123,7 +123,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.brokers = meta.Brokers
 	k.producer = p
-	k.consumerGroup = meta.ConsumerID
+	k.consumerGroup = meta.ConsumerGroup
 
 	if meta.AuthRequired {
 		k.saslUsername = meta.SaslUsername
@@ -277,8 +277,8 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
-	meta.ConsumerID = metadata.Properties["consumerID"]
-	k.logger.Debugf("Using %s as ConsumerGroup name", meta.ConsumerID)
+	meta.ConsumerGroup = metadata.Properties["consumerGroup"]
+	k.logger.Debugf("Using %s as ConsumerGroup name", meta.ConsumerGroup)
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")

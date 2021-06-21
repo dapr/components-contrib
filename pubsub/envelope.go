@@ -103,6 +103,27 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[strin
 	m[TopicField] = topic
 	m[PubsubField] = pubsub
 
+	// specify default value if it's unspecified from the original CloudEvent
+	if m[IDField] == nil {
+		m[IDField] = ""
+	}
+
+	if m[DataContentTypeField] == nil {
+		m[DataContentTypeField] = ""
+	}
+
+	if m[SourceField] == nil {
+		m[SourceField] = DefaultCloudEventSource
+	}
+
+	if m[TypeField] == nil {
+		m[TypeField] = DefaultCloudEventType
+	}
+
+	if m[SpecVersionField] == nil {
+		m[SpecVersionField] = CloudEventsSpecVersion
+	}
+
 	return m, nil
 }
 

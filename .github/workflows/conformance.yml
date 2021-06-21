@@ -132,7 +132,7 @@ jobs:
     - name: Setup test output
       shell: bash
       run: |
-        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
+        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/${{ matrix.component }}_test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
@@ -246,7 +246,7 @@ jobs:
     - name: Run tests
       continue-on-error: true
       run: |
-        set -e 
+        set -e
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
         NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
         KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
@@ -258,8 +258,10 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         set +e
-        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json --format standard-verbose -- \
-          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
+        gotestsum --format standard-verbose \
+          --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml \
+          -- -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
 
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
@@ -280,7 +282,7 @@ jobs:
       continue-on-error: true
       run: pkill ngrok; cat /tmp/ngrok.log
 
-    # Download the required certificates into files, and set env var pointing to their names
+    # Remove any downloaded certificates
     - name: Clean up certs
       if: matrix.required-certs != ''
       run: |
@@ -299,10 +301,39 @@ jobs:
           exit 1
         fi
 
-    # Upload logs for dashboard like dapr/dapr E2E tests
+    # Upload logs for test analytics to use
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@master
       with:
-        name: ${{ matrix.component }}_conformance_test.json
-        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json
+        name: ${{ matrix.component }}_conformance_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
+
+  publish-to-azure-devops:
+    runs-on: ubuntu-latest
+    needs: conformance
+    if: always()
+    steps:
+      - name: Check if Azure DevOps token is defined
+        run: |
+          token="${{ secrets.AZURE_DEVOPS_TOKEN }}"
+          if [ -z "$token" ] ; then
+            echo "AZURE_DEVOPS_TOKEN not set, test results are not published ..."
+            exit 1
+          elif [[ ${token,,} = skip ]] ; then
+            echo "AZURE_DEVOPS_TOKEN set to SKIP, skipping publish of test results..."
+          else
+            echo "AZURE_DEVOPS_TOKEN found ..."
+            echo "AZURE_DEVOPS_TOKEN_FOUND=true" >> $GITHUB_ENV
+          fi
+      # TODO: It would be preferable to use the Azure/pipelines action once the `azure-pipeline-variables`
+      # property is supported. The current v1 release does not support it, contrary to some docs.
+      - name: Publish test results to Azure DevOps
+        if: env.AZURE_DEVOPS_TOKEN_FOUND == 'true'
+        env:
+          TEST_RESULTS_PIPELINE: components-contrib.publish-conformance-results
+        run: |
+          echo ${{ secrets.AZURE_DEVOPS_TOKEN }} | az devops login --org https://dev.azure.com/azure-octo
+          az devops configure --defaults organization=https://dev.azure.com/azure-octo project=Dapr
+          az pipelines run --name ${{ env.TEST_RESULTS_PIPELINE }} --branch $GITHUB_REF --variables GitHubRunId=$GITHUB_RUN_ID GitHubRepository=$GITHUB_REPOSITORY
+          az devops logout --org https://dev.azure.com/azure-octo

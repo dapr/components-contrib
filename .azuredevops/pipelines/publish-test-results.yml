@@ -1,0 +1,74 @@
+# ------------------------------------------------------------
+# Copyright (c) Microsoft Corporation and Dapr Contributors.
+# Licensed under the MIT License.
+# ------------------------------------------------------------
+
+trigger:
+- master
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- script: |
+    python -m pip install --upgrade pip setuptools wheel
+    pip install ghapi
+  displayName: 'Install Python tools'
+
+- task: PythonScript@0
+  displayName: 'Download test artifacts'
+  inputs:
+    scriptSource: 'inline'
+    script: |
+      import os
+      import requests
+      import sys
+      from ghapi.all import GhApi, paged
+
+      # Input parameters are expected to be defined as pipeline variables with empty values
+      # If variables are not defined, pipeline engine treats `$(name)` as string literals.
+
+      repo_name = "$(GitHubRepository)"   # GITHUB_REPOSITORY of the triggering GitHub workflow
+      run_id = "$(GitHubRunId)"           # GITHUB_RUN_ID of the triggering GitHub workflow
+
+      if not repo_name:
+          sys.exit('GitHubRepository was not provided to the pipeline')
+      if not run_id:
+          sys.exit('GitHubRunId was not provided to the pipeline')
+
+      print('Downloading test artifacts for {} workflow run {}'.format(repo_name, run_id))
+
+      repo_segments = repo_name.split('/')
+      api = GhApi(owner=repo_segments[0], repo=repo_segments[1])
+
+      artifact_pages = paged(api.actions.list_workflow_run_artifacts, run_id=run_id, per_page=100)
+      for page in artifact_pages:
+          if len(page.artifacts) == 0:
+              break
+          for artifact in page.artifacts:
+              print("Downloading artifact: {} from {}".format(artifact.name, artifact.archive_download_url))
+              filename = f"$(System.DefaultWorkingDirectory)/{artifact.name}.zip"
+              headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}"}
+              response = requests.get(artifact.archive_download_url, headers=headers)
+              if response.status_code == 200:
+                  with open(filename, "wb") as fh:
+                      fh.write(response.content)
+              else:
+                  print("Request error: ", response.status_code)
+  env:
+    # Secret variables must be mapped to environment to be used
+    GITHUB_TOKEN: $(GitHubToken)
+
+- task: ExtractFiles@1
+  displayName: 'Extract test results'
+  inputs:
+    archiveFilePatterns: '$(System.DefaultWorkingDirectory)/*.zip'
+    destinationFolder: '$(System.DefaultWorkingDirectory)/results'
+    cleanDestinationFolder: true
+    overwriteExistingFiles: false
+
+- task: PublishTestResults@2
+  displayName: 'Publish test results'
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '$(System.DefaultWorkingDirectory)/results/*.xml'

@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ProducerFlushTimeoutMs = 50 * 1000
+	ProducerFlushTimeoutMs = 10 * 1000
 )
 
 type contextWithCancelFunc struct {

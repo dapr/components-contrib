@@ -19,8 +19,8 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 type AliCloudRocketMQ struct {

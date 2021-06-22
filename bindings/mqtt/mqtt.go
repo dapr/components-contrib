@@ -22,8 +22,8 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (

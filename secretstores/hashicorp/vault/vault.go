@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -35,6 +36,7 @@ const (
 	componentVaultToken          string = "vaultToken"
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
+	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
@@ -107,8 +109,20 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 		return fmt.Errorf("token mount path and token both set")
 	}
 
+	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
 	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVPrefix == "" {
+	convertedVaultKVUsePrefix := true
+	if vaultKVUsePrefix != "" {
+		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
+			convertedVaultKVUsePrefix = v
+		} else if err != nil {
+			return fmt.Errorf("unable to convert Use Prefix to boolean")
+		}
+	}
+
+	if !convertedVaultKVUsePrefix {
+		vaultKVPrefix = ""
+	} else if vaultKVPrefix == "" {
 		vaultKVPrefix = defaultVaultKVPrefix
 	}
 

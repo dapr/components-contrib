@@ -205,7 +205,7 @@ func (m *Mysql) query(s string) ([]byte, error) {
 		_ = rows.Err()
 	}()
 
-	result, err := jsonify(rows)
+	result, err := m.jsonify(rows)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error marshalling query result for %s", s)
 	}
@@ -279,7 +279,7 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-func jsonify(rows *sql.Rows) ([]byte, error) {
+func (m *Mysql) jsonify(rows *sql.Rows) ([]byte, error) {
 	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
 		return nil, err
@@ -293,7 +293,7 @@ func jsonify(rows *sql.Rows) ([]byte, error) {
 			return nil, err
 		}
 
-		r := convert(columnTypes, values)
+		r := m.convert(columnTypes, values)
 		ret = append(ret, r)
 	}
 
@@ -314,7 +314,7 @@ func prepareValues(columnTypes []*sql.ColumnType) []interface{} {
 	return values
 }
 
-func convert(columnTypes []*sql.ColumnType, values []interface{}) map[string]interface{} {
+func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []interface{}) map[string]interface{} {
 	r := map[string]interface{}{}
 
 	for i, ct := range columnTypes {
@@ -323,7 +323,9 @@ func convert(columnTypes []*sql.ColumnType, values []interface{}) map[string]int
 		switch v := values[i].(type) {
 		case driver.Valuer:
 			if vv, err := v.Value(); err == nil {
-				value = vv
+				value = interface{}(vv)
+			} else {
+				m.logger.Warnf("error to convert value: %v", err)
 			}
 		case *sql.RawBytes:
 			// special case for sql.RawBytes, see https://github.com/go-sql-driver/mysql/blob/master/fields.go#L178
@@ -333,7 +335,9 @@ func convert(columnTypes []*sql.ColumnType, values []interface{}) map[string]int
 			}
 		}
 
-		r[ct.Name()] = value
+		if value != nil {
+			r[ct.Name()] = value
+		}
 	}
 
 	return r

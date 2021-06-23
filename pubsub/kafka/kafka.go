@@ -47,9 +47,6 @@ type Kafka struct {
 
 type kafkaMetadata struct {
 	Brokers []string `json:"brokers"`
-	// Deprecated
-	// ConsumerID is alias to ConsumerGroup, when both set, ConsumerGroup is final
-	ConsumerID      string `json:"consumerID"`
 	ConsumerGroup   string `json:"consumerGroup"`
 	ClientID        string `json:"clientID"`
 	AuthRequired    bool   `json:"authRequired"`
@@ -127,12 +124,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	k.brokers = meta.Brokers
 	k.producer = p
-	if meta.ConsumerID != "" {
-		k.consumerGroup = meta.ConsumerID
-	}
-	if meta.ConsumerGroup != "" {
-		k.consumerGroup = meta.ConsumerGroup
-	}
+	k.consumerGroup = meta.ConsumerGroup
 
 	if meta.AuthRequired {
 		k.saslUsername = meta.SaslUsername
@@ -227,7 +219,7 @@ func (k *Kafka) closeSubscriptionResources() {
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if k.consumerGroup == "" {
-		return errors.New("kafka: consumerGroup|consumerID must be set to subscribe")
+		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
 
 	topics := k.addTopic(req.Topic)
@@ -291,8 +283,9 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 	meta := kafkaMetadata{}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
 	if val, ok := metadata.Properties["consumerID"]; ok && val != "" {
-		meta.ConsumerID = val
-		k.logger.Debugf("Using %s as ConsumerID", meta.ConsumerID)
+		meta.ConsumerGroup = val
+		k.logger.Debugf("Using %s as ConsumerGroup", meta.ConsumerGroup)
+		k.logger.Warn("ConsumerID is deprecated, if ConsumerID and ConsumerGroup both set, ConsumerGroup is final")
 	}
 
 	if val, ok := metadata.Properties["consumerGroup"]; ok && val != "" {

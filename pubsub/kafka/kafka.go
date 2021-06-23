@@ -285,7 +285,7 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 	if val, ok := metadata.Properties["consumerID"]; ok && val != "" {
 		meta.ConsumerGroup = val
 		k.logger.Debugf("Using %s as ConsumerGroup", meta.ConsumerGroup)
-		k.logger.Warn("ConsumerID is deprecated, if ConsumerID and ConsumerGroup both set, ConsumerGroup is final")
+		k.logger.Warn("ConsumerID is deprecated, if ConsumerID and ConsumerGroup are both set, ConsumerGroup is used")
 	}
 
 	if val, ok := metadata.Properties["consumerGroup"]; ok && val != "" {

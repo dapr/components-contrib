@@ -19,7 +19,7 @@ func getKafkaPubsub() *Kafka {
 
 func TestParseMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{"consumerID": "a" ,"consumerGroup": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048"}
+	m.Properties = map[string]string{"consumerID": "a", "consumerGroup": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048"}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
 	assert.Nil(t, err)

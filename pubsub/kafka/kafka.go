@@ -46,15 +46,15 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers         []string `json:"brokers"`
+	Brokers []string `json:"brokers"`
 	// Deprecated
 	// ConsumerID is alias to ConsumerGroup, when both set, ConsumerGroup is final
-	ConsumerID      string   `json:"consumerID"`
-	ConsumerGroup   string   `json:"consumerGroup"`
-	AuthRequired    bool     `json:"authRequired"`
-	SaslUsername    string   `json:"saslUsername"`
-	SaslPassword    string   `json:"saslPassword"`
-	MaxMessageBytes int      `json:"maxMessageBytes"`
+	ConsumerID      string `json:"consumerID"`
+	ConsumerGroup   string `json:"consumerGroup"`
+	AuthRequired    bool   `json:"authRequired"`
+	SaslUsername    string `json:"saslUsername"`
+	SaslPassword    string `json:"saslPassword"`
+	MaxMessageBytes int    `json:"maxMessageBytes"`
 }
 
 type consumer struct {

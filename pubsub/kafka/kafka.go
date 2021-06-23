@@ -18,9 +18,9 @@ import (
 
 	"github.com/Shopify/sarama"
 
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (

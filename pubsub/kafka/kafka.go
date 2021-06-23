@@ -51,6 +51,7 @@ type kafkaMetadata struct {
 	// ConsumerID is alias to ConsumerGroup, when both set, ConsumerGroup is final
 	ConsumerID      string `json:"consumerID"`
 	ConsumerGroup   string `json:"consumerGroup"`
+	ClientID        string `json:"clientID"`
 	AuthRequired    bool   `json:"authRequired"`
 	SaslUsername    string `json:"saslUsername"`
 	SaslPassword    string `json:"saslPassword"`
@@ -140,6 +141,10 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_0_0_0
+
+	if meta.ClientID != "" {
+		config.ClientID = meta.ClientID
+	}
 
 	if k.authRequired {
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
@@ -285,11 +290,20 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
-	meta.ConsumerID = metadata.Properties["consumerID"]
-	k.logger.Debugf("Using %s as ConsumerID name", meta.ConsumerID)
+	if val, ok := metadata.Properties["consumerID"]; ok && val != "" {
+		meta.ConsumerID = val
+		k.logger.Debugf("Using %s as ConsumerID", meta.ConsumerID)
+	}
 
-	meta.ConsumerGroup = metadata.Properties["consumerGroup"]
-	k.logger.Debugf("Using %s as ConsumerGroup name", meta.ConsumerGroup)
+	if val, ok := metadata.Properties["consumerGroup"]; ok && val != "" {
+		meta.ConsumerGroup = val
+		k.logger.Debugf("Using %s as ConsumerGroup", meta.ConsumerGroup)
+	}
+
+	if val, ok := metadata.Properties["clientID"]; ok && val != "" {
+		meta.ClientID = val
+		k.logger.Debugf("Using %s as ClientID", meta.ClientID)
+	}
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")

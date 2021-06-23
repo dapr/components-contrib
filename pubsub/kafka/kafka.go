@@ -46,13 +46,13 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers []string `json:"brokers"`
-	ConsumerGroup   string `json:"consumerGroup"`
-	ClientID        string `json:"clientID"`
-	AuthRequired    bool   `json:"authRequired"`
-	SaslUsername    string `json:"saslUsername"`
-	SaslPassword    string `json:"saslPassword"`
-	MaxMessageBytes int    `json:"maxMessageBytes"`
+	Brokers         []string `json:"brokers"`
+	ConsumerGroup   string   `json:"consumerGroup"`
+	ClientID        string   `json:"clientID"`
+	AuthRequired    bool     `json:"authRequired"`
+	SaslUsername    string   `json:"saslUsername"`
+	SaslPassword    string   `json:"saslPassword"`
+	MaxMessageBytes int      `json:"maxMessageBytes"`
 }
 
 type consumer struct {

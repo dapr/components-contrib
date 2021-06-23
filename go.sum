@@ -211,8 +211,8 @@ github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b/go.mod h1:H0wQ
 github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23/go.mod h1:bbYlZJ7hK1yFx9hf58LP0zeX7UjIGs20ufpu3evjr+s=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
 github.com/buger/jsonparser v1.1.1/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=
-github.com/camunda-cloud/zeebe/clients/go v1.0.0 h1:rC17AA+gMimFYd8ojk+Qq34VytFK7dqQ4WKuki6tOvg=
-github.com/camunda-cloud/zeebe/clients/go v1.0.0/go.mod h1:slW2ZP0pMmiZdxBLJHjGxax+E2AjjLFB608DRhounJI=
+github.com/camunda-cloud/zeebe/clients/go v1.0.1 h1:hlzKp+loA2RRtJKpJWj0sUJ3q+lg6o9dIPGu5qW+4QA=
+github.com/camunda-cloud/zeebe/clients/go v1.0.1/go.mod h1:slW2ZP0pMmiZdxBLJHjGxax+E2AjjLFB608DRhounJI=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.0.0+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/cenkalti/backoff v2.1.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=

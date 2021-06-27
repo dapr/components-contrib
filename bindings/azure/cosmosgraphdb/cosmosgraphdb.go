@@ -86,7 +86,6 @@ func (c *CosmosGraphDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	if req == nil {
 		return nil, errors.New("invoke request required")
 	}

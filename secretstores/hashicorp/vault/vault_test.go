@@ -97,6 +97,81 @@ func TestVaultTLSConfig(t *testing.T) {
 	})
 }
 
+func TestVaultTokenPrefix(t *testing.T) {
+	t.Run("default value of vaultKVUsePrefix is true to emulate previous behaviour", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, defaultVaultKVPrefix, target.vaultKVPrefix)
+	})
+
+	t.Run("if vaultKVUsePrefix is false ignore vaultKVPrefix", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultKVPrefix":       "myCustomString",
+			"vaultKVUsePrefix":    "false",
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, "", target.vaultKVPrefix)
+	})
+
+	t.Run("if vaultKVUsePrefix is not castable to bool return error", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultKVPrefix":       "myCustomString",
+			"vaultKVUsePrefix":    "invalidSetting",
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		err := target.Init(m)
+
+		assert.NotNil(t, err)
+	})
+}
+
 func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 	t.Run("without vaultTokenMount or vaultToken", func(t *testing.T) {
 		properties := map[string]string{}

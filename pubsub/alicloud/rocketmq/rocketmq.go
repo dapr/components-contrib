@@ -14,9 +14,9 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 	jsoniter "github.com/json-iterator/go"
 )
 

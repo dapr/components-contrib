@@ -37,15 +37,21 @@ type mns struct {
 	queueManager ali_mns.AliQueueManager
 	topicManager ali_mns.AliTopicManager
 
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+
 	queueContexts        map[string]contextWithCancelFunc
 	subscriptionContexts map[string]contextWithCancelFunc
 }
 
-// NewMns creates a new MNS pub/sub
-func NewMns(logger logger.Logger) pubsub.PubSub {
+// NewMNS creates a new MNS pub/sub
+func NewMNS(logger logger.Logger) pubsub.PubSub {
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	return &mns{ //nolint:exhaustivestruct
-		name:   "MNS",
-		logger: logger,
+		name:       "MNS",
+		logger:     logger,
+		ctx:        ctx,
+		cancelFunc: cancelFunc,
 	}
 }
 
@@ -58,8 +64,8 @@ func (m *mns) Init(md pubsub.Metadata) error {
 
 	m.client = ali_mns.NewAliMNSClientWithConfig(
 		ali_mns.AliMNSClientConfig{
-			EndPoint:        settings.Url,
-			AccessKeyId:     settings.AccessKeyId,
+			EndPoint:        settings.URL,
+			AccessKeyId:     settings.AccessKeyID,
 			AccessKeySecret: settings.AccessKeySecret,
 			Token:           settings.Token,
 			TimeoutSecond:   settings.TimeoutSecond,
@@ -115,8 +121,8 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 
 	msgPublishReq.MessageAttributes = &ali_mns.MessageAttributes{MailAttributes: &mailAttr} //nolint:exhaustivestruct
 
-	switch m.settings.MnsMode {
-	case MnsModeTopic:
+	switch m.settings.MNSMode {
+	case MNSModeTopic:
 		// create/fetch topic
 		err = m.topicManager.CreateTopic(
 			req.Topic,
@@ -131,7 +137,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 		topic := ali_mns.NewMNSTopic(req.Topic, m.client)
 		topic.PublishMessage(msgPublishReq)
 
-	case MnsModeQueue:
+	case MNSModeQueue:
 		queue := ali_mns.NewMNSQueue(metaData.QueueName, m.client)
 		_, err := queue.SendMessage(msgSendReq)
 		if err != nil {
@@ -139,7 +145,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 		}
 
 	default:
-		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MnsMode)
+		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MNSMode)
 	}
 
 	return nil
@@ -165,8 +171,8 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		return err
 	}
 
-	switch m.settings.MnsMode {
-	case MnsModeTopic:
+	switch m.settings.MNSMode {
+	case MNSModeTopic:
 		// create/fetch topic
 		err = m.topicManager.CreateTopic(
 			req.Topic,
@@ -192,13 +198,13 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		}
 
 		time.Sleep(time.Duration(2) * time.Second)
-	case MnsModeQueue:
+	case MNSModeQueue:
 		// do nothing here because queue is already created or fetched
 	default:
-		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MnsMode)
+		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MNSMode)
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(m.ctx)
 
 	queue := ali_mns.NewMNSQueue(metaData.QueueName, m.client)
 
@@ -208,13 +214,13 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 	go m.processMessageLoop(ctx, req.Topic, queue, handler, respChan, errChan)
 	go m.receiveMessageLoop(ctx, queue, respChan, errChan)
 
-	switch m.settings.MnsMode {
-	case MnsModeQueue:
+	switch m.settings.MNSMode {
+	case MNSModeQueue:
 		if c, ok := m.queueContexts[metaData.QueueName]; ok {
 			c.cancel()
 		}
 		m.queueContexts[metaData.QueueName] = contextWithCancelFunc{ctx, cancelFunc}
-	case MnsModeTopic:
+	case MNSModeTopic:
 		if c, ok := m.subscriptionContexts[metaData.SubscriptionName]; ok {
 			c.cancel()
 		}
@@ -224,7 +230,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 	return nil
 }
 
-func wrapMnsMessage(resp ali_mns.MessageReceiveResponse, topic string) (msg pubsub.NewMessage, err error) {
+func wrapMNSMessage(resp ali_mns.MessageReceiveResponse, topic string) (msg pubsub.NewMessage, err error) {
 	msg.Topic = topic
 	msg.Data = []byte(resp.MessageBody)
 
@@ -233,7 +239,10 @@ func wrapMnsMessage(resp ali_mns.MessageReceiveResponse, topic string) (msg pubs
 		return msg, err
 	}
 
-	json.Unmarshal(jsonBody, &msg.Metadata)
+	err = json.Unmarshal(jsonBody, &msg.Metadata)
+	if err != nil {
+		return msg, err
+	}
 
 	return msg, nil
 }
@@ -247,7 +256,7 @@ func (m *mns) processMessageLoop(ctx context.Context, topic string, queue ali_mn
 			{
 				m.logger.Infof("response: %+v", resp)
 
-				msg, err := wrapMnsMessage(resp, topic)
+				msg, err := wrapMNSMessage(resp, topic)
 				if err != nil {
 					m.logger.Error(err)
 					continue
@@ -299,5 +308,6 @@ func (m *mns) Features() []pubsub.Feature {
 
 // Close unsubscribes all topics/queues and closes this service gracefully
 func (m *mns) Close() error {
+	m.cancelFunc()
 	return nil
 }

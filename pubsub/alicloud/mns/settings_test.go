@@ -13,7 +13,7 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 		"url":             "http://mns.test",
 		"accessKeyId":     "testID",
 		"accessKeySecret": "testKeySecret",
-		"mnsMode":         MnsModeQueue,
+		"mnsMode":         MNSModeQueue,
 		"token":           "test token",
 		"timeoutSecond":   "202020",
 		"contentType":     "application/octet-stream",
@@ -23,10 +23,10 @@ func TestSettingsDecode(t *testing.T) { //nolint:paralleltest
 	err := settings.Decode(props)
 	require.NoError(t, err)
 
-	assert.Equal(t, "http://mns.test", settings.Url)
-	assert.Equal(t, "testID", settings.AccessKeyId)
+	assert.Equal(t, "http://mns.test", settings.URL)
+	assert.Equal(t, "testID", settings.AccessKeyID)
 	assert.Equal(t, "testKeySecret", settings.AccessKeySecret)
-	assert.Equal(t, MnsModeQueue, settings.MnsMode)
+	assert.Equal(t, MNSModeQueue, settings.MNSMode)
 	assert.Equal(t, "test token", settings.Token)
 	assert.Equal(t, int64(202020), settings.TimeoutSecond)
 	assert.Equal(t, "application/octet-stream", settings.ContentType)

@@ -16,17 +16,17 @@ import (
 var (
 	// for more info: https://www.alibabacloud.com/help/doc-detail/27414.htm?spm=a2c63.p38356.879954.3.61943078qdiiEF#section-ghy-14s-7xd
 	// use one-to-one mode for messaging
-	MnsModeQueue = "queue"
+	MNSModeQueue = "queue"
 	// use one-to-many mode for messaging
-	MnsModeTopic = "topic"
+	MNSModeTopic = "topic"
 )
 
 // MNS settings
 type Settings struct {
 	// url for mns service
-	Url string `mapstructure:"url"`
+	URL string `mapstructure:"url"`
 	// mns access key id
-	AccessKeyId string `mapstructure:"accessKeyId"`
+	AccessKeyID string `mapstructure:"accessKeyId"`
 	// mns access key secret
 	AccessKeySecret string `mapstructure:"accessKeySecret"`
 	// mns token, optional
@@ -34,7 +34,7 @@ type Settings struct {
 	// timeout in seconds, default 35
 	TimeoutSecond int64 `mapstructure:"timeoutSecond" default:"35"`
 	// mns mode (queue or topic)
-	MnsMode string `mapstructure:"mnsMode"`
+	MNSMode string `mapstructure:"mnsMode"`
 	// msg's content-type eg:"application/cloudevents+json; charset=utf-8", application/octet-stream
 	ContentType string `mapstructure:"contentType"`
 }

@@ -13,13 +13,13 @@ import (
 )
 
 func TestMNSQueue(t *testing.T) {
-	mns := NewMns(logger.NewLogger("mns-test"))
+	mns := NewMNS(logger.NewLogger("mns-test"))
 	props := pubsub.Metadata{
 		Properties: map[string]string{
 			"url":             os.Getenv("MNS_URL"),
 			"accessKeyId":     os.Getenv("MNS_ACCESS_KEY"),
 			"accessKeySecret": os.Getenv("MNS_ACCESS_KEY_SECRET"),
-			"mnsMode":         MnsModeQueue,
+			"mnsMode":         MNSModeQueue,
 		},
 	}
 
@@ -78,13 +78,13 @@ func TestMNSQueue(t *testing.T) {
 }
 
 func TestMNSTopic(t *testing.T) {
-	mns := NewMns(logger.NewLogger("mns-test"))
+	mns := NewMNS(logger.NewLogger("mns-test"))
 	props := pubsub.Metadata{
 		Properties: map[string]string{
 			"url":             os.Getenv("MNS_URL"),
 			"accessKeyId":     os.Getenv("MNS_ACCESS_KEY"),
 			"accessKeySecret": os.Getenv("MNS_ACCESS_KEY_SECRET"),
-			"mnsMode":         MnsModeTopic,
+			"mnsMode":         MNSModeTopic,
 		},
 	}
 

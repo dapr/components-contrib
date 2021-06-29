@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 	"github.com/streadway/amqp"
 )
 

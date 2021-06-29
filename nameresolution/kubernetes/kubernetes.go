@@ -8,8 +8,8 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 

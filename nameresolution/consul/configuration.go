@@ -8,7 +8,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 
-	"github.com/dapr/components-contrib/internal/config"
+	"github.com/dapr/kit/config"
 )
 
 // The intermediateConfig is based off of the consul api types. User configurations are

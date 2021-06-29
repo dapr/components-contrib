@@ -20,9 +20,9 @@ import (
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
 
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 // compulsory options

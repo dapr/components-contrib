@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 

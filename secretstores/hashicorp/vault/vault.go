@@ -304,7 +304,7 @@ func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
 	if err := json.NewDecoder(httpresp.Body).Decode(&d); err != nil {
 		return nil, fmt.Errorf("couldn't decode response body: %s", err)
 	}
-	var res = make([]string, 0, len(d.Data.Keys))
+	res := make([]string, 0, len(d.Data.Keys))
 	for _, key := range d.Data.Keys {
 		if v.isSecretPath(key) {
 			res = append(res, path+key)

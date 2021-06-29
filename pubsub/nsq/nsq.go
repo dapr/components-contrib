@@ -8,37 +8,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 
 	"github.com/nsqio/go-nsq"
-	gnsq "github.com/nsqio/go-nsq"
 )
 
 const (
-	nsqlookupAddr = "nsqlookup"
-	nsqdAddr      = "nsqd"
-	channel       = "channel"
-
-	concurrency = "concurrency"
+	splitter           = ","
+	defaultMaxInflight = 200
+	defaultConcurrency = 1
 )
 
-type nsqPubSub struct {
-	metadata metadata
-	pubs     []*gnsq.Producer
-	subs     []*subscriber
+type subscriber struct {
+	topic string
 
-	logger logger.Logger
+	c *nsq.Consumer
+
+	// handler so we can resubcribe
+	h nsq.HandlerFunc
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
+type nsqPubSub struct {
+	current  int
+	settings Settings
+
+	pubs []*nsq.Producer
+	subs []*subscriber
+
+	logger logger.Logger
+	config *nsq.Config
+
+	ctx           context.Context
+	cancel        context.CancelFunc
+	backOffConfig retry.Config
 }
 
 // NewNATSPubSub returns a new NATS pub-sub implementation
@@ -46,57 +52,27 @@ func NewNSQPubSub(logger logger.Logger) pubsub.PubSub {
 	return &nsqPubSub{logger: logger}
 }
 
-func parseNSQMetadata(meta pubsub.Metadata) (metadata, error) {
-	m := metadata{
-		config: gnsq.NewConfig(),
-	}
-
-	if val, ok := meta.Properties[nsqlookupAddr]; ok && val != "" {
-		m.lookupdAddrs = strings.Split(val, ",")
-	}
-
-	if val, ok := meta.Properties[nsqdAddr]; ok && val != "" {
-		m.addrs = strings.Split(val, ",")
-	} else {
-		return m, errors.New("nsq error: missing nsqd Address")
-	}
-
-	for k, v := range meta.Properties {
-		m.config.Set(k, v)
-	}
-
-	return m, nil
-}
-
-func parseSubMetadata(datas map[string]string) (int, string) {
-	concurrencys := 1
-	if val, ok := datas[concurrency]; ok && val != "" {
-		if v, err := strconv.ParseUint(val, 10, 32); err == nil {
-			concurrencys = int(v)
-		}
-	}
-
-	host, _ := os.Hostname()
-	chname := fmt.Sprintf("%s%s", host, "#ephemeral")
-	if val, ok := datas[channel]; ok && val != "" {
-		chname = val
-	}
-	return concurrencys, chname
-}
-
 func (n *nsqPubSub) Init(metadata pubsub.Metadata) error {
-	meta, err := parseNSQMetadata(metadata)
+	n.settings = Settings{
+		MaxInFlight: defaultMaxInflight,
+		Concurrency: defaultConcurrency,
+	}
+
+	err := n.settings.Decode(metadata.Properties)
 	if err != nil {
+		return fmt.Errorf("init nsq config error: %w", err)
+	}
+
+	if err = n.settings.Validate(); err != nil {
 		return err
 	}
 
-	n.metadata = meta
-
-	producers := make([]*gnsq.Producer, 0, len(n.metadata.addrs))
+	n.config = n.settings.ToNSQConfig()
+	producers := make([]*nsq.Producer, 0, len(n.settings.nsqds))
 
 	// create producers
-	for _, addr := range n.metadata.addrs {
-		p, err := gnsq.NewProducer(addr, n.metadata.config)
+	for _, addr := range n.settings.nsqds {
+		p, err := nsq.NewProducer(addr, n.config)
 		if err != nil {
 			return err
 		}
@@ -109,40 +85,90 @@ func (n *nsqPubSub) Init(metadata pubsub.Metadata) error {
 	}
 
 	n.pubs = producers
+
+	n.ctx, n.cancel = context.WithCancel(context.Background())
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&n.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return fmt.Errorf("retry configuration error: %w", err)
+	}
+
 	return nil
 }
 
 func (n *nsqPubSub) Publish(req *pubsub.PublishRequest) error {
 	n.logger.Debugf("[nsq] publish to %s", req.Topic)
-	p := n.pubs[rand.Intn(len(n.pubs))]
-	err := p.Publish(req.Topic, req.Data)
+
+	err := n.pubs[n.current].Publish(req.Topic, req.Data)
 	if err != nil {
-		return fmt.Errorf("nsq: error from publish: %s", err)
+		for i, pub := range n.pubs {
+			if i == n.current {
+				continue
+			}
+			if err = pub.Publish(req.Topic, req.Data); err != nil {
+				continue
+			}
+			n.current = i
+		}
 	}
-	return nil
+
+	if err != nil {
+		n.logger.Errorf("error send message topic:%s err: %v", req.Topic, err)
+	}
+
+	return err
 }
 
 func (n *nsqPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	concurrencys, chname := parseSubMetadata(req.Metadata)
-	c, err := nsq.NewConsumer(req.Topic, chname, n.metadata.config)
+	var settings Settings
+	err := settings.Decode(req.Metadata)
+
+	if err != nil {
+		return fmt.Errorf("subscribe nsq config error: %w", err)
+	}
+
+	c, err := nsq.NewConsumer(req.Topic, settings.Channel, n.config)
 	if err != nil {
 		return err
 	}
 
 	h := nsq.HandlerFunc(func(nm *nsq.Message) error {
-		n.logger.Debugf("[nsq] recevied msg %s on %s", nm.ID, req.Topic)
-		return handler(context.Background(), &pubsub.NewMessage{Topic: req.Topic, Data: nm.Body})
+		b := n.backOffConfig.NewBackOffWithContext(n.ctx)
+
+		rerr := retry.NotifyRecover(func() error {
+			n.logger.Debugf("[nsq] Processing msg %s on %s", nm.ID, req.Topic)
+			herr := handler(n.ctx, &pubsub.NewMessage{Topic: req.Topic, Data: nm.Body})
+			if herr != nil {
+				n.logger.Errorf("nsq error: fail to send message to dapr application. topic:%s message-id:%s err:%v ", req.Topic, nm.ID, herr)
+			}
+
+			return herr
+		}, b, func(err error, d time.Duration) {
+			n.logger.Errorf("nsq error: fail to processing message. topic:%s message-id:%s. Retrying...", req.Topic, nm.ID)
+		}, func() {
+			n.logger.Infof("nsq successfully processed message after it previously failed. topic:%s message-id:%s.", req.Topic, nm.ID)
+		})
+
+		if rerr != nil && !errors.Is(rerr, context.Canceled) {
+			n.logger.Errorf("nsq error: processing message and retries are exhausted. topic:%s message-id:%s.", req.Topic, nm.ID)
+		}
+
+		return rerr
 	})
 
-	c.AddConcurrentHandlers(h, concurrencys)
+	c.AddConcurrentHandlers(h, settings.Concurrency)
 
-	if len(n.metadata.lookupdAddrs) > 0 {
-		err = c.ConnectToNSQLookupds(n.metadata.lookupdAddrs)
-		n.logger.Debugf("connected to nsq consumer at %s", n.metadata.lookupdAddrs)
+	if len(n.settings.lookups) > 0 {
+		err = c.ConnectToNSQLookupds(n.settings.lookups)
+		n.logger.Debugf("connected to nsq consumer at %v", n.settings.lookups)
 	} else {
-		err = c.ConnectToNSQDs(n.metadata.addrs)
-		n.logger.Debugf("connected to nsq consumer at %s", n.metadata.addrs)
+		err = c.ConnectToNSQDs(n.settings.nsqds)
+		n.logger.Debugf("connected to nsq consumer at %v", n.settings.nsqds)
 	}
+
 	if err != nil {
 		return err
 	}
@@ -151,7 +177,6 @@ func (n *nsqPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 		c:     c,
 		topic: req.Topic,
 		h:     h,
-		n:     concurrencys,
 	}
 
 	n.subs = append(n.subs, sub)
@@ -160,6 +185,8 @@ func (n *nsqPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 }
 
 func (n *nsqPubSub) Close() error {
+	n.cancel()
+
 	// stop the producers
 	for _, p := range n.pubs {
 		p.Stop()
@@ -169,14 +196,14 @@ func (n *nsqPubSub) Close() error {
 	for _, c := range n.subs {
 		c.c.Stop()
 
-		if len(n.metadata.lookupdAddrs) > 0 {
+		if len(n.settings.lookups) > 0 {
 			// disconnect from all lookupd
-			for _, addr := range n.metadata.lookupdAddrs {
+			for _, addr := range n.settings.lookups {
 				c.c.DisconnectFromNSQLookupd(addr)
 			}
 		} else {
 			// disconnect from all nsq brokers
-			for _, addr := range n.metadata.addrs {
+			for _, addr := range n.settings.nsqds {
 				c.c.DisconnectFromNSQD(addr)
 			}
 		}

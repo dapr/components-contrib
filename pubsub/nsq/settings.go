@@ -11,6 +11,7 @@ package nsq
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -57,8 +58,7 @@ type Settings struct {
 }
 
 func (s *Settings) Decode(in interface{}) error {
-	err := config.Decode(in, s)
-	if err == nil {
+	if err := config.Decode(in, s); err == nil {
 		if len(s.NsqAddress) > 0 {
 			s.nsqds = strings.Split(s.NsqAddress, splitter)
 		}
@@ -66,63 +66,48 @@ func (s *Settings) Decode(in interface{}) error {
 			s.lookups = strings.Split(s.NsqLookups, splitter)
 		}
 	}
+
 	return nil
 }
 
 func (s *Settings) Validate() error {
-	if len(s.nsqds) <= 0 {
+	if len(s.nsqds) == 0 {
 		return fmt.Errorf("nsq error: missing nsqd Address")
 	}
 
 	return nil
 }
 
+func (s *Settings) update(src, dst interface{}) {
+	rtDst := reflect.ValueOf(dst)
+	if rtDst.IsZero() {
+		return
+	}
+	rtSrc := reflect.ValueOf(src)
+	rtSrc.Elem().Set(rtDst)
+}
+
 func (s *Settings) ToNSQConfig() *nsq.Config {
 	cfg := nsq.NewConfig()
-	if s.DialTimeout > 0 {
-		cfg.DialTimeout = s.DialTimeout
-	}
-	if s.ReadTimeout > 0 {
-		cfg.ReadTimeout = s.ReadTimeout
-	}
-	if s.WriteTimeout > 0 {
-		cfg.WriteTimeout = s.WriteTimeout
-	}
-	if s.MsgTimeout > 0 {
-		cfg.MsgTimeout = s.MsgTimeout
-	}
-	if s.MaxRequeueDelay > 0 {
-		cfg.MaxRequeueDelay = s.MaxRequeueDelay
-	}
-	if s.LookupdPollInterval > 0 {
-		cfg.LookupdPollInterval = s.LookupdPollInterval
-	}
-	if s.LookupdPollJitter > 0 {
-		cfg.LookupdPollJitter = s.LookupdPollJitter
-	}
-	if s.DefaultRequeueDelay > 0 {
-		cfg.DefaultRequeueDelay = s.DefaultRequeueDelay
-	}
-	if s.HeartbeatInterval > 0 {
-		cfg.HeartbeatInterval = s.HeartbeatInterval
-	}
-	if s.SampleRate > 0 {
-		cfg.SampleRate = int32(s.SampleRate)
-	}
-	if s.MaxAttempts > 0 {
-		cfg.MaxAttempts = uint16(s.MaxAttempts)
-	}
-	if s.MaxInFlight > 0 {
-		cfg.MaxInFlight = s.MaxInFlight
-	}
-	if len(s.ClientID) > 0 {
-		cfg.ClientID = s.ClientID
-	}
-	if len(s.UserAgent) > 0 {
-		cfg.UserAgent = s.UserAgent
-	}
-	if len(s.AuthSecret) > 0 {
-		cfg.AuthSecret = s.AuthSecret
-	}
+
+	s.update(&cfg.DialTimeout, s.DialTimeout)
+	s.update(&cfg.ReadTimeout, s.ReadTimeout)
+	s.update(&cfg.WriteTimeout, s.WriteTimeout)
+	s.update(&cfg.MsgTimeout, s.MsgTimeout)
+	s.update(&cfg.MaxRequeueDelay, s.MaxRequeueDelay)
+	s.update(&cfg.LookupdPollInterval, s.LookupdPollInterval)
+	s.update(&cfg.DefaultRequeueDelay, s.DefaultRequeueDelay)
+	s.update(&cfg.HeartbeatInterval, s.HeartbeatInterval)
+
+	s.update(&cfg.ClientID, s.ClientID)
+	s.update(&cfg.UserAgent, s.UserAgent)
+	s.update(&cfg.AuthSecret, s.AuthSecret)
+
+	s.update(&cfg.LookupdPollJitter, s.LookupdPollJitter)
+
+	s.update(&cfg.MaxAttempts, uint16(s.MaxAttempts))
+	s.update(&cfg.MaxInFlight, s.MaxInFlight)
+	s.update(&cfg.SampleRate, int32(s.SampleRate))
+
 	return cfg
 }

@@ -47,7 +47,7 @@ type nsqPubSub struct {
 	backOffConfig retry.Config
 }
 
-// NewNATSPubSub returns a new NATS pub-sub implementation
+// NewNSQPubSub returns a new NATS pub-sub implementation
 func NewNSQPubSub(logger logger.Logger) pubsub.PubSub {
 	return &nsqPubSub{logger: logger}
 }

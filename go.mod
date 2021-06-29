@@ -5,7 +5,7 @@ go 1.16
 require (
 	cloud.google.com/go v0.65.0
 	cloud.google.com/go/datastore v1.1.0
-	cloud.google.com/go/pubsub v1.3.1
+	cloud.google.com/go/pubsub v1.5.0
 	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
 	github.com/Azure/azure-event-hubs-go v1.3.1
@@ -32,17 +32,17 @@ require (
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.0
 	github.com/apache/thrift v0.14.0 // indirect
-	github.com/aws/aws-sdk-go v1.27.0
+	github.com/aws/aws-sdk-go v1.36.30
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/camunda-cloud/zeebe/clients/go v1.0.0
-	github.com/cenkalti/backoff/v4 v4.1.0
+	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/creasty/defaults v1.5.1
 	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.0.1
+	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
 	github.com/dghubble/oauth1 v0.6.0
@@ -52,6 +52,7 @@ require (
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.3.2
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
+	github.com/fatih/color v1.10.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
@@ -65,7 +66,7 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
-	github.com/gorilla/mux v1.7.3
+	github.com/gorilla/mux v1.8.0
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
 	github.com/hashicorp/consul/api v1.3.0
 	github.com/hashicorp/go-multierror v1.0.0
@@ -76,13 +77,17 @@ require (
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/jcmturner/gofork v1.0.0 // indirect
+	github.com/jonboulle/clockwork v0.2.0 // indirect
 	github.com/json-iterator/go v1.1.10
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
 	github.com/kr/text v0.2.0 // indirect
+	github.com/machinebox/graphql v0.2.2
+	github.com/matryer/is v1.4.0 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.7 // indirect
-	github.com/mitchellh/mapstructure v1.3.3
+	github.com/miekg/dns v1.1.35 // indirect
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/nacos-group/nacos-sdk-go v1.0.7
 	github.com/nats-io/nats-server/v2 v2.2.1 // indirect
@@ -90,6 +95,7 @@ require (
 	github.com/nats-io/nats.go v1.10.1-0.20210330225420-a0b1f60162f8
 	github.com/nats-io/stan.go v0.8.3
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/open-policy-agent/opa v0.23.2
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -116,8 +122,10 @@ require (
 	go.opencensus.io v0.22.5 // indirect
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b
+	golang.org/x/mod v0.4.1 // indirect
 	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c
 	golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93
+	golang.org/x/text v0.3.5 // indirect
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
 	google.golang.org/grpc v1.36.0
@@ -133,9 +141,9 @@ require (
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 	gopkg.in/kataras/go-serializer.v0 v0.0.4 // indirect
-	gopkg.in/square/go-jose.v2 v2.5.0 // indirect
+	gopkg.in/square/go-jose.v2 v2.5.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
-	gotest.tools v2.2.0+incompatible
+	honnef.co/go/tools v0.1.3 // indirect
 	k8s.io/api v0.20.0
 	k8s.io/apiextensions-apiserver v0.20.0
 	k8s.io/apimachinery v0.20.0
@@ -144,3 +152,5 @@ require (
 )
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
+
+replace github.com/dapr/components-contrib => ../components-contrib

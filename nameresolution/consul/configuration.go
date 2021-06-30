@@ -8,7 +8,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 
-	"github.com/dapr/components-contrib/internal/config"
+	"github.com/dapr/kit/config"
 )
 
 const defaultDaprPortMetaKey string = "DAPR_PORT" // default key for DaprPort in meta

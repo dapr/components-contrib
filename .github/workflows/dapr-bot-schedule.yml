@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # ------------------------------------------------------------
 
-name: dapr-automerge
+name: dapr-schedule
 
 on:
   schedule:

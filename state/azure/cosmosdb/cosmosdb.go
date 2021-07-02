@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/a8m/documentdb"
@@ -50,6 +51,7 @@ type CosmosItem struct {
 	Value        interface{} `json:"value"`
 	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
+	TTL          *int        `json:"ttl,omitempty"`
 }
 
 type storedProcedureDefinition struct {
@@ -61,6 +63,7 @@ const (
 	storedProcedureName  = "__dapr__"
 	metadataPartitionKey = "partitionKey"
 	unknownPartitionKey  = "__UNKNOWN__"
+	metadataTTLKey       = "ttlInSeconds"
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
@@ -393,6 +396,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 					Value:        value,
 					PartitionKey: partitionKey,
 					IsBinary:     false,
+					TTL:          parseTTL(req.Metadata),
 				}
 			}
 		} else if contenttype.IsStringContentType(contentType) {
@@ -401,6 +405,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 				Value:        string(byteArray),
 				PartitionKey: partitionKey,
 				IsBinary:     false,
+				TTL:          parseTTL(req.Metadata),
 			}
 		}
 	}
@@ -410,6 +415,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 		Value:        req.Value,
 		PartitionKey: partitionKey,
 		IsBinary:     isBinary,
+		TTL:          parseTTL(req.Metadata),
 	}
 }
 
@@ -421,4 +427,18 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	}
 
 	return key
+}
+
+func parseTTL(requestMetadata map[string]string) *int {
+	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil
+		}
+		i := int(parsedVal)
+
+		return &i
+	}
+
+	return nil
 }

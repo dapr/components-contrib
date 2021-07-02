@@ -7,6 +7,7 @@ package cosmosdb
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/dapr/components-contrib/state"
@@ -30,6 +31,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
+		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
@@ -41,6 +43,7 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
+		assert.NotContains(t, j, "ttl")
 
 		assert.Equal(t, "red", m["color"])
 	})
@@ -58,6 +61,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		item := createUpsertItem("application/json", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
+		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
@@ -69,6 +73,7 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
+		assert.NotContains(t, j, "ttl")
 
 		assert.Equal(t, "red", m["color"])
 	})
@@ -86,6 +91,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		item := createUpsertItem("text/plain", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
+		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
@@ -98,6 +104,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		value := j["value"]
 		m, ok := value.(string)
 		assert.Truef(t, ok, "value should be a string")
+		assert.NotContains(t, j, "ttl")
 
 		assert.Equal(t, "{\"color\":\"red\"}", m)
 	})
@@ -114,6 +121,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		item := createUpsertItem("application/json", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
+		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
@@ -126,6 +134,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		value := j["value"]
 		m, ok := value.(string)
 		assert.Truef(t, ok, "value should be a string")
+		assert.NotContains(t, j, "ttl")
 
 		assert.Equal(t, "AQ==", m)
 	})
@@ -142,6 +151,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		item := createUpsertItem("application/octet-stream", req, partitionKey)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
+		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
@@ -154,7 +164,74 @@ func TestCreateCosmosItem(t *testing.T) {
 		value := j["value"]
 		m, ok := value.(string)
 		assert.Truef(t, ok, "value should be a string")
+		assert.NotContains(t, j, "ttl")
 
 		assert.Equal(t, "AQ==", m)
+	})
+}
+
+func TestCreateCosmosItemWithTTL(t *testing.T) {
+	value := widget{Color: "red"}
+	partitionKey := "/partitionKey"
+	t.Run("Create Item with TTL", func(t *testing.T) {
+		ttl := 100
+		req := state.SetRequest{
+			Key:   "testKey",
+			Value: value,
+			Metadata: map[string]string{
+				metadataTTLKey: strconv.Itoa(ttl),
+			},
+		}
+
+		item := createUpsertItem("application/json", req, partitionKey)
+		assert.Equal(t, partitionKey, item.PartitionKey)
+		assert.Equal(t, "testKey", item.ID)
+		assert.Equal(t, value, item.Value)
+		assert.Equal(t, ttl, *item.TTL)
+
+		// items need to be marshallable to JSON with encoding/json
+		b, err := json.Marshal(item)
+		assert.NoError(t, err)
+
+		j := map[string]interface{}{}
+		err = json.Unmarshal(b, &j)
+		assert.NoError(t, err)
+
+		m, ok := j["value"].(map[string]interface{})
+		assert.Truef(t, ok, "value should be a map")
+		assert.Equal(t, float64(ttl), j["ttl"])
+
+		assert.Equal(t, "red", m["color"])
+	})
+
+	t.Run("Create Item with TTL set to Persist items", func(t *testing.T) {
+		ttl := -1
+		req := state.SetRequest{
+			Key:   "testKey",
+			Value: value,
+			Metadata: map[string]string{
+				metadataTTLKey: strconv.Itoa(ttl),
+			},
+		}
+
+		item := createUpsertItem("application/json", req, partitionKey)
+		assert.Equal(t, partitionKey, item.PartitionKey)
+		assert.Equal(t, "testKey", item.ID)
+		assert.Equal(t, value, item.Value)
+		assert.Equal(t, ttl, *item.TTL)
+
+		// items need to be marshallable to JSON with encoding/json
+		b, err := json.Marshal(item)
+		assert.NoError(t, err)
+
+		j := map[string]interface{}{}
+		err = json.Unmarshal(b, &j)
+		assert.NoError(t, err)
+
+		m, ok := j["value"].(map[string]interface{})
+		assert.Truef(t, ok, "value should be a map")
+		assert.Equal(t, float64(ttl), j["ttl"])
+
+		assert.Equal(t, "red", m["color"])
 	})
 }

@@ -105,11 +105,7 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[strin
 
 	// specify default value if it's unspecified from the original CloudEvent
 	if m[IDField] == nil {
-		m[IDField] = ""
-	}
-
-	if m[DataContentTypeField] == nil {
-		m[DataContentTypeField] = ""
+		m[IDField] = uuid.New().String()
 	}
 
 	if m[SourceField] == nil {

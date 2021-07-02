@@ -7,7 +7,9 @@ package redis
 
 import (
 	"context"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/agrea/ptr"
 	miniredis "github.com/alicebob/miniredis/v2"
@@ -90,6 +92,47 @@ func TestParseEtag(t *testing.T) {
 	})
 }
 
+func TestParseTTL(t *testing.T) {
+	store := NewRedisStateStore(logger.NewLogger("test"))
+	t.Run("TTL Not an integer", func(t *testing.T) {
+		ttlInSeconds := "not an integer"
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": ttlInSeconds,
+			},
+		})
+		assert.Equal(t, ttl, 0)
+	})
+	t.Run("TTL specified with wrong key", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"expirationTime": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.Equal(t, ttl, 0)
+	})
+	t.Run("TTL is a number", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.Equal(t, ttl, ttlInSeconds)
+	})
+
+	t.Run("TTL never expires", func(t *testing.T) {
+		ttlInSeconds := -1
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.Equal(t, ttl, ttlInSeconds)
+	})
+}
+
 func TestParseConnectedSlavs(t *testing.T) {
 	store := NewRedisStateStore(logger.NewLogger("test"))
 
@@ -126,13 +169,35 @@ func TestTransactionalUpsert(t *testing.T) {
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	err := ss.Multi(&state.TransactionalStateRequest{
-		Operations: []state.TransactionalStateOperation{{
-			Operation: state.Upsert,
-			Request: state.SetRequest{
-				Key:   "weapon",
-				Value: "deathstar",
+		Operations: []state.TransactionalStateOperation{
+			{
+				Operation: state.Upsert,
+				Request: state.SetRequest{
+					Key:   "weapon",
+					Value: "deathstar",
+				},
 			},
-		}},
+			{
+				Operation: state.Upsert,
+				Request: state.SetRequest{
+					Key:   "weapon2",
+					Value: "deathstar2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "123",
+					},
+				},
+			},
+			{
+				Operation: state.Upsert,
+				Request: state.SetRequest{
+					Key:   "weapon3",
+					Value: "deathstar3",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
+					},
+				},
+			},
+		},
 	})
 	assert.Equal(t, nil, err)
 
@@ -144,6 +209,18 @@ func TestTransactionalUpsert(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, ptr.String("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
+
+	res, err = c.Do(context.Background(), "TTL", "weapon").Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(-1), res)
+
+	res, err = c.Do(context.Background(), "TTL", "weapon2").Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(123), res)
+
+	res, err = c.Do(context.Background(), "TTL", "weapon3").Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(-1), res)
 }
 
 func TestTransactionalDelete(t *testing.T) {
@@ -199,6 +276,76 @@ func TestPing(t *testing.T) {
 
 	err = ss.Ping()
 	assert.Error(t, err)
+}
+
+func TestSetRequestWithTTL(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	t.Run("TTL specified", func(t *testing.T) {
+		ttlInSeconds := 100
+		ss.Set(&state.SetRequest{
+			Key:   "weapon100",
+			Value: "deathstar100",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+
+		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+
+		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
+	})
+
+	t.Run("TTL not specified", func(t *testing.T) {
+		ss.Set(&state.SetRequest{
+			Key:   "weapon200",
+			Value: "deathstar200",
+		})
+
+		ttl, _ := ss.client.TTL(ss.ctx, "weapon200").Result()
+
+		assert.Equal(t, time.Duration(-1), ttl)
+	})
+
+	t.Run("TTL Changed for Existing Key", func(t *testing.T) {
+		ss.Set(&state.SetRequest{
+			Key:   "weapon300",
+			Value: "deathstar300",
+		})
+		ttl, _ := ss.client.TTL(ss.ctx, "weapon300").Result()
+		assert.Equal(t, time.Duration(-1), ttl)
+
+		// make the key no longer persistent
+		ttlInSeconds := 123
+		ss.Set(&state.SetRequest{
+			Key:   "weapon300",
+			Value: "deathstar300",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		ttl, _ = ss.client.TTL(ss.ctx, "weapon300").Result()
+		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
+
+		// make the key persistent again
+		ss.Set(&state.SetRequest{
+			Key:   "weapon300",
+			Value: "deathstar301",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(-1),
+			},
+		})
+		ttl, _ = ss.client.TTL(ss.ctx, "weapon300").Result()
+		assert.Equal(t, time.Duration(-1), ttl)
+	})
 }
 
 func TestTransactionalDeleteNoEtag(t *testing.T) {

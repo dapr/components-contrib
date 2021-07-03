@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	hosts              = "hosts"
-	maxIdleConnections = "maxIdleConnections"
-	timeout            = "timeout"
+	hosts              			= "hosts"
+	maxIdleConnections 			= "maxIdleConnections"
+	timeout            			= "timeout"
+	ttlInSeconds       			= "ttlInSeconds"
 	// These defaults are already provided by gomemcache
-	defaultMaxIdleConnections = 2
-	defaultTimeout            = 1000 * time.Millisecond
+	defaultMaxIdleConnections 	= 2
+	defaultTimeout            	= 1000 * time.Millisecond
 )
 
 type Memcached struct {
@@ -102,10 +103,28 @@ func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 	return &meta, nil
 }
 
+func (r *Memcached) parseTTL(req *state.SetRequest) int {
+	if val, ok := req.Metadata[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return 0
+		}
+
+		if parsedVal < 0 {
+			return 0
+		}
+
+		return int(parsedVal)
+	}
+
+	return 0
+}
+
 func (m *Memcached) setValue(req *state.SetRequest) error {
 	var bt []byte
+	ttl := m.parseTTL(req)
 	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
-	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt})
+	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt, Expiration: int32(ttl)})
 	if err != nil {
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}

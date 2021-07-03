@@ -1,11 +1,13 @@
 package memcached
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,5 +65,46 @@ func TestMemcachedMetadata(t *testing.T) {
 		assert.Equal(t, split, metadata.hosts)
 		assert.Equal(t, 10, metadata.maxIdleConnections)
 		assert.Equal(t, 5000*time.Millisecond, metadata.timeout)
+	})
+}
+
+func TestParseTTL(t *testing.T) {
+	store := NewMemCacheStateStore(logger.NewLogger("test"))
+	t.Run("TTL Not an integer", func(t *testing.T) {
+		ttlInSeconds := "not an integer"
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": ttlInSeconds,
+			},
+		})
+		assert.Equal(t, ttl, 0)
+	})
+	t.Run("TTL specified with wrong key", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"expirationTime": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.Equal(t, ttl, 0)
+	})
+	t.Run("TTL is a number", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.Equal(t, ttl, ttlInSeconds)
+	})
+
+	t.Run("TTL never expires", func(t *testing.T) {
+		ttlInSeconds := 0
+		ttl := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.Equal(t, ttl, ttlInSeconds)
 	})
 }

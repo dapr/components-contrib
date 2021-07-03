@@ -103,28 +103,32 @@ func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 	return &meta, nil
 }
 
-func (r *Memcached) parseTTL(req *state.SetRequest) int {
+func (r *Memcached) parseTTL(req *state.SetRequest) (int, error) {
 	if val, ok := req.Metadata[ttlInSeconds]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, 10, 0)
 		if err != nil {
-			return 0
+			return 0, err
 		}
 
 		if parsedVal < 0 {
-			return 0
+			return 0, nil
 		}
 
-		return int(parsedVal)
+		return int(parsedVal), nil
 	}
 
-	return 0
+	return 0, nil
 }
 
 func (m *Memcached) setValue(req *state.SetRequest) error {
 	var bt []byte
-	ttl := m.parseTTL(req)
+	ttl, err := m.parseTTL(req)
+	if err != nil {
+		return fmt.Errorf("failed parse ttl %s: %s", req.Key, err)
+	}
+
 	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
-	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt, Expiration: int32(ttl)})
+	err = m.client.Set(&memcache.Item{Key: req.Key, Value: bt, Expiration: int32(ttl)})
 	if err != nil {
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}

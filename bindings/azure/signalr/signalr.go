@@ -16,7 +16,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/dgrijalva/jwt-go/v4"
 	"github.com/pkg/errors"
 )
 
@@ -173,7 +173,7 @@ func (s *SignalR) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 }
 
 func (s *SignalR) ensureValidToken(url string) (string, error) {
-	now := time.Now()
+	now := jwt.Now()
 
 	if existing, ok := s.tokens[url]; ok {
 		if existing.token != "" && now.Before(existing.expiration) {
@@ -182,10 +182,16 @@ func (s *SignalR) ensureValidToken(url string) (string, error) {
 	}
 
 	expiration := now.Add(1 * time.Hour)
+	audience, err := jwt.ParseClaimStrings(url)
+	if err != nil {
+		return "", err
+	}
 
 	claims := &jwt.StandardClaims{
-		ExpiresAt: expiration.Unix(),
-		Audience:  url,
+		ExpiresAt: &jwt.Time{
+			Time: expiration,
+		},
+		Audience: audience,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

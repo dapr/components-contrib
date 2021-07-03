@@ -45,7 +45,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
 	github.com/dghubble/oauth1 v0.6.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect

@@ -26,6 +26,7 @@ const (
 type Memcached struct {
 	state.DefaultBulkStore
 	client *memcache.Client
+	hosts  []string
 	json   jsoniter.API
 	logger logger.Logger
 }
@@ -57,6 +58,7 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 	client.MaxIdleConns = meta.maxIdleConnections
 
 	m.client = client
+	m.hosts = meta.hosts
 
 	err = client.Ping()
 	if err != nil {
@@ -143,5 +145,9 @@ func (m *Memcached) Set(req *state.SetRequest) error {
 }
 
 func (m *Memcached) Ping() error {
+	if err := m.client.Ping(); err != nil {
+		return fmt.Errorf("memcached store: error connecting to memcached at %s: %s", m.hosts, err)
+	}
+
 	return nil
 }

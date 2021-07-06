@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,5 +64,20 @@ func TestMemcachedMetadata(t *testing.T) {
 		assert.Equal(t, split, metadata.hosts)
 		assert.Equal(t, 10, metadata.maxIdleConnections)
 		assert.Equal(t, 5000*time.Millisecond, metadata.timeout)
+	})
+}
+
+func TestMemcachedPing(t *testing.T) {
+	t.Run("ping with correct host", func(t *testing.T) {
+		properties := map[string]string{
+			"hosts": "localhost:1121",
+		}
+		m := state.Metadata{
+			Properties: properties,
+		}
+		client := NewMemCacheStateStore(logger.NewLogger("test"))
+		client.Init(m)
+		err := client.Ping()
+		assert.Error(t, err)
 	})
 }

@@ -72,19 +72,21 @@ func TestConfluentKafka(t *testing.T) {
 		t.Error(err)
 	}
 
-	req := pubsub.PublishRequest{
-		Data:  []byte(value),
-		Topic: topic,
-		Metadata: map[string]string{
-			"key":             key,
-			"headers.header1": "1header",
-			"headers.header2": "2header",
-		},
-	}
+	for i := 0; i < 5; i++{
+		req := pubsub.PublishRequest{
+			Data:  []byte(value),
+			Topic: topic,
+			Metadata: map[string]string{
+				"key":             key,
+				"headers.header1": "1header",
+				"headers.header2": "2header",
+			},
+		}
 
-	err = kafka.Publish(&req)
-	if err != nil {
-		t.Error(err)
+		err = kafka.Publish(&req)
+		if err != nil {
+			t.Error(err)
+		}
 	}
 
 	err = kafka.Close()

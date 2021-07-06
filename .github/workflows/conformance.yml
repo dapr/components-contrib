@@ -104,12 +104,6 @@ jobs:
         shell: bash
         working-directory: ./src/github.com/dapr/components-contrib
     needs: generate-matrix
-    env:
-      # Set this to your keyvault.
-      #
-      # The KeyVault policy must be granted to your Service Principal using
-      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
-      AZURE_KEYVAULT: dapr-conf-tests
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -130,7 +124,9 @@ jobs:
     - name: Setup secrets
       uses: Azure/get-keyvault-secrets@v1
       with:
-        keyvault: ${{ env.AZURE_KEYVAULT }}
+        # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
+        #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+        keyvault: ${{ secrets.AZURE_KEYVAULT }}
         secrets: ${{ matrix.required-secrets }}
       id: get-azure-secrets
       if: matrix.required-secrets != ''
@@ -158,7 +154,7 @@ jobs:
           CERT_FILE=$(mktemp --suffix .pfx)
           echo "Downloading cert $CERT_NAME into file $CERT_FILE"
           rm $CERT_FILE && \
-            az keyvault secret download --vault-name $AZURE_KEYVAULT --name $CERT_NAME --encoding base64 --file $CERT_FILE
+            az keyvault secret download --vault-name ${{ secrets.AZURE_KEYVAULT }} --name $CERT_NAME --encoding base64 --file $CERT_FILE
           echo 'Setting $CERT_NAME to' "$CERT_FILE"
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done

@@ -27,7 +27,8 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: value,
 		}
 
-		item := createUpsertItem("application/json", req, partitionKey)
+		item, err := createUpsertItem("application/json", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -58,7 +59,8 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem("application/json", req, partitionKey)
+		item, err := createUpsertItem("application/json", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
@@ -88,7 +90,8 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem("text/plain", req, partitionKey)
+		item, err := createUpsertItem("text/plain", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
@@ -118,7 +121,8 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem("application/json", req, partitionKey)
+		item, err := createUpsertItem("application/json", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
@@ -148,7 +152,8 @@ func TestCreateCosmosItem(t *testing.T) {
 			Value: bytes,
 		}
 
-		item := createUpsertItem("application/octet-stream", req, partitionKey)
+		item, err := createUpsertItem("application/octet-stream", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
@@ -183,7 +188,8 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 			},
 		}
 
-		item := createUpsertItem("application/json", req, partitionKey)
+		item, err := createUpsertItem("application/json", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -214,7 +220,8 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 			},
 		}
 
-		item := createUpsertItem("application/json", req, partitionKey)
+		item, err := createUpsertItem("application/json", req, partitionKey)
+		assert.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -233,5 +240,18 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 		assert.Equal(t, float64(ttl), j["ttl"])
 
 		assert.Equal(t, "red", m["color"])
+	})
+
+	t.Run("Create Item with Invalid TTL", func(t *testing.T) {
+		req := state.SetRequest{
+			Key:   "testKey",
+			Value: value,
+			Metadata: map[string]string{
+				metadataTTLKey: "notattl",
+			},
+		}
+
+		_, err := createUpsertItem("application/json", req, partitionKey)
+		assert.Error(t, err)
 	})
 }

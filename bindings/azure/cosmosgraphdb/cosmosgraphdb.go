@@ -49,9 +49,11 @@ func NewCosmosGraphDB(logger logger.Logger) *CosmosGraphDB {
 
 // Init performs CosmosDB connection parsing and connecting
 func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
+	c.logger.Debug("Initializing Cosmos Graph DB binding")
+	
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
-		return errors.New("failed to create the Cosmos Graph DB connector - metadata error")
+		return err
 	}
 	c.metadata = m
 	client, err := gremcos.New(c.metadata.URL,

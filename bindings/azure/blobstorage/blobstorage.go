@@ -29,6 +29,7 @@ const (
 	contentDisposition       = "ContentDisposition"
 	cacheControl             = "CacheControl"
 	deleteSnapshotOptions    = "DeleteSnapshotOptions"
+	withUserMetadata         = "WithUserMetadata"
 	defaultGetBlobRetryCount = 10
 )
 
@@ -67,7 +68,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	a.metadata = m
 	credential, err := azblob.NewSharedKeyCredential(m.StorageAccount, m.StorageAccessKey)
 	if err != nil {
-		return fmt.Errorf("invalid credentials with error: %s", err.Error())
+		return fmt.Errorf("invalid credentials with error: %w", err)
 	}
 	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 
@@ -79,7 +80,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	ctx := context.Background()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessType(m.PublicAccessLevel))
 	// Don't return error, container might already exist
-	a.logger.Debugf("error creating container: %s", err)
+	a.logger.Debugf("error creating container: %w", err)
 	a.containerURL = containerURL
 
 	return nil
@@ -160,7 +161,7 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error uploading az blob: %s", err)
+		return nil, fmt.Errorf("error uploading az blob: %w", err)
 	}
 
 	resp := createResponse{
@@ -168,7 +169,7 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 	}
 	b, err := json.Marshal(resp)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling create response for azure blob: %s", err)
+		return nil, fmt.Errorf("error marshalling create response for azure blob: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -177,9 +178,10 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 }
 
 func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	resp, err := blobURL.Download(context.TODO(), 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
+	ctx := context.TODO()
+	resp, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
-		return nil, fmt.Errorf("error downloading az blob: %s", err)
+		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
 
 	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: a.metadata.GetBlobRetryCount})
@@ -187,11 +189,30 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 	b := bytes.Buffer{}
 	_, err = b.ReadFrom(bodyStream)
 	if err != nil {
-		return nil, fmt.Errorf("error reading az blob body: %s", err)
+		return nil, fmt.Errorf("error reading az blob body: %w", err)
+	}
+
+	var fetchUserMetadata bool
+	var metadata map[string]string
+	if fetchUserMetadataItem, ok := req.Metadata[withUserMetadata]; ok {
+		fetchUserMetadata, err = strconv.ParseBool(fetchUserMetadataItem)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing request metadata `%s`: %w", withUserMetadata, err)
+		}
+	}
+
+	if fetchUserMetadata {
+		props, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
+		if err != nil {
+			return nil, fmt.Errorf("error reading blob metadata: %w", err)
+		}
+
+		metadata = props.NewMetadata()
 	}
 
 	return &bindings.InvokeResponse{
-		Data: b.Bytes(),
+		Data:     b.Bytes(),
+		Metadata: metadata,
 	}, nil
 }
 

@@ -474,4 +474,72 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		features := statestore.Features()
 		assert.False(t, state.FeatureETag.IsPresent(features))
 	}
+
+	if config.HasOperation("first-write") {
+		t.Run("first-write", func(t *testing.T) {
+			testKey := "first-writeTest"
+			firstValue := []byte("testValue1")
+			secondValue := []byte("testValue2")
+			emptyString := ""
+
+			requestSets := [][2]*state.SetRequest{
+				{
+					{
+						Key:   testKey,
+						Value: firstValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+					}, {
+						Key:   testKey,
+						Value: secondValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+					},
+				},
+				{{
+					Key:   testKey,
+					Value: firstValue,
+					Options: state.SetStateOption{
+						Concurrency: state.FirstWrite,
+						Consistency: state.Strong,
+					},
+					ETag: &emptyString,
+				}, {
+					Key:   testKey,
+					Value: secondValue,
+					Options: state.SetStateOption{
+						Concurrency: state.FirstWrite,
+						Consistency: state.Strong,
+					},
+					ETag: &emptyString,
+				}},
+			}
+
+			for _, requestSet := range requestSets {
+				// Delete any potential object, it's important to start from a clean slate.
+				err := statestore.Delete(&state.DeleteRequest{
+					Key: testKey,
+				})
+				assert.Nil(t, err)
+
+				err = statestore.Set(requestSet[0])
+				assert.Nil(t, err)
+
+				// Validate the set.
+				res, err := statestore.Get(&state.GetRequest{
+					Key: testKey,
+				})
+				assert.Nil(t, err)
+				assert.Equal(t, firstValue, res.Data)
+
+				// Second write expect fail
+				err = statestore.Set(requestSet[1])
+				assert.NotNil(t, err)
+			}
+		})
+	}
 }

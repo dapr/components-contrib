@@ -20,7 +20,7 @@ const (
 	timeout            			= "timeout"
 	ttlInSeconds       			= "ttlInSeconds"
 	// These defaults are already provided by gomemcache
-	defaultMaxIdleConnections	= 2
+	defaultMaxIdleConnections = 2
 	defaultTimeout				= 1000 * time.Millisecond
 )
 

@@ -21,7 +21,7 @@ const (
 	ttlInSeconds       			= "ttlInSeconds"
 	// These defaults are already provided by gomemcache
 	defaultMaxIdleConnections = 2
-	defaultTimeout				= 1000 * time.Millisecond
+	defaultTimeout            = 1000 * time.Millisecond
 )
 
 type Memcached struct {

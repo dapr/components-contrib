@@ -231,7 +231,10 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	ttl := r.parseTTL(req)
+	ttl, err := r.parseTTL(req)
+	if err != nil {
+		return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+	}
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
@@ -279,9 +282,12 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			ver, err := r.parseETag(&req)
-			ttl := r.parseTTL(&req)
 			if err != nil {
 				return err
+			}
+			ttl, err := r.parseTTL(&req)
+			if err != nil {
+				return fmt.Errorf("failed to parse ttl from metadata: %s", err)
 			}
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
@@ -340,17 +346,17 @@ func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
 	return ver, nil
 }
 
-func (r *StateStore) parseTTL(req *state.SetRequest) int {
+func (r *StateStore) parseTTL(req *state.SetRequest) (int, error) {
 	if val, ok := req.Metadata[ttlInSeconds]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
-			return 0
+			return 0, err
 		}
 
-		return int(parsedVal)
+		return int(parsedVal), nil
 	}
 
-	return 0
+	return 0, nil
 }
 
 func (r *StateStore) Close() error {

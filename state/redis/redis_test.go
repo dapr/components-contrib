@@ -96,39 +96,43 @@ func TestParseTTL(t *testing.T) {
 	store := NewRedisStateStore(logger.NewLogger("test"))
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
-		ttl := store.parseTTL(&state.SetRequest{
+		ttl, err := store.parseTTL(&state.SetRequest{
 			Metadata: map[string]string{
 				"ttlInSeconds": ttlInSeconds,
 			},
 		})
+		assert.Error(t, err)
 		assert.Equal(t, ttl, 0)
 	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
 		ttlInSeconds := 12345
-		ttl := store.parseTTL(&state.SetRequest{
+		ttl, err := store.parseTTL(&state.SetRequest{
 			Metadata: map[string]string{
 				"expirationTime": strconv.Itoa(ttlInSeconds),
 			},
 		})
+		assert.NoError(t, err)
 		assert.Equal(t, ttl, 0)
 	})
 	t.Run("TTL is a number", func(t *testing.T) {
 		ttlInSeconds := 12345
-		ttl := store.parseTTL(&state.SetRequest{
+		ttl, err := store.parseTTL(&state.SetRequest{
 			Metadata: map[string]string{
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
+		assert.NoError(t, err)
 		assert.Equal(t, ttl, ttlInSeconds)
 	})
 
 	t.Run("TTL never expires", func(t *testing.T) {
 		ttlInSeconds := -1
-		ttl := store.parseTTL(&state.SetRequest{
+		ttl, err := store.parseTTL(&state.SetRequest{
 			Metadata: map[string]string{
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
+		assert.NoError(t, err)
 		assert.Equal(t, ttl, ttlInSeconds)
 	})
 }

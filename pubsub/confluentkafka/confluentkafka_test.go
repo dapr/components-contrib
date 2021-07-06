@@ -8,14 +8,16 @@ package confluentkafka
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
+// for M1 mac: go test -tags dynamic -v -test.run TestConfluentKafka
 func TestConfluentKafka(t *testing.T) {
 	l := logger.NewLogger("confluentKafkaTest")
 
@@ -74,11 +76,9 @@ func TestConfluentKafka(t *testing.T) {
 		Data:  []byte(value),
 		Topic: topic,
 		Metadata: map[string]string{
-			"key": key,
-			"headers": `{
-				"header1" : "1header",
-				"header2" : "2header"
-			}`,
+			"key":             key,
+			"headers.header1": "1header",
+			"headers.header2": "2header",
 		},
 	}
 

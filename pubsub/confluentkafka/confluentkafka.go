@@ -9,8 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
+	"math"
 	"strconv"
+	"strings"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/dapr/components-contrib/pubsub"
@@ -18,7 +19,7 @@ import (
 )
 
 var (
-	ProducerFlushTimeoutMs = 10 * 1000
+	ProducerFlushTimeoutMs = 50 * 1000
 )
 
 type contextWithCancelFunc struct {
@@ -52,17 +53,14 @@ func (k *Kafka) parseMetadata(props map[string]string) error {
 			return err
 		}
 
-		for key, val := range metadata{
-			if reflect.ValueOf(val).Kind() == reflect.Float64{
-				err = k.ConfigMap.SetKey(key, int(val.(float64)))
-				if err != nil {
-					return err
-				}
-			} else {
-				err = k.ConfigMap.SetKey(key, val)
-				if err != nil {
-					return err
-				}
+		for key, val := range metadata {
+
+			if v, ok := val.(float64); ok && v == math.Trunc(v) {
+				val = int(v)
+			}
+			err = k.ConfigMap.SetKey(key, val)
+			if err != nil {
+				return err
 			}
 		}
 
@@ -104,51 +102,20 @@ func parsePublishMetadata(md map[string]string, msg *kafka.Message) error {
 		msg.TopicPartition.Partition = kafka.PartitionAny
 	}
 
-	if offsetStr, ok := md["offset"]; ok {
-		offset, err := strconv.ParseInt(offsetStr, 10, 64)
-		if err != nil {
-			return err
-		}
-		msg.TopicPartition.Offset = kafka.Offset(offset)
-	}
-
 	if keyStr, ok := md["key"]; ok {
 		msg.Key = []byte(keyStr)
 	}
 
-	// if timestampStr, ok := md["timestamp"]; ok {
-	// 	if timeLayout, ok := md["timeLayout"]; ok {
-	// 		var err error
-	// 		msg.Timestamp, err = time.Parse(timeLayout, timestampStr)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 	} else {
-	// 		return fmt.Errorf("a value associated with key timeLayout must be provided for parsing timestamp, for more info: https://golang.org/src/time/format.go")
-	// 	}
-
-	// 	if timestampTypeStr, ok := md["timestampType"]; ok {
-	// 		timestampType, err := strconv.Atoi(timestampTypeStr)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		msg.TimestampType = kafka.TimestampType(timestampType)
-	// 	} else {
-	// 		return fmt.Errorf("a value associated with key timestampType must be provided if timestamp is provided")
-	// 	}
-	// }
-
-	if headerJson, ok := md["headers"]; ok {
-		var headers map[string]string
-		err := json.Unmarshal([]byte(headerJson), &headers)
-		if err != nil {
-			return err
-		}
-		for k, v := range headers {
-			msg.Headers = append(msg.Headers, kafka.Header{Key: k, Value: []byte(v)})
+	for k, v := range md {
+		if strings.HasPrefix(k, "headers.") {
+			headerComponents := strings.Split(k, ".")
+			if len(headerComponents) != 2 {
+				continue
+			}
+			headerKey := headerComponents[1]
+			msg.Headers = append(msg.Headers, kafka.Header{Key: headerKey, Value: []byte(v)})
 		}
 	}
-
 	return nil
 }
 
@@ -178,7 +145,7 @@ func loadMsg(kafkaMsg *kafka.Message, msg *pubsub.NewMessage) {
 	msg.Metadata["partition"] = string((*kafkaMsg).TopicPartition.Partition)
 	msg.Metadata["offset"] = fmt.Sprint((*kafkaMsg).TopicPartition.Offset)
 
-	if msgMetaData :=  (*kafkaMsg).TopicPartition.Metadata; msgMetaData != nil {
+	if msgMetaData := (*kafkaMsg).TopicPartition.Metadata; msgMetaData != nil {
 		msg.Metadata["partitionMetadata"] = *msgMetaData
 	}
 	if msgErr := (*kafkaMsg).TopicPartition.Error; msgErr != nil {

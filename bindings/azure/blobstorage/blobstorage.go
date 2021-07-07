@@ -197,7 +197,7 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 	if fetchUserMetadataItem, ok := req.Metadata[withUserMetadata]; ok {
 		fetchUserMetadata, err = strconv.ParseBool(fetchUserMetadataItem)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing request metadata `%s`: %w", withUserMetadata, err)
+			return nil, fmt.Errorf("error parsing request metadata `%s` with value `%s` as bool: %w", withUserMetadata, fetchUserMetadataItem, err)
 		}
 	}
 

@@ -22,6 +22,13 @@ import (
 
 const (
 	blobName                 = "blobName"
+	includeCopy              = "includeCopy"
+	includeMetadata          = "includeMetadata"
+	includeSnapshots         = "includeSnapshots"
+	includeUncommittedBlobs  = "includeUncommittedBlobs"
+	includeDeleted           = "includeDeleted"
+	prefix                   = "prefix"
+	maxResults               = "maxResults"
 	contentType              = "ContentType"
 	contentMD5               = "ContentMD5"
 	contentEncoding          = "ContentEncoding"
@@ -29,7 +36,6 @@ const (
 	contentDisposition       = "ContentDisposition"
 	cacheControl             = "CacheControl"
 	deleteSnapshotOptions    = "DeleteSnapshotOptions"
-	withUserMetadata         = "WithUserMetadata"
 	defaultGetBlobRetryCount = 10
 )
 
@@ -192,16 +198,13 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 		return nil, fmt.Errorf("error reading az blob body: %w", err)
 	}
 
-	var fetchUserMetadata bool
 	var metadata map[string]string
-	if fetchUserMetadataItem, ok := req.Metadata[withUserMetadata]; ok {
-		fetchUserMetadata, err = strconv.ParseBool(fetchUserMetadataItem)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing request metadata `%s` with value `%s` as bool: %w", withUserMetadata, fetchUserMetadataItem, err)
-		}
+	fetchMetadata, err := req.GetMetadataAsBool(includeMetadata)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
-	if fetchUserMetadata {
+	if fetchMetadata {
 		props, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
 		if err != nil {
 			return nil, fmt.Errorf("error reading blob metadata: %w", err)
@@ -222,26 +225,100 @@ func (a *AzureBlobStorage) delete(blobURL azblob.BlockBlobURL, req *bindings.Inv
 	return nil, err
 }
 
+func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	listingDetails := azblob.BlobListingDetails{}
+	options := azblob.ListBlobsSegmentOptions{Details: listingDetails}
+
+	if boolVal, err := req.GetMetadataAsBool(includeCopy); boolVal {
+		listingDetails.Copy = boolVal
+	} else if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	}
+
+	if boolVal, err := req.GetMetadataAsBool(includeMetadata); boolVal {
+		listingDetails.Metadata = boolVal
+	} else if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	}
+
+	if boolVal, err := req.GetMetadataAsBool(includeSnapshots); boolVal {
+		listingDetails.Snapshots = boolVal
+	} else if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	}
+
+	if boolVal, err := req.GetMetadataAsBool(includeUncommittedBlobs); boolVal {
+		listingDetails.UncommittedBlobs = boolVal
+	} else if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	}
+
+	if boolVal, err := req.GetMetadataAsBool(includeUncommittedBlobs); boolVal {
+		listingDetails.UncommittedBlobs = boolVal
+	} else if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	}
+
+	if intVal, err := req.GetMetadataAsInt64(maxResults, 32); intVal != 0 {
+		options.MaxResults = int32(intVal)
+	} else if err != nil {
+		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	}
+
+	if val, ok := req.Metadata[prefix]; ok && val != "" {
+		options.Prefix = val
+	}
+
+	var blobs []azblob.BlobItem
+	marker := azblob.Marker{}
+	for {
+		response, err := a.containerURL.ListBlobsFlatSegment(context.Background(), marker, options)
+		if err != nil {
+			return nil, fmt.Errorf("error listing blobs: %w", err)
+		}
+
+		blobs = append(blobs, response.Segment.BlobItems...)
+
+		if marker := response.NextMarker; marker.Val == nil {
+			break
+		}
+	}
+
+	jsonResponse, err := json.Marshal(blobs)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal blobs to json: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	switch req.Operation {
+	case bindings.CreateOperation:
+		return a.create(a.getBlobUrl(req.Metadata), req)
+	case bindings.GetOperation:
+		return a.get(a.getBlobUrl(req.Metadata), req)
+	case bindings.DeleteOperation:
+		return a.delete(a.getBlobUrl(req.Metadata), req)
+	case bindings.ListOperation:
+		return a.list(req)
+	default:
+		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
+	}
+}
+
+func (a *AzureBlobStorage) getBlobUrl(metadata map[string]string) azblob.BlockBlobURL {
 	name := ""
-	if val, ok := req.Metadata[blobName]; ok && val != "" {
+	if val, ok := metadata[blobName]; ok && val != "" {
 		name = val
-		delete(req.Metadata, blobName)
+		delete(metadata, blobName)
 	} else {
 		name = uuid.New().String()
 	}
 
 	blobURL := a.containerURL.NewBlockBlobURL(name)
-	switch req.Operation {
-	case bindings.CreateOperation:
-		return a.create(blobURL, req)
-	case bindings.GetOperation:
-		return a.get(blobURL, req)
-	case bindings.DeleteOperation:
-		return a.delete(blobURL, req)
-	case bindings.ListOperation:
-		fallthrough
-	default:
-		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
-	}
+
+	return blobURL
 }

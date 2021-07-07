@@ -253,8 +253,8 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
-	if boolVal, err := req.GetMetadataAsBool(includeUncommittedBlobs); boolVal {
-		listingDetails.UncommittedBlobs = boolVal
+	if boolVal, err := req.GetMetadataAsBool(includeDeleted); boolVal {
+		listingDetails.Deleted = boolVal
 	} else if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
@@ -297,11 +297,11 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return a.create(a.getBlobUrl(req.Metadata), req)
+		return a.create(a.getBlobURL(req.Metadata), req)
 	case bindings.GetOperation:
-		return a.get(a.getBlobUrl(req.Metadata), req)
+		return a.get(a.getBlobURL(req.Metadata), req)
 	case bindings.DeleteOperation:
-		return a.delete(a.getBlobUrl(req.Metadata), req)
+		return a.delete(a.getBlobURL(req.Metadata), req)
 	case bindings.ListOperation:
 		return a.list(req)
 	default:
@@ -309,7 +309,7 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 	}
 }
 
-func (a *AzureBlobStorage) getBlobUrl(metadata map[string]string) azblob.BlockBlobURL {
+func (a *AzureBlobStorage) getBlobURL(metadata map[string]string) azblob.BlockBlobURL {
 	name := ""
 	if val, ok := metadata[blobName]; ok && val != "" {
 		name = val

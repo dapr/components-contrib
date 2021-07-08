@@ -14,12 +14,10 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-var (
-	ErrMissingWorkflowInstanceKey = errors.New("workflowInstanceKey is a required attribute")
-)
+var ErrMissingProcessInstanceKey = errors.New("processInstanceKey is a required attribute")
 
 type cancelInstancePayload struct {
-	WorkflowInstanceKey *int64 `json:"workflowInstanceKey"`
+	ProcessInstanceKey *int64 `json:"processInstanceKey"`
 }
 
 func (z *ZeebeCommand) cancelInstance(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -29,15 +27,15 @@ func (z *ZeebeCommand) cancelInstance(req *bindings.InvokeRequest) (*bindings.In
 		return nil, err
 	}
 
-	if payload.WorkflowInstanceKey == nil {
-		return nil, ErrMissingWorkflowInstanceKey
+	if payload.ProcessInstanceKey == nil {
+		return nil, ErrMissingProcessInstanceKey
 	}
 
 	_, err = z.client.NewCancelInstanceCommand().
-		WorkflowInstanceKey(*payload.WorkflowInstanceKey).
+		ProcessInstanceKey(*payload.ProcessInstanceKey).
 		Send(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("cannot cancel instance for workflow instance key %d: %w", payload.WorkflowInstanceKey, err)
+		return nil, fmt.Errorf("cannot cancel instance for process instance key %d: %w", payload.ProcessInstanceKey, err)
 	}
 
 	return &bindings.InvokeResponse{}, nil

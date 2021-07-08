@@ -11,21 +11,20 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
 	"github.com/dapr/components-contrib/bindings"
 )
 
 var (
-	ErrAmbiguousCreationVars = errors.New("either 'bpmnProcessId' or 'workflowKey' must be passed, not both at the same time")
-	ErrMissingCreationVars   = errors.New("either 'bpmnProcessId' or 'workflowKey' must be passed")
+	ErrAmbiguousCreationVars = errors.New("either 'bpmnProcessId' or 'processDefinitionKey' must be passed, not both at the same time")
+	ErrMissingCreationVars   = errors.New("either 'bpmnProcessId' or 'processDefinitionKey' must be passed")
 )
 
 type createInstancePayload struct {
-	BpmnProcessID string      `json:"bpmnProcessId"`
-	WorkflowKey   *int64      `json:"workflowKey"`
-	Version       *int32      `json:"version"`
-	Variables     interface{} `json:"variables"`
+	BpmnProcessID        string      `json:"bpmnProcessId"`
+	ProcessDefinitionKey *int64      `json:"processDefinitionKey"`
+	Version              *int32      `json:"version"`
+	Variables            interface{} `json:"variables"`
 }
 
 func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -41,7 +40,7 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 	var errorDetail string
 
 	if payload.BpmnProcessID != "" { //nolint:nestif
-		if payload.WorkflowKey != nil {
+		if payload.ProcessDefinitionKey != nil {
 			return nil, ErrAmbiguousCreationVars
 		}
 
@@ -53,9 +52,9 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 			cmd3 = cmd2.LatestVersion()
 			errorDetail = fmt.Sprintf("bpmnProcessId %s and lates version", payload.BpmnProcessID)
 		}
-	} else if payload.WorkflowKey != nil {
-		cmd3 = cmd1.WorkflowKey(*payload.WorkflowKey)
-		errorDetail = fmt.Sprintf("workflowKey %d", payload.WorkflowKey)
+	} else if payload.ProcessDefinitionKey != nil {
+		cmd3 = cmd1.ProcessDefinitionKey(*payload.ProcessDefinitionKey)
+		errorDetail = fmt.Sprintf("processDefinitionKey %d", payload.ProcessDefinitionKey)
 	} else {
 		return nil, ErrMissingCreationVars
 	}

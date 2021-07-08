@@ -16,9 +16,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 )
 
-var (
-	ErrMissingMessageName = errors.New("messageName is a required attribute")
-)
+var ErrMissingMessageName = errors.New("messageName is a required attribute")
 
 type publishMessagePayload struct {
 	MessageName    string            `json:"messageName"`

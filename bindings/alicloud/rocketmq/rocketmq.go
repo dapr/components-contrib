@@ -19,8 +19,8 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/retry"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 type AliCloudRocketMQ struct {
@@ -247,7 +247,7 @@ type mqCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.Co
 
 func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler func(*bindings.ReadResponse) ([]byte, error)) mqCallback {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
-		var success = true
+		success := true
 		for _, v := range msgs {
 			metadata := make(map[string]string, 4)
 			metadata[metadataRocketmqType] = mqType
@@ -258,8 +258,10 @@ func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string
 			}
 			a.logger.Debugf("binging-rocketmq handle msg, topic:%s msg-id:%s data-length:%d ", v.Topic, len(v.Body), v.MsgId)
 
-			msg := &bindings.ReadResponse{Data: v.Body,
-				Metadata: metadata}
+			msg := &bindings.ReadResponse{
+				Data:     v.Body,
+				Metadata: metadata,
+			}
 
 			b := a.backOffConfig.NewBackOffWithContext(a.ctx)
 

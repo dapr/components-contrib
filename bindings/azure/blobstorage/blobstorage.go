@@ -27,6 +27,7 @@ const (
 	includeSnapshots         = "includeSnapshots"
 	includeUncommittedBlobs  = "includeUncommittedBlobs"
 	includeDeleted           = "includeDeleted"
+	marker                   = "marker"
 	prefix                   = "prefix"
 	maxResults               = "maxResults"
 	contentType              = "ContentType"
@@ -113,7 +114,11 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 }
 
 func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation, bindings.DeleteOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation,
+		bindings.GetOperation,
+		bindings.DeleteOperation,
+		bindings.ListOperation}
 }
 
 func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -226,35 +231,34 @@ func (a *AzureBlobStorage) delete(blobURL azblob.BlockBlobURL, req *bindings.Inv
 }
 
 func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	listingDetails := azblob.BlobListingDetails{}
-	options := azblob.ListBlobsSegmentOptions{Details: listingDetails}
+	options := azblob.ListBlobsSegmentOptions{}
 
 	if boolVal, err := req.GetMetadataAsBool(includeCopy); boolVal {
-		listingDetails.Copy = boolVal
+		options.Details.Copy = boolVal
 	} else if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
 	if boolVal, err := req.GetMetadataAsBool(includeMetadata); boolVal {
-		listingDetails.Metadata = boolVal
+		options.Details.Metadata = boolVal
 	} else if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
 	if boolVal, err := req.GetMetadataAsBool(includeSnapshots); boolVal {
-		listingDetails.Snapshots = boolVal
+		options.Details.Snapshots = boolVal
 	} else if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
 	if boolVal, err := req.GetMetadataAsBool(includeUncommittedBlobs); boolVal {
-		listingDetails.UncommittedBlobs = boolVal
+		options.Details.UncommittedBlobs = boolVal
 	} else if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
 	if boolVal, err := req.GetMetadataAsBool(includeDeleted); boolVal {
-		listingDetails.Deleted = boolVal
+		options.Details.Deleted = boolVal
 	} else if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
@@ -269,17 +273,30 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		options.Prefix = val
 	}
 
+	var initialMarker azblob.Marker
+	if val, ok := req.Metadata[marker]; ok && val != "" {
+		initialMarker = azblob.Marker{Val: &val}
+	} else {
+		initialMarker = azblob.Marker{}
+	}
+
 	var blobs []azblob.BlobItem
-	marker := azblob.Marker{}
-	for {
-		response, err := a.containerURL.ListBlobsFlatSegment(context.Background(), marker, options)
+	metadata := map[string]string{}
+	ctx := context.Background()
+	for currentMaker := initialMarker; currentMaker.NotDone(); {
+		listBlob, err := a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blobs: %w", err)
 		}
 
-		blobs = append(blobs, response.Segment.BlobItems...)
+		blobs = append(blobs, listBlob.Segment.BlobItems...)
 
-		if marker := response.NextMarker; marker.Val == nil {
+		numBlobs := len(blobs)
+		currentMaker = listBlob.NextMarker
+		metadata[marker] = *currentMaker.Val
+		metadata["number"] = strconv.FormatInt(int64(numBlobs), 10)
+
+		if numBlobs == int(options.MaxResults) {
 			break
 		}
 	}
@@ -290,7 +307,8 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	}
 
 	return &bindings.InvokeResponse{
-		Data: jsonResponse,
+		Data:     jsonResponse,
+		Metadata: metadata,
 	}, nil
 }
 

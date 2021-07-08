@@ -118,7 +118,8 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 		bindings.CreateOperation,
 		bindings.GetOperation,
 		bindings.DeleteOperation,
-		bindings.ListOperation}
+		bindings.ListOperation,
+	}
 }
 
 func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

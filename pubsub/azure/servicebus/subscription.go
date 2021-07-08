@@ -3,6 +3,7 @@ package servicebus
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -202,6 +203,10 @@ func (s *subscription) tryRenewLocks() {
 func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.HandlerFunc) error {
 	s.logger.Debugf("Waiting to receive message on topic %s", s.topic)
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
+		if strings.Contains(err.Error(), "force detached") {
+			return nil
+		}
+
 		return fmt.Errorf("%s error receiving message on topic %s, %s", errorMessagePrefix, s.topic, err)
 	}
 

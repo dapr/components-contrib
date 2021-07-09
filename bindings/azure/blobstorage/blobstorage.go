@@ -47,9 +47,7 @@ const (
 	deleteSnapshotOptionsBC = "DeleteSnapshotOptions"
 )
 
-var (
-	ErrMissingBlobName = errors.New("blobName is a required attribute")
-)
+var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account
 type AzureBlobStorage struct {
@@ -198,7 +196,7 @@ func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.Invoke
 		req.Data = []byte(d)
 	}
 
-	if a.metadata.DecodeBase64 == true {
+	if a.metadata.DecodeBase64 {
 		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
 		if decodeError != nil {
 			return nil, decodeError
@@ -329,7 +327,8 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	metadata := map[string]string{}
 	ctx := context.Background()
 	for currentMaker := initialMarker; currentMaker.NotDone(); {
-		listBlob, err := a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
+		var listBlob *azblob.ListBlobsFlatSegmentResponse
+		listBlob, err = a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blobs: %w", err)
 		}

@@ -10,7 +10,7 @@ import (
 
 	ali_mns "github.com/aliyun/aliyun-mns-go-sdk"
 	"github.com/creasty/defaults"
-	"github.com/dapr/components-contrib/internal/config"
+	"github.com/dapr/kit/config"
 )
 
 var (

@@ -10,6 +10,7 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -22,22 +23,31 @@ import (
 
 const (
 	blobName                 = "blobName"
-	includeCopy              = "includeCopy"
-	includeMetadata          = "includeMetadata"
-	includeSnapshots         = "includeSnapshots"
-	includeUncommittedBlobs  = "includeUncommittedBlobs"
-	includeDeleted           = "includeDeleted"
 	marker                   = "marker"
-	prefix                   = "prefix"
-	maxResults               = "maxResults"
-	contentType              = "ContentType"
-	contentMD5               = "ContentMD5"
-	contentEncoding          = "ContentEncoding"
-	contentLanguage          = "ContentLanguage"
-	contentDisposition       = "ContentDisposition"
-	cacheControl             = "CacheControl"
-	deleteSnapshotOptions    = "DeleteSnapshotOptions"
+	number                   = "number"
+	includeMetadata          = "includeMetaData"
+	deleteType               = "deleteType"
+	contentType              = "contentType"
+	contentMD5               = "contentMD5"
+	contentEncoding          = "contentEncoding"
+	contentLanguage          = "contentLanguage"
+	contentDisposition       = "contentDisposition"
+	cacheControl             = "cacheControl"
 	defaultGetBlobRetryCount = 10
+
+	// TODO: remove the pascal case support when the component moves to GA
+	// See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
+	contentTypeBC           = "ContentType"
+	contentMD5BC            = "ContentMD5"
+	contentEncodingBC       = "ContentEncoding"
+	contentLanguageBC       = "ContentLanguage"
+	contentDispositionBC    = "ContentDisposition"
+	cacheControlBC          = "CacheControl"
+	deleteSnapshotOptionsBC = "DeleteSnapshotOptions"
+)
+
+var (
+	ErrMissingBlobName = errors.New("blobName is a required attribute")
 )
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account
@@ -52,13 +62,28 @@ type blobStorageMetadata struct {
 	StorageAccount    string `json:"storageAccount"`
 	StorageAccessKey  string `json:"storageAccessKey"`
 	Container         string `json:"container"`
-	DecodeBase64      string `json:"decodeBase64"`
 	GetBlobRetryCount int    `json:"getBlobRetryCount,string"`
+	DecodeBase64      bool   `json:"decodeBase64,string"`
 	PublicAccessLevel string `json:"publicAccessLevel"`
 }
 
 type createResponse struct {
 	BlobURL string `json:"blobURL"`
+}
+
+type listInclude struct {
+	Copy             bool `json:"copy"`
+	Metadata         bool `json:"metadata"`
+	Snapshots        bool `json:"snapshots"`
+	UncommittedBlobs bool `json:"uncommittedBlobs"`
+	Deleted          bool `json:"deleted"`
+}
+
+type listPayload struct {
+	Marker     string      `json:"marker"`
+	Prefix     string      `json:"prefix"`
+	MaxResults int32       `json:"maxResults"`
+	Include    listInclude `json:"include"`
 }
 
 // NewAzureBlobStorage returns a new Azure Blob Storage instance
@@ -122,8 +147,16 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 	}
 }
 
-func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
+	var blobURL azblob.BlockBlobURL
+	if val, ok := req.Metadata[blobName]; ok && val != "" {
+		blobURL = a.getBlobURL(val)
+		delete(req.Metadata, blobName)
+	} else {
+		blobURL = a.getBlobURL(uuid.New().String())
+	}
+
 	if val, ok := req.Metadata[contentType]; ok && val != "" {
 		blobHTTPHeaders.ContentType = val
 		delete(req.Metadata, contentType)
@@ -158,8 +191,7 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 		req.Data = []byte(d)
 	}
 
-	// The "true" is the only allowed positive value. Other positive variations like "True" not acceptable.
-	if a.metadata.DecodeBase64 == "true" {
+	if a.metadata.DecodeBase64 == true {
 		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
 		if decodeError != nil {
 			return nil, decodeError
@@ -189,7 +221,14 @@ func (a *AzureBlobStorage) create(blobURL azblob.BlockBlobURL, req *bindings.Inv
 	}, nil
 }
 
-func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var blobURL azblob.BlockBlobURL
+	if val, ok := req.Metadata[blobName]; ok && val != "" {
+		blobURL = a.getBlobURL(val)
+	} else {
+		return nil, ErrMissingBlobName
+	}
+
 	ctx := context.TODO()
 	resp, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
@@ -225,8 +264,25 @@ func (a *AzureBlobStorage) get(blobURL azblob.BlockBlobURL, req *bindings.Invoke
 	}, nil
 }
 
-func (a *AzureBlobStorage) delete(blobURL azblob.BlockBlobURL, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionType(req.Metadata[deleteSnapshotOptions]), azblob.BlobAccessConditions{})
+func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var blobURL azblob.BlockBlobURL
+	if val, ok := req.Metadata[blobName]; ok && val != "" {
+		blobURL = a.getBlobURL(val)
+	} else {
+		return nil, ErrMissingBlobName
+	}
+
+	deleteOptionType := azblob.DeleteSnapshotsOptionNone
+	if val, ok := req.Metadata[deleteType]; ok && val != "" {
+		if azblob.DeleteSnapshotsOptionType(val) != azblob.DeleteSnapshotsOptionInclude &&
+			azblob.DeleteSnapshotsOptionType(val) != azblob.DeleteSnapshotsOptionOnly {
+			return nil, fmt.Errorf("deleteType must be either %s or %s", azblob.DeleteSnapshotsOptionInclude, azblob.DeleteSnapshotsOptionOnly)
+		}
+
+		deleteOptionType = azblob.DeleteSnapshotsOptionType(val)
+	}
+
+	_, err := blobURL.Delete(context.Background(), deleteOptionType, azblob.BlobAccessConditions{})
 
 	return nil, err
 }
@@ -234,49 +290,29 @@ func (a *AzureBlobStorage) delete(blobURL azblob.BlockBlobURL, req *bindings.Inv
 func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	options := azblob.ListBlobsSegmentOptions{}
 
-	if boolVal, err := req.GetMetadataAsBool(includeCopy); boolVal {
-		options.Details.Copy = boolVal
-	} else if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	var payload listPayload
+	err := json.Unmarshal(req.Data, &payload)
+	if err != nil {
+		return nil, err
 	}
 
-	if boolVal, err := req.GetMetadataAsBool(includeMetadata); boolVal {
-		options.Details.Metadata = boolVal
-	} else if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
+	options.Details.Copy = payload.Include.Copy
+	options.Details.Metadata = payload.Include.Metadata
+	options.Details.Snapshots = payload.Include.Snapshots
+	options.Details.UncommittedBlobs = payload.Include.UncommittedBlobs
+	options.Details.Deleted = payload.Include.Deleted
+
+	if payload.MaxResults != int32(0) {
+		options.MaxResults = payload.MaxResults
 	}
 
-	if boolVal, err := req.GetMetadataAsBool(includeSnapshots); boolVal {
-		options.Details.Snapshots = boolVal
-	} else if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
-	}
-
-	if boolVal, err := req.GetMetadataAsBool(includeUncommittedBlobs); boolVal {
-		options.Details.UncommittedBlobs = boolVal
-	} else if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
-	}
-
-	if boolVal, err := req.GetMetadataAsBool(includeDeleted); boolVal {
-		options.Details.Deleted = boolVal
-	} else if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
-	}
-
-	if intVal, err := req.GetMetadataAsInt64(maxResults, 32); intVal != 0 {
-		options.MaxResults = int32(intVal)
-	} else if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
-	}
-
-	if val, ok := req.Metadata[prefix]; ok && val != "" {
-		options.Prefix = val
+	if payload.Prefix != "" {
+		options.Prefix = payload.Prefix
 	}
 
 	var initialMarker azblob.Marker
-	if val, ok := req.Metadata[marker]; ok && val != "" {
-		initialMarker = azblob.Marker{Val: &val}
+	if payload.Marker != "" {
+		initialMarker = azblob.Marker{Val: &payload.Marker}
 	} else {
 		initialMarker = azblob.Marker{}
 	}
@@ -295,7 +331,7 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		numBlobs := len(blobs)
 		currentMaker = listBlob.NextMarker
 		metadata[marker] = *currentMaker.Val
-		metadata["number"] = strconv.FormatInt(int64(numBlobs), 10)
+		metadata[number] = strconv.FormatInt(int64(numBlobs), 10)
 
 		if numBlobs == int(options.MaxResults) {
 			break
@@ -314,13 +350,15 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 }
 
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	req.Metadata = a.handleBackwardCompatibilityForMetadata(req.Metadata)
+
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return a.create(a.getBlobURL(req.Metadata), req)
+		return a.create(req)
 	case bindings.GetOperation:
-		return a.get(a.getBlobURL(req.Metadata), req)
+		return a.get(req)
 	case bindings.DeleteOperation:
-		return a.delete(a.getBlobURL(req.Metadata), req)
+		return a.delete(req)
 	case bindings.ListOperation:
 		return a.list(req)
 	default:
@@ -328,16 +366,49 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 	}
 }
 
-func (a *AzureBlobStorage) getBlobURL(metadata map[string]string) azblob.BlockBlobURL {
-	name := ""
-	if val, ok := metadata[blobName]; ok && val != "" {
-		name = val
-		delete(metadata, blobName)
-	} else {
-		name = uuid.New().String()
-	}
-
+func (a *AzureBlobStorage) getBlobURL(name string) azblob.BlockBlobURL {
 	blobURL := a.containerURL.NewBlockBlobURL(name)
 
 	return blobURL
+}
+
+// TODO: remove the pascal case support when the component moves to GA
+// See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
+func (a *AzureBlobStorage) handleBackwardCompatibilityForMetadata(metadata map[string]string) map[string]string {
+	if val, ok := metadata[contentTypeBC]; ok && val != "" {
+		metadata[contentType] = val
+		delete(metadata, contentTypeBC)
+	}
+
+	if val, ok := metadata[contentMD5BC]; ok && val != "" {
+		metadata[contentMD5] = val
+		delete(metadata, contentMD5BC)
+	}
+
+	if val, ok := metadata[contentEncodingBC]; ok && val != "" {
+		metadata[contentEncoding] = val
+		delete(metadata, contentEncodingBC)
+	}
+
+	if val, ok := metadata[contentLanguageBC]; ok && val != "" {
+		metadata[contentLanguage] = val
+		delete(metadata, contentLanguageBC)
+	}
+
+	if val, ok := metadata[contentDispositionBC]; ok && val != "" {
+		metadata[contentDisposition] = val
+		delete(metadata, contentDispositionBC)
+	}
+
+	if val, ok := metadata[cacheControlBC]; ok && val != "" {
+		metadata[cacheControl] = val
+		delete(metadata, cacheControlBC)
+	}
+
+	if val, ok := metadata[deleteSnapshotOptionsBC]; ok && val != "" {
+		metadata[deleteType] = val
+		delete(metadata, deleteSnapshotOptionsBC)
+	}
+
+	return metadata
 }

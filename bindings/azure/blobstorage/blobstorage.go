@@ -34,6 +34,7 @@ const (
 	contentDisposition       = "contentDisposition"
 	cacheControl             = "cacheControl"
 	defaultGetBlobRetryCount = 10
+	maxResults               = 5000
 
 	// TODO: remove the pascal case support when the component moves to GA
 	// See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
@@ -59,12 +60,12 @@ type AzureBlobStorage struct {
 }
 
 type blobStorageMetadata struct {
-	StorageAccount    string `json:"storageAccount"`
-	StorageAccessKey  string `json:"storageAccessKey"`
-	Container         string `json:"container"`
-	GetBlobRetryCount int    `json:"getBlobRetryCount,string"`
-	DecodeBase64      bool   `json:"decodeBase64,string"`
-	PublicAccessLevel string `json:"publicAccessLevel"`
+	StorageAccount    string                  `json:"storageAccount"`
+	StorageAccessKey  string                  `json:"storageAccessKey"`
+	Container         string                  `json:"container"`
+	GetBlobRetryCount int                     `json:"getBlobRetryCount,string"`
+	DecodeBase64      bool                    `json:"decodeBase64,string"`
+	PublicAccessLevel azblob.PublicAccessType `json:"publicAccessLevel"`
 }
 
 type createResponse struct {
@@ -98,6 +99,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	a.metadata = m
+
 	credential, err := azblob.NewSharedKeyCredential(m.StorageAccount, m.StorageAccessKey)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %w", err)
@@ -110,7 +112,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	containerURL := azblob.NewContainerURL(*URL, p)
 
 	ctx := context.Background()
-	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessType(m.PublicAccessLevel))
+	_, err = containerURL.Create(ctx, azblob.Metadata{}, m.PublicAccessLevel)
 	// Don't return error, container might already exist
 	a.logger.Debugf("error creating container: %w", err)
 	a.containerURL = containerURL
@@ -133,6 +135,11 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 
 	if m.GetBlobRetryCount == 0 {
 		m.GetBlobRetryCount = defaultGetBlobRetryCount
+	}
+
+	if !a.isValidPublicAccessType(m.PublicAccessLevel) {
+		return nil, fmt.Errorf("invalid public access level: %s; allowed: %s",
+			m.PublicAccessLevel, azblob.PossiblePublicAccessTypeValues())
 	}
 
 	return &m, nil
@@ -274,12 +281,11 @@ func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.Invoke
 
 	deleteOptionType := azblob.DeleteSnapshotsOptionNone
 	if val, ok := req.Metadata[deleteType]; ok && val != "" {
-		if azblob.DeleteSnapshotsOptionType(val) != azblob.DeleteSnapshotsOptionInclude &&
-			azblob.DeleteSnapshotsOptionType(val) != azblob.DeleteSnapshotsOptionOnly {
-			return nil, fmt.Errorf("deleteType must be either %s or %s", azblob.DeleteSnapshotsOptionInclude, azblob.DeleteSnapshotsOptionOnly)
-		}
-
 		deleteOptionType = azblob.DeleteSnapshotsOptionType(val)
+		if !a.isValidDeleteSnapshotsOptionTypee(deleteOptionType) {
+			return nil, fmt.Errorf("invalid delete snapshot option type: %s; allowed: %s",
+				deleteOptionType, azblob.PossibleDeleteSnapshotsOptionTypeValues())
+		}
 	}
 
 	_, err := blobURL.Delete(context.Background(), deleteOptionType, azblob.BlobAccessConditions{})
@@ -304,6 +310,8 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 
 	if payload.MaxResults != int32(0) {
 		options.MaxResults = payload.MaxResults
+	} else {
+		options.MaxResults = maxResults
 	}
 
 	if payload.Prefix != "" {
@@ -370,6 +378,28 @@ func (a *AzureBlobStorage) getBlobURL(name string) azblob.BlockBlobURL {
 	blobURL := a.containerURL.NewBlockBlobURL(name)
 
 	return blobURL
+}
+
+func (a *AzureBlobStorage) isValidPublicAccessType(accessType azblob.PublicAccessType) bool {
+	validTypes := azblob.PossiblePublicAccessTypeValues()
+	for _, item := range validTypes {
+		if item == accessType {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionTypee(accessType azblob.DeleteSnapshotsOptionType) bool {
+	validTypes := azblob.PossibleDeleteSnapshotsOptionTypeValues()
+	for _, item := range validTypes {
+		if item == accessType {
+			return true
+		}
+	}
+
+	return false
 }
 
 // TODO: remove the pascal case support when the component moves to GA

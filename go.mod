@@ -46,7 +46,6 @@ require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
 	github.com/dghubble/oauth1 v0.6.0
-	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
@@ -62,6 +61,7 @@ require (
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
+	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect

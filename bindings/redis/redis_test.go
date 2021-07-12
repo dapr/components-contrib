@@ -20,9 +20,6 @@ func TestParseMetadata(t *testing.T) {
 	r := Redis{logger: logger.NewLogger("test")}
 	redisM, err := r.parseMetadata(m)
 	assert.Nil(t, err)
-	assert.Equal(t, "host", redisM.host)
-	assert.Equal(t, "password", redisM.password)
-	assert.Equal(t, true, redisM.enableTLS)
 	assert.Equal(t, 3, redisM.maxRetries)
 	assert.Equal(t, time.Duration(10000), redisM.maxRetryBackoff)
 }

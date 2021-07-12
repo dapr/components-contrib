@@ -340,7 +340,9 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		metadata[marker] = *currentMaker.Val
 		metadata[number] = strconv.FormatInt(int64(numBlobs), 10)
 
-		if numBlobs == int(options.MaxResults) {
+		if options.MaxResults-maxResults > 0 {
+			options.MaxResults = options.MaxResults - maxResults
+		} else {
 			break
 		}
 	}

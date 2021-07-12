@@ -35,7 +35,7 @@ require (
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/buger/jsonparser v1.1.1 // indirect
-	github.com/camunda-cloud/zeebe/clients/go v1.0.0
+	github.com/camunda-cloud/zeebe/clients/go v1.0.1
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible

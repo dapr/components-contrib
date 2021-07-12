@@ -16,7 +16,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/pkg/errors"
 )
 
@@ -186,6 +186,10 @@ func (s *SignalR) ensureValidToken(url string) (string, error) {
 	claims := &jwt.StandardClaims{
 		ExpiresAt: expiration.Unix(),
 		Audience:  url,
+	}
+
+	if err := claims.Valid(); err != nil {
+		return "", err
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

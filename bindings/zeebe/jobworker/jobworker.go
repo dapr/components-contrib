@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/entities"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/worker"
@@ -113,19 +114,35 @@ func (z *ZeebeJobWorker) parseMetadata(metadata bindings.Metadata) (*jobWorkerMe
 }
 
 func (z *ZeebeJobWorker) getJobWorker(handler jobHandler) worker.JobWorker {
-	return z.client.
-		NewJobWorker().
-		JobType(z.metadata.JobType).
-		Handler(handler.handleJob).
-		Name(z.metadata.WorkerName).
-		Timeout(z.metadata.WorkerTimeout.Duration).
-		RequestTimeout(z.metadata.RequestTimeout.Duration).
-		MaxJobsActive(z.metadata.MaxJobsActive).
-		Concurrency(z.metadata.Concurrency).
-		PollInterval(z.metadata.PollInterval.Duration).
-		PollThreshold(z.metadata.PollThreshold).
-		FetchVariables(zeebe.VariableStringToArray(z.metadata.FetchVariables)...).
-		Open()
+	cmd1 := z.client.NewJobWorker()
+	cmd2 := cmd1.JobType(z.metadata.JobType)
+	cmd3 := cmd2.Handler(handler.handleJob)
+	if z.metadata.WorkerName != "" {
+		cmd3 = cmd3.Name(z.metadata.WorkerName)
+	}
+	if z.metadata.WorkerTimeout.Duration != time.Duration(0) {
+		cmd3 = cmd3.Timeout(z.metadata.WorkerTimeout.Duration)
+	}
+	if z.metadata.RequestTimeout.Duration != time.Duration(0) {
+		cmd3 = cmd3.RequestTimeout(z.metadata.RequestTimeout.Duration)
+	}
+	if z.metadata.MaxJobsActive != 0 {
+		cmd3 = cmd3.MaxJobsActive(z.metadata.MaxJobsActive)
+	}
+	if z.metadata.Concurrency != 0 {
+		cmd3 = cmd3.Concurrency(z.metadata.Concurrency)
+	}
+	if z.metadata.PollInterval.Duration != time.Duration(0) {
+		cmd3 = cmd3.PollInterval(z.metadata.PollInterval.Duration)
+	}
+	if z.metadata.PollThreshold != 0 {
+		cmd3 = cmd3.PollThreshold(z.metadata.PollThreshold)
+	}
+	if z.metadata.FetchVariables != "" {
+		cmd3 = cmd3.FetchVariables(zeebe.VariableStringToArray(z.metadata.FetchVariables)...)
+	}
+
+	return cmd3.Open()
 }
 
 func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
@@ -159,11 +176,13 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	}
 
 	variablesMap := make(map[string]interface{})
-	err = json.Unmarshal(resultVariables, &variablesMap)
-	if err != nil {
-		h.failJob(client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
+	if resultVariables != nil {
+		err = json.Unmarshal(resultVariables, &variablesMap)
+		if err != nil {
+			h.failJob(client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
 
-		return
+			return
+		}
 	}
 
 	jobKey := job.GetKey()

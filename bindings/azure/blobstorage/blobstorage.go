@@ -341,7 +341,7 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		metadata[number] = strconv.FormatInt(int64(numBlobs), 10)
 
 		if options.MaxResults-maxResults > 0 {
-			options.MaxResults = options.MaxResults - maxResults
+			options.MaxResults -= maxResults
 		} else {
 			break
 		}

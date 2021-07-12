@@ -84,3 +84,10 @@ check-diff:
 .PHONY: conf-tests
 conf-tests:
 	@go test -v -tags=conftests -count=1 ./tests/conformance
+
+################################################################################
+# Target: e2e-tests-zeebe                                                      #
+################################################################################
+.PHONY: e2e-tests-zeebe
+e2e-tests-zeebe:
+	@go test -v -tags=e2etests -count=1 ./tests/e2e/bindings/zeebe/...

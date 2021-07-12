@@ -86,11 +86,11 @@ func TestDeleteOption(t *testing.T) {
 		}
 	})
 
-	t.Run("return error for invalid deleteType", func(t *testing.T) {
+	t.Run("return error for invalid deleteSnapshots", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		r.Metadata = map[string]string{
-			"blobName":   "foo",
-			"deleteType": "invalid",
+			"blobName":        "foo",
+			"deleteSnapshots": "invalid",
 		}
 		_, err := blobStorage.delete(&r)
 		assert.Error(t, err)

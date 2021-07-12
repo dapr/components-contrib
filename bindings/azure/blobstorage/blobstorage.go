@@ -25,8 +25,8 @@ const (
 	blobName                 = "blobName"
 	marker                   = "marker"
 	number                   = "number"
-	includeMetadata          = "includeMetaData"
-	deleteType               = "deleteType"
+	includeMetadata          = "includeMetadata"
+	deleteSnapshots          = "deleteSnapshots"
 	contentType              = "contentType"
 	contentMD5               = "contentMD5"
 	contentEncoding          = "contentEncoding"
@@ -277,16 +277,16 @@ func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.Invoke
 		return nil, ErrMissingBlobName
 	}
 
-	deleteOptionType := azblob.DeleteSnapshotsOptionNone
-	if val, ok := req.Metadata[deleteType]; ok && val != "" {
-		deleteOptionType = azblob.DeleteSnapshotsOptionType(val)
-		if !a.isValidDeleteSnapshotsOptionTypee(deleteOptionType) {
+	deleteSnapshotsOptions := azblob.DeleteSnapshotsOptionNone
+	if val, ok := req.Metadata[deleteSnapshots]; ok && val != "" {
+		deleteSnapshotsOptions = azblob.DeleteSnapshotsOptionType(val)
+		if !a.isValidDeleteSnapshotsOptionType(deleteSnapshotsOptions) {
 			return nil, fmt.Errorf("invalid delete snapshot option type: %s; allowed: %s",
-				deleteOptionType, azblob.PossibleDeleteSnapshotsOptionTypeValues())
+				deleteSnapshotsOptions, azblob.PossibleDeleteSnapshotsOptionTypeValues())
 		}
 	}
 
-	_, err := blobURL.Delete(context.Background(), deleteOptionType, azblob.BlobAccessConditions{})
+	_, err := blobURL.Delete(context.Background(), deleteSnapshotsOptions, azblob.BlobAccessConditions{})
 
 	return nil, err
 }
@@ -390,7 +390,7 @@ func (a *AzureBlobStorage) isValidPublicAccessType(accessType azblob.PublicAcces
 	return false
 }
 
-func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionTypee(accessType azblob.DeleteSnapshotsOptionType) bool {
+func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.DeleteSnapshotsOptionType) bool {
 	validTypes := azblob.PossibleDeleteSnapshotsOptionTypeValues()
 	for _, item := range validTypes {
 		if item == accessType {
@@ -435,7 +435,7 @@ func (a *AzureBlobStorage) handleBackwardCompatibilityForMetadata(metadata map[s
 	}
 
 	if val, ok := metadata[deleteSnapshotOptionsBC]; ok && val != "" {
-		metadata[deleteType] = val
+		metadata[deleteSnapshots] = val
 		delete(metadata, deleteSnapshotOptionsBC)
 	}
 

@@ -98,12 +98,12 @@ func TestCreateInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.Nil(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
 		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
 
@@ -112,12 +112,12 @@ func TestCreateInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
 		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingCreationVars)
 	})
 
@@ -129,12 +129,12 @@ func TestCreateInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
 		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
@@ -148,12 +148,12 @@ func TestCreateInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
 		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
@@ -167,12 +167,12 @@ func TestCreateInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
 		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
@@ -188,12 +188,12 @@ func TestCreateInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: createInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
 		var mc mockCreateInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)

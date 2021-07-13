@@ -26,7 +26,7 @@ func TestQuery(t *testing.T) {
 		ret, err := m.query(`SELECT * FROM foo WHERE id < 4`)
 		assert.Nil(t, err)
 		t.Logf("query result: %s", ret)
-		assert.Contains(t, string(ret), "\"id\":\"1\"")
+		assert.Contains(t, string(ret), "\"id\":1")
 		var result []interface{}
 		err = json.Unmarshal(ret, &result)
 		assert.Nil(t, err)

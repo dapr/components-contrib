@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -35,6 +36,7 @@ const (
 	componentVaultToken          string = "vaultToken"
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
+	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
@@ -107,8 +109,20 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 		return fmt.Errorf("token mount path and token both set")
 	}
 
+	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
 	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVPrefix == "" {
+	convertedVaultKVUsePrefix := true
+	if vaultKVUsePrefix != "" {
+		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
+			convertedVaultKVUsePrefix = v
+		} else if err != nil {
+			return fmt.Errorf("unable to convert Use Prefix to boolean")
+		}
+	}
+
+	if !convertedVaultKVUsePrefix {
+		vaultKVPrefix = ""
+	} else if vaultKVPrefix == "" {
 		vaultKVPrefix = defaultVaultKVPrefix
 	}
 
@@ -175,9 +189,10 @@ func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
 
-		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
-			httpresp, b.String())
+		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultKVResponse
@@ -238,9 +253,10 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get successful response: %#v, %s",
-			httpresp, b.String())
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("list keys couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultListKVResponse

@@ -22,29 +22,29 @@ import (
 )
 
 const (
-	blobName                 = "blobName"
-	marker                   = "marker"
-	number                   = "number"
-	includeMetadata          = "includeMetadata"
-	deleteSnapshots          = "deleteSnapshots"
-	contentType              = "contentType"
-	contentMD5               = "contentMD5"
-	contentEncoding          = "contentEncoding"
-	contentLanguage          = "contentLanguage"
-	contentDisposition       = "contentDisposition"
-	cacheControl             = "cacheControl"
-	defaultGetBlobRetryCount = 10
-	maxResults               = 5000
+	metadataKeyBlobName           = "blobName"
+	metadataKeyMarker             = "marker"
+	metadataKeyNumber             = "number"
+	metadataKeyIncludeMetadata    = "includeMetadata"
+	metadataKeyDeleteSnapshots    = "deleteSnapshots"
+	metadataKeyContentType        = "contentType"
+	metadataKeyContentMD5         = "contentMD5"
+	metadataKeyContentEncoding    = "contentEncoding"
+	metadataKeyContentLanguage    = "contentLanguage"
+	metadataKeyContentDisposition = "contentDisposition"
+	meatdataKeyCacheControl       = "cacheControl"
+	defaultGetBlobRetryCount      = 10
+	maxResults                    = 5000
 
 	// TODO: remove the pascal case support when the component moves to GA
 	// See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
-	contentTypeBC           = "ContentType"
-	contentMD5BC            = "ContentMD5"
-	contentEncodingBC       = "ContentEncoding"
-	contentLanguageBC       = "ContentLanguage"
-	contentDispositionBC    = "ContentDisposition"
-	cacheControlBC          = "CacheControl"
-	deleteSnapshotOptionsBC = "DeleteSnapshotOptions"
+	metadataKeyContentTypeBC           = "ContentType"
+	metadataKeyContentMD5BC            = "ContentMD5"
+	metadataKeyContentEncodingBC       = "ContentEncoding"
+	metadataKeyContentLanguageBC       = "ContentLanguage"
+	metadataKeyContentDispositionBC    = "ContentDisposition"
+	metadataKeyCacheControlBC          = "CacheControl"
+	metadataKeyDeleteSnapshotOptionsBC = "DeleteSnapshotOptions"
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -155,40 +155,40 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 	var blobURL azblob.BlockBlobURL
-	if val, ok := req.Metadata[blobName]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobURL = a.getBlobURL(val)
-		delete(req.Metadata, blobName)
+		delete(req.Metadata, metadataKeyBlobName)
 	} else {
 		blobURL = a.getBlobURL(uuid.New().String())
 	}
 
-	if val, ok := req.Metadata[contentType]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyContentType]; ok && val != "" {
 		blobHTTPHeaders.ContentType = val
-		delete(req.Metadata, contentType)
+		delete(req.Metadata, metadataKeyContentType)
 	}
-	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyContentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
 			return nil, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.ContentMD5 = sDec
-		delete(req.Metadata, contentMD5)
+		delete(req.Metadata, metadataKeyContentMD5)
 	}
-	if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyContentEncoding]; ok && val != "" {
 		blobHTTPHeaders.ContentEncoding = val
-		delete(req.Metadata, contentEncoding)
+		delete(req.Metadata, metadataKeyContentEncoding)
 	}
-	if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyContentLanguage]; ok && val != "" {
 		blobHTTPHeaders.ContentLanguage = val
-		delete(req.Metadata, contentLanguage)
+		delete(req.Metadata, metadataKeyContentLanguage)
 	}
-	if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyContentDisposition]; ok && val != "" {
 		blobHTTPHeaders.ContentDisposition = val
-		delete(req.Metadata, contentDisposition)
+		delete(req.Metadata, metadataKeyContentDisposition)
 	}
-	if val, ok := req.Metadata[cacheControl]; ok && val != "" {
+	if val, ok := req.Metadata[meatdataKeyCacheControl]; ok && val != "" {
 		blobHTTPHeaders.CacheControl = val
-		delete(req.Metadata, cacheControl)
+		delete(req.Metadata, meatdataKeyCacheControl)
 	}
 
 	d, err := strconv.Unquote(string(req.Data))
@@ -228,7 +228,7 @@ func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.Invoke
 
 func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobURL azblob.BlockBlobURL
-	if val, ok := req.Metadata[blobName]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobURL = a.getBlobURL(val)
 	} else {
 		return nil, ErrMissingBlobName
@@ -249,7 +249,7 @@ func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	}
 
 	var metadata map[string]string
-	fetchMetadata, err := req.GetMetadataAsBool(includeMetadata)
+	fetchMetadata, err := req.GetMetadataAsBool(metadataKeyIncludeMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
@@ -271,14 +271,14 @@ func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeRes
 
 func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobURL azblob.BlockBlobURL
-	if val, ok := req.Metadata[blobName]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobURL = a.getBlobURL(val)
 	} else {
 		return nil, ErrMissingBlobName
 	}
 
 	deleteSnapshotsOptions := azblob.DeleteSnapshotsOptionNone
-	if val, ok := req.Metadata[deleteSnapshots]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyDeleteSnapshots]; ok && val != "" {
 		deleteSnapshotsOptions = azblob.DeleteSnapshotsOptionType(val)
 		if !a.isValidDeleteSnapshotsOptionType(deleteSnapshotsOptions) {
 			return nil, fmt.Errorf("invalid delete snapshot option type: %s; allowed: %s",
@@ -337,8 +337,8 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 
 		numBlobs := len(blobs)
 		currentMaker = listBlob.NextMarker
-		metadata[marker] = *currentMaker.Val
-		metadata[number] = strconv.FormatInt(int64(numBlobs), 10)
+		metadata[metadataKeyMarker] = *currentMaker.Val
+		metadata[metadataKeyNumber] = strconv.FormatInt(int64(numBlobs), 10)
 
 		if options.MaxResults-maxResults > 0 {
 			options.MaxResults -= maxResults
@@ -406,39 +406,39 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 // TODO: remove the pascal case support when the component moves to GA
 // See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
 func (a *AzureBlobStorage) handleBackwardCompatibilityForMetadata(metadata map[string]string) map[string]string {
-	if val, ok := metadata[contentTypeBC]; ok && val != "" {
-		metadata[contentType] = val
-		delete(metadata, contentTypeBC)
+	if val, ok := metadata[metadataKeyContentTypeBC]; ok && val != "" {
+		metadata[metadataKeyContentType] = val
+		delete(metadata, metadataKeyContentTypeBC)
 	}
 
-	if val, ok := metadata[contentMD5BC]; ok && val != "" {
-		metadata[contentMD5] = val
-		delete(metadata, contentMD5BC)
+	if val, ok := metadata[metadataKeyContentMD5BC]; ok && val != "" {
+		metadata[metadataKeyContentMD5] = val
+		delete(metadata, metadataKeyContentMD5BC)
 	}
 
-	if val, ok := metadata[contentEncodingBC]; ok && val != "" {
-		metadata[contentEncoding] = val
-		delete(metadata, contentEncodingBC)
+	if val, ok := metadata[metadataKeyContentEncodingBC]; ok && val != "" {
+		metadata[metadataKeyContentEncoding] = val
+		delete(metadata, metadataKeyContentEncodingBC)
 	}
 
-	if val, ok := metadata[contentLanguageBC]; ok && val != "" {
-		metadata[contentLanguage] = val
-		delete(metadata, contentLanguageBC)
+	if val, ok := metadata[metadataKeyContentLanguageBC]; ok && val != "" {
+		metadata[metadataKeyContentLanguage] = val
+		delete(metadata, metadataKeyContentLanguageBC)
 	}
 
-	if val, ok := metadata[contentDispositionBC]; ok && val != "" {
-		metadata[contentDisposition] = val
-		delete(metadata, contentDispositionBC)
+	if val, ok := metadata[metadataKeyContentDispositionBC]; ok && val != "" {
+		metadata[metadataKeyContentDisposition] = val
+		delete(metadata, metadataKeyContentDispositionBC)
 	}
 
-	if val, ok := metadata[cacheControlBC]; ok && val != "" {
-		metadata[cacheControl] = val
-		delete(metadata, cacheControlBC)
+	if val, ok := metadata[metadataKeyCacheControlBC]; ok && val != "" {
+		metadata[meatdataKeyCacheControl] = val
+		delete(metadata, metadataKeyCacheControlBC)
 	}
 
-	if val, ok := metadata[deleteSnapshotOptionsBC]; ok && val != "" {
-		metadata[deleteSnapshots] = val
-		delete(metadata, deleteSnapshotOptionsBC)
+	if val, ok := metadata[metadataKeyDeleteSnapshotOptionsBC]; ok && val != "" {
+		metadata[metadataKeyDeleteSnapshots] = val
+		delete(metadata, metadataKeyDeleteSnapshotOptionsBC)
 	}
 
 	return metadata

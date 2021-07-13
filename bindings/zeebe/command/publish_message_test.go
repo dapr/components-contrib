@@ -93,9 +93,9 @@ func TestPublishMessage(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("messageName is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: publishMessageOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: PublishMessageOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingMessageName)
 	})
 
@@ -106,12 +106,12 @@ func TestPublishMessage(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: PublishMessageOperation}
 
 		var mc mockPublishMessageClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
@@ -131,12 +131,12 @@ func TestPublishMessage(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: publishMessageOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: PublishMessageOperation}
 
 		var mc mockPublishMessageClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)

@@ -6,7 +6,7 @@ spec:
   type: secretstores.azure.keyvault
   metadata:
   - name: vaultName
-    value: secretstore-keyvault
+    value: ${{AzureKeyVaultName}}
   - name: spnTenantId
     value: ${{AzureKeyVaultSecretStoreTenantId}}
   - name: spnClientId

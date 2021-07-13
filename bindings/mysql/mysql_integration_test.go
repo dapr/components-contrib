@@ -121,7 +121,7 @@ func TestMysqlIntegration(t *testing.T) {
 		assert.True(t, ok)
 		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
 		var tt time.Time
-		tt, err = time.Parse("2006-01-02 15:04:05", ts)
+		tt, err = time.Parse("2006-01-02T15:04:05Z", ts)
 		assert.Nil(t, err)
 		t.Logf("time stamp is: %v", tt)
 	})

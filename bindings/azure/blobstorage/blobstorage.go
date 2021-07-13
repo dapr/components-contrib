@@ -45,7 +45,7 @@ type blobStorageMetadata struct {
 	StorageAccessKey  string `json:"storageAccessKey"`
 	Container         string `json:"container"`
 	DecodeBase64      string `json:"decodeBase64"`
-	GetBlobRetryCount int    `json:"getBlobRetryCount"`
+	GetBlobRetryCount int    `json:"getBlobRetryCount,string"`
 	PublicAccessLevel string `json:"publicAccessLevel"`
 }
 

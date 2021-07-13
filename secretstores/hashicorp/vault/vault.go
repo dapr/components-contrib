@@ -189,9 +189,10 @@ func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
 
-		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
-			httpresp, b.String())
+		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultKVResponse
@@ -252,9 +253,10 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get successful response: %#v, %s",
-			httpresp, b.String())
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("list keys couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultListKVResponse

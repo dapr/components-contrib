@@ -76,9 +76,9 @@ func TestThrowError(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("jobKey is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: throwErrorOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: ThrowErrorOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingJobKey)
 	})
 
@@ -89,9 +89,9 @@ func TestThrowError(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Data: data, Operation: throwErrorOperation}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Data: data, Operation: ThrowErrorOperation}
+		_, err = cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingErrorCode)
 	})
 
@@ -104,12 +104,12 @@ func TestThrowError(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: throwErrorOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: ThrowErrorOperation}
 
 		var mc mockThrowErrorClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)

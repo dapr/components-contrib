@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_0z68obe" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.8.1">
+  <bpmn:process id="zeebe-test" name="Test" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_calc">
+      <bpmn:outgoing>Flow_1ie08zg</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="EndEvent_calc">
+      <bpmn:incoming>Flow_1vpdzvm</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1ie08zg" sourceRef="StartEvent_calc" targetRef="Activity_calc" />
+    <bpmn:sequenceFlow id="Flow_0nxk85w" sourceRef="Activity_calc" targetRef="Activity_ack" />
+    <bpmn:serviceTask id="Activity_calc" name="Caluculate">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="calc" retries="1" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="X-Custom-Header-Func" value="Calculate" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ie08zg</bpmn:incoming>
+      <bpmn:incoming>Flow_09ovgve</bpmn:incoming>
+      <bpmn:outgoing>Flow_0nxk85w</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_09ovgve" sourceRef="Event_Message" targetRef="Activity_calc" />
+    <bpmn:startEvent id="Event_Message" name="Start Calculation with message">
+      <bpmn:outgoing>Flow_09ovgve</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1u956b4" messageRef="Message_143id7o" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1vpdzvm" sourceRef="Activity_ack" targetRef="EndEvent_calc" />
+    <bpmn:serviceTask id="Activity_ack" name="Acknowledge">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="ack" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0nxk85w</bpmn:incoming>
+      <bpmn:outgoing>Flow_1vpdzvm</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmn:message id="Message_143id7o" name="start-calc" />
+  <bpmn:message id="Message_04nrwno" name="finish-calc">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=result" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="zeebe-test">
+      <bpmndi:BPMNEdge id="Flow_09ovgve_di" bpmnElement="Flow_09ovgve">
+        <di:waypoint x="390" y="302" />
+        <di:waypoint x="390" y="157" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0nxk85w_di" bpmnElement="Flow_0nxk85w">
+        <di:waypoint x="440" y="117" />
+        <di:waypoint x="570" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ie08zg_di" bpmnElement="Flow_1ie08zg">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="340" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1vpdzvm_di" bpmnElement="Flow_1vpdzvm">
+        <di:waypoint x="670" y="117" />
+        <di:waypoint x="772" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_calc">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1eoj541_di" bpmnElement="Activity_calc">
+        <dc:Bounds x="340" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_07y36b6_di" bpmnElement="Event_Message">
+        <dc:Bounds x="372" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="350" y="345" width="81" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_19z6izv_di" bpmnElement="Activity_ack">
+        <dc:Bounds x="570" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1uulfg3_di" bpmnElement="EndEvent_calc">
+        <dc:Bounds x="772" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

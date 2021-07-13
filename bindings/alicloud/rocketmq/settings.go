@@ -13,7 +13,7 @@ import (
 	"github.com/dapr/kit/config"
 )
 
-// rocketmq
+// rocketmq.
 const (
 	metadataRocketmqTopic         = "rocketmq-topic"
 	metadataRocketmqTag           = "rocketmq-tag"

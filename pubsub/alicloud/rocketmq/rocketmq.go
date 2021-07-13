@@ -34,7 +34,7 @@ type rocketMQ struct {
 	backOffConfig retry.Config
 }
 
-// NewRocketMQ creates a new RocketMQ pub/sub
+// NewRocketMQ creates a new RocketMQ pub/sub.
 func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
 	return &rocketMQ{ //nolint:exhaustivestruct
 		name:     "rocketmq",
@@ -45,7 +45,7 @@ func NewRocketMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (r *rocketMQ) Init(md pubsub.Metadata) error {
 	// Settings default values
 	r.settings = Settings{ //nolint:exhaustivestruct
@@ -153,7 +153,7 @@ func (r *rocketMQ) addTopic(newTopic string, selector mqc.MessageSelector) []str
 	return topics
 }
 
-// Close down consumer group resources, refresh once
+// Close down consumer group resources, refresh once.
 func (r *rocketMQ) closeSubscripionResources() {
 	if r.consumer != nil {
 		if len(r.topics) > 0 {

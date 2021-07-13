@@ -17,12 +17,12 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Constant literals
+// Constant literals.
 const (
 	VersionID = "version_id"
 )
 
-// NewParameterStore returns a new ssm parameter store
+// NewParameterStore returns a new ssm parameter store.
 func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 	return &ssmSecretStore{logger: logger}
 }
@@ -39,7 +39,7 @@ type ssmSecretStore struct {
 	logger logger.Logger
 }
 
-// Init creates a AWS secret manager client
+// Init creates a AWS secret manager client.
 func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
@@ -55,7 +55,7 @@ func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	name := req.Name
 
@@ -83,7 +83,7 @@ func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 	return resp, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},

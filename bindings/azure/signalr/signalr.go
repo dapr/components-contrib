@@ -29,7 +29,7 @@ const (
 	userKey             = "user"
 )
 
-// NewSignalR creates a new pub/sub based on Azure SignalR
+// NewSignalR creates a new pub/sub based on Azure SignalR.
 func NewSignalR(logger logger.Logger) *SignalR {
 	return &SignalR{
 		tokens:     make(map[string]signalrCachedToken),
@@ -43,7 +43,7 @@ type signalrCachedToken struct {
 	expiration time.Time
 }
 
-// SignalR is an output binding for Azure SignalR
+// SignalR is an output binding for Azure SignalR.
 type SignalR struct {
 	endpoint   string
 	accessKey  string
@@ -55,7 +55,7 @@ type SignalR struct {
 	logger logger.Logger
 }
 
-// Init is responsible for initializing the SignalR output based on the metadata
+// Init is responsible for initializing the SignalR output based on the metadata.
 func (s *SignalR) Init(metadata bindings.Metadata) error {
 	connectionString, ok := metadata.Properties[connectionStringKey]
 	if !ok || connectionString == "" {

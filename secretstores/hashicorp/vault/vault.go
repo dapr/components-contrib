@@ -42,7 +42,7 @@ const (
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
 )
 
-// vaultSecretStore is a secret store implementation for HashiCorp Vault
+// vaultSecretStore is a secret store implementation for HashiCorp Vault.
 type vaultSecretStore struct {
 	client              *http.Client
 	vaultAddress        string
@@ -53,7 +53,7 @@ type vaultSecretStore struct {
 	logger logger.Logger
 }
 
-// tlsConfig is TLS configuration to interact with HashiCorp Vault
+// tlsConfig is TLS configuration to interact with HashiCorp Vault.
 type tlsConfig struct {
 	vaultCAPem      string
 	vaultCACert     string
@@ -76,7 +76,7 @@ type vaultListKVResponse struct {
 	} `json:"data"`
 }
 
-// NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store
+// NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store.
 func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &vaultSecretStore{
 		client: &http.Client{},
@@ -84,7 +84,7 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 	}
 }
 
-// Init creates a HashiCorp Vault client
+// Init creates a HashiCorp Vault client.
 func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	props := metadata.Properties
 
@@ -159,7 +159,7 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 	return &tlsConf
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
@@ -204,7 +204,7 @@ func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 	return &d, nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	d, err := v.getSecret(req.Name)
 	if err != nil {
@@ -224,7 +224,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	return resp, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
@@ -371,7 +371,7 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 	return certPool, err
 }
 
-// readCertificateFile reads the certificate at given path
+// readCertificateFile reads the certificate at given path.
 func readCertificateFile(certPool *x509.CertPool, path string) error {
 	// Read certificate file
 	pemFile, err := ioutil.ReadFile(path)
@@ -386,7 +386,7 @@ func readCertificateFile(certPool *x509.CertPool, path string) error {
 	return nil
 }
 
-// readCertificateFolder scans a folder for certificates
+// readCertificateFolder scans a folder for certificates.
 func readCertificateFolder(certPool *x509.CertPool, path string) error {
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 		if info.IsDir() {

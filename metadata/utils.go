@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds)
+	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds).
 	TTLMetadataKey = "ttlInSeconds"
 
-	// RawPayloadKey defines the metadata key for forcing raw payload in pubsub
+	// RawPayloadKey defines the metadata key for forcing raw payload in pubsub.
 	RawPayloadKey = "rawPayload"
 
-	// PriorityMetadataKey defines the metadata key for setting a priority
+	// PriorityMetadataKey defines the metadata key for setting a priority.
 	PriorityMetadataKey = "priority"
 )
 

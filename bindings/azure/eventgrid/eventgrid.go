@@ -20,7 +20,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// AzureEventGrid allows sending/receiving Azure Event Grid events
+// AzureEventGrid allows sending/receiving Azure Event Grid events.
 type AzureEventGrid struct {
 	metadata *azureEventGridMetadata
 	logger   logger.Logger
@@ -47,12 +47,12 @@ type azureEventGridMetadata struct {
 	TopicEndpoint string `json:"topicEndpoint"`
 }
 
-// NewAzureEventGrid returns a new Azure Event Grid instance
+// NewAzureEventGrid returns a new Azure Event Grid instance.
 func NewAzureEventGrid(logger logger.Logger) *AzureEventGrid {
 	return &AzureEventGrid{logger: logger}
 }
 
-// Init performs metadata init
+// Init performs metadata init.
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {

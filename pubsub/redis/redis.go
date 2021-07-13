@@ -55,7 +55,7 @@ type redisMessageWrapper struct {
 	handler   pubsub.Handler
 }
 
-// NewRedisStreams returns a new redis streams pub-sub implementation
+// NewRedisStreams returns a new redis streams pub-sub implementation.
 func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
 	return &redisStreams{logger: logger}
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// DynamoDB allows performing stateful operations on AWS DynamoDB
+// DynamoDB allows performing stateful operations on AWS DynamoDB.
 type DynamoDB struct {
 	client *dynamodb.DynamoDB
 	table  string
@@ -32,12 +32,12 @@ type dynamoDBMetadata struct {
 	Table        string `json:"table"`
 }
 
-// NewDynamoDB returns a new DynamoDB instance
+// NewDynamoDB returns a new DynamoDB instance.
 func NewDynamoDB(logger logger.Logger) *DynamoDB {
 	return &DynamoDB{logger: logger}
 }
 
-// Init performs connection parsing for DynamoDB
+// Init performs connection parsing for DynamoDB.
 func (d *DynamoDB) Init(metadata bindings.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {

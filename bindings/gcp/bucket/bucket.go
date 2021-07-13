@@ -16,7 +16,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-// GCPStorage allows saving data to GCP bucket storage
+// GCPStorage allows saving data to GCP bucket storage.
 type GCPStorage struct {
 	metadata gcpMetadata
 	client   *storage.Client
@@ -37,12 +37,12 @@ type gcpMetadata struct {
 	ClientCertURL       string `json:"client_x509_cert_url"`
 }
 
-// NewGCPStorage returns a new GCP storage instance
+// NewGCPStorage returns a new GCP storage instance.
 func NewGCPStorage(logger logger.Logger) *GCPStorage {
 	return &GCPStorage{logger: logger}
 }
 
-// Init performs connection parsing
+// Init performs connection parsing.
 func (g *GCPStorage) Init(metadata bindings.Metadata) error {
 	b, err := g.parseMetadata(metadata)
 	if err != nil {

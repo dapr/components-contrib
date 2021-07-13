@@ -19,17 +19,17 @@ type middlewareMetadata struct {
 	IncludedHeaders string `json:"includedHeaders,omitempty"`
 }
 
-// NewMiddleware returns a new Open Policy Agent middleware
+// NewMiddleware returns a new Open Policy Agent middleware.
 func NewMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
-// Middleware is an OPA  middleware
+// Middleware is an OPA  middleware.
 type Middleware struct {
 	logger logger.Logger
 }
 
-// RegoResult is the expected result from rego policy
+// RegoResult is the expected result from rego policy.
 type RegoResult struct {
 	Allow             bool              `json:"allow"`
 	AdditionalHeaders map[string]string `json:"additional_headers,omitempty"`
@@ -43,7 +43,7 @@ var (
 	errOpaInvalidResultType = errors.New("got an invalid type back from repo policy. Only a boolean or map is valid")
 )
 
-// GetHandler returns the HTTP handler provided by the middleware
+// GetHandler returns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {

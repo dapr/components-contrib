@@ -20,16 +20,16 @@ import (
 )
 
 const (
-	// metadata
+	// metadata.
 
 	connectionString = "connectionString"
 	consumerID       = "consumerID" // passed by dapr runtime
-	// required by subscriber
+	// required by subscriber.
 	storageAccountName   = "storageAccountName"
 	storageAccountKey    = "storageAccountKey"
 	storageContainerName = "storageContainerName"
 
-	// errors
+	// errors.
 
 	missingConnectionStringErrorMsg     = "error: connectionString is a required attribute"
 	missingStorageAccountNameErrorMsg   = "error: storageAccountName is a required attribute"
@@ -38,7 +38,7 @@ const (
 	missingConsumerIDErrorMsg           = "error: missing consumerID attribute"
 )
 
-// AzureEventHubs allows sending/receiving Azure Event Hubs events
+// AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
 	hub      *eventhub.Hub
 	metadata azureEventHubsMetadata
@@ -54,7 +54,7 @@ type azureEventHubsMetadata struct {
 	storageContainerName string
 }
 
-// NewAzureEventHubs returns a new Azure Event hubs instance
+// NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 	return &AzureEventHubs{logger: logger}
 }
@@ -95,7 +95,7 @@ func parseEventHubsMetadata(meta pubsub.Metadata) (azureEventHubsMetadata, error
 	return m, nil
 }
 
-// Init connects to Azure Event Hubs
+// Init connects to Azure Event Hubs.
 func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	m, err := parseEventHubsMetadata(metadata)
 	if err != nil {
@@ -112,7 +112,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-// Publish sends data to Azure Event Hubs
+// Publish sends data to Azure Event Hubs.
 func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	err := aeh.hub.Send(context.Background(), &eventhub.Event{Data: req.Data})
 	if err != nil {
@@ -122,7 +122,7 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-// Subscribe receives data from Azure Event Hubs
+// Subscribe receives data from Azure Event Hubs.
 func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	cred, err := azblob.NewSharedKeyCredential(aeh.metadata.storageAccountName, aeh.metadata.storageAccountKey)
 	if err != nil {

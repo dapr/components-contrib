@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// metadata
+	// metadata.
 	fileName = "fileName"
 )
 

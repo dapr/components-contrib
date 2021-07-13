@@ -17,7 +17,7 @@ import (
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
-// Metadata is the ratelimit middleware config
+// Metadata is the ratelimit middleware config.
 type rateLimitMiddlewareMetadata struct {
 	MaxRequestsPerSecond float64 `json:"maxRequestsPerSecond"`
 }
@@ -25,21 +25,21 @@ type rateLimitMiddlewareMetadata struct {
 const (
 	maxRequestsPerSecondKey = "maxRequestsPerSecond"
 
-	// Defaults
+	// Defaults.
 	defaultMaxRequestsPerSecond = 100
 )
 
-// NewRateLimitMiddleware returns a new oAuth2 middleware
+// NewRateLimitMiddleware returns a new oAuth2 middleware.
 func NewRateLimitMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
-// Middleware is an oAuth2 authentication middleware
+// Middleware is an oAuth2 authentication middleware.
 type Middleware struct {
 	logger logger.Logger
 }
 
-// GetHandler returns the HTTP handler provided by the middleware
+// GetHandler returns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {

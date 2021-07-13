@@ -8,6 +8,7 @@ package cosmosgraphdb
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -18,10 +19,10 @@ import (
 const (
 	queryOperation bindings.OperationKind = "query"
 
-	// keys from request's metadata
+	// keys from request's Data
 	commandGremlinKey = "gremlin"
 
-	// keys from response's metadata
+	// keys from response's Data
 	respGremlinKey   = "gremlin"
 	respOpKey        = "operation"
 	respStartTimeKey = "start-time"
@@ -50,7 +51,7 @@ func NewCosmosGraphDB(logger logger.Logger) *CosmosGraphDB {
 // Init performs CosmosDB connection parsing and connecting
 func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 	c.logger.Debug("Initializing Cosmos Graph DB binding")
-	
+
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -60,7 +61,7 @@ func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 		gremcos.WithAuth(c.metadata.Username, c.metadata.MasterKey),
 	)
 	if err != nil {
-		return errors.New("failed to create the Cosmos Graph DB connector")
+		return errors.New("CosmosGraphDB Error: failed to create the Cosmos Graph DB connector")
 	}
 
 	c.client = client
@@ -88,17 +89,16 @@ func (c *CosmosGraphDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	if req == nil {
-		return nil, errors.New("invoke request required")
+	var jsonPoint map[string]interface{}
+	err := json.Unmarshal(req.Data, &jsonPoint)
+	if err != nil {
+		return nil, errors.New("CosmosGraphDB Error: Cannot convert request data")
 	}
 
-	if req.Metadata == nil {
-		return nil, errors.New("metadata required")
-	}
+	gq := fmt.Sprintf("%s", jsonPoint[commandGremlinKey])
 
-	gq, ok := req.Metadata[commandGremlinKey]
-	if !ok || gq == "" {
-		return nil, errors.New("required metadata not set: gremlin")
+	if gq == "" {
+		return nil, errors.New("CosmosGraphDB Error: missing data - gremlin query not set")
 	}
 	startTime := time.Now().UTC()
 	resp := &bindings.InvokeResponse{
@@ -110,10 +110,11 @@ func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	}
 	d, err := c.client.Execute(gq)
 	if err != nil {
-		return nil, errors.New("error excuting gremlin")
+		return nil, errors.New("CosmosGraphDB Error:error excuting gremlin")
 	}
-	resp.Data = d[0].Result.Data
-
+	if len(d) > 0 {
+		resp.Data = d[0].Result.Data
+	}
 	endTime := time.Now().UTC()
 	resp.Metadata[respEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()

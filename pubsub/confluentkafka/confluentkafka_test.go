@@ -27,20 +27,20 @@ func TestConfluentKafka(t *testing.T) {
 		Properties: map[string]string{
 			"configJson": fmt.Sprintf(
 				`{
-					"group.id": "dapr_test_group",
-					"bootstrap.servers" : "%v",
-					"security.protocol" : "sasl_ssl",
-					"sasl.mechanism" : "PLAIN",
-					"sasl.username" : "%v",
-					"sasl.password" : "%v",
-					"ssl.ca.location": "%v",
-					"api.version.request": true,
-					"message.max.bytes": 1000000,
-					"linger.ms": 10,
-					"retries": 30,
-					"retry.backoff.ms": 1000,
-					"acks": "1"
-				}`,
+                                        "group.id": "dapr_test_group",
+                                        "bootstrap.servers" : "%v",
+                                        "security.protocol" : "sasl_ssl",
+                                        "sasl.mechanism" : "PLAIN",
+                                        "sasl.username" : "%v",
+                                        "sasl.password" : "%v",
+                                        "ssl.ca.location": "%v",
+                                        "api.version.request": true,
+                                        "message.max.bytes": 1000000,
+                                        "linger.ms": 10,
+                                        "retries": 30,
+                                        "retry.backoff.ms": 1000,
+                                        "acks": "1"
+                                }`,
 				os.Getenv("KAFKA_ENDPOINTS"),
 				os.Getenv("KAFKA_SASL_USERNAME"),
 				os.Getenv("KAFKA_SASL_PASSWORD"),
@@ -72,7 +72,7 @@ func TestConfluentKafka(t *testing.T) {
 		t.Error(err)
 	}
 
-	for i := 0; i < 5; i++{
+	for i := 0; i < 5; i++ {
 		req := pubsub.PublishRequest{
 			Data:  []byte(value),
 			Topic: topic,

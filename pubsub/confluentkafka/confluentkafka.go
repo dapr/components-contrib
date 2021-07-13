@@ -1,8 +1,3 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
-
 package confluentkafka
 
 import (
@@ -18,7 +13,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
+const (
 	ProducerFlushTimeoutMs = 15 * 1000
 )
 
@@ -47,8 +42,8 @@ func (k *Kafka) parseMetadata(props map[string]string) error {
 	k.ConfigMap = &kafka.ConfigMap{}
 
 	var metadata map[string]interface{}
-	if configJson, ok := props["configJson"]; ok {
-		err := json.Unmarshal([]byte(configJson), &metadata)
+	if configJSON, ok := props["configJson"]; ok {
+		err := json.Unmarshal([]byte(configJSON), &metadata)
 		if err != nil {
 			return err
 		}
@@ -142,13 +137,13 @@ func loadMsg(kafkaMsg *kafka.Message, msg *pubsub.NewMessage) {
 	msg.Data = kafkaMsg.Value
 	msg.Metadata = make(map[string]string)
 
-	msg.Metadata["partition"] = string((*kafkaMsg).TopicPartition.Partition)
-	msg.Metadata["offset"] = fmt.Sprint((*kafkaMsg).TopicPartition.Offset)
+	msg.Metadata["partition"] = string(kafkaMsg.TopicPartition.Partition)
+	msg.Metadata["offset"] = fmt.Sprint(kafkaMsg.TopicPartition.Offset)
 
-	if msgMetaData := (*kafkaMsg).TopicPartition.Metadata; msgMetaData != nil {
+	if msgMetaData := kafkaMsg.TopicPartition.Metadata; msgMetaData != nil {
 		msg.Metadata["partitionMetadata"] = *msgMetaData
 	}
-	if msgErr := (*kafkaMsg).TopicPartition.Error; msgErr != nil {
+	if msgErr := kafkaMsg.TopicPartition.Error; msgErr != nil {
 		msg.Metadata["partitionError"] = msgErr.Error()
 	}
 
@@ -171,6 +166,7 @@ func (k *Kafka) processMessageWorker(handler pubsub.Handler) {
 	for {
 		select {
 		case <-k.consumerContext.Ctx.Done():
+
 			return
 		default:
 			kafkaMsg, err := k.consumer.ReadMessage(-1)
@@ -212,6 +208,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 
 	err := k.consumer.SubscribeTopics(k.topics, nil)
 	if err != nil {
+
 		return err
 	}
 
@@ -227,7 +224,9 @@ func (k *Kafka) Close() error {
 	err := k.consumer.Close()
 	k.producer.Close()
 	if err != nil {
+
 		return err
 	}
+
 	return nil
 }

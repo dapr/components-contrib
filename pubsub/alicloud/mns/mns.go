@@ -18,10 +18,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
-	ReceivingMessageWaitTime          = 1000 * time.Microsecond
-	ReceivingMessagePeriod            = 30
-	ReceivingMessageVisibilityTimeout = 5
+const (
+	receivingMessageWaitTime          = 1000 * time.Microsecond
+	receivingMessagePeriod            = 30
+	receivingMessageVisibilityTimeout = 5
 )
 
 type contextWithCancelFunc struct {
@@ -47,6 +47,7 @@ type mns struct {
 // NewMNS creates a new MNS pub/sub
 func NewMNS(logger logger.Logger) pubsub.PubSub {
 	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	return &mns{ //nolint:exhaustivestruct
 		name:       "MNS",
 		logger:     logger,
@@ -90,7 +91,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 
 	jsonBody, err := json.Marshal(req.Metadata)
 	if err != nil {
-		return err
+		return fmt.Errorf("publishing from MNS: %w", err)
 	}
 
 	var msgSendReq ali_mns.MessageSendRequest
@@ -113,8 +114,8 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 	replyToAddress, _ := strconv.ParseInt(req.Metadata["ReplyToAddress"], 10, 32)
 	mailAttr.ReplyToAddress = int32(replyToAddress)
 
-	isHtml, _ := strconv.ParseBool(req.Metadata["IsHtml"])
-	mailAttr.IsHtml = isHtml
+	isHTML, _ := strconv.ParseBool(req.Metadata["IsHtml"])
+	mailAttr.IsHtml = isHTML
 
 	msgSendReq.MessageBody = string(req.Data)
 	msgPublishReq.MessageBody = string(req.Data)
@@ -131,7 +132,8 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 		)
 		if err != nil && !ali_mns.ERR_MNS_TOPIC_ALREADY_EXIST_AND_HAVE_SAME_ATTR.IsEqual(err) {
 			m.logger.Error(err)
-			return err
+
+			return fmt.Errorf("publishing from MNS: %w", err)
 		}
 
 		topic := ali_mns.NewMNSTopic(req.Topic, m.client)
@@ -141,7 +143,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 		queue := ali_mns.NewMNSQueue(metaData.QueueName, m.client)
 		_, err := queue.SendMessage(msgSendReq)
 		if err != nil {
-			return err
+			return fmt.Errorf("publishing from MNS: %w", err)
 		}
 
 	default:
@@ -152,7 +154,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe
-func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error { //nolint:cyclop
 	var metaData RequestMetaData
 	metaData.Decode(req.Metadata)
 
@@ -168,7 +170,8 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 	)
 	if err != nil && !ali_mns.ERR_MNS_QUEUE_ALREADY_EXIST_AND_HAVE_SAME_ATTR.IsEqual(err) {
 		m.logger.Error(err)
-		return err
+
+		return fmt.Errorf("subscribing from MNS: %w", err)
 	}
 
 	switch m.settings.MNSMode {
@@ -181,12 +184,13 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		)
 		if err != nil && !ali_mns.ERR_MNS_TOPIC_ALREADY_EXIST_AND_HAVE_SAME_ATTR.IsEqual(err) {
 			m.logger.Error(err)
-			return err
+
+			return fmt.Errorf("subscribing from MNS: %w", err)
 		}
 
 		// subscribe topic
 		topic := ali_mns.NewMNSTopic(req.Topic, m.client)
-		sub := ali_mns.MessageSubsribeRequest{
+		sub := ali_mns.MessageSubsribeRequest{ // nolint: exhaustivestruct
 			Endpoint:            topic.GenerateQueueEndpoint(metaData.QueueName),
 			NotifyContentFormat: metaData.SubscriptionNotifyContentFormat,
 		}
@@ -194,7 +198,8 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		err = topic.Subscribe(metaData.SubscriptionName, sub)
 		if err != nil && !ali_mns.ERR_MNS_SUBSCRIPTION_ALREADY_EXIST_AND_HAVE_SAME_ATTR.IsEqual(err) {
 			m.logger.Error(err)
-			return err
+
+			return fmt.Errorf("subscribing from MNS: %w", err)
 		}
 
 		time.Sleep(time.Duration(2) * time.Second)
@@ -204,7 +209,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MNSMode)
 	}
 
-	ctx, cancelFunc := context.WithCancel(m.ctx)
+	ctx, cancelFunc := context.WithCancel(m.ctx) //nolint: govet
 
 	queue := ali_mns.NewMNSQueue(metaData.QueueName, m.client)
 
@@ -227,7 +232,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		m.subscriptionContexts[metaData.SubscriptionName] = contextWithCancelFunc{ctx, cancelFunc}
 	}
 
-	return nil
+	return nil // nolint: govet
 }
 
 func wrapMNSMessage(resp ali_mns.MessageReceiveResponse, topic string) (msg pubsub.NewMessage, err error) {
@@ -236,12 +241,12 @@ func wrapMNSMessage(resp ali_mns.MessageReceiveResponse, topic string) (msg pubs
 
 	jsonBody, err := json.Marshal(msg)
 	if err != nil {
-		return msg, err
+		return msg, fmt.Errorf("subscribing from MNS: %w", err)
 	}
 
 	err = json.Unmarshal(jsonBody, &msg.Metadata)
 	if err != nil {
-		return msg, err
+		return msg, fmt.Errorf("subscribing from MNS: %w", err)
 	}
 
 	return msg, nil
@@ -251,6 +256,7 @@ func (m *mns) processMessageLoop(ctx context.Context, topic string, queue ali_mn
 	for {
 		select {
 		case <-ctx.Done():
+
 			return
 		case resp := <-respChan:
 			{
@@ -259,13 +265,14 @@ func (m *mns) processMessageLoop(ctx context.Context, topic string, queue ali_mn
 				msg, err := wrapMNSMessage(resp, topic)
 				if err != nil {
 					m.logger.Error(err)
+
 					continue
 				}
 
 				handler(ctx, &msg)
 
 				m.logger.Debugf("change the visibility: %+v", resp.ReceiptHandle)
-				if ret, e := queue.ChangeMessageVisibility(resp.ReceiptHandle, int64(ReceivingMessageVisibilityTimeout)); e != nil {
+				if ret, e := queue.ChangeMessageVisibility(resp.ReceiptHandle, int64(receivingMessageVisibilityTimeout)); e != nil {
 					m.logger.Error(e)
 				} else {
 					m.logger.Infof("visibility changed: %+v", ret)
@@ -273,6 +280,7 @@ func (m *mns) processMessageLoop(ctx context.Context, topic string, queue ali_mn
 					if e := queue.DeleteMessage(ret.ReceiptHandle); e != nil {
 						m.logger.Error(e)
 					}
+
 					continue
 				}
 			}
@@ -281,10 +289,11 @@ func (m *mns) processMessageLoop(ctx context.Context, topic string, queue ali_mn
 				if !ali_mns.ERR_MNS_MESSAGE_NOT_EXIST.IsEqual(err) {
 					m.logger.Error(err)
 				}
+
 				continue
 			}
 		default:
-			time.Sleep(ReceivingMessageWaitTime)
+			time.Sleep(receivingMessageWaitTime)
 		}
 	}
 }
@@ -293,11 +302,12 @@ func (m *mns) receiveMessageLoop(ctx context.Context, queue ali_mns.AliMNSQueue,
 	for {
 		select {
 		case <-ctx.Done():
+
 			return
 		default:
-			queue.ReceiveMessage(respChan, errChan, int64(ReceivingMessagePeriod))
+			queue.ReceiveMessage(respChan, errChan, int64(receivingMessagePeriod))
 		}
-		time.Sleep(ReceivingMessageWaitTime)
+		time.Sleep(receivingMessageWaitTime)
 	}
 }
 
@@ -309,5 +319,6 @@ func (m *mns) Features() []pubsub.Feature {
 // Close unsubscribes all topics/queues and closes this service gracefully
 func (m *mns) Close() error {
 	m.cancelFunc()
+
 	return nil
 }

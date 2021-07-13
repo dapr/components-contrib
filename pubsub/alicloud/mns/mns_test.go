@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMNSQueue(t *testing.T) {
+func TestMNSQueue(t *testing.T) { //nolint:paralleltest
 	mns := NewMNS(logger.NewLogger("mns-test"))
 	props := pubsub.Metadata{
 		Properties: map[string]string{
@@ -48,6 +48,7 @@ func TestMNSQueue(t *testing.T) {
 		func(ctx context.Context, msg *pubsub.NewMessage) error {
 			assert.Equal(t, message, string(msg.Data))
 			messageCount++
+
 			return nil
 		},
 	)
@@ -55,7 +56,7 @@ func TestMNSQueue(t *testing.T) {
 		t.Error(err)
 	}
 
-	publishReq := pubsub.PublishRequest{
+	publishReq := pubsub.PublishRequest{ // nolint:exhaustivestruct
 		Topic: topicName,
 		Data:  []byte(message),
 		Metadata: map[string]string{
@@ -77,7 +78,7 @@ func TestMNSQueue(t *testing.T) {
 	}
 }
 
-func TestMNSTopic(t *testing.T) {
+func TestMNSTopic(t *testing.T) { //nolint:paralleltest
 	mns := NewMNS(logger.NewLogger("mns-test"))
 	props := pubsub.Metadata{
 		Properties: map[string]string{
@@ -113,6 +114,7 @@ func TestMNSTopic(t *testing.T) {
 		func(ctx context.Context, msg *pubsub.NewMessage) error {
 			assert.Equal(t, message, string(msg.Data))
 			messageCount++
+
 			return nil
 		},
 	)
@@ -120,7 +122,7 @@ func TestMNSTopic(t *testing.T) {
 		t.Error(err)
 	}
 
-	publishReq := pubsub.PublishRequest{
+	publishReq := pubsub.PublishRequest{ // nolint:exhaustivestruct
 		Topic: topicName,
 		Data:  []byte(message),
 		Metadata: map[string]string{

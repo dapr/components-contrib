@@ -13,7 +13,7 @@ import (
 	"github.com/dapr/kit/config"
 )
 
-var (
+const (
 	// for more info: https://www.alibabacloud.com/help/doc-detail/27414.htm?spm=a2c63.p38356.879954.3.61943078qdiiEF#section-ghy-14s-7xd
 	// use one-to-one mode for messaging
 	MNSModeQueue = "queue"

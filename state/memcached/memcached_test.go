@@ -79,7 +79,7 @@ func TestParseTTL(t *testing.T) {
 		})
 
 		assert.NotNil(t, err, "tll is not an integer")
-		assert.Equal(t, ttl, 0)
+		assert.Nil(t, ttl)
 	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
 		ttlInSeconds := 12345
@@ -90,7 +90,7 @@ func TestParseTTL(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, ttl, 0)
+		assert.Nil(t, ttl)
 	})
 	t.Run("TTL is a number", func(t *testing.T) {
 		ttlInSeconds := 12345
@@ -101,7 +101,7 @@ func TestParseTTL(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, ttl, ttlInSeconds)
+		assert.Equal(t, int(*ttl), ttlInSeconds)
 	})
 
 	t.Run("TTL never expires", func(t *testing.T) {
@@ -113,6 +113,6 @@ func TestParseTTL(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, ttl, ttlInSeconds)
+		assert.Equal(t, int(*ttl), ttlInSeconds)
 	})
 }

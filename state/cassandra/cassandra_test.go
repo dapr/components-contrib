@@ -107,7 +107,7 @@ func TestParseTTL(t *testing.T) {
 			"ttlInSeconds": ttlInSeconds,
 		})
 		assert.Error(t, err)
-		assert.Equal(t, *ttl, 0)
+		assert.Nil(t, ttl)
 	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
 		ttlInSeconds := 12345

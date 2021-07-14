@@ -65,6 +65,7 @@ func TestConfluentKafka(t *testing.T) {
 			fmt.Printf("%v, metadata: %+v\n", string(msg.Data), msg.Metadata)
 			assert.Equal(t, value, string(msg.Data))
 			count++
+
 			return nil
 		},
 	)

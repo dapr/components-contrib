@@ -49,7 +49,6 @@ func (k *Kafka) parseMetadata(props map[string]string) error {
 		}
 
 		for key, val := range metadata {
-
 			if v, ok := val.(float64); ok && v == math.Trunc(v) {
 				val = int(v)
 			}
@@ -60,9 +59,9 @@ func (k *Kafka) parseMetadata(props map[string]string) error {
 		}
 
 		return nil
-	} else {
-		return fmt.Errorf("needs key configJson in metadata for initialization and check https://github.com/confluentinc/confluent-kafka-go for format of the config")
 	}
+
+	return fmt.Errorf("needs key configJson in metadata for initialization and check https://github.com/confluentinc/confluent-kafka-go for format of the config")
 }
 
 func (k *Kafka) Init(md pubsub.Metadata) error {
@@ -111,6 +110,7 @@ func parsePublishMetadata(md map[string]string, msg *kafka.Message) error {
 			msg.Headers = append(msg.Headers, kafka.Header{Key: headerKey, Value: []byte(v)})
 		}
 	}
+
 	return nil
 }
 
@@ -174,7 +174,7 @@ func (k *Kafka) processMessageWorker(handler pubsub.Handler) {
 				msg := new(pubsub.NewMessage)
 				loadMsg(kafkaMsg, msg)
 
-				err := handler(k.consumerContext.Ctx, msg)
+				err = handler(k.consumerContext.Ctx, msg)
 				if err != nil {
 					k.logger.Error(err)
 				}
@@ -190,6 +190,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 	for _, t := range k.topics {
 		if t == req.Topic {
 			isNewTopic = false
+
 			break
 		}
 	}
@@ -208,7 +209,6 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 
 	err := k.consumer.SubscribeTopics(k.topics, nil)
 	if err != nil {
-
 		return err
 	}
 
@@ -224,7 +224,6 @@ func (k *Kafka) Close() error {
 	err := k.consumer.Close()
 	k.producer.Close()
 	if err != nil {
-
 		return err
 	}
 

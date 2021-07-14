@@ -318,12 +318,9 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
 		parsedVal, err := strconv.ParseInt(val, 10, 0)
 		if err != nil {
-			zero := 0
-
-			return &zero, err
+			return nil, err
 		}
 		parsedInt := int(parsedVal)
-
 		return &parsedInt, nil
 	}
 

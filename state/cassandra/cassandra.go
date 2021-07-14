@@ -321,6 +321,7 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 			return nil, err
 		}
 		parsedInt := int(parsedVal)
+
 		return &parsedInt, nil
 	}
 

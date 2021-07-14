@@ -246,18 +246,18 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
-	if ttl != nil {
-		switch ttlValue := *ttl; {
-		case ttlValue > 0:
-			_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
-			if err != nil {
-				return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
-			}
-		case ttlValue <= 0:
-			_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
-			if err != nil {
-				return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
-			}
+
+	if ttl != nil && *ttl > 0 {
+		_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		if err != nil {
+			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
+		}
+	}
+
+	if ttl != nil && *ttl <= 0 {
+		_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
+		if err != nil {
+			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
 		}
 	}
 
@@ -292,13 +292,11 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			}
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
-			if ttl != nil {
-				switch ttlValue := *ttl {
-				case ttlValue > 0:
-					pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
-				case ttlValue <= 0:
-					pipe.Do(r.ctx, "PERSIST", req.Key)
-				}
+			if ttl != nil && *ttl > 0 {
+				pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
+			}
+			if ttl != nil && *ttl <= 0 {
+				pipe.Do(r.ctx, "PERSIST", req.Key)
 			}
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)

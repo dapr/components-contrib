@@ -125,7 +125,6 @@ func (n *nsqPubSub) Publish(req *pubsub.PublishRequest) error {
 func (n *nsqPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	var settings Settings
 	err := settings.Decode(req.Metadata)
-
 	if err != nil {
 		return fmt.Errorf("subscribe nsq config error: %w", err)
 	}

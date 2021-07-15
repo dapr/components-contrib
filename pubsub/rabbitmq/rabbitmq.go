@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	fanoutExchangeKind                  = "fanout"
-	logMessagePrefix                    = "rabbitmq pub/sub:"
-	errorMessagePrefix                  = "rabbitmq pub/sub error:"
-	errorChannelConnection              = "channel/connection is not open"
-	defaultDeadLetterExchangeNamePrefix = "dlx"
-	defaultDeadLetterQueueNamePrefix    = "dlq"
+	fanoutExchangeKind              = "fanout"
+	logMessagePrefix                = "rabbitmq pub/sub:"
+	errorMessagePrefix              = "rabbitmq pub/sub error:"
+	errorChannelConnection          = "channel/connection is not open"
+	defaultDeadLetterExchangeFormat = "dlx-%s"
+	defaultDeadLetterQueueFormat    = "dlq-%s"
 
 	metadataHostKey              = "host"
 	metadataConsumerIDKey        = "consumerID"
@@ -241,8 +241,8 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	var args amqp.Table
 	if r.metadata.enableDeadLetter {
 		// declare dead letter exchange
-		dlxName := fmt.Sprintf("%s-%s", defaultDeadLetterExchangeNamePrefix, queueName)
-		dlqName := fmt.Sprintf("%s-%s", defaultDeadLetterQueueNamePrefix, queueName)
+		dlxName := fmt.Sprintf(defaultDeadLetterExchangeFormat, queueName)
+		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
 		err = r.ensureExchangeDeclared(channel, dlxName)
 		if err != nil {
 			return nil, err

@@ -13,6 +13,10 @@ import (
 )
 
 func TestMNSQueue(t *testing.T) { //nolint:paralleltest
+	if isLiveTest() {
+		return
+	}
+
 	mns := NewMNS(logger.NewLogger("mns-test"))
 	props := pubsub.Metadata{
 		Properties: map[string]string{
@@ -79,6 +83,10 @@ func TestMNSQueue(t *testing.T) { //nolint:paralleltest
 }
 
 func TestMNSTopic(t *testing.T) { //nolint:paralleltest
+	if !isLiveTest() {
+		return
+	}
+
 	mns := NewMNS(logger.NewLogger("mns-test"))
 	props := pubsub.Metadata{
 		Properties: map[string]string{
@@ -143,4 +151,14 @@ func TestMNSTopic(t *testing.T) { //nolint:paralleltest
 	if messageCount == 0 {
 		t.Errorf("didn't receive any message")
 	}
+}
+
+func isLiveTest() bool {
+	if os.Getenv("MNS_URL") == "" ||
+		os.Getenv("MNS_ACCESS_KEY") == "" ||
+		os.Getenv("MNS_ACCESS_KEY_SECRET") == "" {
+		return false
+	}
+
+	return true
 }

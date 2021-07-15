@@ -19,6 +19,10 @@ import (
 
 // for M1 mac: go test -tags dynamic -v -test.run TestConfluentKafka
 func TestConfluentKafka(t *testing.T) {
+	if !isLiveTest() {
+		return
+	}
+
 	l := logger.NewLogger("confluentKafkaTest")
 
 	kafka := NewConfluentKafka(l)
@@ -98,4 +102,15 @@ func TestConfluentKafka(t *testing.T) {
 	if count == 0 {
 		t.Errorf("didn't receive any message")
 	}
+}
+
+func isLiveTest() bool {
+	if os.Getenv("KAFKA_ENDPOINTS") == "" ||
+		os.Getenv("KAFKA_SASL_USERNAME") == "" ||
+		os.Getenv("KAFKA_SASL_PASSWORD") == "" ||
+		os.Getenv("KAFKA_CA_LOCATION") == "" {
+		return false
+	}
+
+	return true
 }

@@ -33,6 +33,7 @@ const (
 	defaultTable             = "items"
 	defaultKeyspace          = "dapr"
 	defaultPort              = 9042
+	metadataTTLKey           = "ttlInSeconds"
 )
 
 // Cassandra is a state store implementation for Apache Cassandra
@@ -286,6 +287,15 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		session = sess
 	}
 
+	ttl, err := parseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("error parsing TTL from Metadata: %s", err)
+	}
+
+	if ttl != nil {
+		return session.Query("INSERT INTO ? (key, value) VALUES (?, ?) USING TTL ?", c.table, req.Key, bt, *ttl).Exec()
+	}
+
 	return session.Query("INSERT INTO ? (key, value) VALUES (?, ?)", c.table, req.Key, bt).Exec()
 }
 
@@ -302,4 +312,18 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	session.SetConsistency(consistency)
 
 	return session, nil
+}
+
+func parseTTL(requestMetadata map[string]string) (*int, error) {
+	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		parsedInt := int(parsedVal)
+
+		return &parsedInt, nil
+	}
+
+	return nil, nil
 }

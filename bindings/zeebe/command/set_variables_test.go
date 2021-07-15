@@ -76,9 +76,9 @@ func TestSetVariables(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("elementInstanceKey is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: setVariablesOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: SetVariablesOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingElementInstanceKey)
 	})
 
@@ -89,9 +89,9 @@ func TestSetVariables(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
+		_, err = cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingVariables)
 	})
 
@@ -105,12 +105,12 @@ func TestSetVariables(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
 
 		var mc mockSetVariableClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)
@@ -129,12 +129,12 @@ func TestSetVariables(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: setVariablesOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: SetVariablesOperation}
 
 		var mc mockSetVariableClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ElementInstanceKey, mc.cmd1.elementInstanceKey)

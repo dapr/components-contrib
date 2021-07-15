@@ -212,9 +212,10 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
 
-		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
-			httpresp, b.String())
+		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultKVResponse
@@ -316,8 +317,9 @@ func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 
-		return nil, fmt.Errorf("couldn't get successful response, status code: %d, status: %s, response %s",
+		return nil, fmt.Errorf("list keys couldn't get successful response, status code: %d, status: %s, response %s",
 			httpresp.StatusCode, httpresp.Status, b.String())
 	}
 

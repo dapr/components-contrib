@@ -55,9 +55,9 @@ func TestCancelInstance(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("processInstanceKey is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: cancelInstanceOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: CancelInstanceOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingProcessInstanceKey)
 	})
 
@@ -68,12 +68,12 @@ func TestCancelInstance(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: cancelInstanceOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CancelInstanceOperation}
 
 		var mc mockCancelInstanceClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessInstanceKey, mc.cmd1.cmd2.processInstanceKey)

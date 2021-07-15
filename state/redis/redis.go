@@ -30,6 +30,7 @@ const (
 	infoReplicationDelimiter = "\r\n"
 	maxRetries               = "maxRetries"
 	maxRetryBackoff          = "maxRetryBackoff"
+	ttlInSeconds             = "ttlInSeconds"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
@@ -230,6 +231,10 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
+	ttl, err := r.parseTTL(req)
+	if err != nil {
+		return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+	}
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
@@ -240,6 +245,20 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		}
 
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
+	}
+
+	if ttl != nil && *ttl > 0 {
+		_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		if err != nil {
+			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
+		}
+	}
+
+	if ttl != nil && *ttl <= 0 {
+		_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
+		if err != nil {
+			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
+		}
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
@@ -261,14 +280,25 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
+		//nolint:golint,nestif
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			ver, err := r.parseETag(&req)
 			if err != nil {
 				return err
 			}
+			ttl, err := r.parseTTL(&req)
+			if err != nil {
+				return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+			}
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
+			if ttl != nil && *ttl > 0 {
+				pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
+			}
+			if ttl != nil && *ttl <= 0 {
+				pipe.Do(r.ctx, "PERSIST", req.Key)
+			}
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			if req.ETag == nil {
@@ -316,6 +346,20 @@ func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
 	}
 
 	return ver, nil
+}
+
+func (r *StateStore) parseTTL(req *state.SetRequest) (*int, error) {
+	if val, ok := req.Metadata[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return nil, err
+		}
+		ttl := int(parsedVal)
+
+		return &ttl, nil
+	}
+
+	return nil, nil
 }
 
 func (r *StateStore) Close() error {

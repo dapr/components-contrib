@@ -92,9 +92,9 @@ func TestActivateJobs(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("jobType is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: activateJobsOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: ActivateJobsOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingJobType)
 	})
 
@@ -105,9 +105,9 @@ func TestActivateJobs(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
+		_, err = cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingMaxJobsToActivate)
 	})
 
@@ -119,12 +119,12 @@ func TestActivateJobs(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 
 		var mc mockActivateJobsClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
@@ -142,12 +142,12 @@ func TestActivateJobs(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 
 		var mc mockActivateJobsClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dapr/kit/logger"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 )
 
 // The "issued at" timestamp in the JWT must be within one hour from the
@@ -57,7 +57,7 @@ func (a *authorizationBuilder) generateAuthorizationHeader() (string, error) {
 
 	now := time.Now()
 	claims := jwt.StandardClaims{
-		IssuedAt: now.Unix(),
+		IssuedAt: time.Now().Unix(),
 		Issuer:   a.teamID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)

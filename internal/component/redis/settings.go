@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/internal/config"
+	"github.com/dapr/kit/config"
 )
 
 type Settings struct {

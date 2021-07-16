@@ -43,6 +43,8 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "cc@dapr.io", smtpMeta.EmailCC)
 		assert.Equal(t, "bcc@dapr.io", smtpMeta.EmailBCC)
 		assert.Equal(t, "Test email", smtpMeta.Subject)
+		assert.Equal(t, 3, smtpMeta.Priority)
+		
 	})
 }
 
@@ -68,9 +70,12 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"emailCC":   "req-cc@dapr.io",
 			"emailBCC":  "req-bcc@dapr.io",
 			"subject":   "req-Test email",
+			"priority":   "1",
 		}
 
-		mergedMeta := smtpMeta.mergeWithRequestMetadata(&request)
+		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
+
+		assert.Nil(t, err)
 
 		assert.Equal(t, "mailserver.dapr.io", mergedMeta.Host)
 		assert.Equal(t, 25, mergedMeta.Port)
@@ -82,6 +87,8 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "req-cc@dapr.io", mergedMeta.EmailCC)
 		assert.Equal(t, "req-bcc@dapr.io", mergedMeta.EmailBCC)
 		assert.Equal(t, "req-Test email", mergedMeta.Subject)
+		assert.Equal(t, 1, mergedMeta.Priority)
+
 	})
 }
 
@@ -103,8 +110,9 @@ func TestMergeWithNoRequestMetadata(t *testing.T) {
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{}
 
-		mergedMeta := smtpMeta.mergeWithRequestMetadata(&request)
+		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
+		assert.Nil(t, err)
 		assert.Equal(t, "mailserver.dapr.io", mergedMeta.Host)
 		assert.Equal(t, 25, mergedMeta.Port)
 		assert.Equal(t, "user@dapr.io", mergedMeta.User)
@@ -115,5 +123,105 @@ func TestMergeWithNoRequestMetadata(t *testing.T) {
 		assert.Equal(t, "cc@dapr.io", mergedMeta.EmailCC)
 		assert.Equal(t, "bcc@dapr.io", mergedMeta.EmailBCC)
 		assert.Equal(t, "Test email", mergedMeta.Subject)
+	})
+}
+
+func TestMergeWithRequestMetadata_invalidPriorityTooHigh(t *testing.T) {
+	t.Run("Has merged metadata", func(t *testing.T) {
+		smtpMeta := Metadata{
+			Host:          "mailserver.dapr.io",
+			Port:          25,
+			User:          "user@dapr.io",
+			SkipTLSVerify: true,
+			Password:      "P@$$w0rd!",
+			EmailFrom:     "from@dapr.io",
+			EmailTo:       "to@dapr.io",
+			EmailCC:       "cc@dapr.io",
+			EmailBCC:      "bcc@dapr.io",
+			Subject:       "Test email",
+		}
+
+		request := bindings.InvokeRequest{}
+		request.Metadata = map[string]string{
+			"emailFrom": "req-from@dapr.io",
+			"emailTo":   "req-to@dapr.io",
+			"emailCC":   "req-cc@dapr.io",
+			"emailBCC":  "req-bcc@dapr.io",
+			"subject":   "req-Test email",
+			"priority":   "6",
+		}
+
+		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
+
+		assert.NotNil(t, mergedMeta)
+		assert.NotNil(t, err)
+
+	})
+}
+
+
+func TestMergeWithRequestMetadata_invalidPriorityTooLow(t *testing.T) {
+	t.Run("Has merged metadata", func(t *testing.T) {
+		smtpMeta := Metadata{
+			Host:          "mailserver.dapr.io",
+			Port:          25,
+			User:          "user@dapr.io",
+			SkipTLSVerify: true,
+			Password:      "P@$$w0rd!",
+			EmailFrom:     "from@dapr.io",
+			EmailTo:       "to@dapr.io",
+			EmailCC:       "cc@dapr.io",
+			EmailBCC:      "bcc@dapr.io",
+			Subject:       "Test email",
+		}
+
+		request := bindings.InvokeRequest{}
+		request.Metadata = map[string]string{
+			"emailFrom": "req-from@dapr.io",
+			"emailTo":   "req-to@dapr.io",
+			"emailCC":   "req-cc@dapr.io",
+			"emailBCC":  "req-bcc@dapr.io",
+			"subject":   "req-Test email",
+			"priority":   "0",
+		}
+
+		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
+
+		assert.NotNil(t, mergedMeta)
+		assert.NotNil(t, err)
+
+	})
+}
+
+func TestMergeWithRequestMetadata_invalidPriorityNotNumber(t *testing.T) {
+	t.Run("Has merged metadata", func(t *testing.T) {
+		smtpMeta := Metadata{
+			Host:          "mailserver.dapr.io",
+			Port:          25,
+			User:          "user@dapr.io",
+			SkipTLSVerify: true,
+			Password:      "P@$$w0rd!",
+			EmailFrom:     "from@dapr.io",
+			EmailTo:       "to@dapr.io",
+			EmailCC:       "cc@dapr.io",
+			EmailBCC:      "bcc@dapr.io",
+			Subject:       "Test email",
+		}
+
+		request := bindings.InvokeRequest{}
+		request.Metadata = map[string]string{
+			"emailFrom": "req-from@dapr.io",
+			"emailTo":   "req-to@dapr.io",
+			"emailCC":   "req-cc@dapr.io",
+			"emailBCC":  "req-bcc@dapr.io",
+			"subject":   "req-Test email",
+			"priority":   "NoNumber",
+		}
+
+		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
+
+		assert.NotNil(t, mergedMeta)
+		assert.NotNil(t, err)
+
 	})
 }

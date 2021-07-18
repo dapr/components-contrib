@@ -19,14 +19,15 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"region":    "myRegionForSES",
-			"accessKey": "myAccessKeyForSES",
-			"secretKey": "mySecretKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
+			"region":       "myRegionForSES",
+			"accessKey":    "myAccessKeyForSES",
+			"secretKey":    "mySecretKeyForSES",
+			"sessionToken": "mySessionToken",
+			"emailFrom":    "from@dapr.io",
+			"emailTo":      "to@dapr.io",
+			"emailCc":      "cc@dapr.io",
+			"emailBcc":     "bcc@dapr.io",
+			"subject":      "Test email",
 		}
 		r := AWSSES{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
@@ -34,6 +35,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "myRegionForSES", smtpMeta.Region)
 		assert.Equal(t, "myAccessKeyForSES", smtpMeta.AccessKey)
 		assert.Equal(t, "mySecretKeyForSES", smtpMeta.SecretKey)
+		assert.Equal(t, "mySessionToken", smtpMeta.SessionToken)
 		assert.Equal(t, "from@dapr.io", smtpMeta.EmailFrom)
 		assert.Equal(t, "to@dapr.io", smtpMeta.EmailTo)
 		assert.Equal(t, "cc@dapr.io", smtpMeta.EmailCc)

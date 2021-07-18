@@ -68,12 +68,13 @@ func (a *AWSSES) parseMetadata(meta bindings.Metadata) (sesMetadata, error) {
 
 	if meta.Properties["region"] == "" || meta.Properties["accessKey"] == "" ||
 		meta.Properties["secretKey"] == "" {
-		return sesMeta, errors.New("SES binding error: region, accesskey or secretKey fields are required in metadata")
+		return sesMeta, errors.New("SES binding error: region, accessKey or secretKey fields are required in metadata")
 	}
 
 	sesMeta.Region = meta.Properties["region"]
 	sesMeta.AccessKey = meta.Properties["accessKey"]
 	sesMeta.SecretKey = meta.Properties["secretKey"]
+	sesMeta.SessionToken = meta.Properties["sessionToken"]
 
 	// Optional properties, these can be set on a per request basis
 	sesMeta.EmailTo = meta.Properties["emailTo"]

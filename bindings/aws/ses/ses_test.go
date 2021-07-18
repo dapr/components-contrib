@@ -122,7 +122,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "req-cc@dapr.io", mergedMeta.EmailCc)
 		assert.Equal(t, "req-bcc@dapr.io", mergedMeta.EmailBcc)
 		assert.Equal(t, "req-Test email", mergedMeta.Subject)
-
 	})
 
 	t.Run("Has no merged metadata", func(t *testing.T) {
@@ -150,6 +149,5 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "cc@dapr.io", mergedMeta.EmailCc)
 		assert.Equal(t, "bcc@dapr.io", mergedMeta.EmailBcc)
 		assert.Equal(t, "Test email", mergedMeta.Subject)
-
 	})
 }

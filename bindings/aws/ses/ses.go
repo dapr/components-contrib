@@ -102,7 +102,6 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		Region:      aws.String(metadata.Region),
 		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("SES binding error: error creating AWS session %+v", err)
 	}
@@ -133,7 +132,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		},
 		Source: aws.String(metadata.EmailFrom),
 		// Uncomment to use a configuration set
-		//ConfigurationSetName: aws.String(ConfigurationSet),
+		// ConfigurationSetName: aws.String(ConfigurationSet),
 	}
 
 	if metadata.EmailCc != "" {
@@ -154,12 +153,12 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 
 	// Attempt to send the email.
 	result, err := svc.SendEmail(input)
-
 	if err != nil {
 		return nil, fmt.Errorf("SES binding error: sending email failed: %+v", err)
 	}
 
 	a.logger.Debug("SES binding: sent email successfully ", result.MessageId)
+
 	return nil, nil
 }
 
@@ -188,5 +187,4 @@ func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	}
 
 	return merged
-
 }

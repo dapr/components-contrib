@@ -109,8 +109,8 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		request.Metadata = map[string]string{
 			"emailFrom": "req-from@dapr.io",
 			"emailTo":   "req-to@dapr.io",
-			"emailCC":   "req-cc@dapr.io",
-			"emailBCC":  "req-bcc@dapr.io",
+			"emailCc":   "req-cc@dapr.io",
+			"emailBcc":  "req-bcc@dapr.io",
 			"subject":   "req-Test email",
 		}
 

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -115,9 +116,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	// Assemble the email.
 	input := &ses.SendEmailInput{
 		Destination: &ses.Destination{
-			ToAddresses: []*string{
-				aws.String(metadata.EmailTo),
-			},
+			ToAddresses: aws.StringSlice(strings.Split(metadata.EmailTo, ";")),
 		},
 		Message: &ses.Message{
 			Body: &ses.Body{
@@ -138,17 +137,12 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 
 	if metadata.EmailCc != "" {
 		input.SetDestination(&ses.Destination{
-			CcAddresses: []*string{
-				aws.String(metadata.EmailCc),
-			},
+			CcAddresses: aws.StringSlice(strings.Split(metadata.EmailCc, ";")),
 		})
 	}
-
 	if metadata.EmailBcc != "" {
 		input.SetDestination(&ses.Destination{
-			BccAddresses: []*string{
-				aws.String(metadata.EmailBcc),
-			},
+			BccAddresses: aws.StringSlice(strings.Split(metadata.EmailBcc, ";")),
 		})
 	}
 
@@ -175,11 +169,11 @@ func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 		merged.EmailTo = emailTo
 	}
 
-	if emailCC := req.Metadata["emailCC"]; emailCC != "" {
+	if emailCC := req.Metadata["emailCc"]; emailCC != "" {
 		merged.EmailCc = emailCC
 	}
 
-	if emailBCC := req.Metadata["emailBCC"]; emailBCC != "" {
+	if emailBCC := req.Metadata["emailBcc"]; emailBCC != "" {
 		merged.EmailBcc = emailBCC
 	}
 

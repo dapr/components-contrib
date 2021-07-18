@@ -8,16 +8,10 @@ package ses
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/ses/sesiface"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
-
-// Define a mock struct to use in unit tests
-type mockSESClient struct {
-	sesiface.SESAPI
-}
 
 func TestParseMetadata(t *testing.T) {
 	logger := logger.NewLogger("test")

@@ -44,7 +44,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "bcc@dapr.io", smtpMeta.EmailBCC)
 		assert.Equal(t, "Test email", smtpMeta.Subject)
 		assert.Equal(t, 3, smtpMeta.Priority)
-		
 	})
 }
 
@@ -70,7 +69,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"emailCC":   "req-cc@dapr.io",
 			"emailBCC":  "req-bcc@dapr.io",
 			"subject":   "req-Test email",
-			"priority":   "1",
+			"priority":  "1",
 		}
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
@@ -88,7 +87,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "req-bcc@dapr.io", mergedMeta.EmailBCC)
 		assert.Equal(t, "req-Test email", mergedMeta.Subject)
 		assert.Equal(t, 1, mergedMeta.Priority)
-
 	})
 }
 
@@ -148,17 +146,15 @@ func TestMergeWithRequestMetadata_invalidPriorityTooHigh(t *testing.T) {
 			"emailCC":   "req-cc@dapr.io",
 			"emailBCC":  "req-bcc@dapr.io",
 			"subject":   "req-Test email",
-			"priority":   "6",
+			"priority":  "6",
 		}
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
 		assert.NotNil(t, mergedMeta)
 		assert.NotNil(t, err)
-
 	})
 }
-
 
 func TestMergeWithRequestMetadata_invalidPriorityTooLow(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
@@ -182,14 +178,13 @@ func TestMergeWithRequestMetadata_invalidPriorityTooLow(t *testing.T) {
 			"emailCC":   "req-cc@dapr.io",
 			"emailBCC":  "req-bcc@dapr.io",
 			"subject":   "req-Test email",
-			"priority":   "0",
+			"priority":  "0",
 		}
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
 		assert.NotNil(t, mergedMeta)
 		assert.NotNil(t, err)
-
 	})
 }
 
@@ -215,13 +210,12 @@ func TestMergeWithRequestMetadata_invalidPriorityNotNumber(t *testing.T) {
 			"emailCC":   "req-cc@dapr.io",
 			"emailBCC":  "req-bcc@dapr.io",
 			"subject":   "req-Test email",
-			"priority":   "NoNumber",
+			"priority":  "NoNumber",
 		}
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
 		assert.NotNil(t, mergedMeta)
 		assert.NotNil(t, err)
-
 	})
 }

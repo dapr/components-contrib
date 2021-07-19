@@ -142,6 +142,7 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta.EmailFrom = meta.Properties["emailFrom"]
 	smtpMeta.Subject = meta.Properties["subject"]
 	smtpMeta.Priority = defaultPriority
+
 	return smtpMeta, nil
 }
 
@@ -171,7 +172,7 @@ func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (
 
 	if val, ok := req.Metadata["priority"]; !ok {
 		merged.Priority = defaultPriority
-	} else { 
+	} else {
 		priority, err := strconv.Atoi(val)
 		if err != nil {
 			return merged, err

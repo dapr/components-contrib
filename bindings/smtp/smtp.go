@@ -141,7 +141,11 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta.EmailBCC = meta.Properties["emailBCC"]
 	smtpMeta.EmailFrom = meta.Properties["emailFrom"]
 	smtpMeta.Subject = meta.Properties["subject"]
-	smtpMeta.Priority = defaultPriority
+	err = smtpMeta.parsePriority(meta.Properties["priority"])
+
+	if err != nil {
+		return smtpMeta, err
+	}
 
 	return smtpMeta, nil
 }
@@ -170,18 +174,29 @@ func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (
 		merged.Subject = subject
 	}
 
-	if val, ok := req.Metadata["priority"]; !ok {
-		merged.Priority = defaultPriority
-	} else {
-		priority, err := strconv.Atoi(val)
+	if priority := req.Metadata["priority"]; priority != "" {
+		err := merged.parsePriority(priority)
 		if err != nil {
 			return merged, err
 		}
-		if priority < 1 || priority > 5 {
-			return merged, fmt.Errorf("smtp binding error:  priority value must be between 1 (highest) and 5 (lowest)")
-		}
-		merged.Priority = priority
 	}
 
 	return merged, nil
+}
+
+func (metadata *Metadata) parsePriority(req string) error {
+	if req == "" {
+		metadata.Priority = defaultPriority
+	} else {
+		priority, err := strconv.Atoi(req)
+		if err != nil {
+			return err
+		}
+		if priority < 1 || priority > 5 {
+			return fmt.Errorf("smtp binding error:  priority value must be between 1 (highest) and 5 (lowest)")
+		}
+		metadata.Priority = priority
+	}
+
+	return nil
 }

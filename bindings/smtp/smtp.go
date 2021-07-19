@@ -63,7 +63,7 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	// Merge config metadata with request metadata
 	metadata := s.metadata.mergeWithRequestMetadata(req)
 	if metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("smtp binding error: fromEmail property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: emailFrom property not supplied in configuration- or request-metadata")
 	}
 	if metadata.EmailTo == "" {
 		return nil, fmt.Errorf("smtp binding error: emailTo property not supplied in configuration- or request-metadata")

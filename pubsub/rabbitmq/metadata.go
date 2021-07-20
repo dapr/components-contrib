@@ -5,12 +5,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/streadway/amqp"
+
 	"github.com/dapr/components-contrib/pubsub"
 )
 
 type metadata struct {
 	consumerID       string
 	host             string
+	enableDeadLetter bool
 	deleteWhenUnused bool
 	autoAck          bool
 	requeueInFailure bool
@@ -18,6 +21,8 @@ type metadata struct {
 	prefetchCount    uint8 // Prefetch deactivated if 0
 	reconnectWait    time.Duration
 	concurrency      pubsub.ConcurrencyMode
+	maxLen           int64
+	maxLenBytes      int64
 }
 
 // createMetadata creates a new instance from the pubsub metadata
@@ -44,6 +49,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 				return &result, fmt.Errorf("%s invalid RabbitMQ delivery mode, accepted values are between 0 and 2", errorMessagePrefix)
 			}
 			result.deliveryMode = uint8(intVal)
+		}
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataEnableDeadLetter]; found && val != "" {
+		if boolVal, err := strconv.ParseBool(val); err == nil {
+			result.enableDeadLetter = boolVal
 		}
 	}
 
@@ -77,6 +88,18 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataMaxLen]; found && val != "" {
+		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+			result.maxLen = intVal
+		}
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataMaxLenBytes]; found && val != "" {
+		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+			result.maxLenBytes = intVal
+		}
+	}
+
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)
 	if err != nil {
 		return &result, err
@@ -84,4 +107,18 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	result.concurrency = c
 
 	return &result, nil
+}
+
+func (m *metadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
+	if origin == nil {
+		origin = amqp.Table{}
+	}
+	if m.maxLen > 0 {
+		origin[argMaxLength] = m.maxLen
+	}
+	if m.maxLenBytes > 0 {
+		origin[argMaxLengthBytes] = m.maxLenBytes
+	}
+
+	return origin
 }

@@ -337,7 +337,12 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 }
 
 func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
-	if req.Options.Concurrency == state.LastWrite || req.ETag == nil || (req.ETag != nil && *req.ETag == "") {
+	if req.ETag == nil || *req.ETag == "" {
+		req.Options.Concurrency = state.FirstWrite
+
+		return 0, nil
+	}
+	if req.Options.Concurrency == state.LastWrite {
 		return 0, nil
 	}
 	ver, err := strconv.Atoi(*req.ETag)

@@ -19,6 +19,7 @@ const (
 	host              = "host"
 	enableTLS         = "enableTLS"
 	cachedNumProducer = 10
+	exclusive         = "exclusive"
 )
 
 type Pulsar struct {
@@ -51,6 +52,11 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			return nil, errors.New("pulsar error: invalid value for enableTLS")
 		}
 		m.EnableTLS = tls
+	}
+	if val, ok := meta.Properties[exclusive]; ok && val != "" {
+		m.Exclusive = val
+	} else {
+		m.Exclusive = "false"
 	}
 
 	return &m, nil
@@ -136,21 +142,37 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
-	options := pulsar.ConsumerOptions{
-		Topic:            req.Topic,
-		SubscriptionName: p.metadata.ConsumerID,
-		Type:             pulsar.Failover,
-		MessageChannel:   channel,
+	if p.metadata.Exclusive == "true" {
+		options := pulsar.ConsumerOptions{
+			Topic:            req.Topic,
+			SubscriptionName: p.metadata.ConsumerID,
+			Type:             pulsar.Exclusive,
+			MessageChannel:   channel,
+		}
+
+		options.MessageChannel = channel
+		consumer, err := p.client.Subscribe(options)
+		p.logger.Debugf("This is exclusive subscription type")
+		if err != nil {
+			p.logger.Debugf("Could not subscribe %s", req.Topic)
+		}
+		go p.listenMessage(consumer, handler)
+	} else {
+		options := pulsar.ConsumerOptions{
+			Topic:            req.Topic,
+			SubscriptionName: p.metadata.ConsumerID,
+			Type:             pulsar.Failover,
+			MessageChannel:   channel,
+		}
+
+		options.MessageChannel = channel
+		consumer, err := p.client.Subscribe(options)
+		p.logger.Debugf("This is Failover subscription type")
+		if err != nil {
+			p.logger.Debugf("Could not subscribe %s", req.Topic)
+		}
+		go p.listenMessage(consumer, handler)
 	}
-
-	consumer, err := p.client.Subscribe(options)
-	if err != nil {
-		p.logger.Debugf("Could not subscribe %s", req.Topic)
-
-		return err
-	}
-
-	go p.listenMessage(consumer, handler)
 
 	return nil
 }

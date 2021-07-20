@@ -26,6 +26,7 @@ require (
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/alibaba/sentinel-golang v1.0.2
 	github.com/alicebob/miniredis/v2 v2.13.3
+	github.com/aliyun/aliyun-mns-go-sdk v0.0.0-20210305050620-d1b5875bda58
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/apache/pulsar-client-go v0.1.0
@@ -39,6 +40,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible
+	github.com/creasty/defaults v1.5.1
 	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
@@ -148,7 +150,7 @@ require (
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 	gopkg.in/kataras/go-serializer.v0 v0.0.4 // indirect
-	gopkg.in/square/go-jose.v2 v2.5.0 // indirect
+	gopkg.in/square/go-jose.v2 v2.5.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	k8s.io/api v0.20.0
 	k8s.io/apiextensions-apiserver v0.20.0

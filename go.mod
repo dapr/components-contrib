@@ -38,6 +38,7 @@ require (
 	github.com/camunda-cloud/zeebe/clients/go v1.0.1
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/cinience/go_rocketmq v0.0.2
+	github.com/confluentinc/confluent-kafka-go v1.7.0
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/dancannon/gorethink v4.0.0+incompatible

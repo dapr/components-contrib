@@ -12,3 +12,10 @@ type InputBinding interface {
 	// Read is a blocking method that triggers the callback function whenever an event arrives
 	Read(handler func(*ReadResponse) ([]byte, error)) error
 }
+
+// SuspendableSub is the interface that allows input binding to suspend/resume its subscription without closing it
+// It is used in the lifecycle operations of dapr
+type SuspendableInputBinding interface {
+	SuspendReading() error
+	ResumeReading(handler func(*ReadResponse) ([]byte, error)) error
+}

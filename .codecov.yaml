@@ -6,10 +6,9 @@ coverage:
       default:
         informational: true
     patch:
-      # Disable the coverage threshold of the patch, so that PRs are
-      # only failing because of overall project coverage threshold.
-      # See https://docs.codecov.io/docs/commit-status#disabling-a-status.
-      default: false
+      default:
+        target: auto
+        threshold: 0%
 comment:
   # Delete old comment and post new one for new coverage information.
   behavior: new

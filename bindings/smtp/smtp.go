@@ -16,6 +16,10 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
+const (
+	defaultPriority = 3
+)
+
 // Mailer allows sending of emails using the Simple Mail Transfer Protocol
 type Mailer struct {
 	metadata Metadata
@@ -34,6 +38,7 @@ type Metadata struct {
 	EmailCC       string `json:"emailCC"`
 	EmailBCC      string `json:"emailBCC"`
 	Subject       string `json:"subject"`
+	Priority      int    `json:"priority"`
 }
 
 // NewSMTP returns a new smtp binding instance
@@ -61,7 +66,10 @@ func (s *Mailer) Operations() []bindings.OperationKind {
 // Invoke sends an email message
 func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// Merge config metadata with request metadata
-	metadata := s.metadata.mergeWithRequestMetadata(req)
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, err
+	}
 	if metadata.EmailFrom == "" {
 		return nil, fmt.Errorf("smtp binding error: emailFrom property not supplied in configuration- or request-metadata")
 	}
@@ -79,6 +87,7 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	msg.SetHeader("CC", metadata.EmailCC)
 	msg.SetHeader("BCC", metadata.EmailBCC)
 	msg.SetHeader("Subject", metadata.Subject)
+	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
 	body, _ := strconv.Unquote(string(req.Data))
 	msg.SetBody("text/html", body)
 
@@ -132,12 +141,17 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta.EmailBCC = meta.Properties["emailBCC"]
 	smtpMeta.EmailFrom = meta.Properties["emailFrom"]
 	smtpMeta.Subject = meta.Properties["subject"]
+	err = smtpMeta.parsePriority(meta.Properties["priority"])
+
+	if err != nil {
+		return smtpMeta, err
+	}
 
 	return smtpMeta, nil
 }
 
 // Helper to merge config and request metadata
-func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) Metadata {
+func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (Metadata, error) {
 	merged := metadata
 
 	if emailFrom := req.Metadata["emailFrom"]; emailFrom != "" {
@@ -160,5 +174,29 @@ func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) M
 		merged.Subject = subject
 	}
 
-	return merged
+	if priority := req.Metadata["priority"]; priority != "" {
+		err := merged.parsePriority(priority)
+		if err != nil {
+			return merged, err
+		}
+	}
+
+	return merged, nil
+}
+
+func (metadata *Metadata) parsePriority(req string) error {
+	if req == "" {
+		metadata.Priority = defaultPriority
+	} else {
+		priority, err := strconv.Atoi(req)
+		if err != nil {
+			return err
+		}
+		if priority < 1 || priority > 5 {
+			return fmt.Errorf("smtp binding error:  priority value must be between 1 (highest) and 5 (lowest)")
+		}
+		metadata.Priority = priority
+	}
+
+	return nil
 }

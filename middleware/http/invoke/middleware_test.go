@@ -9,7 +9,7 @@ import (
 
 var metadata = middleware.Metadata{
 	Properties: map[string]string{
-		"invokeURL":               "http://127.0.0.1:3500/v1.0/invoke/authorization/method/authorization",
+		"invokeURL":               "http://127.0.0.1:3500/v1.0/invoke/authorization/method/forward_auth",
 		"invokeVerb":              "post",
 		"enforceRequestVerbs":     "get,post,put,patch,delete",
 		"timeout":                 "7",
@@ -23,7 +23,7 @@ var metadata = middleware.Metadata{
 
 // Test Invoke Middleware GetHandler
 func TestInvokeMiddlewareGetHandler(t *testing.T) {
-	middleware := &Middleware{}
+	m := &Middleware{}
 
 	tests := map[string]struct {
 		req func(ctx *fasthttp.RequestCtx)
@@ -43,7 +43,7 @@ func TestInvokeMiddlewareGetHandler(t *testing.T) {
 		},
 	}
 
-	handler, err := middleware.GetHandler(metadata)
+	handler, err := m.GetHandler(metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,9 +51,9 @@ func TestInvokeMiddlewareGetHandler(t *testing.T) {
 	for k, v := range tests {
 		// Construct new fasthttp.RequestCtx instance
 		var reqCtx fasthttp.RequestCtx
-		reqCtx.Request.SetHost("http://127.0.0.1:8000")
-		reqCtx.Request.URI().SetPath("/authorization?q=1")
-		reqCtx.Request.Header.Set("appid", "default")
+		reqCtx.Request.SetHost("127.0.0.1:3500")
+		reqCtx.Request.URI().SetPath("/v1.0/invoke/auth/method/test?q=1")
+		reqCtx.Request.Header.Set("appid", "test")
 		reqCtx.Request.Header.SetMethod("get")
 
 		// Set fasthttp.RequestCtx

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -35,9 +36,9 @@ type invokeMiddlewareMetadata struct {
 	MaxRetry uint16 `json:"maxRetry,string"`
 	// Expected Status Code
 	ExpectedStatusCode uint16 `json:"expectedStatusCode,string"`
-	// Forware URL Header Name, default: x-forward-url
-	ForwareURLHeaderName string `json:"forwardURLHeaderName"`
-	// Forware Method Header Name, default: x-forward-method
+	// Forward URL Header Name, default: x-forward-url
+	ForwardURLHeaderName string `json:"forwardURLHeaderName"`
+	// Forward Method Header Name, default: x-forward-method
 	ForwardMethodHeaderName string `json:"forwardMethodHeaderName"`
 }
 
@@ -77,13 +78,16 @@ func (m *Middleware) getClient(metadata *invokeMiddlewareMetadata) *http.Client 
 
 // Forward request to dapr service method
 func (m *Middleware) forwardRequest(ctx *fasthttp.RequestCtx, metadata *invokeMiddlewareMetadata) (*http.Response, error) {
-	client := m.getClient(metadata)
+	c := m.getClient(metadata)
 
 	// Construct http request
 	req, err := http.NewRequest(strings.ToUpper(metadata.InvokeVerb), metadata.InvokeURL, bytes.NewBuffer(ctx.Request.Body()))
+	if err != nil {
+		return nil, err
+	}
 
 	// Set forward info
-	req.Header.Set(metadata.ForwareURLHeaderName, string(ctx.Path()))
+	req.Header.Set(metadata.ForwardURLHeaderName, ctx.URI().String())
 	req.Header.Set(metadata.ForwardMethodHeaderName, string(ctx.Method()))
 
 	// Clone request headers
@@ -91,13 +95,9 @@ func (m *Middleware) forwardRequest(ctx *fasthttp.RequestCtx, metadata *invokeMi
 		req.Header.Set(string(key), string(value))
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
 	restRetry := metadata.MaxRetry
 	for restRetry > 0 {
-		resp, err := client.Do(req)
+		resp, err := c.Do(req)
 
 		// enter retry
 		if err != nil {
@@ -110,7 +110,7 @@ func (m *Middleware) forwardRequest(ctx *fasthttp.RequestCtx, metadata *invokeMi
 		return resp, nil
 	}
 
-	return nil, err
+	return nil, fmt.Errorf("request error count has exceeded max retry count: %d", metadata.MaxRetry)
 }
 
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
@@ -125,8 +125,8 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		return func(ctx *fasthttp.RequestCtx) {
 			// Judge if request method is enforced
 			isEnforced := false
-			for _, m := range strings.Split(meta.EnforceRequestVerbs, ",") {
-				if strings.EqualFold(m, string(ctx.Method())) {
+			for _, verb := range strings.Split(meta.EnforceRequestVerbs, ",") {
+				if strings.EqualFold(verb, string(ctx.Method())) {
 					isEnforced = true
 
 					break

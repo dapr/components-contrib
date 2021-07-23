@@ -70,7 +70,6 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
-		pattern: regexp.MustCompile("[^a-zA-Z0-9_\\-]+"),
 	}
 }
 
@@ -221,7 +220,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 }
 
 func (s *snsSqs) createTopic(topic string) (string, string, error) {
-	hashedName := s.nameToValidName(topic)
+	hashedName := nameToHash(topic)
 	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{
 		Name: aws.String(hashedName),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
@@ -492,7 +491,11 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 }
 
 func (s *snsSqs) Close() error {
-	s.logger.Debugf("Closing sns-sqs pubsub component. This is NOOP")
+	for _, sub := range s.subscriptions {
+		s.snsClient.Unsubscribe(&sns.UnsubscribeInput{
+			SubscriptionArn: sub,
+		})
+	}
 
 	return nil
 }

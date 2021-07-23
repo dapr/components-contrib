@@ -1,6 +1,7 @@
 package invoke
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/dapr/components-contrib/middleware"
@@ -24,6 +25,10 @@ var metadata = middleware.Metadata{
 // Test Invoke Middleware GetHandler
 func TestInvokeMiddlewareGetHandler(t *testing.T) {
 	m := &Middleware{}
+	meta, err := m.getNativeMetadata(metadata)
+	if err != nil {
+		t.Fatalf("get native metadata err: %s", err.Error())
+	}
 
 	tests := map[string]struct {
 		req func(ctx *fasthttp.RequestCtx)
@@ -38,6 +43,19 @@ func TestInvokeMiddlewareGetHandler(t *testing.T) {
 		"enforce_post_request_verbs": {
 			req: func(ctx *fasthttp.RequestCtx) {
 				ctx.Request.Header.SetMethod("post")
+			},
+			ok: true,
+		},
+		"skip_invoke_url": {
+			req: func(ctx *fasthttp.RequestCtx) {
+				u, err := url.Parse(meta.InvokeURL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx.Request.URI().SetScheme(u.Scheme)
+				ctx.Request.SetHost(u.Host)
+				ctx.Request.URI().SetPath(u.RequestURI())
+				ctx.Request.Header.SetMethod(meta.InvokeVerb)
 			},
 			ok: true,
 		},

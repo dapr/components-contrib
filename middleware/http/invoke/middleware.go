@@ -123,6 +123,12 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	// Invoke dapr appid APP method
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
+			// Skip invokeURL forward
+			if ctx.URI().String() == meta.InvokeURL {
+				h(ctx)
+				return
+			}
+
 			// Judge if request method is enforced
 			isEnforced := false
 			for _, verb := range strings.Split(meta.EnforceRequestVerbs, ",") {

@@ -413,14 +413,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.metadata.MaxActiveMessages,
 				a.metadata.MaxActiveMessagesRecoveryInSec)
 			if innerErr != nil {
-				var detachError *amqp.DetachError
-				var ampqError *amqp.Error
-				if errors.Is(innerErr, detachError) ||
-					(errors.As(innerErr, &ampqError) && ampqError.Condition == amqp.ErrorDetachForced) {
-					a.logger.Debug(innerErr)
-				} else {
-					a.logger.Error(innerErr)
-				}
+				a.logger.Error(innerErr)
 			}
 			cancel() // Cancel receive context
 

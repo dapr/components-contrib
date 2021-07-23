@@ -102,6 +102,279 @@ func TestVaultEnginePath(t *testing.T) {
 	})
 }
 
+func TestVaultTokenPrefix(t *testing.T) {
+	t.Run("default value of vaultKVUsePrefix is true to emulate previous behaviour", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, defaultVaultKVPrefix, target.vaultKVPrefix)
+	})
+
+	t.Run("if vaultKVUsePrefix is false ignore vaultKVPrefix", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultKVPrefix":       "myCustomString",
+			"vaultKVUsePrefix":    "false",
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, "", target.vaultKVPrefix)
+	})
+
+	t.Run("if vaultKVUsePrefix is not castable to bool return error", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultKVPrefix":       "myCustomString",
+			"vaultKVUsePrefix":    "invalidSetting",
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		err := target.Init(m)
+
+		assert.NotNil(t, err)
+	})
+}
+
+func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
+	t.Run("without vaultTokenMount or vaultToken", func(t *testing.T) {
+		properties := map[string]string{}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+
+		assert.Equal(t, "", target.vaultToken)
+		assert.Equal(t, "", target.vaultTokenMountPath)
+		assert.NotNil(t, err)
+		assert.Equal(t, "token mount path and token not set", err.Error())
+	})
+
+	t.Run("with vaultTokenMount", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, "", target.vaultToken)
+		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
+	})
+
+	t.Run("with vaultToken", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultToken": expectedTok,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, "", target.vaultTokenMountPath)
+		assert.Equal(t, expectedTok, target.vaultToken)
+	})
+
+	t.Run("with vaultTokenMount and vaultToken", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultToken":          expectedTok,
+			"vaultTokenMountPath": expectedTokMountPath,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+
+		assert.Equal(t, expectedTok, target.vaultToken)
+		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
+		assert.NotNil(t, err)
+		assert.Equal(t, "token mount path and token both set", err.Error())
+	})
+}
+
+func TestDefaultVaultAddress(t *testing.T) {
+	t.Run("with blank vaultAddr", func(t *testing.T) {
+		properties := map[string]string{
+			"vaultTokenMountPath": "./vault.txt",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
+	})
+}
+
+func TestVaultValueType(t *testing.T) {
+	t.Run("valid vault value type map", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			vaultValueType:      "map",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.True(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("valid vault value type text", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			vaultValueType:      "text",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.False(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("empty vault value type", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.True(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("invalid vault value type", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			vaultValueType:      "incorrect",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Error(t, err, "vault init error, invalid value type incorrect, accepted values are map or text")
+	})
+}
+
 func getCertificate() []byte {
 	certificateBytes, _ := base64.StdEncoding.DecodeString(certificate)
 

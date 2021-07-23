@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
 	sns "github.com/aws/aws-sdk-go/service/sns"
@@ -70,6 +71,7 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
+		pattern: regexp.MustCompile("[^a-zA-Z0-9_\\-]+"),
 	}
 }
 
@@ -101,6 +103,14 @@ func nameToHash(name string) string {
 
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
+
+// normalize topic name to conform with:
+// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_CreateQueue.html
+func (s *snsSqs) nameToValidName(name string) string {
+	replacedName := s.pattern.ReplaceAllString(name, "")
+	replacedName[]
+}
+
 
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := snsSqsMetadata{}

@@ -67,11 +67,13 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
+var awsSnsSqsTopicAllowCharsRe = regexp.MustCompile("[^a-zA-Z0-9_\\-]+")
+
+
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
-		pattern: regexp.MustCompile("[^a-zA-Z0-9_\\-]+"),
 	}
 }
 
@@ -104,13 +106,15 @@ func nameToHash(name string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-// normalize topic name to conform with:
+// normalize topic/queue name to conform with:
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_CreateQueue.html
-func (s *snsSqs) nameToValidName(name string) string {
-	replacedName := s.pattern.ReplaceAllString(name, "")
-	replacedName[]
+func nameToValidName(name string) string {
+	replacedName := awsSnsSqsTopicAllowCharsRe.ReplaceAllString(name, "")
+	if len(replacedName) > 80 {
+		replacedName = replacedName[:80]
+	}
+	return replacedName
 }
-
 
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := snsSqsMetadata{}
@@ -230,7 +234,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 }
 
 func (s *snsSqs) createTopic(topic string) (string, string, error) {
-	hashedName := nameToHash(topic)
+	hashedName := nameToValidName(topic)
 	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{
 		Name: aws.String(hashedName),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
@@ -271,7 +275,7 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 
 func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 	createQueueResponse, err := s.sqsClient.CreateQueue(&sqs.CreateQueueInput{
-		QueueName: aws.String(nameToHash(queueName)),
+		QueueName: aws.String(nameToValidName(queueName)),
 		Tags:      map[string]*string{awsSqsQueueNameKey: aws.String(queueName)},
 	})
 	if err != nil {
@@ -501,11 +505,12 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 }
 
 func (s *snsSqs) Close() error {
-	for _, sub := range s.subscriptions {
-		s.snsClient.Unsubscribe(&sns.UnsubscribeInput{
-			SubscriptionArn: sub,
-		})
-	}
+	s.logger.Debugf("Close was called and is now NOOP")
+	// for _, sub := range s.subscriptions {
+	// 	s.snsClient.Unsubscribe(&sns.UnsubscribeInput{
+	// 		SubscriptionArn: sub,
+	// 	})
+	// }
 
 	return nil
 }

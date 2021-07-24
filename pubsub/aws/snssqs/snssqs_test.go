@@ -255,3 +255,14 @@ func Test_nameToHash(t *testing.T) {
 			fmt.Sprintf("Invalid character %s in hashed name", string(c)))
 	}
 }
+
+func Test_replaceInvalidQueueNameChars(t *testing.T) {
+	r := require.New(t)
+
+	s := `Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid 
+		name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an
+		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^`
+	v := nameToValidName(s)
+	r.Equal(80, len(v))
+	r.Equal("SomeinvalidnameforanAWSresourceSomeinvalidnameforanAWSresourceSomeinvalidnamefor", v)
+}

@@ -73,6 +73,10 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
+<<<<<<< Updated upstream
+=======
+		pattern: regexp.MustCompile(`[^a-zA-Z0-9_\-]+`),
+>>>>>>> Stashed changes
 	}
 }
 

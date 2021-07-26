@@ -1,8 +1,6 @@
 package snssqs
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -236,22 +234,14 @@ func Test_parseInt64(t *testing.T) {
 	r.Error(err)
 }
 
-func Test_nameToHash(t *testing.T) {
+
+func Test_replaceNameToAWSSanitizedName(t *testing.T) {
 	r := require.New(t)
 
-	// This string is too long and contains invalid character for either an SQS queue or an SNS topic
-	hashedName := nameToHash(`
-		Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid 
+	s := `Some_invalid-name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid 
 		name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an
-		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^
-	`)
-
-	r.Equal(64, len(hashedName))
-	// Output is only expected to contain lower case characters representing valid hexadecimal numerals
-	for _, c := range hashedName {
-		r.True(
-			strings.ContainsAny(
-				"abcdef0123456789", string(c)),
-			fmt.Sprintf("Invalid character %s in hashed name", string(c)))
-	}
+		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^`
+	v := nameToAWSSanitizedName(s)
+	r.Equal(80, len(v))
+	r.Equal("Some_invalid-nameforanAWSresourceSomeinvalidnameforanAWSresourceSomeinvalidnamef", v)
 }

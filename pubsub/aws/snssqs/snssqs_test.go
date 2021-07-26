@@ -234,7 +234,6 @@ func Test_parseInt64(t *testing.T) {
 	r.Error(err)
 }
 
-
 func Test_replaceNameToAWSSanitizedName(t *testing.T) {
 	r := require.New(t)
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
 	sns "github.com/aws/aws-sdk-go/service/sns"
@@ -66,17 +65,10 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
-var awsSnsSqsAllowedCharsRe = regexp.MustCompile("[^a-zA-Z0-9_\\-]+")
-
-
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
-<<<<<<< Updated upstream
-=======
-		pattern: regexp.MustCompile(`[^a-zA-Z0-9_\-]+`),
->>>>>>> Stashed changes
 	}
 }
 
@@ -100,16 +92,28 @@ func parseInt64(input string, propertyName string) (int64, error) {
 	return int64(number), nil
 }
 
-
 // sanitize topic/queue name to conform with:
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html
 func nameToAWSSanitizedName(name string) string {
-	sanitizedName := awsSnsSqsAllowedCharsRe.ReplaceAllString(name, "")
-	if len(sanitizedName) > 80 {
-		sanitizedName = sanitizedName[:80]
+	s := []byte(name)
+
+	j := 0
+	for _, b := range s {
+		if ('a' <= b && b <= 'z') ||
+			('A' <= b && b <= 'Z') ||
+			('0' <= b && b <= '9') ||
+			(b == '-') ||
+			(b == '_') {
+			s[j] = b
+			j++
+
+			if j == 80 {
+				break
+			}
+		}
 	}
 
-	return sanitizedName
+	return string(s[:j])
 }
 
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {

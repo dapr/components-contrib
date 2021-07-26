@@ -39,7 +39,8 @@ type sqsQueueInfo struct {
 type snsSqsMetadata struct {
 	// name of the queue for this application. The is provided by the runtime as "consumerID"
 	sqsQueueName string
-
+	// name of the dead letter queue for this application 
+	sqsDeadLettersQueueName string
 	// aws endpoint for the component to use.
 	Endpoint string
 	// access key to use for accessing sqs/sns
@@ -54,6 +55,8 @@ type snsSqsMetadata struct {
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10
 	messageVisibilityTimeout int64
 	// number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10
+	// if sqsDeadLettersQueueName is set to a value, then the messageRetryLimit value would be used as the threshold number of times after
+	// which an unprocessed message would be removed and placed in the dead-letters queue
 	messageRetryLimit int64
 	// amount of time to await receipt of a message before making another request. Default: 1
 	messageWaitTimeSeconds int64
@@ -165,6 +168,10 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		}
 
 		md.messageRetryLimit = retryLimit
+	}
+
+	if val, ok := getAliasedProperty([]string{"sqsDeadLettersQueueName"}, metadata); ok {
+		md.sqsDeadLettersQueueName = val
 	}
 
 	if val, ok := props["messageWaitTimeSeconds"]; !ok {

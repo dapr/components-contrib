@@ -66,17 +66,13 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
-var awsSnsSqsAllowedCharsRe = regexp.MustCompile("[^a-zA-Z0-9_\\-]+")
+var awsSnsSqsAllowedCharsRe = regexp.MustCompile(`[^a-zA-Z0-9_\-]+`)
 
 
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
-<<<<<<< Updated upstream
-=======
-		pattern: regexp.MustCompile(`[^a-zA-Z0-9_\-]+`),
->>>>>>> Stashed changes
 	}
 }
 

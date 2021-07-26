@@ -497,13 +497,6 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 }
 
 func (s *snsSqs) Close() error {
-	s.logger.Debugf("Close was called and is now NOOP")
-	// for _, sub := range s.subscriptions {
-	// 	s.snsClient.Unsubscribe(&sns.UnsubscribeInput{
-	// 		SubscriptionArn: sub,
-	// 	})
-	// }
-
 	return nil
 }
 

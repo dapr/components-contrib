@@ -131,7 +131,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 			},
 		},
 		Source: aws.String(metadata.EmailFrom),
-		// Uncomment to use a configuration set
+		// TODO: Add  configuration set: https://docs.aws.amazon.com/ses/latest/DeveloperGuide/using-configuration-sets.html
 		// ConfigurationSetName: aws.String(ConfigurationSet),
 	}
 

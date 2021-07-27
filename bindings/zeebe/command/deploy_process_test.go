@@ -17,9 +17,9 @@ func TestDeployProcess(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("fileName is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: deployProcessOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: DeployProcessOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingFileName)
 	})
 }

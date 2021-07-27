@@ -8,10 +8,10 @@ require (
 	cloud.google.com/go/pubsub v1.5.0
 	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
-	github.com/Azure/azure-event-hubs-go v1.3.1
+	github.com/Azure/azure-event-hubs-go/v3 v3.3.10
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
 	github.com/Azure/azure-service-bus-go v0.10.10
-	github.com/Azure/azure-storage-blob-go v0.8.0
+	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-amqp v0.13.1
 	github.com/Azure/go-autorest/autorest v0.11.12
@@ -35,7 +35,7 @@ require (
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/buger/jsonparser v1.1.1 // indirect
-	github.com/camunda-cloud/zeebe/clients/go v1.0.0
+	github.com/camunda-cloud/zeebe/clients/go v1.0.1
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible
@@ -62,7 +62,7 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
 	github.com/golang-jwt/jwt v3.2.1+incompatible
-	github.com/golang/mock v1.5.0
+	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/uuid v1.2.0
@@ -80,7 +80,7 @@ require (
 	github.com/jackc/pgx/v4 v4.6.0
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jonboulle/clockwork v0.2.0 // indirect
-	github.com/json-iterator/go v1.1.10
+	github.com/json-iterator/go v1.1.11
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
@@ -113,7 +113,9 @@ require (
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/pretty v1.1.0 // indirect
+	github.com/supplyon/gremcos v0.1.0
+	github.com/tidwall/gjson v1.8.0 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/valyala/fasthttp v1.21.0
 	github.com/vmware/vmware-go-kcl v0.0.0-20191104173950-b6c74c3fe74e
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
@@ -128,11 +130,9 @@ require (
 	go.uber.org/zap v1.18.1 // indirect
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/mod v0.4.1 // indirect
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93
 	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect
-	golang.org/x/tools v0.1.0 // indirect
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
 	google.golang.org/grpc v1.36.0
@@ -154,7 +154,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.20.0
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v0.20.0
-	pack.ag/amqp v0.11.2 // indirect
 )
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

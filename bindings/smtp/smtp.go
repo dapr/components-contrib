@@ -198,7 +198,7 @@ func (metadata *Metadata) parsePriority(req string) error {
 			return err
 		}
 		if priority < lowestPriority || priority > highestPriority {
-			return fmt.Errorf("smtp binding error:  priority value must be between 1 (highest) and 5 (lowest)")
+			return fmt.Errorf("smtp binding error:  priority value must be between %d (highest) and %d (lowest)", lowestPriority, highestPriority)
 		}
 		metadata.Priority = priority
 	}

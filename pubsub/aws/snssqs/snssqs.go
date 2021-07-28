@@ -65,8 +65,9 @@ type snsSqsMetadata struct {
 }
 
 const (
-	awsSqsQueueNameKey = "dapr-queue-name"
-	awsSnsTopicNameKey = "dapr-topic-name"
+	awsSqsQueueNameKey         = "dapr-queue-name"
+	awsSnsTopicNameKey         = "dapr-topic-name"
+	awsSqsDeadLettersQueueName = "dapr-deadletters"
 )
 
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
@@ -181,20 +182,29 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 
 	if val, ok := getAliasedProperty([]string{"sqsDeadLettersQueueName"}, metadata); ok {
 		md.sqsDeadLettersQueueName = val
+	}
 
-		if val, ok = getAliasedProperty([]string{"deadLettersMaxReceives"}, metadata); !ok {
-			md.deadLettersMaxReceives = md.messageRetryLimit
-		} else {
-			deadLettersMaxReceives, err := parseInt64(val, "deadLettersMaxReceives")
-			if err != nil {
-				return nil, err
-			}
-			if deadLettersMaxReceives > md.messageRetryLimit {
-				return nil, errors.New("deadLettersMaxReceives must be less than or equal to messageRetryLimit")
-			}
-
-			md.deadLettersMaxReceives = deadLettersMaxReceives
+	if val, ok := getAliasedProperty([]string{"deadLettersMaxReceives"}, metadata); !ok {
+		md.deadLettersMaxReceives = md.messageRetryLimit
+	} else {
+		// fallback: use default dead-letters queue name if deadLettersMaxReceives is defined but the sqsDeadLettersQueueName isn't
+		if len(md.sqsDeadLettersQueueName) == 0 {
+			md.sqsDeadLettersQueueName = awsSqsDeadLettersQueueName
 		}
+
+		deadLettersMaxReceives, err := parseInt64(val, "deadLettersMaxReceives")
+		if err != nil {
+			return nil, err
+		}
+
+		// validate: if deadLettersMaxReceives is greater than messageRetryLimit, the message would be deleted by daprd before
+		// SQS has the opportunity to move the message to the dead-letters queue, so we reject this
+		if deadLettersMaxReceives > md.messageRetryLimit {
+			return nil, errors.New("deadLettersMaxReceives must be less than or equal to messageRetryLimit")
+		}
+
+		// assign: used provided configuration
+		md.deadLettersMaxReceives = deadLettersMaxReceives
 	}
 
 	if val, ok := props["messageWaitTimeSeconds"]; !ok {
@@ -418,6 +428,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 		if innerErr := s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle); innerErr != nil {
 			return fmt.Errorf("error acknowledging message after receiving the message too many times: %v", innerErr)
 		}
+
 		return fmt.Errorf(
 			"message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit)
 	}

@@ -1,10 +1,21 @@
 package rocketmq
 
 import (
+	rmq "github.com/apache/rocketmq-client-go/v2"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 type rocketMQ struct {
+	metadata rocketMQMetaData
+	logger   logger.Logger
+	producer rmq.Producer
+}
+
+func NewRocketMQ(l logger.Logger) pubsub.PubSub {
+	return &rocketMQ{
+		logger: l,
+	}
 }
 
 func (r *rocketMQ) Init(metadata pubsub.Metadata) error {

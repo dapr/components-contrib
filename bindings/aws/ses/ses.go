@@ -91,7 +91,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	metadata := a.metadata.mergeWithRequestMetadata(req)
 
 	if metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("SES binding error: fromEmail property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("SES binding error: emailFrom property not supplied in configuration- or request-metadata")
 	}
 	if metadata.EmailTo == "" {
 		return nil, fmt.Errorf("SES binding error: emailTo property not supplied in configuration- or request-metadata")
@@ -111,7 +111,10 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	// Create an SES instance
 	svc := ses.New(sess)
 
-	body, _ := strconv.Unquote(string(req.Data))
+	body, err := strconv.Unquote(string(req.Data))
+	if err != nil {
+		return nil, fmt.Errorf("SES binding error: can't unquote data field %+v", err)
+	}
 
 	// Assemble the email.
 	input := &ses.SendEmailInput{

@@ -18,6 +18,8 @@ import (
 
 const (
 	defaultPriority = 3
+	lowestPriority  = 1
+	highestPriority = 5
 )
 
 // Mailer allows sending of emails using the Simple Mail Transfer Protocol
@@ -192,7 +194,7 @@ func (metadata *Metadata) parsePriority(req string) error {
 		if err != nil {
 			return err
 		}
-		if priority < 1 || priority > 5 {
+		if priority < lowestPriority || priority > highestPriority {
 			return fmt.Errorf("smtp binding error:  priority value must be between 1 (highest) and 5 (lowest)")
 		}
 		metadata.Priority = priority

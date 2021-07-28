@@ -90,7 +90,10 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	msg.SetHeader("BCC", metadata.EmailBCC)
 	msg.SetHeader("Subject", metadata.Subject)
 	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
-	body, _ := strconv.Unquote(string(req.Data))
+	body, err := strconv.Unquote(string(req.Data))
+	if err != nil {
+		return nil, fmt.Errorf("smtp binding error: can't unquote data field %w", err)
+	}
 	msg.SetBody("text/html", body)
 
 	// Send message

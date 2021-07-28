@@ -105,7 +105,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("SES binding error: error creating AWS session %+v", err)
+		return nil, fmt.Errorf("SES binding error: error creating AWS session %w", err)
 	}
 
 	// Create an SES instance
@@ -113,7 +113,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 
 	body, err := strconv.Unquote(string(req.Data))
 	if err != nil {
-		return nil, fmt.Errorf("SES binding error: can't unquote data field %+v", err)
+		return nil, fmt.Errorf("SES binding error: can't unquote data field %w", err)
 	}
 
 	// Assemble the email.
@@ -152,7 +152,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	// Attempt to send the email.
 	result, err := svc.SendEmail(input)
 	if err != nil {
-		return nil, fmt.Errorf("SES binding error: sending email failed: %+v", err)
+		return nil, fmt.Errorf("SES binding error: sending email failed: %w", err)
 	}
 
 	a.logger.Debug("SES binding: sent email successfully ", result.MessageId)

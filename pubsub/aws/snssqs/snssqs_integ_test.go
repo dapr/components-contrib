@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/components-contrib/snssqs"
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,8 +12,8 @@ import (
 // TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
 // AWS_SECRET_ACCESS_KkEY and AWS_SESSION_TOKEN
 func TestIntegrationCreateAllSnsSqs(t *testing.T) {
-	ss := NewSnsSqs(logger.NewLogger("test"))
-	err := ss.Init(snssqs.Metadata{
+	snsq := NewSnsSqs(logger.NewLogger("test"))
+	err := snsq.Init(snssqs.snsSqsMetadata{
 		Properties: map[string]string{
 			"Region":       os.Getenv("AWS_DEFAULT_REGION"),
 			"AccessKey":    os.Getenv("AWS_ACCESS_KEY_ID"),
@@ -22,10 +22,8 @@ func TestIntegrationCreateAllSnsSqs(t *testing.T) {
 		},
 	})
 	assert.Nil(t, err)
-	response, err := sm.GetSecret(secretstores.GetSecretRequest{
-		Name:     secretName,
-		Metadata: map[string]string{},
-	})
+	// snsq.Subscribe()
+
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
 }

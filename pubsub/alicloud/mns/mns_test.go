@@ -13,7 +13,7 @@ import (
 )
 
 func TestMNSQueue(t *testing.T) { //nolint:paralleltest
-	if isLiveTest() {
+	if !isLiveTest() {
 		return
 	}
 

@@ -75,12 +75,52 @@ func (s *Settings) Decode(in interface{}) error {
 	return nil
 }
 
-func (s *RequestMetaData) Decode(in interface{}) error {
-	if err := config.Decode(in, s); err != nil {
+func (r *RequestMetaData) Decode(in interface{}) error {
+	if err := config.Decode(in, r); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 
-	defaults.Set(s)
+	defaults.Set(r)
+
+	return nil
+}
+
+func (s *Settings) Validate() error {
+	if s.TimeoutSecond < 0 {
+		return fmt.Errorf("invalid timeout %v", s.TimeoutSecond)
+	}
+
+	return nil
+}
+
+func (r *RequestMetaData) Validate() error {
+	if r.QueueDelaySeconds < 0 || r.QueueDelaySeconds > 604800 {
+		return fmt.Errorf("delay seconds must be between 0 ~ 604800")
+	}
+
+	if r.QueueMaxMessageSize < 1024 || r.QueueMaxMessageSize > 65536 {
+		return fmt.Errorf("max message size must be between 1024 and 65536")
+	}
+
+	if r.QueueMessageRetentionPeriod < 60 || r.QueueMessageRetentionPeriod > 604800 {
+		return fmt.Errorf("message retention period must be between 60 ~ 604800")
+	}
+
+	if r.QueuePollingWaitSeconds < 0 || r.QueuePollingWaitSeconds > 30 {
+		return fmt.Errorf("polling wait seconds must be between 0 ~ 30")
+	}
+
+	if r.QueueVisibilityTimeout < 1 || r.QueueVisibilityTimeout > 43200 {
+		return fmt.Errorf("visibility timeout must be between 1 ~ 43200")
+	}
+
+	if r.TopicMaxMessageSize < 1024 || r.TopicMaxMessageSize > 65536 {
+		return fmt.Errorf("max message size must be between 1024 and 65536")
+	}
+
+	if r.QueueSlices < 0 {
+		return fmt.Errorf("slices must be larger than 0")
+	}
 
 	return nil
 }

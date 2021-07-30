@@ -60,6 +60,10 @@ func NewMNS(logger logger.Logger) pubsub.PubSub {
 func (m *mns) Init(md pubsub.Metadata) error {
 	var settings Settings
 	settings.Decode(md.Properties)
+	err := settings.Validate()
+	if err != nil {
+		return err
+	}
 
 	m.settings = settings
 
@@ -88,6 +92,10 @@ func (m *mns) Init(md pubsub.Metadata) error {
 func (m *mns) Publish(req *pubsub.PublishRequest) error {
 	var metaData RequestMetaData
 	metaData.Decode(req.Metadata)
+	err := metaData.Validate()
+	if err != nil {
+		return err
+	}
 
 	jsonBody, err := json.Marshal(req.Metadata)
 	if err != nil {
@@ -107,6 +115,9 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 
 	priority, _ := strconv.ParseInt(req.Metadata["priority"], 10, 64)
 	msgSendReq.Priority = priority
+	if priority < 1 || priority > 16 {
+		return fmt.Errorf("priority must be between 1 ~ 16")
+	}
 
 	addressType, _ := strconv.ParseInt(req.Metadata["AddressType"], 10, 32)
 	mailAttr.AddressType = int32(addressType)
@@ -157,9 +168,13 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error { //nolint:cyclop
 	var metaData RequestMetaData
 	metaData.Decode(req.Metadata)
+	err := metaData.Validate()
+	if err != nil {
+		return err
+	}
 
 	// create/fetch queue
-	err := m.queueManager.CreateQueue(
+	err = m.queueManager.CreateQueue(
 		metaData.QueueName,
 		metaData.QueueDelaySeconds,
 		metaData.QueueMaxMessageSize,

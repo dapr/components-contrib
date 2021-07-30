@@ -91,7 +91,7 @@ jobs:
         - component: state.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsConnectionString,AzureEventHubsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
@@ -99,7 +99,7 @@ jobs:
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
         - component: bindings.azure.eventhubs
-          required-secrets: AzureEventHubsConnectionString,AzureEventHubsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues

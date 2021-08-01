@@ -12,19 +12,20 @@ const (
 )
 
 type rocketMQMetaData struct {
-	RetryTimes int
-	AccessKey  string
-	SecretKey  string
-	NameServer string
+	ConsumerGroup string
+	ContentType string
+	RetryTimes  int
+	AccessKey   string
+	SecretKey   string
+	NameServer  string
 }
 
-func parseRocketMQMetaData(metadata pubsub.Metadata)*rocketMQMetaData{
+func parseRocketMQMetaData(metadata pubsub.Metadata) *rocketMQMetaData {
 	rmq := &rocketMQMetaData{
 		RetryTimes: 0,
 		AccessKey:  "",
 		SecretKey:  "",
 	}
-
 
 	return rmq
 }

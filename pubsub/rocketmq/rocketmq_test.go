@@ -22,9 +22,9 @@ import (
 )
 
 func TestPubSub(t *testing.T) { //nolint:paralleltest
-	if !isLiveTest() {
-		return
-	}
+	//if !isLiveTest() {
+	//	return
+	//}
 	m := pubsub.Metadata{Properties: getTestMetadata()}
 
 	r := NewRocketMQ(logger.NewLogger("test"))

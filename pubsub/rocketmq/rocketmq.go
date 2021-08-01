@@ -10,19 +10,19 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
-	jsoniter "github.com/json-iterator/go"
+	"time"
 )
 
 type rocketMQ struct {
 	name         string
-	metadata     rocketMQMetaData
+	metadata     *rocketMQMetaData
 	producer     rmq.Producer
 	txProducer   rmq.TransactionProducer
 	pushConsumer rmq.PushConsumer
 	pullConsumer rmq.PullConsumer
-	logger       logger.Logger
-	json         jsoniter.API
-	topics       map[string]mqc.MessageSelector
+
+	logger logger.Logger
+	topics map[string]mqc.MessageSelector
 
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -35,11 +35,36 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	}
 }
 
-func (r *rocketMQ) setupPublisher() (rmq.Producer, error) {
-	opts := make([]mqp.Option, 0)
-	if len(r.metadata.Resolvers) != 0 {
-		opts = append(opts, mqp.WithNsResolver(primitive.NewPassthroughResolver(r.metadata.Resolvers)))
+func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
+	r.metadata = parseRocketMQMetaData(metadata)
+	producer,err := r.setUpProducer()
+	if err != nil {
+
 	}
+	r.producer = producer
+	consumer,err := r.setUpConsumer()
+	if err != nil {
+
+	}
+	r.pushConsumer = consumer
+
+	err = r.producer.Start()
+	err = r.pushConsumer.Start()
+	return err
+}
+
+func (r *rocketMQ)setUpConsumer()(rmq.PushConsumer,error){
+	opts := make([]mqc.Option,0)
+
+	return rmq.NewPushConsumer(opts...)
+
+}
+
+func (r *rocketMQ) setUpProducer() (rmq.Producer, error) {
+	opts := make([]mqp.Option, 0)
+	//if len(r.metadata.Resolvers) != 0 {
+	//	opts = append(opts, mqp.WithNsResolver(primitive.NewPassthroughResolver(r.metadata.Resolvers)))
+	//}
 	if r.metadata.RetryTimes != 0 {
 		opts = append(opts, mqp.WithRetry(r.metadata.RetryTimes))
 	}
@@ -49,21 +74,7 @@ func (r *rocketMQ) setupPublisher() (rmq.Producer, error) {
 			SecretKey: r.metadata.SecretKey,
 		}))
 	}
-	p, err := rmq.NewProducer(opts...)
-	if err != nil {
-		fmt.Println("init producer error: " + err.Error())
-		return nil, err
-	}
-	err = p.Start()
-	if err != nil {
-		fmt.Printf("start producer error: %s", err.Error())
-		return nil, err
-	}
-	return p, nil
-}
-
-func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
-	panic("implement me")
+	return rmq.NewProducer(opts...)
 }
 
 func (r *rocketMQ) Features() []pubsub.Feature {
@@ -71,7 +82,22 @@ func (r *rocketMQ) Features() []pubsub.Feature {
 }
 
 func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
-	panic("implement me")
+	msg := primitive.NewMessage(req.Topic, req.Data).WithTag(req.Metadata[metadataRocketmqTag]).
+		WithKeys([]string{req.Metadata[metadataRocketmqKey]})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := r.producer.SendSync(ctx, msg)
+
+	if result != nil {
+		r.logger.Debugf("rocketmq send result topic:%s tag:%s status:%v", req.Topic, msg.GetTags(), result.Status)
+	}
+
+	if err != nil {
+		r.logger.Errorf("error send message topic:%s : %v", req.Topic, err)
+
+		return fmt.Errorf("publish message failed. %w", err)
+	}
 }
 
 func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -79,5 +105,8 @@ func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 }
 
 func (r rocketMQ) Close() error {
-	panic("implement me")
+	r.cancel()
+	err := r.producer.Shutdown()
+	err = r.pushConsumer.Shutdown()
+	return err
 }

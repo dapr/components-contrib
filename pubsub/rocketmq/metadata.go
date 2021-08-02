@@ -20,6 +20,8 @@ type rocketMQMetaData struct {
 	AccessKey  string `mapstructure:"accessKey"`
 	SecretKey  string `mapstructure:"secretKey"`
 	NameServer string `mapstructure:"nameServer"`
+	GroupName  string `mapstructure:"groupName"`
+	NameSpace  string `mapstructure:"nameSpace"`
 	// consumer group rocketmq's subscribers
 	ConsumerGroup     string `mapstructure:"consumerGroup"`
 	ConsumerBatchSize int    `mapstructure:"consumerBatchSize"`

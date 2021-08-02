@@ -33,7 +33,9 @@ type rocketMQ struct {
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	return &rocketMQ{
+		name:   "rocketmq",
 		logger: l,
+		topics: make(map[string]mqc.MessageSelector),
 	}
 }
 
@@ -67,7 +69,27 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 
 func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	opts := make([]mqc.Option, 0)
-
+	if r.metadata.ConsumerGroup != "" {
+		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroup))
+	}
+	if r.metadata.NameSpace != "" {
+		opts = append(opts, mqc.WithNamespace(r.metadata.NameSpace))
+	}
+	if r.metadata.Retries != 0 {
+		opts = append(opts, mqc.WithRetry(r.metadata.Retries))
+	}
+	if r.metadata.NameServerDomain != "" {
+		opts = append(opts, mqc.WithNameServerDomain(r.metadata.NameServerDomain))
+	}
+	if r.metadata.NameServer != "" {
+		opts = append(opts, mqc.WithNameServer(primitive.NamesrvAddr{r.metadata.NameServer}))
+	}
+	if r.metadata.AccessKey != "" && r.metadata.SecretKey != "" {
+		opts = append(opts, mqc.WithCredentials(primitive.Credentials{
+			AccessKey: r.metadata.AccessKey,
+			SecretKey: r.metadata.SecretKey,
+		}))
+	}
 	return mq.NewPushConsumer(opts...)
 
 }
@@ -76,6 +98,18 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	opts := make([]mqp.Option, 0)
 	if r.metadata.Retries != 0 {
 		opts = append(opts, mqp.WithRetry(r.metadata.Retries))
+	}
+	if r.metadata.GroupName != "" {
+		opts = append(opts, mqp.WithGroupName(r.metadata.GroupName))
+	}
+	if r.metadata.NameServerDomain != "" {
+		opts = append(opts, mqp.WithNameServerDomain(r.metadata.NameServerDomain))
+	}
+	if r.metadata.NameSpace != "" {
+		opts = append(opts, mqp.WithNamespace(r.metadata.NameSpace))
+	}
+	if r.metadata.NameServer != "" {
+		opts = append(opts, mqp.WithNameServer(primitive.NamesrvAddr{r.metadata.NameServer}))
 	}
 	if r.metadata.AccessKey != "" && r.metadata.SecretKey != "" {
 		opts = append(opts, mqp.WithCredentials(primitive.Credentials{

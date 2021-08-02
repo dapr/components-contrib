@@ -36,7 +36,7 @@ func newMigration(store *SQLServer) migrator {
 	}
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) executeMigrations() (migrationResult, error) {
 	r := migrationResult{
 		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.store.tableName),
@@ -103,7 +103,7 @@ func runCommand(tsql string, db *sql.DB) error {
 	return nil
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) ensureIndexedPropertyExists(ix IndexedProperty, db *sql.DB) error {
 	indexName := "IX_" + ix.ColumnName
 
@@ -124,7 +124,7 @@ func (m *migration) ensureIndexedPropertyExists(ix IndexedProperty, db *sql.DB) 
 	return runCommand(tsql, db)
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) ensureSchemaExists(db *sql.DB) error {
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS(SELECT * FROM sys.schemas WHERE name = N'%s')
@@ -134,7 +134,7 @@ func (m *migration) ensureSchemaExists(db *sql.DB) error {
 	return runCommand(tsql, db)
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) ensureTableExists(db *sql.DB, r migrationResult) error {
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s')
@@ -162,7 +162,7 @@ func (m *migration) ensureTableExists(db *sql.DB, r migrationResult) error {
 	return runCommand(tsql, db)
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) ensureTypeExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 	IF type_id('[%s].%s_Table') IS NULL
@@ -176,7 +176,7 @@ func (m *migration) ensureTypeExists(db *sql.DB, mr migrationResult) error {
 	return runCommand(tsql, db)
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) ensureBulkDeleteStoredProcedureExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 		CREATE PROCEDURE %s 
@@ -214,7 +214,7 @@ func (m *migration) ensureStoredProcedureExists(db *sql.DB, mr migrationResult) 
 	return nil
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) createStoredProcedureIfNotExists(db *sql.DB, name string, escapedDefinition string) error {
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[%s].[%s]') AND type in (N'P', N'PC'))
@@ -228,7 +228,7 @@ func (m *migration) createStoredProcedureIfNotExists(db *sql.DB, name string, es
 	return runCommand(tsql, db)
 }
 
-/* #nosec */
+/* #nosec. */
 func (m *migration) ensureUpsertStoredProcedureExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 		CREATE PROCEDURE %s (

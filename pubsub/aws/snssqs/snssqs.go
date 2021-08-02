@@ -94,7 +94,7 @@ func parseInt64(input string, propertyName string) (int64, error) {
 }
 
 // take a name and hash it for compatibility with AWS resource names
-// the output is fixed at 64 characters
+// the output is fixed at 64 characters.
 func nameToHash(name string) string {
 	h := sha256.New()
 	h.Write([]byte(name))

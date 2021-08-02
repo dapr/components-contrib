@@ -17,13 +17,13 @@ import (
 )
 
 const (
-	// DefaultCloudEventType is the default event type for an Dapr published event
+	// DefaultCloudEventType is the default event type for an Dapr published event.
 	DefaultCloudEventType = "com.dapr.event.sent"
-	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
+	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation.
 	CloudEventsSpecVersion = "1.0"
-	// DefaultCloudEventSource is the default event source
+	// DefaultCloudEventSource is the default event source.
 	DefaultCloudEventSource = "Dapr"
-	// DefaultCloudEventDataContentType is the default content-type for the data attribute
+	// DefaultCloudEventDataContentType is the default content-type for the data attribute.
 	DefaultCloudEventDataContentType = "text/plain"
 	TraceIDField                     = "traceid"
 	TopicField                       = "topic"
@@ -39,7 +39,7 @@ const (
 	SubjectField                     = "subject"
 )
 
-// NewCloudEventsEnvelope returns a map representation of a cloudevents JSON
+// NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte, traceID string) map[string]interface{} {
 	// defaults
 	if id == "" {
@@ -91,7 +91,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	return ce
 }
 
-// FromCloudEvent returns a map representation of an existing cloudevents JSON
+// FromCloudEvent returns a map representation of an existing cloudevents JSON.
 func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := jsoniter.Unmarshal(cloudEvent, &m)

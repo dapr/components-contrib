@@ -26,7 +26,7 @@ const (
 	key = "partitionKey"
 )
 
-// Kafka allows reading/writing to a Kafka consumer group
+// Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
 	producer      sarama.SyncProducer
 	topics        []string
@@ -76,12 +76,12 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// NewKafka returns a new kafka binding instance
+// NewKafka returns a new kafka binding instance.
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{logger: logger}
 }
 
-// Init does metadata parsing and connection establishment
+// Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(metadata bindings.Metadata) error {
 	meta, err := k.getKafkaMetadata(metadata)
 	if err != nil {
@@ -130,7 +130,7 @@ func (k *Kafka) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	return nil, nil
 }
 
-// GetKafkaMetadata returns new Kafka metadata
+// GetKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	meta.ConsumerGroup = metadata.Properties["consumerGroup"]

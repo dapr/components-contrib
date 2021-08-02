@@ -19,10 +19,10 @@ import (
 const (
 	queryOperation bindings.OperationKind = "query"
 
-	// keys from request's Data
+	// keys from request's Data.
 	commandGremlinKey = "gremlin"
 
-	// keys from response's Data
+	// keys from response's Data.
 	respGremlinKey   = "gremlin"
 	respOpKey        = "operation"
 	respStartTimeKey = "start-time"
@@ -30,7 +30,7 @@ const (
 	respDurationKey  = "duration"
 )
 
-// CosmosGraphDB allows performing state operations on collections
+// CosmosGraphDB allows performing state operations on collections.
 type CosmosGraphDB struct {
 	metadata *cosmosGraphDBCredentials
 	client   *gremcos.Cosmos
@@ -43,12 +43,12 @@ type cosmosGraphDBCredentials struct {
 	Username  string `json:"username"`
 }
 
-// NewCosmosGraphDB returns a new CosmosGraphDB instance
+// NewCosmosGraphDB returns a new CosmosGraphDB instance.
 func NewCosmosGraphDB(logger logger.Logger) *CosmosGraphDB {
 	return &CosmosGraphDB{logger: logger}
 }
 
-// Init performs CosmosDB connection parsing and connecting
+// Init performs CosmosDB connection parsing and connecting.
 func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 	c.logger.Debug("Initializing Cosmos Graph DB binding")
 

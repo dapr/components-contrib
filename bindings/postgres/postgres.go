@@ -27,7 +27,7 @@ const (
 	commandSQLKey    = "sql"
 )
 
-// Postgres represents PostgreSQL output binding
+// Postgres represents PostgreSQL output binding.
 type Postgres struct {
 	logger logger.Logger
 	db     *pgxpool.Pool
@@ -35,12 +35,12 @@ type Postgres struct {
 
 var _ = bindings.OutputBinding(&Postgres{})
 
-// NewPostgres returns a new PostgreSQL output binding
+// NewPostgres returns a new PostgreSQL output binding.
 func NewPostgres(logger logger.Logger) *Postgres {
 	return &Postgres{logger: logger}
 }
 
-// Init initializes the PostgreSql binding
+// Init initializes the PostgreSql binding.
 func (p *Postgres) Init(metadata bindings.Metadata) error {
 	url, ok := metadata.Properties[connectionURLKey]
 	if !ok || url == "" {
@@ -60,7 +60,7 @@ func (p *Postgres) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Operations returns list of operations supported by PostgreSql binding
+// Operations returns list of operations supported by PostgreSql binding.
 func (p *Postgres) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		execOperation,
@@ -69,7 +69,7 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 	}
 }
 
-// Invoke handles all invoke operations
+// Invoke handles all invoke operations.
 func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")

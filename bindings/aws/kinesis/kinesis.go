@@ -28,7 +28,7 @@ import (
 	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
 )
 
-// AWSKinesis allows receiving and sending data to/from AWS Kinesis stream
+// AWSKinesis allows receiving and sending data to/from AWS Kinesis stream.
 type AWSKinesis struct {
 	client   *kinesis.Kinesis
 	metadata *kinesisMetadata
@@ -55,16 +55,16 @@ type kinesisMetadata struct {
 type kinesisConsumerMode string
 
 const (
-	// ExtendedFanout - dedicated throughput through data stream api
+	// ExtendedFanout - dedicated throughput through data stream api.
 	ExtendedFanout kinesisConsumerMode = "extended"
 
-	// SharedThroughput - shared throughput using checkpoint and monitoring
+	// SharedThroughput - shared throughput using checkpoint and monitoring.
 	SharedThroughput kinesisConsumerMode = "shared"
 
 	partitionKeyName = "partitionKey"
 )
 
-// recordProcessorFactory
+// recordProcessorFactory.
 type recordProcessorFactory struct {
 	logger  logger.Logger
 	handler func(*bindings.ReadResponse) ([]byte, error)
@@ -75,12 +75,12 @@ type recordProcessor struct {
 	handler func(*bindings.ReadResponse) ([]byte, error)
 }
 
-// NewAWSKinesis returns a new AWS Kinesis instance
+// NewAWSKinesis returns a new AWS Kinesis instance.
 func NewAWSKinesis(logger logger.Logger) *AWSKinesis {
 	return &AWSKinesis{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
@@ -169,7 +169,7 @@ func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) ([]byte, error)) 
 	return nil
 }
 
-// Subscribe to all shards
+// Subscribe to all shards.
 func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDescription, handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	consumerARN, err := a.ensureConsumer(streamDesc.StreamARN)
 	if err != nil {

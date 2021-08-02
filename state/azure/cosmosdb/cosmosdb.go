@@ -22,7 +22,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// StateStore is a CosmosDB state store
+// StateStore is a CosmosDB state store.
 type StateStore struct {
 	state.DefaultBulkStore
 	client      *documentdb.DocumentDB
@@ -44,7 +44,7 @@ type metadata struct {
 	ContentType string `json:"contentType"`
 }
 
-// CosmosItem is a wrapper around a CosmosDB document
+// CosmosItem is a wrapper around a CosmosDB document.
 type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
@@ -66,7 +66,7 @@ const (
 	metadataTTLKey       = "ttlInSeconds"
 )
 
-// NewCosmosDBStateStore returns a new CosmosDB state store
+// NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -77,7 +77,7 @@ func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
@@ -179,12 +179,12 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (c *StateStore) Features() []state.Feature {
 	return c.features
 }
 
-// Get retrieves a CosmosDB item
+// Get retrieves a CosmosDB item.
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
@@ -230,7 +230,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Set saves a CosmosDB item
+// Set saves a CosmosDB item.
 func (c *StateStore) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -271,7 +271,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -322,7 +322,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	return err
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	upserts := []CosmosItem{}
 	deletes := []CosmosItem{}

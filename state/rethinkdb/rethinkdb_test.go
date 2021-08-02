@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestGetRethinkDBMetadata$
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -count 1 -run ^TestGetRethinkDBMetadata$.
 func TestGetRethinkDBMetadata(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 	t.Run("With required connect configuration", func(t *testing.T) {
@@ -193,7 +193,7 @@ func testBulk(t *testing.T, db *RethinkDB, i int) {
 	}
 }
 
-// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1 -v
+// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1 -v.
 func TestRethinkDBStateStoreMulti(t *testing.T) {
 	if !isLiveTest() {
 		t.SkipNow()

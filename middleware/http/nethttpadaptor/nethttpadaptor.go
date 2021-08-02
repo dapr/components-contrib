@@ -10,7 +10,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// NewNetHTTPHandlerFunc wraps a fasthttp.RequestHandler in a http.HandlerFunc
+// NewNetHTTPHandlerFunc wraps a fasthttp.RequestHandler in a http.HandlerFunc.
 func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http.HandlerFunc { //nolint
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := fasthttp.RequestCtx{}

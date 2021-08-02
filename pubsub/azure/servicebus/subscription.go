@@ -42,7 +42,7 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 	return s
 }
 
-// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic
+// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic.
 func (s *subscription) ReceiveAndBlock(ctx context.Context, handler pubsub.Handler, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
 	// Close subscription
 	defer func() {

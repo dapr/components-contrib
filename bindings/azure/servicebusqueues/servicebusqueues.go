@@ -25,7 +25,7 @@ const (
 	AzureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
 )
 
-// AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues
+// AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
 	metadata *serviceBusQueuesMetadata
 	client   *servicebus.Queue
@@ -39,12 +39,12 @@ type serviceBusQueuesMetadata struct {
 	ttl              time.Duration
 }
 
-// NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance
+// NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
 	return &AzureServiceBusQueues{logger: logger}
 }
 
-// Init parses connection properties and creates a new Service Bus Queue client
+// Init parses connection properties and creates a new Service Bus Queue client.
 func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	meta, err := a.parseMetadata(metadata)
 	if err != nil {

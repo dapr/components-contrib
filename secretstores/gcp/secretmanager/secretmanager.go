@@ -32,7 +32,7 @@ type secretManagerMetadata struct {
 	gcpCredentials
 }
 
-// Store contains and GCP secret manager client and project id
+// Store contains and GCP secret manager client and project id.
 type Store struct {
 	client    *secretmanager.Client
 	ProjectID string
@@ -40,12 +40,12 @@ type Store struct {
 	logger logger.Logger
 }
 
-// NewSecreteManager returns new instance of  `SecretManagerStore`
+// NewSecreteManager returns new instance of  `SecretManagerStore`.
 func NewSecreteManager(logger logger.Logger) *Store {
 	return &Store{logger: logger}
 }
 
-// Init creates a GCP secret manager client
+// Init creates a GCP secret manager client.
 func (s *Store) Init(metadataRaw secretstores.Metadata) error {
 	metadata, err := s.parseSecretManagerMetadata(metadataRaw)
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *Store) getClient(metadata *secretManagerMetadata) (*secretmanager.Clien
 	return client, nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string
+// GetSecret retrieves a secret using a key and returns a map of decrypted string.
 func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	res := secretstores.GetSecretResponse{Data: nil}
 
@@ -101,7 +101,7 @@ func (s *Store) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSe
 	return secretstores.GetSecretResponse{Data: map[string]string{req.Name: *secret}}, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (s *Store) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	versionID := "latest"
 

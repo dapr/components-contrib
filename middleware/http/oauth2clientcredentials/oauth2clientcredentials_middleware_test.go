@@ -22,7 +22,7 @@ import (
 func mockedRequestHandler(ctx *fh.RequestCtx) {}
 
 // TestOAuth2ClientCredentialsMetadata will check
-// - if the metadata checks are correct in place
+// - if the metadata checks are correct in place.
 func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	// Specify components metadata
 	var metadata middleware.Metadata
@@ -58,7 +58,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 }
 
 // TestOAuth2ClientCredentialsToken will check
-// - if the Token was added to the RequestHeader value specified
+// - if the Token was added to the RequestHeader value specified.
 func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	// Setup
 	mockCtrl := gomock.NewController(t)
@@ -106,7 +106,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 }
 
 // TestOAuth2ClientCredentialsCache will check
-// - if the Cache is working
+// - if the Cache is working.
 func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	// Setup
 	mockCtrl := gomock.NewController(t)

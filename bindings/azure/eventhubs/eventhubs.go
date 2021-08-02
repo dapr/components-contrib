@@ -25,27 +25,27 @@ import (
 )
 
 const (
-	// metadata
+	// metadata.
 	connectionString = "connectionString"
 
-	// required by subscriber
+	// required by subscriber.
 	consumerGroup        = "consumerGroup"
 	storageAccountName   = "storageAccountName"
 	storageAccountKey    = "storageAccountKey"
 	storageContainerName = "storageContainerName"
 
-	// optional
+	// optional.
 	partitionKeyName = "partitionKey"
 	partitionIDName  = "partitionID"
 
-	// errors
+	// errors.
 	missingConnectionStringErrorMsg     = "error: connectionString is a required attribute"
 	missingStorageAccountNameErrorMsg   = "error: storageAccountName is a required attribute"
 	missingStorageAccountKeyErrorMsg    = "error: storageAccountKey is a required attribute"
 	missingStorageContainerNameErrorMsg = "error: storageContainerName is a required attribute"
 	missingConsumerGroupErrorMsg        = "error: consumerGroup is a required attribute"
 
-	// Event Hubs SystemProperties names for metadata passthrough
+	// Event Hubs SystemProperties names for metadata passthrough.
 	sysPropSequenceNumber             = "x-opt-sequence-number"
 	sysPropEnqueuedTime               = "x-opt-enqueued-time"
 	sysPropOffset                     = "x-opt-offset"
@@ -98,7 +98,7 @@ func readHandler(e *eventhub.Event, handler func(*bindings.ReadResponse) ([]byte
 	return err
 }
 
-// AzureEventHubs allows sending/receiving Azure Event Hubs events
+// AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
 	hub      *eventhub.Hub
 	metadata *azureEventHubsMetadata
@@ -120,12 +120,12 @@ func (m azureEventHubsMetadata) partitioned() bool {
 	return m.partitionID != ""
 }
 
-// NewAzureEventHubs returns a new Azure Event hubs instance
+// NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 	return &AzureEventHubs{logger: logger}
 }
 
-// Init performs metadata init
+// Init performs metadata init.
 func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	m, err := parseMetadata(metadata)
 	if err != nil {
@@ -197,7 +197,7 @@ func (a *AzureEventHubs) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Write posts an event hubs message
+// Write posts an event hubs message.
 func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	event := &eventhub.Event{
 		Data: req.Data,
@@ -221,7 +221,7 @@ func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	return nil, nil
 }
 
-// Read gets messages from eventhubs in a non-blocking fashion
+// Read gets messages from eventhubs in a non-blocking fashion.
 func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	if !a.metadata.partitioned() {
 		if err := a.RegisterEventProcessor(handler); err != nil {
@@ -243,7 +243,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 	return nil
 }
 
-// RegisterPartitionedEventProcessor - receive eventhub messages by partitionID
+// RegisterPartitionedEventProcessor - receive eventhub messages by partitionID.
 func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	ctx := context.Background()
 
@@ -292,7 +292,7 @@ func contains(arr []string, str string) bool {
 }
 
 // RegisterEventProcessor - receive eventhub messages by eventprocessor
-// host by balancing partitions
+// host by balancing partitions.
 func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	cred, err := azblob.NewSharedKeyCredential(a.metadata.storageAccountName, a.metadata.storageAccountKey)
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 
 var ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
 
-// ClientFactory enables injection for testing
+// ClientFactory enables injection for testing.
 type ClientFactory interface {
 	Get(metadata bindings.Metadata) (zbc.Client, error)
 }
@@ -34,7 +34,7 @@ type clientMetadata struct {
 	UsePlaintextConnection bool              `json:"usePlainTextConnection,string"`
 }
 
-// NewClientFactoryImpl returns a new ClientFactory instance
+// NewClientFactoryImpl returns a new ClientFactory instance.
 func NewClientFactoryImpl(logger logger.Logger) *ClientFactoryImpl {
 	return &ClientFactoryImpl{logger: logger}
 }

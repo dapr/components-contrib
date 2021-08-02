@@ -16,7 +16,7 @@ func Test_parseTopicArn(t *testing.T) {
 	r.Equal("qqnoob", parseTopicArn("arn:aws:sqs:us-east-1:000000000000:qqnoob"))
 }
 
-// Verify that all metadata ends up in the correct spot
+// Verify that all metadata ends up in the correct spot.
 func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")

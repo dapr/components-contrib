@@ -141,7 +141,7 @@ func (mc MSIConfig) Authorizer() (autorest.Authorizer, error) {
 
 // GetAuthorizer creates an Authorizer configured from environment variables in the order:
 // 1. Client certificate
-// 2. MSI
+// 2. MSI.
 func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 	// 1. Client Certificate
 	if c, e := s.GetClientCert(); e == nil {

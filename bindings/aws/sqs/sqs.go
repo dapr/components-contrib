@@ -16,7 +16,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// AWSSQS allows receiving and sending data to/from AWS SQS
+// AWSSQS allows receiving and sending data to/from AWS SQS.
 type AWSSQS struct {
 	Client   *sqs.SQS
 	QueueURL *string
@@ -33,12 +33,12 @@ type sqsMetadata struct {
 	SessionToken string `json:"sessionToken"`
 }
 
-// NewAWSSQS returns a new AWS SQS instance
+// NewAWSSQS returns a new AWS SQS instance.
 func NewAWSSQS(logger logger.Logger) *AWSSQS {
 	return &AWSSQS{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 	m, err := a.parseSQSMetadata(metadata)
 	if err != nil {

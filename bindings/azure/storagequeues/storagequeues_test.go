@@ -221,7 +221,7 @@ func TestReadQueueDecode(t *testing.T) {
 
 	time.Sleep(30 * time.Second)
 
-}
+}.
 */
 func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)

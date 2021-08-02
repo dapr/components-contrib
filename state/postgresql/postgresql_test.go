@@ -16,7 +16,7 @@ const (
 	fakeConnectionString = "not a real connection"
 )
 
-// Fake implementation of interface postgressql.dbaccess
+// Fake implementation of interface postgressql.dbaccess.
 type fakeDBaccess struct {
 	logger       logger.Logger
 	initExecuted bool
@@ -54,7 +54,7 @@ func (m *fakeDBaccess) Close() error {
 	return nil
 }
 
-// Proves that the Init method runs the init method
+// Proves that the Init method runs the init method.
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	_, fake := createPostgreSQLWithFake(t)

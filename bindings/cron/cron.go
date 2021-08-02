@@ -15,7 +15,7 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// Binding represents Cron input binding
+// Binding represents Cron input binding.
 type Binding struct {
 	logger   logger.Logger
 	schedule string
@@ -25,7 +25,7 @@ type Binding struct {
 
 var _ = bindings.InputBinding(&Binding{})
 
-// NewCron returns a new Cron event input binding
+// NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,
@@ -54,7 +54,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Read triggers the Cron scheduler
+// Read triggers the Cron scheduler.
 func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	c := cron.New(cron.WithParser(b.parser))
 	id, err := c.AddFunc(b.schedule, func() {
@@ -78,7 +78,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 	return nil
 }
 
-// Invoke exposes way to stop previously started cron
+// Invoke exposes way to stop previously started cron.
 func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	b.logger.Debugf("operation: %v", req.Operation)
 	if req.Operation != bindings.DeleteOperation {
@@ -95,7 +95,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	}, nil
 }
 
-// Operations method returns the supported operations by this binding
+// Operations method returns the supported operations by this binding.
 func (b *Binding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.DeleteOperation,

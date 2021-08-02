@@ -22,12 +22,12 @@ type kubernetesSecretStore struct {
 	logger     logger.Logger
 }
 
-// NewKubernetesSecretStore returns a new Kubernetes secret store
+// NewKubernetesSecretStore returns a new Kubernetes secret store.
 func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &kubernetesSecretStore{logger: logger}
 }
 
-// Init creates a Kubernetes client
+// Init creates a Kubernetes client.
 func (k *kubernetesSecretStore) Init(metadata secretstores.Metadata) error {
 	client, err := kubeclient.GetKubeClient()
 	if err != nil {
@@ -38,7 +38,7 @@ func (k *kubernetesSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	resp := secretstores.GetSecretResponse{
 		Data: map[string]string{},
@@ -60,7 +60,7 @@ func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (se
 	return resp, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (k *kubernetesSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},

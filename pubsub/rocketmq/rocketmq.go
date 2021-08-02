@@ -38,18 +38,28 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 }
 
 func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
-	r.metadata = parseRocketMQMetaData(metadata)
-	producer, err := r.setUpProducer()
+	var err error
+	r.metadata, err = parseRocketMQMetaData(metadata)
 	if err != nil {
-
+		return err
 	}
-	r.producer = producer
-	consumer, err := r.setUpConsumer()
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err = retry.DecodeConfigWithPrefix(
+		&r.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return fmt.Errorf("retry configuration error: %w", err)
+	}
+	r.producer, err = r.setUpProducer()
 	if err != nil {
-
+		return err
 	}
-	r.pushConsumer = consumer
-
+	r.pushConsumer, err = r.setUpConsumer()
+	if err != nil {
+		return err
+	}
 	err = r.producer.Start()
 	err = r.pushConsumer.Start()
 	return err
@@ -64,11 +74,8 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 
 func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	opts := make([]mqp.Option, 0)
-	//if len(r.metadata.Resolvers) != 0 {
-	//	opts = append(opts, mqp.WithNsResolver(primitive.NewPassthroughResolver(r.metadata.Resolvers)))
-	//}
-	if r.metadata.RetryTimes != 0 {
-		opts = append(opts, mqp.WithRetry(r.metadata.RetryTimes))
+	if r.metadata.Retries != 0 {
+		opts = append(opts, mqp.WithRetry(r.metadata.Retries))
 	}
 	if r.metadata.AccessKey != "" && r.metadata.SecretKey != "" {
 		opts = append(opts, mqp.WithCredentials(primitive.Credentials{

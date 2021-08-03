@@ -247,7 +247,7 @@ func (a *AzureEventGrid) createSubscription() error {
 		return err
 	}
 
-	res := result.Future.Response()
+	res := result.FutureAPI.Response()
 
 	if res.StatusCode != fasthttp.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(res.Body)

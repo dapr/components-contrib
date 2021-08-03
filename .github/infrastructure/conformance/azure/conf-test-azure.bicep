@@ -36,6 +36,7 @@ param certAuthSpId string
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
+var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
 var keyVaultName = '${toLower(namePrefix)}-conf-test-kv'
 var serviceBusName = '${toLower(namePrefix)}-conf-test-servicebus'
 var storageName = '${toLower(namePrefix)}ctstorage'
@@ -61,6 +62,15 @@ module eventGridTopic 'conf-test-azure-eventGrid.bicep' = {
   params: {
     confTestTags: confTestTags
     eventGridTopicName: eventGridTopicName
+  }
+}
+
+module eventHubsNamespace 'conf-test-azure-eventHubs.bicep' = {
+  name: eventHubsNamespaceName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    eventHubsNamespaceName: eventHubsNamespaceName
   }
 }
 
@@ -99,6 +109,10 @@ output cosmosDbName string = cosmosDb.name
 output cosmosDbSqlName string = cosmosDb.outputs.cosmosDbSqlName
 output cosmosDbSqlContainerName string = cosmosDb.outputs.cosmosDbSqlContainerName
 output eventGridTopicName string = eventGridTopic.name
+output eventHubsNamespace string = eventHubsNamespace.name
+output eventHubName string = eventHubsNamespace.outputs.eventHubName
+output eventHubPolicyName string = eventHubsNamespace.outputs.eventHubPolicyName
+output eventHubConsumerGroupName string = eventHubsNamespace.outputs.eventHubConsumerGroupName
 output keyVaultName string = keyVault.name
 output serviceBusName string = serviceBus.name
 output storageName string = storage.name

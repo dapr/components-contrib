@@ -8,10 +8,10 @@ require (
 	cloud.google.com/go/pubsub v1.5.0
 	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
-	github.com/Azure/azure-event-hubs-go v1.3.1
+	github.com/Azure/azure-event-hubs-go/v3 v3.3.10
 	github.com/Azure/azure-sdk-for-go v48.2.0+incompatible
 	github.com/Azure/azure-service-bus-go v0.10.10
-	github.com/Azure/azure-storage-blob-go v0.8.0
+	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-amqp v0.13.1
 	github.com/Azure/go-autorest/autorest v0.11.12
@@ -24,7 +24,7 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/alibaba/sentinel-golang v1.0.2
+	github.com/alibaba/sentinel-golang v1.0.2-0.20210728053800-194d4be01dfe
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/andybalholm/brotli v1.0.1 // indirect
@@ -104,7 +104,6 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
-	github.com/prometheus/client_golang v1.8.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/russross/blackfriday v2.0.0+incompatible // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
@@ -113,6 +112,7 @@ require (
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.7.0
+	github.com/supplyon/gremcos v0.1.0
 	github.com/tidwall/gjson v1.8.0 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/valyala/fasthttp v1.21.0
@@ -153,7 +153,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.20.0
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v0.20.0
-	pack.ag/amqp v0.11.2 // indirect
 )
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

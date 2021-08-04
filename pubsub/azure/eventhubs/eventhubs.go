@@ -92,8 +92,9 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events
 type AzureEventHubs struct {
-	hub      *eventhub.Hub
-	metadata azureEventHubsMetadata
+	hubManager *eventhub.HubManager
+	topicHubs  map[string]*eventhub.Hub
+	metadata   azureEventHubsMetadata
 
 	logger        logger.Logger
 	ctx           context.Context
@@ -111,7 +112,7 @@ type azureEventHubsMetadata struct {
 
 // NewAzureEventHubs returns a new Azure Event hubs instance
 func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
-	return &AzureEventHubs{logger: logger}
+	return &AzureEventHubs{logger: logger, topicHubs: make(map[string]*eventhub.Hub)}
 }
 
 func parseEventHubsMetadata(meta pubsub.Metadata) (azureEventHubsMetadata, error) {
@@ -157,12 +158,12 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 	aeh.metadata = m
-	hub, err := eventhub.NewHubFromConnectionString(aeh.metadata.connectionString)
+	hubManager, err := eventhub.NewHubManagerFromConnectionString(aeh.metadata.connectionString)
 	if err != nil {
-		return fmt.Errorf("unable to connect to azure event hubs: %v", err)
+		return fmt.Errorf("unable to connect to azure event hubs manager: %v", err)
 	}
 
-	aeh.hub = hub
+	aeh.hubManager = hubManager
 	aeh.ctx, aeh.cancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no backOff properties are set.
@@ -176,9 +177,32 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
+// Establishes a connection object to Event Hub for the specified topic
+func (aeh *AzureEventHubs) GetEventHubForTopic(topic string) (*eventhub.Hub, error) {
+	// Lookup existing connection object for the requested topic
+	if val, ok := aeh.topicHubs[topic]; !ok || val == nil {
+		// No existing connection object found, create a new one
+		hub, _ := eventhub.NewHubFromConnectionString(aeh.metadata.connectionString + ";EntityPath=" + topic)
+		_, err := hub.GetRuntimeInformation(aeh.ctx)
+		if err != nil {
+			return nil, fmt.Errorf("event Hub with Topic Name %v does not exist: %v", topic, err)
+		}
+		// Store the Event Hub connection object for the requested topic for reuse
+		aeh.topicHubs[topic] = hub
+	}
+	hub := aeh.topicHubs[topic]
+
+	return hub, nil
+}
+
 // Publish sends data to Azure Event Hubs
 func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
-	err := aeh.hub.Send(aeh.ctx, &eventhub.Event{Data: req.Data})
+	hub, err := aeh.GetEventHubForTopic(req.Topic)
+	if err != nil {
+		return err
+	}
+
+	err = hub.Send(aeh.ctx, &eventhub.Event{Data: req.Data})
 	if err != nil {
 		return fmt.Errorf("error from publish: %s", err)
 	}
@@ -198,7 +222,12 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 		return err
 	}
 
-	processor, err := eph.NewFromConnectionString(aeh.ctx, aeh.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.consumerGroup))
+	_, err = aeh.GetEventHubForTopic(req.Topic)
+	if err != nil {
+		return err
+	}
+
+	processor, err := eph.NewFromConnectionString(aeh.ctx, aeh.metadata.connectionString+";EntityPath="+req.Topic, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.consumerGroup))
 	if err != nil {
 		return err
 	}
@@ -232,7 +261,13 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 func (aeh *AzureEventHubs) Close() error {
 	aeh.cancel()
 
-	return aeh.hub.Close(aeh.ctx)
+	for _, hub := range aeh.topicHubs {
+		if err := hub.Close(aeh.ctx); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (aeh *AzureEventHubs) Features() []pubsub.Feature {

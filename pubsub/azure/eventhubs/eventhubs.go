@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -51,7 +52,7 @@ const (
 	sysPropIotHubEnqueuedTime         = "iothub-enqueuedtime"
 )
 
-func subscribeHandler(topic string, e *eventhub.Event, handler pubsub.Handler) error {
+func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, handler pubsub.Handler) error {
 	res := pubsub.NewMessage{Data: e.Data, Topic: topic, Metadata: map[string]string{}}
 	if e.SystemProperties.SequenceNumber != nil {
 		res.Metadata[sysPropSequenceNumber] = strconv.FormatInt(*e.SystemProperties.SequenceNumber, 10)
@@ -86,7 +87,7 @@ func subscribeHandler(topic string, e *eventhub.Event, handler pubsub.Handler) e
 		res.Metadata[sysPropIotHubEnqueuedTime] = e.SystemProperties.IoTHubEnqueuedTime.Format(time.RFC3339)
 	}
 
-	return handler(context.Background(), &res)
+	return handler(ctx, &res)
 }
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events
@@ -94,7 +95,10 @@ type AzureEventHubs struct {
 	hub      *eventhub.Hub
 	metadata azureEventHubsMetadata
 
-	logger logger.Logger
+	logger        logger.Logger
+	ctx           context.Context
+	cancel        context.CancelFunc
+	backOffConfig retry.Config
 }
 
 type azureEventHubsMetadata struct {
@@ -159,13 +163,22 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	}
 
 	aeh.hub = hub
+	aeh.ctx, aeh.cancel = context.WithCancel(context.Background())
+
+	// Default retry configuration is used if no backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&aeh.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // Publish sends data to Azure Event Hubs
 func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
-	err := aeh.hub.Send(context.Background(), &eventhub.Event{Data: req.Data})
+	err := aeh.hub.Send(aeh.ctx, &eventhub.Event{Data: req.Data})
 	if err != nil {
 		return fmt.Errorf("error from publish: %s", err)
 	}
@@ -185,20 +198,30 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 		return err
 	}
 
-	processor, err := eph.NewFromConnectionString(context.Background(), aeh.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.consumerGroup))
+	processor, err := eph.NewFromConnectionString(aeh.ctx, aeh.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.consumerGroup))
 	if err != nil {
 		return err
 	}
 
-	_, err = processor.RegisterHandler(context.Background(),
+	_, err = processor.RegisterHandler(aeh.ctx,
 		func(c context.Context, e *eventhub.Event) error {
-			return subscribeHandler(req.Topic, e, handler)
+			b := aeh.backOffConfig.NewBackOffWithContext(aeh.ctx)
+
+			return retry.NotifyRecover(func() error {
+				aeh.logger.Debugf("Processing EventHubs event %s/%s", req.Topic, e.ID)
+
+				return subscribeHandler(aeh.ctx, req.Topic, e, handler)
+			}, b, func(err error, d time.Duration) {
+				aeh.logger.Errorf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
+			}, func() {
+				aeh.logger.Errorf("Successfully processed EventHubs event after it previously failed: %s/%s", req.Topic, e.ID)
+			})
 		})
 	if err != nil {
 		return err
 	}
 
-	err = processor.StartNonBlocking(context.Background())
+	err = processor.StartNonBlocking(aeh.ctx)
 	if err != nil {
 		return err
 	}
@@ -207,7 +230,9 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 }
 
 func (aeh *AzureEventHubs) Close() error {
-	return aeh.hub.Close(context.TODO())
+	aeh.cancel()
+
+	return aeh.hub.Close(aeh.ctx)
 }
 
 func (aeh *AzureEventHubs) Features() []pubsub.Feature {

@@ -90,6 +90,32 @@ func TestParseEtag(t *testing.T) {
 		assert.Equal(t, nil, err, "failed to parse ETag")
 		assert.Equal(t, 0, ver, "version should be 0")
 	})
+	t.Run("Concurrency=FirstWrite", func(t *testing.T) {
+		ver, err := store.parseETag(&state.SetRequest{
+			Options: state.SetStateOption{
+				Concurrency: state.FirstWrite,
+			},
+		})
+		assert.Equal(t, nil, err, "failed to parse Concurrency")
+		assert.Equal(t, 0, ver, "version should be 0")
+
+		// ETag is nil
+		req := &state.SetRequest{
+			Options: state.SetStateOption{},
+		}
+		ver, err = store.parseETag(req)
+		assert.Equal(t, nil, err, "failed to parse Concurrency")
+		assert.Equal(t, 0, ver, "version should be 0")
+
+		// ETag is empty
+		emptyString := ""
+		req = &state.SetRequest{
+			ETag: &emptyString,
+		}
+		ver, err = store.parseETag(req)
+		assert.Equal(t, nil, err, "failed to parse Concurrency")
+		assert.Equal(t, 0, ver, "version should be 0")
+	})
 }
 
 func TestParseTTL(t *testing.T) {

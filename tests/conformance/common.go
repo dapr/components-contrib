@@ -28,12 +28,14 @@ import (
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
+	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -56,6 +58,7 @@ import (
 )
 
 const (
+	eventhubs    = "azure.eventhubs"
 	redis        = "redis"
 	kafka        = "kafka"
 	mqtt         = "mqtt"
@@ -310,6 +313,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	switch tc.Component {
 	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
+	case eventhubs:
+		pubsub = p_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":
@@ -379,6 +384,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case eventhubs:
+		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
@@ -402,6 +409,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case eventhubs:
+		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case mqtt:

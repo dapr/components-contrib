@@ -179,6 +179,8 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	filter := bson.M{id: req.Key}
 	if req.ETag != nil {
 		filter[etag] = *req.ETag
+	} else if req.Options.Concurrency == state.FirstWrite {
+		filter[etag] = uuid.NewString()
 	}
 
 	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}

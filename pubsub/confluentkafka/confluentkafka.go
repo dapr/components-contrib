@@ -1,3 +1,5 @@
+// +build !skip_confluent_kafka
+
 package confluentkafka
 
 import (

@@ -3,6 +3,8 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
+// +build !skip_confluent_kafka
+
 package confluentkafka
 
 import (

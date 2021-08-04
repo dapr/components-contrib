@@ -43,6 +43,7 @@ BINARY_EXT_LOCAL:=.exe
 GOLANGCI_LINT:=golangci-lint.exe
 # Workaround for https://github.com/golang/go/issues/40795
 BUILDMODE:=-buildmode=exe
+TAGS:=-tags skip_confluent_kafka # confluent kafka does not support windows
 else
 BINARY_EXT_LOCAL:=
 GOLANGCI_LINT:=golangci-lint
@@ -53,7 +54,7 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	go test ./... $(COVERAGE_OPTS) $(BUILDMODE) $(TAGS)
 
 ################################################################################
 # Target: lint                                                                 #

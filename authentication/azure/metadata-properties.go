@@ -7,16 +7,31 @@ package azure
 
 // Keys for all metadata properties
 const (
-	CertificateKey         = "spnCertificate"
-	CertificateFileKey     = "spnCertificateFile"
-	CertificatePasswordKey = "spnCertificatePassword"
-	ClientIDKey            = "spnClientId"
-	ClientSecretKey        = "spnClientSecret"
-	TenantIDKey            = "spnTenantId"
+	CertificateKey              = "CERTIFICATE"
+	CertificateKeyAlias         = "spnCertificate"
+	CertificateFileKey          = "CERTIFICATE_FILE"
+	CertificateFileKeyAlias     = "spnCertificateFile"
+	CertificatePasswordKey      = "CERTIFICATE_PASSWORD"
+	CertificatePasswordKeyAlias = "spnCertificatePassword"
+	ClientIDKey                 = "AZURE_CLIENT_ID"
+	ClientIDKeyAlias            = "spnClientId"
+	ClientSecretKey             = "AZURE_CLIENT_SECRET"
+	ClientSecretKeyAlias        = "spnClientSecret"
+	TenantIDKey                 = "AZURE_TENANT_ID"
+	TenantIDKeyAlias            = "spnTenantId"
 	// Identifier for the Azure environment
 	// Allowed values (case-insensitive): AZUREPUBLICCLOUD, AZURECHINACLOUD, AZUREGERMANCLOUD, AZUREUSGOVERNMENTCLOUD
-	AzureEnvironmentKey = "azureEnvironment"
+	AzureEnvironmentKey = "AZURE_ENVIRONMENT"
 )
 
 // Default Azure environment
 const DefaultAzureEnvironment = "AZUREPUBLICCLOUD"
+
+var KeyAliases = map[string]string{
+	CertificateKey:         CertificateKeyAlias,
+	CertificateFileKey:     CertificateFileKeyAlias,
+	CertificatePasswordKey: CertificatePasswordKeyAlias,
+	ClientIDKey:            ClientIDKeyAlias,
+	ClientSecretKey:        ClientSecretKeyAlias,
+	TenantIDKey:            TenantIDKeyAlias,
+}

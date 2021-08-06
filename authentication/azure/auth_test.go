@@ -29,8 +29,8 @@ func TestGetClientCert(t *testing.T) {
 			"azureCertificateFile":     "testfile",
 			"azureCertificate":         "testcert",
 			"azureCertificatePassword": "1234",
-			"azureClientID":            fakeClientID,
-			"azureTenantID":            fakeTenantID,
+			"azureClientId":            fakeClientID,
+			"azureTenantId":            fakeTenantID,
 			"vaultName":                "vaultName",
 		},
 	)

@@ -117,19 +117,9 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
-	p, err := k.getSyncProducer(meta)
-	if err != nil {
-		return err
-	}
-
 	k.brokers = meta.Brokers
-	k.producer = p
 	k.consumerGroup = meta.ConsumerGroup
-
-	if meta.AuthRequired {
-		k.saslUsername = meta.SaslUsername
-		k.saslPassword = meta.SaslPassword
-	}
+	k.authRequired = meta.AuthRequired
 
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_0_0_0
@@ -139,10 +129,17 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	}
 
 	if k.authRequired {
+		k.saslUsername = meta.SaslUsername
+		k.saslPassword = meta.SaslPassword
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
 	}
 
 	k.config = config
+
+	k.producer, err = getSyncProducer(*k.config, k.brokers, meta.MaxMessageBytes)
+	if err != nil {
+		return err
+	}
 
 	k.topics = make(map[string]bool)
 
@@ -346,21 +343,17 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 	return &meta, nil
 }
 
-func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error) {
-	config := sarama.NewConfig()
+func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
+	// Add SyncProducer specific properties to copy of base config
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
 
-	if k.authRequired {
-		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	if maxMessageBytes > 0 {
+		config.Producer.MaxMessageBytes = maxMessageBytes
 	}
 
-	if meta.MaxMessageBytes > 0 {
-		config.Producer.MaxMessageBytes = meta.MaxMessageBytes
-	}
-
-	producer, err := sarama.NewSyncProducer(meta.Brokers, config)
+	producer, err := sarama.NewSyncProducer(brokers, &config)
 	if err != nil {
 		return nil, err
 	}

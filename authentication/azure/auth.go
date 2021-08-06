@@ -147,6 +147,7 @@ func (s EnvironmentSettings) GetMSI() MSIConfig {
 	config := NewMSIConfig(s.Resource)
 	// This is optional and it's ok if value is empty
 	config.ClientID, _ = s.GetEnvironment("ClientID")
+
 	return config
 }
 
@@ -289,5 +290,6 @@ func (s EnvironmentSettings) GetEnvironment(key string) (string, bool) {
 			return val, true
 		}
 	}
+
 	return "", false
 }

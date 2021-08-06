@@ -5,9 +5,10 @@
 
 package azure
 
-// Keys for all metadata properties
-// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
-var MetadataKeys = map[string][]string{
+// MetadataKeys : Keys for all metadata properties
+var MetadataKeys = map[string][]string{ // nolint: gochecknoglobals
+	// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
+
 	// Certificate contains the raw certificate data
 	"Certificate": {"azureCertificate", "spnCertificate"},
 	// Path to a certificate
@@ -19,7 +20,7 @@ var MetadataKeys = map[string][]string{
 	"ClientID": {"azureClientId", "spnClientId", "clientId"},
 	// Client secret for the Service Principal
 	// The "clientSecret" alias is supported for backwards-compatibility as it's used by some components, but should be considered deprecated
-	"ClientSecret": {"azureClientSecret", "spnClientSecret", "clientSecret"}, // nolint: gosec
+	"ClientSecret": {"azureClientSecret", "spnClientSecret", "clientSecret"},
 	// Tenant ID for the Service Principal
 	// The "tenantId" alias is supported for backwards-compatibility as it's used by some components, but should be considered deprecated
 	"TenantID": {"azureTenantId", "spnTenantId", "tenantId"},

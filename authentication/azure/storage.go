@@ -52,6 +52,7 @@ func GetAzureStorageCredentials(log logger.Logger, accountName string, metadata 
 		exp := token.Expires().Sub(time.Now().Add(2 * time.Minute))
 		log.Debug("Received new token, valid for", exp)
 		fmt.Println("Received new token, valid for", exp)
+
 		return exp
 	}
 	credential := azblob.NewTokenCredential("", tokenRefresher)

@@ -34,7 +34,7 @@ type keyvaultSecretStore struct {
 	logger logger.Logger
 }
 
-// NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
+// NewAzureKeyvaultSecretStore returns a new Azure Key Vault secret store
 func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
@@ -43,7 +43,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 	}
 }
 
-// Init creates a Kubernetes client
+// Init creates a Azure Key Vault client
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	settings, err := azauth.NewEnvironmentSettings("keyvault", metadata.Properties)
 	if err != nil {

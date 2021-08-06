@@ -26,12 +26,12 @@ func TestGetClientCert(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
-			CertificateFileKey:     "testfile",
-			CertificateKey:         "testcert",
-			CertificatePasswordKey: "1234",
-			ClientIDKey:            fakeClientID,
-			TenantIDKey:            fakeTenantID,
-			"vaultName":            "vaultName",
+			"azureCertificateFile":     "testfile",
+			"azureCertificate":         "testcert",
+			"azureCertificatePassword": "1234",
+			"azureClientID":            fakeClientID,
+			"azureTenantID":            fakeTenantID,
+			"vaultName":                "vaultName",
 		},
 	)
 	assert.NoError(t, err)
@@ -58,11 +58,11 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
-			CertificateFileKey:     testCertFileName,
-			CertificatePasswordKey: "",
-			ClientIDKey:            fakeClientID,
-			TenantIDKey:            fakeTenantID,
-			"vaultName":            "vaultName",
+			"azureCertificateFile":     testCertFileName,
+			"azureCertificatePassword": "",
+			"azureClientId":            fakeClientID,
+			"azureTenantId":            fakeTenantID,
+			"vaultName":                "vaultName",
 		},
 	)
 	assert.NoError(t, err)
@@ -86,11 +86,11 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		settings, err := NewEnvironmentSettings(
 			"keyvault",
 			map[string]string{
-				CertificateKey:         string(certBytes),
-				CertificatePasswordKey: "",
-				ClientIDKey:            fakeClientID,
-				TenantIDKey:            fakeTenantID,
-				"vaultName":            "vaultName",
+				"azureCertificate":         string(certBytes),
+				"azureCertificatePassword": "",
+				"azureClientId":            fakeClientID,
+				"azureTenantId":            fakeTenantID,
+				"vaultName":                "vaultName",
 			},
 		)
 		assert.NoError(t, err)
@@ -111,11 +111,11 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		settings, err := NewEnvironmentSettings(
 			"keyvault",
 			map[string]string{
-				CertificateKey:         string(certBytes[0:20]),
-				CertificatePasswordKey: "",
-				ClientIDKey:            fakeClientID,
-				TenantIDKey:            fakeTenantID,
-				"vaultName":            "vaultName",
+				"azureCertificate":         string(certBytes[0:20]),
+				"azureCertificatePassword": "",
+				"azureClientId":            fakeClientID,
+				"azureTenantId":            fakeTenantID,
+				"vaultName":                "vaultName",
 			},
 		)
 		assert.NoError(t, err)
@@ -133,8 +133,8 @@ func TestGetMSI(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
-			ClientIDKey: fakeClientID,
-			"vaultName": "vaultName",
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
 	)
 	assert.NoError(t, err)
@@ -149,8 +149,8 @@ func TestFallbackToMSI(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
-			ClientIDKey: fakeClientID,
-			"vaultName": "vaultName",
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
 	)
 	assert.NoError(t, err)
@@ -165,8 +165,8 @@ func TestAuthorizorWithMSI(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
-			ClientIDKey: fakeClientID,
-			"vaultName": "vaultName",
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
 	)
 	assert.NoError(t, err)
@@ -183,8 +183,8 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
-			ClientIDKey: fakeClientID,
-			"vaultName": "vaultName",
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
 	)
 	assert.NoError(t, err)

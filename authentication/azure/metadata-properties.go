@@ -6,32 +6,27 @@
 package azure
 
 // Keys for all metadata properties
-const (
-	CertificateKey              = "CERTIFICATE"
-	CertificateKeyAlias         = "spnCertificate"
-	CertificateFileKey          = "CERTIFICATE_FILE"
-	CertificateFileKeyAlias     = "spnCertificateFile"
-	CertificatePasswordKey      = "CERTIFICATE_PASSWORD"
-	CertificatePasswordKeyAlias = "spnCertificatePassword"
-	ClientIDKey                 = "AZURE_CLIENT_ID"
-	ClientIDKeyAlias            = "spnClientId"
-	ClientSecretKey             = "AZURE_CLIENT_SECRET" // nolint: gosec
-	ClientSecretKeyAlias        = "spnClientSecret"
-	TenantIDKey                 = "AZURE_TENANT_ID"
-	TenantIDKeyAlias            = "spnTenantId"
+// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
+var MetadataKeys = map[string][]string{
+	// Certificate contains the raw certificate data
+	"Certificate": {"azureCertificate", "spnCertificate"},
+	// Path to a certificate
+	"CertificateFile": {"azureCertificateFile", "spnCertificateFile"},
+	// Password for the certificate
+	"CertificatePassword": {"azureCertificatePassword", "spnCertificatePassword"},
+	// Client ID for the Service Principal
+	// The "clientId" alias is supported for backwards-compatibility as it's used by some components, but should be considered deprecated
+	"ClientID": {"azureClientId", "spnClientId", "clientId"},
+	// Client secret for the Service Principal
+	// The "clientSecret" alias is supported for backwards-compatibility as it's used by some components, but should be considered deprecated
+	"ClientSecret": {"azureClientSecret", "spnClientSecret", "clientSecret"}, // nolint: gosec
+	// Tenant ID for the Service Principal
+	// The "tenantId" alias is supported for backwards-compatibility as it's used by some components, but should be considered deprecated
+	"TenantID": {"azureTenantId", "spnTenantId", "tenantId"},
 	// Identifier for the Azure environment
 	// Allowed values (case-insensitive): AZUREPUBLICCLOUD, AZURECHINACLOUD, AZUREGERMANCLOUD, AZUREUSGOVERNMENTCLOUD
-	AzureEnvironmentKey = "AZURE_ENVIRONMENT"
-)
+	"AzureEnvironment": {"azureEnvironment"},
+}
 
 // Default Azure environment
 const DefaultAzureEnvironment = "AZUREPUBLICCLOUD"
-
-var KeyAliases = map[string]string{ // nolint: gochecknoglobals
-	CertificateKey:         CertificateKeyAlias,
-	CertificateFileKey:     CertificateFileKeyAlias,
-	CertificatePasswordKey: CertificatePasswordKeyAlias,
-	ClientIDKey:            ClientIDKeyAlias,
-	ClientSecretKey:        ClientSecretKeyAlias,
-	TenantIDKey:            TenantIDKeyAlias,
-}

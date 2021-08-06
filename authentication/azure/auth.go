@@ -54,7 +54,7 @@ type EnvironmentSettings struct {
 
 // GetAzureEnvironment returns the Azure environment for a given name.
 func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
-	envName, ok := s.Values[AzureEnvironmentKey]
+	envName, ok := s.GetEnvironment("AzureEnvironment")
 	if !ok || envName == "" {
 		envName = DefaultAzureEnvironment
 	}
@@ -106,9 +106,9 @@ func (s EnvironmentSettings) GetClientCredentials() (CredentialsConfig, error) {
 		return CredentialsConfig{}, err
 	}
 
-	clientID, _ := s.GetEnvironmentValueByKeyAndAlias(ClientIDKey)
-	clientSecret, _ := s.GetEnvironmentValueByKeyAndAlias(ClientSecretKey)
-	tenantID, _ := s.GetEnvironmentValueByKeyAndAlias(TenantIDKey)
+	clientID, _ := s.GetEnvironment("ClientID")
+	clientSecret, _ := s.GetEnvironment("ClientSecret")
+	tenantID, _ := s.GetEnvironment("TenantID")
 
 	if clientID == "" || clientSecret == "" || tenantID == "" {
 		return CredentialsConfig{}, errors.New("parameters clientId, clientSecret, and tenantId must all be present")
@@ -127,11 +127,11 @@ func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
 		return CertConfig{}, err
 	}
 
-	certFilePath, certFilePathPresent := s.GetEnvironmentValueByKeyAndAlias(CertificateFileKey)
-	certBytes, certBytesPresent := s.GetEnvironmentValueByKeyAndAlias(CertificateKey)
-	certPassword, _ := s.GetEnvironmentValueByKeyAndAlias(CertificatePasswordKey)
-	clientID, _ := s.GetEnvironmentValueByKeyAndAlias(ClientIDKey)
-	tenantID, _ := s.GetEnvironmentValueByKeyAndAlias(TenantIDKey)
+	certFilePath, certFilePathPresent := s.GetEnvironment("CertificateFile")
+	certBytes, certBytesPresent := s.GetEnvironment("Certificate")
+	certPassword, _ := s.GetEnvironment("CertificatePassword")
+	clientID, _ := s.GetEnvironment("ClientID")
+	tenantID, _ := s.GetEnvironment("TenantID")
 
 	if !certFilePathPresent && !certBytesPresent {
 		return CertConfig{}, fmt.Errorf("missing client certificate")
@@ -145,13 +145,8 @@ func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
 // GetMSI creates a MSI config object from the available client ID.
 func (s EnvironmentSettings) GetMSI() MSIConfig {
 	config := NewMSIConfig(s.Resource)
-	azureEnv, err := s.GetAzureEnvironment()
-	if err != nil {
-		azureEnv = &azure.PublicCloud
-	}
-	config.Resource = azureEnv.ResourceIdentifiers.KeyVault
-	config.ClientID, _ = s.GetEnvironmentValueByKeyAndAlias(ClientIDKey)
-
+	// This is optional and it's ok if value is empty
+	config.ClientID, _ = s.GetEnvironment("ClientID")
 	return config
 }
 
@@ -282,14 +277,17 @@ func (mc MSIConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken, error)
 	return spToken, nil
 }
 
-// GetAzureEnvironment returns the Azure environment for a given name.
-func (s EnvironmentSettings) GetEnvironmentValueByKeyAndAlias(key string) (string, bool) {
-	if val, ok := s.Values[key]; ok {
-		return val, true
+// GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
+func (s EnvironmentSettings) GetEnvironment(key string) (string, bool) {
+	var (
+		val string
+		ok  bool
+	)
+	for _, k := range MetadataKeys[key] {
+		val, ok = s.Values[k]
+		if ok {
+			return val, true
+		}
 	}
-	if val, ok := s.Values[KeyAliases[key]]; ok {
-		return val, true
-	}
-
 	return "", false
 }

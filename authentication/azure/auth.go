@@ -41,6 +41,7 @@ func NewEnvironmentSettings(resourceName string, values map[string]string) (Envi
 	default:
 		return es, errors.New("invalid resource name: " + resourceName)
 	}
+
 	return es, nil
 }
 
@@ -61,6 +62,7 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &env, err
 }
 
@@ -177,6 +179,7 @@ func (c CredentialsConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken,
 	if err != nil {
 		return nil, err
 	}
+
 	return adal.NewServicePrincipalToken(*oauthConfig, c.ClientID, c.ClientSecret, c.Resource)
 }
 
@@ -287,5 +290,6 @@ func (s EnvironmentSettings) GetEnvironmentValueByKeyAndAlias(key string) (strin
 	if val, ok := s.Values[KeyAliases[key]]; ok {
 		return val, true
 	}
+
 	return "", false
 }

@@ -15,7 +15,7 @@ const (
 	CertificatePasswordKeyAlias = "spnCertificatePassword"
 	ClientIDKey                 = "AZURE_CLIENT_ID"
 	ClientIDKeyAlias            = "spnClientId"
-	ClientSecretKey             = "AZURE_CLIENT_SECRET"
+	ClientSecretKey             = "AZURE_CLIENT_SECRET" // nolint: gosec
 	ClientSecretKeyAlias        = "spnClientSecret"
 	TenantIDKey                 = "AZURE_TENANT_ID"
 	TenantIDKeyAlias            = "spnTenantId"
@@ -27,7 +27,7 @@ const (
 // Default Azure environment
 const DefaultAzureEnvironment = "AZUREPUBLICCLOUD"
 
-var KeyAliases = map[string]string{
+var KeyAliases = map[string]string{ // nolint: gochecknoglobals
 	CertificateKey:         CertificateKeyAlias,
 	CertificateFileKey:     CertificateFileKeyAlias,
 	CertificatePasswordKey: CertificatePasswordKeyAlias,

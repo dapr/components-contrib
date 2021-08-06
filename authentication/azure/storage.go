@@ -25,10 +25,11 @@ func GetAzureStorageCredentials(log logger.Logger, accountName string, metadata 
 	// Try using shared key credentials first
 	accountKey, ok := metadata[storageAccountKeyKey]
 	if ok && accountKey != "" {
-		credential, err := azblob.NewSharedKeyCredential(accountName, accountKey)
+		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(accountName, accountKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid credentials with error: %s", err.Error())
+			return nil, nil, fmt.Errorf("invalid credentials with error: %s", newSharedKeyErr.Error())
 		}
+
 		return credential, settings.AzureEnvironment, nil
 	}
 
@@ -54,5 +55,6 @@ func GetAzureStorageCredentials(log logger.Logger, accountName string, metadata 
 		return exp
 	}
 	credential := azblob.NewTokenCredential("", tokenRefresher)
+
 	return credential, settings.AzureEnvironment, nil
 }

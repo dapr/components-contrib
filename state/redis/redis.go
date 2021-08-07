@@ -87,7 +87,7 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
 
-	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
+	if val, ok := meta.Properties[ttlInSeconds]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
 			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)

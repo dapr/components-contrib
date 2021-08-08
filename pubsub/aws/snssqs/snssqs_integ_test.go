@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -147,7 +149,7 @@ func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
 	var dlQueueUrl *sqs.GetQueueUrlOutput
 	dlQueueUrl, err = getQueueUrl(sess, &fixture.deadLettersQueueName)
 	if err != nil {
-		return 
+		return
 	}
 
 	svc.DeleteQueue(&sqs.DeleteQueueInput{
@@ -203,6 +205,7 @@ func snsSqsTest(t *testing.T, sess *session.Session, snssqsClient pubsub.PubSub,
 	return func(t *testing.T) {
 		teardownSqs(t, sess, fixture)
 		teardownSns(t, sess, fixture)
+
 		t.Log("teardown test")
 	}
 }
@@ -232,8 +235,9 @@ func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pub
 		dlQueueURL, err := getQueueUrl(sess, &fixture.deadLettersQueueName)
 		assert.Nil(t, err)
 
+		waitTimeSeconds := int64(10)
 		var output *sqs.ReceiveMessageOutput
-		output, err = sqsSvc.ReceiveMessage(&sqs.ReceiveMessageInput{QueueUrl: dlQueueURL.QueueUrl})
+		output, err = sqsSvc.ReceiveMessage(&sqs.ReceiveMessageInput{QueueUrl: dlQueueURL.QueueUrl, WaitTimeSeconds: &waitTimeSeconds})
 		assert.Nil(t, err)
 		assert.NotNil(t, output.Messages)
 		assert.Len(t, output.Messages, 1)
@@ -246,19 +250,9 @@ func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pub
 }
 
 func TestSnsSqs(t *testing.T) {
+	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	fixtures := []testFixture{
-		{
-			name:                   "with dead letters",
-			region:                 os.Getenv("AWS_DEFAULT_REGION"),
-			accessKey:              os.Getenv("AWS_ACCESS_KEY_ID"),
-			secretKey:              os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			endpoint:               os.Getenv("AWS_ENDPOINT_URL"),
-			profile:                "minio",
-			topicName:              "dapr-sns-test-topic",
-			deadLettersQueueName:   "dapr-sqs-test-deadletters-queue",
-			deadLettersMaxReceives: "1",
-			queueName:              "dapr-sqs-test-queue",
-		},
+
 		{
 			name:      "without dead letters",
 			region:    os.Getenv("AWS_DEFAULT_REGION"),
@@ -266,8 +260,8 @@ func TestSnsSqs(t *testing.T) {
 			secretKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			endpoint:  os.Getenv("AWS_ENDPOINT_URL"),
 			profile:   "minio",
-			topicName: "dapr-sns-test-topic",
-			queueName: "dapr-sqs-test-queue",
+			topicName: fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
+			queueName: fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
 		},
 	}
 
@@ -279,6 +273,20 @@ func TestSnsSqs(t *testing.T) {
 		})
 	}
 
+	timestamp = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	fixtures = []testFixture{{
+		name:                   "with dead letters",
+		region:                 os.Getenv("AWS_DEFAULT_REGION"),
+		accessKey:              os.Getenv("AWS_ACCESS_KEY_ID"),
+		secretKey:              os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		endpoint:               os.Getenv("AWS_ENDPOINT_URL"),
+		profile:                "minio",
+		topicName:              fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
+		deadLettersQueueName:   fmt.Sprintf("dapr-sqs-test-deadletters-queue-%v", timestamp),
+		queueName:              fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
+		deadLettersMaxReceives: "1",
+	}}
+
 	for _, tc := range fixtures {
 		t.Run(tc.name, func(t *testing.T) {
 			client, sess := setupTest(t, &tc)
@@ -287,3 +295,6 @@ func TestSnsSqs(t *testing.T) {
 		})
 	}
 }
+
+// TODO split the above to 2 tests
+// TODO delete subscription not working

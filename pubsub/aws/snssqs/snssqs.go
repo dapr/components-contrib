@@ -511,7 +511,7 @@ func (s *snsSqs) createDeadLettersQueue() (*sqsQueueInfo, error) {
 	return deadLettersQueueInfo, nil
 }
 
-func (s *snsSqs) updateQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo *sqsQueueInfo, sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput) error {
+func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
 	policy := map[string]string{
 		"deadLetterTargetArn": deadLettersQueueInfo.arn,
 		"maxReceiveCount":     strconv.FormatInt(s.metadata.deadLettersMaxReceives, 10),
@@ -521,15 +521,17 @@ func (s *snsSqs) updateQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 	if err != nil {
 		s.logger.Errorf("error marshalling dead-letters queue policy: %v", err)
 
-		return err
+		return nil, err
 	}
 
-	sqsSetQueueAttributesInput.QueueUrl = &queueInfo.url
-	sqsSetQueueAttributesInput.Attributes = map[string]*string{
-		sqs.QueueAttributeNameRedrivePolicy: aws.String(string(b)),
+	sqsSetQueueAttributesInput := &sqs.SetQueueAttributesInput{
+		QueueUrl: &queueInfo.url,
+		Attributes: map[string]*string{
+			sqs.QueueAttributeNameRedrivePolicy: aws.String(string(b)),
+		},
 	}
 
-	return nil
+	return sqsSetQueueAttributesInput, nil
 }
 
 func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -553,7 +555,6 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	}
 
 	var deadLettersQueueInfo *sqsQueueInfo = nil
-	sqsSetQueueAttributesInput := &sqs.SetQueueAttributesInput{}
 
 	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
 		var err error
@@ -564,16 +565,23 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 			return err
 		}
 
-		s.updateQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo, sqsSetQueueAttributesInput)
+		var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
+		sqsSetQueueAttributesInput, err = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
+		if err != nil {
+			s.logger.Errorf("error creatubg queue attributes for dead-letter queue: %v", err)
+
+			return err
+		}
+		_, err = s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
+		if err != nil {
+			s.logger.Errorf("error updating queue attributes with dead-letter queue: %v", err)
+
+			return err
+		}
 	}
 
 	// apply the dead letters queue attributes to the current queue
-	_, aerr := s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
-	if aerr != nil {
-		s.logger.Errorf("error updating queue attributes with dead-letter queue: %v", aerr)
 
-		return aerr
-	}
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
 		Attributes:            nil,

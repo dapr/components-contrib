@@ -567,7 +567,13 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 		s.updateQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo, sqsSetQueueAttributesInput)
 	}
 
-	s.sqsClient.SetQueueAttributesRequest(sqsSetQueueAttributesInput)
+	// apply the dead letters queue attributes to the current queue
+	_, aerr := s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
+	if aerr != nil {
+		s.logger.Errorf("error updating queue attributes with dead-letter queue: %v", aerr)
+
+		return aerr
+	}
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
 		Attributes:            nil,

@@ -135,9 +135,29 @@ func getQueueUrl(sess *session.Session, queueName *string) (*sqs.GetQueueUrlOutp
 	return result, nil
 }
 
+func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
+	svc := sqs.New(sess)
+
+	queueUrl, err := getQueueUrl(sess, &fixture.queueName)
+	_, err = svc.DeleteQueue(&sqs.DeleteQueueInput{
+		QueueUrl: queueUrl.QueueUrl,
+	})
+	assert.Nil(t, err)
+
+	var dlQueueUrl *sqs.GetQueueUrlOutput
+	dlQueueUrl, err = getQueueUrl(sess, &fixture.deadLettersQueueName)
+	if err != nil {
+		return 
+	}
+
+	svc.DeleteQueue(&sqs.DeleteQueueInput{
+		QueueUrl: dlQueueUrl.QueueUrl,
+	})
+}
+
 func teardownSns(t *testing.T, sess *session.Session, fixture *testFixture) {
-	snsSvc := sns.New(sess)
-	result, err := snsSvc.ListTopics(nil)
+	svc := sns.New(sess)
+	result, err := svc.ListTopics(nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, result)
 
@@ -149,7 +169,8 @@ func teardownSns(t *testing.T, sess *session.Session, fixture *testFixture) {
 	lookupTopicArn := fmt.Sprintf("arn:aws:sns:%v:%v:%v", fixture.region, *accountId.Account, fixture.topicName)
 	for _, topic := range result.Topics {
 		if *topic.TopicArn == lookupTopicArn {
-			snsSvc.DeleteTopic(&sns.DeleteTopicInput{TopicArn: topic.TopicArn})
+			_, err = svc.DeleteTopic(&sns.DeleteTopicInput{TopicArn: topic.TopicArn})
+			assert.Nil(t, err)
 		}
 	}
 }
@@ -180,12 +201,7 @@ func snsSqsTest(t *testing.T, sess *session.Session, snssqsClient pubsub.PubSub,
 
 	// tear down callback
 	return func(t *testing.T) {
-		sqsSvc := sqs.New(sess)
-		_, err := sqsSvc.DeleteQueue(&sqs.DeleteQueueInput{
-			QueueUrl: queueURL.QueueUrl,
-		})
-		assert.Nil(t, err)
-
+		teardownSqs(t, sess, fixture)
 		teardownSns(t, sess, fixture)
 		t.Log("teardown test")
 	}
@@ -219,18 +235,10 @@ func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pub
 		var output *sqs.ReceiveMessageOutput
 		output, err = sqsSvc.ReceiveMessage(&sqs.ReceiveMessageInput{QueueUrl: dlQueueURL.QueueUrl})
 		assert.Nil(t, err)
-		assert.NotNil(t, output)
+		assert.NotNil(t, output.Messages)
+		assert.Len(t, output.Messages, 1)
 
-		_, err = sqsSvc.DeleteQueue(&sqs.DeleteQueueInput{
-			QueueUrl: queueURL.QueueUrl,
-		})
-		assert.Nil(t, err)
-
-		_, err = sqsSvc.DeleteQueue(&sqs.DeleteQueueInput{
-			QueueUrl: dlQueueURL.QueueUrl,
-		})
-		assert.Nil(t, err)
-
+		teardownSqs(t, sess, fixture)
 		teardownSns(t, sess, fixture)
 
 		t.Log("teardown test")

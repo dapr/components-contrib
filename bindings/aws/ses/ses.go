@@ -6,14 +6,15 @@
 package ses
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
+	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -26,8 +27,9 @@ const (
 
 // AWSSES is an AWS SNS binding
 type AWSSES struct {
-	metadata sesMetadata
+	metadata *sesMetadata
 	logger   logger.Logger
+	svc      *ses.SES
 }
 
 type sesMetadata struct {
@@ -55,7 +57,12 @@ func (a *AWSSES) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
+	svc, err := a.getClient(meta)
+	if err != nil {
+		return err
+	}
 	a.metadata = meta
+	a.svc = svc
 
 	return nil
 }
@@ -64,27 +71,24 @@ func (a *AWSSES) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AWSSES) parseMetadata(meta bindings.Metadata) (sesMetadata, error) {
-	sesMeta := sesMetadata{}
+func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
+	b, err := json.Marshal(meta.Properties)
+	if err != nil {
+		return nil, err
+	}
+
+	var m sesMetadata
+	err = json.Unmarshal(b, &m)
+	if err != nil {
+		return nil, err
+	}
 
 	if meta.Properties["region"] == "" || meta.Properties["accessKey"] == "" ||
 		meta.Properties["secretKey"] == "" {
-		return sesMeta, errors.New("SES binding error: region, accessKey or secretKey fields are required in metadata")
+		return &m, errors.New("SES binding error: region, accessKey or secretKey fields are required in metadata")
 	}
 
-	sesMeta.Region = meta.Properties["region"]
-	sesMeta.AccessKey = meta.Properties["accessKey"]
-	sesMeta.SecretKey = meta.Properties["secretKey"]
-	sesMeta.SessionToken = meta.Properties["sessionToken"]
-
-	// Optional properties, these can be set on a per request basis
-	sesMeta.EmailTo = meta.Properties["emailTo"]
-	sesMeta.EmailFrom = meta.Properties["emailFrom"]
-	sesMeta.Subject = meta.Properties["subject"]
-	sesMeta.EmailCc = meta.Properties["emailCc"]
-	sesMeta.EmailBcc = meta.Properties["emailBcc"]
-
-	return sesMeta, nil
+	return &m, nil
 }
 
 func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -100,20 +104,9 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		return nil, fmt.Errorf("SES binding error: subject property not supplied in configuration- or request-metadata")
 	}
 
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(metadata.Region),
-		Credentials: credentials.NewStaticCredentials(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("SES binding error: error creating AWS session %w", err)
-	}
-
-	// Create an SES instance
-	svc := ses.New(sess)
-
 	body, err := strconv.Unquote(string(req.Data))
 	if err != nil {
-		return nil, fmt.Errorf("SES binding error: can't unquote data field %w", err)
+		return nil, fmt.Errorf("SES binding error. Can't unquote data field: %w", err)
 	}
 
 	// Assemble the email.
@@ -150,9 +143,9 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	}
 
 	// Attempt to send the email.
-	result, err := svc.SendEmail(input)
+	result, err := a.svc.SendEmail(input)
 	if err != nil {
-		return nil, fmt.Errorf("SES binding error: sending email failed: %w", err)
+		return nil, fmt.Errorf("SES binding error. Sending email failed: %w", err)
 	}
 
 	a.logger.Debug("SES binding: sent email successfully ", result.MessageId)
@@ -185,4 +178,16 @@ func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	}
 
 	return merged
+}
+
+func (a *AWSSES) getClient(metadata *sesMetadata) (*ses.SES, error) {
+	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
+	if err != nil {
+		return nil, fmt.Errorf("SES binding error: error creating AWS session %w", err)
+	}
+
+	// Create an SES instance
+	svc := ses.New(sess)
+
+	return svc, nil
 }

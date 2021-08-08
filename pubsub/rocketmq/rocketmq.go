@@ -63,7 +63,7 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 	err = r.producer.Start()
-	err = r.pushConsumer.Start()
+	//err = r.pushConsumer.Start()
 	return err
 }
 

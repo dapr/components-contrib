@@ -34,7 +34,7 @@ type rocketMQMetaData struct {
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
-	if err := config.Decode(in, s); err != nil {
+	if err := config.Decode(in, &s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 	return nil
@@ -44,7 +44,7 @@ func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) 
 	rMetaData := &rocketMQMetaData{
 		ContentType: pubsub.DefaultCloudEventDataContentType,
 	}
-	err := rMetaData.Decode(metadata)
+	err := rMetaData.Decode(metadata.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("rocketmq configuration error: %w", err)
 	}

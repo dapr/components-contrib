@@ -35,6 +35,10 @@ type StateConfig struct {
 var _ = bindings.InputBinding(&Binding{})
 
 // NewRethinkDBStateChangeBinding returns a new RethinkDB actor event input binding
+func New(logger logger.Logger) *Binding {
+	return NewRethinkDBStateChangeBinding(logger)
+}
+
 func NewRethinkDBStateChangeBinding(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,

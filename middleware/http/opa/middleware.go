@@ -20,6 +20,12 @@ type middlewareMetadata struct {
 }
 
 // NewMiddleware returns a new Open Policy Agent middleware
+func New(logger logger.Logger, metadata middleware.Metadata) func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+	handler, _ := NewMiddleware(logger).GetHandler(metadata)
+
+	return handler
+}
+
 func NewMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }

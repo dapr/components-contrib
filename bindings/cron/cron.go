@@ -26,6 +26,10 @@ type Binding struct {
 var _ = bindings.InputBinding(&Binding{})
 
 // NewCron returns a new Cron event input binding
+func New(logger logger.Logger) *Binding {
+	return NewCron(logger)
+}
+
 func NewCron(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,

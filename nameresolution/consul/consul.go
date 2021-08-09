@@ -66,6 +66,10 @@ type resolverConfig struct {
 }
 
 // NewResolver creates Consul name resolver.
+func New(logger logger.Logger) nr.Resolver {
+	return NewResolver(logger)
+}
+
 func NewResolver(logger logger.Logger) nr.Resolver {
 	return newResolver(logger, resolverConfig{}, &client{})
 }

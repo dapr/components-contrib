@@ -40,6 +40,10 @@ type serviceBusQueuesMetadata struct {
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance
+func New(logger logger.Logger) *AzureServiceBusQueues {
+	return NewAzureServiceBusQueues(logger)
+}
+
 func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
 	return &AzureServiceBusQueues{logger: logger}
 }

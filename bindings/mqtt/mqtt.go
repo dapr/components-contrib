@@ -62,6 +62,10 @@ type MQTT struct {
 }
 
 // NewMQTT returns a new MQTT instance
+func New(logger logger.Logger) *MQTT {
+	return NewMQTT(logger)
+}
+
 func NewMQTT(logger logger.Logger) *MQTT {
 	return &MQTT{logger: logger}
 }

@@ -59,6 +59,10 @@ type mqttPubSub struct {
 }
 
 // NewMQTTPubSub returns a new mqttPubSub instance.
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewMQTTPubSub(logger)
+}
+
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{logger: logger}
 }

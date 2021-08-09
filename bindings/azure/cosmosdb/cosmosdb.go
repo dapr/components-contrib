@@ -34,6 +34,10 @@ type cosmosDBCredentials struct {
 }
 
 // NewCosmosDB returns a new CosmosDB instance
+func New(logger logger.Logger) *CosmosDB {
+	return NewCosmosDB(logger)
+}
+
 func NewCosmosDB(logger logger.Logger) *CosmosDB {
 	return &CosmosDB{logger: logger}
 }

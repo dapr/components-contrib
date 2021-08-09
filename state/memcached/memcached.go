@@ -37,6 +37,10 @@ type memcachedMetadata struct {
 	timeout            time.Duration
 }
 
+func New(logger logger.Logger) *Memcached {
+	return NewMemCacheStateStore(logger)
+}
+
 func NewMemCacheStateStore(logger logger.Logger) *Memcached {
 	s := &Memcached{
 		json:   jsoniter.ConfigFastest,

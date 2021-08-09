@@ -48,6 +48,10 @@ type azureEventGridMetadata struct {
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance
+func New(logger logger.Logger) *AzureEventGrid {
+	return NewAzureEventGrid(logger)
+}
+
 func NewAzureEventGrid(logger logger.Logger) *AzureEventGrid {
 	return &AzureEventGrid{logger: logger}
 }

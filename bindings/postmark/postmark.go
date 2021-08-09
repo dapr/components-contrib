@@ -33,6 +33,10 @@ type postmarkMetadata struct {
 }
 
 // NewPostmark returns a new Postmark bindings instance
+func New(logger logger.Logger) *Postmark {
+	return NewPostmark(logger)
+}
+
 func NewPostmark(logger logger.Logger) *Postmark {
 	return &Postmark{logger: logger}
 }

@@ -69,6 +69,10 @@ type rabbitMQConnectionBroker interface {
 }
 
 // NewRabbitMQ creates a new RabbitMQ pub/sub
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewRabbitMQ(logger)
+}
+
 func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),

@@ -41,6 +41,12 @@ type TokenProviderInterface interface {
 }
 
 // NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware
+func New(logger logger.Logger, metadata middleware.Metadata) func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+	handler, _ := NewOAuth2ClientCredentialsMiddleware(logger).GetHandler(metadata)
+
+	return handler
+}
+
 func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) *Middleware {
 	m := &Middleware{
 		log:        logger,

@@ -44,6 +44,10 @@ type Couchbase struct {
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store
+func New(logger logger.Logger) *Couchbase {
+	return NewCouchbaseStateStore(logger)
+}
+
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
 	s := &Couchbase{
 		json:     jsoniter.ConfigFastest,

@@ -34,6 +34,10 @@ type s3Metadata struct {
 }
 
 // NewAWSS3 returns a new AWSS3 instance
+func New(logger logger.Logger) *AWSS3 {
+	return NewAWSS3(logger)
+}
+
 func NewAWSS3(logger logger.Logger) *AWSS3 {
 	return &AWSS3{logger: logger}
 }

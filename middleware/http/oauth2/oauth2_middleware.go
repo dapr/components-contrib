@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 	"github.com/fasthttp-contrib/sessions"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
@@ -30,6 +31,12 @@ type oAuth2MiddlewareMetadata struct {
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware
+func New(logger logger.Logger, metadata middleware.Metadata) func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+	handler, _ := NewOAuth2Middleware().GetHandler(metadata)
+
+	return handler
+}
+
 func NewOAuth2Middleware() *Middleware {
 	return &Middleware{}
 }

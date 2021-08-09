@@ -41,6 +41,10 @@ type createResponse struct {
 }
 
 // NewLocalStorage returns a new LocalStorage instance
+func New(logger logger.Logger) *LocalStorage {
+	return NewLocalStorage(logger)
+}
+
 func NewLocalStorage(logger logger.Logger) *LocalStorage {
 	return &LocalStorage{logger: logger}
 }

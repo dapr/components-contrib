@@ -33,6 +33,10 @@ type influxMetadata struct {
 }
 
 // NewInflux returns a new kafka binding instance
+func New(logger logger.Logger) *Influx {
+	return NewInflux(logger)
+}
+
 func NewInflux(logger logger.Logger) *Influx {
 	return &Influx{logger: logger}
 }

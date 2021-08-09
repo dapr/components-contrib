@@ -56,6 +56,10 @@ type WhatNow struct {
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewGCPPubSub(logger)
+}
+
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 	return &GCPPubSub{logger: logger}
 }

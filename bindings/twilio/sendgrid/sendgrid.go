@@ -44,6 +44,10 @@ type sendGridRestError struct {
 }
 
 // NewSendGrid returns a new SendGrid bindings instance
+func New(logger logger.Logger) *SendGrid {
+	return NewSendGrid(logger)
+}
+
 func NewSendGrid(logger logger.Logger) *SendGrid {
 	return &SendGrid{logger: logger}
 }

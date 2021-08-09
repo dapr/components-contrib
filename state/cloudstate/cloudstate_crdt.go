@@ -244,6 +244,10 @@ type crdtMetadata struct {
 	serverPort int
 }
 
+func New(logger logger.Logger) *CRDT {
+	return NewCRDT(logger)
+}
+
 func NewCRDT(logger logger.Logger) *CRDT {
 	return &CRDT{
 		json:     jsoniter.ConfigFastest,

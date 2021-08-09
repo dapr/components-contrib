@@ -31,6 +31,10 @@ type Binding struct {
 var _ = bindings.InputBinding(&Binding{})
 
 // NewTwitter returns a new Twitter event input binding
+func New(logger logger.Logger) *Binding {
+	return NewTwitter(logger)
+}
+
 func NewTwitter(logger logger.Logger) *Binding {
 	return &Binding{logger: logger}
 }

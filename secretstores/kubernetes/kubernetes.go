@@ -23,6 +23,10 @@ type kubernetesSecretStore struct {
 }
 
 // NewKubernetesSecretStore returns a new Kubernetes secret store
+func New(logger logger.Logger) secretstores.SecretStore {
+	return NewKubernetesSecretStore(logger)
+}
+
 func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &kubernetesSecretStore{logger: logger}
 }

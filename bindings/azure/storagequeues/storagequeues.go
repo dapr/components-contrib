@@ -149,6 +149,10 @@ type storageQueuesMetadata struct {
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance
+func New(logger logger.Logger) *AzureStorageQueues {
+	return NewAzureStorageQueues(logger)
+}
+
 func NewAzureStorageQueues(logger logger.Logger) *AzureStorageQueues {
 	return &AzureStorageQueues{helper: NewAzureQueueHelper(logger), logger: logger}
 }

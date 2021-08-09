@@ -37,6 +37,10 @@ type httpMetadata struct {
 }
 
 // NewHTTP returns a new HTTPSource
+func New(logger logger.Logger) *HTTPSource {
+	return NewHTTP(logger)
+}
+
 func NewHTTP(logger logger.Logger) *HTTPSource {
 	return &HTTPSource{logger: logger}
 }

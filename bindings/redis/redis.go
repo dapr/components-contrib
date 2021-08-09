@@ -28,6 +28,10 @@ type Redis struct {
 }
 
 // NewRedis returns a new redis bindings instance
+func New(logger logger.Logger) *Redis {
+	return NewRedis(logger)
+}
+
 func NewRedis(logger logger.Logger) *Redis {
 	return &Redis{logger: logger}
 }

@@ -46,6 +46,10 @@ type Aerospike struct {
 }
 
 // NewAerospikeStateStore returns a new Aerospike state store
+func New(logger logger.Logger) state.Store {
+	return NewAerospikeStateStore(logger)
+}
+
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
 	s := &Aerospike{
 		json:     jsoniter.ConfigFastest,

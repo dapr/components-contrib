@@ -22,6 +22,10 @@ const (
 )
 
 // NewSecretManager returns a new secret manager store
+func New(logger logger.Logger) secretstores.SecretStore {
+	return NewSecretManager(logger)
+}
+
 func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
 	return &smSecretStore{logger: logger}
 }

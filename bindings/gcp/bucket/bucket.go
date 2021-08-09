@@ -38,6 +38,10 @@ type gcpMetadata struct {
 }
 
 // NewGCPStorage returns a new GCP storage instance
+func New(logger logger.Logger) *GCPStorage {
+	return NewGCPStorage(logger)
+}
+
 func NewGCPStorage(logger logger.Logger) *GCPStorage {
 	return &GCPStorage{logger: logger}
 }

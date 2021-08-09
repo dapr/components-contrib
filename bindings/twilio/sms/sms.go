@@ -36,6 +36,10 @@ type twilioMetadata struct {
 	timeout    time.Duration
 }
 
+func New(logger logger.Logger) *SMS {
+	return NewSMS(logger)
+}
+
 func NewSMS(logger logger.Logger) *SMS {
 	return &SMS{
 		logger:     logger,

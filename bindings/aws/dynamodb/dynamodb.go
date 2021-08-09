@@ -33,6 +33,10 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDB returns a new DynamoDB instance
+func New(logger logger.Logger) *DynamoDB {
+	return NewDynamoDB(logger)
+}
+
 func NewDynamoDB(logger logger.Logger) *DynamoDB {
 	return &DynamoDB{logger: logger}
 }

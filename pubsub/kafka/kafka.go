@@ -106,6 +106,10 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 }
 
 // NewKafka returns a new kafka pubsub instance
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewKafka(logger)
+}
+
 func NewKafka(l logger.Logger) pubsub.PubSub {
 	return &Kafka{logger: l}
 }

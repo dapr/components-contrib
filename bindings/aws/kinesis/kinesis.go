@@ -76,6 +76,10 @@ type recordProcessor struct {
 }
 
 // NewAWSKinesis returns a new AWS Kinesis instance
+func New(logger logger.Logger) *AWSKinesis {
+	return NewAWSKinesis(logger)
+}
+
 func NewAWSKinesis(logger logger.Logger) *AWSKinesis {
 	return &AWSKinesis{logger: logger}
 }

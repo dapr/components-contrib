@@ -30,6 +30,12 @@ const (
 )
 
 // NewRateLimitMiddleware returns a new oAuth2 middleware
+func New(logger logger.Logger, metadata middleware.Metadata) func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+	handler, _ := NewRateLimitMiddleware(logger).GetHandler(metadata)
+
+	return handler
+}
+
 func NewRateLimitMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }

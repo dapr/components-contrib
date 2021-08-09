@@ -115,6 +115,10 @@ func (a *addressList) next() *string {
 	return &addr.ip
 }
 
+func New(logger logger.Logger) nameresolution.Resolver {
+	return NewResolver(logger)
+}
+
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	r := &resolver{

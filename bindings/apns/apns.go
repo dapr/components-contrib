@@ -55,6 +55,10 @@ type APNS struct {
 }
 
 // NewAPNS will create a new APNS output binding.
+func New(logger logger.Logger) *APNS {
+	return NewAPNS(logger)
+}
+
 func NewAPNS(logger logger.Logger) *APNS {
 	return &APNS{
 		logger: logger,

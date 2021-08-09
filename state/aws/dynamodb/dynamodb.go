@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 	jsoniterator "github.com/json-iterator/go"
 )
 
@@ -29,6 +30,10 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store
+func New(logger logger.Logger) state.Store {
+	return NewDynamoDBStateStore()
+}
+
 func NewDynamoDBStateStore() state.Store {
 	return &StateStore{}
 }

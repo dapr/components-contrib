@@ -54,6 +54,10 @@ type jobHandler struct {
 }
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance
+func New(logger logger.Logger) *ZeebeJobWorker {
+	return NewZeebeJobWorker(logger)
+}
+
 func NewZeebeJobWorker(logger logger.Logger) *ZeebeJobWorker {
 	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
 }

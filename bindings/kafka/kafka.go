@@ -77,6 +77,10 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 }
 
 // NewKafka returns a new kafka binding instance
+func New(logger logger.Logger) *Kafka {
+	return NewKafka(logger)
+}
+
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{logger: logger}
 }

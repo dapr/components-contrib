@@ -77,6 +77,10 @@ type azureServiceBus struct {
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewAzureServiceBus(logger)
+}
+
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:        logger,

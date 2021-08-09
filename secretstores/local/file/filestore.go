@@ -34,6 +34,10 @@ type localSecretStore struct {
 }
 
 // NewLocalSecretStore returns a new Local secret store
+func New(logger logger.Logger) secretstores.SecretStore {
+	return NewLocalSecretStore(logger)
+}
+
 func NewLocalSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &localSecretStore{
 		logger: logger,

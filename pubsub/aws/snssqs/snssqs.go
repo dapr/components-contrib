@@ -65,6 +65,10 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewSnsSqs(logger)
+}
+
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,

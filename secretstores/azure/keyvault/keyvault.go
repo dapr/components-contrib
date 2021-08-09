@@ -43,6 +43,10 @@ type keyvaultSecretStore struct {
 }
 
 // NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
+func New(logger logger.Logger) secretstores.SecretStore {
+	return NewAzureKeyvaultSecretStore(logger)
+}
+
 func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",

@@ -78,6 +78,10 @@ type MySQL struct {
 }
 
 // NewMySQLStateStore creates a new instance of MySQL state store
+func New(logger logger.Logger) *MySQL {
+	return NewMySQLStateStore(logger)
+}
+
 func NewMySQLStateStore(logger logger.Logger) *MySQL {
 	factory := newMySQLFactory(logger)
 

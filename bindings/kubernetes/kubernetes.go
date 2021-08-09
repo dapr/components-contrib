@@ -39,6 +39,10 @@ type EventResponse struct {
 var _ = bindings.InputBinding(&kubernetesInput{})
 
 // NewKubernetes returns a new Kubernetes event input binding
+func New(logger logger.Logger) bindings.InputBinding {
+	return NewKubernetes(logger)
+}
+
 func NewKubernetes(logger logger.Logger) bindings.InputBinding {
 	return &kubernetesInput{logger: logger}
 }

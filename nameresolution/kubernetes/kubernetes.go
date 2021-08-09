@@ -24,6 +24,10 @@ type resolver struct {
 }
 
 // NewResolver creates Kubernetes name resolver.
+func New(logger logger.Logger) nameresolution.Resolver {
+	return NewResolver(logger)
+}
+
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	return &resolver{
 		logger:        logger,

@@ -54,6 +54,10 @@ type StateStore struct {
 	cancel context.CancelFunc
 }
 
+func New(logger logger.Logger) *StateStore {
+	return NewRedisStateStore(logger)
+}
+
 // NewRedisStateStore returns a new redis state store
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{

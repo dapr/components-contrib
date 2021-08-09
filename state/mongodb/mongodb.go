@@ -89,6 +89,10 @@ type Item struct {
 }
 
 // NewMongoDB returns a new MongoDB state store
+func New(logger logger.Logger) *MongoDB {
+	return NewMongoDB(logger)
+}
+
 func NewMongoDB(logger logger.Logger) *MongoDB {
 	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},

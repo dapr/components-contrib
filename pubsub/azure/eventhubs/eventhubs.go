@@ -110,6 +110,10 @@ type azureEventHubsMetadata struct {
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance
+func New(logger logger.Logger) *AzureEventHubs {
+	return NewAzureEventHubs(logger)
+}
+
 func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 	return &AzureEventHubs{logger: logger}
 }

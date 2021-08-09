@@ -46,6 +46,10 @@ type ZeebeCommand struct {
 }
 
 // NewZeebeCommand returns a new ZeebeCommand instance
+func New(logger logger.Logger) *ZeebeCommand {
+	return NewZeebeCommand(logger)
+}
+
 func NewZeebeCommand(logger logger.Logger) *ZeebeCommand {
 	return &ZeebeCommand{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
 }

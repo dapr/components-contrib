@@ -77,6 +77,10 @@ type vaultListKVResponse struct {
 }
 
 // NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store
+func New(logger logger.Logger) secretstores.SecretStore {
+	return NewHashiCorpVaultSecretStore(logger)
+}
+
 func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &vaultSecretStore{
 		client: &http.Client{},

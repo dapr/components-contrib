@@ -45,6 +45,10 @@ type pubSubMetadata struct {
 }
 
 // NewGCPPubSub returns a new GCPPubSub instance
+func New(logger logger.Logger) *GCPPubSub {
+	return NewGCPPubSub(logger)
+}
+
 func NewGCPPubSub(logger logger.Logger) *GCPPubSub {
 	return &GCPPubSub{logger: logger}
 }

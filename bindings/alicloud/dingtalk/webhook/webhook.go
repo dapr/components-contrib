@@ -51,6 +51,10 @@ var webhooks = struct { // nolint: gochecknoglobals
 	m map[string]*outgoingWebhook
 }{m: make(map[string]*outgoingWebhook)}
 
+func New(logger logger.Logger) *DingTalkWebhook {
+	return NewDingTalkWebhook(logger)
+}
+
 func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
 	// See guidance on proper HTTP client settings here:
 	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779

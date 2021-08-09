@@ -30,6 +30,10 @@ const (
 )
 
 // NewSignalR creates a new pub/sub based on Azure SignalR
+func New(logger logger.Logger) *SignalR {
+	return NewSignalR(logger)
+}
+
 func NewSignalR(logger logger.Logger) *SignalR {
 	return &SignalR{
 		tokens:     make(map[string]signalrCachedToken),

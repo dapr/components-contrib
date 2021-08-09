@@ -22,6 +22,12 @@ type bearerMiddlewareMetadata struct {
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware
+func New(logger logger.Logger, metadata middleware.Metadata) func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+	handler, _ := NewBearerMiddleware(logger).GetHandler(metadata)
+
+	return handler
+}
+
 func NewBearerMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }

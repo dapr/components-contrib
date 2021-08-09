@@ -32,6 +32,10 @@ type Pulsar struct {
 	cache         *lru.Cache
 }
 
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewPulsar(logger)
+}
+
 func NewPulsar(l logger.Logger) pubsub.PubSub {
 	return &Pulsar{logger: l}
 }

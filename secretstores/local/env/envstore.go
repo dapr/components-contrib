@@ -18,6 +18,10 @@ type envSecretStore struct {
 }
 
 // NewEnvSecretStore returns a new env var secret store
+func New(logger logger.Logger) secretstores.SecretStore {
+	return NewEnvSecretStore(logger)
+}
+
 func NewEnvSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &envSecretStore{
 		logger: logger,

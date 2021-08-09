@@ -121,6 +121,10 @@ var (
 )
 
 // NewZookeeperStateStore returns a new Zookeeper state store
+func New(logger logger.Logger) *StateStore {
+	return NewZookeeperStateStore(logger)
+}
+
 func NewZookeeperStateStore(logger logger.Logger) *StateStore {
 	return &StateStore{
 		features: []state.Feature{state.FeatureETag},

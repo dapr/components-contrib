@@ -33,6 +33,10 @@ type Hazelcast struct {
 }
 
 // NewHazelcastPubSub returns a new hazelcast pub-sub implementation
+func New(logger logger.Logger) pubsub.PubSub {
+	return NewHazelcastPubSub(logger)
+}
+
 func NewHazelcastPubSub(logger logger.Logger) pubsub.PubSub {
 	return &Hazelcast{logger: logger}
 }

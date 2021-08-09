@@ -1,14 +1,23 @@
 package rocketmq
 
 import (
+	"errors"
 	"fmt"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/config"
 )
 
+var(
+	rocketmqPublishMsgError = errors.New("rocketmq publish msg error")
+	rocketmqValidPublishMsgTypError = errors.New("rocketmq publish msg error, invalid msg type")
+	rocketmqSubscribeTopicError = errors.New("rocketmq subscribe topic failed")
+)
+
+
 const (
 	metadataRocketmqTag           = "rocketmq-tag"
 	metadataRocketmqKey           = "rocketmq-key"
+	metadataRocketmqShardingKey   = "rocketmq-shardingkey"
 	metadataRocketmqConsumerGroup = "rocketmq-consumerGroup"
 	metadataRocketmqType          = "rocketmq-sub-type"
 	metadataRocketmqExpression    = "rocketmq-sub-expression"

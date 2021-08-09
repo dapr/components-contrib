@@ -34,7 +34,9 @@ func TestNewRocketMQ(t *testing.T) {
 		Data:       []byte("hello rocketmq"),
 		PubsubName: "rocketmq",
 		Topic:      "dapr",
-		Metadata:   map[string]string{},
+		Metadata: map[string]string{
+			metadataRocketmqTag: "dapr",
+		},
 	})
 	require.NoError(t, err)
 

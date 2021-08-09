@@ -33,7 +33,9 @@ func TestNewRocketMQ(t *testing.T) {
 		Data:       []byte("hello rocketmq"),
 		PubsubName: "rocketmq",
 		Topic:      "dapr",
-		Metadata: map[string]string{},
+		Metadata: map[string]string{
+			metadataRocketmqTag: "dapr",
+		},
 	})
 	require.NoError(t, err)
 
@@ -46,7 +48,7 @@ func TestNewRocketMQ(t *testing.T) {
 		err = json.NewDecoder(bytes.NewReader(msg.Data)).Decode(&in)
 		require.NoError(t, err)
 
-		fmt.Println("recv: ",in.Data.(string))
+		fmt.Println("recv: ", in.Data.(string))
 
 		atomic.AddInt32(&count, 1)
 
@@ -55,5 +57,5 @@ func TestNewRocketMQ(t *testing.T) {
 	r.Subscribe(pubsub.SubscribeRequest{
 		Topic:    "dapr",
 		Metadata: map[string]string{},
-	},handler)
+	}, handler)
 }

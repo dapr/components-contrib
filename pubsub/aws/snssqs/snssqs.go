@@ -547,7 +547,8 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	}
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID"
-	queueInfo, err := s.getOrCreateQueue(s.metadata.sqsQueueName)
+	var queueInfo *sqsQueueInfo
+	queueInfo, err = s.getOrCreateQueue(s.metadata.sqsQueueName)
 	if err != nil {
 		s.logger.Errorf("error retrieving SQS queue: %v", err)
 

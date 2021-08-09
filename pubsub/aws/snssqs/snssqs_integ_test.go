@@ -86,7 +86,7 @@ func setupTest(t *testing.T, fixture *testFixture) (pubsub.PubSub, *session.Sess
 	return snssqsClient, sess
 }
 
-func getAccountId(sess *session.Session) (*sts.GetCallerIdentityOutput, error) {
+func getAccountID(sess *session.Session) (*sts.GetCallerIdentityOutput, error) {
 	svc := sts.New(sess)
 	input := &sts.GetCallerIdentityInput{}
 
@@ -98,9 +98,9 @@ func getAccountId(sess *session.Session) (*sts.GetCallerIdentityOutput, error) {
 	return result, err
 }
 
-func getQueueUrl(sess *session.Session, queueName *string) (*sqs.GetQueueUrlOutput, error) {
+func getQueueURL(sess *session.Session, queueName *string) (*sqs.GetQueueUrlOutput, error) {
 	// Get the account ID
-	accountResult, aErr := getAccountId(sess)
+	accountResult, aErr := getAccountID(sess)
 	if aErr != nil {
 		return nil, aErr
 	}
@@ -121,17 +121,17 @@ func getQueueUrl(sess *session.Session, queueName *string) (*sqs.GetQueueUrlOutp
 func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
 	svc := sqs.New(sess)
 
-	queueUrl, err := getQueueUrl(sess, &fixture.queueName)
+	queueURL, err := getQueueURL(sess, &fixture.queueName)
 	assert.Nil(t, err)
-	assert.NotNil(t, queueUrl)
+	assert.NotNil(t, queueURL)
 
 	_, err = svc.DeleteQueue(&sqs.DeleteQueueInput{
-		QueueUrl: queueUrl.QueueUrl,
+		QueueUrl: queueURL.QueueUrl,
 	})
 	assert.Nil(t, err)
 
-	var dlQueueUrl *sqs.GetQueueUrlOutput
-	dlQueueUrl, err = getQueueUrl(sess, &fixture.deadLettersQueueName)
+	var dlQueueURL *sqs.GetQueueUrlOutput
+	dlQueueURL, err = getQueueURL(sess, &fixture.deadLettersQueueName)
 	// err would exist if no dead-letter queue exist, which might be the case
 	// in some tests
 	if err != nil {
@@ -139,7 +139,7 @@ func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
 	}
 
 	svc.DeleteQueue(&sqs.DeleteQueueInput{
-		QueueUrl: dlQueueUrl.QueueUrl,
+		QueueUrl: dlQueueURL.QueueUrl,
 	})
 }
 
@@ -149,12 +149,12 @@ func teardownSns(t *testing.T, sess *session.Session, fixture *testFixture) {
 	assert.Nil(t, err)
 	assert.NotNil(t, result)
 
-	var accountId *sts.GetCallerIdentityOutput
-	accountId, err = getAccountId(sess)
+	var accountID *sts.GetCallerIdentityOutput
+	accountID, err = getAccountID(sess)
 	assert.Nil(t, err)
-	assert.NotNil(t, accountId)
+	assert.NotNil(t, accountID)
 
-	lookupTopicArn := fmt.Sprintf("arn:aws:sns:%v:%v:%v", fixture.region, *accountId.Account, fixture.topicName)
+	lookupTopicArn := fmt.Sprintf("arn:aws:sns:%v:%v:%v", fixture.region, *accountID.Account, fixture.topicName)
 	for _, topic := range result.Topics {
 		if *topic.TopicArn == lookupTopicArn {
 			// deletes topic
@@ -182,7 +182,7 @@ func snsSqsTest(t *testing.T, sess *session.Session, snssqsClient pubsub.PubSub,
 	assert.Nil(t, err)
 
 	var queueURL *sqs.GetQueueUrlOutput
-	queueURL, err = getQueueUrl(sess, &fixture.queueName)
+	queueURL, err = getQueueURL(sess, &fixture.queueName)
 	assert.Nil(t, err)
 	assert.NotNil(t, queueURL)
 
@@ -211,7 +211,7 @@ func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pub
 	assert.Nil(t, err)
 
 	var queueURL *sqs.GetQueueUrlOutput
-	queueURL, err = getQueueUrl(sess, &fixture.queueName)
+	queueURL, err = getQueueURL(sess, &fixture.queueName)
 	assert.Nil(t, err)
 	assert.NotNil(t, queueURL)
 
@@ -222,7 +222,7 @@ func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pub
 	// tear down callback
 	return func(t *testing.T) {
 		sqsSvc := sqs.New(sess)
-		dlQueueURL, err := getQueueUrl(sess, &fixture.deadLettersQueueName)
+		dlQueueURL, err := getQueueURL(sess, &fixture.deadLettersQueueName)
 		assert.Nil(t, err)
 
 		waitTimeSeconds := int64(10)
@@ -246,7 +246,7 @@ func TestMain(m *testing.M) {
 
 func TestSnsSqs(t *testing.T) {
 	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	fixtures := []testFixture{
+	fixtures := []*testFixture{
 		{
 			name:      "without dead letters",
 			region:    os.Getenv("AWS_DEFAULT_REGION"),
@@ -262,8 +262,8 @@ func TestSnsSqs(t *testing.T) {
 
 	for _, tc := range fixtures {
 		t.Run(tc.name, func(t *testing.T) {
-			client, sess := setupTest(t, &tc)
-			teardownSnsSqsTest := snsSqsTest(t, sess, client, &tc)
+			client, sess := setupTest(t, tc)
+			teardownSnsSqsTest := snsSqsTest(t, sess, client, tc)
 			defer teardownSnsSqsTest(t)
 		})
 	}
@@ -271,7 +271,7 @@ func TestSnsSqs(t *testing.T) {
 
 func TestSnsSqsWithDLQ(t *testing.T) {
 	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	fixtures := []testFixture{
+	fixtures := []*testFixture{
 		{
 			name:                   "with dead letters",
 			region:                 os.Getenv("AWS_DEFAULT_REGION"),
@@ -289,8 +289,8 @@ func TestSnsSqsWithDLQ(t *testing.T) {
 
 	for _, tc := range fixtures {
 		t.Run(tc.name, func(t *testing.T) {
-			client, sess := setupTest(t, &tc)
-			teardownSnsSqsTest := snsSqsDeadlettersTest(t, sess, client, &tc)
+			client, sess := setupTest(t, tc)
+			teardownSnsSqsTest := snsSqsDeadlettersTest(t, sess, client, tc)
 			defer teardownSnsSqsTest(t)
 		})
 	}

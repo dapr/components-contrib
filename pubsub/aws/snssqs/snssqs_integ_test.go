@@ -32,25 +32,6 @@ type testFixture struct {
 	secretKey              string
 }
 
-func TestMain(m *testing.M) {
-	code := m.Run()
-	os.Exit(code)
-}
-
-func getFixture() *testFixture {
-	return &testFixture{
-		region:                 os.Getenv("AWS_DEFAULT_REGION"),
-		accessKey:              os.Getenv("AWS_ACCESS_KEY_ID"),
-		secretKey:              os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		endpoint:               os.Getenv("AWS_ENDPOINT_URL"),
-		profile:                "minio",
-		topicName:              "dapr-sns-test-topic",
-		deadLettersQueueName:   "dapr-sqs-test-deadletters-queue",
-		deadLettersMaxReceives: "9",
-		queueName:              "dapr-sqs-test-queue",
-	}
-}
-
 func newAWSSession(cfg *testFixture) *session.Session {
 	// run localstack and use the endpoint url: http://localhost:4566 by using the following cmd
 	// SERVICES=sns,sqs,sts DEBUG=1 localstack start
@@ -141,6 +122,9 @@ func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
 	svc := sqs.New(sess)
 
 	queueUrl, err := getQueueUrl(sess, &fixture.queueName)
+	assert.Nil(t, err)
+	assert.NotNil(t, queueUrl)
+
 	_, err = svc.DeleteQueue(&sqs.DeleteQueueInput{
 		QueueUrl: queueUrl.QueueUrl,
 	})
@@ -148,6 +132,8 @@ func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
 
 	var dlQueueUrl *sqs.GetQueueUrlOutput
 	dlQueueUrl, err = getQueueUrl(sess, &fixture.deadLettersQueueName)
+	// err would exist if no dead-letter queue exist, which might be the case
+	// in some tests
 	if err != nil {
 		return
 	}
@@ -171,6 +157,10 @@ func teardownSns(t *testing.T, sess *session.Session, fixture *testFixture) {
 	lookupTopicArn := fmt.Sprintf("arn:aws:sns:%v:%v:%v", fixture.region, *accountId.Account, fixture.topicName)
 	for _, topic := range result.Topics {
 		if *topic.TopicArn == lookupTopicArn {
+			// deletes topic
+			// currently there is a bug in aws-go-sdk that results in the subscription not being
+			// deleted along with the topic (as should be) so the subscription needs
+			// to be manually deleted
 			_, err = svc.DeleteTopic(&sns.DeleteTopicInput{TopicArn: topic.TopicArn})
 			assert.Nil(t, err)
 		}
@@ -249,20 +239,25 @@ func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pub
 	}
 }
 
+func TestMain(m *testing.M) {
+	code := m.Run()
+	os.Exit(code)
+}
+
 func TestSnsSqs(t *testing.T) {
 	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	fixtures := []testFixture{
-
 		{
 			name:      "without dead letters",
 			region:    os.Getenv("AWS_DEFAULT_REGION"),
 			accessKey: os.Getenv("AWS_ACCESS_KEY_ID"),
 			secretKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			endpoint:  os.Getenv("AWS_ENDPOINT_URL"),
-			profile:   "minio",
+			profile:   os.Getenv("AWS_PROFILE"),
 			topicName: fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
 			queueName: fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
 		},
+		// expand to other fixtures if needed
 	}
 
 	for _, tc := range fixtures {
@@ -272,20 +267,25 @@ func TestSnsSqs(t *testing.T) {
 			defer teardownSnsSqsTest(t)
 		})
 	}
+}
 
-	timestamp = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	fixtures = []testFixture{{
-		name:                   "with dead letters",
-		region:                 os.Getenv("AWS_DEFAULT_REGION"),
-		accessKey:              os.Getenv("AWS_ACCESS_KEY_ID"),
-		secretKey:              os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		endpoint:               os.Getenv("AWS_ENDPOINT_URL"),
-		profile:                "minio",
-		topicName:              fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
-		deadLettersQueueName:   fmt.Sprintf("dapr-sqs-test-deadletters-queue-%v", timestamp),
-		queueName:              fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
-		deadLettersMaxReceives: "1",
-	}}
+func TestSnsSqsWithDLQ(t *testing.T) {
+	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	fixtures := []testFixture{
+		{
+			name:                   "with dead letters",
+			region:                 os.Getenv("AWS_DEFAULT_REGION"),
+			accessKey:              os.Getenv("AWS_ACCESS_KEY_ID"),
+			secretKey:              os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			endpoint:               os.Getenv("AWS_ENDPOINT_URL"),
+			profile:                os.Getenv("AWS_PROFILE"),
+			topicName:              fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
+			deadLettersQueueName:   fmt.Sprintf("dapr-sqs-test-deadletters-queue-%v", timestamp),
+			queueName:              fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
+			deadLettersMaxReceives: "1",
+		},
+		// expand to other fixtures if needed
+	}
 
 	for _, tc := range fixtures {
 		t.Run(tc.name, func(t *testing.T) {
@@ -295,6 +295,3 @@ func TestSnsSqs(t *testing.T) {
 		})
 	}
 }
-
-// TODO split the above to 2 tests
-// TODO delete subscription not working

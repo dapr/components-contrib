@@ -24,6 +24,8 @@ steps:
       import requests
       import sys
       from ghapi.all import GhApi, paged
+      from requests.adapters import HTTPAdapter
+      from requests.packages.urllib3.util.retry import Retry
 
       # Input parameters are expected to be defined as pipeline variables with empty values
       # If variables are not defined, pipeline engine treats `$(name)` as string literals.
@@ -38,6 +40,11 @@ steps:
 
       print('Downloading test artifacts for {} workflow run {}'.format(repo_name, run_id))
 
+      retries = Retry(connect=5, backoff_factor=1)
+      adapter = HTTPAdapter(max_retries=retries)
+      http = requests.Session()
+      http.mount("https://", adapter)
+
       repo_segments = repo_name.split('/')
       api = GhApi(owner=repo_segments[0], repo=repo_segments[1])
 
@@ -49,7 +56,7 @@ steps:
               print("Downloading artifact: {} from {}".format(artifact.name, artifact.archive_download_url))
               filename = f"$(System.DefaultWorkingDirectory)/{artifact.name}.zip"
               headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}"}
-              response = requests.get(artifact.archive_download_url, headers=headers)
+              response = http.get(artifact.archive_download_url, headers=headers)
               if response.status_code == 200:
                   with open(filename, "wb") as fh:
                       fh.write(response.content)

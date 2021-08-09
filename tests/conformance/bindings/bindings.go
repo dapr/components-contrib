@@ -7,6 +7,7 @@ package bindings
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -157,7 +158,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 					return nil, nil
 				})
-				assert.ErrorIsf(t, err, context.Canceled, "expected Read canceled on Close")
+				assert.True(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close")
 			}()
 		})
 		// Special case for message brokers that are also bindings

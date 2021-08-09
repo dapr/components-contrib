@@ -9,10 +9,6 @@
 ## checkInOrderProcessing: false disables in-order message processing checking
 componentType: pubsub
 components:
-  - component: azure.eventhubs
-    allOperations: true
-    config:
-      checkInOrderProcessing: false
   - component: azure.servicebus
     allOperations: true
     config:

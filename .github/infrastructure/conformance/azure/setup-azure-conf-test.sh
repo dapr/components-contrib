@@ -154,9 +154,6 @@ EVENT_GRID_TOPIC_ENDPOINT_VAR_NAME="AzureEventGridTopicEndpoint"
 EVENT_HUBS_BINDINGS_CONNECTION_STRING_VAR_NAME="AzureEventHubsBindingsConnectionString"
 EVENT_HUBS_BINDINGS_CONSUMER_GROUP_VAR_NAME="AzureEventHubsBindingsConsumerGroup"
 EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME="AzureEventHubsBindingsContainer"
-EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubConnectionString"
-EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureEventHubsPubsubConsumerGroup"
-EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME="AzureEventHubsPubsubContainer"
 
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
@@ -229,12 +226,6 @@ EVENT_HUB_BINDINGS_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}"
 echo "INFO: EVENT_HUB_BINDINGS_POLICY_NAME=${EVENT_HUB_BINDINGS_POLICY_NAME}"
 EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME=${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME}"
-EVENT_HUB_PUBSUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubName.value" | sed -E 's/[[:space:]]|\"//g')"
-echo "INFO: EVENT_HUB_PUBSUB_NAME=${EVENT_HUB_PUBSUB_NAME}"
-EVENT_HUB_PUBSUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubPolicyName.value" | sed -E 's/[[:space:]]|\"//g')"
-echo "INFO: EVENT_HUB_PUBSUB_POLICY_NAME=${EVENT_HUB_PUBSUB_POLICY_NAME}"
-EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
-echo "INFO: EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME=${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -425,17 +416,6 @@ az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_VAR_NAME}" -
 EVENT_HUBS_BINDINGS_CONTAINER_NAME="${PREFIX}-eventhubs-bindings-container"
 echo export ${EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_BINDINGS_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_BINDINGS_CONTAINER_NAME}"
-
-EVENT_HUBS_PUBSUB_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_PUBSUB_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_PUBSUB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
-echo export ${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
-az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONNECTION_STRING}"
-
-echo export ${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
-az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
-
-EVENT_HUBS_PUBSUB_CONTAINER_NAME="${PREFIX}-eventhubs-pubsub-container"
-echo export ${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
-az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONTAINER_NAME}"
 
 echo "INFO: setup-azure-conf-test completed."
 echo "INFO: Remember to \`source ${ENV_CONFIG_FILENAME}\` before running local conformance tests."

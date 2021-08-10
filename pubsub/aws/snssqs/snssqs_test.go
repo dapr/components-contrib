@@ -9,6 +9,7 @@ import (
 )
 
 func Test_parseTopicArn(t *testing.T) {
+	t.Parallel()
 	// no further guarantees are made about this function
 	r := require.New(t)
 	r.Equal("qqnoob", parseTopicArn("arn:aws:sqs:us-east-1:000000000000:qqnoob"))
@@ -16,6 +17,7 @@ func Test_parseTopicArn(t *testing.T) {
 
 // Verify that all metadata ends up in the correct spot
 func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -51,6 +53,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -80,6 +83,7 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -108,6 +112,7 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -130,6 +135,7 @@ func Test_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -152,6 +158,7 @@ func Test_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -174,6 +181,7 @@ func Test_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -196,6 +204,7 @@ func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T) {
 }
 
 func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
@@ -218,6 +227,7 @@ func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) {
 }
 
 func Test_parseInt64(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	number, err := parseInt64("applesauce", "propertyName")
 	r.EqualError(err, "parsing propertyName failed with: strconv.Atoi: parsing \"applesauce\": invalid syntax")
@@ -235,6 +245,7 @@ func Test_parseInt64(t *testing.T) {
 }
 
 func Test_replaceNameToAWSSanitizedName(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 
 	s := `Some_invalid-name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid 

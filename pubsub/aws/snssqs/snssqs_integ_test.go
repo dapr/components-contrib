@@ -37,6 +37,28 @@ type testFixture struct {
 	queueName              string
 	accessKey              string
 	secretKey              string
+	sessionToken           string
+}
+
+func getDefaultTestFixture(withDLQ bool, dlqMaxReceives ...string) *testFixture {
+	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	fixture := &testFixture{
+		region:       os.Getenv("AWS_DEFAULT_REGION"),
+		accessKey:    os.Getenv("AWS_ACCESS_KEY_ID"),
+		secretKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		endpoint:     os.Getenv("AWS_ENDPOINT_URL"),
+		profile:      os.Getenv("AWS_PROFILE"),
+		sessionToken: os.Getenv("AWS_SESSION_TOKEN"),
+		topicName:    fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
+		queueName:    fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
+	}
+	if withDLQ {
+		fixture.deadLettersQueueName = fmt.Sprintf("dapr-sqs-test-deadletters-queue-%v", timestamp)
+	}
+	if len(dlqMaxReceives) > 0 {
+		fixture.deadLettersMaxReceives = dlqMaxReceives[0]
+	}
+	return fixture
 }
 
 func newAWSSession(cfg *testFixture) *session.Session {
@@ -71,11 +93,12 @@ func setupTest(t *testing.T, fixture *testFixture) (pubsub.PubSub, *session.Sess
 	assert.NotNil(t, snssqsClient)
 
 	props := map[string]string{
-		"region":     fixture.region,
-		"accessKey":  fixture.accessKey,
-		"secretKey":  fixture.secretKey,
-		"endpoint":   fixture.endpoint,
-		"consumerID": fixture.queueName,
+		"region":       fixture.region,
+		"accessKey":    fixture.accessKey,
+		"secretKey":    fixture.secretKey,
+		"endpoint":     fixture.endpoint,
+		"sessionToken": fixture.sessionToken,
+		"consumerID":   fixture.queueName,
 	}
 
 	if len(fixture.deadLettersQueueName) > 0 {
@@ -196,6 +219,8 @@ func snsSqsTest(t *testing.T, sess client.ConfigProvider, snssqsClient pubsub.Pu
 	publishReq := &pubsub.PublishRequest{Topic: fixture.topicName, PubsubName: "test", Data: []byte("string")}
 	err = snssqsClient.Publish(publishReq)
 	assert.Nil(t, err)
+	// delay between send/recv in sqs
+	time.Sleep(5 * time.Second)
 	assert.Len(t, msgs, 1)
 
 	// tear down callback
@@ -252,53 +277,34 @@ func TestMain(m *testing.M) {
 }
 
 func TestSnsSqs(t *testing.T) {
-	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	fixtures := []*testFixture{
-		{
-			name:      "without dead letters",
-			region:    os.Getenv("AWS_DEFAULT_REGION"),
-			accessKey: os.Getenv("AWS_ACCESS_KEY_ID"),
-			secretKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			endpoint:  os.Getenv("AWS_ENDPOINT_URL"),
-			profile:   os.Getenv("AWS_PROFILE"),
-			topicName: fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
-			queueName: fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
-		},
-		// expand to other fixtures if needed
-	}
+	t.Parallel()
 
-	for _, tc := range fixtures {
-		t.Run(tc.name, func(t *testing.T) {
-			client, sess := setupTest(t, tc)
-			teardownSnsSqsTest := snsSqsTest(t, sess, client, tc)
-			defer teardownSnsSqsTest(t)
-		})
+	fixture := getDefaultTestFixture(false)
+	if (len(fixture.accessKey) == 0 && len(fixture.secretKey) == 0) && len(fixture.sessionToken) == 0 {
+		t.Skip(
+			`environment variables of either AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY 
+			or AWS_SESSION_TOKEN must be set in order to run these integration
+			tests
+			`)
 	}
+	client, sess := setupTest(t, fixture)
+	teardownSnsSqsTest := snsSqsTest(t, sess, client, fixture)
+	defer teardownSnsSqsTest(t)
+
 }
 
 func TestSnsSqsWithDLQ(t *testing.T) {
-	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	fixtures := []*testFixture{
-		{
-			name:                   "with dead letters",
-			region:                 os.Getenv("AWS_DEFAULT_REGION"),
-			accessKey:              os.Getenv("AWS_ACCESS_KEY_ID"),
-			secretKey:              os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			endpoint:               os.Getenv("AWS_ENDPOINT_URL"),
-			profile:                os.Getenv("AWS_PROFILE"),
-			topicName:              fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
-			deadLettersQueueName:   fmt.Sprintf("dapr-sqs-test-deadletters-queue-%v", timestamp),
-			queueName:              fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
-			deadLettersMaxReceives: "1",
-		},
-		// expand to other fixtures if needed
-	}
+	t.Parallel()
 
-	for _, tc := range fixtures {
-		t.Run(tc.name, func(t *testing.T) {
-			client, sess := setupTest(t, tc)
-			teardownSnsSqsTest := snsSqsDeadlettersTest(t, sess, client, tc)
-			defer teardownSnsSqsTest(t)
-		})
+	fixture := getDefaultTestFixture(true, "1")
+	if (len(fixture.accessKey) == 0 && len(fixture.secretKey) == 0) && len(fixture.sessionToken) == 0 {
+		t.Skip(
+			`environment variables of either AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY 
+			or AWS_SESSION_TOKEN must be set in order to run these integration
+			tests
+			`)
 	}
+	client, sess := setupTest(t, fixture)
+	teardownSnsSqsTest := snsSqsDeadlettersTest(t, sess, client, fixture)
+	defer teardownSnsSqsTest(t)
 }

@@ -426,7 +426,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 	// if we are over the allowable retry limit, and there is no dead-letters queue, delete the message from the queue.
 	if deadLettersQueueInfo == nil && recvCountInt >= s.metadata.messageRetryLimit {
 		if innerErr := s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle); innerErr != nil {
-			return fmt.Errorf("error acknowledging message after receiving the message too many times: %v", innerErr)
+			return fmt.Errorf("error acknowledging message after receiving the message too many times: %w", innerErr)
 		}
 
 		return fmt.Errorf(

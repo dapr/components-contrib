@@ -24,12 +24,13 @@ import (
 )
 
 const (
-	setQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if type(var1) == \"table\" then redis.call(\"DEL\", KEYS[1]); end; if not var1 or type(var1)==\"table\" or var1 == \"\" or var1 == ARGV[1] or ARGV[1] == \"0\" then redis.call(\"HSET\", KEYS[1], \"data\", ARGV[2]) return redis.call(\"HINCRBY\", KEYS[1], \"version\", 1) else return error(\"failed to set key \" .. KEYS[1]) end"
+	setQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if type(var1) == \"table\" then redis.call(\"DEL\", KEYS[1]); end; local var2 = redis.pcall(\"HGET\", KEYS[1], \"first-write\"); if not var1 or type(var1)==\"table\" or var1 == \"\" or var1 == ARGV[1] or (not var2 and ARGV[1] == \"0\") then redis.call(\"HSET\", KEYS[1], \"data\", ARGV[2]); if ARGV[3] == \"0\" then redis.call(\"HSET\", KEYS[1], \"first-write\", 0); end; return redis.call(\"HINCRBY\", KEYS[1], \"version\", 1) else return error(\"failed to set key \" .. KEYS[1]) end"
 	delQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if not var1 or type(var1)==\"table\" or var1 == ARGV[1] or var1 == \"\" or ARGV[1] == \"0\" then return redis.call(\"DEL\", KEYS[1]) else return error(\"failed to delete \" .. KEYS[1]) end"
 	connectedSlavesReplicas  = "connected_slaves:"
 	infoReplicationDelimiter = "\r\n"
 	maxRetries               = "maxRetries"
 	maxRetryBackoff          = "maxRetryBackoff"
+	ttlInSeconds             = "ttlInSeconds"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
@@ -84,6 +85,17 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
 		}
 		m.maxRetryBackoff = time.Duration(parsedVal)
+	}
+
+	if val, ok := meta.Properties[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)
+		}
+		intVal := int(parsedVal)
+		m.ttlInSeconds = &intVal
+	} else {
+		m.ttlInSeconds = nil
 	}
 
 	return m, nil
@@ -230,16 +242,42 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
+	ttl, err := r.parseTTL(req)
+	if err != nil {
+		return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+	}
+	// apply global TTL
+	if ttl == nil {
+		ttl = r.metadata.ttlInSeconds
+	}
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
-	_, err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt).Result()
+	firstWrite := 1
+	if req.Options.Concurrency == state.FirstWrite {
+		firstWrite = 0
+	}
+	_, err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Result()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
+	}
+
+	if ttl != nil && *ttl > 0 {
+		_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		if err != nil {
+			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
+		}
+	}
+
+	if ttl != nil && *ttl <= 0 {
+		_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
+		if err != nil {
+			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
+		}
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
@@ -261,14 +299,30 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
+		//nolint:golint,nestif
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			ver, err := r.parseETag(&req)
 			if err != nil {
 				return err
 			}
+			ttl, err := r.parseTTL(&req)
+			if err != nil {
+				return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+			}
+			// apply global TTL
+			if ttl == nil {
+				ttl = r.metadata.ttlInSeconds
+			}
+
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
+			if ttl != nil && *ttl > 0 {
+				pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
+			}
+			if ttl != nil && *ttl <= 0 {
+				pipe.Do(r.ctx, "PERSIST", req.Key)
+			}
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			if req.ETag == nil {
@@ -307,7 +361,7 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 }
 
 func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
-	if req.Options.Concurrency == state.LastWrite || req.ETag == nil || (req.ETag != nil && *req.ETag == "") {
+	if req.Options.Concurrency == state.LastWrite || req.ETag == nil || *req.ETag == "" {
 		return 0, nil
 	}
 	ver, err := strconv.Atoi(*req.ETag)
@@ -316,6 +370,20 @@ func (r *StateStore) parseETag(req *state.SetRequest) (int, error) {
 	}
 
 	return ver, nil
+}
+
+func (r *StateStore) parseTTL(req *state.SetRequest) (*int, error) {
+	if val, ok := req.Metadata[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return nil, err
+		}
+		ttl := int(parsedVal)
+
+		return &ttl, nil
+	}
+
+	return nil, nil
 }
 
 func (r *StateStore) Close() error {

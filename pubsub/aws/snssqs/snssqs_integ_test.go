@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sns"
@@ -86,7 +87,7 @@ func setupTest(t *testing.T, fixture *testFixture) (pubsub.PubSub, *session.Sess
 	return snssqsClient, sess
 }
 
-func getAccountID(sess *session.Session) (*sts.GetCallerIdentityOutput, error) {
+func getAccountID(sess client.ConfigProvider) (*sts.GetCallerIdentityOutput, error) {
 	svc := sts.New(sess)
 	input := &sts.GetCallerIdentityInput{}
 
@@ -98,7 +99,7 @@ func getAccountID(sess *session.Session) (*sts.GetCallerIdentityOutput, error) {
 	return result, err
 }
 
-func getQueueURL(sess *session.Session, queueName *string) (*sqs.GetQueueUrlOutput, error) {
+func getQueueURL(sess client.ConfigProvider, queueName *string) (*sqs.GetQueueUrlOutput, error) {
 	// Get the account ID
 	accountResult, aErr := getAccountID(sess)
 	if aErr != nil {
@@ -118,7 +119,7 @@ func getQueueURL(sess *session.Session, queueName *string) (*sqs.GetQueueUrlOutp
 	return result, nil
 }
 
-func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
+func teardownSqs(t *testing.T, sess client.ConfigProvider, fixture *testFixture) {
 	svc := sqs.New(sess)
 
 	queueURL, err := getQueueURL(sess, &fixture.queueName)
@@ -143,7 +144,7 @@ func teardownSqs(t *testing.T, sess *session.Session, fixture *testFixture) {
 	})
 }
 
-func teardownSns(t *testing.T, sess *session.Session, fixture *testFixture) {
+func teardownSns(t *testing.T, sess client.ConfigProvider, fixture *testFixture) {
 	svc := sns.New(sess)
 	result, err := svc.ListTopics(nil)
 	assert.Nil(t, err)
@@ -167,11 +168,11 @@ func teardownSns(t *testing.T, sess *session.Session, fixture *testFixture) {
 	}
 }
 
-func snsSqsTest(t *testing.T, sess *session.Session, snssqsClient pubsub.PubSub, fixture *testFixture) func(t *testing.T) {
+func snsSqsTest(t *testing.T, sess client.ConfigProvider, snssqsClient pubsub.PubSub, fixture *testFixture) func(t *testing.T) {
 	// subscriber registers to listen to (SNS) topic which eventually land on the fixture.queueName
 	// over (SQS) queue
 	req := pubsub.SubscribeRequest{Topic: fixture.topicName}
-	msgs := make([]*pubsub.NewMessage, 1)
+	msgs := []*pubsub.NewMessage{}
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		msgs = append(msgs, msg)
 
@@ -200,7 +201,7 @@ func snsSqsTest(t *testing.T, sess *session.Session, snssqsClient pubsub.PubSub,
 	}
 }
 
-func snsSqsDeadlettersTest(t *testing.T, sess *session.Session, snssqsClient pubsub.PubSub, fixture *testFixture) func(t *testing.T) {
+func snsSqsDeadlettersTest(t *testing.T, sess client.ConfigProvider, snssqsClient pubsub.PubSub, fixture *testFixture) func(t *testing.T) {
 	// subscriber's handlers always fails to process message forcing dead letters queue to
 	req := pubsub.SubscribeRequest{Topic: fixture.topicName}
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {

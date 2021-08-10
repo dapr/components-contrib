@@ -91,7 +91,7 @@ func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, boo
 func parseInt64(input string, propertyName string) (int64, error) {
 	number, err := strconv.Atoi(input)
 	if err != nil {
-		return -1, fmt.Errorf("parsing %s failed with: %v", propertyName, err)
+		return -1, fmt.Errorf("parsing %s failed with: %w", propertyName, err)
 	}
 
 	return int64(number), nil
@@ -444,7 +444,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
 	if err != nil {
-		return fmt.Errorf("error unmarshalling message: %v", err)
+		return fmt.Errorf("error unmarshalling message: %w", err)
 	}
 
 	topic := parseTopicArn(messageBody.TopicArn)
@@ -455,7 +455,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 	})
 
 	if err != nil {
-		return fmt.Errorf("error handling message: %v", err)
+		return fmt.Errorf("error handling message: %w", err)
 	}
 
 	// otherwise, there was no error, acknowledge the message
@@ -555,29 +555,28 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 		return err
 	}
 
-	var deadLettersQueueInfo *sqsQueueInfo = nil
-
+	var deadLettersQueueInfo *sqsQueueInfo
 	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
-		var err error
-		deadLettersQueueInfo, err = s.createDeadLettersQueue()
-		if err != nil {
-			s.logger.Errorf("error creating dead-letter queue: %v", err)
+		var derr error
+		deadLettersQueueInfo, derr = s.createDeadLettersQueue()
+		if derr != nil {
+			s.logger.Errorf("error creating dead-letter queue: %v", derr)
 
-			return err
+			return derr
 		}
 
 		var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
-		sqsSetQueueAttributesInput, err = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
-		if err != nil {
-			s.logger.Errorf("error creatubg queue attributes for dead-letter queue: %v", err)
+		sqsSetQueueAttributesInput, derr = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
+		if derr != nil {
+			s.logger.Errorf("error creatubg queue attributes for dead-letter queue: %v", derr)
 
-			return err
+			return derr
 		}
-		_, err = s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
-		if err != nil {
-			s.logger.Errorf("error updating queue attributes with dead-letter queue: %v", err)
+		_, derr = s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
+		if derr != nil {
+			s.logger.Errorf("error updating queue attributes with dead-letter queue: %v", derr)
 
-			return err
+			return derr
 		}
 	}
 

@@ -35,7 +35,6 @@ import (
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
-	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -313,8 +312,6 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	switch tc.Component {
 	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
-	case eventhubs:
-		pubsub = p_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":

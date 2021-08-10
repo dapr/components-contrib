@@ -58,6 +58,8 @@ func (v valueType) isMapType() bool {
 	return v == valueTypeMap
 }
 
+var NotFound = errors.New("secret key or version not exist")
+
 // vaultSecretStore is a secret store implementation for HashiCorp Vault
 type vaultSecretStore struct {
 	client              *http.Client
@@ -203,7 +205,9 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 
 	defer httpresp.Body.Close()
 
-	if httpresp.StatusCode != 200 {
+	if httpresp.StatusCode == 404 {
+		return nil, fmt.Errorf("getSecret %s failed %w", secret, NotFound)
+	} else if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 
@@ -255,6 +259,9 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
 func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	version := "0"
+	if value, ok := req.Metadata[versionID]; ok {
+		version = value
+	}
 
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},
@@ -269,6 +276,10 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 		keyValues := map[string]string{}
 		secrets, err := v.getSecret(key, version)
 		if err != nil {
+			if errors.Is(err, NotFound) {
+				// version not exist skip
+				continue
+			}
 			return secretstores.BulkGetSecretResponse{Data: nil}, err
 		}
 
@@ -288,9 +299,14 @@ func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	var vaultSecretsPathAddr string
 
 	// Create list secrets url
-	vaultSecretsPathAddr := fmt.Sprintf("%s/v1/%s/metadata/%s/%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, path)
+	if v.vaultKVPrefix == "" {
+		vaultSecretsPathAddr = fmt.Sprintf("%s/v1/%s/metadata/%s", v.vaultAddress, v.vaultEnginePath, path)
+	} else {
+		vaultSecretsPathAddr = fmt.Sprintf("%s/v1/%s/metadata/%s/%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, path)
+	}
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), "LIST", vaultSecretsPathAddr, nil)
 	if err != nil {

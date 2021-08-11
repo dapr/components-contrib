@@ -17,7 +17,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -296,10 +295,9 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	msg := azservicebus.NewMessage(req.Data)
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
-	if hasTTL {
-		msg.TTL = &ttl
+	msg, err := NewMessageFromRequest(req)
+	if err != nil {
+		return err
 	}
 
 	return a.doPublish(sender, msg)

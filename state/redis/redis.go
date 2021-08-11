@@ -87,6 +87,17 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
 
+	if val, ok := meta.Properties[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)
+		}
+		intVal := int(parsedVal)
+		m.ttlInSeconds = &intVal
+	} else {
+		m.ttlInSeconds = nil
+	}
+
 	return m, nil
 }
 
@@ -235,6 +246,10 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse ttl from metadata: %s", err)
 	}
+	// apply global TTL
+	if ttl == nil {
+		ttl = r.metadata.ttlInSeconds
+	}
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
@@ -295,6 +310,11 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			if err != nil {
 				return fmt.Errorf("failed to parse ttl from metadata: %s", err)
 			}
+			// apply global TTL
+			if ttl == nil {
+				ttl = r.metadata.ttlInSeconds
+			}
+
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
 			if ttl != nil && *ttl > 0 {

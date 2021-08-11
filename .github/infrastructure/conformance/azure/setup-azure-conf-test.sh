@@ -151,6 +151,9 @@ EVENT_GRID_SUB_ID_VAR_NAME="AzureEventGridSubscriptionId"
 EVENT_GRID_TENANT_ID_VAR_NAME="AzureEventGridTenantId"
 EVENT_GRID_TOPIC_ENDPOINT_VAR_NAME="AzureEventGridTopicEndpoint"
 
+EVENT_HUBS_CONNECTION_STRING_VAR_NAME="AzureEventHubsConnectionString"
+EVENT_HUBS_CONSUMER_GROUP_VAR_NAME="AzureEventHubsConsumerGroup"
+
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
@@ -214,6 +217,14 @@ COSMOS_DB_CONTAINER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --que
 echo "INFO: COSMOS_DB_CONTAINER_NAME=${COSMOS_DB_CONTAINER_NAME}"
 EVENT_GRID_TOPIC_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventGridTopicName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: EVENT_GRID_TOPIC_NAME=${EVENT_GRID_TOPIC_NAME}"
+EVENT_HUBS_NAMESPACE="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubsNamespace.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: EVENT_HUBS_NAMESPACE=${EVENT_HUBS_NAMESPACE}"
+EVENT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: EVENT_HUB_NAME=${EVENT_HUB_NAME}"
+EVENT_HUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPolicyName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: EVENT_HUB_POLICY_NAME=${EVENT_HUB_POLICY_NAME}"
+EVENT_HUBS_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: EVENT_HUBS_CONSUMER_GROUP_NAME=${EVENT_HUBS_CONSUMER_GROUP_NAME}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -388,6 +399,17 @@ echo "Configuring Service Bus test settings ..."
 SERVICE_BUS_CONNECTION_STRING="$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name "${SERVICE_BUS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
 echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
+
+# ----------------------------------
+# Populate Event Hubs test settings
+# ----------------------------------
+echo "Configuring Event Hub test settings ..."
+EVENT_HUBS_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
+echo export ${EVENT_HUBS_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_CONNECTION_STRING}"
+
+echo export ${EVENT_HUBS_CONSUMER_GROUP_VAR_NAME}=\"${EVENT_HUBS_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_CONSUMER_GROUP_NAME}"
 
 echo "INFO: setup-azure-conf-test completed."
 echo "INFO: Remember to \`source ${ENV_CONFIG_FILENAME}\` before running local conformance tests."

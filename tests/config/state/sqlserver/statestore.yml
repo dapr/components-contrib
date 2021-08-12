@@ -6,6 +6,6 @@ spec:
   type: state.sqlserver
   metadata:
   - name: connectionString
-    value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;"
+    value: ${{DAPR_TEST_SQL_CONNSTRING}}
   - name: tableName
     value: mytable

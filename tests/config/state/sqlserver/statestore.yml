@@ -5,7 +5,7 @@ metadata:
 spec:
   type: state.sqlserver
   metadata:
-  - name: host
-    value: localhost:27017
-  - name: params
-    value: replicaSet=test-rs
+  - name: connectionString
+    value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;"
+  - name: tableName
+    value: mytable

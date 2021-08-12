@@ -7,11 +7,12 @@ package tablestore
 
 import (
 	"encoding/json"
+	"os"
+	"testing"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"testing"
 )
 
 func TestTableStoreMetadata(t *testing.T) {
@@ -30,7 +31,6 @@ func TestTableStoreMetadata(t *testing.T) {
 }
 
 func TestDataEncodeAndDecode(t *testing.T) {
-
 	if !isLiveTest() {
 		return
 	}
@@ -49,6 +49,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		"column2": int64(2),
 	}
 	data, err := json.Marshal(putData)
+	assert.Nil(t, err)
 	putRowReq := &bindings.InvokeRequest{
 		Operation: bindings.CreateOperation,
 		Metadata: map[string]string{
@@ -78,6 +79,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 	getData, err := json.Marshal(map[string]interface{}{
 		"pk1": "data1",
 	})
+	assert.Nil(t, err)
 	getInvokeReq := &bindings.InvokeRequest{
 		Operation: bindings.GetOperation,
 		Metadata: map[string]string{
@@ -93,7 +95,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, getInvokeResp)
 
-	var respData = make(map[string]interface{})
+	respData := make(map[string]interface{})
 	err = json.Unmarshal(getInvokeResp.Data, &respData)
 
 	assert.Nil(t, err)
@@ -110,6 +112,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 			"pk1": "data2",
 		},
 	})
+	assert.Nil(t, err)
 
 	listReq := &bindings.InvokeRequest{
 		Operation: bindings.ListOperation,
@@ -138,6 +141,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 	deleteData, err := json.Marshal(map[string]interface{}{
 		"pk1": "data1",
 	})
+	assert.Nil(t, err)
 
 	deleteReq := &bindings.InvokeRequest{
 		Operation: bindings.DeleteOperation,
@@ -165,7 +169,8 @@ func getTestProperties() map[string]string {
 		"accessKey":    "****",
 		"instanceName": "dapr-test",
 		"tableName":    "dapr_test_table2",
-		"endpoint":     "https://dapr-test.cn-hangzhou.ots.aliyuncs.com"}
+		"endpoint":     "https://dapr-test.cn-hangzhou.ots.aliyuncs.com",
+	}
 }
 
 func isLiveTest() bool {

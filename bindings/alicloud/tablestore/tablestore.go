@@ -8,7 +8,6 @@ package tablestore
 import (
 	"encoding/json"
 	"strings"
-
 	"time"
 
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
@@ -80,26 +79,21 @@ func (s *AliCloudTableStore) Invoke(req *bindings.InvokeRequest) (*bindings.Invo
 		if err != nil {
 			return nil, err
 		}
-		break
 	case bindings.ListOperation:
 		err := s.list(req, resp)
 		if err != nil {
 			return nil, err
 		}
-		break
 	case bindings.CreateOperation:
 		err := s.create(req, resp)
 		if err != nil {
 			return nil, err
 		}
-		break
 	case bindings.DeleteOperation:
 		err := s.delete(req, resp)
 		if err != nil {
 			return nil, err
 		}
-
-		break
 	default:
 		return nil, errors.Errorf("invalid operation type: %s. Expected %s, %s, %s, or %s",
 			req.Operation, bindings.GetOperation, bindings.ListOperation, bindings.CreateOperation, bindings.DeleteOperation)
@@ -132,14 +126,12 @@ func (s *AliCloudTableStore) parseMetadata(metadata bindings.Metadata) (*tablest
 }
 
 func (s *AliCloudTableStore) get(req *bindings.InvokeRequest, resp *bindings.InvokeResponse) error {
-
 	columns := strings.Split(req.Metadata[columnToGet], ",")
 	pkNames := strings.Split(req.Metadata[primaryKeys], ",")
 	pks := make([]*tablestore.PrimaryKeyColumn, len(pkNames))
 
-	var data = make(map[string]interface{})
+	data := make(map[string]interface{})
 	err := json.Unmarshal(req.Data, &data)
-
 	if err != nil {
 		return err
 	}
@@ -172,26 +164,24 @@ func (s *AliCloudTableStore) get(req *bindings.InvokeRequest, resp *bindings.Inv
 
 	if ret == nil {
 		resp.Data = nil
-	} else {
-		resp.Data, err = json.Marshal(ret)
-		if err != nil {
-			return err
-		} else {
-			return nil
-		}
+
+		return nil
 	}
 
-	return nil
+	resp.Data, err = json.Marshal(ret)
+
+	return err
 }
 
 func (s *AliCloudTableStore) list(req *bindings.InvokeRequest, resp *bindings.InvokeResponse) error {
-
 	columns := strings.Split(req.Metadata[columnToGet], ",")
 	pkNames := strings.Split(req.Metadata[primaryKeys], ",")
 
 	var data []map[string]interface{}
-
 	err := json.Unmarshal(req.Data, &data)
+	if err != nil {
+		return err
+	}
 
 	criteria := &tablestore.MultiRowQueryCriteria{
 		TableName:    s.getTableName(req.Metadata),
@@ -218,26 +208,21 @@ func (s *AliCloudTableStore) list(req *bindings.InvokeRequest, resp *bindings.In
 
 	for _, criteria := range getRowRequest.MultiRowQueryCriteria {
 		for _, row := range getRowResp.TableToRowsResult[criteria.TableName] {
-			data, err := s.unmarshal(row.PrimaryKey.PrimaryKeys, row.Columns)
-			if err != nil {
-				return err
+			rowData, rowErr := s.unmarshal(row.PrimaryKey.PrimaryKeys, row.Columns)
+			if rowErr != nil {
+				return rowErr
 			}
-			ret = append(ret, data)
+			ret = append(ret, rowData)
 		}
 	}
 
 	resp.Data, err = json.Marshal(ret)
 
-	if err != nil {
-		return err
-	} else {
-		return nil
-	}
+	return err
 }
 
 func (s *AliCloudTableStore) create(req *bindings.InvokeRequest, resp *bindings.InvokeResponse) error {
-
-	var data = make(map[string]interface{})
+	data := make(map[string]interface{})
 	err := json.Unmarshal(req.Data, &data)
 	if err != nil {
 		return err
@@ -290,9 +275,8 @@ func (s *AliCloudTableStore) create(req *bindings.InvokeRequest, resp *bindings.
 func (s *AliCloudTableStore) delete(req *bindings.InvokeRequest, resp *bindings.InvokeResponse) error {
 	pkNams := strings.Split(req.Metadata[primaryKeys], ",")
 	pks := make([]*tablestore.PrimaryKeyColumn, len(pkNams))
-	var data = make(map[string]interface{})
+	data := make(map[string]interface{})
 	err := json.Unmarshal(req.Data, &data)
-
 	if err != nil {
 		return err
 	}
@@ -320,23 +304,18 @@ func (s *AliCloudTableStore) delete(req *bindings.InvokeRequest, resp *bindings.
 }
 
 func (s *AliCloudTableStore) unmarshal(pks []*tablestore.PrimaryKeyColumn, columns []*tablestore.AttributeColumn) (map[string]interface{}, error) {
-
 	if pks == nil && columns == nil {
 		return nil, nil
 	}
 
-	var data = make(map[string]interface{})
+	data := make(map[string]interface{})
 
-	if pks != nil {
-		for _, pk := range pks {
-			data[pk.ColumnName] = pk.Value
-		}
+	for _, pk := range pks {
+		data[pk.ColumnName] = pk.Value
 	}
 
-	if columns != nil {
-		for _, column := range columns {
-			data[column.ColumnName] = column.Value
-		}
+	for _, column := range columns {
+		data[column.ColumnName] = column.Value
 	}
 
 	return data, nil
@@ -347,6 +326,7 @@ func (s *AliCloudTableStore) getTableName(metadata map[string]string) string {
 	if name == "" {
 		name = s.metadata.TableName
 	}
+
 	return name
 }
 

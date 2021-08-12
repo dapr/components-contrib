@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package keyvault
+package azure
 
 import (
 	"encoding/base64"
@@ -23,16 +23,18 @@ const (
 )
 
 func TestGetClientCert(t *testing.T) {
-	settings := EnvironmentSettings{
-		Values: map[string]string{
-			componentSPNCertificateFile:     "testfile",
-			componentSPNCertificate:         "testcert",
-			componentSPNCertificatePassword: "1234",
-			componentSPNClientID:            fakeClientID,
-			componentSPNTenantID:            fakeTenantID,
-			componentVaultName:              "vaultName",
+	settings, err := NewEnvironmentSettings(
+		"keyvault",
+		map[string]string{
+			"azureCertificateFile":     "testfile",
+			"azureCertificate":         "testcert",
+			"azureCertificatePassword": "1234",
+			"azureClientId":            fakeClientID,
+			"azureTenantId":            fakeTenantID,
+			"vaultName":                "vaultName",
 		},
-	}
+	)
+	assert.NoError(t, err)
 
 	testCertConfig, _ := settings.GetClientCert()
 
@@ -53,15 +55,17 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	err := ioutil.WriteFile(testCertFileName, certBytes, 0o644)
 	assert.NoError(t, err)
 
-	settings := EnvironmentSettings{
-		Values: map[string]string{
-			componentSPNCertificateFile:     testCertFileName,
-			componentSPNCertificatePassword: "",
-			componentSPNClientID:            fakeClientID,
-			componentSPNTenantID:            fakeTenantID,
-			componentVaultName:              "vaultName",
+	settings, err := NewEnvironmentSettings(
+		"keyvault",
+		map[string]string{
+			"azureCertificateFile":     testCertFileName,
+			"azureCertificatePassword": "",
+			"azureClientId":            fakeClientID,
+			"azureTenantId":            fakeTenantID,
+			"vaultName":                "vaultName",
 		},
-	}
+	)
+	assert.NoError(t, err)
 
 	testCertConfig, _ := settings.GetClientCert()
 	assert.NotNil(t, testCertConfig)
@@ -79,55 +83,61 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 	t.Run("Certificate is valid", func(t *testing.T) {
 		certBytes := getTestCert()
 
-		settings := EnvironmentSettings{
-			Values: map[string]string{
-				componentSPNCertificate:         string(certBytes),
-				componentSPNCertificatePassword: "",
-				componentSPNClientID:            fakeClientID,
-				componentSPNTenantID:            fakeTenantID,
-				componentVaultName:              "vaultName",
+		settings, err := NewEnvironmentSettings(
+			"keyvault",
+			map[string]string{
+				"azureCertificate":         string(certBytes),
+				"azureCertificatePassword": "",
+				"azureClientId":            fakeClientID,
+				"azureTenantId":            fakeTenantID,
+				"vaultName":                "vaultName",
 			},
-		}
+		)
+		assert.NoError(t, err)
 
 		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-		authorizer, err := testCertConfig.Authorizer()
+		spt, err := testCertConfig.ServicePrincipalToken()
 
 		assert.NoError(t, err)
-		assert.NotNil(t, authorizer)
+		assert.NotNil(t, spt)
 	})
 
 	t.Run("Certificate is invalid", func(t *testing.T) {
 		certBytes := getTestCert()
 
-		settings := EnvironmentSettings{
-			Values: map[string]string{
-				componentSPNCertificate:         string(certBytes[0:20]),
-				componentSPNCertificatePassword: "",
-				componentSPNClientID:            fakeClientID,
-				componentSPNTenantID:            fakeTenantID,
-				componentVaultName:              "vaultName",
+		settings, err := NewEnvironmentSettings(
+			"keyvault",
+			map[string]string{
+				"azureCertificate":         string(certBytes[0:20]),
+				"azureCertificatePassword": "",
+				"azureClientId":            fakeClientID,
+				"azureTenantId":            fakeTenantID,
+				"vaultName":                "vaultName",
 			},
-		}
+		)
+		assert.NoError(t, err)
 
 		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-		_, err := testCertConfig.Authorizer()
+		_, err = testCertConfig.ServicePrincipalToken()
 		assert.Error(t, err)
 	})
 }
 
 func TestGetMSI(t *testing.T) {
-	settings := EnvironmentSettings{
-		Values: map[string]string{
-			componentSPNClientID: fakeClientID,
-			componentVaultName:   "vaultName",
+	settings, err := NewEnvironmentSettings(
+		"keyvault",
+		map[string]string{
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
-	}
+	)
+	assert.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 
@@ -136,49 +146,55 @@ func TestGetMSI(t *testing.T) {
 }
 
 func TestFallbackToMSI(t *testing.T) {
-	settings := EnvironmentSettings{
-		Values: map[string]string{
-			componentSPNClientID: fakeClientID,
-			componentVaultName:   "vaultName",
+	settings, err := NewEnvironmentSettings(
+		"keyvault",
+		map[string]string{
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
-	}
+	)
+	assert.NoError(t, err)
 
-	authorizer, err := settings.GetAuthorizer()
+	spt, err := settings.GetServicePrincipalToken()
 
-	assert.NotNil(t, authorizer)
+	assert.NotNil(t, spt)
 	assert.NoError(t, err)
 }
 
 func TestAuthorizorWithMSI(t *testing.T) {
-	settings := EnvironmentSettings{
-		Values: map[string]string{
-			componentSPNClientID: fakeClientID,
-			componentVaultName:   "vaultName",
+	settings, err := NewEnvironmentSettings(
+		"keyvault",
+		map[string]string{
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
-	}
+	)
+	assert.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
-	authorizer, err := testCertConfig.Authorizer()
+	spt, err := testCertConfig.ServicePrincipalToken()
 	assert.NoError(t, err)
-	assert.NotNil(t, authorizer)
+	assert.NotNil(t, spt)
 }
 
 func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
-	settings := EnvironmentSettings{
-		Values: map[string]string{
-			componentSPNClientID: fakeClientID,
-			componentVaultName:   "vaultName",
+	settings, err := NewEnvironmentSettings(
+		"keyvault",
+		map[string]string{
+			"azureClientId": fakeClientID,
+			"vaultName":     "vaultName",
 		},
-	}
+	)
+	assert.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
-	authorizer, err := testCertConfig.Authorizer()
+	spt, err := testCertConfig.ServicePrincipalToken()
 	assert.NoError(t, err)
-	assert.NotNil(t, authorizer)
+	assert.NotNil(t, spt)
 }
 
 func getTestCert() []byte {

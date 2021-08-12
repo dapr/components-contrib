@@ -50,13 +50,11 @@ func TestGetBlobStorageMetaData(t *testing.T) {
 	t.Run("All parameters passed and parsed", func(t *testing.T) {
 		m := make(map[string]string)
 		m["accountName"] = "acc"
-		m["accountKey"] = "key"
 		m["containerName"] = "dapr"
 		meta, err := getBlobStorageMetadata(m)
 
 		assert.Nil(t, err)
 		assert.Equal(t, "acc", meta.accountName)
-		assert.Equal(t, "key", meta.accountKey)
 		assert.Equal(t, "dapr", meta.containerName)
 	})
 }

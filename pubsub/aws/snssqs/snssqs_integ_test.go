@@ -2,7 +2,7 @@
 // Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
-// +build integration
+// +build e2e
 
 package snssqs
 
@@ -27,20 +27,20 @@ import (
 )
 
 type testFixture struct {
-	name                   string
-	endpoint               string
-	region                 string
-	profile                string
-	topicName              string
-	deadLettersQueueName   string
-	deadLettersMaxReceives string
-	queueName              string
-	accessKey              string
-	secretKey              string
-	sessionToken           string
+	name                 string
+	endpoint             string
+	region               string
+	profile              string
+	topicName            string
+	deadLettersQueueName string
+	messageReceiveLimit  string
+	queueName            string
+	accessKey            string
+	secretKey            string
+	sessionToken         string
 }
 
-func getDefaultTestFixture(withDLQ bool, dlqMaxReceives ...string) *testFixture {
+func getDefaultTestFixture(messageReceiveLimits ...string) *testFixture {
 	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	fixture := &testFixture{
 		region:       os.Getenv("AWS_DEFAULT_REGION"),
@@ -52,12 +52,12 @@ func getDefaultTestFixture(withDLQ bool, dlqMaxReceives ...string) *testFixture 
 		topicName:    fmt.Sprintf("dapr-sns-test-topic-%v", timestamp),
 		queueName:    fmt.Sprintf("dapr-sqs-test-queue-%v", timestamp),
 	}
-	if withDLQ {
+
+	if len(messageReceiveLimits) > 0 {
 		fixture.deadLettersQueueName = fmt.Sprintf("dapr-sqs-test-deadletters-queue-%v", timestamp)
+		fixture.messageReceiveLimit = messageReceiveLimits[0]
 	}
-	if len(dlqMaxReceives) > 0 {
-		fixture.deadLettersMaxReceives = dlqMaxReceives[0]
-	}
+
 	return fixture
 }
 
@@ -104,8 +104,8 @@ func setupTest(t *testing.T, fixture *testFixture) (pubsub.PubSub, *session.Sess
 	if len(fixture.deadLettersQueueName) > 0 {
 		props["sqsDeadLettersQueueName"] = fixture.deadLettersQueueName
 	}
-	if len(fixture.deadLettersMaxReceives) > 0 {
-		props["deadLettersMaxReceives"] = fixture.deadLettersMaxReceives
+	if len(fixture.messageReceiveLimit) > 0 {
+		props["messageReceiveLimit"] = fixture.messageReceiveLimit
 	}
 
 	pubsubMetadata := pubsub.Metadata{Properties: props}
@@ -279,7 +279,7 @@ func TestMain(m *testing.M) {
 func TestSnsSqs(t *testing.T) {
 	t.Parallel()
 
-	fixture := getDefaultTestFixture(false)
+	fixture := getDefaultTestFixture()
 	if (len(fixture.accessKey) == 0 && len(fixture.secretKey) == 0) && len(fixture.sessionToken) == 0 {
 		t.Skip(
 			`environment variables of either AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY 
@@ -290,13 +290,12 @@ func TestSnsSqs(t *testing.T) {
 	client, sess := setupTest(t, fixture)
 	teardownSnsSqsTest := snsSqsTest(t, sess, client, fixture)
 	defer teardownSnsSqsTest(t)
-
 }
 
 func TestSnsSqsWithDLQ(t *testing.T) {
 	t.Parallel()
 
-	fixture := getDefaultTestFixture(true, "1")
+	fixture := getDefaultTestFixture("1")
 	if (len(fixture.accessKey) == 0 && len(fixture.secretKey) == 0) && len(fixture.sessionToken) == 0 {
 		t.Skip(
 			`environment variables of either AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY 

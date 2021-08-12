@@ -55,9 +55,9 @@ type snsSqsMetadata struct {
 	messageVisibilityTimeout int64
 	// number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10
 	messageRetryLimit int64
-	// if sqsDeadLettersQueueName is set to a value, then the deadLettersMaxReceives defines the number of times a message is received
+	// if sqsDeadLettersQueueName is set to a value, then the messageReceiveLimit defines the number of times a message is received
 	// before it is moved to the dead-letters queue. This value must be smaller than messageRetryLimit
-	deadLettersMaxReceives int64
+	messageReceiveLimit int64
 	// amount of time to await receipt of a message before making another request. Default: 1
 	messageWaitTimeSeconds int64
 	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10
@@ -65,11 +65,11 @@ type snsSqsMetadata struct {
 }
 
 const (
-	awsSqsQueueNameKey         = "dapr-worker-name"
-	awsSnsTopicNameKey         = "dapr-topic-name"
-	awsSqsDeadLettersQueueName = "dapr-deadletters"
+	awsSqsQueueNameKey = "dapr-worker-name"
+	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
+// NewSnsSqs - construct a new snssqs dapr component
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
@@ -184,27 +184,18 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.sqsDeadLettersQueueName = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"deadLettersMaxReceives"}, metadata); !ok {
-		md.deadLettersMaxReceives = md.messageRetryLimit
-	} else {
-		// fallback: use default dead-letters queue name if deadLettersMaxReceives is defined but the sqsDeadLettersQueueName isn't
-		if len(md.sqsDeadLettersQueueName) == 0 {
-			md.sqsDeadLettersQueueName = awsSqsDeadLettersQueueName
-		}
-
-		deadLettersMaxReceives, err := parseInt64(val, "deadLettersMaxReceives")
+	if val, ok := getAliasedProperty([]string{"messageReceiveLimit"}, metadata); ok {
+		messageReceiveLimit, err := parseInt64(val, "messageReceiveLimit")
 		if err != nil {
 			return nil, err
 		}
-
-		// validate: if deadLettersMaxReceives is greater than messageRetryLimit, the message would be deleted by daprd before
-		// SQS has the opportunity to move the message to the dead-letters queue, so we reject this
-		if deadLettersMaxReceives > md.messageRetryLimit {
-			return nil, errors.New("deadLettersMaxReceives must be less than or equal to messageRetryLimit")
-		}
-
 		// assign: used provided configuration
-		md.deadLettersMaxReceives = deadLettersMaxReceives
+		md.messageReceiveLimit = messageReceiveLimit
+	}
+
+	// XOR on having either a valid messageReceiveLimit and invalid sqsDeadLettersQueueName, and vice versa
+	if (md.messageReceiveLimit > 0 || len(md.sqsDeadLettersQueueName) > 0) && !(md.messageReceiveLimit > 0 && len(md.sqsDeadLettersQueueName) > 0) {
+		return nil, errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
 	}
 
 	if val, ok := props["messageWaitTimeSeconds"]; !ok {
@@ -432,11 +423,11 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 		return fmt.Errorf(
 			"message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit)
 	}
-	// ... else, there is no need to actively do something if we reached the limit defined in deadLettersMaxReceives as the message had
+	// ... else, there is no need to actively do something if we reached the limit defined in messageReceiveLimit as the message had
 	// already been moved to the dead-letters queue by SQS
-	if deadLettersQueueInfo != nil && recvCountInt >= s.metadata.deadLettersMaxReceives {
+	if deadLettersQueueInfo != nil && recvCountInt >= s.metadata.messageReceiveLimit {
 		s.logger.Warnf(
-			"message received greater than %v times, moving this message without further processing to dead-letters queue: %v", s.metadata.deadLettersMaxReceives, s.metadata.sqsDeadLettersQueueName)
+			"message received greater than %v times, moving this message without further processing to dead-letters queue: %v", s.metadata.messageReceiveLimit, s.metadata.sqsDeadLettersQueueName)
 	}
 
 	// otherwise try to handle the message
@@ -514,7 +505,7 @@ func (s *snsSqs) createDeadLettersQueue() (*sqsQueueInfo, error) {
 func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
 	policy := map[string]string{
 		"deadLetterTargetArn": deadLettersQueueInfo.arn,
-		"maxReceiveCount":     strconv.FormatInt(s.metadata.deadLettersMaxReceives, 10),
+		"maxReceiveCount":     strconv.FormatInt(s.metadata.messageReceiveLimit, 10),
 	}
 
 	b, err := json.Marshal(policy)

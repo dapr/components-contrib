@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testUnitFixture struct {
+	metadata pubsub.Metadata
+	name     string
+}
+
 func Test_parseTopicArn(t *testing.T) {
 	t.Parallel()
 	// no further guarantees are made about this function
@@ -32,10 +37,12 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 		"secretKey":                "s",
 		"sessionToken":             "t",
 		"region":                   "r",
+		"sqsDeadLettersQueueName":  "q",
 		"messageVisibilityTimeout": "2",
 		"messageRetryLimit":        "3",
 		"messageWaitTimeSeconds":   "4",
 		"messageMaxNumber":         "5",
+		"messageReceiveLimit":      "6",
 	}})
 
 	r.NoError(err)
@@ -46,10 +53,12 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	r.Equal("s", md.SecretKey)
 	r.Equal("t", md.SessionToken)
 	r.Equal("r", md.Region)
+	r.Equal("q", md.sqsDeadLettersQueueName)
 	r.Equal(int64(2), md.messageVisibilityTimeout)
 	r.Equal(int64(3), md.messageRetryLimit)
 	r.Equal(int64(4), md.messageWaitTimeSeconds)
 	r.Equal(int64(5), md.messageMaxNumber)
+	r.Equal(int64(6), md.messageReceiveLimit)
 }
 
 func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
@@ -111,119 +120,118 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 	r.Equal(int64(10), md.messageMaxNumber)
 }
 
-func Test_getSnsSqsMetatdata_invalidMessageVisibility(t *testing.T) {
+func testMetadataParsingShouldFail(t *testing.T, metadata pubsub.Metadata, l logger.Logger) {
 	t.Parallel()
 	r := require.New(t)
-	l := logger.NewLogger("SnsSqs unit test")
-	l.SetOutputLevel(logger.DebugLevel)
+
 	ps := snsSqs{
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
-		"consumerID":               "consumer",
-		"Endpoint":                 "endpoint",
-		"AccessKey":                "acctId",
-		"SecretKey":                "secret",
-		"awsToken":                 "token",
-		"Region":                   "region",
-		"messageVisibilityTimeout": "-100",
-	}})
+	md, err := ps.getSnsSqsMetatdata(metadata)
 
 	r.Error(err)
 	r.Nil(md)
 }
 
-func Test_getSnsSqsMetatdata_invalidMessageRetryLimit(t *testing.T) {
+func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 	t.Parallel()
-	r := require.New(t)
-	l := logger.NewLogger("SnsSqs unit test")
-	l.SetOutputLevel(logger.DebugLevel)
-	ps := snsSqs{
-		logger: l,
+
+	fixtures := []testUnitFixture{
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":          "consumer",
+				"Endpoint":            "endpoint",
+				"AccessKey":           "acctId",
+				"SecretKey":           "secret",
+				"awsToken":            "token",
+				"Region":              "region",
+				"messageReceiveLimit": "100",
+			}},
+			name: "deadletters receive limit without deadletters queue name",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":              "consumer",
+				"Endpoint":                "endpoint",
+				"AccessKey":               "acctId",
+				"SecretKey":               "secret",
+				"awsToken":                "token",
+				"Region":                  "region",
+				"sqsDeadLettersQueueName": "my-queue",
+			}},
+			name: "deadletters message queue without deadletters receive limit",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":       "consumer",
+				"Endpoint":         "endpoint",
+				"AccessKey":        "acctId",
+				"SecretKey":        "secret",
+				"awsToken":         "token",
+				"Region":           "region",
+				"messageMaxNumber": "-100",
+			}},
+			name: "illigal message max number (negative, too low)",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":       "consumer",
+				"Endpoint":         "endpoint",
+				"AccessKey":        "acctId",
+				"SecretKey":        "secret",
+				"awsToken":         "token",
+				"Region":           "region",
+				"messageMaxNumber": "100",
+			}},
+			name: "illigal message max number (too high)",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":             "consumer",
+				"Endpoint":               "endpoint",
+				"AccessKey":              "acctId",
+				"SecretKey":              "secret",
+				"awsToken":               "token",
+				"Region":                 "region",
+				"messageWaitTimeSeconds": "0",
+			}},
+			name: "invalid wait time seconds (too low)",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":               "consumer",
+				"Endpoint":                 "endpoint",
+				"AccessKey":                "acctId",
+				"SecretKey":                "secret",
+				"awsToken":                 "token",
+				"Region":                   "region",
+				"messageVisibilityTimeout": "-100",
+			}},
+			name: "invalid message visibility",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":        "consumer",
+				"Endpoint":          "endpoint",
+				"AccessKey":         "acctId",
+				"SecretKey":         "secret",
+				"awsToken":          "token",
+				"Region":            "region",
+				"messageRetryLimit": "-100",
+			}},
+			name: "invalid message retry limit",
+		},
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
-		"consumerID":        "consumer",
-		"Endpoint":          "endpoint",
-		"AccessKey":         "acctId",
-		"SecretKey":         "secret",
-		"awsToken":          "token",
-		"Region":            "region",
-		"messageRetryLimit": "-100",
-	}})
-
-	r.Error(err)
-	r.Nil(md)
-}
-
-func Test_getSnsSqsMetatdata_invalidWaitTimeSecondsTooLow(t *testing.T) {
-	t.Parallel()
-	r := require.New(t)
 	l := logger.NewLogger("SnsSqs unit test")
 	l.SetOutputLevel(logger.DebugLevel)
-	ps := snsSqs{
-		logger: l,
+
+	for _, tc := range fixtures {
+		t.Run(tc.name, func(t *testing.T) {
+			testMetadataParsingShouldFail(t, tc.metadata, l)
+		})
 	}
-
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
-		"consumerID":             "consumer",
-		"Endpoint":               "endpoint",
-		"AccessKey":              "acctId",
-		"SecretKey":              "secret",
-		"awsToken":               "token",
-		"Region":                 "region",
-		"messageWaitTimeSeconds": "0",
-	}})
-
-	r.Error(err)
-	r.Nil(md)
-}
-
-func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooHigh(t *testing.T) {
-	t.Parallel()
-	r := require.New(t)
-	l := logger.NewLogger("SnsSqs unit test")
-	l.SetOutputLevel(logger.DebugLevel)
-	ps := snsSqs{
-		logger: l,
-	}
-
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
-		"consumerID":       "consumer",
-		"Endpoint":         "endpoint",
-		"AccessKey":        "acctId",
-		"SecretKey":        "secret",
-		"awsToken":         "token",
-		"Region":           "region",
-		"messageMaxNumber": "100",
-	}})
-
-	r.Error(err)
-	r.Nil(md)
-}
-
-func Test_getSnsSqsMetatdata_invalidMessageMaxNumberTooLow(t *testing.T) {
-	t.Parallel()
-	r := require.New(t)
-	l := logger.NewLogger("SnsSqs unit test")
-	l.SetOutputLevel(logger.DebugLevel)
-	ps := snsSqs{
-		logger: l,
-	}
-
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
-		"consumerID":       "consumer",
-		"Endpoint":         "endpoint",
-		"AccessKey":        "acctId",
-		"SecretKey":        "secret",
-		"awsToken":         "token",
-		"Region":           "region",
-		"messageMaxNumber": "-100",
-	}})
-
-	r.Error(err)
-	r.Nil(md)
 }
 
 func Test_parseInt64(t *testing.T) {

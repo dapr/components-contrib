@@ -9,12 +9,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockClientFactory struct {

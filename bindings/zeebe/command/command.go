@@ -9,8 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/kit/logger"
@@ -18,18 +17,18 @@ import (
 
 const (
 	// operations
-	topologyOperation         bindings.OperationKind = "topology"
-	deployWorkflowOperation   bindings.OperationKind = "deploy-workflow"
-	createInstanceOperation   bindings.OperationKind = "create-instance"
-	cancelInstanceOperation   bindings.OperationKind = "cancel-instance"
-	setVariablesOperation     bindings.OperationKind = "set-variables"
-	resolveIncidentOperation  bindings.OperationKind = "resolve-incident"
-	publishMessageOperation   bindings.OperationKind = "publish-message"
-	activateJobsOperation     bindings.OperationKind = "activate-jobs"
-	completeJobOperation      bindings.OperationKind = "complete-job"
-	failJobOperation          bindings.OperationKind = "fail-job"
-	updateJobRetriesOperation bindings.OperationKind = "update-job-retries"
-	throwErrorOperation       bindings.OperationKind = "throw-error"
+	TopologyOperation         bindings.OperationKind = "topology"
+	DeployProcessOperation    bindings.OperationKind = "deploy-process"
+	CreateInstanceOperation   bindings.OperationKind = "create-instance"
+	CancelInstanceOperation   bindings.OperationKind = "cancel-instance"
+	SetVariablesOperation     bindings.OperationKind = "set-variables"
+	ResolveIncidentOperation  bindings.OperationKind = "resolve-incident"
+	PublishMessageOperation   bindings.OperationKind = "publish-message"
+	ActivateJobsOperation     bindings.OperationKind = "activate-jobs"
+	CompleteJobOperation      bindings.OperationKind = "complete-job"
+	FailJobOperation          bindings.OperationKind = "fail-job"
+	UpdateJobRetriesOperation bindings.OperationKind = "update-job-retries"
+	ThrowErrorOperation       bindings.OperationKind = "throw-error"
 )
 
 var (
@@ -65,46 +64,46 @@ func (z *ZeebeCommand) Init(metadata bindings.Metadata) error {
 
 func (z *ZeebeCommand) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
-		topologyOperation,
-		deployWorkflowOperation,
-		createInstanceOperation,
-		cancelInstanceOperation,
-		setVariablesOperation,
-		resolveIncidentOperation,
-		publishMessageOperation,
-		activateJobsOperation,
-		completeJobOperation,
-		failJobOperation,
-		updateJobRetriesOperation,
-		throwErrorOperation,
+		TopologyOperation,
+		DeployProcessOperation,
+		CreateInstanceOperation,
+		CancelInstanceOperation,
+		SetVariablesOperation,
+		ResolveIncidentOperation,
+		PublishMessageOperation,
+		ActivateJobsOperation,
+		CompleteJobOperation,
+		FailJobOperation,
+		UpdateJobRetriesOperation,
+		ThrowErrorOperation,
 	}
 }
 
 func (z *ZeebeCommand) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
-	case topologyOperation:
+	case TopologyOperation:
 		return z.topology()
-	case deployWorkflowOperation:
-		return z.deployWorkflow(req)
-	case createInstanceOperation:
+	case DeployProcessOperation:
+		return z.deployProcess(req)
+	case CreateInstanceOperation:
 		return z.createInstance(req)
-	case cancelInstanceOperation:
+	case CancelInstanceOperation:
 		return z.cancelInstance(req)
-	case setVariablesOperation:
+	case SetVariablesOperation:
 		return z.setVariables(req)
-	case resolveIncidentOperation:
+	case ResolveIncidentOperation:
 		return z.resolveIncident(req)
-	case publishMessageOperation:
+	case PublishMessageOperation:
 		return z.publishMessage(req)
-	case activateJobsOperation:
+	case ActivateJobsOperation:
 		return z.activateJobs(req)
-	case completeJobOperation:
+	case CompleteJobOperation:
 		return z.completeJob(req)
-	case failJobOperation:
+	case FailJobOperation:
 		return z.failJob(req)
-	case updateJobRetriesOperation:
+	case UpdateJobRetriesOperation:
 		return z.updateJobRetries(req)
-	case throwErrorOperation:
+	case ThrowErrorOperation:
 		return z.throwError(req)
 	case bindings.GetOperation:
 		fallthrough

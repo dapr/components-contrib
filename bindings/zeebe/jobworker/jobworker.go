@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
-	"github.com/zeebe-io/zeebe/clients/go/pkg/entities"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/worker"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/entities"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/worker"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/components-contrib/metadata"
@@ -113,19 +114,35 @@ func (z *ZeebeJobWorker) parseMetadata(metadata bindings.Metadata) (*jobWorkerMe
 }
 
 func (z *ZeebeJobWorker) getJobWorker(handler jobHandler) worker.JobWorker {
-	return z.client.
-		NewJobWorker().
-		JobType(z.metadata.JobType).
-		Handler(handler.handleJob).
-		Name(z.metadata.WorkerName).
-		Timeout(z.metadata.WorkerTimeout.Duration).
-		RequestTimeout(z.metadata.RequestTimeout.Duration).
-		MaxJobsActive(z.metadata.MaxJobsActive).
-		Concurrency(z.metadata.Concurrency).
-		PollInterval(z.metadata.PollInterval.Duration).
-		PollThreshold(z.metadata.PollThreshold).
-		FetchVariables(zeebe.VariableStringToArray(z.metadata.FetchVariables)...).
-		Open()
+	cmd1 := z.client.NewJobWorker()
+	cmd2 := cmd1.JobType(z.metadata.JobType)
+	cmd3 := cmd2.Handler(handler.handleJob)
+	if z.metadata.WorkerName != "" {
+		cmd3 = cmd3.Name(z.metadata.WorkerName)
+	}
+	if z.metadata.WorkerTimeout.Duration != time.Duration(0) {
+		cmd3 = cmd3.Timeout(z.metadata.WorkerTimeout.Duration)
+	}
+	if z.metadata.RequestTimeout.Duration != time.Duration(0) {
+		cmd3 = cmd3.RequestTimeout(z.metadata.RequestTimeout.Duration)
+	}
+	if z.metadata.MaxJobsActive != 0 {
+		cmd3 = cmd3.MaxJobsActive(z.metadata.MaxJobsActive)
+	}
+	if z.metadata.Concurrency != 0 {
+		cmd3 = cmd3.Concurrency(z.metadata.Concurrency)
+	}
+	if z.metadata.PollInterval.Duration != time.Duration(0) {
+		cmd3 = cmd3.PollInterval(z.metadata.PollInterval.Duration)
+	}
+	if z.metadata.PollThreshold != 0 {
+		cmd3 = cmd3.PollThreshold(z.metadata.PollThreshold)
+	}
+	if z.metadata.FetchVariables != "" {
+		cmd3 = cmd3.FetchVariables(zeebe.VariableStringToArray(z.metadata.FetchVariables)...)
+	}
+
+	return cmd3.Open()
 }
 
 func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
@@ -135,6 +152,18 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 
 		return
 	}
+
+	headers["X-Zeebe-Job-Key"] = strconv.FormatInt(job.Key, 10)
+	headers["X-Zeebe-Job-Type"] = job.Type
+	headers["X-Zeebe-Process-Instance-Key"] = strconv.FormatInt(job.ProcessInstanceKey, 10)
+	headers["X-Zeebe-Bpmn-Process-Id"] = job.BpmnProcessId
+	headers["X-Zeebe-Process-Definition-Version"] = strconv.FormatInt(int64(job.ProcessDefinitionVersion), 10)
+	headers["X-Zeebe-Process-Definition-Key"] = strconv.FormatInt(job.ProcessDefinitionKey, 10)
+	headers["X-Zeebe-Element-Id"] = job.ElementId
+	headers["X-Zeebe-Element-Instance-Key"] = strconv.FormatInt(job.ElementInstanceKey, 10)
+	headers["X-Zeebe-Worker"] = job.Worker
+	headers["X-Zeebe-Retries"] = strconv.FormatInt(int64(job.Retries), 10)
+	headers["X-Zeebe-Deadline"] = strconv.FormatInt(job.Deadline, 10)
 
 	resultVariables, err := h.callback(&bindings.ReadResponse{
 		Data:     []byte(job.Variables),
@@ -147,11 +176,13 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	}
 
 	variablesMap := make(map[string]interface{})
-	err = json.Unmarshal(resultVariables, &variablesMap)
-	if err != nil {
-		h.failJob(client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
+	if resultVariables != nil {
+		err = json.Unmarshal(resultVariables, &variablesMap)
+		if err != nil {
+			h.failJob(client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
 
-		return
+			return
+		}
 	}
 
 	jobKey := job.GetKey()
@@ -162,23 +193,28 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	h.logger.Debugf("Complete job %s of type %s", jobKey, job.Type)
+	h.logger.Debugf("Complete job `%d` of type `%s`", jobKey, job.Type)
 
 	ctx := context.Background()
 	_, err = request.Send(ctx)
 	if err != nil {
-		panic(err)
+		h.logger.Errorf("Cannot complete job `%d` of type `%s`; got error: %s", jobKey, job.Type, err.Error())
+
+		return
 	}
 
 	h.logger.Debug("Successfully completed job")
 }
 
 func (h *jobHandler) failJob(client worker.JobClient, job entities.Job, reason error) {
-	h.logger.Errorf("Failed to complete job `%s` reason: %w", job.GetKey(), reason)
+	reasonMsg := reason.Error()
+	h.logger.Errorf("Failed to complete job `%d` reason: %s", job.GetKey(), reasonMsg)
 
 	ctx := context.Background()
-	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).Send(ctx)
+	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).ErrorMessage(reasonMsg).Send(ctx)
 	if err != nil {
-		panic(err)
+		h.logger.Errorf("Cannot fail job `%d` of type `%s`; got error: %s", job.GetKey(), job.Type, err.Error())
+
+		return
 	}
 }

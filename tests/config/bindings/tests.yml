@@ -2,6 +2,7 @@
 # Config map:
 ## output: A map of strings that will be part of the request for the output binding
 ## readBindingTimeout : timeout to wait to receive test event
+## readBindingWait : duration to wait after successful Read before attempting to Publish
 ## url: specific to http component, url of the http server
 ## method: specific to http component, what method to use
 componentType: bindings
@@ -12,14 +13,17 @@ components:
       output:
         key: $((uuid))
   - component: azure.blobstorage
-    operations: ["create", "operations", "get"]
+    operations: ["create", "operations", "get", "list"]
     config:
       output:
         blobName: $((uuid))
+  - component: azure.eventhubs
+    operations: ["create", "operations", "read"]
   - component: azure.eventgrid
     operations: ["create", "operations", "read"]
     config:
       readBindingTimeout: 240s
+      readBindingWait: 8s
   - component: azure.storagequeues
     operations: ["create", "operations", "read"]
   - component: azure.servicebusqueues

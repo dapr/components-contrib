@@ -1,0 +1,68 @@
+{
+	"name": "Dapr Components Contributor Environment",
+	"dockerFile": "Dockerfile",
+	"containerEnv": {
+		// Uncomment to overwrite devcontainer .kube/config and .minikube certs with the localhost versions
+		// each time the devcontainer starts, if the respective .kube-localhost/config and .minikube-localhost
+		// folders respectively are bind mounted to the devcontainer.
+		// "SYNC_LOCALHOST_KUBECONFIG": "true",
+
+		// Uncomment to disable docker-in-docker and automatically proxy default /var/run/docker.sock to
+		// the localhost bind-mount /var/run/docker-host.sock.
+		// "BIND_LOCALHOST_DOCKER": "true"
+	},
+	"extensions": [
+		"golang.go",
+		"ms-azuretools.vscode-dapr",
+		"ms-azuretools.vscode-docker",
+		"ms-kubernetes-tools.vscode-kubernetes-tools"
+	],
+	"mounts": [
+		// Mount volume for clone of the dapr/dapr repo
+		"type=volume,source=dapr-repo,target=/go/src/github.com/dapr/dapr",
+		// Alternatively, uncomment and fill in <local_dapr_repo_path> to mount your existing dapr repo/fork
+		// "type=bind,source=<local_dapr_repo_path>,target=/go/src/github.com/dapr/dapr",
+
+		// Mount docker-in-docker library volume
+		"type=volume,source=dind-var-lib-docker,target=/var/lib/docker",
+
+		// Bind mount docker socket under an alias to support docker-from-docker
+		"type=bind,source=/var/run/docker.sock,target=/var/run/docker-host.sock",
+
+		// Uncomment to clone local .kube/config into devcontainer
+		// "type=bind,source=${env:HOME}${env:USERPROFILE}/.kube,target=/home/dapr/.kube-localhost",
+
+		// Uncomment to additionally clone minikube certs into devcontainer for use with .kube/config
+		// "type=bind,source=${env:HOME}${env:USERPROFILE}/.minikube,target=/home/dapr/.minikube-localhost"
+	],
+	// Always run image-defined default command
+	"overrideCommand": false,
+	// As a workaround for Codespaces not supporting workspaceFolder/workspace mount, create
+	// a symlink from /workspaces/components-contrib to /go/src/github.com/dapr/components-contrib
+	"postCreateCommand": "bash /usr/local/share/setup-gopath.sh components-contrib true",
+	// On Linux, this will prevent new files getting created as root, but you
+	// may need to update the USER_UID and USER_GID in docker/Dockerfile-dev
+	// to match your user if not 1000.
+	"remoteUser": "dapr",
+	"runArgs": [
+		// Enable ptrace-based debugging for go
+		"--cap-add=SYS_PTRACE",
+		"--security-opt",
+		"seccomp=unconfined",
+
+		// Uncomment to bind to host network for local devcontainer; this is necessary if using the
+		// bind-mounted /var/run/docker-host.sock directly.
+		// "--net=host",
+
+		// Enable docker-in-docker configuration. Comment out if not using for better security.
+		"--privileged",
+
+		// Run the entrypoint defined in container image.
+		"--init"
+	],
+	"settings": {
+		"terminal.integrated.defaultProfile.linux": "bash",
+	},
+	"workspaceFolder": "/go/src/github.com/dapr/components-contrib",
+	"workspaceMount": "type=bind,source=${localWorkspaceFolder},target=/go/src/github.com/dapr/components-contrib",
+}

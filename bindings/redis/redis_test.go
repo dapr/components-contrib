@@ -6,23 +6,56 @@
 package redis
 
 import (
+	"context"
 	"testing"
-	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
-func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"redisHost": "host", "redisPassword": "password", "enableTLS": "true", "maxRetries": "3", "maxRetryBackoff": "10000"}
-	r := Redis{logger: logger.NewLogger("test")}
-	redisM, err := r.parseMetadata(m)
-	assert.Nil(t, err)
-	assert.Equal(t, "host", redisM.host)
-	assert.Equal(t, "password", redisM.password)
-	assert.Equal(t, true, redisM.enableTLS)
-	assert.Equal(t, 3, redisM.maxRetries)
-	assert.Equal(t, time.Duration(10000), redisM.maxRetryBackoff)
+const (
+	testData = `{"data":"data"}`
+	testKey  = "test"
+)
+
+func TestInvoke(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	bind := &Redis{
+		client: c,
+		logger: logger.NewLogger("test"),
+	}
+	bind.ctx, bind.cancel = context.WithCancel(context.Background())
+
+	_, err := c.Do(context.Background(), "GET", testKey).Result()
+	assert.Equal(t, redis.Nil, err)
+
+	bindingRes, err := bind.Invoke(&bindings.InvokeRequest{
+		Data:     []byte(testData),
+		Metadata: map[string]string{"key": testKey},
+	})
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, bindingRes == nil)
+
+	getRes, err := c.Do(context.Background(), "GET", testKey).Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, getRes == testData)
+}
+
+func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
+	s, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	opts := &redis.Options{
+		Addr: s.Addr(),
+		DB:   0,
+	}
+
+	return s, redis.NewClient(opts)
 }

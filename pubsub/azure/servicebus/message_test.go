@@ -11,13 +11,13 @@ import (
 
 func TestNewMessageFromRequest(t *testing.T) {
 	testMessageData := []byte("test message")
-	testMessageId := "testMessageId"
-	testCorrelationId := "testCorrelationId"
-	testSessionId := "testSessionId"
+	testMessageID := "testMessageId"
+	testCorrelationID := "testCorrelationId"
+	testSessionID := "testSessionId"
 	testLabel := "testLabel"
 	testReplyTo := "testReplyTo"
 	testTo := "testTo"
-	testPartitionKey := testSessionId
+	testPartitionKey := testSessionID
 	testPartitionKeyUnique := "testPartitionKey"
 	testContentType := "testContentType"
 
@@ -32,9 +32,9 @@ func TestNewMessageFromRequest(t *testing.T) {
 			request: pubsub.PublishRequest{
 				Data: testMessageData,
 				Metadata: map[string]string{
-					MessageIdMetadataKey:     testMessageId,
-					CorrelationIdMetadataKey: testCorrelationId,
-					SessionIdMetadataKey:     testSessionId,
+					MessageIDMetadataKey:     testMessageID,
+					CorrelationIDMetadataKey: testCorrelationID,
+					SessionIDMetadataKey:     testSessionID,
 					LabelMetadataKey:         testLabel,
 					ReplyToMetadataKey:       testReplyTo,
 					ToMetadataKey:            testTo,
@@ -44,9 +44,9 @@ func TestNewMessageFromRequest(t *testing.T) {
 			},
 			expectedMessage: azservicebus.Message{
 				Data:          testMessageData,
-				ID:            testMessageId,
-				CorrelationID: testCorrelationId,
-				SessionID:     &testSessionId,
+				ID:            testMessageID,
+				CorrelationID: testCorrelationID,
+				SessionID:     &testSessionID,
 				Label:         testLabel,
 				ReplyTo:       testReplyTo,
 				To:            testTo,
@@ -62,9 +62,9 @@ func TestNewMessageFromRequest(t *testing.T) {
 			request: pubsub.PublishRequest{
 				Data: testMessageData,
 				Metadata: map[string]string{
-					MessageIdMetadataKey:     testMessageId,
-					CorrelationIdMetadataKey: testCorrelationId,
-					SessionIdMetadataKey:     testSessionId,
+					MessageIDMetadataKey:     testMessageID,
+					CorrelationIDMetadataKey: testCorrelationID,
+					SessionIDMetadataKey:     testSessionID,
 					LabelMetadataKey:         testLabel,
 					ReplyToMetadataKey:       testReplyTo,
 					ToMetadataKey:            testTo,
@@ -74,9 +74,9 @@ func TestNewMessageFromRequest(t *testing.T) {
 			},
 			expectedMessage: azservicebus.Message{
 				Data:          testMessageData,
-				ID:            testMessageId,
-				CorrelationID: testCorrelationId,
-				SessionID:     &testSessionId,
+				ID:            testMessageID,
+				CorrelationID: testCorrelationID,
+				SessionID:     &testSessionID,
 				Label:         testLabel,
 				ReplyTo:       testReplyTo,
 				To:            testTo,

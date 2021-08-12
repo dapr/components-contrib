@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	// MessageIdMetadataKey defines the metadata key for the message id.
-	MessageIdMetadataKey = "MessageId"
+	// MessageIDMetadataKey defines the metadata key for the message id.
+	MessageIDMetadataKey = "MessageId"
 
-	// CorrelationIdMetadataKey defines the metadata key for the correlation id.
-	CorrelationIdMetadataKey = "CorrelationId"
+	// CorrelationIDMetadataKey defines the metadata key for the correlation id.
+	CorrelationIDMetadataKey = "CorrelationId"
 
-	// SessionIdMetadataKey defines the metadata key for the session id.
-	SessionIdMetadataKey = "SessionId"
+	// SessionIDMetadataKey defines the metadata key for the session id.
+	SessionIDMetadataKey = "SessionId"
 
 	// LabelMetadataKey defines the metadata key for the label.
 	LabelMetadataKey = "Label"
@@ -46,19 +46,19 @@ func NewMessageFromRequest(req *pubsub.PublishRequest) (*azservicebus.Message, e
 
 	// Azure Service Bus specific properties.
 	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
-	msgId, hasMsgId, _ := tryGetMessageId(req.Metadata)
-	if hasMsgId {
-		msg.ID = msgId
+	msgID, hasMsgID, _ := tryGetMessageID(req.Metadata)
+	if hasMsgID {
+		msg.ID = msgID
 	}
 
-	correlationId, hasCorrelationId, _ := tryGetCorrelationId(req.Metadata)
-	if hasCorrelationId {
-		msg.CorrelationID = correlationId
+	correlationID, hasCorrelationID, _ := tryGetCorrelationID(req.Metadata)
+	if hasCorrelationID {
+		msg.CorrelationID = correlationID
 	}
 
-	sessionId, hasSessionId, _ := tryGetSessionId(req.Metadata)
-	if hasSessionId {
-		msg.SessionID = &sessionId
+	sessionID, hasSessionID, _ := tryGetSessionID(req.Metadata)
+	if hasSessionID {
+		msg.SessionID = &sessionID
 	}
 
 	label, hasLabel, _ := tryGetLabel(req.Metadata)
@@ -78,9 +78,9 @@ func NewMessageFromRequest(req *pubsub.PublishRequest) (*azservicebus.Message, e
 
 	partitionKey, hasPartitionKey, _ := tryGetPartitionKey(req.Metadata)
 	if hasPartitionKey {
-		if hasSessionId {
-			if partitionKey != sessionId {
-				return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionId, partitionKey)
+		if hasSessionID {
+			if partitionKey != sessionID {
+				return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
 			}
 		}
 
@@ -99,24 +99,24 @@ func NewMessageFromRequest(req *pubsub.PublishRequest) (*azservicebus.Message, e
 	return msg, nil
 }
 
-func tryGetMessageId(props map[string]string) (string, bool, error) {
-	if val, ok := props[MessageIdMetadataKey]; ok && val != "" {
+func tryGetMessageID(props map[string]string) (string, bool, error) {
+	if val, ok := props[MessageIDMetadataKey]; ok && val != "" {
 		return val, true, nil
 	}
 
 	return "", false, nil
 }
 
-func tryGetCorrelationId(props map[string]string) (string, bool, error) {
-	if val, ok := props[CorrelationIdMetadataKey]; ok && val != "" {
+func tryGetCorrelationID(props map[string]string) (string, bool, error) {
+	if val, ok := props[CorrelationIDMetadataKey]; ok && val != "" {
 		return val, true, nil
 	}
 
 	return "", false, nil
 }
 
-func tryGetSessionId(props map[string]string) (string, bool, error) {
-	if val, ok := props[SessionIdMetadataKey]; ok && val != "" {
+func tryGetSessionID(props map[string]string) (string, bool, error) {
+	if val, ok := props[SessionIDMetadataKey]; ok && val != "" {
 		return val, true, nil
 	}
 

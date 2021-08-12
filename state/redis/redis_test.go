@@ -308,6 +308,101 @@ func TestPing(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestRequestsWithGlobalTTL(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	globalTTLInSeconds := 100
+
+	ss := &StateStore{
+		client:   c,
+		json:     jsoniter.ConfigFastest,
+		logger:   logger.NewLogger("test"),
+		metadata: metadata{ttlInSeconds: &globalTTLInSeconds},
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	t.Run("TTL: Only global specified", func(t *testing.T) {
+		ss.Set(&state.SetRequest{
+			Key:   "weapon100",
+			Value: "deathstar100",
+		})
+		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+
+		assert.Equal(t, time.Duration(globalTTLInSeconds)*time.Second, ttl)
+	})
+
+	t.Run("TTL: Global and Request specified", func(t *testing.T) {
+		requestTTL := 200
+		ss.Set(&state.SetRequest{
+			Key:   "weapon100",
+			Value: "deathstar100",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(requestTTL),
+			},
+		})
+		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+
+		assert.Equal(t, time.Duration(requestTTL)*time.Second, ttl)
+	})
+
+	t.Run("TTL: Global and Request specified", func(t *testing.T) {
+		err := ss.Multi(&state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "weapon",
+						Value: "deathstar",
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "weapon2",
+						Value: "deathstar2",
+						Metadata: map[string]string{
+							"ttlInSeconds": "123",
+						},
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "weapon3",
+						Value: "deathstar3",
+						Metadata: map[string]string{
+							"ttlInSeconds": "-1",
+						},
+					},
+				},
+			},
+		})
+		assert.Equal(t, nil, err)
+
+		res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+		assert.Equal(t, nil, err)
+
+		vals := res.([]interface{})
+		data, version, err := ss.getKeyVersion(vals)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, ptr.String("1"), version)
+		assert.Equal(t, `"deathstar"`, data)
+
+		res, err = c.Do(context.Background(), "TTL", "weapon").Result()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, int64(globalTTLInSeconds), res)
+
+		res, err = c.Do(context.Background(), "TTL", "weapon2").Result()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, int64(123), res)
+
+		res, err = c.Do(context.Background(), "TTL", "weapon3").Result()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, int64(-1), res)
+	})
+}
+
 func TestSetRequestWithTTL(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()

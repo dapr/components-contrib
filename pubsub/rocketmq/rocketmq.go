@@ -58,12 +58,7 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-	r.pushConsumer, err = r.setUpConsumer()
-	if err != nil {
-		return err
-	}
 	err = r.producer.Start()
-	//err = r.pushConsumer.Start()
 	return err
 }
 
@@ -91,7 +86,6 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		}))
 	}
 	return mq.NewPushConsumer(opts...)
-
 }
 
 func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
@@ -121,7 +115,7 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 }
 
 func (r *rocketMQ) Features() []pubsub.Feature {
-	panic("implement me")
+	return nil
 }
 
 func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
@@ -143,9 +137,9 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-type mqCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
+type mqSubscribeCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
 
-func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, handler pubsub.Handler) mqCallback {
+func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, handler pubsub.Handler) mqSubscribeCallback {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		success := true
 		for _, msg := range msgs {

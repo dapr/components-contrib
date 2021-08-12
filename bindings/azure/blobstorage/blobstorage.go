@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/dapr/components-contrib/bindings"
@@ -24,6 +25,8 @@ import (
 const (
 	// Used to reference the blob relative to the container
 	metadataKeyBlobName = "blobName"
+	metadataKeyOffset = "offset"
+	metadataKeyCount = "count"
 	// A string value that identifies the portion of the list to be returned with the next list operation.
 	// The operation returns a marker value within the response body if the list returned was not complete. The marker
 	// value may then be used in a subsequent call to request the next set of list items.
@@ -165,6 +168,7 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		"head",
 	}
 }
 
@@ -251,32 +255,38 @@ func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	}
 
 	ctx := context.TODO()
-	resp, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
+	offset, err := strconv.ParseInt(req.Metadata[metadataKeyOffset],10,64)
+	if err != nil {
+		offset = 0
+	}
+	count, err := strconv.ParseInt(req.Metadata[metadataKeyCount],10,64)
+	if err != nil {
+		count = 0
+	}
+	resp, err := blobURL.Download(ctx, offset, count, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
 
 	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: a.metadata.GetBlobRetryCount})
-
 	b := bytes.Buffer{}
 	_, err = b.ReadFrom(bodyStream)
 	if err != nil {
 		return nil, fmt.Errorf("error reading az blob body: %w", err)
 	}
 
-	var metadata map[string]string
-	fetchMetadata, err := req.GetMetadataAsBool(metadataKeyIncludeMetadata)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing metadata: %w", err)
-	}
-
-	if fetchMetadata {
-		props, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
-		if err != nil {
-			return nil, fmt.Errorf("error reading blob metadata: %w", err)
+	metadata := make(map[string]string)
+	res := resp.Response()
+	for k, v := range res.Header {
+		if(k[0:4]=="X-Ms"){
+			metadata[strings.ToLower(k[:])] = v[0]
+		} else {
+			if(k=="Content-Length"){
+				metadata["Sql-"+k] = v[0]
+			} else{
+				metadata[k] = v[0]
+			}
 		}
-
-		metadata = props.NewMetadata()
 	}
 
 	return &bindings.InvokeResponse{
@@ -374,6 +384,37 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	}, nil
 }
 
+func (a *AzureBlobStorage) head(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var blobURL azblob.BlockBlobURL
+	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
+		blobURL = a.getBlobURL(val)
+	} else {
+		return nil, ErrMissingBlobName
+	}
+
+	ctx := context.TODO()
+	metadata := make(map[string]string)
+	props, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
+	if err != nil {
+		return nil, fmt.Errorf("error reading blob metadata: %w", err)
+	}
+	resp := props.Response()
+	for k, v := range resp.Header {
+		if(k[0:4]=="X-Ms"){
+			metadata[strings.ToLower(k[:])] = v[0]
+		} else {
+			if(k=="Content-Length"){
+				metadata["Sql-"+k] = v[0]
+			} else{
+				metadata[k] = v[0]
+			}
+		}
+	}
+	return &bindings.InvokeResponse{
+		Metadata: metadata,
+	}, nil
+}
+
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	req.Metadata = a.handleBackwardCompatibilityForMetadata(req.Metadata)
 
@@ -386,6 +427,8 @@ func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 		return a.delete(req)
 	case bindings.ListOperation:
 		return a.list(req)
+	case "head":
+		return a.head(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

@@ -65,7 +65,7 @@ type snsSqsMetadata struct {
 }
 
 const (
-	awsSqsQueueNameKey = "dapr-worker-name"
+	awsSqsQueueNameKey = "dapr-queue-name"
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 

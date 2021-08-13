@@ -16,6 +16,7 @@ import (
 
 	"github.com/agrea/ptr"
 	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -448,13 +449,9 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	rows, err := res.RowsAffected()
+	_, err = res.RowsAffected()
 	if err != nil {
 		return err
-	}
-
-	if rows != 1 {
-		return fmt.Errorf("items was not updated")
 	}
 
 	return nil
@@ -577,14 +574,24 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	etag := sql.Named(rowVersionColumnName, nil)
+	var b []byte
+	var etag sql.NamedArg = sql.Named(rowVersionColumnName, nil)
 	if req.ETag != nil {
-		var b []byte
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
-		etag.Value = b
+		etag = sql.Named(rowVersionColumnName, b)
+	}
+
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		id, _ := uuid.NewUUID()
+		b, err = id.MarshalBinary()
+		if err != nil {
+			return state.NewETagError(state.ETagInvalid, err)
+		}
+		b = b[:8]
+		etag = sql.Named(rowVersionColumnName, b)
 	}
 	res, err := db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag)
 	if err != nil {

@@ -69,7 +69,7 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
-// NewSnsSqs - construct a new snssqs dapr component
+// NewSnsSqs - constructor for a new snssqs dapr component
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,

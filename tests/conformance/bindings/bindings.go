@@ -6,6 +6,9 @@
 package bindings
 
 import (
+	"context"
+	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
@@ -155,7 +158,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 					return nil, nil
 				})
-				assert.NoError(t, err, "input binding read returned an error")
+				assert.True(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close")
 			}()
 		})
 		// Special case for message brokers that are also bindings
@@ -230,4 +233,21 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			}
 		})
 	}
+
+	t.Run("close", func(t *testing.T) {
+		// Check for an input-binding specific operation before close
+		if config.HasOperation("read") {
+			if closer, ok := inputBinding.(io.Closer); ok {
+				err := closer.Close()
+				assert.NoError(t, err, "expected no error closing input binding")
+			}
+		}
+		// Check for an output-binding specific operation before close
+		if config.HasOperation("operations") {
+			if closer, ok := outputBinding.(io.Closer); ok {
+				err := closer.Close()
+				assert.NoError(t, err, "expected no error closing output binding")
+			}
+		}
+	})
 }

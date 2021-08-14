@@ -415,3 +415,9 @@ echo "INFO: setup-azure-conf-test completed."
 echo "INFO: Remember to \`source ${ENV_CONFIG_FILENAME}\` before running local conformance tests."
 echo "INFO: ${AZURE_CREDENTIALS_FILENAME} contains the repository secret to set to run the GitHub conformance test workflow."
 echo "INFO: To teardown the conformance test resources, run ${TEARDOWN_SCRIPT_NAME}."
+
+# ----------------------------------
+# Populate SQLServer test settings
+# ----------------------------------
+echo "Configuring SQL Server test settings ..."
+echo export DAPR_TEST_SQL_CONNSTRING="server=localhost;user id=sa;password=Pass@Word1;port=1433;" >> "${ENV_CONFIG_FILENAME}"

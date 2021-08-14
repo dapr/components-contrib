@@ -16,7 +16,6 @@ import (
 
 	"github.com/agrea/ptr"
 	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -575,8 +574,8 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 		return err
 	}
 	var b []byte
-	var etag sql.NamedArg = sql.Named(rowVersionColumnName, nil)
-	if req.ETag != nil {
+	etag := sql.Named(rowVersionColumnName, nil)
+	if req.ETag != nil && *req.ETag != "" {
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
@@ -584,16 +583,13 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 		etag = sql.Named(rowVersionColumnName, b)
 	}
 
+	var res sql.Result
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-		id, _ := uuid.NewUUID()
-		b, err = id.MarshalBinary()
-		if err != nil {
-			return state.NewETagError(state.ETagInvalid, err)
-		}
-		b = b[:8]
-		etag = sql.Named(rowVersionColumnName, b)
+		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 1))
+	} else {
+		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 0))
 	}
-	res, err := db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag)
+
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)

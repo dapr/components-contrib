@@ -38,7 +38,8 @@ type sqsQueueInfo struct {
 type snsSqsMetadata struct {
 	// name of the queue for this application. The is provided by the runtime as "consumerID"
 	sqsQueueName string
-
+	// name of the dead letter queue for this application
+	sqsDeadLettersQueueName string
 	// aws endpoint for the component to use.
 	Endpoint string
 	// access key to use for accessing sqs/sns
@@ -54,6 +55,9 @@ type snsSqsMetadata struct {
 	messageVisibilityTimeout int64
 	// number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10
 	messageRetryLimit int64
+	// if sqsDeadLettersQueueName is set to a value, then the messageReceiveLimit defines the number of times a message is received
+	// before it is moved to the dead-letters queue. This value must be smaller than messageRetryLimit
+	messageReceiveLimit int64
 	// amount of time to await receipt of a message before making another request. Default: 1
 	messageWaitTimeSeconds int64
 	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10
@@ -65,6 +69,7 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
+// NewSnsSqs - constructor for a new snssqs dapr component
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
@@ -86,7 +91,7 @@ func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, boo
 func parseInt64(input string, propertyName string) (int64, error) {
 	number, err := strconv.Atoi(input)
 	if err != nil {
-		return -1, fmt.Errorf("parsing %s failed with: %v", propertyName, err)
+		return -1, fmt.Errorf("parsing %s failed with: %w", propertyName, err)
 	}
 
 	return int64(number), nil
@@ -173,6 +178,24 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		}
 
 		md.messageRetryLimit = retryLimit
+	}
+
+	if val, ok := getAliasedProperty([]string{"sqsDeadLettersQueueName"}, metadata); ok {
+		md.sqsDeadLettersQueueName = val
+	}
+
+	if val, ok := getAliasedProperty([]string{"messageReceiveLimit"}, metadata); ok {
+		messageReceiveLimit, err := parseInt64(val, "messageReceiveLimit")
+		if err != nil {
+			return nil, err
+		}
+		// assign: used provided configuration
+		md.messageReceiveLimit = messageReceiveLimit
+	}
+
+	// XOR on having either a valid messageReceiveLimit and invalid sqsDeadLettersQueueName, and vice versa
+	if (md.messageReceiveLimit > 0 || len(md.sqsDeadLettersQueueName) > 0) && !(md.messageReceiveLimit > 0 && len(md.sqsDeadLettersQueueName) > 0) {
+		return nil, errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
 	}
 
 	if val, ok := props["messageWaitTimeSeconds"]; !ok {
@@ -377,7 +400,7 @@ func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) erro
 	return err
 }
 
-func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, handler pubsub.Handler) error {
+func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueueInfo *sqsQueueInfo, handler pubsub.Handler) error {
 	// if this message has been received > x times, delete from queue, it's borked
 	recvCount, ok := message.Attributes[sqs.MessageSystemAttributeNameApproximateReceiveCount]
 
@@ -391,15 +414,20 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 		return fmt.Errorf("error parsing ApproximateReceiveCount from message: %v", message)
 	}
 
-	// if we are over the allowable retry limit, delete the message from the queue
-	// TODO dead letter queue
-	if recvCountInt >= s.metadata.messageRetryLimit {
+	// if we are over the allowable retry limit, and there is no dead-letters queue, delete the message from the queue.
+	if deadLettersQueueInfo == nil && recvCountInt >= s.metadata.messageRetryLimit {
 		if innerErr := s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle); innerErr != nil {
-			return fmt.Errorf("error acknowledging message after receiving the message too many times: %v", innerErr)
+			return fmt.Errorf("error acknowledging message after receiving the message too many times: %w", innerErr)
 		}
 
 		return fmt.Errorf(
 			"message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit)
+	}
+	// ... else, there is no need to actively do something if we reached the limit defined in messageReceiveLimit as the message had
+	// already been moved to the dead-letters queue by SQS
+	if deadLettersQueueInfo != nil && recvCountInt >= s.metadata.messageReceiveLimit {
+		s.logger.Warnf(
+			"message received greater than %v times, moving this message without further processing to dead-letters queue: %v", s.metadata.messageReceiveLimit, s.metadata.sqsDeadLettersQueueName)
 	}
 
 	// otherwise try to handle the message
@@ -407,7 +435,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
 	if err != nil {
-		return fmt.Errorf("error unmarshalling message: %v", err)
+		return fmt.Errorf("error unmarshalling message: %w", err)
 	}
 
 	topic := parseTopicArn(messageBody.TopicArn)
@@ -418,14 +446,14 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo *sqsQueueInfo, ha
 	})
 
 	if err != nil {
-		return fmt.Errorf("error handling message: %v", err)
+		return fmt.Errorf("error handling message: %w", err)
 	}
 
 	// otherwise, there was no error, acknowledge the message
 	return s.acknowledgeMessage(queueInfo.url, message.ReceiptHandle)
 }
 
-func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler pubsub.Handler) {
+func (s *snsSqs) consumeSubscription(queueInfo, deadLettersQueueInfo *sqsQueueInfo, handler pubsub.Handler) {
 	go func() {
 		for {
 			messageResponse, err := s.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
@@ -454,12 +482,47 @@ func (s *snsSqs) consumeSubscription(queueInfo *sqsQueueInfo, handler pubsub.Han
 			s.logger.Debugf("%v message(s) received", len(messageResponse.Messages))
 
 			for _, m := range messageResponse.Messages {
-				if err := s.handleMessage(m, queueInfo, handler); err != nil {
+				if err := s.handleMessage(m, queueInfo, deadLettersQueueInfo, handler); err != nil {
 					s.logger.Error(err)
 				}
 			}
 		}
 	}()
+}
+
+func (s *snsSqs) createDeadLettersQueue() (*sqsQueueInfo, error) {
+	var deadLettersQueueInfo *sqsQueueInfo
+	deadLettersQueueInfo, err := s.getOrCreateQueue(s.metadata.sqsDeadLettersQueueName)
+	if err != nil {
+		s.logger.Errorf("error retrieving SQS dead-letter queue: %v", err)
+
+		return nil, err
+	}
+
+	return deadLettersQueueInfo, nil
+}
+
+func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
+	policy := map[string]string{
+		"deadLetterTargetArn": deadLettersQueueInfo.arn,
+		"maxReceiveCount":     strconv.FormatInt(s.metadata.messageReceiveLimit, 10),
+	}
+
+	b, err := json.Marshal(policy)
+	if err != nil {
+		s.logger.Errorf("error marshalling dead-letters queue policy: %v", err)
+
+		return nil, err
+	}
+
+	sqsSetQueueAttributesInput := &sqs.SetQueueAttributesInput{
+		QueueUrl: &queueInfo.url,
+		Attributes: map[string]*string{
+			sqs.QueueAttributeNameRedrivePolicy: aws.String(string(b)),
+		},
+	}
+
+	return sqsSetQueueAttributesInput, nil
 }
 
 func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -475,12 +538,40 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	}
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID"
-	queueInfo, err := s.getOrCreateQueue(s.metadata.sqsQueueName)
+	var queueInfo *sqsQueueInfo
+	queueInfo, err = s.getOrCreateQueue(s.metadata.sqsQueueName)
 	if err != nil {
 		s.logger.Errorf("error retrieving SQS queue: %v", err)
 
 		return err
 	}
+
+	var deadLettersQueueInfo *sqsQueueInfo
+	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
+		var derr error
+		deadLettersQueueInfo, derr = s.createDeadLettersQueue()
+		if derr != nil {
+			s.logger.Errorf("error creating dead-letter queue: %v", derr)
+
+			return derr
+		}
+
+		var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
+		sqsSetQueueAttributesInput, derr = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
+		if derr != nil {
+			s.logger.Errorf("error creatubg queue attributes for dead-letter queue: %v", derr)
+
+			return derr
+		}
+		_, derr = s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
+		if derr != nil {
+			s.logger.Errorf("error updating queue attributes with dead-letter queue: %v", derr)
+
+			return derr
+		}
+	}
+
+	// apply the dead letters queue attributes to the current queue
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
@@ -499,7 +590,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	s.subscriptions = append(s.subscriptions, subscribeOutput.SubscriptionArn)
 	s.logger.Debugf("Subscribed to topic %s: %v", req.Topic, subscribeOutput)
 
-	s.consumeSubscription(queueInfo, handler)
+	s.consumeSubscription(queueInfo, deadLettersQueueInfo, handler)
 
 	return nil
 }

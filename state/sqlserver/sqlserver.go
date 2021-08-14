@@ -579,7 +579,8 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	}
 	etag := sql.Named(rowVersionColumnName, nil)
 	if req.ETag != nil && *req.ETag != "" {
-		b, err := hex.DecodeString(*req.ETag)
+		var b []byte
+		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}

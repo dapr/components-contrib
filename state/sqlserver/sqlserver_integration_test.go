@@ -247,7 +247,7 @@ func testSingleOperations(t *testing.T) {
 			assert.NotNil(t, err)
 			assertLoadedUserIsEqual(t, store, johnV3.ID, johnV3)
 
-			// 10. Delete with valid ETAG
+			// 10. Delete with valid ETAG should fail
 			err = store.Delete(&state.DeleteRequest{Key: johnV2.ID, ETag: &etag})
 			assert.Nil(t, err)
 

@@ -448,9 +448,13 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	_, err = res.RowsAffected()
+	num, err := res.RowsAffected()
 	if err != nil {
 		return err
+	}
+
+	if req.ETag != nil && num != 1 {
+		return state.NewETagError(state.ETagMismatch, nil)
 	}
 
 	return nil

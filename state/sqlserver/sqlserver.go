@@ -448,12 +448,12 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	num, err := res.RowsAffected()
+	rows, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
 
-	if req.ETag != nil && num != 1 {
+	if req.ETag != nil && rows != 1 {
 		return state.NewETagError(state.ETagMismatch, nil)
 	}
 
@@ -588,7 +588,7 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	}
 
 	var res sql.Result
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+	if req.Options.Concurrency == state.FirstWrite {
 		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 1))
 	} else {
 		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 0))

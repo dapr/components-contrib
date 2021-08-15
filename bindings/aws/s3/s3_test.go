@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -93,5 +94,15 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.NotNil(t, mergedMeta)
 
+	})
+}
+
+func TestGetOption(t *testing.T) {
+	s3 := NewAWSS3(logger.NewLogger("s3"))
+
+	t.Run("return error if key is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{}
+		_, err := s3.get(&r)
+		assert.Error(t, err)
 	})
 }

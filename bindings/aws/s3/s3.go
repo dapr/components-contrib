@@ -13,6 +13,8 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
@@ -27,9 +29,11 @@ const (
 
 // AWSS3 is a binding for an AWS S3 storage bucket
 type AWSS3 struct {
-	metadata *s3Metadata
-	uploader *s3manager.Uploader
-	logger   logger.Logger
+	metadata   *s3Metadata
+	session    *session.Session
+	uploader   *s3manager.Uploader
+	downloader *s3manager.Downloader
+	logger     logger.Logger
 }
 
 type s3Metadata struct {
@@ -58,21 +62,25 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	uploader, err := s.getClient(m)
+	session, err := s.getSession(m)
 	if err != nil {
 		return err
 	}
 	s.metadata = m
-	s.uploader = uploader
-
+	s.session = session
+	s.downloader = s3manager.NewDownloader(s.session)
+	s.uploader = s3manager.NewUploader(s.session)
 	return nil
 }
 
 func (s *AWSS3) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation,
+		bindings.GetOperation,
+	}
 }
 
-func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 
@@ -125,6 +133,44 @@ func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	}, nil
 }
 
+func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	key := ""
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	}
+
+	buff := &aws.WriteAtBuffer{}
+
+	_, err := s.downloader.Download(buff,
+		&s3.GetObjectInput{
+			Bucket: aws.String(s.metadata.Bucket),
+			Key:    aws.String(key),
+		})
+
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data:     buff.Bytes(),
+		Metadata: nil,
+	}, nil
+}
+
+func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+
+	switch req.Operation {
+	case bindings.CreateOperation:
+		return s.create(req)
+	case bindings.GetOperation:
+		return s.get(req)
+	default:
+		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
+	}
+}
+
 func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
@@ -140,15 +186,13 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 	return &m, nil
 }
 
-func (s *AWSS3) getClient(metadata *s3Metadata) (*s3manager.Uploader, error) {
+func (s *AWSS3) getSession(metadata *s3Metadata) (*session.Session, error) {
 	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	uploader := s3manager.NewUploader(sess)
-
-	return uploader, nil
+	return sess, nil
 }
 
 // Helper to merge config and request metadata

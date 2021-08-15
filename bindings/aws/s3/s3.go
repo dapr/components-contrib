@@ -30,7 +30,7 @@ const (
 // AWSS3 is a binding for an AWS S3 storage bucket
 type AWSS3 struct {
 	metadata   *s3Metadata
-	session    *session.Session
+	s3Client   *s3.S3
 	uploader   *s3manager.Uploader
 	downloader *s3manager.Downloader
 	logger     logger.Logger
@@ -67,9 +67,9 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	s.metadata = m
-	s.session = session
-	s.downloader = s3manager.NewDownloader(s.session)
-	s.uploader = s3manager.NewUploader(s.session)
+	s.s3Client = s3.New(session)
+	s.downloader = s3manager.NewDownloader(session)
+	s.uploader = s3manager.NewUploader(session)
 	return nil
 }
 
@@ -77,6 +77,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.CreateOperation,
 		bindings.GetOperation,
+		bindings.DeleteOperation,
 	}
 }
 
@@ -159,6 +160,23 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 	}, nil
 }
 
+func (s *AWSS3) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	key := ""
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	}
+
+	_, err := s.s3Client.DeleteObject(
+		&s3.DeleteObjectInput{
+			Bucket: aws.String(s.metadata.Bucket),
+			Key:    aws.String(key),
+		})
+
+	return nil, err
+}
+
 func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 
 	switch req.Operation {
@@ -166,6 +184,8 @@ func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		return s.create(req)
 	case bindings.GetOperation:
 		return s.get(req)
+	case bindings.DeleteOperation:
+		return s.delete(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

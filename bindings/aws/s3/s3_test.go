@@ -106,3 +106,13 @@ func TestGetOption(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestDeleteOption(t *testing.T) {
+	s3 := NewAWSS3(logger.NewLogger("s3"))
+
+	t.Run("return error if key is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{}
+		_, err := s3.delete(&r)
+		assert.Error(t, err)
+	})
+}

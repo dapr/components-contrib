@@ -2,6 +2,9 @@ package servicebus
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
+	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
@@ -10,70 +13,155 @@ import (
 
 const (
 	// MessageIDMetadataKey defines the metadata key for the message id.
-	MessageIDMetadataKey = "MessageId"
+	MessageIDMetadataKey = "MessageId" // GET/SET
 
 	// CorrelationIDMetadataKey defines the metadata key for the correlation id.
-	CorrelationIDMetadataKey = "CorrelationId"
+	CorrelationIDMetadataKey = "CorrelationId" // GET/SET
 
 	// SessionIDMetadataKey defines the metadata key for the session id.
-	SessionIDMetadataKey = "SessionId"
+	SessionIDMetadataKey = "SessionId" // GET/SET
 
 	// LabelMetadataKey defines the metadata key for the label.
-	LabelMetadataKey = "Label"
+	LabelMetadataKey = "Label" // GET/SET
 
 	// ReplyToMetadataKey defines the metadata key for the reply to value.
-	ReplyToMetadataKey = "ReplyTo"
+	ReplyToMetadataKey = "ReplyTo" // GET/SET
 
 	// ToMetadataKey defines the metadata key for the to value.
-	ToMetadataKey = "To"
+	ToMetadataKey = "To" // GET/SET
 
 	// PartitionKeyMetadataKey defines the metadata key for the partition key.
-	PartitionKeyMetadataKey = "PartitionKey"
+	PartitionKeyMetadataKey = "PartitionKey" // GET/SET
 
 	// ContentTypeMetadataKey defines the metadata key for the content type.
-	ContentTypeMetadataKey = "Content-Type"
+	ContentTypeMetadataKey = "ContentType" // GET/SET
+
+	// DeliveryCountMetadataKey defines the metadata key for the delivery count.
+	DeliveryCountMetadataKey = "DeliveryCount" // GET
+
+	// LockedUntilUtcMetadataKey defines the metadata key for the locked until utc value.
+	LockedUntilUtcMetadataKey = "LockedUntilUtc" // GET
+
+	// LockTokenMetadataKey defines the metadata key for the lock token.
+	LockTokenMetadataKey = "LockToken" // GET
+
+	// EnqueuedTimeUtcMetadataKey defines the metadata key for the enqueued time utc value.
+	EnqueuedTimeUtcMetadataKey = "EnqueuedTimeUtc" // GET
+
+	// SequenceNumberMetadataKey defines the metadata key for the sequence number.
+	SequenceNumberMetadataKey = "SequenceNumber" // GET
+
+	// ScheduledEnqueueTimeUtcMetadataKey defines the metadata key for the scheduled enqueue time utc value.
+	ScheduledEnqueueTimeUtcMetadataKey = "ScheduledEnqueueTimeUtc" // GET/SET
+
+	// ReplyToSessionId defines the metadata key for the reply to session id.
+	ReplyToSessionId = "ReplyToSessionId" // GET/SET
 )
 
-// NewMessageFromRequest builds a new Azure Service Bus message from a PublishRequest.
-func NewMessageFromRequest(req *pubsub.PublishRequest) (*azservicebus.Message, error) {
-	msg := azservicebus.NewMessage(req.Data)
+func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) (*pubsub.NewMessage, error) {
+	pubsubMsg := &pubsub.NewMessage{
+		Data:  asbMsg.Data,
+		Topic: topic,
+	}
+
+	addToMetadata := func(msg *pubsub.NewMessage, key, value string) {
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]string)
+		}
+		msg.Metadata[key] = value
+	}
+
+	if asbMsg.ID != "" {
+		addToMetadata(pubsubMsg, MessageIDMetadataKey, asbMsg.ID)
+	}
+	if asbMsg.SessionID != nil {
+		addToMetadata(pubsubMsg, SessionIDMetadataKey, *asbMsg.SessionID)
+	}
+	if asbMsg.CorrelationID != "" {
+		addToMetadata(pubsubMsg, CorrelationIDMetadataKey, asbMsg.CorrelationID)
+	}
+	if asbMsg.Label != "" {
+		addToMetadata(pubsubMsg, LabelMetadataKey, asbMsg.Label)
+	}
+	if asbMsg.ReplyTo != "" {
+		addToMetadata(pubsubMsg, ReplyToMetadataKey, asbMsg.ReplyTo)
+	}
+	if asbMsg.To != "" {
+		addToMetadata(pubsubMsg, ToMetadataKey, asbMsg.To)
+	}
+	if asbMsg.ContentType != "" {
+		addToMetadata(pubsubMsg, ContentTypeMetadataKey, asbMsg.ContentType)
+	}
+	if asbMsg.DeliveryCount != 0 { // TODO: Does ASB ever set this to 0?
+		addToMetadata(pubsubMsg, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
+	}
+	if asbMsg.LockToken != nil {
+		addToMetadata(pubsubMsg, LockTokenMetadataKey, asbMsg.LockToken.String())
+	}
+	if asbMsg.SystemProperties != nil {
+		systemProps := asbMsg.SystemProperties
+		if systemProps.EnqueuedTime != nil {
+			// Preserve RFC2616 time format.
+			addToMetadata(pubsubMsg, EnqueuedTimeUtcMetadataKey, systemProps.EnqueuedTime.UTC().Format(http.TimeFormat))
+		}
+		if systemProps.SequenceNumber != nil {
+			addToMetadata(pubsubMsg, SequenceNumberMetadataKey, strconv.FormatInt(*systemProps.SequenceNumber, 10))
+		}
+		if systemProps.ScheduledEnqueueTime != nil {
+			// Preserve RFC2616 time format.
+			addToMetadata(pubsubMsg, ScheduledEnqueueTimeUtcMetadataKey, systemProps.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
+		}
+		if systemProps.PartitionKey != nil {
+			addToMetadata(pubsubMsg, PartitionKeyMetadataKey, *systemProps.PartitionKey)
+		}
+		if systemProps.LockedUntil != nil {
+			// Preserve RFC2616 time format.
+			addToMetadata(pubsubMsg, LockedUntilUtcMetadataKey, systemProps.LockedUntil.UTC().Format(http.TimeFormat))
+		}
+	}
+	return pubsubMsg, nil
+}
+
+// NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.
+func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.Message, error) {
+	asbMsg := azservicebus.NewMessage(req.Data)
 
 	// Common properties.
 	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
 	if hasTTL {
-		msg.TTL = &ttl
+		asbMsg.TTL = &ttl
 	}
 
 	// Azure Service Bus specific properties.
 	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
 	msgID, hasMsgID, _ := tryGetMessageID(req.Metadata)
 	if hasMsgID {
-		msg.ID = msgID
+		asbMsg.ID = msgID
 	}
 
 	correlationID, hasCorrelationID, _ := tryGetCorrelationID(req.Metadata)
 	if hasCorrelationID {
-		msg.CorrelationID = correlationID
+		asbMsg.CorrelationID = correlationID
 	}
 
 	sessionID, hasSessionID, _ := tryGetSessionID(req.Metadata)
 	if hasSessionID {
-		msg.SessionID = &sessionID
+		asbMsg.SessionID = &sessionID
 	}
 
 	label, hasLabel, _ := tryGetLabel(req.Metadata)
 	if hasLabel {
-		msg.Label = label
+		asbMsg.Label = label
 	}
 
 	replyTo, hasReplyTo, _ := tryGetReplyTo(req.Metadata)
 	if hasReplyTo {
-		msg.ReplyTo = replyTo
+		asbMsg.ReplyTo = replyTo
 	}
 
 	to, hasTo, _ := tryGetTo(req.Metadata)
 	if hasTo {
-		msg.To = to
+		asbMsg.To = to
 	}
 
 	partitionKey, hasPartitionKey, _ := tryGetPartitionKey(req.Metadata)
@@ -84,19 +172,28 @@ func NewMessageFromRequest(req *pubsub.PublishRequest) (*azservicebus.Message, e
 			}
 		}
 
-		if msg.SystemProperties == nil {
-			msg.SystemProperties = &azservicebus.SystemProperties{}
+		if asbMsg.SystemProperties == nil {
+			asbMsg.SystemProperties = &azservicebus.SystemProperties{}
 		}
 
-		msg.SystemProperties.PartitionKey = &partitionKey
+		asbMsg.SystemProperties.PartitionKey = &partitionKey
 	}
 
 	contentType, hasContentType, _ := tryGetContentType(req.Metadata)
 	if hasContentType {
-		msg.ContentType = contentType
+		asbMsg.ContentType = contentType
 	}
 
-	return msg, nil
+	scheduledEnqueueTime, hasScheduledEnqueueTime, _ := tryGetScheduledEnqueueTime(req.Metadata)
+	if hasScheduledEnqueueTime {
+		if asbMsg.SystemProperties == nil {
+			asbMsg.SystemProperties = &azservicebus.SystemProperties{}
+		}
+
+		asbMsg.SystemProperties.ScheduledEnqueueTime = scheduledEnqueueTime
+	}
+
+	return asbMsg, nil
 }
 
 func tryGetMessageID(props map[string]string) (string, bool, error) {
@@ -161,4 +258,17 @@ func tryGetContentType(props map[string]string) (string, bool, error) {
 	}
 
 	return "", false, nil
+}
+
+func tryGetScheduledEnqueueTime(props map[string]string) (*time.Time, bool, error) {
+	if val, ok := props[ScheduledEnqueueTimeUtcMetadataKey]; ok && val != "" {
+		timeVal, err := time.Parse(http.TimeFormat, val)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return &timeVal, true, nil
+	}
+
+	return nil, false, nil
 }

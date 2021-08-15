@@ -107,16 +107,16 @@ func (s *subscription) close(ctx context.Context) {
 }
 
 func (s *subscription) getHandlerFunc(handler pubsub.Handler, handlerTimeoutInSec int, timeoutInSec int) azservicebus.HandlerFunc {
-	return func(ctx context.Context, message *azservicebus.Message) error {
-		msg := &pubsub.NewMessage{
-			Data:  message.Data,
-			Topic: s.topic,
+	return func(ctx context.Context, asbMsg *azservicebus.Message) error {
+		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, s.topic)
+		if err != nil {
+			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
 		}
 
 		handleCtx, handleCancel := context.WithTimeout(ctx, time.Second*time.Duration(handlerTimeoutInSec))
 		defer handleCancel()
-		s.logger.Debugf("Calling app's handler for message %s on topic %s", message.ID, s.topic)
-		appErr := handler(handleCtx, msg)
+		s.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.ID, s.topic)
+		appErr := handler(handleCtx, pubsubMsg)
 
 		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
 		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
@@ -125,13 +125,13 @@ func (s *subscription) getHandlerFunc(handler pubsub.Handler, handlerTimeoutInSe
 
 		if appErr != nil {
 			s.logger.Warnf("Error in app's handler: %+v", appErr)
-			if abandonErr := s.abandonMessage(finalizeCtx, message); abandonErr != nil {
+			if abandonErr := s.abandonMessage(finalizeCtx, asbMsg); abandonErr != nil {
 				return fmt.Errorf("failed to abandon: %+v", abandonErr)
 			}
 
 			return nil
 		}
-		if completeErr := s.completeMessage(finalizeCtx, message); completeErr != nil {
+		if completeErr := s.completeMessage(finalizeCtx, asbMsg); completeErr != nil {
 			return fmt.Errorf("failed to complete: %+v", completeErr)
 		}
 

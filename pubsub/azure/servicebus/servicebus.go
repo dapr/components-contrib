@@ -295,7 +295,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	msg, err := NewMessageFromRequest(req)
+	msg, err := NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
 	}

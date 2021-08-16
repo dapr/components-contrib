@@ -7,6 +7,5 @@ spec:
   metadata:
   - name: connectionString
     value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;"
-    # use ${{DAPR_TEST_SQL_CONNSTRING}} when not using Docker
   - name: tableName
     value: mytable

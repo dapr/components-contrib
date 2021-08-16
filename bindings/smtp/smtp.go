@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -20,6 +21,7 @@ const (
 	defaultPriority = 3
 	lowestPriority  = 1
 	highestPriority = 5
+	mailSeparator   = ";"
 )
 
 // Mailer allows sending of emails using the Simple Mail Transfer Protocol
@@ -85,9 +87,14 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	// Compose message
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", metadata.EmailFrom)
-	msg.SetHeader("To", metadata.EmailTo)
-	msg.SetHeader("CC", metadata.EmailCC)
-	msg.SetHeader("BCC", metadata.EmailBCC)
+	msg.SetHeader("To", metadata.parseAddresses(metadata.EmailTo)...)
+	if metadata.EmailCC != "" {
+		msg.SetHeader("Cc", metadata.parseAddresses(metadata.EmailCC)...)
+	}
+	if metadata.EmailBCC != "" {
+		msg.SetHeader("Bcc", metadata.parseAddresses(metadata.EmailBCC)...)
+	}
+
 	msg.SetHeader("Subject", metadata.Subject)
 	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
 	body, err := strconv.Unquote(string(req.Data))
@@ -204,4 +211,8 @@ func (metadata *Metadata) parsePriority(req string) error {
 	}
 
 	return nil
+}
+
+func (metadata Metadata) parseAddresses(addresses string) []string {
+	return strings.Split(addresses, mailSeparator)
 }

@@ -11,4 +11,4 @@ spec:
   - name: accountKey
     value: ${{AzureBlobStorageAccessKey}}
   - name: tableName
-    value: ${{AzureTableStorageTableName}}
+    value: TestTable

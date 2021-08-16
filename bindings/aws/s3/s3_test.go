@@ -15,7 +15,6 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
-
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
 			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
@@ -31,9 +30,9 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "token", meta.SessionToken)
 	})
 }
+
 func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
-
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
 			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
@@ -65,11 +64,9 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "endpoint", mergedMeta.Endpoint)
 		assert.Equal(t, "token", mergedMeta.SessionToken)
 		assert.Equal(t, true, mergedMeta.DecodeBase64)
-
 	})
 
 	t.Run("Has invalid merged metadata", func(t *testing.T) {
-
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
 			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
@@ -93,7 +90,6 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		assert.NotNil(t, err)
 		assert.NotNil(t, mergedMeta)
-
 	})
 }
 

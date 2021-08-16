@@ -49,8 +49,8 @@ type s3Metadata struct {
 }
 
 type createResponse struct {
-	Location  string  `json:"Location"`
-	VersionID *string `json:"VersionID"`
+	Location  string  `json:"location"`
+	VersionID *string `json:"versionID"`
 }
 
 type listPayload struct {
@@ -79,6 +79,7 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	s.s3Client = s3.New(session)
 	s.downloader = s3manager.NewDownloader(session)
 	s.uploader = s3manager.NewUploader(session)
+
 	return nil
 }
 
@@ -92,13 +93,11 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 }
 
 func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
-
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
 	}
-	key := ""
+	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
@@ -126,7 +125,6 @@ func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		Key:    aws.String(key),
 		Body:   r,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. Uploading: %w", err)
 	}
@@ -145,7 +143,7 @@ func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 }
 
 func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	key := ""
+	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
@@ -159,7 +157,6 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 			Bucket: aws.String(s.metadata.Bucket),
 			Key:    aws.String(key),
 		})
-
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
@@ -171,7 +168,7 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 }
 
 func (s *AWSS3) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	key := ""
+	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
@@ -186,6 +183,7 @@ func (s *AWSS3) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 
 	return nil, err
 }
+
 func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload listPayload
 	err := json.Unmarshal(req.Data, &payload)
@@ -214,13 +212,13 @@ func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. list operation. cannot marshal blobs to json: %w", err)
 	}
+
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
 	}, nil
 }
 
 func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return s.create(req)
@@ -267,9 +265,8 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 		valBool, err := strconv.ParseBool(val)
 		if err != nil {
 			return merged, err
-		} else {
-			merged.DecodeBase64 = valBool
 		}
+		merged.DecodeBase64 = valBool
 	}
 
 	return merged, nil

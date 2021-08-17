@@ -16,7 +16,7 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' = {
   tags: confTestTags
   properties: {
     consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
+      defaultConsistencyLevel: 'Strong' // Needed by conformance test state.go
     }
     locations: [
       {

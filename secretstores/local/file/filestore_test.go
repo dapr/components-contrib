@@ -163,6 +163,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 	s := localSecretStore{
 		logger: logger.NewLogger("test"),
 		readLocalFileFn: func(secretsFile string) (map[string]interface{}, error) {
+			//nolint:gosec
 			secretsJSON := `
 			{
 				"parent": {

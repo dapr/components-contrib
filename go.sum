@@ -155,6 +155,8 @@ github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 h1:zOVTBdCKFd9JbCKz9/nt+FovbjPFm
 github.com/aliyun/alibaba-cloud-sdk-go v1.61.18/go.mod h1:v8ESoHo4SyHmuB4b1tJqDHxfTGEciD+yhvOU/5s1Rfk=
 github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible h1:HXvOJsZw8JT/ldxjX74Aq4H2IY4ojV/mXMDPWFitpv8=
 github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible/go.mod h1:T/Aws4fEfogEE9v+HPhhw+CntffsBHJ8nXQCwKr0/g8=
+github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0 h1:Vug1AcQD1bOW1AMrr+61oTCP/NWhGDYzN2FuMXT78yQ=
+github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0/go.mod h1:jixoiNNRR/4ziq0yub1fTlxmDcQwlpkaujpaWIATQWM=
 github.com/aliyunmq/mq-http-go-sdk v1.0.3 h1:/uhH7DUoaw9XTtsPgDp7zdPUyG5FBKj2GmJJph9z+6o=
 github.com/aliyunmq/mq-http-go-sdk v1.0.3/go.mod h1:JYfRMQoPexERvnNNBcal0ZQ2TVQ5ialDiW9ScjaadEM=
 github.com/andybalholm/brotli v1.0.0/go.mod h1:loMXtMfwqflxFJPmdbJO0a3KNoPuLBgiu3qAvBg8x/Y=

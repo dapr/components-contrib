@@ -15,6 +15,7 @@ import (
 
 	"github.com/a8m/documentdb"
 	"github.com/agrea/ptr"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/contenttype"
@@ -241,10 +242,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
+		options = append(options, documentdb.IfMatch((*req.ETag)))
+	}
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		etag := uuid.NewString()
 		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
@@ -295,11 +296,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
-		options = append(options, documentdb.IfMatch((etag)))
+		options = append(options, documentdb.IfMatch((*req.ETag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))

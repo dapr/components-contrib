@@ -440,6 +440,7 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		res, err = s.db.Exec(s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
 	}
 
+	// err represents errors thrown by the stored procedure or the database itself
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -448,15 +449,18 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
+	// if the key is not found, then the stored procedure returns 0 rows affected
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
 
+	// When an ETAG is specified, a row must have been deleted or else we return an ETag mismatch error
 	if req.ETag != nil && rows != 1 {
 		return state.NewETagError(state.ETagMismatch, nil)
 	}
 
+	// successful deletion, or noop if no ETAG specified
 	return nil
 }
 

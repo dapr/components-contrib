@@ -442,10 +442,6 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 
 	// err represents errors thrown by the stored procedure or the database itself
 	if err != nil {
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
 		return err
 	}
 

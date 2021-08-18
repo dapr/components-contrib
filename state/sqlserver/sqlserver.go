@@ -452,7 +452,7 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	}
 
 	// When an ETAG is specified, a row must have been deleted or else we return an ETag mismatch error
-	if req.ETag != nil && rows != 1 {
+	if rows != 1 && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
 	}
 

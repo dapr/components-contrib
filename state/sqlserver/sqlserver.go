@@ -445,7 +445,7 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	// if the key is not found, then the stored procedure returns 0 rows affected
+	// if the row with matching key (and ETag if specified) is not found, then the stored procedure returns 0 rows affected
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return err

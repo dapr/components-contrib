@@ -24,7 +24,7 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/alibaba/sentinel-golang v1.0.2-0.20210728053800-194d4be01dfe
+	github.com/alibaba/sentinel-golang v1.0.3
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0

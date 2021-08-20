@@ -96,7 +96,7 @@ To run a specific conformance test
  dlv test --build-flags '-v -tags=conftests' ./tests/conformance -- -test.run "TestStateConformance/redis"
  ```
  
- If you want to combine VS Code + dlv for debugging so you can set breakpoints in the IDE create a debug launch configuration as follows:
+If you want to combine VS Code & dlv for debugging so you can set breakpoints in the IDE, create a debug launch configuration as follows:
 
 ```json
 {

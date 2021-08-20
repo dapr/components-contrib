@@ -198,11 +198,10 @@ func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*binding
 		return err
 	}
 
-	callback := func(c context.Context, event *eventhub.Event, bind *bindings.InvokeResponse) error {
+	callback := func(c context.Context, event *eventhub.Event) error {
 		if event != nil {
 			handler(&bindings.ReadResponse{
 				Data: event.Data,
-				Metadata : bind.metadata,
 			})
 		}
 

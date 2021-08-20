@@ -7,3 +7,5 @@ components:
     allOperations: true
   - component: cosmosdb
     allOperations: true
+  - component: sqlserver
+    allOperations: true

@@ -235,6 +235,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		t.Run("delete", func(t *testing.T) {
 			for _, scenario := range scenarios {
 				if !scenario.bulkOnly && scenario.toBeDeleted {
+					// this also deletes two keys that were not inserted in the set operation
 					t.Logf("Deleting %s", scenario.key)
 					err := statestore.Delete(&state.DeleteRequest{
 						Key: scenario.key,

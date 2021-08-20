@@ -117,6 +117,6 @@ If you want to combine VS Code & dlv for debugging so you can set breakpoints in
             "TestStateConformance/redis",
         ]
     },
-]
+    ]
 }
 ```

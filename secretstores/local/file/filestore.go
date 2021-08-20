@@ -11,16 +11,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
 type localSecretStoreMetaData struct {
-	SecretsFile     string `json:"secretsFile"`
-	NestedSeparator string `json:"nestedSeparator"`
+	SecretsFile     string `mapstructure:"secretsFile"`
+	NestedSeparator string `mapstructure:"nestedSeparator"`
+	MultiValued     bool   `mapstructure:"multiValued"`
 }
 
 type localSecretStore struct {
@@ -28,7 +31,7 @@ type localSecretStore struct {
 	nestedSeparator string
 	currenContext   []string
 	currentPath     string
-	secrets         map[string]string
+	secrets         map[string]interface{}
 	readLocalFileFn func(secretsFile string) (map[string]interface{}, error)
 	logger          logger.Logger
 }
@@ -57,14 +60,28 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 		j.readLocalFileFn = j.readLocalFile
 	}
 
-	j.secrets = map[string]string{}
-
 	jsonConfig, err := j.readLocalFileFn(meta.SecretsFile)
 	if err != nil {
 		return err
 	}
 
-	j.visitJSONObject(jsonConfig)
+	if meta.MultiValued {
+		allSecrets := map[string]interface{}{}
+		for k, v := range jsonConfig {
+			switch v := v.(type) {
+			case string:
+				allSecrets[k] = v
+			case map[string]interface{}:
+				j.secrets = make(map[string]interface{})
+				j.visitJSONObject(v)
+				allSecrets[k] = j.secrets
+			}
+		}
+		j.secrets = allSecrets
+	} else {
+		j.secrets = map[string]interface{}{}
+		j.visitJSONObject(jsonConfig)
+	}
 
 	return nil
 }
@@ -76,10 +93,25 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 		return secretstores.GetSecretResponse{}, fmt.Errorf("secret %s not found", req.Name)
 	}
 
+	var data map[string]string
+	switch v := secretValue.(type) {
+	case string:
+		data = map[string]string{
+			req.Name: v,
+		}
+	case map[string]interface{}:
+		data = make(map[string]string, len(v))
+		for key, value := range v {
+			data[key] = fmt.Sprint(value)
+		}
+	case map[string]string:
+		data = v
+	default:
+		return secretstores.GetSecretResponse{}, fmt.Errorf("unexpected type %q for secret value", reflect.TypeOf(v))
+	}
+
 	return secretstores.GetSecretResponse{
-		Data: map[string]string{
-			req.Name: secretValue,
-		},
+		Data: data,
 	}, nil
 }
 
@@ -88,7 +120,22 @@ func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	r := map[string]map[string]string{}
 
 	for k, v := range j.secrets {
-		r[k] = map[string]string{k: v}
+		switch v := v.(type) {
+		case string:
+			r[k] = map[string]string{
+				k: v,
+			}
+		case map[string]interface{}:
+			data := make(map[string]string, len(v))
+			for key, value := range v {
+				data[key] = fmt.Sprint(value)
+			}
+			r[k] = data
+		case map[string]string:
+			r[k] = v
+		default:
+			return secretstores.BulkGetSecretResponse{}, fmt.Errorf("unexpected type %q for secret value", reflect.TypeOf(v))
+		}
 	}
 
 	return secretstores.BulkGetSecretResponse{
@@ -169,16 +216,12 @@ func (j *localSecretStore) combine(values []string) string {
 }
 
 func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadata) (*localSecretStoreMetaData, error) {
-	b, err := json.Marshal(spec.Properties)
+	var meta localSecretStoreMetaData
+	err := config.Decode(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
 
-	var meta localSecretStoreMetaData
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
 	if meta.SecretsFile == "" {
 		return nil, fmt.Errorf("missing local secrets file in metadata")
 	}

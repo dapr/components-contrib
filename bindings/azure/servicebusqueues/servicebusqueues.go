@@ -13,7 +13,7 @@ import (
 	servicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -176,4 +176,8 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byt
 	}
 
 	return nil
+}
+
+func (a *AzureServiceBusQueues) Close() error {
+	return a.client.Close(context.Background())
 }

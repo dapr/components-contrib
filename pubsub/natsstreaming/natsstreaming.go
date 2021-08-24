@@ -16,13 +16,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	nats "github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 // compulsory options
@@ -65,9 +65,9 @@ type natsStreamingPubSub struct {
 
 	logger logger.Logger
 
-	ctx     context.Context
-	cancel  context.CancelFunc
-	backOff backoff.BackOff
+	ctx           context.Context
+	cancel        context.CancelFunc
+	backOffConfig retry.Config
 }
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation
@@ -193,13 +193,16 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	}
 	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	n.ctx = ctx
-	n.cancel = cancel
+	n.ctx, n.cancel = context.WithCancel(context.Background())
 
-	// TODO: Make the backoff configurable for constant or exponential
-	b := backoff.NewConstantBackOff(5 * time.Second)
-	n.backOff = backoff.WithContext(b, n.ctx)
+	// Default retry configuration is used if no
+	// backOff properties are set.
+	if err := retry.DecodeConfigWithPrefix(
+		&n.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return err
+	}
 
 	n.natStreamingConn = natStreamingConn
 
@@ -226,7 +229,9 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 			Topic: req.Topic,
 			Data:  natsMsg.Data,
 		}
-		pubsub.RetryNotifyRecover(func() error {
+		b := n.backOffConfig.NewBackOffWithContext(n.ctx)
+
+		rerr := retry.NotifyRecover(func() error {
 			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
 			herr := handler(n.ctx, &msg)
 			if herr == nil {
@@ -235,11 +240,14 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 			}
 
 			return herr
-		}, n.backOff, func(err error, d time.Duration) {
+		}, b, func(err error, d time.Duration) {
 			n.logger.Errorf("Error processing NATS Streaming message: %s/%d. Retrying...", natsMsg.Subject, natsMsg.Sequence)
 		}, func() {
 			n.logger.Infof("Successfully processed NATS Streaming message after it previously failed: %s/%d", natsMsg.Subject, natsMsg.Sequence)
 		})
+		if rerr != nil && !errors.Is(rerr, context.Canceled) {
+			n.logger.Errorf("Error processing message and retries are exhausted:  %s/%d.", natsMsg.Subject, natsMsg.Sequence)
+		}
 	}
 
 	if n.metadata.subscriptionType == subscriptionTypeTopic {

@@ -17,7 +17,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // Optimistic Concurrency is implemented using a string column that stores
@@ -184,6 +184,10 @@ func (m *MySQL) getSchemaName(metadata state.Metadata) {
 	}
 
 	m.logger.Debugf("MySql state store: schemaName = %s", m.schemaName)
+}
+
+func (m *MySQL) Ping() error {
+	return nil
 }
 
 // Features returns the features available in this state store

@@ -114,7 +114,7 @@ message CrdtState {
         // A Grow-only Counter
         GCounterState gcounter = 1;
 
-        // A Positve-Negative Counter
+        // A Positive-Negative Counter
         PNCounterState pncounter = 2;
 
         // A Grow-only Set
@@ -146,7 +146,7 @@ message GCounterState {
     uint64 value = 1;
 }
 
-// A Positve-Negative Counter
+// A Positive-Negative Counter
 //
 // A PN-Counter can be both incremented and decremented.
 message PNCounterState {

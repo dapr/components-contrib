@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 	"github.com/streadway/amqp"
 )
 
@@ -44,7 +45,10 @@ type rabbitMQ struct {
 
 	connectionDial func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 
-	logger logger.Logger
+	logger        logger.Logger
+	backOffConfig retry.Config
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // interface used to allow unit testing
@@ -95,6 +99,17 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
+	// Default retry configuration is used if no backOff properties are set.
+	// backOff max retry config is set to 0, which means not to retry by default.
+	r.backOffConfig = retry.DefaultConfigWithNoRetry()
+	if err := retry.DecodeConfigWithPrefix(
+		&r.backOffConfig,
+		metadata.Properties,
+		"backOff"); err != nil {
+		return err
+	}
+
+	r.ctx, r.cancel = context.WithCancel(context.Background())
 	r.metadata = meta
 	r.reconnect(0)
 	// We do not return error on reconnect because it can cause problems if init() happens
@@ -279,6 +294,10 @@ func (r *rabbitMQ) subscribeForever(
 			}
 		}
 
+		if r.isStopped() {
+			return
+		}
+
 		r.logger.Errorf("%s error in subscription for %s, %s", logMessagePrefix, queueName, err)
 
 		if mustReconnect(channel, err) {
@@ -314,10 +333,14 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 		Topic: topic,
 	}
 
-	err := handler(context.Background(), pubsubMsg)
-	if err != nil {
+	b := r.backOffConfig.NewBackOffWithContext(r.ctx)
+	err := retry.NotifyRecover(func() error {
+		return handler(r.ctx, pubsubMsg)
+	}, b, func(err error, d time.Duration) {
 		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
-	}
+	}, func() {
+		r.logger.Infof("%s successfully processed message after it previously failed from topic '%s'", logMessagePrefix, topic)
+	})
 
 	//nolint:nestif
 	// if message is not auto acked we need to ack/nack
@@ -385,12 +408,20 @@ func (r *rabbitMQ) reset() error {
 	return nil
 }
 
+func (r *rabbitMQ) isStopped() bool {
+	r.channelMutex.RLock()
+	defer r.channelMutex.RUnlock()
+
+	return r.stopped
+}
+
 func (r *rabbitMQ) Close() error {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
 	err := r.reset()
 	r.stopped = true
+	r.cancel()
 
 	return err
 }

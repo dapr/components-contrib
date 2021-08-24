@@ -10,10 +10,18 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"gopkg.in/gomail.v2"
+)
+
+const (
+	defaultPriority = 3
+	lowestPriority  = 1
+	highestPriority = 5
+	mailSeparator   = ";"
 )
 
 // Mailer allows sending of emails using the Simple Mail Transfer Protocol
@@ -25,7 +33,7 @@ type Mailer struct {
 // Metadata holds standard email properties
 type Metadata struct {
 	Host          string `json:"host"`
-	Port          string `json:"port"`
+	Port          int    `json:"port"`
 	User          string `json:"user"`
 	SkipTLSVerify bool   `json:"skipTLSVerify"`
 	Password      string `json:"password"`
@@ -34,6 +42,7 @@ type Metadata struct {
 	EmailCC       string `json:"emailCC"`
 	EmailBCC      string `json:"emailBCC"`
 	Subject       string `json:"subject"`
+	Priority      int    `json:"priority"`
 }
 
 // NewSMTP returns a new smtp binding instance
@@ -60,47 +69,52 @@ func (s *Mailer) Operations() []bindings.OperationKind {
 
 // Invoke sends an email message
 func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	// Determine host and port
-	port, err := strconv.Atoi(s.metadata.Port)
-	if err != nil {
-		s.logger.Fatal("SMTP binding error: Unable to parse specified port to integer value")
-	}
-	s.logger.Debugf("SMTP binding: using server %v:%v", s.metadata.Host, port)
-
 	// Merge config metadata with request metadata
-	metadata := s.metadata.mergeWithRequestMetadata(req)
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, err
+	}
 	if metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("SMTP binding error: fromEmail property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: emailFrom property not supplied in configuration- or request-metadata")
 	}
 	if metadata.EmailTo == "" {
-		return nil, fmt.Errorf("SMTP binding error: emailTo property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: emailTo property not supplied in configuration- or request-metadata")
 	}
 	if metadata.Subject == "" {
-		return nil, fmt.Errorf("SMTP binding error: subject property not supplied in configuration- or request-metadata")
+		return nil, fmt.Errorf("smtp binding error: subject property not supplied in configuration- or request-metadata")
 	}
 
 	// Compose message
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", metadata.EmailFrom)
-	msg.SetHeader("To", metadata.EmailTo)
-	msg.SetHeader("CC", metadata.EmailCC)
-	msg.SetHeader("BCC", metadata.EmailBCC)
+	msg.SetHeader("To", metadata.parseAddresses(metadata.EmailTo)...)
+	if metadata.EmailCC != "" {
+		msg.SetHeader("Cc", metadata.parseAddresses(metadata.EmailCC)...)
+	}
+	if metadata.EmailBCC != "" {
+		msg.SetHeader("Bcc", metadata.parseAddresses(metadata.EmailBCC)...)
+	}
+
 	msg.SetHeader("Subject", metadata.Subject)
-	body, _ := strconv.Unquote(string(req.Data))
+	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
+	body, err := strconv.Unquote(string(req.Data))
+	if err != nil {
+		return nil, fmt.Errorf("smtp binding error: can't unquote data field %w", err)
+	}
 	msg.SetBody("text/html", body)
 
 	// Send message
-	dialer := gomail.NewDialer(metadata.Host, port, metadata.User, metadata.Password)
+	dialer := gomail.NewDialer(metadata.Host, metadata.Port, metadata.User, metadata.Password)
 	if metadata.SkipTLSVerify {
 		/* #nosec */
 		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	if err := dialer.DialAndSend(msg); err != nil {
-		s.logger.Fatal(err)
+		return nil, fmt.Errorf("error from smtp binding, sending email failed: %+v", err)
 	}
 
 	// Log success
-	s.logger.Debug("SMTP binding: sent email")
+	s.logger.Debug("smtp binding: sent email successfully")
 
 	return nil, nil
 }
@@ -110,22 +124,36 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta := Metadata{}
 
 	// required metadata properties
-	if meta.Properties["host"] == "" || meta.Properties["port"] == "" ||
-		meta.Properties["user"] == "" || meta.Properties["password"] == "" {
-		return smtpMeta, errors.New("SMTP binding error: host, port, user and password fields are required in metadata")
+	if meta.Properties["host"] == "" || meta.Properties["port"] == "" {
+		return smtpMeta, errors.New("smtp binding error: host and port fields are required in metadata")
 	}
+
+	//nolint
+	if (meta.Properties["user"] != "" && meta.Properties["password"] == "") ||
+		(meta.Properties["user"] == "" && meta.Properties["password"] != "") {
+		return smtpMeta, errors.New("smtp binding error: user and password fields are required in metadata")
+	} else {
+		s.logger.Warn("smtp binding warn: User and password are empty")
+	}
+
 	smtpMeta.Host = meta.Properties["host"]
-	smtpMeta.Port = meta.Properties["port"]
+	port, err := strconv.Atoi(meta.Properties["port"])
+	if err != nil {
+		return smtpMeta, fmt.Errorf("smtp binding error: Unable to parse specified port to integer value")
+	}
+	smtpMeta.Port = port
+
+	s.logger.Debugf("smtp binding: using server %v:%v", s.metadata.Host, s.metadata.Port)
+
 	smtpMeta.User = meta.Properties["user"]
 	smtpMeta.Password = meta.Properties["password"]
 
 	// Optional properties (override per request)
-	smtpMeta.SkipTLSVerify = false
 	skipTLSVerify, err := strconv.ParseBool(meta.Properties["skipTLSVerify"])
 	if err == nil {
 		smtpMeta.SkipTLSVerify = skipTLSVerify
 		if smtpMeta.SkipTLSVerify {
-			s.logger.Warn("SMTP Binding warning: Skip TLS Verification is enabled. This is insecure and is NOT recommended for production scenarios.")
+			s.logger.Warn("smtp binding warning: Skip TLS Verification is enabled. This is insecure and is NOT recommended for production scenarios.")
 		}
 	}
 	smtpMeta.EmailTo = meta.Properties["emailTo"]
@@ -133,32 +161,66 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta.EmailBCC = meta.Properties["emailBCC"]
 	smtpMeta.EmailFrom = meta.Properties["emailFrom"]
 	smtpMeta.Subject = meta.Properties["subject"]
+	err = smtpMeta.parsePriority(meta.Properties["priority"])
+
+	if err != nil {
+		return smtpMeta, err
+	}
 
 	return smtpMeta, nil
 }
 
 // Helper to merge config and request metadata
-func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) Metadata {
+func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (Metadata, error) {
 	merged := metadata
-	if req.Metadata["emailFrom"] != "" {
-		merged.EmailFrom = req.Metadata["emailFrom"]
+
+	if emailFrom := req.Metadata["emailFrom"]; emailFrom != "" {
+		merged.EmailFrom = emailFrom
 	}
 
-	if req.Metadata["emailTo"] != "" {
-		merged.EmailTo = req.Metadata["emailTo"]
+	if emailTo := req.Metadata["emailTo"]; emailTo != "" {
+		merged.EmailTo = emailTo
 	}
 
-	if req.Metadata["emailCC"] != "" {
-		merged.EmailCC = req.Metadata["emailCC"]
+	if emailCC := req.Metadata["emailCC"]; emailCC != "" {
+		merged.EmailCC = emailCC
 	}
 
-	if req.Metadata["emailBCC"] != "" {
-		merged.EmailBCC = req.Metadata["emailBCC"]
+	if emailBCC := req.Metadata["emailBCC"]; emailBCC != "" {
+		merged.EmailBCC = emailBCC
 	}
 
-	if req.Metadata["subject"] != "" {
-		merged.Subject = req.Metadata["subject"]
+	if subject := req.Metadata["subject"]; subject != "" {
+		merged.Subject = subject
 	}
 
-	return merged
+	if priority := req.Metadata["priority"]; priority != "" {
+		err := merged.parsePriority(priority)
+		if err != nil {
+			return merged, err
+		}
+	}
+
+	return merged, nil
+}
+
+func (metadata *Metadata) parsePriority(req string) error {
+	if req == "" {
+		metadata.Priority = defaultPriority
+	} else {
+		priority, err := strconv.Atoi(req)
+		if err != nil {
+			return err
+		}
+		if priority < lowestPriority || priority > highestPriority {
+			return fmt.Errorf("smtp binding error:  priority value must be between %d (highest) and %d (lowest)", lowestPriority, highestPriority)
+		}
+		metadata.Priority = priority
+	}
+
+	return nil
+}
+
+func (metadata Metadata) parseAddresses(addresses string) []string {
+	return strings.Split(addresses, mailSeparator)
 }

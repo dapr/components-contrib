@@ -10,11 +10,10 @@ import (
 	"fmt"
 
 	"github.com/agrea/ptr"
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 	"github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
-
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
 )
 
 // Consul is a state store implementation for HashiCorp Consul.
@@ -135,6 +134,10 @@ func (c *Consul) Set(req *state.SetRequest) error {
 		return fmt.Errorf("couldn't set key %s: %s", keyWithPath, err)
 	}
 
+	return nil
+}
+
+func (c *Consul) Ping() error {
 	return nil
 }
 

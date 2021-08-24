@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/hazelcast/hazelcast-go-client"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
@@ -121,6 +121,10 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return &state.GetResponse{
 		Data: value,
 	}, nil
+}
+
+func (store *Hazelcast) Ping() error {
+	return nil
 }
 
 // Delete performs a delete operation

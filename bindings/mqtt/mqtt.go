@@ -19,10 +19,11 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -222,7 +223,7 @@ func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error 
 		if m.metadata.backOffMaxRetries >= 0 {
 			b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
 		}
-		if err := pubsub.RetryNotifyRecover(func() error {
+		if err := retry.NotifyRecover(func() error {
 			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
 			if _, err := handler(&msg); err != nil {
 				return err
@@ -309,4 +310,13 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	opts.SetTLSConfig(m.newTLSConfig())
 
 	return opts
+}
+
+func (m *MQTT) Close() error {
+	if m.consumer != nil {
+		m.consumer.Disconnect(1)
+	}
+	m.producer.Disconnect(1)
+
+	return nil
 }

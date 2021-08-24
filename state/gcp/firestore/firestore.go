@@ -13,7 +13,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/api/option"
 )
@@ -134,6 +134,10 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 // Set saves state into Firestore with retry
 func (f *Firestore) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(f.setValue, req)
+}
+
+func (f *Firestore) Ping() error {
+	return nil
 }
 
 func (f *Firestore) deleteValue(req *state.DeleteRequest) error {

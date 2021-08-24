@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +22,8 @@ import (
 
 func TestOperations(t *testing.T) {
 	opers := (*binding_http.HTTPSource)(nil).Operations()
-	assert.Equal(t, []bindings.OperationKind{bindings.CreateOperation,
+	assert.Equal(t, []bindings.OperationKind{
+		bindings.CreateOperation,
 		"get",
 		"head",
 		"post",
@@ -30,7 +31,8 @@ func TestOperations(t *testing.T) {
 		"patch",
 		"delete",
 		"options",
-		"trace"}, opers)
+		"trace",
+	}, opers)
 }
 
 func TestInit(t *testing.T) {

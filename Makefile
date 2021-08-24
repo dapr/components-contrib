@@ -53,7 +53,7 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
 
 ################################################################################
 # Target: lint                                                                 #
@@ -64,10 +64,10 @@ lint:
 	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################
-# Target: go.mod                                                               #
+# Target: modtidy                                                              #
 ################################################################################
-.PHONY: go.mod
-go.mod:
+.PHONY: modtidy
+modtidy:
 	go mod tidy
 
 ################################################################################
@@ -76,10 +76,18 @@ go.mod:
 .PHONY: check-diff
 check-diff:
 	git diff --exit-code ./go.mod # check no changes
+	git diff --exit-code ./go.sum # check no changes
 
 ################################################################################
 # Target: conf-tests                                                           #
 ################################################################################
 .PHONY: conf-tests
 conf-tests:
-	@go test -v -tags=conftests -count=1 ./tests/conformance
+	CGO_ENABLED=$(CGO) go test -v -tags=conftests -count=1 ./tests/conformance
+
+################################################################################
+# Target: e2e-tests-zeebe                                                      #
+################################################################################
+.PHONY: e2e-tests-zeebe
+e2e-tests-zeebe:
+	CGO_ENABLED=$(CGO) go test -v -tags=e2etests -count=1 ./tests/e2e/bindings/zeebe/...

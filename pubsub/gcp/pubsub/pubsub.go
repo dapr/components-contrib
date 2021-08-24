@@ -8,7 +8,7 @@ import (
 
 	gcppubsub "cloud.google.com/go/pubsub"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -154,7 +154,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	var err error
 
 	if metadata.PrivateKeyID != "" {
-		//TODO: validate that all auth json fields are filled
+		// TODO: validate that all auth json fields are filled
 		authJSON := &GCPAuthJSON{
 			ProjectID:           metadata.IdentityProjectID,
 			PrivateKeyID:        metadata.PrivateKeyID,

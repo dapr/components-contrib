@@ -6,6 +6,9 @@
 package bindings
 
 import (
+	"context"
+	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,13 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/config"
+	"github.com/dapr/kit/logger"
 )
 
 const (
 	defaultTimeoutDuration = 60 * time.Second
+	defaultWaitDuration    = time.Second
 )
 
 // nolint:gochecknoglobals
@@ -38,6 +42,7 @@ type TestConfig struct {
 	InputMetadata      map[string]string `mapstructure:"input"`
 	OutputMetadata     map[string]string `mapstructure:"output"`
 	ReadBindingTimeout time.Duration     `mapstructure:"readBindingTimeout"`
+	ReadBindingWait    time.Duration     `mapstructure:"readBindingWait"`
 }
 
 func NewTestConfig(name string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
@@ -52,6 +57,7 @@ func NewTestConfig(name string, allOperations bool, operations []string, configM
 		InputMetadata:      make(map[string]string),
 		OutputMetadata:     make(map[string]string),
 		ReadBindingTimeout: defaultTimeoutDuration,
+		ReadBindingWait:    defaultWaitDuration,
 	}
 
 	err := config.Decode(configMap, &testConfig)
@@ -82,7 +88,7 @@ func startHTTPServer(url string) {
 }
 
 func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
-	// There is a possiblity that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
+	// There is a possibility that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
 	// So we are making a copy of the config metadata map and setting the Metadata field before each request
 	// Use CloudEvent as data because it is required by Azure's EventGrid.
 	cloudEvent := "[{\"eventType\":\"test\",\"eventTime\": \"2018-01-25T22:12:19.4556811Z\",\"subject\":\"dapr-conf-tests\",\"id\":\"A234-1234-1234\",\"data\":\"root/>\"}]"
@@ -152,14 +158,14 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 					return nil, nil
 				})
-				assert.NoError(t, err, "input binding read returned an error")
+				assert.True(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close")
 			}()
 		})
 		// Special case for message brokers that are also bindings
 		// Need a small wait here because with brokers like MQTT
 		// if you publish before there is a consumer, the message is thrown out
 		// Currently, there is no way to know when Read is successfully subscribed.
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(config.ReadBindingWait)
 	}
 
 	// CreateOperation
@@ -227,4 +233,21 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			}
 		})
 	}
+
+	t.Run("close", func(t *testing.T) {
+		// Check for an input-binding specific operation before close
+		if config.HasOperation("read") {
+			if closer, ok := inputBinding.(io.Closer); ok {
+				err := closer.Close()
+				assert.NoError(t, err, "expected no error closing input binding")
+			}
+		}
+		// Check for an output-binding specific operation before close
+		if config.HasOperation("operations") {
+			if closer, ok := outputBinding.(io.Closer); ok {
+				err := closer.Close()
+				assert.NoError(t, err, "expected no error closing output binding")
+			}
+		}
+	})
 }

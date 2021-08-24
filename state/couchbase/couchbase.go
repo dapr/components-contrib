@@ -16,7 +16,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -225,6 +225,10 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
 	}
 
+	return nil
+}
+
+func (cbs *Couchbase) Ping() error {
 	return nil
 }
 

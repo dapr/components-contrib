@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -120,6 +120,10 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *RethinkDB) Ping() error {
 	return nil
 }
 

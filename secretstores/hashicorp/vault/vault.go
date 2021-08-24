@@ -18,9 +18,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"golang.org/x/net/http2"
 )
 
@@ -32,8 +33,10 @@ const (
 	componentCaPem               string = "caPem"
 	componentSkipVerify          string = "skipVerify"
 	componentTLSServerName       string = "tlsServerName"
+	componentVaultToken          string = "vaultToken"
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
+	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
@@ -43,6 +46,7 @@ const (
 type vaultSecretStore struct {
 	client              *http.Client
 	vaultAddress        string
+	vaultToken          string
 	vaultTokenMountPath string
 	vaultKVPrefix       string
 
@@ -87,10 +91,42 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	// Get Vault address
 	address := props[componentVaultAddress]
 	if address == "" {
-		v.vaultAddress = defaultVaultAddress
+		address = defaultVaultAddress
 	}
 
 	v.vaultAddress = address
+
+	v.vaultToken = props[componentVaultToken]
+	v.vaultTokenMountPath = props[componentVaultTokenMountPath]
+
+	// Test that at least one of them are set if not return error
+	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
+		return fmt.Errorf("token mount path and token not set")
+	}
+
+	// Test that both are not set. If so return error
+	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
+		return fmt.Errorf("token mount path and token both set")
+	}
+
+	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
+	vaultKVPrefix := props[componentVaultKVPrefix]
+	convertedVaultKVUsePrefix := true
+	if vaultKVUsePrefix != "" {
+		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
+			convertedVaultKVUsePrefix = v
+		} else if err != nil {
+			return fmt.Errorf("unable to convert Use Prefix to boolean")
+		}
+	}
+
+	if !convertedVaultKVUsePrefix {
+		vaultKVPrefix = ""
+	} else if vaultKVPrefix == "" {
+		vaultKVPrefix = defaultVaultKVPrefix
+	}
+
+	v.vaultKVPrefix = vaultKVPrefix
 
 	// Generate TLS config
 	tlsConf := metadataToTLSConfig(props)
@@ -101,20 +137,6 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	}
 
 	v.client = client
-
-	tokenMountPath := props[componentVaultTokenMountPath]
-	if tokenMountPath == "" {
-		return fmt.Errorf("token mount path not set")
-	}
-
-	v.vaultTokenMountPath = tokenMountPath
-
-	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVPrefix == "" {
-		vaultKVPrefix = defaultVaultKVPrefix
-	}
-
-	v.vaultKVPrefix = vaultKVPrefix
 
 	return nil
 }
@@ -167,9 +189,10 @@ func (v *vaultSecretStore) getSecret(secret string) (*vaultKVResponse, error) {
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
 
-		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
-			httpresp, b.String())
+		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultKVResponse
@@ -230,9 +253,10 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 
-		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't get successful response: %#v, %s",
-			httpresp, b.String())
+		return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("list keys couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultListKVResponse
@@ -262,6 +286,10 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 }
 
 func (v *vaultSecretStore) readVaultToken() (string, error) {
+	if v.vaultToken != "" {
+		return v.vaultToken, nil
+	}
+
 	data, err := ioutil.ReadFile(v.vaultTokenMountPath)
 	if err != nil {
 		return "", fmt.Errorf("couldn't read vault token: %s", err)

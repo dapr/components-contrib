@@ -7,36 +7,43 @@ package servicebus
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/Azure/go-amqp"
+	"github.com/cenkalti/backoff/v4"
+
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
 	// Keys
-	connectionString               = "connectionString"
-	consumerID                     = "consumerID"
-	maxDeliveryCount               = "maxDeliveryCount"
-	timeoutInSec                   = "timeoutInSec"
-	lockDurationInSec              = "lockDurationInSec"
-	lockRenewalInSec               = "lockRenewalInSec"
-	defaultMessageTimeToLiveInSec  = "defaultMessageTimeToLiveInSec"
-	autoDeleteOnIdleInSec          = "autoDeleteOnIdleInSec"
-	disableEntityManagement        = "disableEntityManagement"
-	maxConcurrentHandlers          = "maxConcurrentHandlers"
-	handlerTimeoutInSec            = "handlerTimeoutInSec"
-	prefetchCount                  = "prefetchCount"
-	maxActiveMessages              = "maxActiveMessages"
-	maxActiveMessagesRecoveryInSec = "maxActiveMessagesRecoveryInSec"
-	maxReconnectionAttempts        = "maxReconnectionAttempts"
-	connectionRecoveryInSec        = "connectionRecoveryInSec"
-	errorMessagePrefix             = "azure service bus error:"
+	connectionString                = "connectionString"
+	consumerID                      = "consumerID"
+	maxDeliveryCount                = "maxDeliveryCount"
+	timeoutInSec                    = "timeoutInSec"
+	lockDurationInSec               = "lockDurationInSec"
+	lockRenewalInSec                = "lockRenewalInSec"
+	defaultMessageTimeToLiveInSec   = "defaultMessageTimeToLiveInSec"
+	autoDeleteOnIdleInSec           = "autoDeleteOnIdleInSec"
+	disableEntityManagement         = "disableEntityManagement"
+	maxConcurrentHandlers           = "maxConcurrentHandlers"
+	handlerTimeoutInSec             = "handlerTimeoutInSec"
+	prefetchCount                   = "prefetchCount"
+	maxActiveMessages               = "maxActiveMessages"
+	maxActiveMessagesRecoveryInSec  = "maxActiveMessagesRecoveryInSec"
+	maxReconnectionAttempts         = "maxReconnectionAttempts"
+	connectionRecoveryInSec         = "connectionRecoveryInSec"
+	publishMaxRetries               = "publishMaxRetries"
+	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
+	errorMessagePrefix              = "azure service bus error:"
 
 	// Defaults
 	defaultTimeoutInSec        = 60
@@ -44,11 +51,13 @@ const (
 	defaultLockRenewalInSec    = 20
 	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
 	// We should change this if performance testing suggests a more sensible default.
-	defaultMaxActiveMessages              = 10000
-	defaultMaxActiveMessagesRecoveryInSec = 2
-	defaultDisableEntityManagement        = false
-	defaultMaxReconnectionAttempts        = 30
-	defaultConnectionRecoveryInSec        = 2
+	defaultMaxActiveMessages               = 10000
+	defaultMaxActiveMessagesRecoveryInSec  = 2
+	defaultDisableEntityManagement         = false
+	defaultMaxReconnectionAttempts         = 30
+	defaultConnectionRecoveryInSec         = 2
+	defaultPublishMaxRetries               = 5
+	defaultPublishInitialRetryInternalInMs = 500
 )
 
 type handle = struct{}
@@ -62,6 +71,9 @@ type azureServiceBus struct {
 	features      []pubsub.Feature
 	topics        map[string]*azservicebus.Topic
 	topicsLock    *sync.RWMutex
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
@@ -215,6 +227,26 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.PrefetchCount = &valAsInt
 	}
 
+	m.PublishMaxRetries = defaultPublishMaxRetries
+	if val, ok := meta.Properties[publishMaxRetries]; ok && val != "" {
+		var err error
+		valAsInt, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid publishMaxRetries %s, %s", errorMessagePrefix, val, err)
+		}
+		m.PublishMaxRetries = valAsInt
+	}
+
+	m.PublishInitialRetryIntervalInMs = defaultPublishInitialRetryInternalInMs
+	if val, ok := meta.Properties[publishInitialRetryInternalInMs]; ok && val != "" {
+		var err error
+		valAsInt, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid publishInitialRetryIntervalInMs %s, %s", errorMessagePrefix, val, err)
+		}
+		m.PublishInitialRetryIntervalInMs = valAsInt
+	}
+
 	return m, nil
 }
 
@@ -232,17 +264,12 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 
 	a.topicManager = a.namespace.NewTopicManager()
 
+	a.ctx, a.cancel = context.WithCancel(context.Background())
+
 	return nil
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	if !a.metadata.DisableEntityManagement {
-		err := a.ensureTopic(req.Topic)
-		if err != nil {
-			return err
-		}
-	}
-
 	var sender *azservicebus.Topic
 	var err error
 
@@ -253,6 +280,12 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	a.topicsLock.RUnlock()
 
 	if sender == nil {
+		// Ensure the topic exists the first time it is referenced.
+		if !a.metadata.DisableEntityManagement {
+			if err = a.ensureTopic(req.Topic); err != nil {
+				return err
+			}
+		}
 		a.topicsLock.Lock()
 		sender, err = a.namespace.NewTopic(req.Topic)
 		a.topics[req.Topic] = sender
@@ -263,21 +296,44 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-	defer cancel()
-
 	msg := azservicebus.NewMessage(req.Data)
 	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
 	if hasTTL {
 		msg.TTL = &ttl
 	}
 
-	err = sender.Send(ctx, msg)
-	if err != nil {
-		return err
-	}
+	return a.doPublish(sender, msg)
+}
 
-	return nil
+func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebus.Message) error {
+	ebo := backoff.NewExponentialBackOff()
+	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
+	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
+	bo = backoff.WithContext(bo, a.ctx)
+
+	return retry.NotifyRecover(func() error {
+		ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+		defer cancel()
+
+		err := sender.Send(ctx, msg)
+		if err == nil {
+			return nil
+		}
+		var ampqError *amqp.Error
+		if errors.As(err, &ampqError) && ampqError.Condition == "com.microsoft:server-busy" {
+			return ampqError // Retries
+		}
+		var connClosedError azservicebus.ErrConnectionClosed
+		if errors.As(err, &connClosedError) {
+			return connClosedError // Retries
+		}
+
+		return backoff.Permanent(err) // Does not retry
+	}, bo, func(err error, _ time.Duration) {
+		a.logger.Debugf("Could not publish service bus message. Retrying...: %v", err)
+	}, func() {
+		a.logger.Debug("Successfully published service bus message after it previously failed")
+	})
 }
 
 func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -302,7 +358,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 		// Periodically refill the reconnect attempts channel to avoid
 		// exhausting all the refill attempts due to intermittent issues
 		// ocurring over a longer period of time.
-		reconnCtx, reconnCancel := context.WithCancel(context.TODO())
+		reconnCtx, reconnCancel := context.WithCancel(a.ctx)
 		defer reconnCancel()
 		go func() {
 			for {
@@ -357,7 +413,14 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.metadata.MaxActiveMessages,
 				a.metadata.MaxActiveMessagesRecoveryInSec)
 			if innerErr != nil {
-				a.logger.Error(innerErr)
+				var detachError *amqp.DetachError
+				var ampqError *amqp.Error
+				if errors.Is(innerErr, detachError) ||
+					(errors.As(innerErr, &ampqError) && ampqError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(innerErr)
+				} else {
+					a.logger.Error(innerErr)
+				}
 			}
 			cancel() // Cancel receive context
 
@@ -493,12 +556,14 @@ func (a *azureServiceBus) createSubscriptionManagementOptions() ([]azservicebus.
 
 func (a *azureServiceBus) Close() error {
 	for _, s := range a.subscriptions {
-		s.close(context.TODO())
+		s.close(a.ctx)
 	}
 
 	for _, t := range a.topics {
-		t.Close(context.TODO())
+		t.Close(a.ctx)
 	}
+
+	a.cancel()
 
 	return nil
 }

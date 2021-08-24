@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 )
@@ -127,6 +127,16 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 	resp.Metadata["duration"] = endTime.Sub(startTime).String()
 
 	return resp, nil
+}
+
+// Close close PostgreSql instance
+func (p *Postgres) Close() error {
+	if p.db == nil {
+		return nil
+	}
+	p.db.Close()
+
+	return nil
 }
 
 func (p *Postgres) query(sql string) (result []byte, err error) {

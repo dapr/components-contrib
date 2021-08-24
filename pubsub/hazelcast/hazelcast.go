@@ -13,7 +13,8 @@ import (
 	hazelcastCore "github.com/hazelcast/hazelcast-go-client/core"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -151,7 +152,7 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		b = backoff.WithMaxRetries(b, uint64(l.p.metadata.backOffMaxRetries))
 	}
 
-	return pubsub.RetryNotifyRecover(func() error {
+	return retry.NotifyRecover(func() error {
 		l.p.logger.Debug("Processing Hazelcast message")
 
 		return l.pubsubHandler(l.p.ctx, &pubsubMsg)

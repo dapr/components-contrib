@@ -19,7 +19,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -272,4 +272,14 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 		// InsecureSkipVerify: true,
 		ClientAuth: 0,
 	}
+}
+
+func (k *Kafka) Close() error {
+	if err := k.producer.Close(); err != nil {
+		k.logger.Errorf("kafka error: failed to close producer: %v", err)
+
+		return err
+	}
+
+	return nil
 }

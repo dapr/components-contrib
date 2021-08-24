@@ -30,6 +30,7 @@ package blobstorage
 import (
 	"bytes"
 	"context"
+	b64 "encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -38,15 +39,22 @@ import (
 	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
-	keyDelimiter     = "||"
-	accountNameKey   = "accountName"
-	accountKeyKey    = "accountKey"
-	containerNameKey = "containerName"
+	keyDelimiter       = "||"
+	accountNameKey     = "accountName"
+	containerNameKey   = "containerName"
+	endpointKey        = "endpoint"
+	contentType        = "ContentType"
+	contentMD5         = "ContentMD5"
+	contentEncoding    = "ContentEncoding"
+	contentLanguage    = "ContentLanguage"
+	contentDisposition = "ContentDisposition"
+	cacheControl       = "CacheControl"
 )
 
 // StateStore Type
@@ -61,7 +69,6 @@ type StateStore struct {
 
 type blobStorageMetadata struct {
 	accountName   string
-	accountKey    string
 	containerName string
 }
 
@@ -72,15 +79,25 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	credential, err := azblob.NewSharedKeyCredential(meta.accountName, meta.accountKey)
+	credential, env, err := azauth.GetAzureStorageCredentials(r.logger, meta.accountName, metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
 
 	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 
-	URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", meta.accountName, meta.containerName))
-	containerURL := azblob.NewContainerURL(*URL, p)
+	var containerURL azblob.ContainerURL
+	customEndpoint, ok := metadata.Properties[endpointKey]
+	if ok && customEndpoint != "" {
+		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
+		if parseErr != nil {
+			return err
+		}
+		containerURL = azblob.NewContainerURL(*URL, p)
+	} else {
+		URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
+		containerURL = azblob.NewContainerURL(*URL, p)
+	}
 
 	ctx := context.Background()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
@@ -131,6 +148,16 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return r.writeFile(req)
 }
 
+func (r *StateStore) Ping() error {
+	accessConditions := azblob.BlobAccessConditions{}
+
+	if _, err := r.containerURL.GetProperties(context.Background(), accessConditions.LeaseAccessConditions); err != nil {
+		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerURL.URL().Host, err)
+	}
+
+	return nil
+}
+
 // NewAzureBlobStorageStore instance
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
@@ -152,16 +179,10 @@ func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, e
 		return nil, fmt.Errorf("missing or empty %s field from metadata", accountNameKey)
 	}
 
-	if val, ok := metadata[accountKeyKey]; ok && val != "" {
-		meta.accountKey = val
-	} else {
-		return nil, fmt.Errorf("missing of empty %s field from metadata", accountKeyKey)
-	}
-
 	if val, ok := metadata[containerNameKey]; ok && val != "" {
 		meta.containerName = val
 	} else {
-		return nil, fmt.Errorf("missing of empty %s field from metadata", containerNameKey)
+		return nil, fmt.Errorf("missing or empty %s field from metadata", containerNameKey)
 	}
 
 	return &meta, nil
@@ -191,8 +212,6 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
 }
 
 func (r *StateStore) writeFile(req *state.SetRequest) error {
-	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
-
 	accessConditions := azblob.BlobAccessConditions{}
 
 	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {
@@ -203,10 +222,43 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
+	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
+
+	var blobHTTPHeaders azblob.BlobHTTPHeaders
+	if val, ok := req.Metadata[contentType]; ok && val != "" {
+		blobHTTPHeaders.ContentType = val
+		delete(req.Metadata, contentType)
+	}
+	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
+		sDec, err := b64.StdEncoding.DecodeString(val)
+		if err != nil || len(sDec) != 16 {
+			return fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+		}
+		blobHTTPHeaders.ContentMD5 = sDec
+		delete(req.Metadata, contentMD5)
+	}
+	if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
+		blobHTTPHeaders.ContentEncoding = val
+		delete(req.Metadata, contentEncoding)
+	}
+	if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
+		blobHTTPHeaders.ContentLanguage = val
+		delete(req.Metadata, contentLanguage)
+	}
+	if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
+		blobHTTPHeaders.ContentDisposition = val
+		delete(req.Metadata, contentDisposition)
+	}
+	if val, ok := req.Metadata[cacheControl]; ok && val != "" {
+		blobHTTPHeaders.CacheControl = val
+		delete(req.Metadata, cacheControl)
+	}
+
 	_, err := azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:      16,
 		Metadata:         req.Metadata,
 		AccessConditions: accessConditions,
+		BlobHTTPHeaders:  blobHTTPHeaders,
 	})
 	if err != nil {
 		r.logger.Debugf("write file %s, err %s", req.Key, err)

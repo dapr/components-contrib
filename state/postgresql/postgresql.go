@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // PostgreSQL state store
@@ -39,6 +39,10 @@ func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 // Init initializes the SQL server state store
 func (p *PostgreSQL) Init(metadata state.Metadata) error {
 	return p.dbaccess.Init(metadata)
+}
+
+func (p *PostgreSQL) Ping() error {
+	return nil
 }
 
 // Features returns the features available in this state store

@@ -20,7 +20,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
@@ -52,7 +52,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	dialer := &net.Dialer{
 		Timeout: 5 * time.Second,
 	}
-	var netTransport = &http.Transport{
+	netTransport := &http.Transport{
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}

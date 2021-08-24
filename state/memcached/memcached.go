@@ -10,7 +10,7 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -18,6 +18,7 @@ const (
 	hosts              = "hosts"
 	maxIdleConnections = "maxIdleConnections"
 	timeout            = "timeout"
+	ttlInSeconds       = "ttlInSeconds"
 	// These defaults are already provided by gomemcache
 	defaultMaxIdleConnections = 2
 	defaultTimeout            = 1000 * time.Millisecond
@@ -102,10 +103,33 @@ func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
 	return &meta, nil
 }
 
+func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
+	if val, ok := req.Metadata[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		parsedInt := int32(parsedVal)
+
+		return &parsedInt, nil
+	}
+
+	return nil, nil
+}
+
 func (m *Memcached) setValue(req *state.SetRequest) error {
 	var bt []byte
+	ttl, err := m.parseTTL(req)
+	if err != nil {
+		return fmt.Errorf("failed to parse ttl %s: %s", req.Key, err)
+	}
+
 	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
-	err := m.client.Set(&memcache.Item{Key: req.Key, Value: bt})
+	if ttl != nil {
+		err = m.client.Set(&memcache.Item{Key: req.Key, Value: bt, Expiration: *ttl})
+	} else {
+		err = m.client.Set(&memcache.Item{Key: req.Key, Value: bt})
+	}
 	if err != nil {
 		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
 	}
@@ -140,4 +164,8 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 func (m *Memcached) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
+}
+
+func (m *Memcached) Ping() error {
+	return nil
 }

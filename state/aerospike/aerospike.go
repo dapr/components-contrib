@@ -18,7 +18,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 // metadata values
@@ -162,9 +162,11 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 	policy := &as.BasePolicy{}
 	if req.Options.Consistency == state.Strong {
-		policy.ConsistencyLevel = as.CONSISTENCY_ALL
+		policy.ReadModeAP = as.ReadModeAPAll
+		policy.ReadModeSC = as.ReadModeSCLinearize
 	} else {
-		policy.ConsistencyLevel = as.CONSISTENCY_ONE
+		policy.ReadModeAP = as.ReadModeAPOne
+		policy.ReadModeSC = as.ReadModeSCSession
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
@@ -225,6 +227,10 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 		return fmt.Errorf("aerospike: failed to delete key %s - %v", req.Key, err)
 	}
 
+	return nil
+}
+
+func (aspike *Aerospike) Ping() error {
 	return nil
 }
 

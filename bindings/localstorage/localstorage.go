@@ -17,7 +17,7 @@ import (
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 )
 
@@ -53,7 +53,7 @@ func (ls *LocalStorage) Init(metadata bindings.Metadata) error {
 	}
 	ls.metadata = m
 
-	err = os.MkdirAll(ls.metadata.RootPath, 0777)
+	err = os.MkdirAll(ls.metadata.RootPath, 0o777)
 	if err != nil {
 		return fmt.Errorf("unable to create directory specified by 'rootPath': %s", ls.metadata.RootPath)
 	}
@@ -103,7 +103,7 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 		return nil, err
 	}
 
-	err = os.MkdirAll(filepath.Dir(absPath), 0777)
+	err = os.MkdirAll(filepath.Dir(absPath), 0o777)
 	if err != nil {
 		return nil, err
 	}

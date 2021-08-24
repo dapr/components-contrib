@@ -24,7 +24,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -33,6 +33,7 @@ const (
 	password         = "password"
 	databaseName     = "databaseName"
 	collectionName   = "collectionName"
+	server           = "server"
 	writeConcern     = "writeConcern"
 	readConcern      = "readConcern"
 	operationTimeout = "operationTimeout"
@@ -50,6 +51,9 @@ const (
 
 	// mongodb://<host>/<database><params>
 	connectionURIFormat = "mongodb://%s/%s%s"
+
+	// mongodb+srv://<server>/<params>
+	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 )
 
 // MongoDB is a state store implementation for MongoDB
@@ -58,6 +62,7 @@ type MongoDB struct {
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
+	metadata         mongoDBMetadata
 
 	features []state.Feature
 	logger   logger.Logger
@@ -69,6 +74,7 @@ type mongoDBMetadata struct {
 	password         string
 	databaseName     string
 	collectionName   string
+	server           string
 	writeconcern     string
 	readconcern      string
 	params           string
@@ -125,6 +131,7 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 		return fmt.Errorf("error in getting read concern object: %s", err)
 	}
 
+	m.metadata = *meta
 	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
 	collection := m.client.Database(meta.databaseName).Collection(meta.collectionName, opts)
 
@@ -151,6 +158,14 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 	return nil
 }
 
+func (m *MongoDB) Ping() error {
+	if err := m.client.Ping(context.Background(), nil); err != nil {
+		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.host, err)
+	}
+
+	return nil
+}
+
 func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error {
 	var vStr string
 	b, ok := req.Value.([]byte)
@@ -164,6 +179,8 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	filter := bson.M{id: req.Key}
 	if req.ETag != nil {
 		filter[etag] = *req.ETag
+	} else if req.Options.Concurrency == state.FirstWrite {
+		filter[etag] = uuid.NewString()
 	}
 
 	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
@@ -275,6 +292,10 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 }
 
 func getMongoURI(metadata *mongoDBMetadata) string {
+	if len(metadata.server) != 0 {
+		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.server, metadata.params)
+	}
+
 	if metadata.username != "" && metadata.password != "" {
 		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
 	}
@@ -309,8 +330,18 @@ func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
 
 	if val, ok := metadata.Properties[host]; ok && val != "" {
 		meta.host = val
-	} else {
-		return nil, errors.New("missing or empty host field from metadata")
+	}
+
+	if val, ok := metadata.Properties[server]; ok && val != "" {
+		meta.server = val
+	}
+
+	if len(meta.host) == 0 && len(meta.server) == 0 {
+		return nil, errors.New("must set 'host' or 'server' fields in metadata")
+	}
+
+	if len(meta.host) != 0 && len(meta.server) != 0 {
+		return nil, errors.New("'host' or 'server' fields are mutually exclusive")
 	}
 
 	if val, ok := metadata.Properties[username]; ok && val != "" {

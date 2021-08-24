@@ -8,7 +8,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/dapr/pkg/logger"
+	"github.com/dapr/kit/logger"
 )
 
 type subscription struct {
@@ -102,7 +102,7 @@ func (s *subscription) close(ctx context.Context) {
 
 	// Ensure subscription entity is closed
 	if err := s.entity.Close(ctx); err != nil {
-		s.logger.Errorf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
+		s.logger.Warnf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
 	}
 }
 
@@ -195,14 +195,14 @@ func (s *subscription) tryRenewLocks() {
 	s.logger.Debugf("Trying to renew %d active message lock(s) for topic %s", len(msgs), s.topic)
 	err := s.entity.RenewLocks(context.Background(), msgs...)
 	if err != nil {
-		s.logger.Warnf("Couldn't renew all active message lock(s) for topic %s, ", s.topic, err)
+		s.logger.Debugf("Couldn't renew all active message lock(s) for topic %s, ", s.topic, err)
 	}
 }
 
 func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.HandlerFunc) error {
 	s.logger.Debugf("Waiting to receive message on topic %s", s.topic)
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
-		return fmt.Errorf("%s error receiving message on topic %s, %s", errorMessagePrefix, s.topic, err)
+		return fmt.Errorf("%s error receiving message on topic %s, %w", errorMessagePrefix, s.topic, err)
 	}
 
 	return nil

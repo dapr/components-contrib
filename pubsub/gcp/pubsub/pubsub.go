@@ -219,7 +219,7 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(g.metadata.consumerID, req.Topic, g.metadata)
+		subError := g.ensureSubscription(g.metadata.consumerID, req.Topic)
 		if subError != nil {
 			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
 		}
@@ -273,7 +273,7 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 	return g.client.Topic(topic)
 }
 
-func (g *GCPPubSub) ensureSubscription(subscription string, topic string, metadata *metadata) error {
+func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error {
 	err := g.ensureTopic(topic)
 	if err != nil {
 		return err
@@ -284,7 +284,7 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string, metada
 	exists, subErr := entity.Exists(context.Background())
 	if !exists {
 		_, subErr = g.client.CreateSubscription(context.Background(), managedSubscription,
-			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic), EnableMessageOrdering: metadata.EnableMessageOrdering})
+			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic), EnableMessageOrdering: g.metadata.EnableMessageOrdering})
 	}
 
 	return subErr

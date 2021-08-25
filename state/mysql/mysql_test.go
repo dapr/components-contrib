@@ -19,6 +19,43 @@ const (
 	fakeConnectionString = "not a real connection"
 )
 
+func TestNewFactory(t *testing.T) {
+	// Arrange
+	logger := logger.NewLogger("test")
+
+	// Act
+	target := NewMySQLStateStore(logger)
+
+	// Assert
+	assert.NotNil(t, target, "target not returned")
+}
+
+func TestPingReturnsNil(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	// Act
+	err := m.mySQL.Ping()
+
+	// Assert
+	assert.Nil(t, err, "error returned")
+}
+
+func TestFeaturesReturnsFeatures(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	// Act
+	features := m.mySQL.Features()
+
+	// Assert
+	assert.NotNil(t, features, "no features returned")
+	assert.Equal(t, state.Feature("ETAG"), features[0])
+	assert.Equal(t, state.Feature("TRANSACTIONAL"), features[1])
+}
+
 func TestEnsureStateSchemaHandlesShortConnectionString(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)

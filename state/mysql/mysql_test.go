@@ -49,7 +49,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(m.mySQL.db, nil)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.NotNil(t, actualErr, "no error returned")
 	assert.Equal(t, "existsError", actualErr.Error(), "wrong error")
 }
 
@@ -68,7 +68,7 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(m.mySQL.db, nil)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.NotNil(t, actualErr, "no error returned")
 	assert.Equal(t, "createDatabaseError", actualErr.Error(), "wrong error")
 }
 
@@ -81,7 +81,7 @@ func TestFinishInitHandlesOpenError(t *testing.T) {
 	err := m.mySQL.finishInit(m.mySQL.db, fmt.Errorf("failed to open database"))
 
 	// Assert
-	assert.NotNil(t, err, "now error returned")
+	assert.NotNil(t, err, "no error returned")
 	assert.Equal(t, "failed to open database", err.Error(), "wrong error")
 }
 
@@ -105,7 +105,7 @@ func TestFinishInitHandlesPingError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(m.mySQL.db, nil)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.NotNil(t, actualErr, "no error returned")
 	assert.Equal(t, "pingError", actualErr.Error(), "wrong error")
 }
 
@@ -252,7 +252,7 @@ func TestSetHandlesNoKey(t *testing.T) {
 
 	// Assert
 	assert.NotNil(t, err)
-	assert.Equal(t, "missing key in set operation", err.Error(), "wrong error returned")
+	assert.Equal(t, "MySql state store: missing key in set operation", err.Error(), "wrong error returned")
 }
 
 func TestSetHandlesUpdate(t *testing.T) {
@@ -286,7 +286,7 @@ func TestMySQLDeleteHandlesNoKey(t *testing.T) {
 
 	// Asset
 	assert.NotNil(t, err)
-	assert.Equal(t, "missing key in delete operation", err.Error(), "wrong error returned")
+	assert.Equal(t, "MySql state store: missing key in delete operation", err.Error(), "wrong error returned")
 }
 
 func TestDeleteWithETag(t *testing.T) {
@@ -396,7 +396,7 @@ func TestGetHandlesNoKey(t *testing.T) {
 
 	// Assert
 	assert.NotNil(t, err, "returned error")
-	assert.Equal(t, "missing key in get operation", err.Error(), "wrong error returned")
+	assert.Equal(t, "MySql state store: missing key in get operation", err.Error(), "wrong error returned")
 	assert.Nil(t, response, "returned response")
 }
 

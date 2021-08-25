@@ -29,6 +29,7 @@ const (
 	metadataClientX509CertURLKey       = "clientX509CertUrl"
 	metadataPrivateKeyKey              = "privateKey"
 	metadataDisableEntityManagementKey = "disableEntityManagement"
+	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 )
 
 // GCPPubSub type
@@ -123,6 +124,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataEnableMessageOrderingKey]; found && val != "" {
+		if boolVal, err := strconv.ParseBool(val); err == nil {
+			result.EnableMessageOrdering = boolVal
+		}
+	}
+
 	return &result, nil
 }
 
@@ -212,7 +219,7 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(g.metadata.consumerID, req.Topic)
+		subError := g.ensureSubscription(g.metadata.consumerID, req.Topic, g.metadata)
 		if subError != nil {
 			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
 		}
@@ -266,7 +273,7 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 	return g.client.Topic(topic)
 }
 
-func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error {
+func (g *GCPPubSub) ensureSubscription(subscription string, topic string, metadata *metadata) error {
 	err := g.ensureTopic(topic)
 	if err != nil {
 		return err
@@ -277,7 +284,7 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error 
 	exists, subErr := entity.Exists(context.Background())
 	if !exists {
 		_, subErr = g.client.CreateSubscription(context.Background(), managedSubscription,
-			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic)})
+			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic), EnableMessageOrdering: metadata.EnableMessageOrdering})
 	}
 
 	return subErr

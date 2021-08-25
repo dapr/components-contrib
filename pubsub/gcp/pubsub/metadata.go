@@ -15,4 +15,5 @@ type metadata struct {
 	TokenURI                string
 	AuthProviderCertURL     string
 	ClientCertURL           string
+	EnableMessageOrdering   bool
 }

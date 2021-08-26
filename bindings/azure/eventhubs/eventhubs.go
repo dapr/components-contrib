@@ -238,7 +238,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
 	<-exitChan
 
-	a.hub.Close(context.Background())
+	a.Close()
 
 	return nil
 }
@@ -323,4 +323,8 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 	}
 
 	return nil
+}
+
+func (a *AzureEventHubs) Close() error {
+	return a.hub.Close(context.Background())
 }

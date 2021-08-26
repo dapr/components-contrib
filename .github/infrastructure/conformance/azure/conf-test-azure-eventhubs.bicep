@@ -7,9 +7,14 @@ param eventHubsNamespaceName string
 param rgLocation string = resourceGroup().location
 param confTestTags object = {}
 
-var eventHubName = '${eventHubsNamespaceName}-topic'
-var eventHubPolicyName = '${eventHubName}-policy'
-var eventHubConsumerGroupName = '${eventHubName}-cg'
+var eventHubBindingsName = '${eventHubsNamespaceName}-bindings-topic'
+var eventHubBindingsPolicyName = '${eventHubBindingsName}-policy'
+var eventHubBindingsConsumerGroupName = '${eventHubBindingsName}-cg'
+
+var eventHubPubsubName = '${eventHubsNamespaceName}-pubsub-topic'
+var eventHubPubsubPolicyName = '${eventHubPubsubName}-policy'
+var eventHubPubsubConsumerGroupName = '${eventHubPubsubName}-cg'
+
 
 resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   name: eventHubsNamespaceName
@@ -18,10 +23,10 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   sku: {
     name: 'Standard' // For > 1 consumer group
   }
-  resource eventHub 'eventhubs' = {
-    name: eventHubName
-    resource eventHubPolicy 'authorizationRules' = {
-      name: eventHubPolicyName
+  resource eventHubBindings 'eventhubs' = {
+    name: eventHubBindingsName
+    resource eventHubBindingsPolicy 'authorizationRules' = {
+      name: eventHubBindingsPolicyName
       properties: {
         rights: [
           'Send'
@@ -29,12 +34,31 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
         ]
       }
     }
-    resource consumerGroup 'consumergroups' = {
-      name: eventHubConsumerGroupName
+    resource eventHubBindingsConsumerGroup 'consumergroups' = {
+      name: eventHubBindingsConsumerGroupName
+    }
+  }
+  resource eventHubPubsub 'eventhubs' = {
+    name: eventHubPubsubName
+    resource eventHubPubsubPolicy 'authorizationRules' = {
+      name: eventHubPubsubPolicyName
+      properties: {
+        rights: [
+          'Send'
+          'Listen'
+        ]
+      }
+    }
+    resource eventHubPubsubConsumerGroup 'consumergroups' = {
+      name: eventHubPubsubConsumerGroupName
     }
   }
 }
 
-output eventHubName string = eventHubsNamespace::eventHub.name
-output eventHubPolicyName string = eventHubsNamespace::eventHub::eventHubPolicy.name
-output eventHubConsumerGroupName string = eventHubsNamespace::eventHub::consumerGroup.name
+output eventHubBindingsName string = eventHubsNamespace::eventHubBindings.name
+output eventHubBindingsPolicyName string = eventHubsNamespace::eventHubBindings::eventHubBindingsPolicy.name
+output eventHubBindingsConsumerGroupName string = eventHubsNamespace::eventHubBindings::eventHubBindingsConsumerGroup.name
+
+output eventHubPubsubName string = eventHubsNamespace::eventHubPubsub.name
+output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubPolicy.name
+output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name

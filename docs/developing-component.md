@@ -29,6 +29,7 @@ git clone https://github.com/dapr/components-contrib.git github.com/dapr/compone
 1. Create your component directory in the right component directory
 2. Copy component files from the reference component to your component directory
 3. Add go unit-test for your component
+4. Add [conformance tests](/tests/conformance/README.md) for your component.
 
 | Type | Directory | Reference | Docs |
 |------|-----------|--------------------------|------|

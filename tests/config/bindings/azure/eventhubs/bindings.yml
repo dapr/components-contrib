@@ -8,13 +8,13 @@ spec:
   version: v1
   metadata:
   - name: connectionString
-    value: ${{AzureEventHubsConnectionString}}
+    value: ${{AzureEventHubsBindingsConnectionString}}
   - name: consumerGroup
-    value: ${{AzureEventHubsConsumerGroup}}
+    value: ${{AzureEventHubsBindingsConsumerGroup}}
   # Reuse the blob storage account from the storage bindings conformance test
   - name: storageAccountName
     value: ${{AzureBlobStorageAccount}}
   - name: storageAccountKey
     value: ${{AzureBlobStorageAccessKey}}
   - name: storageContainerName
-    value: ${{AzureBlobStorageContainer}}
+    value: ${{AzureEventHubsBindingsContainer}}

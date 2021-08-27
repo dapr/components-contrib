@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/require"
 )
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest

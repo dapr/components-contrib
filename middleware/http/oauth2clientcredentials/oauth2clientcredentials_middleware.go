@@ -15,15 +15,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
 	"github.com/patrickmn/go-cache"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
-// Metadata is the oAuth clientcredentials middleware config
+// Metadata is the oAuth clientcredentials middleware config.
 type oAuth2ClientCredentialsMiddlewareMetadata struct {
 	ClientID            string `json:"clientID"`
 	ClientSecret        string `json:"clientSecret"`
@@ -35,12 +36,12 @@ type oAuth2ClientCredentialsMiddlewareMetadata struct {
 	AuthStyle           int    `json:"-"`
 }
 
-// TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests
+// TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests.
 type TokenProviderInterface interface {
 	GetToken(conf *clientcredentials.Config) (*oauth2.Token, error)
 }
 
-// NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware
+// NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware.
 func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) *Middleware {
 	m := &Middleware{
 		log:        logger,
@@ -52,14 +53,14 @@ func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) *Middleware {
 	return m
 }
 
-// Middleware is an oAuth2 authentication middleware
+// Middleware is an oAuth2 authentication middleware.
 type Middleware struct {
 	log           logger.Logger
 	tokenCache    *cache.Cache
 	tokenProvider TokenProviderInterface
 }
 
-// GetHandler retruns the HTTP handler provided by the middleware
+// GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
@@ -175,12 +176,12 @@ func (m *Middleware) getCacheKey(meta *oAuth2ClientCredentialsMiddlewareMetadata
 	return fmt.Sprintf("%x", hashedKey.Sum(nil))
 }
 
-// SetTokenProvider will enable to change the tokenProvider used after instanciation (needed for mocking)
+// SetTokenProvider will enable to change the tokenProvider used after instanciation (needed for mocking).
 func (m *Middleware) SetTokenProvider(tokenProvider TokenProviderInterface) {
 	m.tokenProvider = tokenProvider
 }
 
-// GetToken returns a token from the current OAuth2 ClientCredentials Configuration
+// GetToken returns a token from the current OAuth2 ClientCredentials Configuration.
 func (m *Middleware) GetToken(conf *clientcredentials.Config) (*oauth2.Token, error) {
 	tokenSource := conf.TokenSource(context.Background())
 

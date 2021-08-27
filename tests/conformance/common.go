@@ -86,7 +86,7 @@ type TestComponent struct {
 	Config        map[string]interface{} `yaml:"config,omitempty"`
 }
 
-// NewTestConfiguration reads the tests.yml and loads the TestConfiguration
+// NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
 func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
 	if isYaml(configFilepath) {
 		b, err := readTestConfiguration(configFilepath)
@@ -176,7 +176,7 @@ func ConvertMetadataToProperties(items []MetadataItem) (map[string]string, error
 	return properties, nil
 }
 
-// isYaml checks whether the file is yaml or not
+// isYaml checks whether the file is yaml or not.
 func isYaml(fileName string) bool {
 	extension := strings.ToLower(filepath.Ext(fileName))
 	if extension == ".yaml" || extension == ".yml" {

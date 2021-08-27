@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/bindings"
 	binding_http "github.com/dapr/components-contrib/bindings/http"

@@ -3,11 +3,12 @@ package opa
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fh "github.com/valyala/fasthttp"
+
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 func mockedRequestHandler(ctx *fh.RequestCtx) {}

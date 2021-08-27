@@ -9,20 +9,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/components-contrib/middleware"
-	mock "github.com/dapr/components-contrib/middleware/http/oauth2clientcredentials/mocks"
-	"github.com/dapr/kit/logger"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fh "github.com/valyala/fasthttp"
 	oauth2 "golang.org/x/oauth2"
+
+	"github.com/dapr/components-contrib/middleware"
+	mock "github.com/dapr/components-contrib/middleware/http/oauth2clientcredentials/mocks"
+	"github.com/dapr/kit/logger"
 )
 
 func mockedRequestHandler(ctx *fh.RequestCtx) {}
 
 // TestOAuth2ClientCredentialsMetadata will check
-// - if the metadata checks are correct in place
+// - if the metadata checks are correct in place.
 func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	// Specify components metadata
 	var metadata middleware.Metadata
@@ -58,7 +59,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 }
 
 // TestOAuth2ClientCredentialsToken will check
-// - if the Token was added to the RequestHeader value specified
+// - if the Token was added to the RequestHeader value specified.
 func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	// Setup
 	mockCtrl := gomock.NewController(t)
@@ -106,7 +107,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 }
 
 // TestOAuth2ClientCredentialsCache will check
-// - if the Cache is working
+// - if the Cache is working.
 func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	// Setup
 	mockCtrl := gomock.NewController(t)

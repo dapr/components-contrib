@@ -11,13 +11,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/influxdata/influxdb-client-go/api"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
-// Influx allows writing to InfluxDB
+// Influx allows writing to InfluxDB.
 type Influx struct {
 	metadata *influxMetadata
 	client   influxdb2.Client
@@ -32,12 +33,12 @@ type influxMetadata struct {
 	Bucket string `json:"bucket"`
 }
 
-// NewInflux returns a new kafka binding instance
+// NewInflux returns a new kafka binding instance.
 func NewInflux(logger logger.Logger) *Influx {
 	return &Influx{logger: logger}
 }
 
-// Init does metadata parsing and connection establishment
+// Init does metadata parsing and connection establishment.
 func (i *Influx) Init(metadata bindings.Metadata) error {
 	influxMeta, err := i.getInfluxMetadata(metadata)
 	if err != nil {
@@ -68,7 +69,7 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// GetInfluxMetadata returns new Influx metadata
+// GetInfluxMetadata returns new Influx metadata.
 func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
@@ -84,12 +85,12 @@ func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata,
 	return &iMetadata, nil
 }
 
-// Operations returns supported operations
+// Operations returns supported operations.
 func (i *Influx) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Invoke called on supported operations
+// Invoke called on supported operations.
 func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var jsonPoint map[string]interface{}
 	err := json.Unmarshal(req.Data, &jsonPoint)

@@ -24,24 +24,24 @@ import (
 // a UUID.
 
 const (
-	// Used if the user does not configure a table name in the metadata
+	// Used if the user does not configure a table name in the metadata.
 	defaultTableName = "state"
 
-	// Used if the user does not configure a database name in the metadata
+	// Used if the user does not configure a database name in the metadata.
 	defaultSchemaName = "dapr_state_store"
 
 	// The key name in the metadata if the user wants a different table name
-	// than the defaultTableName
+	// than the defaultTableName.
 	tableNameKey = "tableName"
 
 	// The key name in the metadata if the user wants a different database name
-	// than the defaultSchemaName
+	// than the defaultSchemaName.
 	schemaNameKey = "schemaName"
 
-	// The key for the mandatory connection string of the metadata
+	// The key for the mandatory connection string of the metadata.
 	connectionStringKey = "connectionString"
 
-	// Standard error message if not connection string is provided
+	// Standard error message if not connection string is provided.
 	errMissingConnectionString = "missing connection string"
 
 	// To connect to MySQL running in Azure over SSL you have to download a
@@ -50,11 +50,11 @@ const (
 	// When the user provides a pem path their connection string must end with
 	// &tls=custom
 	// The connection string should be in the following format
-	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
+	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'.
 	pemPathKey = "pemPath"
 )
 
-// MySQL state store
+// MySQL state store.
 type MySQL struct {
 	// Name of the table to store state. If the table does not exist it will
 	// be created.
@@ -77,7 +77,7 @@ type MySQL struct {
 	factory iMySQLFactory
 }
 
-// NewMySQLStateStore creates a new instance of MySQL state store
+// NewMySQLStateStore creates a new instance of MySQL state store.
 func NewMySQLStateStore(logger logger.Logger) *MySQL {
 	factory := newMySQLFactory(logger)
 
@@ -86,7 +86,7 @@ func NewMySQLStateStore(logger logger.Logger) *MySQL {
 	return newMySQLStateStore(logger, factory)
 }
 
-// Hidden implementation for testing
+// Hidden implementation for testing.
 func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
@@ -153,7 +153,7 @@ func (m *MySQL) Ping() error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (m *MySQL) Features() []state.Feature {
 	return m.features
 }
@@ -285,7 +285,7 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 }
 
 // Delete removes an entity from the store
-// Store Interface
+// Store Interface.
 func (m *MySQL) Delete(req *state.DeleteRequest) error {
 	return state.DeleteWithOptions(m.deleteValue, req)
 }
@@ -329,13 +329,13 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 }
 
 // BulkDelete removes multiple entries from the store
-// Store Interface
+// Store Interface.
 func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 	return m.executeMulti(nil, req)
 }
 
 // Get returns an entity from store
-// Store Interface
+// Store Interface.
 func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	m.logger.Debug("Getting state value from MySql")
 
@@ -367,7 +367,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set adds/updates an entity on store
-// Store Interface
+// Store Interface.
 func (m *MySQL) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
 }
@@ -442,13 +442,13 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 }
 
 // BulkSet adds/updates multiple entities on store
-// Store Interface
+// Store Interface.
 func (m *MySQL) BulkSet(req []state.SetRequest) error {
 	return m.executeMulti(req, nil)
 }
 
 // Multi handles multiple transactions.
-// TransactionalStore Interface
+// TransactionalStore Interface.
 func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
@@ -485,14 +485,14 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
-// BulkGet performs a bulks get operations
+// BulkGet performs a bulks get operations.
 func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// by default, the store doesn't support bulk get
 	// return false so daprd will fallback to call get() method one by one
 	return false, nil, nil
 }
 
-// Close implements io.Closer
+// Close implements io.Closer.
 func (m *MySQL) Close() error {
 	if m.db != nil {
 		return m.db.Close()

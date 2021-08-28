@@ -119,11 +119,11 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		})
 	} else {
 		// Fallback to using Azure AD
-		env, err := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		env, err := azure.NewEnvironmentSettings("cosmosdb", meta.Properties) //nolint:shadow
 		if err != nil {
 			return err
 		}
-		spt, err := env.GetServicePrincipalToken()
+		spt, err := env.GetServicePrincipalToken() //nolint:shadow
 		if err != nil {
 			return err
 		}

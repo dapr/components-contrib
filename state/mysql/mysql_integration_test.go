@@ -165,7 +165,7 @@ func TestMySQLIntegrationWithString(t *testing.T) {
 			connectionStringEnvKey, connectionStringEnvKey)
 	}
 
-	// This simulate getting the contents from a k8s secret
+	// This simulates getting the contents from a k8s secret
 	pemContents := getPemContents()
 
 	metadata := state.Metadata{

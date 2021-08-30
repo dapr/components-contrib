@@ -154,7 +154,7 @@ func TestMySQLIntegrationWithString(t *testing.T) {
 	t.Parallel()
 
 	// When the connection string is not set these tests will simply be skipped.
-	// This makes sure the test do not try to run during any CI builds.
+	// This makes sure the test does not try to run during any CI builds.
 	connectionString := getConnectionString("")
 	if connectionString == "" {
 		t.Skipf(

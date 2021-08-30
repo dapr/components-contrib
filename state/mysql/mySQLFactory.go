@@ -45,7 +45,7 @@ func (m *mySQLFactory) RegisterTLSConfigWithFile(pemPath string) error {
 
 // Used when running in k8s and reading the pem contents from a secret. This
 // is needed because you can't mount a volume to the sidecar
-// The string must be saves as a 64 bit encoded value so we have to decode it.
+// The string must be saved as a 64-bit encoded value, so we have to decode it.
 func (m *mySQLFactory) RegisterTLSConfigWithString(pemContents string) error {
 	// Base64 Standard Decoding
 	decodedContents, err := base64.StdEncoding.DecodeString(pemContents)

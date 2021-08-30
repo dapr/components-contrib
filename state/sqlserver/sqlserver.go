@@ -440,23 +440,23 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 		res, err = s.db.Exec(s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
 	}
 
+	// err represents errors thrown by the stored procedure or the database itself
 	if err != nil {
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
 		return err
 	}
 
+	// if the row with matching key (and ETag if specified) is not found, then the stored procedure returns 0 rows affected
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
 
-	if rows != 1 {
-		return fmt.Errorf("items was not updated")
+	// When an ETAG is specified, a row must have been deleted or else we return an ETag mismatch error
+	if rows != 1 && req.ETag != nil && *req.ETag != "" {
+		return state.NewETagError(state.ETagMismatch, nil)
 	}
 
+	// successful deletion, or noop if no ETAG specified
 	return nil
 }
 
@@ -578,15 +578,22 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 		return err
 	}
 	etag := sql.Named(rowVersionColumnName, nil)
-	if req.ETag != nil {
+	if req.ETag != nil && *req.ETag != "" {
 		var b []byte
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
-		etag.Value = b
+		etag = sql.Named(rowVersionColumnName, b)
 	}
-	res, err := db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag)
+
+	var res sql.Result
+	if req.Options.Concurrency == state.FirstWrite {
+		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 1))
+	} else {
+		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 0))
+	}
+
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)

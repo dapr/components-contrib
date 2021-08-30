@@ -177,3 +177,7 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byt
 
 	return nil
 }
+
+func (a *AzureServiceBusQueues) Close() error {
+	return a.client.Close(context.Background())
+}

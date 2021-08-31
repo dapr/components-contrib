@@ -22,7 +22,8 @@ func TestParsePublishMetadata(t *testing.T) {
 	m := &pubsub.PublishRequest{}
 	m.Metadata = map[string]string{
 		"deliver_at":    "2021-08-31 11:45:02",
-		"deliver_after": "86400"}
+		"deliver_after": "86400",
+	}
 	msg := parsePublishMetadata(m)
 
 	assert.Equal(t, time.Duration(86400), msg.DeliverAfter)

@@ -196,6 +196,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		assert.Nil(t, err)
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		err := statestore.Ping()
+		assert.Nil(t, err)
+	})
+
 	if config.HasOperation("set") {
 		t.Run("set", func(t *testing.T) {
 			for _, scenario := range scenarios {
@@ -230,6 +235,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		t.Run("delete", func(t *testing.T) {
 			for _, scenario := range scenarios {
 				if !scenario.bulkOnly && scenario.toBeDeleted {
+					// this also deletes two keys that were not inserted in the set operation
 					t.Logf("Deleting %s", scenario.key)
 					err := statestore.Delete(&state.DeleteRequest{
 						Key: scenario.key,
@@ -468,5 +474,128 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		// Check if eTag feature is NOT listed
 		features := statestore.Features()
 		assert.False(t, state.FeatureETag.IsPresent(features))
+	}
+
+	if config.HasOperation("first-write") {
+		t.Run("first-write without etag", func(t *testing.T) {
+			testKey := "first-writeTest"
+			firstValue := []byte("testValue1")
+			secondValue := []byte("testValue2")
+			emptyString := ""
+
+			requestSets := [][2]*state.SetRequest{
+				{
+					{
+						Key:   testKey,
+						Value: firstValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+					}, {
+						Key:   testKey,
+						Value: secondValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+					},
+				},
+				{{
+					Key:   testKey,
+					Value: firstValue,
+					Options: state.SetStateOption{
+						Concurrency: state.FirstWrite,
+						Consistency: state.Strong,
+					},
+					ETag: &emptyString,
+				}, {
+					Key:   testKey,
+					Value: secondValue,
+					Options: state.SetStateOption{
+						Concurrency: state.FirstWrite,
+						Consistency: state.Strong,
+					},
+					ETag: &emptyString,
+				}},
+			}
+
+			for _, requestSet := range requestSets {
+				// Delete any potential object, it's important to start from a clean slate.
+				err := statestore.Delete(&state.DeleteRequest{
+					Key: testKey,
+				})
+				assert.Nil(t, err)
+
+				err = statestore.Set(requestSet[0])
+				assert.Nil(t, err)
+
+				// Validate the set.
+				res, err := statestore.Get(&state.GetRequest{
+					Key: testKey,
+				})
+				assert.Nil(t, err)
+				assert.Equal(t, firstValue, res.Data)
+
+				// Second write expect fail
+				err = statestore.Set(requestSet[1])
+				assert.NotNil(t, err)
+			}
+		})
+
+		t.Run("first-write with etag", func(t *testing.T) {
+			testKey := "first-writeTest"
+			firstValue := []byte("testValue1")
+			secondValue := []byte("testValue2")
+
+			request := &state.SetRequest{
+				Key:   testKey,
+				Value: firstValue,
+			}
+
+			// Delete any potential object, it's important to start from a clean slate.
+			err := statestore.Delete(&state.DeleteRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+
+			err = statestore.Set(request)
+			assert.Nil(t, err)
+
+			// Validate the set.
+			res, err := statestore.Get(&state.GetRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+			assert.Equal(t, firstValue, res.Data)
+
+			etag := res.ETag
+
+			request = &state.SetRequest{
+				Key:   testKey,
+				Value: secondValue,
+				ETag:  etag,
+				Options: state.SetStateOption{
+					Concurrency: state.FirstWrite,
+					Consistency: state.Strong,
+				},
+			}
+			err = statestore.Set(request)
+			assert.Nil(t, err)
+
+			// Validate the set.
+			res, err = statestore.Get(&state.GetRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+			assert.NotEqual(t, etag, res.ETag)
+			assert.Equal(t, secondValue, res.Data)
+
+			request.ETag = etag
+
+			// Second write expect fail
+			err = statestore.Set(request)
+			assert.NotNil(t, err)
+		})
 	}
 }

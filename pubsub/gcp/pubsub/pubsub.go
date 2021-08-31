@@ -29,6 +29,7 @@ const (
 	metadataClientX509CertURLKey       = "clientX509CertUrl"
 	metadataPrivateKeyKey              = "privateKey"
 	metadataDisableEntityManagementKey = "disableEntityManagement"
+	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 )
 
 // GCPPubSub type
@@ -123,6 +124,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataEnableMessageOrderingKey]; found && val != "" {
+		if boolVal, err := strconv.ParseBool(val); err == nil {
+			result.EnableMessageOrdering = boolVal
+		}
+	}
+
 	return &result, nil
 }
 
@@ -154,7 +161,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	var err error
 
 	if metadata.PrivateKeyID != "" {
-		//TODO: validate that all auth json fields are filled
+		// TODO: validate that all auth json fields are filled
 		authJSON := &GCPAuthJSON{
 			ProjectID:           metadata.IdentityProjectID,
 			PrivateKeyID:        metadata.PrivateKeyID,
@@ -277,7 +284,7 @@ func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error 
 	exists, subErr := entity.Exists(context.Background())
 	if !exists {
 		_, subErr = g.client.CreateSubscription(context.Background(), managedSubscription,
-			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic)})
+			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic), EnableMessageOrdering: g.metadata.EnableMessageOrdering})
 	}
 
 	return subErr

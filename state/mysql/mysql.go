@@ -149,6 +149,10 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 	return m.finishInit(db, err)
 }
 
+func (m *MySQL) Ping() error {
+	return nil
+}
+
 // Features returns the features available in this state store
 func (m *MySQL) Features() []state.Feature {
 	return m.features

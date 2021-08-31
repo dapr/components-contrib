@@ -18,9 +18,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/internal/config"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/config"
 )
 
 const (
@@ -51,7 +51,8 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 			ComponentType: "pubsub",
 			ComponentName: componentName,
 			AllOperations: allOperations,
-			Operations:    utils.NewStringSet(operations...)},
+			Operations:    utils.NewStringSet(operations...),
+		},
 		PubsubName:             defaultPubsubName,
 		TestTopicName:          defaultTopicName,
 		MessageCount:           defaultMessageCount,

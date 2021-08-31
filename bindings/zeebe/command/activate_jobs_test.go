@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/entities"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/entities"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockActivateJobsClient struct {
@@ -93,9 +92,9 @@ func TestActivateJobs(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("jobType is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: activateJobsOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: ActivateJobsOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingJobType)
 	})
 
@@ -106,9 +105,9 @@ func TestActivateJobs(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
+		_, err = cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingMaxJobsToActivate)
 	})
 
@@ -120,12 +119,12 @@ func TestActivateJobs(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 
 		var mc mockActivateJobsClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
@@ -143,12 +142,12 @@ func TestActivateJobs(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: activateJobsOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
 
 		var mc mockActivateJobsClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)

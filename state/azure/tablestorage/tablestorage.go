@@ -170,13 +170,13 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	if val, ok := metadata[accountKeyKey]; ok && val != "" {
 		meta.accountKey = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing of empty %s field from metadata", accountKeyKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", accountKeyKey))
 	}
 
 	if val, ok := metadata[tableNameKey]; ok && val != "" {
 		meta.tableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing of empty %s field from metadata", tableNameKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", tableNameKey))
 	}
 
 	return &meta, nil
@@ -234,6 +234,10 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	entity.OdataEtag = etag
 
 	return entity.Delete(true, nil)
+}
+
+func (r *StateStore) Ping() error {
+	return nil
 }
 
 func getPartitionAndRowKey(key string) (string, string) {

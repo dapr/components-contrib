@@ -12,30 +12,29 @@ import (
 	"strings"
 
 	kv "github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/keyvault"
+
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
 // Keyvault secret store component metadata properties
+// This is in addition to what's defined in authentication/azure
 const (
-	componentSPNCertificate         = "spnCertificate"
-	componentSPNCertificateFile     = "spnCertificateFile"
-	componentSPNCertificatePassword = "spnCertificatePassword"
-	componentSPNClientID            = "spnClientId"
-	componentSPNTenantID            = "spnTenantId"
-	componentVaultName              = "vaultName"
-	VersionID                       = "version_id"
-	secretItemIDPrefix              = "/secrets/"
+	componentVaultName = "vaultName"
+	VersionID          = "version_id"
+	secretItemIDPrefix = "/secrets/"
 )
 
 type keyvaultSecretStore struct {
-	vaultName   string
-	vaultClient kv.BaseClient
+	vaultName      string
+	vaultClient    kv.BaseClient
+	vaultDNSSuffix string
 
 	logger logger.Logger
 }
 
-// NewAzureKeyvaultSecretStore returns a new Kubernetes secret store
+// NewAzureKeyvaultSecretStore returns a new Azure Key Vault secret store
 func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
@@ -44,10 +43,11 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 	}
 }
 
-// Init creates a Kubernetes client
+// Init creates a Azure Key Vault client
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
-	settings := EnvironmentSettings{
-		Values: metadata.Properties,
+	settings, err := azauth.NewEnvironmentSettings("keyvault", metadata.Properties)
+	if err != nil {
+		return err
 	}
 
 	authorizer, err := settings.GetAuthorizer()
@@ -56,6 +56,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	}
 
 	k.vaultName = settings.Values[componentVaultName]
+	k.vaultDNSSuffix = settings.AzureEnvironment.KeyVaultDNSSuffix
 
 	return err
 }
@@ -131,7 +132,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 // getVaultURI returns Azure Key Vault URI
 func (k *keyvaultSecretStore) getVaultURI() string {
-	return fmt.Sprintf("https://%s.vault.azure.net", k.vaultName)
+	return fmt.Sprintf("https://%s.%s", k.vaultName, k.vaultDNSSuffix)
 }
 
 func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]string) (*int32, error) {

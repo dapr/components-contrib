@@ -28,12 +28,14 @@ import (
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
+	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -49,6 +51,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_redis "github.com/dapr/components-contrib/state/redis"
+	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
@@ -56,6 +59,7 @@ import (
 )
 
 const (
+	eventhubs    = "azure.eventhubs"
 	redis        = "redis"
 	kafka        = "kafka"
 	mqtt         = "mqtt"
@@ -69,6 +73,7 @@ type TestConfiguration struct {
 	ComponentType string          `yaml:"componentType,omitempty"`
 	Components    []TestComponent `yaml:"components,omitempty"`
 }
+
 type TestComponent struct {
 	Component     string                 `yaml:"component,omitempty"`
 	Profile       string                 `yaml:"profile,omitempty"`
@@ -309,6 +314,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	switch tc.Component {
 	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
+	case eventhubs:
+		pubsub = p_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":
@@ -357,6 +364,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
+	case "sqlserver":
+		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -378,6 +387,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case eventhubs:
+		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
@@ -401,6 +412,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case eventhubs:
+		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case mqtt:

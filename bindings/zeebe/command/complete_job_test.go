@@ -10,13 +10,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/commands"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/pb"
-	"github.com/zeebe-io/zeebe/clients/go/pkg/zbc"
-
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockCompleteJobClient struct {
@@ -70,9 +69,9 @@ func TestCompleteJob(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("elementInstanceKey is mandatory", func(t *testing.T) {
-		message := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: completeJobOperation}
-		_, err := message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger}
+		req := &bindings.InvokeRequest{Operation: CompleteJobOperation}
+		_, err := cmd.Invoke(req)
 		assert.Error(t, err, ErrMissingJobKey)
 	})
 
@@ -86,12 +85,12 @@ func TestCompleteJob(t *testing.T) {
 		data, err := json.Marshal(payload)
 		assert.NoError(t, err)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: completeJobOperation}
+		req := &bindings.InvokeRequest{Data: data, Operation: CompleteJobOperation}
 
 		var mc mockCompleteJobClient
 
-		message := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = message.Invoke(req)
+		cmd := ZeebeCommand{logger: testLogger, client: &mc}
+		_, err = cmd.Invoke(req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)

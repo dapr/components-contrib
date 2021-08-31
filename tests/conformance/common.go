@@ -41,6 +41,7 @@ import (
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
+	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
@@ -320,6 +321,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":
 		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
+	case "jetstream":
+		pubsub = p_jetstream.NewJetStream(testLogger)
 	case kafka:
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":

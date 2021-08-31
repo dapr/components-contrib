@@ -143,7 +143,7 @@ func parsePublishMetadata(req *pubsub.PublishRequest) (msg *pulsar.ProducerMessa
 		tmp, _ := strconv.Atoi(val)
 		msg.DeliverAfter = time.Duration(tmp)
 	}
-	return
+	return msg
 }
 
 func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {

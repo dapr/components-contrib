@@ -2,6 +2,7 @@ package pulsar
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,18 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.Host)
 	assert.Equal(t, false, meta.EnableTLS)
+}
+
+func TestParsePublishMetadata(t *testing.T) {
+	m := &pubsub.PublishRequest{}
+	m.Metadata = map[string]string{
+		"deliver_at":    "2021-08-31 11:45:02",
+		"deliver_after": "86400"}
+	msg := parsePublishMetadata(m)
+
+	assert.Equal(t, time.Duration(86400), msg.DeliverAfter)
+	assert.Equal(t, "2021-08-31 11:45:02",
+		msg.DeliverAt.Format("2006-01-02 15:04:05"))
 }
 
 func TestMissingHost(t *testing.T) {

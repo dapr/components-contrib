@@ -56,13 +56,13 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		})
 	} else {
 		// Fallback to using Azure AD
-		env, err := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties) //nolint:shadow
-		if err != nil {
-			return err
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+		if errB != nil {
+			return errB
 		}
-		spt, err := env.GetServicePrincipalToken() //nolint:shadow
-		if err != nil {
-			return err
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
 		}
 		config = documentdb.NewConfigWithServicePrincipal(spt)
 	}

@@ -1,6 +1,6 @@
-# Supported operation: publish, subscribe 
+# Supported operation: publish, subscribe
 # Config map:
-## pubsubName : name of the pubsub 
+## pubsubName : name of the pubsub
 ## testTopicName: name of the test topic to use
 ## publish: A map of strings that will be part of the publish metadata in the Publish call
 ## subscribe: A map of strings that will be part of the subscribe metadata in the Subscribe call
@@ -24,6 +24,8 @@ components:
     config:
       checkInOrderProcessing: false
   - component: natsstreaming
+    allOperations: true
+  - component: jetstream
     allOperations: true
   - component: kafka
     allOperations: true

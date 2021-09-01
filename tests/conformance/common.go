@@ -38,6 +38,7 @@ import (
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
+	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
@@ -320,6 +321,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":
 		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
+	case "jetstream":
+		pubsub = p_jetstream.NewJetStream(testLogger)
 	case kafka:
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":

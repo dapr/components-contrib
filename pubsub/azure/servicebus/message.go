@@ -68,7 +68,7 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) 
 		if msg.Metadata == nil {
 			msg.Metadata = make(map[string]string)
 		}
-		msg.Metadata[key] = value
+		msg.Metadata[fmt.Sprintf("metadata.%s", key)] = value
 	}
 
 	if asbMsg.ID != "" {

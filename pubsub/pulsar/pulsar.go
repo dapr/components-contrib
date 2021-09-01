@@ -54,12 +54,6 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		}
 		m.EnableTLS = tls
 	}
-	if val, ok := meta.Properties[deliverAt]; ok {
-		m.DeliverAt, _ = time.Parse("2006-01-02 15:04:05", val)
-	}
-	if val, ok := meta.Properties[deliverAfter]; ok {
-		m.DeliverAfter, _ = time.ParseDuration(val)
-	}
 
 	return &m, nil
 }
@@ -131,7 +125,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		producer = cache.(pulsar.Producer)
 	}
 
-	msg := p.parsePublishMetadata(req)
+	msg := parsePublishMetadata(req)
 	if _, err = producer.Send(context.Background(), msg); err != nil {
 		return err
 	}
@@ -140,11 +134,9 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 }
 
 // parsePublishMetadata parse publish metadata
-func (p *Pulsar) parsePublishMetadata(req *pubsub.PublishRequest) (msg *pulsar.ProducerMessage) {
+func parsePublishMetadata(req *pubsub.PublishRequest) (msg *pulsar.ProducerMessage) {
 	msg = &pulsar.ProducerMessage{
-		Payload:      req.Data,
-		DeliverAt:    p.metadata.DeliverAt,
-		DeliverAfter: p.metadata.DeliverAfter,
+		Payload: req.Data,
 	}
 	if val, ok := req.Metadata[deliverAt]; ok {
 		msg.DeliverAt, _ = time.Parse("2006-01-02 15:04:05", val)

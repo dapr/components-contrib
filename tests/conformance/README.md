@@ -81,3 +81,42 @@
     # COMPONENT_NAME is the component name from the tests.yml file, e.g. azure.servicebus, redis, mongodb etc.
     go test -v -tags=conftests -count=1 ./tests/conformance -run="${TEST_NAME}/${COMPONENT_NAME}"
     ```
+
+### Debug conformance tests
+
+To run all conformance tests
+
+```bash
+ dlv test --build-flags '-v -tags=conftests' ./tests/conformance
+```
+
+To run a specific conformance test
+
+```bash
+ dlv test --build-flags '-v -tags=conftests' ./tests/conformance -- -test.run "TestStateConformance/redis"
+ ```
+ 
+If you want to combine VS Code & dlv for debugging so you can set breakpoints in the IDE, create a debug launch configuration as follows:
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+    {
+        "name": "Launch test function",
+        "type": "go",
+        "request": "launch",
+        "mode": "test",
+        "program": "${workspaceFolder}/tests/conformance",
+        "buildFlags": "-v -tags=conftests",
+        "env": {
+            "SOMETHING_REQUIRED_BY_THE_TEST": "<somevalue>"
+        },
+        "args": [
+            "-test.run",
+            "TestStateConformance/redis",
+        ]
+    },
+    ]
+}
+```

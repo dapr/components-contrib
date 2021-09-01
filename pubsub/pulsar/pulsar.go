@@ -18,6 +18,8 @@ import (
 const (
 	host              = "host"
 	enableTLS         = "enableTLS"
+	deliverAt         = "deliverAt"
+	deliverAfter      = "deliverAfter"
 	cachedNumProducer = 10
 )
 
@@ -51,6 +53,12 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			return nil, errors.New("pulsar error: invalid value for enableTLS")
 		}
 		m.EnableTLS = tls
+	}
+	if val, ok := meta.Properties[deliverAt]; ok {
+		m.DeliverAt, _ = time.Parse("2006-01-02 15:04:05", val)
+	}
+	if val, ok := meta.Properties[deliverAfter]; ok {
+		m.DeliverAfter, _ = time.ParseDuration(val)
 	}
 
 	return &m, nil
@@ -123,7 +131,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		producer = cache.(pulsar.Producer)
 	}
 
-	msg := parsePublishMetadata(req)
+	msg := p.parsePublishMetadata(req)
 	if _, err = producer.Send(context.Background(), msg); err != nil {
 		return err
 	}
@@ -132,14 +140,16 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 }
 
 // parsePublishMetadata parse publish metadata
-func parsePublishMetadata(req *pubsub.PublishRequest) (msg *pulsar.ProducerMessage) {
+func (p *Pulsar) parsePublishMetadata(req *pubsub.PublishRequest) (msg *pulsar.ProducerMessage) {
 	msg = &pulsar.ProducerMessage{
-		Payload: req.Data,
+		Payload:      req.Data,
+		DeliverAt:    p.metadata.DeliverAt,
+		DeliverAfter: p.metadata.DeliverAfter,
 	}
-	if val, ok := req.Metadata["deliverAt"]; ok {
+	if val, ok := req.Metadata[deliverAt]; ok {
 		msg.DeliverAt, _ = time.Parse("2006-01-02 15:04:05", val)
 	}
-	if val, ok := req.Metadata["deliverAfter"]; ok {
+	if val, ok := req.Metadata[deliverAfter]; ok {
 		msg.DeliverAfter, _ = time.ParseDuration(val)
 	}
 

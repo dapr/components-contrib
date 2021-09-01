@@ -20,11 +20,12 @@ func TestParsePulsarMetadata(t *testing.T) {
 
 func TestParsePublishMetadata(t *testing.T) {
 	m := &pubsub.PublishRequest{}
+	p := new(Pulsar)
 	m.Metadata = map[string]string{
 		"deliverAt":    "2021-08-31 11:45:02",
 		"deliverAfter": "60s",
 	}
-	msg := parsePublishMetadata(m)
+	msg := p.parsePublishMetadata(m)
 
 	val, _ := time.ParseDuration("60s")
 	assert.Equal(t, val, msg.DeliverAfter)

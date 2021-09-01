@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/a8m/documentdb"
+	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
@@ -46,11 +47,26 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	}
 
 	c.partitionKey = m.PartitionKey
-	client := documentdb.New(m.URL, &documentdb.Config{
-		MasterKey: &documentdb.Key{
+
+	// Create the client; first, try authenticating with a master key, if present
+	var config *documentdb.Config
+	if m.MasterKey != "" {
+		config = documentdb.NewConfig(&documentdb.Key{
 			Key: m.MasterKey,
-		},
-	})
+		})
+	} else {
+		// Fallback to using Azure AD
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+		if errB != nil {
+			return errB
+		}
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
+		}
+		config = documentdb.NewConfigWithServicePrincipal(spt)
+	}
+	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
 		Query: "SELECT * FROM ROOT r WHERE r.id=@id",

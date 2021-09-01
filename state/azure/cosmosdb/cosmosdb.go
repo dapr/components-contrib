@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -100,9 +101,6 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	if m.URL == "" {
 		return errors.New("url is required")
 	}
-	if m.MasterKey == "" {
-		return errors.New("masterKey is required")
-	}
 	if m.Database == "" {
 		return errors.New("database is required")
 	}
@@ -113,11 +111,25 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return errors.New("contentType is required")
 	}
 
-	client := documentdb.New(m.URL, &documentdb.Config{
-		MasterKey: &documentdb.Key{
+	// Create the client; first, try authenticating with a master key, if present
+	var config *documentdb.Config
+	if m.MasterKey != "" {
+		config = documentdb.NewConfig(&documentdb.Key{
 			Key: m.MasterKey,
-		},
-	})
+		})
+	} else {
+		// Fallback to using Azure AD
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		if errB != nil {
+			return errB
+		}
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
+		}
+		config = documentdb.NewConfigWithServicePrincipal(spt)
+	}
+	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
 		Query: "SELECT * FROM ROOT r WHERE r.id=@id",

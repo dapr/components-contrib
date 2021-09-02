@@ -113,3 +113,7 @@ func (g *GCPPubSub) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 
 	return nil, err
 }
+
+func (g *GCPPubSub) Close() error {
+	return g.client.Close()
+}

@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: influx
+  namespace: default
+spec:
+  type: bindings.influx
+  version: v1
+  metadata:
+  - name: url # Required
+    value: http://localhost:8086
+  - name: token # Required
+    value: ${{ INFLUX_TOKEN }}
+  - name: org # Required
+    value: dapr-conf-test
+  - name: bucket # Required
+    value: dapr-conf-test-bucket

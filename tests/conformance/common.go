@@ -32,6 +32,7 @@ import (
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
+	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
@@ -396,6 +397,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
+	case "influx":
+		binding = b_influx.NewInflux(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
 	default:

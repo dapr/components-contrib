@@ -35,6 +35,10 @@ components:
     config:
       url: "localhost:22222"
       method: "POST"
+  - component: influx
+    operations: ["create", "operations"]
+    config:
+      outputData: '{ "measurement": "TestMeasurement", "tags": "unit=temperature", "values": "avg=23.5" }'
   - component: mqtt
     profile: mosquitto
     operations: ["create", "operations", "read"]

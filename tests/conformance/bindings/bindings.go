@@ -25,6 +25,9 @@ import (
 const (
 	defaultTimeoutDuration = 60 * time.Second
 	defaultWaitDuration    = time.Second
+
+	// Use CloudEvent as default data because it is required by Azure's EventGrid.
+	defaultOutputData = "[{\"eventType\":\"test\",\"eventTime\": \"2018-01-25T22:12:19.4556811Z\",\"subject\":\"dapr-conf-tests\",\"id\":\"A234-1234-1234\",\"data\":\"root/>\"}]"
 )
 
 // nolint:gochecknoglobals
@@ -41,6 +44,7 @@ type TestConfig struct {
 	URL                string            `mapstructure:"url"`
 	InputMetadata      map[string]string `mapstructure:"input"`
 	OutputMetadata     map[string]string `mapstructure:"output"`
+	OutputData         string            `mapstructure:"outputData"`
 	ReadBindingTimeout time.Duration     `mapstructure:"readBindingTimeout"`
 	ReadBindingWait    time.Duration     `mapstructure:"readBindingWait"`
 }
@@ -56,6 +60,7 @@ func NewTestConfig(name string, allOperations bool, operations []string, configM
 		},
 		InputMetadata:      make(map[string]string),
 		OutputMetadata:     make(map[string]string),
+		OutputData:         defaultOutputData,
 		ReadBindingTimeout: defaultTimeoutDuration,
 		ReadBindingWait:    defaultWaitDuration,
 	}
@@ -90,11 +95,8 @@ func startHTTPServer(url string) {
 func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
 	// There is a possibility that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
 	// So we are making a copy of the config metadata map and setting the Metadata field before each request
-	// Use CloudEvent as data because it is required by Azure's EventGrid.
-	cloudEvent := "[{\"eventType\":\"test\",\"eventTime\": \"2018-01-25T22:12:19.4556811Z\",\"subject\":\"dapr-conf-tests\",\"id\":\"A234-1234-1234\",\"data\":\"root/>\"}]"
-
 	return bindings.InvokeRequest{
-		Data:     []byte(cloudEvent),
+		Data:     []byte(tc.OutputData),
 		Metadata: tc.CopyMap(tc.OutputMetadata),
 	}
 }

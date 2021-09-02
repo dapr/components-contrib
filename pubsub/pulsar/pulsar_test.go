@@ -21,15 +21,16 @@ func TestParsePulsarMetadata(t *testing.T) {
 func TestParsePublishMetadata(t *testing.T) {
 	m := &pubsub.PublishRequest{}
 	m.Metadata = map[string]string{
-		"deliverAt":    "2021-08-31 11:45:02",
+		"deliverAt":    "2021-08-31T11:45:02Z",
 		"deliverAfter": "60s",
 	}
-	msg := parsePublishMetadata(m)
+	msg, err := parsePublishMetadata(m)
+	assert.Nil(t, err)
 
 	val, _ := time.ParseDuration("60s")
 	assert.Equal(t, val, msg.DeliverAfter)
-	assert.Equal(t, "2021-08-31 11:45:02",
-		msg.DeliverAt.Format("2006-01-02 15:04:05"))
+	assert.Equal(t, "2021-08-31T11:45:02Z",
+		msg.DeliverAt.Format(time.RFC3339))
 }
 
 func TestMissingHost(t *testing.T) {

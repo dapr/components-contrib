@@ -9,3 +9,5 @@ components:
     allOperations: true
   - component: sqlserver
     allOperations: true
+  - component: postgresql
+    allOperations: true

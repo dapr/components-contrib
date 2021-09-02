@@ -287,9 +287,5 @@ func TestParseMetadata(t *testing.T) {
 		meta, err = k.getKafkaMetadata(m)
 		require.NoError(t, err)
 		assert.Equal(t, sarama.OffsetNewest, meta.InitialOffset)
-		m.Properties["initialOffset"] = "12345"
-		meta, err = k.getKafkaMetadata(m)
-		require.NoError(t, err)
-		assert.Equal(t, int64(12345), meta.InitialOffset)
 	})
 }

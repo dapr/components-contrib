@@ -104,7 +104,13 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	if err != nil {
 		return nil, errors.New("Influx Error: Cannot write point")
 	}
-	i.client.Close()
 
 	return nil, nil
+}
+
+func (i *Influx) Close() error {
+	i.client.Close()
+	i.writeAPI = nil
+
+	return nil
 }

@@ -13,3 +13,6 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
   - component: azure.tablestorage
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
+  - component: postgresql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]

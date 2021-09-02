@@ -406,16 +406,13 @@ func (s asBase64String) String() string {
 }
 
 func parseInitialOffset(value string) (initialOffset int64, err error) {
-	initialOffset = sarama.OffsetNewest
+	initialOffset = sarama.OffsetNewest // Default
 	if strings.EqualFold(value, "oldest") {
 		initialOffset = sarama.OffsetOldest
 	} else if strings.EqualFold(value, "newest") {
 		initialOffset = sarama.OffsetNewest
 	} else if value != "" {
-		initialOffset, err = strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("kafka error: cannot parse initialOffset: %v", err)
-		}
+		return 0, fmt.Errorf("kafka error: invalid initialOffset: %s", value)
 	}
 
 	return initialOffset, err

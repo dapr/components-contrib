@@ -114,9 +114,11 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	// Create the client; first, try authenticating with a master key, if present
 	var config *documentdb.Config
 	if m.MasterKey != "" {
-		config = documentdb.NewConfig(&documentdb.Key{
-			Key: m.MasterKey,
-		})
+		config = &documentdb.Config{
+			MasterKey: &documentdb.Key{
+				Key: m.MasterKey,
+			},
+		}
 	} else {
 		// Fallback to using Azure AD
 		env, errB := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)

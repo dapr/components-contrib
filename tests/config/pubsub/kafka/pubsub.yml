@@ -12,3 +12,5 @@ spec:
     value: pubsubgroup1
   - name: authRequired
     value: "false"
+  - name: initialOffset
+    value: oldest

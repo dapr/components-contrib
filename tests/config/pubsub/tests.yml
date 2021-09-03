@@ -46,3 +46,5 @@ components:
     allOperations: true
     config:
       checkInOrderProcessing: false
+  - component: in-memory
+    allOperations: true

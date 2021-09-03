@@ -134,7 +134,6 @@ func (s *AliCloudTableStore) Set(req *state.SetRequest) error {
 	request.UpdateRowChange = change
 
 	_, err := s.client.UpdateRow(request)
-
 	if err != nil {
 		return err
 	}
@@ -166,7 +165,6 @@ func (s *AliCloudTableStore) Delete(req *state.DeleteRequest) error {
 	deleteRowReq.DeleteRowChange = change
 
 	_, err := s.client.DeleteRow(deleteRowReq)
-
 	if err != nil {
 		return err
 	}

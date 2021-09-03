@@ -36,6 +36,7 @@ type Kafka struct {
 	authRequired  bool
 	saslUsername  string
 	saslPassword  string
+	initialOffset int64
 	cg            sarama.ConsumerGroup
 	topics        map[string]bool
 	cancel        context.CancelFunc
@@ -52,6 +53,7 @@ type kafkaMetadata struct {
 	AuthRequired    bool     `json:"authRequired"`
 	SaslUsername    string   `json:"saslUsername"`
 	SaslPassword    string   `json:"saslPassword"`
+	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int      `json:"maxMessageBytes"`
 }
 
@@ -120,9 +122,11 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.brokers = meta.Brokers
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
+	k.initialOffset = meta.InitialOffset
 
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_0_0_0
+	config.Consumer.Offsets.Initial = k.initialOffset
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID
@@ -295,6 +299,12 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		k.logger.Debugf("Using %s as ClientID", meta.ClientID)
 	}
 
+	initialOffset, err := parseInitialOffset(metadata.Properties["initialOffset"])
+	if err != nil {
+		return nil, err
+	}
+	meta.InitialOffset = initialOffset
+
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")
 	} else {
@@ -393,4 +403,17 @@ type asBase64String []byte
 
 func (s asBase64String) String() string {
 	return base64.StdEncoding.EncodeToString(s)
+}
+
+func parseInitialOffset(value string) (initialOffset int64, err error) {
+	initialOffset = sarama.OffsetNewest // Default
+	if strings.EqualFold(value, "oldest") {
+		initialOffset = sarama.OffsetOldest
+	} else if strings.EqualFold(value, "newest") {
+		initialOffset = sarama.OffsetNewest
+	} else if value != "" {
+		return 0, fmt.Errorf("kafka error: invalid initialOffset: %s", value)
+	}
+
+	return initialOffset, err
 }

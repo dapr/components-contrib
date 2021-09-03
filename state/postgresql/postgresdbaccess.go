@@ -8,7 +8,6 @@ package postgresql
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -125,7 +124,22 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 			tableName), value, req.Key, etag)
 	}
 
-	return p.returnSingleDBResult(result, err)
+	if err != nil {
+		if req.ETag != nil && *req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows != 1 {
+		return fmt.Errorf("no item was updated")
+	}
+
+	return nil
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
@@ -183,7 +197,20 @@ func (p *postgresDBAccess) deleteValue(req *state.DeleteRequest) error {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
 	}
 
-	return p.returnSingleDBResult(result, err)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows != 1 && req.ETag != nil && *req.ETag != "" {
+		return state.NewETagError(state.ETagMismatch, nil)
+	}
+
+	return nil
 }
 
 func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
@@ -222,39 +249,6 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 	return err
 }
 
-// Verifies that the sql.Result affected only one row and no errors exist
-func (p *postgresDBAccess) returnSingleDBResult(result sql.Result, err error) error {
-	if err != nil {
-		p.logger.Debug(err)
-
-		return err
-	}
-
-	rowsAffected, resultErr := result.RowsAffected()
-
-	if resultErr != nil {
-		p.logger.Error(resultErr)
-
-		return resultErr
-	}
-
-	if rowsAffected == 0 {
-		noRowsErr := state.NewETagError(state.ETagMismatch, err)
-		p.logger.Error(noRowsErr)
-
-		return noRowsErr
-	}
-
-	if rowsAffected > 1 {
-		tooManyRowsErr := errors.New("database operation failed: more than one row affected, expected one")
-		p.logger.Error(tooManyRowsErr)
-
-		return tooManyRowsErr
-	}
-
-	return nil
-}
-
 // Close implements io.Close
 func (p *postgresDBAccess) Close() error {
 	if p.db != nil {
@@ -274,7 +268,7 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 		p.logger.Info("Creating PostgreSQL state table")
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 									key text NOT NULL PRIMARY KEY,
-									value json NOT NULL,
+									value text NOT NULL,
 									insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 									updatedate TIMESTAMP WITH TIME ZONE NULL);`, stateTableName)
 		_, err = p.db.Exec(createTable)

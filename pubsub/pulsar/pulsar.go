@@ -146,13 +146,13 @@ func parsePublishMetadata(req *pubsub.PublishRequest) (
 	if val, ok := req.Metadata[deliverAt]; ok {
 		msg.DeliverAt, err = time.Parse(time.RFC3339, val)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 	if val, ok := req.Metadata[deliverAfter]; ok {
 		msg.DeliverAfter, err = time.ParseDuration(val)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 

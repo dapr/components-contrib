@@ -32,12 +32,14 @@ import (
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
+	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
+	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
@@ -320,6 +322,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":
 		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
+	case "jetstream":
+		pubsub = p_jetstream.NewJetStream(testLogger)
 	case kafka:
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":
@@ -393,6 +397,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
+	case "influx":
+		binding = b_influx.NewInflux(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
 	default:

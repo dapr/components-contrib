@@ -109,19 +109,19 @@ func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.Bul
 	batchGetReq := new(tablestore.BatchGetRowRequest)
 	batchGetReq.MultiRowQueryCriteria = append(batchGetReq.MultiRowQueryCriteria, mqCriteria)
 	batchGetResp, err := s.client.BatchGetRow(batchGetReq)
-	var responseList = make([]state.BulkGetResponse, 0, 10)
+	responseList := make([]state.BulkGetResponse, 0, 10)
 	if err != nil {
 		return false, nil, err
-	} else {
-		for _, row := range batchGetResp.TableToRowsResult[mqCriteria.TableName] {
-			resp := s.toGetResp(row.Columns)
+	}
 
-			responseList = append(responseList, state.BulkGetResponse{
-				Data: resp.Data,
-				ETag: resp.ETag,
-				Key:  row.PrimaryKey.PrimaryKeys[0].Value.(string),
-			})
-		}
+	for _, row := range batchGetResp.TableToRowsResult[mqCriteria.TableName] {
+		resp := s.toGetResp(row.Columns)
+
+		responseList = append(responseList, state.BulkGetResponse{
+			Data: resp.Data,
+			ETag: resp.ETag,
+			Key:  row.PrimaryKey.PrimaryKeys[0].Value.(string),
+		})
 	}
 
 	return true, responseList, nil
@@ -137,9 +137,9 @@ func (s *AliCloudTableStore) Set(req *state.SetRequest) error {
 
 	if err != nil {
 		return err
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 func (s *AliCloudTableStore) toUpdateRowChange(req *state.SetRequest) *tablestore.UpdateRowChange {
@@ -169,9 +169,9 @@ func (s *AliCloudTableStore) Delete(req *state.DeleteRequest) error {
 
 	if err != nil {
 		return err
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 func (s *AliCloudTableStore) getDeleteRowChange(req *state.DeleteRequest) *tablestore.DeleteRowChange {
@@ -193,25 +193,21 @@ func (s *AliCloudTableStore) BulkDelete(reqs []state.DeleteRequest) error {
 func (s *AliCloudTableStore) batchWrite(setReqs []state.SetRequest, deleteReqs []state.DeleteRequest) error {
 	bathReq := new(tablestore.BatchWriteRowRequest)
 
-	if setReqs != nil {
-		for _, req := range setReqs {
-			bathReq.AddRowChange(s.toUpdateRowChange(&req))
-		}
+	for i := range setReqs {
+		bathReq.AddRowChange(s.toUpdateRowChange(&setReqs[i]))
 	}
 
-	if setReqs != nil {
-		for _, req := range deleteReqs {
-			bathReq.AddRowChange(s.getDeleteRowChange(&req))
-		}
+	for i := range deleteReqs {
+		bathReq.AddRowChange(s.getDeleteRowChange(&deleteReqs[i]))
 	}
 
 	bathReq.IsAtomic = true
 	_, err := s.client.BatchWriteRow(bathReq)
 	if err != nil {
 		return err
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 func (s *AliCloudTableStore) Ping() error {

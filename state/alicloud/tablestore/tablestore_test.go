@@ -33,7 +33,7 @@ func TestTableStoreMetadata(t *testing.T) {
 }
 
 func TestDataEncodeAndDecode(t *testing.T) {
-	if os.Getenv("ACCESS_KEY_ID") == "" || os.Getenv("ACCESS_KEY") == ""{
+	if os.Getenv("ACCESS_KEY_ID") == "" || os.Getenv("ACCESS_KEY") == "" {
 		t.Skip()
 	}
 
@@ -45,7 +45,8 @@ func TestDataEncodeAndDecode(t *testing.T) {
 			"accessKey":    os.Getenv("ACCESS_KEY"),
 			"instanceName": "dapr-test",
 			"tableName":    "dapr_test_table1",
-			"endpoint":     "https://dapr-test.cn-hangzhou.ots.aliyuncs.com"},
+			"endpoint":     "https://dapr-test.cn-hangzhou.ots.aliyuncs.com",
+		},
 	}
 	aliCloudTableStore.Init(metadata)
 

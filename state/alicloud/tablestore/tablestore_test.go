@@ -6,13 +6,11 @@
 package tablestore
 
 import (
-	"encoding/json"
-	"os"
+	"github.com/golang/mock/gomock"
 	"testing"
 
 	"github.com/agrea/ptr"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,42 +30,102 @@ func TestTableStoreMetadata(t *testing.T) {
 	assert.Equal(t, "ENDPOINT", meta.Endpoint)
 }
 
-func TestDataEncodeAndDecode(t *testing.T) {
-	if os.Getenv("ACCESS_KEY_ID") == "" || os.Getenv("ACCESS_KEY") == "" {
-		t.Skip()
+func TestReadAndWrite(t *testing.T) {
+	ctl := gomock.NewController(t)
+
+	defer ctl.Finish()
+
+	store := NewAliCloudTableStore(logger.NewLogger("test"))
+	store.Init(state.Metadata{})
+
+	store.client = &mockClient{
+		data: make(map[string][]byte),
 	}
 
-	aliCloudTableStore := NewAliCloudTableStore(logger.NewLogger("test"))
+	t.Run("test set 1", func(t *testing.T) {
+		setReq := &state.SetRequest{
+			Key:   "theFirstKey",
+			Value: "value of key",
+			ETag:  ptr.String("the etag"),
+		}
+		err := store.Set(setReq)
+		assert.Nil(t, err)
+	})
 
-	metadata := state.Metadata{
-		Properties: map[string]string{
-			"accessKeyID":  os.Getenv("ACCESS_KEY_ID"),
-			"accessKey":    os.Getenv("ACCESS_KEY"),
-			"instanceName": "dapr-test",
-			"tableName":    "dapr_test_table1",
-			"endpoint":     "https://dapr-test.cn-hangzhou.ots.aliyuncs.com",
-		},
-	}
-	aliCloudTableStore.Init(metadata)
+	t.Run("test get 1", func(t *testing.T) {
+		getReq := &state.GetRequest{
+			Key: "theFirstKey",
+		}
+		resp, err := store.Get(getReq)
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, "value of key", string(resp.Data))
+	})
 
-	setReq := &state.SetRequest{
-		Key:   "theFirstKey",
-		Value: "value of key",
-		ETag:  ptr.String("the etag"),
-	}
-	err := aliCloudTableStore.Set(setReq)
+	t.Run("test set 2", func(t *testing.T) {
+		setReq := &state.SetRequest{
+			Key:   "theSecondKey",
+			Value: "1234",
+			ETag:  ptr.String("the etag"),
+		}
+		err := store.Set(setReq)
+		assert.Nil(t, err)
+	})
 
-	assert.Nil(t, err)
+	t.Run("test get 2", func(t *testing.T) {
+		getReq := &state.GetRequest{
+			Key: "theSecondKey",
+		}
+		resp, err := store.Get(getReq)
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, "1234", string(resp.Data))
+	})
 
-	getReq := &state.GetRequest{
-		Key: "theFirstKey",
-	}
-	resp, err := aliCloudTableStore.Get(getReq)
+	t.Run("test BulkSet", func(t *testing.T) {
+		err := store.BulkSet([]state.SetRequest{{
+			Key:   "theFirstKey",
+			Value: "666",
+		}, {
+			Key:   "theSecondKey",
+			Value: "777",
+		}})
 
-	assert.Nil(t, err)
-	assert.NotNil(t, resp)
+		assert.Nil(t, err)
+	})
 
-	value, _ := utils.Marshal(setReq.Value, json.Marshal)
+	t.Run("test BulkGet", func(t *testing.T) {
 
-	assert.Equal(t, resp.Data, value)
+		_, resp, err := store.BulkGet([]state.GetRequest{{
+			Key: "theFirstKey",
+		}, {
+			Key: "theSecondKey",
+		}})
+
+		assert.Nil(t, err)
+		assert.Equal(t, 2, len(resp))
+		assert.Equal(t, "666", string(resp[0].Data))
+		assert.Equal(t, "777", string(resp[1].Data))
+	})
+
+	t.Run("test delete", func(t *testing.T) {
+		req := &state.DeleteRequest{
+			Key: "theFirstKey",
+		}
+		err := store.Delete(req)
+		assert.Nil(t, err)
+	})
+
+	t.Run("test BulkGet2", func(t *testing.T) {
+
+		_, resp, err := store.BulkGet([]state.GetRequest{{
+			Key: "theFirstKey",
+		}, {
+			Key: "theSecondKey",
+		}})
+
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(resp))
+		assert.Equal(t, "777", string(resp[0].Data))
+	})
 }

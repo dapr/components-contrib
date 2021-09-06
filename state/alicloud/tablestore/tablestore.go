@@ -12,19 +12,20 @@ import (
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
-	stateKeyName         = "stateKey"
-	stateValueColumnName = "stateValue"
-	stateETagColumnName  = "sateEtag"
+	stateKey   = "stateKey"
+	stateValue = "stateValue"
+	sateEtag   = "sateEtag"
 )
 
 type AliCloudTableStore struct {
 	logger   logger.Logger
-	client   *tablestore.TableStoreClient
+	client   tablestore.TableStoreApi
 	metadata tablestoreMetadata
 	features []state.Feature
 }
@@ -61,31 +62,33 @@ func (s *AliCloudTableStore) Features() []state.Feature {
 }
 
 func (s *AliCloudTableStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	criteria := new(tablestore.SingleRowQueryCriteria)
-	criteria.PrimaryKey = s.getPK(req.Key)
-	criteria.TableName = s.metadata.TableName
-	criteria.MaxVersion = 1
+	criteria := &tablestore.SingleRowQueryCriteria{
+		PrimaryKey: s.primaryKey(req.Key),
+		TableName:  s.metadata.TableName,
+		MaxVersion: 1,
+	}
 
-	rowGetReq := new(tablestore.GetRowRequest)
-	rowGetReq.SingleRowQueryCriteria = criteria
+	rowGetReq := &tablestore.GetRowRequest{
+		SingleRowQueryCriteria: criteria,
+	}
 
 	resp, err := s.client.GetRow(rowGetReq)
 	if err != nil {
 		return nil, err
 	}
 
-	getResp := s.toGetResp(resp.Columns)
+	getResp := s.getResp(resp.Columns)
 
 	return getResp, nil
 }
 
-func (s *AliCloudTableStore) toGetResp(columns []*tablestore.AttributeColumn) *state.GetResponse {
+func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *state.GetResponse {
 	getResp := &state.GetResponse{}
 
 	for _, column := range columns {
-		if column.ColumnName == stateValueColumnName {
-			getResp.Data = column.Value.([]byte)
-		} else if column.ColumnName == stateETagColumnName {
+		if column.ColumnName == stateValue {
+			getResp.Data = unmarshal(column.Value)
+		} else if column.ColumnName == sateEtag {
 			getResp.ETag = ptr.String(column.Value.(string))
 		}
 	}
@@ -98,15 +101,16 @@ func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.Bul
 		return true, []state.BulkGetResponse{}, nil
 	}
 
-	mqCriteria := new(tablestore.MultiRowQueryCriteria)
-	mqCriteria.TableName = s.metadata.TableName
-	mqCriteria.MaxVersion = 1
-
-	for _, req := range reqs {
-		mqCriteria.AddRow(s.getPK(req.Key))
+	mqCriteria := &tablestore.MultiRowQueryCriteria{
+		TableName:  s.metadata.TableName,
+		MaxVersion: 1,
 	}
 
-	batchGetReq := new(tablestore.BatchGetRowRequest)
+	for _, req := range reqs {
+		mqCriteria.AddRow(s.primaryKey(req.Key))
+	}
+
+	batchGetReq := &tablestore.BatchGetRowRequest{}
 	batchGetReq.MultiRowQueryCriteria = append(batchGetReq.MultiRowQueryCriteria, mqCriteria)
 	batchGetResp, err := s.client.BatchGetRow(batchGetReq)
 	responseList := make([]state.BulkGetResponse, 0, 10)
@@ -115,7 +119,7 @@ func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.Bul
 	}
 
 	for _, row := range batchGetResp.TableToRowsResult[mqCriteria.TableName] {
-		resp := s.toGetResp(row.Columns)
+		resp := s.getResp(row.Columns)
 
 		responseList = append(responseList, state.BulkGetResponse{
 			Data: resp.Data,
@@ -128,54 +132,63 @@ func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.Bul
 }
 
 func (s *AliCloudTableStore) Set(req *state.SetRequest) error {
-	change := s.toUpdateRowChange(req)
+	change := s.updateRowChange(req)
 
-	request := new(tablestore.UpdateRowRequest)
-	request.UpdateRowChange = change
-
-	_, err := s.client.UpdateRow(request)
-	if err != nil {
-		return err
+	request := &tablestore.UpdateRowRequest{
+		UpdateRowChange: change,
 	}
 
-	return nil
+	_, err := s.client.UpdateRow(request)
+
+	return err
 }
 
-func (s *AliCloudTableStore) toUpdateRowChange(req *state.SetRequest) *tablestore.UpdateRowChange {
-	change := new(tablestore.UpdateRowChange)
-	change.PrimaryKey = s.getPK(req.Key)
-	change.TableName = s.metadata.TableName
+func (s *AliCloudTableStore) updateRowChange(req *state.SetRequest) *tablestore.UpdateRowChange {
+	change := &tablestore.UpdateRowChange{
+		PrimaryKey: s.primaryKey(req.Key),
+		TableName:  s.metadata.TableName,
+	}
 
-	value, _ := utils.Marshal(req.Value, json.Marshal)
-
-	change.PutColumn(stateValueColumnName, value)
+	value, _ := marshal(req.Value)
+	change.PutColumn(stateValue, value)
 
 	if req.ETag != nil {
-		change.PutColumn(stateETagColumnName, *req.ETag)
+		change.PutColumn(sateEtag, *req.ETag)
 	}
 
 	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
 	return change
 }
 
-func (s *AliCloudTableStore) Delete(req *state.DeleteRequest) error {
-	change := s.getDeleteRowChange(req)
-
-	deleteRowReq := new(tablestore.DeleteRowRequest)
-	deleteRowReq.DeleteRowChange = change
-
-	_, err := s.client.DeleteRow(deleteRowReq)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func marshal(value interface{}) ([]byte, error) {
+	v, _ := jsoniter.MarshalToString(value)
+	return []byte(v), nil
 }
 
-func (s *AliCloudTableStore) getDeleteRowChange(req *state.DeleteRequest) *tablestore.DeleteRowChange {
-	change := new(tablestore.DeleteRowChange)
-	change.PrimaryKey = s.getPK(req.Key)
-	change.TableName = s.metadata.TableName
+func unmarshal(val interface{}) []byte {
+	var output string
+
+	jsoniter.UnmarshalFromString(string(val.([]byte)), &output)
+
+	return []byte(output)
+}
+
+func (s *AliCloudTableStore) Delete(req *state.DeleteRequest) error {
+	change := s.deleteRowChange(req)
+
+	deleteRowReq := &tablestore.DeleteRowRequest{
+		DeleteRowChange: change,
+	}
+
+	_, err := s.client.DeleteRow(deleteRowReq)
+	return err
+}
+
+func (s *AliCloudTableStore) deleteRowChange(req *state.DeleteRequest) *tablestore.DeleteRowChange {
+	change := &tablestore.DeleteRowChange{
+		PrimaryKey: s.primaryKey(req.Key),
+		TableName:  s.metadata.TableName,
+	}
 	change.SetCondition(tablestore.RowExistenceExpectation_EXPECT_EXIST)
 	return change
 }
@@ -189,17 +202,18 @@ func (s *AliCloudTableStore) BulkDelete(reqs []state.DeleteRequest) error {
 }
 
 func (s *AliCloudTableStore) batchWrite(setReqs []state.SetRequest, deleteReqs []state.DeleteRequest) error {
-	bathReq := new(tablestore.BatchWriteRowRequest)
+	bathReq := &tablestore.BatchWriteRowRequest{
+		IsAtomic: true,
+	}
 
 	for i := range setReqs {
-		bathReq.AddRowChange(s.toUpdateRowChange(&setReqs[i]))
+		bathReq.AddRowChange(s.updateRowChange(&setReqs[i]))
 	}
 
 	for i := range deleteReqs {
-		bathReq.AddRowChange(s.getDeleteRowChange(&deleteReqs[i]))
+		bathReq.AddRowChange(s.deleteRowChange(&deleteReqs[i]))
 	}
 
-	bathReq.IsAtomic = true
 	_, err := s.client.BatchWriteRow(bathReq)
 	if err != nil {
 		return err
@@ -227,8 +241,8 @@ func (s *AliCloudTableStore) parse(metadata state.Metadata) (*tablestoreMetadata
 	return &m, nil
 }
 
-func (s *AliCloudTableStore) getPK(key string) *tablestore.PrimaryKey {
-	deletePk := new(tablestore.PrimaryKey)
-	deletePk.AddPrimaryKeyColumn(stateKeyName, key)
-	return deletePk
+func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
+	pk := &tablestore.PrimaryKey{}
+	pk.AddPrimaryKeyColumn(stateKey, key)
+	return pk
 }

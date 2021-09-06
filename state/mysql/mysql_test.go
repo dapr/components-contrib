@@ -308,61 +308,6 @@ func TestDeleteWithETag(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestReturnNDBResultsRowsAffectedReturnsError(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	request := &fakeSQLRequest{
-		rowsAffected: 3,
-		lastInsertID: 0,
-		err:          fmt.Errorf("RowAffectedError"),
-	}
-
-	// Act
-	err := m.mySQL.returnNDBResults(request, nil, 2)
-
-	// Assert
-	assert.NotNil(t, err)
-	assert.Equal(t, "RowAffectedError", err.Error())
-}
-
-func TestReturnNDBResultsNoRows(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	request := &fakeSQLRequest{
-		rowsAffected: 0,
-		lastInsertID: 0,
-	}
-
-	// Act
-	err := m.mySQL.returnNDBResults(request, nil, 2)
-
-	// Assert
-	assert.NotNil(t, err)
-	assert.Equal(t, "rows affected error: no rows match given key and eTag", err.Error())
-}
-
-func TestReturnNDBResultsTooManyRows(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	request := &fakeSQLRequest{
-		rowsAffected: 3,
-		lastInsertID: 0,
-	}
-
-	// Act
-	err := m.mySQL.returnNDBResults(request, nil, 2)
-
-	// Assert
-	assert.NotNil(t, err)
-	assert.Equal(t, "rows affected error: more than 2 row affected, expected 2, actual 3", err.Error())
-}
-
 func TestGetHandlesNoRows(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)

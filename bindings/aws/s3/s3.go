@@ -83,6 +83,10 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
+func (s *AWSS3) Close() error {
+	return nil
+}
+
 func (s *AWSS3) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.CreateOperation,

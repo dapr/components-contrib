@@ -6,8 +6,9 @@
 package tablestore
 
 import (
-	"github.com/golang/mock/gomock"
 	"testing"
+
+	"github.com/golang/mock/gomock"
 
 	"github.com/agrea/ptr"
 	"github.com/dapr/components-contrib/state"
@@ -95,7 +96,6 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("test BulkGet", func(t *testing.T) {
-
 		_, resp, err := store.BulkGet([]state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
@@ -117,7 +117,6 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("test BulkGet2", func(t *testing.T) {
-
 		_, resp, err := store.BulkGet([]state.GetRequest{{
 			Key: "theFirstKey",
 		}, {

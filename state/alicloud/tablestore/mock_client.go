@@ -3,6 +3,7 @@ package tablestore
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 )
 
@@ -24,6 +25,7 @@ func (m *mockClient) DeleteRow(request *tablestore.DeleteRowRequest) (*tablestor
 
 	return nil, nil
 }
+
 func (m *mockClient) GetRow(request *tablestore.GetRowRequest) (*tablestore.GetRowResponse, error) {
 	var key string
 	for _, col := range request.SingleRowQueryCriteria.PrimaryKey.PrimaryKeys {
@@ -43,6 +45,7 @@ func (m *mockClient) GetRow(request *tablestore.GetRowRequest) (*tablestore.GetR
 
 	return resp, nil
 }
+
 func (m *mockClient) UpdateRow(req *tablestore.UpdateRowRequest) (*tablestore.UpdateRowResponse, error) {
 	change := req.UpdateRowChange
 
@@ -102,7 +105,7 @@ func (m *mockClient) BatchGetRow(request *tablestore.BatchGetRowRequest) (*table
 							PrimaryKeys: []*tablestore.PrimaryKeyColumn{
 								{
 									ColumnName: stateKey,
-									Value: key.Value,
+									Value:      key.Value,
 								},
 							},
 						},
@@ -111,7 +114,6 @@ func (m *mockClient) BatchGetRow(request *tablestore.BatchGetRowRequest) (*table
 					break
 				}
 			}
-
 		}
 	}
 
@@ -122,7 +124,6 @@ func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*t
 	resp := &tablestore.BatchWriteRowResponse{}
 	for _, changes := range request.RowChangesGroupByTable {
 		for _, change := range changes {
-
 			switch inst := change.(type) {
 			case *tablestore.UpdateRowChange:
 				var pk string
@@ -152,7 +153,6 @@ func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*t
 				}
 				break
 			}
-
 		}
 	}
 

@@ -92,6 +92,7 @@ func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *sta
 			getResp.ETag = ptr.String(column.Value.(string))
 		}
 	}
+
 	return getResp
 }
 
@@ -157,11 +158,13 @@ func (s *AliCloudTableStore) updateRowChange(req *state.SetRequest) *tablestore.
 	}
 
 	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
+
 	return change
 }
 
 func marshal(value interface{}) ([]byte, error) {
 	v, _ := jsoniter.MarshalToString(value)
+
 	return []byte(v), nil
 }
 
@@ -181,6 +184,7 @@ func (s *AliCloudTableStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	_, err := s.client.DeleteRow(deleteRowReq)
+
 	return err
 }
 
@@ -190,6 +194,7 @@ func (s *AliCloudTableStore) deleteRowChange(req *state.DeleteRequest) *tablesto
 		TableName:  s.metadata.TableName,
 	}
 	change.SetCondition(tablestore.RowExistenceExpectation_EXPECT_EXIST)
+
 	return change
 }
 
@@ -244,5 +249,6 @@ func (s *AliCloudTableStore) parse(metadata state.Metadata) (*tablestoreMetadata
 func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
 	pk := &tablestore.PrimaryKey{}
 	pk.AddPrimaryKeyColumn(stateKey, key)
+
 	return pk
 }

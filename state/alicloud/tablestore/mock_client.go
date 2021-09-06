@@ -55,6 +55,7 @@ func (m *mockClient) UpdateRow(req *tablestore.UpdateRowRequest) (*tablestore.Up
 	for _, col := range change.PrimaryKey.PrimaryKeys {
 		if col.ColumnName == stateKey {
 			key = col.Value.(string)
+
 			break
 		}
 	}
@@ -64,6 +65,7 @@ func (m *mockClient) UpdateRow(req *tablestore.UpdateRowRequest) (*tablestore.Up
 			buf := &bytes.Buffer{}
 			binary.Write(buf, binary.BigEndian, col.Value)
 			val = buf.Bytes()
+
 			break
 		}
 	}
@@ -111,6 +113,7 @@ func (m *mockClient) BatchGetRow(request *tablestore.BatchGetRowRequest) (*table
 						},
 					})
 					resp.TableToRowsResult[criteria.TableName] = tableRes
+
 					break
 				}
 			}
@@ -130,6 +133,7 @@ func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*t
 				for _, col := range inst.PrimaryKey.PrimaryKeys {
 					if col.ColumnName == stateKey {
 						pk = col.Value.(string)
+
 						break
 					}
 				}
@@ -142,16 +146,14 @@ func (m *mockClient) BatchWriteRow(request *tablestore.BatchWriteRowRequest) (*t
 					}
 				}
 
-				break
-
 			case *tablestore.DeleteRowChange:
 				for _, col := range inst.PrimaryKey.PrimaryKeys {
 					if col.ColumnName == stateKey {
 						delete(m.data, col.Value.(string))
+
 						break
 					}
 				}
-				break
 			}
 		}
 	}

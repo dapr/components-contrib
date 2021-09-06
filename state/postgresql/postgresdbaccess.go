@@ -128,6 +128,8 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
+
+		return err
 	}
 
 	rows, err := result.RowsAffected()

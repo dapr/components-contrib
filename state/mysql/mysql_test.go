@@ -685,20 +685,6 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-type fakeSQLRequest struct {
-	lastInsertID int64
-	rowsAffected int64
-	err          error
-}
-
-func (f *fakeSQLRequest) LastInsertId() (int64, error) {
-	return f.lastInsertID, f.err
-}
-
-func (f *fakeSQLRequest) RowsAffected() (int64, error) {
-	return f.rowsAffected, f.err
-}
-
 func createSetRequest() state.SetRequest {
 	return state.SetRequest{
 		Key:   randomKey(),

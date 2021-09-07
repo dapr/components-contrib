@@ -24,7 +24,9 @@ import (
 
 const (
 	metadataDecodeBase64 = "decodeBase64"
-	metadataKey          = "key"
+	metadataEncodeBase64 = "encodeBase64"
+
+	metadataKey = "key"
 
 	maxResults = 1000
 )
@@ -46,6 +48,7 @@ type s3Metadata struct {
 	SessionToken string `json:"sessionToken"`
 	Bucket       string `json:"bucket"`
 	DecodeBase64 bool   `json:"decodeBase64,string"`
+	EncodeBase64 bool   `json:"encodeBase64,string"`
 }
 
 type createResponse struct {
@@ -147,6 +150,11 @@ func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 }
 
 func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
+	}
+
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
@@ -156,7 +164,7 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 
 	buff := &aws.WriteAtBuffer{}
 
-	_, err := s.downloader.Download(buff,
+	_, err = s.downloader.Download(buff,
 		&s3.GetObjectInput{
 			Bucket: aws.String(s.metadata.Bucket),
 			Key:    aws.String(key),
@@ -165,8 +173,16 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
 
+	var data []byte
+	if metadata.EncodeBase64 {
+		encoded := b64.StdEncoding.EncodeToString(buff.Bytes())
+		data = []byte(encoded)
+	} else {
+		data = buff.Bytes()
+	}
+
 	return &bindings.InvokeResponse{
-		Data:     buff.Bytes(),
+		Data:     data,
 		Metadata: nil,
 	}, nil
 }
@@ -271,6 +287,14 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 			return merged, err
 		}
 		merged.DecodeBase64 = valBool
+	}
+
+	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
+		valBool, err := strconv.ParseBool(val)
+		if err != nil {
+			return merged, err
+		}
+		merged.EncodeBase64 = valBool
 	}
 
 	return merged, nil

@@ -134,6 +134,7 @@ func TestGetOption(t *testing.T) {
 
 func TestDeleteOption(t *testing.T) {
 	s3 := NewAWSS3(logger.NewLogger("s3"))
+	s3.metadata = &s3Metadata{}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}

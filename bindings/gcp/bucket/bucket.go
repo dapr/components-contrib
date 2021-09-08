@@ -10,6 +10,7 @@ import (
 	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 
 	"cloud.google.com/go/storage"
@@ -21,7 +22,9 @@ import (
 
 const (
 	metadataDecodeBase64 = "decodeBase64"
-	metadataKey          = "key"
+	metadataEncodeBase64 = "encodeBase64"
+
+	metadataKey = "key"
 )
 
 // GCPStorage allows saving data to GCP bucket storage
@@ -44,11 +47,7 @@ type gcpMetadata struct {
 	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
 	ClientCertURL       string `json:"client_x509_cert_url"`
 	DecodeBase64        bool   `json:"decodeBase64,string"`
-}
-
-type createResponse struct {
-	Location  string  `json:"Location"`
-	VersionID *string `json:"VersionID"`
+	EncodeBase64        bool   `json:"encodeBase64,string"`
 }
 
 // NewGCPStorage returns a new GCP storage instance
@@ -58,7 +57,6 @@ func NewGCPStorage(logger logger.Logger) *GCPStorage {
 
 // Init performs connection parsing
 func (g *GCPStorage) Init(metadata bindings.Metadata) error {
-
 	m, b, err := g.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -93,12 +91,25 @@ func (g *GCPStorage) parseMetadata(metadata bindings.Metadata) (*gcpMetadata, []
 }
 
 func (g *GCPStorage) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation,
+		bindings.GetOperation,
+	}
 }
 
 func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	metadata, err := g.metadata.mergeWithRequestMetadata(req)
+	switch req.Operation {
+	case bindings.CreateOperation:
+		return g.create(req)
+	case bindings.GetOperation:
+		return g.get(req)
+	default:
+		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
+	}
+}
 
+func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error. error merge metadata : %w", err)
 	}
@@ -135,6 +146,41 @@ func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	return nil, nil
 }
 
+func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := g.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
+	}
+
+	key := ""
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, fmt.Errorf("gcp bucket binding error: can't read key value")
+	}
+
+	rc, err := g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)
+	}
+	defer rc.Close()
+
+	data, err := ioutil.ReadAll(rc)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: ioutil.ReadAll: %v", err)
+	}
+
+	if metadata.EncodeBase64 {
+		encoded := b64.StdEncoding.EncodeToString(data)
+		data = []byte(encoded)
+	}
+
+	return &bindings.InvokeResponse{
+		Data:     data,
+		Metadata: nil,
+	}, nil
+}
+
 func (g *GCPStorage) Close() error {
 	return g.client.Close()
 }
@@ -150,6 +196,14 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 		} else {
 			merged.DecodeBase64 = valBool
 		}
+	}
+
+	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
+		valBool, err := strconv.ParseBool(val)
+		if err != nil {
+			return merged, err
+		}
+		merged.EncodeBase64 = valBool
 	}
 
 	return merged, nil

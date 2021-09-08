@@ -345,7 +345,6 @@ func TestSetHandlesErr(t *testing.T) {
 		assert.IsType(t, &state.ETagError{}, err)
 		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
 	})
-
 }
 
 // Verifies that MySQL passes through to myDBAccess

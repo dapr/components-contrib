@@ -15,8 +15,10 @@ import (
 
 	"github.com/a8m/documentdb"
 	"github.com/agrea/ptr"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -99,9 +101,6 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	if m.URL == "" {
 		return errors.New("url is required")
 	}
-	if m.MasterKey == "" {
-		return errors.New("masterKey is required")
-	}
 	if m.Database == "" {
 		return errors.New("database is required")
 	}
@@ -112,11 +111,25 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return errors.New("contentType is required")
 	}
 
-	client := documentdb.New(m.URL, &documentdb.Config{
-		MasterKey: &documentdb.Key{
+	// Create the client; first, try authenticating with a master key, if present
+	var config *documentdb.Config
+	if m.MasterKey != "" {
+		config = documentdb.NewConfig(&documentdb.Key{
 			Key: m.MasterKey,
-		},
-	})
+		})
+	} else {
+		// Fallback to using Azure AD
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		if errB != nil {
+			return errB
+		}
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
+		}
+		config = documentdb.NewConfigWithServicePrincipal(spt)
+	}
+	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
 		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
@@ -241,10 +254,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
+		options = append(options, documentdb.IfMatch((*req.ETag)))
+	}
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		etag := uuid.NewString()
 		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
@@ -258,7 +271,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
+	_, err = c.client.UpsertDocument(c.collection.Self, &doc, options...)
 
 	if err != nil {
 		if req.ETag != nil {
@@ -295,11 +308,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
-		options = append(options, documentdb.IfMatch((etag)))
+		options = append(options, documentdb.IfMatch((*req.ETag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))

@@ -8,9 +8,11 @@ package kafka
 import (
 	"testing"
 
+	"github.com/Shopify/sarama"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func getKafkaPubsub() *Kafka {
@@ -96,4 +98,17 @@ func TestInvalidAuthRequiredFlag(t *testing.T) {
 	assert.Nil(t, meta)
 
 	assert.Equal(t, "kafka error: invalid value for 'authRequired' attribute", err.Error())
+}
+
+func TestInitialOffset(t *testing.T) {
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{"consumerGroup": "a", "brokers": "a", "authRequired": "false", "initialOffset": "oldest"}
+	k := getKafkaPubsub()
+	meta, err := k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	assert.Equal(t, sarama.OffsetOldest, meta.InitialOffset)
+	m.Properties["initialOffset"] = "newest"
+	meta, err = k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	assert.Equal(t, sarama.OffsetNewest, meta.InitialOffset)
 }

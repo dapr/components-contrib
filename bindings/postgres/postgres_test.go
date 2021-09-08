@@ -112,6 +112,11 @@ func TestPostgresIntegration(t *testing.T) {
 		_, err := b.Invoke(req)
 		assert.NoError(t, err)
 	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := b.Close()
+		assert.NoError(t, err, "expected no error closing output binding")
+	})
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {

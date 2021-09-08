@@ -129,6 +129,16 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 	return resp, nil
 }
 
+// Close close PostgreSql instance
+func (p *Postgres) Close() error {
+	if p.db == nil {
+		return nil
+	}
+	p.db.Close()
+
+	return nil
+}
+
 func (p *Postgres) query(sql string) (result []byte, err error) {
 	p.logger.Debugf("query: %s", sql)
 

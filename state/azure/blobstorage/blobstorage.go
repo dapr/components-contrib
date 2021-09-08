@@ -91,7 +91,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	if ok && customEndpoint != "" {
 		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
 		if parseErr != nil {
-			return err
+			return parseErr
 		}
 		containerURL = azblob.NewContainerURL(*URL, p)
 	} else {

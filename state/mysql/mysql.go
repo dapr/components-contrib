@@ -423,8 +423,19 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 		return err
 	}
 
-	if rows != 1 {
-		return fmt.Errorf("no item was updated")
+	if rows == 0 {
+		err = fmt.Errorf(`rows affected error: no rows match given key '%s' and eTag '%s'`, req.Key, *req.ETag)
+		err = state.NewETagError(state.ETagMismatch, err)
+		m.logger.Error(err)
+
+		return err
+	}
+
+	if rows > 2 {
+		err = fmt.Errorf(`rows affected error: more than 2 row affected, expected 2, actual %d`, rows)
+		m.logger.Error(err)
+
+		return err
 	}
 
 	return nil

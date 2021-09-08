@@ -203,3 +203,14 @@ func TestGetOption(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestDeleteOption(t *testing.T) {
+	gs := GCPStorage{logger: logger.NewLogger("test")}
+	gs.metadata = &gcpMetadata{}
+
+	t.Run("return error if key is missing", func(t *testing.T) {
+		r := bindings.InvokeRequest{}
+		_, err := gs.delete(&r)
+		assert.Error(t, err)
+	})
+}

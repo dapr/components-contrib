@@ -94,6 +94,7 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.CreateOperation,
 		bindings.GetOperation,
+		bindings.DeleteOperation,
 	}
 }
 
@@ -103,6 +104,8 @@ func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return g.create(req)
 	case bindings.GetOperation:
 		return g.get(req)
+	case bindings.DeleteOperation:
+		return g.delete(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -118,12 +121,10 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		name = val
 	} else {
-		id, err := uuid.NewRandom()
-		if err != nil {
-			return nil, err
-		}
-		name = id.String()
+		name = uuid.New().String()
+		g.logger.Debugf("key not found. generating name %s", name)
 	}
+
 	d, err := strconv.Unquote(string(req.Data))
 	if err == nil {
 		req.Data = []byte(d)
@@ -152,7 +153,7 @@ func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
 	}
 
-	key := ""
+	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
@@ -181,6 +182,21 @@ func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	}, nil
 }
 
+func (g *GCPStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var key string
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	}
+
+	object := g.client.Bucket(g.metadata.Bucket).Object(key)
+
+	err := object.Delete(context.Background())
+
+	return nil, err
+}
+
 func (g *GCPStorage) Close() error {
 	return g.client.Close()
 }
@@ -193,9 +209,8 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 		valBool, err := strconv.ParseBool(val)
 		if err != nil {
 			return merged, err
-		} else {
-			merged.DecodeBase64 = valBool
 		}
+		merged.DecodeBase64 = valBool
 	}
 
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {

@@ -20,11 +20,11 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.23.1
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
-	github.com/a8m/documentdb v1.2.1-0.20190920062420-efdd52fe0905
+	github.com/a8m/documentdb v1.3.0
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/alibaba/sentinel-golang v1.0.2-0.20210728053800-194d4be01dfe
+	github.com/alibaba/sentinel-golang v1.0.3
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0
@@ -32,6 +32,7 @@ require (
 	github.com/apache/pulsar-client-go v0.1.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.0
 	github.com/apache/thrift v0.14.0 // indirect
+	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/aws/aws-sdk-go v1.36.30
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
@@ -45,7 +46,7 @@ require (
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/deepmap/oapi-codegen v1.8.1 // indirect
-	github.com/denisenkom/go-mssqldb v0.0.0-20191128021309-1d7a30a10f73
+	github.com/denisenkom/go-mssqldb v0.0.0-20210411162248-d9abbec934ba
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
 	github.com/dghubble/oauth1 v0.6.0
 	github.com/didip/tollbooth v4.0.2+incompatible
@@ -97,7 +98,7 @@ require (
 	github.com/nacos-group/nacos-sdk-go v1.0.8
 	github.com/nats-io/nats-server/v2 v2.2.1 // indirect
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
-	github.com/nats-io/nats.go v1.10.1-0.20210330225420-a0b1f60162f8
+	github.com/nats-io/nats.go v1.12.0
 	github.com/nats-io/stan.go v0.8.3
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
@@ -124,7 +125,7 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
-	go.mongodb.org/mongo-driver v1.1.2
+	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.22.5 // indirect
 	go.uber.org/atomic v1.8.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect

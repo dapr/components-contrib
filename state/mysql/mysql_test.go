@@ -283,7 +283,7 @@ func TestSetHandlesErr(t *testing.T) {
 	t.Run("error occurs when update with tag", func(t *testing.T) {
 		m.mock1.ExpectExec("UPDATE state").WillReturnError(errors.New("error"))
 
-		eTag := "946af56e"
+		eTag := "946af561"
 		request := createSetRequest()
 		request.ETag = &eTag
 
@@ -370,8 +370,7 @@ func TestDeleteWithETag(t *testing.T) {
 
 	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
 
-	eTag := "946af56e"
-
+	eTag := "946af562"
 	request := createDeleteRequest()
 	request.ETag = &eTag
 
@@ -403,7 +402,7 @@ func TestDeleteWithErr(t *testing.T) {
 	t.Run("etag mismatch", func(t *testing.T) {
 		m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
 
-		eTag := "946af56e"
+		eTag := "946af563"
 		request := createDeleteRequest()
 		request.ETag = &eTag
 

@@ -124,10 +124,18 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta := Metadata{}
 
 	// required metadata properties
-	if meta.Properties["host"] == "" || meta.Properties["port"] == "" ||
-		meta.Properties["user"] == "" || meta.Properties["password"] == "" {
-		return smtpMeta, errors.New("smtp binding error: host, port, user and password fields are required in metadata")
+	if meta.Properties["host"] == "" || meta.Properties["port"] == "" {
+		return smtpMeta, errors.New("smtp binding error: host and port fields are required in metadata")
 	}
+
+	//nolint
+	if (meta.Properties["user"] != "" && meta.Properties["password"] == "") ||
+		(meta.Properties["user"] == "" && meta.Properties["password"] != "") {
+		return smtpMeta, errors.New("smtp binding error: user and password fields are required in metadata")
+	} else {
+		s.logger.Warn("smtp binding warn: User and password are empty")
+	}
+
 	smtpMeta.Host = meta.Properties["host"]
 	port, err := strconv.Atoi(meta.Properties["port"])
 	if err != nil {

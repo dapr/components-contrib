@@ -62,6 +62,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 					vaultName = strings.TrimPrefix(vaultName, "https://")
 				}
 				metadata.Properties[componentVaultName] = vaultName
+
 				break
 			}
 		}

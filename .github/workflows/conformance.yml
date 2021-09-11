@@ -64,6 +64,7 @@ jobs:
         - state.mongodb
         - state.redis
         - state.sqlserver
+        - state.mysql
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -235,6 +236,11 @@ jobs:
         echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
         docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
       if: contains(matrix.component, 'influx')
+
+    - name: Start mysql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
+      if: contains(matrix.component, 'mysql')
 
     - name: Start KinD
       uses: helm/kind-action@v1.0.0

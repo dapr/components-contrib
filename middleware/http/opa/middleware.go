@@ -104,6 +104,7 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 			"query":      queryArgs,
 			"headers":    headers,
 			"scheme":     string(ctx.Request.URI().Scheme()),
+			"body":	      string(ctx.Request().Body()),
 		},
 	}
 

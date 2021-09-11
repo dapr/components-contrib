@@ -193,6 +193,25 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			shouldRegoError: true,
 		},
+		"allow on body contains allow": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = true
+
+						allow = { 
+							input.request.body = "allow"
+						}
+						`,
+				},
+			},
+			req: func(ctx *fh.RequestCtx) {
+				ctx.Request.SetHost("https://my.site")
+				ctx.Request.SetBody("allow")
+			},
+			status: 200,
+		},
 	}
 
 	for name, test := range tests {

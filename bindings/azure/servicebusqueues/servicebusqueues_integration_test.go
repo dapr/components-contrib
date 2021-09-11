@@ -1,3 +1,4 @@
+//go:build integration_test
 // +build integration_test
 
 // ------------------------------------------------------------
@@ -60,7 +61,7 @@ func getMessageWithRetries(queue *servicebus.Queue, maxDuration time.Duration) (
 
 func TestQueueWithTTL(t *testing.T) {
 	serviceBusConnectionString := getTestServiceBusConnectionString()
-	assert.NotEmpty(serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
+	assert.NotEmpty(t, serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
 
 	queueName := uuid.New().String()
 	a := NewAzureServiceBusQueues(logger.NewLogger("test"))
@@ -84,7 +85,7 @@ func TestQueueWithTTL(t *testing.T) {
 
 	// Assert that if waited too long, we won't see any message
 	const tooLateMsgContent = "too_late_msg"
-	err = a.Write(&bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	_, err = a.Invoke(&bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second * 2)
@@ -98,7 +99,7 @@ func TestQueueWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	err = a.Write(&bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	_, err = a.Invoke(&bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(queue, maxGetDuration)
@@ -112,7 +113,7 @@ func TestQueueWithTTL(t *testing.T) {
 
 func TestPublishingWithTTL(t *testing.T) {
 	serviceBusConnectionString := getTestServiceBusConnectionString()
-	assert.NotEmpty(serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
+	assert.NotEmpty(t, serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
 
 	queueName := uuid.New().String()
 	queueBinding1 := NewAzureServiceBusQueues(logger.NewLogger("test"))
@@ -143,7 +144,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			metadata.TTLMetadataKey: "1",
 		},
 	}
-	err = queueBinding1.Write(&writeRequest)
+	_, err = queueBinding1.Invoke(&writeRequest)
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second * 5)
@@ -167,7 +168,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			metadata.TTLMetadataKey: "1",
 		},
 	}
-	err = queueBinding2.Write(&writeRequest)
+	_, err = queueBinding2.Invoke(&writeRequest)
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(queue, maxGetDuration)

@@ -177,12 +177,12 @@ func dropTable(t *testing.T, db *sql.DB, tableName string) {
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
-	// Delete the item with a fake etag
+	// Delete the item with a key not in the store
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
 	err := pgs.Delete(deleteReq)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {

@@ -193,6 +193,17 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			shouldRegoError: true,
 		},
+		"status config": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						allow = false`,
+					"defaultStatus": "500",
+				},
+			},
+			status: 500,
+		},
 	}
 
 	for name, test := range tests {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/dapr/components-contrib/middleware"
@@ -15,7 +16,7 @@ import (
 
 type middlewareMetadata struct {
 	Rego            string `json:"rego"`
-	DefaultStatus   int    `json:"defaultStatus,omitempty"`
+	DefaultStatus   int    `json:"-"`
 	IncludedHeaders string `json:"includedHeaders,omitempty"`
 }
 
@@ -196,6 +197,14 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewar
 	err = json.Unmarshal(b, &meta)
 	if err != nil {
 		return nil, err
+	}
+
+	if defaultStatus, ok := metadata.Properties["defaultStatus"]; ok && defaultStatus != "" {
+		intVal, err := strconv.Atoi(defaultStatus)
+		if err != nil {
+			return nil, err
+		}
+		meta.DefaultStatus = intVal
 	}
 
 	return &meta, nil

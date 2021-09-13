@@ -17,6 +17,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -25,6 +26,7 @@ const (
 	metadataEncodeBase64 = "encodeBase64"
 
 	metadataKey = "key"
+	maxResults  = 1000
 )
 
 // GCPStorage allows saving data to GCP bucket storage
@@ -48,6 +50,12 @@ type gcpMetadata struct {
 	ClientCertURL       string `json:"client_x509_cert_url"`
 	DecodeBase64        bool   `json:"decodeBase64,string"`
 	EncodeBase64        bool   `json:"encodeBase64,string"`
+}
+
+type listPayload struct {
+	Prefix     string `json:"prefix"`
+	MaxResults int32  `json:"maxResults"`
+	Delimiter  string `json:"delimiter"`
 }
 
 // NewGCPStorage returns a new GCP storage instance
@@ -95,6 +103,7 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 		bindings.CreateOperation,
 		bindings.GetOperation,
 		bindings.DeleteOperation,
+		bindings.ListOperation,
 	}
 }
 
@@ -106,6 +115,8 @@ func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return g.get(req)
 	case bindings.DeleteOperation:
 		return g.delete(req)
+	case bindings.ListOperation:
+		return g.list(req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
@@ -187,7 +198,7 @@ func (g *GCPStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
-		return nil, fmt.Errorf("s3 binding error: can't read key value")
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: can't read key value")
 	}
 
 	object := g.client.Bucket(g.metadata.Bucket).Object(key)
@@ -195,6 +206,42 @@ func (g *GCPStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	err := object.Delete(context.Background())
 
 	return nil, err
+}
+
+func (g *GCPStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var payload listPayload
+	err := json.Unmarshal(req.Data, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if payload.MaxResults == int32(0) {
+		payload.MaxResults = maxResults
+	}
+
+	input := &storage.Query{
+		Prefix:    payload.Prefix,
+		Delimiter: payload.Delimiter,
+	}
+
+	var result []storage.ObjectAttrs
+	it := g.client.Bucket(g.metadata.Bucket).Objects(context.Background(), input)
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done || len(result) == int(payload.MaxResults) {
+			break
+		}
+		result = append(result, *attrs)
+	}
+
+	jsonResponse, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error. list operation. cannot marshal blobs to json: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
 }
 
 func (g *GCPStorage) Close() error {

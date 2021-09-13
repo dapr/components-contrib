@@ -227,8 +227,8 @@ func (g *GCPStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	var result []storage.ObjectAttrs
 	it := g.client.Bucket(g.metadata.Bucket).Objects(context.Background(), input)
 	for {
-		attrs, err := it.Next()
-		if err == iterator.Done || len(result) == int(payload.MaxResults) {
+		attrs, errIt := it.Next()
+		if errIt == iterator.Done || len(result) == int(payload.MaxResults) {
 			break
 		}
 		result = append(result, *attrs)

@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package redis_native
+package redisNative
 
 import (
 	"context"
@@ -15,11 +15,10 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/configuration"
-	"github.com/dapr/components-contrib/configuration/redis-native/internal"
-	redis "github.com/go-redis/redis/v7"
-	jsoniter "github.com/json-iterator/go"
-
+	"github.com/dapr/components-contrib/configuration/redisnative/internal"
 	"github.com/dapr/kit/logger"
+	"github.com/go-redis/redis/v7"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -231,7 +230,6 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 		redisValue, err := r.client.Get(redisKey).Result()
 		if err != nil {
-			// TODO: should we return error or just skip this key?
 			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", redisKey, err)
 		}
 		val, version := internal.GetRedisValueAndVersion(redisValue)
@@ -276,7 +274,6 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
 		}
 	}()
-	// todo get target changed key
 	// msg.Channel
 	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
 	if err != nil {

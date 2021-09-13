@@ -1,0 +1,11 @@
+
+{
+    "filter": {
+        "EQ": {
+            "state": "CA"
+        }
+    },
+    "pagination": {
+        "limit": 2
+    }
+}

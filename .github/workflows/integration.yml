@@ -1,0 +1,213 @@
+# ------------------------------------------------------------
+# Copyright (c) Microsoft Corporation and Dapr Contributors.
+# Licensed under the MIT License.
+# ------------------------------------------------------------
+
+name: Components Integration Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+jobs:
+  pre_job:
+    name: Skip Duplicate Actions
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v3.4.0
+        with:
+          cancel_others: 'true'
+          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
+  # Based on whether this is a PR or a scheduled run, we will run a different
+  # subset of the integration tests. This allows all the tests not requiring
+  # secrets to be executed on pull requests.
+  generate-matrix:
+    runs-on: ubuntu-latest
+    needs: pre_job
+    if: needs.pre_job.outputs.should_skip != 'true'
+    steps:
+    - name: Install yq
+      run: |
+        sudo snap install yq
+
+    - name: Specify components not requiring secrets nor certs
+      id: pr-components
+      run: |
+        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - bindings.mysql
+        - bindings.rabbitmq
+        - state.mysql
+        - state.postgresql
+        - state.sqlserver
+        EOF
+        )
+        echo "::set-output name=pr-components::$PR_COMPONENTS"
+
+    - name: Specify components requiring secrets or certs
+      id: cron-components
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "::set-output name=cron-components::[]"
+          exit
+        fi
+        # Unfortunately, Azure secrets can't have underscores in
+        # names, while environment variables with hyphens ('-') are
+        # troublesome.
+        #
+        # We work around here by leveraging the fact that
+        # environment variable names are case sensitive, so
+        # CamelCase would still work.
+        #
+        # That is slightly better than something like
+        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
+        # and errorprone.
+        #
+        # Only list the secrets you need for the component.
+        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - component: bindings.azure.servicebusqueues
+          required-secrets: AzureServiceBusConnectionString
+        EOF
+        )
+        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+    outputs:
+      pr-components: ${{ steps.pr-components.outputs.pr-components }}
+      cron-components: ${{ steps.cron-components.outputs.cron-components }}
+
+  integration:
+    name: ${{ matrix.component }} integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./src/github.com/dapr/components-contrib
+    needs: generate-matrix
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+    steps:
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@v2
+      with:
+        path: ./src/github.com/dapr/components-contrib
+
+    - name: Setup test output
+      shell: bash
+      run: |
+        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
+        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
+
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      if: matrix.required-secrets != ''
+
+    - name: Setup secrets
+      uses: Azure/get-keyvault-secrets@v1
+      with:
+        # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
+        #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+        keyvault: ${{ secrets.AZURE_KEYVAULT }}
+        secrets: ${{ matrix.required-secrets }}
+      id: get-azure-secrets
+      if: matrix.required-secrets != ''
+
+    - name: Configure Azure servicebusqueues environment
+      run: |
+        export DAPR_TEST_AZURE_SERVICEBUS="${{ env.AzureServiceBusConnectionString }}"
+        echo "DAPR_TEST_AZURE_SERVICEBUS=$DAPR_TEST_AZURE_SERVICEBUS" >> $GITHUB_ENV
+      if: contains(matrix.component, 'azure.servicebusqueues')
+
+    - name: Start sqlserver
+      run: |
+        export DAPR_TEST_SQL_CONNSTRING="server=localhost;user id=sa;password=Pass@Word1;port=1433;"
+        echo "DAPR_TEST_SQL_CONNSTRING=$DAPR_TEST_SQL_CONNSTRING" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
+      if: contains(matrix.component, 'sqlserver')
+
+    - name: Start rabbitmq
+      run: |
+        export DAPR_TEST_RABBITMQ_HOST="amqp://localhost:5672"
+        echo "DAPR_TEST_RABBITMQ_HOST=$DAPR_TEST_RABBITMQ_HOST" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
+      if: contains(matrix.component, 'rabbitmq')
+
+    - name: Start mysql
+      run: |
+        export MYSQL_TEST_CONN_URL="dapr:example@tcp(localhost:3306)/dapr_state_store?allowNativePasswords=true"
+        echo "MYSQL_TEST_CONN_URL=$MYSQL_TEST_CONN_URL" >> $GITHUB_ENV
+        export DAPR_TEST_MYSQL_CONNSTRING="dapr:example@tcp(localhost:3306)/?allowNativePasswords=true"
+        echo "DAPR_TEST_MYSQL_CONNSTRING=$DAPR_TEST_MYSQL_CONNSTRING" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
+      if: contains(matrix.component, 'mysql')
+
+    - name: Start postgresql
+      run: |
+        export DAPR_TEST_POSTGRES_CONNSTRING="host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+        echo "DAPR_TEST_POSTGRES_CONNSTRING=$DAPR_TEST_POSTGRES_CONNSTRING" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
+      if: contains(matrix.component, 'postgresql')
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '^1.16.6'
+
+    - name: Download Go dependencies
+      run: |
+        go mod download
+        go install gotest.tools/gotestsum@latest
+
+    - name: Run tests
+      continue-on-error: true
+      run: |
+        set -e
+        KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
+        NAME_PATH=$(echo ${NAME} | tr '.' '/')
+        echo "Running integration tests for ${KIND}/${NAME_PATH} ... "
+
+        set +e
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_integration.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_integration.xml --format standard-verbose -- \
+          -p 2 -count=1 -timeout=5m -tags=integration_test ./${KIND}/${NAME_PATH}
+
+        status=$?
+        echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME_PATH} ... "
+        if test $status -ne 0; then
+          echo "Setting INTEGRATION_FAILURE"
+          echo "INTEGRATION_FAILURE=true" >> $GITHUB_ENV
+        fi
+        set -e
+
+        # Fail the step if we found no test to run
+        if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_integration.json ; then
+          echo "::error:: No test was found for component ${{ matrix.component }}"
+          exit -1
+        fi
+
+    - name: Check integration test passed
+      continue-on-error: false
+      run: |
+        echo "INTEGRATION_FAILURE=$INTEGRATION_FAILURE"
+        if [[ -v INTEGRATION_FAILURE ]]; then
+          exit 1
+        fi
+
+    # Upload logs for test analytics to consume
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{ matrix.component }}_integration_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_integration.*

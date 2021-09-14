@@ -14,9 +14,11 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+type Status int
+
 type middlewareMetadata struct {
 	Rego            string `json:"rego"`
-	DefaultStatus   int    `json:"-"`
+	DefaultStatus   Status `json:"defaultStatus,omitempty"`
 	IncludedHeaders string `json:"includedHeaders,omitempty"`
 }
 
@@ -43,6 +45,26 @@ var (
 	errOpaNoResult          = errors.New("received no results back from rego policy. Are you setting data.http.allow?")
 	errOpaInvalidResultType = errors.New("got an invalid type back from repo policy. Only a boolean or map is valid")
 )
+
+func (s *Status) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	if b[0] == '"' {
+		// b is in string mode
+		if len(b) <= 2 {
+			return nil
+		}
+		b = b[1 : len(b)-1]
+	}
+	intVal, err := strconv.Atoi(string(b))
+	if err != nil {
+		return err
+	}
+	*s = Status(intVal)
+
+	return nil
+}
 
 // GetHandler returns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
@@ -130,7 +152,7 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, result interface{}) bool {
 	if allowed, ok := result.(bool); ok {
 		if !allowed {
-			ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
+			ctx.Error(fasthttp.StatusMessage(int(meta.DefaultStatus)), int(meta.DefaultStatus))
 		}
 
 		return allowed
@@ -152,7 +174,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 
 	regoResult := RegoResult{
 		// By default, a non-allowed request with return a 403 response.
-		StatusCode:        meta.DefaultStatus,
+		StatusCode:        int(meta.DefaultStatus),
 		AdditionalHeaders: make(map[string]string),
 	}
 
@@ -180,7 +202,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 }
 
 func (m *Middleware) opaError(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, err error) {
-	ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
+	ctx.Error(fasthttp.StatusMessage(int(meta.DefaultStatus)), int(meta.DefaultStatus))
 	ctx.Response.Header.Set(opaErrorHeaderKey, "true")
 	m.logger.Warnf("Error procesing rego policy: %v", err)
 }
@@ -197,14 +219,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewar
 	err = json.Unmarshal(b, &meta)
 	if err != nil {
 		return nil, err
-	}
-
-	if defaultStatus, ok := metadata.Properties["defaultStatus"]; ok && defaultStatus != "" {
-		intVal, err := strconv.Atoi(defaultStatus)
-		if err != nil {
-			return nil, err
-		}
-		meta.DefaultStatus = intVal
 	}
 
 	return &meta, nil

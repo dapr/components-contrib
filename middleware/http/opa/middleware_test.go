@@ -204,6 +204,20 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			status: 500,
 		},
+		"rego priority over defaultStatus metadata": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						allow = {
+							"allow": false,
+							"status_code": 301
+						}`,
+					"defaultStatus": "500",
+				},
+			},
+			status: 301,
+		},
 	}
 
 	for name, test := range tests {

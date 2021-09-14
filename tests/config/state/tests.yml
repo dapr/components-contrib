@@ -7,3 +7,8 @@ components:
     allOperations: true
   - component: cosmosdb
     allOperations: true
+  - component: sqlserver
+    allOperations: true
+  - component: mysql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]

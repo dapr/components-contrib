@@ -99,3 +99,7 @@ func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 
 	return nil, nil
 }
+
+func (g *GCPStorage) Close() error {
+	return g.client.Close()
+}

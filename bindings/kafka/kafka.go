@@ -36,6 +36,7 @@ type Kafka struct {
 	authRequired  bool
 	saslUsername  string
 	saslPassword  string
+	initialOffset int64
 	logger        logger.Logger
 }
 
@@ -47,6 +48,7 @@ type kafkaMetadata struct {
 	AuthRequired    bool     `json:"authRequired"`
 	SaslUsername    string   `json:"saslUsername"`
 	SaslPassword    string   `json:"saslPassword"`
+	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int
 }
 
@@ -99,6 +101,7 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	k.publishTopic = meta.PublishTopic
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
+	k.initialOffset = meta.InitialOffset
 
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
@@ -135,6 +138,12 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 	meta := kafkaMetadata{}
 	meta.ConsumerGroup = metadata.Properties["consumerGroup"]
 	meta.PublishTopic = metadata.Properties["publishTopic"]
+
+	initialOffset, err := parseInitialOffset(metadata.Properties["initialOffset"])
+	if err != nil {
+		return nil, err
+	}
+	meta.InitialOffset = initialOffset
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")
@@ -210,6 +219,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
+	config.Consumer.Offsets.Initial = k.initialOffset
 	// ignore SASL properties if authRequired is false
 	if k.authRequired {
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
@@ -282,4 +292,17 @@ func (k *Kafka) Close() error {
 	}
 
 	return nil
+}
+
+func parseInitialOffset(value string) (initialOffset int64, err error) {
+	initialOffset = sarama.OffsetNewest // Default
+	if strings.EqualFold(value, "oldest") {
+		initialOffset = sarama.OffsetOldest
+	} else if strings.EqualFold(value, "newest") {
+		initialOffset = sarama.OffsetNewest
+	} else if value != "" {
+		return 0, fmt.Errorf("kafka error: invalid initialOffset: %s", value)
+	}
+
+	return initialOffset, err
 }

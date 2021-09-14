@@ -229,6 +229,12 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
+
+	if req.ContentType != nil && req.ContentType != "" {
+		blobHTTPHeaders.ContentType = req.ContentType
+	}
+
+	// this is for backward compatibility where it might have come from http request
 	if val, ok := req.Metadata[contentType]; ok && val != "" {
 		blobHTTPHeaders.ContentType = val
 		delete(req.Metadata, contentType)

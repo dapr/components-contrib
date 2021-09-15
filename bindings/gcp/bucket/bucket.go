@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"strconv"
 
 	"cloud.google.com/go/storage"
@@ -22,6 +23,7 @@ import (
 )
 
 const (
+	objectURLBase        = "https://storage.googleapis.com/%s/%s"
 	metadataDecodeBase64 = "decodeBase64"
 	metadataEncodeBase64 = "encodeBase64"
 
@@ -58,6 +60,10 @@ type listPayload struct {
 	Prefix     string `json:"prefix"`
 	MaxResults int32  `json:"maxResults"`
 	Delimiter  string `json:"delimiter"`
+}
+
+type createResponse struct {
+	ObjectURL string `json:"objectURL"`
 }
 
 // NewGCPStorage returns a new GCP storage instance
@@ -159,7 +165,23 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return nil, fmt.Errorf("gcp bucket binding error. Uploading: %w", err)
 	}
 
-	return nil, nil
+	objectUrl, err := url.Parse(fmt.Sprintf(objectURLBase, g.metadata.Bucket, name))
+	if err != nil {
+		return nil, fmt.Errorf("gcp bucket binding error. error building url response: %w", err)
+	}
+
+	resp := createResponse{
+		ObjectURL: objectUrl.String(),
+	}
+
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return nil, fmt.Errorf("gcp 1binding error. error marshalling create response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: b,
+	}, nil
 }
 
 func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -277,7 +299,6 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 
 // Add backward compatibility. 'key' replace 'name'
 func (g *GCPStorage) handleBackwardCompatibilityForMetadata(metadata map[string]string) map[string]string {
-
 	if val, ok := metadata[metadataKeyBC]; ok && val != "" {
 		metadata[metadataKey] = val
 		delete(metadata, metadataKeyBC)

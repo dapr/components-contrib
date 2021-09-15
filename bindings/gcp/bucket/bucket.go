@@ -165,13 +165,13 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return nil, fmt.Errorf("gcp bucket binding error. Uploading: %w", err)
 	}
 
-	objectUrl, err := url.Parse(fmt.Sprintf(objectURLBase, g.metadata.Bucket, name))
+	objectURL, err := url.Parse(fmt.Sprintf(objectURLBase, g.metadata.Bucket, name))
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error. error building url response: %w", err)
 	}
 
 	resp := createResponse{
-		ObjectURL: objectUrl.String(),
+		ObjectURL: objectURL.String(),
 	}
 
 	b, err := json.Marshal(resp)

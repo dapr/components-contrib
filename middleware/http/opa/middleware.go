@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/valyala/fasthttp"
 )
@@ -50,20 +52,26 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 {
 		return nil
 	}
-	if b[0] == '"' {
-		// b is in string mode
-		if len(b) <= 2 {
-			return nil
-		}
-		b = b[1 : len(b)-1]
-	}
-	intVal, err := strconv.Atoi(string(b))
-	if err != nil {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}
-	*s = Status(intVal)
+	switch value := v.(type) {
+	case float64:
+		*s = Status(value)
 
-	return nil
+		return nil
+	case string:
+		intVal, err := strconv.Atoi(value)
+		if err != nil {
+			return err
+		}
+		*s = Status(intVal)
+
+		return nil
+	default:
+		return fmt.Errorf("invalid value %v parse to status(int)", value)
+	}
 }
 
 // GetHandler returns the HTTP handler provided by the middleware

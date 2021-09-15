@@ -1,6 +1,7 @@
 package opa
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/dapr/components-contrib/middleware"
@@ -254,6 +255,58 @@ func TestOpaPolicy(t *testing.T) {
 					assert.Equal(t, header[1], string(reqCtx.Response.Header.Peek(header[0])))
 				}
 			}
+		})
+	}
+}
+
+func TestStatus_UnmarshalJSON(t *testing.T) {
+	type testObj struct {
+		Value Status `json:"value,omitempty"`
+	}
+	tests := map[string]struct {
+		jsonBytes   []byte
+		expectValue Status
+		expectError bool
+	}{
+		"int value": {
+			jsonBytes:   []byte(`{"value":2}`),
+			expectValue: Status(2),
+			expectError: false,
+		},
+		"string value": {
+			jsonBytes:   []byte(`{"value":"2"}`),
+			expectValue: Status(2),
+			expectError: false,
+		},
+		"empty value": {
+			jsonBytes:   []byte(`{}`),
+			expectValue: Status(0),
+			expectError: false,
+		},
+		"invalid value null": {
+			jsonBytes:   []byte(`{"value":null}`),
+			expectError: true,
+		},
+		"invalid value []": {
+			jsonBytes:   []byte(`{"value":[]}`),
+			expectError: true,
+		},
+		"invalid value {}": {
+			jsonBytes:   []byte(`{"value":{}}`),
+			expectError: true,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			var obj testObj
+			err := json.Unmarshal(test.jsonBytes, &obj)
+			if test.expectError {
+				assert.NotEmpty(t, err)
+
+				return
+			}
+			assert.Nil(t, err)
+			assert.Equal(t, obj.Value, test.expectValue)
 		})
 	}
 }

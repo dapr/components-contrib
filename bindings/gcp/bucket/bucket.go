@@ -27,6 +27,8 @@ const (
 
 	metadataKey = "key"
 	maxResults  = 1000
+
+	metadataKeyBC = "name"
 )
 
 // GCPStorage allows saving data to GCP bucket storage
@@ -108,6 +110,8 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 }
 
 func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	req.Metadata = g.handleBackwardCompatibilityForMetadata(req.Metadata)
+
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return g.create(req)
@@ -269,4 +273,15 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	}
 
 	return merged, nil
+}
+
+//Add backward compatibility. 'key' replace 'name'
+func (g *GCPStorage) handleBackwardCompatibilityForMetadata(metadata map[string]string) map[string]string {
+
+	if val, ok := metadata[metadataKeyBC]; ok && val != "" {
+		metadata[metadataKey] = val
+		delete(metadata, metadataKeyBC)
+	}
+
+	return metadata
 }

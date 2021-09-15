@@ -133,6 +133,7 @@ func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 }
 
 func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var err error
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error. error merge metadata : %w", err)
@@ -161,7 +162,7 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 
 	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(context.Background())
 	defer h.Close()
-	if _, err := h.Write(req.Data); err != nil {
+	if _, err = h.Write(req.Data); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error. Uploading: %w", err)
 	}
 

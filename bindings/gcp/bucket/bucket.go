@@ -275,7 +275,7 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	return merged, nil
 }
 
-//Add backward compatibility. 'key' replace 'name'
+// Add backward compatibility. 'key' replace 'name'
 func (g *GCPStorage) handleBackwardCompatibilityForMetadata(metadata map[string]string) map[string]string {
 
 	if val, ok := metadata[metadataKeyBC]; ok && val != "" {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -58,20 +59,29 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 	}
 	switch value := v.(type) {
 	case float64:
+		if value != math.Trunc(value) {
+			return fmt.Errorf("invalid float value %f parse to status(int)", value)
+		}
 		*s = Status(value)
-
-		return nil
 	case string:
 		intVal, err := strconv.Atoi(value)
 		if err != nil {
 			return err
 		}
 		*s = Status(intVal)
-
-		return nil
 	default:
 		return fmt.Errorf("invalid value %v parse to status(int)", value)
 	}
+	if !s.Valid() {
+		return fmt.Errorf("invalid status value %d expected in range [100-599]", *s)
+	}
+
+	return nil
+}
+
+// Check status is in the correct range for RFC 2616 status codes [100-599]
+func (s *Status) Valid() bool {
+	return s != nil && *s >= 100 && *s < 600
 }
 
 // GetHandler returns the HTTP handler provided by the middleware

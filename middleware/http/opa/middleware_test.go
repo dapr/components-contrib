@@ -269,19 +269,27 @@ func TestStatus_UnmarshalJSON(t *testing.T) {
 		expectError bool
 	}{
 		"int value": {
-			jsonBytes:   []byte(`{"value":2}`),
-			expectValue: Status(2),
+			jsonBytes:   []byte(`{"value":100}`),
+			expectValue: Status(100),
 			expectError: false,
 		},
 		"string value": {
-			jsonBytes:   []byte(`{"value":"2"}`),
-			expectValue: Status(2),
+			jsonBytes:   []byte(`{"value":"100"}`),
+			expectValue: Status(100),
 			expectError: false,
 		},
 		"empty value": {
 			jsonBytes:   []byte(`{}`),
 			expectValue: Status(0),
 			expectError: false,
+		},
+		"invalid status code value": {
+			jsonBytes:   []byte(`{"value":600}`),
+			expectError: true,
+		},
+		"invalid float value": {
+			jsonBytes:   []byte(`{"value":2.9}`),
+			expectError: true,
 		},
 		"invalid value null": {
 			jsonBytes:   []byte(`{"value":null}`),

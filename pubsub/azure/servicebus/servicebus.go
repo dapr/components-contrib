@@ -45,6 +45,7 @@ const (
 	publishMaxRetries               = "publishMaxRetries"
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	errorMessagePrefix              = "azure service bus error:"
+	userAgent                       = "dapr"
 
 	// Defaults.
 	defaultTimeoutInSec        = 60
@@ -258,7 +259,10 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 	}
 
 	a.metadata = m
-	a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
+	a.namespace, err = azservicebus.NewNamespace(
+		azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
+		azservicebus.NamespaceWithUserAgent(userAgent))
+
 	if err != nil {
 		return err
 	}

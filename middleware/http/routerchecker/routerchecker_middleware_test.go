@@ -15,7 +15,7 @@ func (ro *RouterOutput) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func TestIsMatchRule(t *testing.T) {
-	var m = new(Middleware)
+	m := new(Middleware)
 	isMatch, err := m.isMatchRule("[\\s]", "/v1.0/invoke/qcg.default/method/ cat password")
 	assert.Nil(t, err, "is nil")
 	assert.Equal(t, true, isMatch)
@@ -37,7 +37,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	ctx.Request.SetRequestURI("/v1.0/invoke/qcg.default/method/ cat password")
 	ctx.Request.Header.SetMethod("GET")
 
-	var output = new(RouterOutput)
+	output := new(RouterOutput)
 	handler(output.handle)(&ctx)
 	assert.Equal(t, fasthttp.StatusBadRequest, ctx.Response.Header.StatusCode())
 }
@@ -55,7 +55,7 @@ func TestRequestHandlerWithLegalRouterRule(t *testing.T) {
 	ctx.Request.SetRequestURI("/v1.0/invoke/qcg.default/method")
 	ctx.Request.Header.SetMethod("GET")
 
-	var output = new(RouterOutput)
+	output := new(RouterOutput)
 	handler(output.handle)(&ctx)
 	assert.Equal(t, fasthttp.StatusOK, ctx.Response.Header.StatusCode())
 }

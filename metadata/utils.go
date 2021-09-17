@@ -23,6 +23,9 @@ const (
 
 	// PriorityMetadataKey defines the metadata key for setting a priority
 	PriorityMetadataKey = "priority"
+
+	// ContentType defines the metadata key for the content type
+	ContentType = "contentType"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
@@ -82,4 +85,12 @@ func IsRawPayload(props map[string]string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func TryGetContentType(props map[string]string) (string, bool) {
+	if val, ok := props[ContentType]; ok && val != "" {
+		return val, true
+	}
+
+	return "", false
 }

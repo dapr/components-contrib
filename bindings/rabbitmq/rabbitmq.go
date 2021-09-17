@@ -100,6 +100,12 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 		Body:         req.Data,
 	}
 
+	contentType, ok := contrib_metadata.TryGetContentType(req.Metadata)
+
+	if ok {
+		pub.ContentType = contentType
+	}
+
 	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err

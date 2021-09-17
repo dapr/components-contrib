@@ -108,6 +108,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	var (
 		producer pulsar.Producer
+		msg      *pulsar.ProducerMessage
 		err      error
 	)
 	cache, _ := p.cache.Get(req.Topic)
@@ -125,7 +126,10 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		producer = cache.(pulsar.Producer)
 	}
 
-	msg := parsePublishMetadata(req)
+	msg, err = parsePublishMetadata(req)
+	if err != nil {
+		return err
+	}
 	if _, err = producer.Send(context.Background(), msg); err != nil {
 		return err
 	}
@@ -134,18 +138,25 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 }
 
 // parsePublishMetadata parse publish metadata
-func parsePublishMetadata(req *pubsub.PublishRequest) (msg *pulsar.ProducerMessage) {
+func parsePublishMetadata(req *pubsub.PublishRequest) (
+	msg *pulsar.ProducerMessage, err error) {
 	msg = &pulsar.ProducerMessage{
 		Payload: req.Data,
 	}
 	if val, ok := req.Metadata[deliverAt]; ok {
-		msg.DeliverAt, _ = time.Parse("2006-01-02 15:04:05", val)
+		msg.DeliverAt, err = time.Parse(time.RFC3339, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if val, ok := req.Metadata[deliverAfter]; ok {
-		msg.DeliverAfter, _ = time.ParseDuration(val)
+		msg.DeliverAfter, err = time.ParseDuration(val)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return msg
+	return
 }
 
 func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {

@@ -24,7 +24,7 @@ const (
 	// PriorityMetadataKey defines the metadata key for setting a priority.
 	PriorityMetadataKey = "priority"
 
-	// ContentType defines the metadata key for the content type
+	// ContentType defines the metadata key for the content type.
 	ContentType = "contentType"
 )
 

@@ -43,6 +43,7 @@ jobs:
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
+        - bindings.influx
         - bindings.kafka
         - bindings.redis
         - bindings.mqtt-mosquitto
@@ -228,6 +229,13 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
 
+    - name: Start influxdb
+      run: |
+        export INFLUX_TOKEN=$(openssl rand -base64 32)
+        echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
+      if: contains(matrix.component, 'influx')
+
     - name: Start KinD
       uses: helm/kind-action@v1.0.0
       if: contains(matrix.component, 'kubernetes')
@@ -263,7 +271,8 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         set +e
-        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json --format standard-verbose -- \
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
           -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
 
         status=$?
@@ -304,10 +313,10 @@ jobs:
           exit 1
         fi
 
-    # Upload logs for dashboard like dapr/dapr E2E tests
+    # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@master
       with:
-        name: ${{ matrix.component }}_conformance_test.json
-        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json
+        name: ${{ matrix.component }}_conformance_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*

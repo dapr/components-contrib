@@ -48,13 +48,15 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 }
 
 func (m *Middleware) isMatchRule(rule string, uri string) (bool, error) {
-	if isMatch, err := regexp.MatchString(rule, uri); err != nil {
+	var (
+		isMatch bool
+		err error
+	)
+	if isMatch, err = regexp.MatchString(rule, uri); err != nil {
 		return isMatch, err
-	} else if !isMatch {
-		return isMatch, nil
 	}
 
-	return true, nil
+	return isMatch, nil
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*routerCheckerMiddlewareMetadata, error) {

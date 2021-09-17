@@ -58,6 +58,7 @@ jobs:
         - pubsub.mqtt-vernemq
         - pubsub.hazelcast
         - pubsub.rabbitmq
+        - pubsub.in-memory
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile

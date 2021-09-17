@@ -28,15 +28,18 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 	if err != nil {
 		return nil, err
 	}
+
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
 			isMatch, err := m.isMatchRule(meta.Rule, string(ctx.RequestURI()))
 			if err != nil {
 				ctx.Error("regexp match failed", fasthttp.StatusBadRequest)
+
 				return
 			}
 			if isMatch {
 				ctx.Error("invalid router", fasthttp.StatusBadRequest)
+
 				return
 			}
 			h(ctx)
@@ -44,15 +47,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 	}, nil
 }
 
-func (m *Middleware) isMatchRule(rule string, uri string) (b bool, err error) {
-	var isMatch bool
-	if isMatch, err = regexp.MatchString(rule, uri); err != nil {
-		return false, err
+func (m *Middleware) isMatchRule(rule string, uri string) (bool, error) {
+	if isMatch, err := regexp.MatchString(rule, uri); err != nil {
+		return isMatch, err
+	} else if !isMatch {
+		return isMatch, nil
 	}
 
-	if !isMatch {
-		return false, nil
-	}
 	return true, nil
 }
 

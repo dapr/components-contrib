@@ -93,12 +93,13 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) 
 	if asbMsg.ContentType != "" {
 		addToMetadata(pubsubMsg, ContentTypeMetadataKey, asbMsg.ContentType)
 	}
-	if asbMsg.DeliveryCount != 0 { // TODO: Does ASB ever set this to 0?
-		addToMetadata(pubsubMsg, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
-	}
 	if asbMsg.LockToken != nil {
 		addToMetadata(pubsubMsg, LockTokenMetadataKey, asbMsg.LockToken.String())
 	}
+
+	// Always set delivery count.
+	addToMetadata(pubsubMsg, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
+
 	if asbMsg.SystemProperties != nil {
 		systemProps := asbMsg.SystemProperties
 		if systemProps.EnqueuedTime != nil {

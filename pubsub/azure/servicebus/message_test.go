@@ -1,6 +1,7 @@
 package servicebus
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -173,20 +174,20 @@ func TestNewPubsubMessageFromAzServiceBusMessage(t *testing.T) {
 				Data:  testMessageData,
 				Topic: "testTopic",
 				Metadata: map[string]string{
-					MessageIDMetadataKey:               testMessageID,
-					SessionIDMetadataKey:               testSessionID,
-					CorrelationIDMetadataKey:           testCorrelationID,
-					ContentTypeMetadataKey:             testContentType,
-					LabelMetadataKey:                   testLabel,
-					DeliveryCountMetadataKey:           testDeliveryCountValue,
-					ToMetadataKey:                      testTo,
-					ReplyToMetadataKey:                 testReplyTo,
-					LockTokenMetadataKey:               testLockToken.String(),
-					LockedUntilUtcMetadataKey:          nowUtc.Format(http.TimeFormat),
-					SequenceNumberMetadataKey:          testSequenceNumberValue,
-					ScheduledEnqueueTimeUtcMetadataKey: nowUtc.Format(http.TimeFormat),
-					PartitionKeyMetadataKey:            testPartitionKey,
-					EnqueuedTimeUtcMetadataKey:         nowUtc.Format(http.TimeFormat),
+					fmt.Sprintf("metadata.%s", MessageIDMetadataKey):               testMessageID,
+					fmt.Sprintf("metadata.%s", SessionIDMetadataKey):               testSessionID,
+					fmt.Sprintf("metadata.%s", CorrelationIDMetadataKey):           testCorrelationID,
+					fmt.Sprintf("metadata.%s", ContentTypeMetadataKey):             testContentType,
+					fmt.Sprintf("metadata.%s", LabelMetadataKey):                   testLabel,
+					fmt.Sprintf("metadata.%s", DeliveryCountMetadataKey):           testDeliveryCountValue,
+					fmt.Sprintf("metadata.%s", ToMetadataKey):                      testTo,
+					fmt.Sprintf("metadata.%s", ReplyToMetadataKey):                 testReplyTo,
+					fmt.Sprintf("metadata.%s", LockTokenMetadataKey):               testLockToken.String(),
+					fmt.Sprintf("metadata.%s", LockedUntilUtcMetadataKey):          nowUtc.Format(http.TimeFormat),
+					fmt.Sprintf("metadata.%s", SequenceNumberMetadataKey):          testSequenceNumberValue,
+					fmt.Sprintf("metadata.%s", ScheduledEnqueueTimeUtcMetadataKey): nowUtc.Format(http.TimeFormat),
+					fmt.Sprintf("metadata.%s", PartitionKeyMetadataKey):            testPartitionKey,
+					fmt.Sprintf("metadata.%s", EnqueuedTimeUtcMetadataKey):         nowUtc.Format(http.TimeFormat),
 				},
 			},
 			expectError: false,

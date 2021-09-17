@@ -206,7 +206,7 @@ func TestNewPubsubMessageFromAzServiceBusMessage(t *testing.T) {
 				require.Nil(t, err)
 				assert.Equal(t, tc.expectedPubsubMessage.Data, pubsubMsg.Data)
 				assert.Equal(t, tc.expectedPubsubMessage.Topic, pubsubMsg.Topic)
-				for k, _ := range tc.expectedPubsubMessage.Metadata {
+				for k := range tc.expectedPubsubMessage.Metadata {
 					assert.Equal(t, tc.expectedPubsubMessage.Metadata[k], pubsubMsg.Metadata[k])
 				}
 			}

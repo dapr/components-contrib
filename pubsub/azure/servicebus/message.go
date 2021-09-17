@@ -54,8 +54,8 @@ const (
 	// ScheduledEnqueueTimeUtcMetadataKey defines the metadata key for the scheduled enqueue time utc value.
 	ScheduledEnqueueTimeUtcMetadataKey = "ScheduledEnqueueTimeUtc" // GET/SET
 
-	// ReplyToSessionId defines the metadata key for the reply to session id.
-	ReplyToSessionId = "ReplyToSessionId" // GET/SET
+	// ReplyToSessionID defines the metadata key for the reply to session id.
+	ReplyToSessionID = "ReplyToSessionId" // GET/SET
 )
 
 func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) (*pubsub.NewMessage, error) {
@@ -121,6 +121,7 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) 
 			addToMetadata(pubsubMsg, LockedUntilUtcMetadataKey, systemProps.LockedUntil.UTC().Format(http.TimeFormat))
 		}
 	}
+
 	return pubsubMsg, nil
 }
 

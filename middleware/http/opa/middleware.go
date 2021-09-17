@@ -5,17 +5,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/valyala/fasthttp"
 )
 
+type Status int
+
 type middlewareMetadata struct {
 	Rego            string `json:"rego"`
-	DefaultStatus   int    `json:"defaultStatus,omitempty"`
+	DefaultStatus   Status `json:"defaultStatus,omitempty"`
 	IncludedHeaders string `json:"includedHeaders,omitempty"`
 }
 
@@ -42,6 +48,41 @@ var (
 	errOpaNoResult          = errors.New("received no results back from rego policy. Are you setting data.http.allow?")
 	errOpaInvalidResultType = errors.New("got an invalid type back from repo policy. Only a boolean or map is valid")
 )
+
+func (s *Status) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		if value != math.Trunc(value) {
+			return fmt.Errorf("invalid float value %f parse to status(int)", value)
+		}
+		*s = Status(value)
+	case string:
+		intVal, err := strconv.Atoi(value)
+		if err != nil {
+			return err
+		}
+		*s = Status(intVal)
+	default:
+		return fmt.Errorf("invalid value %v parse to status(int)", value)
+	}
+	if !s.Valid() {
+		return fmt.Errorf("invalid status value %d expected in range [100-599]", *s)
+	}
+
+	return nil
+}
+
+// Check status is in the correct range for RFC 2616 status codes [100-599]
+func (s *Status) Valid() bool {
+	return s != nil && *s >= 100 && *s < 600
+}
 
 // GetHandler returns the HTTP handler provided by the middleware
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
@@ -129,7 +170,7 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, result interface{}) bool {
 	if allowed, ok := result.(bool); ok {
 		if !allowed {
-			ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
+			ctx.Error(fasthttp.StatusMessage(int(meta.DefaultStatus)), int(meta.DefaultStatus))
 		}
 
 		return allowed
@@ -151,7 +192,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 
 	regoResult := RegoResult{
 		// By default, a non-allowed request with return a 403 response.
-		StatusCode:        meta.DefaultStatus,
+		StatusCode:        int(meta.DefaultStatus),
 		AdditionalHeaders: make(map[string]string),
 	}
 
@@ -179,7 +220,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 }
 
 func (m *Middleware) opaError(ctx *fasthttp.RequestCtx, meta *middlewareMetadata, err error) {
-	ctx.Error(fasthttp.StatusMessage(meta.DefaultStatus), meta.DefaultStatus)
+	ctx.Error(fasthttp.StatusMessage(int(meta.DefaultStatus)), int(meta.DefaultStatus))
 	ctx.Response.Header.Set(opaErrorHeaderKey, "true")
 	m.logger.Warnf("Error procesing rego policy: %v", err)
 }

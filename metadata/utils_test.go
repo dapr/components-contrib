@@ -55,3 +55,31 @@ func TestIsRawPayload(t *testing.T) {
 		assert.Nil(t, err)
 	})
 }
+
+func TestTryGetContentType(t *testing.T) {
+	t.Run("Metadata without content type", func(t *testing.T) {
+		val, ok := TryGetContentType(map[string]string{})
+
+		assert.Equal(t, "", val)
+		assert.Equal(t, false, ok)
+	})
+
+	t.Run("Metadata with empty content type", func(t *testing.T) {
+		val, ok := TryGetContentType(map[string]string{
+			"contentType": "",
+		})
+
+		assert.Equal(t, "", val)
+		assert.Equal(t, false, ok)
+	})
+
+	t.Run("Metadata with corrent content type", func(t *testing.T) {
+		const contentType = "application/cloudevent+json"
+		val, ok := TryGetContentType(map[string]string{
+			"contentType": contentType,
+		})
+
+		assert.Equal(t, contentType, val)
+		assert.Equal(t, true, ok)
+	})
+}

@@ -45,6 +45,30 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 
 // Init creates a Azure Key Vault client
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
+	// Fix for maintaining backwards compatibility with a change introduced in 1.3 that allowed specifying an Azure environment by setting a FQDN for vault name
+	// This should be considered deprecated and users should rely the "azureEnvironment" metadata instead, but it's maintained here for backwards-compatibility
+	if vaultName, ok := metadata.Properties[componentVaultName]; ok {
+		keyVaultSuffixToEnvironment := map[string]string{
+			".vault.azure.net":         "AZUREPUBLICCLOUD",
+			".vault.azure.cn":          "AZURECHINACLOUD",
+			".vault.usgovcloudapi.net": "AZUREUSGOVERNMENTCLOUD",
+			".vault.microsoftazure.de": "AZUREGERMANCLOUD",
+		}
+		for suffix, environment := range keyVaultSuffixToEnvironment {
+			if strings.HasSuffix(vaultName, suffix) {
+				metadata.Properties["azureEnvironment"] = environment
+				vaultName = strings.TrimSuffix(vaultName, suffix)
+				if strings.HasPrefix(vaultName, "https://") {
+					vaultName = strings.TrimPrefix(vaultName, "https://")
+				}
+				metadata.Properties[componentVaultName] = vaultName
+
+				break
+			}
+		}
+	}
+
+	// Initialization code
 	settings, err := azauth.NewEnvironmentSettings("keyvault", metadata.Properties)
 	if err != nil {
 		return err

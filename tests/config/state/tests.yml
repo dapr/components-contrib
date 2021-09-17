@@ -12,3 +12,6 @@ components:
   - component: postgresql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
+  - component: mysql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]

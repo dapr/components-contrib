@@ -18,6 +18,8 @@ func (m *mockClient) DeleteRow(request *tablestore.DeleteRowRequest) (*tablestor
 	for _, col := range request.DeleteRowChange.PrimaryKey.PrimaryKeys {
 		if col.ColumnName == stateKey {
 			key = col.Value.(string)
+
+			break
 		}
 	}
 
@@ -31,6 +33,8 @@ func (m *mockClient) GetRow(request *tablestore.GetRowRequest) (*tablestore.GetR
 	for _, col := range request.SingleRowQueryCriteria.PrimaryKey.PrimaryKeys {
 		if col.ColumnName == stateKey {
 			key = col.Value.(string)
+
+			break
 		}
 	}
 

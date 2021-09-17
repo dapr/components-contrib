@@ -18,7 +18,13 @@ import (
 
 func TestTableStoreMetadata(t *testing.T) {
 	m := state.Metadata{}
-	m.Properties = map[string]string{"accessKeyID": "ACCESSKEYID", "accessKey": "ACCESSKEY", "instanceName": "INSTANCENAME", "tableName": "TABLENAME", "endpoint": "ENDPOINT"}
+	m.Properties = map[string]string{
+		"accessKeyID":  "ACCESSKEYID",
+		"accessKey":    "ACCESSKEY",
+		"instanceName": "INSTANCENAME",
+		"tableName":    "TABLENAME",
+		"endpoint":     "ENDPOINT",
+	}
 	aliCloudTableStore := AliCloudTableStore{}
 
 	meta, err := aliCloudTableStore.parse(m)

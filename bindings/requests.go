@@ -42,7 +42,7 @@ func (r *InvokeRequest) GetMetadataAsBool(key string) (bool, error) {
 	return false, nil
 }
 
-// GetMetadataAsBool parses metadata as int64
+// GetMetadataAsInt64 parses metadata as int64
 func (r *InvokeRequest) GetMetadataAsInt64(key string, bitSize int) (int64, error) {
 	if val, ok := r.Metadata[key]; ok {
 		intVal, err := strconv.ParseInt(val, 10, bitSize)

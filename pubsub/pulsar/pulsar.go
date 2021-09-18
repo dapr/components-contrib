@@ -126,7 +126,6 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		producer = cache.(pulsar.Producer)
 	}
 
-
 	msg, err = parsePublishMetadata(req)
 	if err != nil {
 		return err
@@ -138,6 +137,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
+// parsePublishMetadata parse publish metadata
 func parsePublishMetadata(req *pubsub.PublishRequest) (
 	msg *pulsar.ProducerMessage, err error) {
 	msg = &pulsar.ProducerMessage{

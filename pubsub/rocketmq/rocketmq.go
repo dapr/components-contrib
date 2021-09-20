@@ -189,19 +189,22 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 
 func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if req.Metadata == nil {
-		req.Metadata = make(map[string]string, 1)
+		req.Metadata = make(map[string]string)
 	}
+	// get consumer group from request first
 	consumerGroup := req.Metadata[metadataRocketmqConsumerGroup]
 	if len(consumerGroup) == 0 {
 		consumerGroup = r.metadata.ConsumerGroup
 	}
-	mqExpr := req.Metadata[metadataRocketmqExpression]
-	mqType := req.Metadata[metadataRocketmqType]
+	var (
+		mqExpr = req.Metadata[metadataRocketmqExpression]
+		mqType = req.Metadata[metadataRocketmqType]
+		err    error
+	)
 	if !r.validMqTypeParams(mqType) {
 		return rocketmqValidPublishMsgTypError
 	}
 	r.closeSubscriptionResources()
-	var err error
 	if r.pushConsumer, err = r.setUpConsumer(); err != nil {
 		return err
 	}

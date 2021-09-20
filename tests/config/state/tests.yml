@@ -10,7 +10,6 @@ components:
   - component: sqlserver
     allOperations: true
   - component: mysql
-    allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
   - component: azure.tablestorage
-    operations: ["etag", "bulkset", "bulkdelete"]
+    operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete"]

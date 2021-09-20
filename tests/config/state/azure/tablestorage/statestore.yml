@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: tablestore
+  name: statestore
 spec:
   type: state.azure.tablestorage
   version: v1

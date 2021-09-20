@@ -107,6 +107,11 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
+		} else {
+			if isNotFoundError(err) {
+				// deleting an item that doesn't exist without specifying an ETAG is a noop
+				return nil
+			}
 		}
 	}
 
@@ -227,11 +232,10 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 
-	var etag string
 	if req.ETag != nil {
-		etag = *req.ETag
+		entity.OdataEtag = *req.ETag
+		return entity.Delete(false, nil)
 	}
-	entity.OdataEtag = etag
 
 	return entity.Delete(true, nil)
 }

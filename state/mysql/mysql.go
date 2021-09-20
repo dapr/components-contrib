@@ -242,7 +242,7 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// in on inserts and updates and is used for Optimistic Concurrency
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 			id varchar(255) NOT NULL PRIMARY KEY,
-			value json NOT NULL,
+			value text NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			eTag varchar(36) NOT NULL
@@ -312,7 +312,20 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 			m.tableName), req.Key, *req.ETag)
 	}
 
-	return m.returnNDBResults(result, err, 1)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows != 1 && req.ETag != nil && *req.ETag != "" {
+		return state.NewETagError(state.ETagMismatch, nil)
+	}
+
+	return nil
 }
 
 // BulkDelete removes multiple entries from the store
@@ -397,9 +410,35 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 			m.tableName), value, eTag, req.Key, *req.ETag)
 	}
 
-	// Have to pass 2 because if the insert has a conflict MySQL returns that
-	// two rows affected
-	return m.returnNDBResults(result, err, 2)
+	if err != nil {
+		if req.ETag != nil && *req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		err = fmt.Errorf(`rows affected error: no rows match given key '%s' and eTag '%s'`, req.Key, *req.ETag)
+		err = state.NewETagError(state.ETagMismatch, err)
+		m.logger.Error(err)
+
+		return err
+	}
+
+	if rows > 2 {
+		err = fmt.Errorf(`rows affected error: more than 2 row affected, expected 2, actual %d`, rows)
+		m.logger.Error(err)
+
+		return err
+	}
+
+	return nil
 }
 
 // BulkSet adds/updates multiple entities on store
@@ -497,42 +536,4 @@ func (m *MySQL) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequ
 	err = tx.Commit()
 
 	return err
-}
-
-// Verifies that the sql.Result affected no more than n number of rows and no
-// errors exist. If zero rows were affected something is wrong and an error
-// is returned.
-func (m *MySQL) returnNDBResults(result sql.Result, err error, n int64) error {
-	if err != nil {
-		m.logger.Debug(err)
-
-		return err
-	}
-
-	rowsAffected, resultErr := result.RowsAffected()
-
-	if resultErr != nil {
-		m.logger.Error(resultErr)
-
-		return resultErr
-	}
-
-	if rowsAffected == 0 {
-		noRowsErr := errors.New(
-			`rows affected error: no rows match given key and eTag`)
-		m.logger.Error(noRowsErr)
-
-		return noRowsErr
-	}
-
-	if rowsAffected > n {
-		tooManyRowsErr := fmt.Errorf(
-			`rows affected error: more than %d row affected, expected %d, actual %d`,
-			n, n, rowsAffected)
-		m.logger.Error(tooManyRowsErr)
-
-		return tooManyRowsErr
-	}
-
-	return nil
 }

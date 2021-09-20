@@ -18,6 +18,8 @@ import (
 const (
 	host              = "host"
 	enableTLS         = "enableTLS"
+	deliverAt         = "deliverAt"
+	deliverAfter      = "deliverAfter"
 	cachedNumProducer = 10
 )
 
@@ -106,6 +108,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	var (
 		producer pulsar.Producer
+		msg      *pulsar.ProducerMessage
 		err      error
 	)
 	cache, _ := p.cache.Get(req.Topic)
@@ -123,14 +126,37 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		producer = cache.(pulsar.Producer)
 	}
 
-	_, err = producer.Send(context.Background(), &pulsar.ProducerMessage{
-		Payload: req.Data,
-	})
+	msg, err = parsePublishMetadata(req)
 	if err != nil {
+		return err
+	}
+	if _, err = producer.Send(context.Background(), msg); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// parsePublishMetadata parse publish metadata
+func parsePublishMetadata(req *pubsub.PublishRequest) (
+	msg *pulsar.ProducerMessage, err error) {
+	msg = &pulsar.ProducerMessage{
+		Payload: req.Data,
+	}
+	if val, ok := req.Metadata[deliverAt]; ok {
+		msg.DeliverAt, err = time.Parse(time.RFC3339, val)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if val, ok := req.Metadata[deliverAfter]; ok {
+		msg.DeliverAfter, err = time.ParseDuration(val)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return
 }
 
 func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {

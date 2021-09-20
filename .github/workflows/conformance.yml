@@ -93,6 +93,8 @@ jobs:
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.tablestorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage

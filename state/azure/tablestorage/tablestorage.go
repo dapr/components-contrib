@@ -141,11 +141,6 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
 	err := r.writeRow(req)
-	if err != nil {
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-	}
 
 	return err
 }
@@ -198,20 +193,25 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	}
 	entity.OdataEtag = etag
 
-	// InsertOrReplace does not support ETag concurrency, therefore we will try to use Update method first
-	// as it's more frequent, and then Insert
+	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence
+	// and then use Update to update the key if it exists with the specified ETag
 
-	err := entity.Update(false, nil)
+	err := entity.Insert(storage.FullMetadata, nil)
 	if err != nil {
-		if isNotFoundError(err) {
-			// When entity is not found (set state first time) create it
-			entity.OdataEtag = ""
-
-			return entity.Insert(storage.FullMetadata, nil)
+		if etag == "" {
+			return state.NewETagError(state.ETagMismatch, err)
 		}
+		err := entity.Update(false, nil)
+		if err != nil {
+			if isNotFoundError(err) {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+		}
+
+		return err
 	}
 
-	return err
+	return nil
 }
 
 func isNotFoundError(err error) bool {
@@ -233,9 +233,13 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	if req.ETag != nil {
 		entity.OdataEtag = *req.ETag
 
+		// force=false sets the "If-Match: <ETag>" header to ensure that the delete is only performed if the
+		// entity's ETag matches the specified ETag
 		return entity.Delete(false, nil)
 	}
 
+	// force=true sets the "If-Match: *" header to ensure that we delete a matching entity
+	// regardless of the entity's ETag value
 	return entity.Delete(true, nil)
 }
 

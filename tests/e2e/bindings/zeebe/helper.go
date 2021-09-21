@@ -10,17 +10,18 @@ import (
 	"syscall"
 
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/bindings/zeebe/jobworker"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
 )
 
 const (
-	// TestProcessFile contains the basic test process file name
+	// TestProcessFile contains the basic test process file name.
 	TestProcessFile string = "test.bpmn"
-	// CalcProcessFile contains the calculation process file name
+	// CalcProcessFile contains the calculation process file name.
 	CalcProcessFile string = "calc.bpmn"
 )
 
@@ -47,7 +48,7 @@ type CalcResult struct {
 	Result float64 `json:"result"`
 }
 
-// GetEnvVars returns the Zeebe environment vars
+// GetEnvVars returns the Zeebe environment vars.
 func GetEnvVars() EnvVars {
 	return EnvVars{
 		ZeebeVersion:                 os.Getenv("ZEEBE_VERSION"),
@@ -59,7 +60,7 @@ func GetEnvVars() EnvVars {
 	}
 }
 
-// Command initializes the Zeebe command binding and returns it
+// Command initializes the Zeebe command binding and returns it.
 func Command() (*command.ZeebeCommand, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
@@ -80,7 +81,7 @@ func Command() (*command.ZeebeCommand, error) {
 	return cmd, nil
 }
 
-// JobWorker initializes the Zeebe job worker binding and returns it
+// JobWorker initializes the Zeebe job worker binding and returns it.
 func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.ZeebeJobWorker, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
@@ -113,28 +114,28 @@ func TestID() string {
 	return fmt.Sprintf("zeebe-test-%s", uuid.New().String())
 }
 
-// ProcessIDModifier modifies the process ID in a BPMN file
+// ProcessIDModifier modifies the process ID in a BPMN file.
 func ProcessIDModifier(id string) func(string) string {
 	return func(content string) string {
 		return strings.ReplaceAll(content, "id=\"zeebe-test\"", fmt.Sprintf("id=\"%s\"", id))
 	}
 }
 
-// NameModifier modifies the name of a process
+// NameModifier modifies the name of a process.
 func NameModifier(name string) func(string) string {
 	return func(content string) string {
 		return strings.ReplaceAll(content, "name=\"Test\"", fmt.Sprintf("name=\"%s\"", name))
 	}
 }
 
-// JobTypeModifier modifies the job type of a process
+// JobTypeModifier modifies the job type of a process.
 func JobTypeModifier(from string, to string) func(string) string {
 	return func(content string) string {
 		return strings.ReplaceAll(content, fmt.Sprintf("type=\"%s\"", from), fmt.Sprintf("type=\"%s\"", to))
 	}
 }
 
-// RetryModifier modifies the job retries for a specific job type
+// RetryModifier modifies the job retries for a specific job type.
 func RetryModifier(jobType string, retries int) func(string) string {
 	return func(content string) string {
 		return strings.ReplaceAll(
@@ -145,7 +146,7 @@ func RetryModifier(jobType string, retries int) func(string) string {
 }
 
 // GetTestFile loads the content of a BPMN process file. The function also accepts a list of
-// modifier functions which allows to manipulate the content of the returned BPMN file
+// modifier functions which allows to manipulate the content of the returned BPMN file.
 func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, error) {
 	dataBytes, err := ioutil.ReadFile("../processes/" + fileName)
 	if err != nil {
@@ -163,7 +164,7 @@ func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, err
 
 // DeployProcess deploys a test BPMN file. The function also accepts a list of modifier functions which
 // allows to manipulate the content of the returned BPMN file. On success the function returns
-// a JSON with the deployment information
+// a JSON with the deployment information.
 func DeployProcess(
 	cmd *command.ZeebeCommand,
 	fileName string,
@@ -202,7 +203,7 @@ func DeployProcess(
 	return deployment.Processes[0], nil
 }
 
-// CreateProcessInstance creates a process instance and returns the process instance data
+// CreateProcessInstance creates a process instance and returns the process instance data.
 func CreateProcessInstance(
 	cmd *command.ZeebeCommand,
 	payload map[string]interface{}) (*pb.CreateProcessInstanceResponse, error) {
@@ -226,7 +227,7 @@ func CreateProcessInstance(
 	return processInstance, nil
 }
 
-// CalcWorker is a simple calculation worker
+// CalcWorker is a simple calculation worker.
 func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 	variables := &CalcVariables{}
 	err := json.Unmarshal(request.Data, variables)
@@ -256,7 +257,7 @@ func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 	return response, nil
 }
 
-// InitTestProcess initializes a test process
+// InitTestProcess initializes a test process.
 func InitTestProcess(
 	cmd *command.ZeebeCommand,
 	id string,
@@ -284,7 +285,7 @@ func InitTestProcess(
 	return nil
 }
 
-// InterruptProcess interrupts a process
+// InterruptProcess interrupts a process.
 func InterruptProcess() {
 	pid := syscall.Getpid()
 	proc, _ := os.FindProcess(pid)

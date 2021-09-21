@@ -16,22 +16,23 @@ import (
 	"strconv"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
 )
 
 const (
 	fileNameMetadataKey = "fileName"
 )
 
-// LocalStorage allows saving files to disk
+// LocalStorage allows saving files to disk.
 type LocalStorage struct {
 	metadata *Metadata
 	logger   logger.Logger
 }
 
-// Metadata defines the metadata
+// Metadata defines the metadata.
 type Metadata struct {
 	RootPath string `json:"rootPath"`
 }
@@ -40,12 +41,12 @@ type createResponse struct {
 	FileName string `json:"fileName"`
 }
 
-// NewLocalStorage returns a new LocalStorage instance
+// NewLocalStorage returns a new LocalStorage instance.
 func NewLocalStorage(logger logger.Logger) *LocalStorage {
 	return &LocalStorage{logger: logger}
 }
 
-// Init performs metadata parsing
+// Init performs metadata parsing.
 func (ls *LocalStorage) Init(metadata bindings.Metadata) error {
 	m, err := ls.parseMetadata(metadata)
 	if err != nil {
@@ -77,7 +78,7 @@ func (ls *LocalStorage) parseMetadata(metadata bindings.Metadata) (*Metadata, er
 	return &m, nil
 }
 
-// Operations enumerates supported binding operations
+// Operations enumerates supported binding operations.
 func (ls *LocalStorage) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.CreateOperation,
@@ -231,7 +232,7 @@ func walkPath(root string) ([]string, error) {
 	return files, err
 }
 
-// Invoke is called for output bindings
+// Invoke is called for output bindings.
 func (ls *LocalStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	filename := ""
 	if val, ok := req.Metadata[fileNameMetadataKey]; ok && val != "" {

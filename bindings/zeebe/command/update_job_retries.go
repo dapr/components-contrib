@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
+
 	"github.com/dapr/components-contrib/bindings"
 )
 

@@ -9,7 +9,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 )
 
-// dbAccess is a private interface which enables unit testing of PostgreSQL
+// dbAccess is a private interface which enables unit testing of PostgreSQL.
 type dbAccess interface {
 	Init(metadata state.Metadata) error
 	Set(req *state.SetRequest) error

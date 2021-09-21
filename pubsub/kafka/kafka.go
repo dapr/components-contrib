@@ -27,7 +27,7 @@ const (
 	key = "partitionKey"
 )
 
-// Kafka allows reading/writing to a Kafka consumer group
+// Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
 	producer      sarama.SyncProducer
 	consumerGroup string
@@ -107,12 +107,12 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// NewKafka returns a new kafka pubsub instance
+// NewKafka returns a new kafka pubsub instance.
 func NewKafka(l logger.Logger) pubsub.PubSub {
 	return &Kafka{logger: l}
 }
 
-// Init does metadata parsing and connection establishment
+// Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	meta, err := k.getKafkaMetadata(metadata)
 	if err != nil {
@@ -161,7 +161,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-// Publish message to Kafka cluster
+// Publish message to Kafka cluster.
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	k.logger.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
 
@@ -200,7 +200,7 @@ func (k *Kafka) addTopic(newTopic string) []string {
 	return topics
 }
 
-// Close down consumer group resources, refresh once
+// Close down consumer group resources, refresh once.
 func (k *Kafka) closeSubscriptionResources() {
 	if k.cg != nil {
 		k.cancel()
@@ -217,7 +217,7 @@ func (k *Kafka) closeSubscriptionResources() {
 }
 
 // Subscribe to topic in the Kafka cluster
-// This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
+// This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go.
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
@@ -279,7 +279,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 	return nil
 }
 
-// getKafkaMetadata returns new Kafka metadata
+// getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup

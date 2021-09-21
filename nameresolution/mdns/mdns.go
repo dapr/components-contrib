@@ -17,9 +17,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grandcat/zeroconf"
+
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
-	"github.com/grandcat/zeroconf"
 )
 
 const (

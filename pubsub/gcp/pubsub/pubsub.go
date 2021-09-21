@@ -7,11 +7,12 @@ import (
 	"strconv"
 
 	gcppubsub "cloud.google.com/go/pubsub"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 )
 
-// GCPPubSub type
+// GCPPubSub type.
 type GCPPubSub struct {
 	client   *gcppubsub.Client
 	metadata *metadata
@@ -56,7 +57,7 @@ type WhatNow struct {
 	Type string `json:"type"`
 }
 
-// NewGCPPubSub returns a new GCPPubSub instance
+// NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 	return &GCPPubSub{logger: logger}
 }
@@ -133,7 +134,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	return &result, nil
 }
 
-// Init parses metadata and creates a new Pub Sub client
+// Init parses metadata and creates a new Pub Sub client.
 func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	metadata, err := createMetadata(meta)
 	if err != nil {
@@ -192,7 +193,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	return pubsubClient, nil
 }
 
-// Publish the topic to GCP Pubsub
+// Publish the topic to GCP Pubsub.
 func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
 	if !g.metadata.DisableEntityManagement {
 		err := g.ensureTopic(req.Topic)
@@ -211,7 +212,7 @@ func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
 	return err
 }
 
-// Subscribe to the GCP Pubsub topic
+// Subscribe to the GCP Pubsub topic.
 func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if !g.metadata.DisableEntityManagement {
 		topicErr := g.ensureTopic(req.Topic)

@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dapr/kit/logger"
 	"github.com/golang-jwt/jwt"
+
+	"github.com/dapr/kit/logger"
 )
 
 // The "issued at" timestamp in the JWT must be within one hour from the

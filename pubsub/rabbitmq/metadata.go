@@ -20,7 +20,7 @@ type metadata struct {
 	concurrency      pubsub.ConcurrencyMode
 }
 
-// createMetadata creates a new instance from the pubsub metadata
+// createMetadata creates a new instance from the pubsub metadata.
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	result := metadata{
 		deleteWhenUnused: true,

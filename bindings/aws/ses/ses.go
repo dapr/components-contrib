@@ -13,9 +13,11 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 
 	"github.com/aws/aws-sdk-go/service/ses"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
@@ -25,7 +27,7 @@ const (
 	CharSet = "UTF-8"
 )
 
-// AWSSES is an AWS SNS binding
+// AWSSES is an AWS SNS binding.
 type AWSSES struct {
 	metadata *sesMetadata
 	logger   logger.Logger
@@ -44,12 +46,12 @@ type sesMetadata struct {
 	EmailBcc     string `json:"emailBcc"`
 }
 
-// NewAWSSES creates a new AWSSES binding instance
+// NewAWSSES creates a new AWSSES binding instance.
 func NewAWSSES(logger logger.Logger) *AWSSES {
 	return &AWSSES{logger: logger}
 }
 
-// Init does metadata parsing
+// Init does metadata parsing.
 func (a *AWSSES) Init(metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := a.parseMetadata(metadata)
@@ -153,7 +155,7 @@ func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, nil
 }
 
-// Helper to merge config and request metadata
+// Helper to merge config and request metadata.
 func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) sesMetadata {
 	merged := metadata
 

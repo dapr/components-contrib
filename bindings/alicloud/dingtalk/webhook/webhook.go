@@ -72,7 +72,7 @@ func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
 	}
 }
 
-// Init performs metadata parsing
+// Init performs metadata parsing.
 func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 	var err error
 	if err = t.settings.Decode(metadata.Properties); err != nil {
@@ -85,7 +85,7 @@ func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Read triggers the outgoing webhook, not yet production ready
+// Read triggers the outgoing webhook, not yet production ready.
 func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
 
@@ -100,7 +100,7 @@ func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, err
 	return nil
 }
 
-// Operations returns list of operations supported by dingtalk webhook binding
+// Operations returns list of operations supported by dingtalk webhook binding.
 func (t *DingTalkWebhook) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation}
 }

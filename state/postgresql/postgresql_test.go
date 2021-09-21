@@ -7,16 +7,17 @@ package postgresql
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
 	fakeConnectionString = "not a real connection"
 )
 
-// Fake implementation of interface postgressql.dbaccess
+// Fake implementation of interface postgressql.dbaccess.
 type fakeDBaccess struct {
 	logger       logger.Logger
 	initExecuted bool
@@ -54,7 +55,7 @@ func (m *fakeDBaccess) Close() error {
 	return nil
 }
 
-// Proves that the Init method runs the init method
+// Proves that the Init method runs the init method.
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	_, fake := createPostgreSQLWithFake(t)

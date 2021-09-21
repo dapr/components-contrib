@@ -12,9 +12,10 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/gomail.v2"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"gopkg.in/gomail.v2"
 )
 
 const (
@@ -24,13 +25,13 @@ const (
 	mailSeparator   = ";"
 )
 
-// Mailer allows sending of emails using the Simple Mail Transfer Protocol
+// Mailer allows sending of emails using the Simple Mail Transfer Protocol.
 type Mailer struct {
 	metadata Metadata
 	logger   logger.Logger
 }
 
-// Metadata holds standard email properties
+// Metadata holds standard email properties.
 type Metadata struct {
 	Host          string `json:"host"`
 	Port          int    `json:"port"`
@@ -45,12 +46,12 @@ type Metadata struct {
 	Priority      int    `json:"priority"`
 }
 
-// NewSMTP returns a new smtp binding instance
+// NewSMTP returns a new smtp binding instance.
 func NewSMTP(logger logger.Logger) *Mailer {
 	return &Mailer{logger: logger}
 }
 
-// Init smtp component (parse metadata)
+// Init smtp component (parse metadata).
 func (s *Mailer) Init(metadata bindings.Metadata) error {
 	// parse metadata
 	meta, err := s.parseMetadata(metadata)
@@ -62,12 +63,12 @@ func (s *Mailer) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Operations returns the allowed binding operations
+// Operations returns the allowed binding operations.
 func (s *Mailer) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Invoke sends an email message
+// Invoke sends an email message.
 func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// Merge config metadata with request metadata
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
@@ -119,7 +120,7 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, nil
 }
 
-// Helper to parse metadata
+// Helper to parse metadata.
 func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta := Metadata{}
 
@@ -170,7 +171,7 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	return smtpMeta, nil
 }
 
-// Helper to merge config and request metadata
+// Helper to merge config and request metadata.
 func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (Metadata, error) {
 	merged := metadata
 

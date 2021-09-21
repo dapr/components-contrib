@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 type MockHelper struct {
@@ -196,6 +197,7 @@ func TestReadQueueDecode(t *testing.T) {
 }
 
 // Uncomment this function to test reding from local queue
+//nolint:godot
 /* func TestReadLocalQueue(t *testing.T) {
 	a := AzureStorageQueues{helper: &AzureQueueHelper{reqURI: "http://127.0.0.1:10001/%s/%s"}}
 

@@ -13,12 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/nacos-group/nacos-sdk-go/clients"
 	"github.com/nacos-group/nacos-sdk-go/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/vo"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -29,13 +30,13 @@ const (
 	metadataConfigOnchange = "config-onchange"
 )
 
-// Config type
+// Config type.
 type configParam struct {
 	dataID string
 	group  string
 }
 
-// Nacos allows reading/writing to a Nacos server
+// Nacos allows reading/writing to a Nacos server.
 type Nacos struct {
 	settings     Settings
 	config       configParam
@@ -46,12 +47,12 @@ type Nacos struct {
 	readHandler  func(response *bindings.ReadResponse) ([]byte, error)
 }
 
-// NewNacos returns a new Nacos instance
+// NewNacos returns a new Nacos instance.
 func NewNacos(logger logger.Logger) *Nacos {
 	return &Nacos{logger: logger} //nolint:exhaustivestruct
 }
 
-// Init implements InputBinding/OutputBinding's Init method
+// Init implements InputBinding/OutputBinding's Init method.
 func (n *Nacos) Init(metadata bindings.Metadata) error {
 	n.settings = Settings{
 		Timeout: defaultTimeout,
@@ -125,7 +126,7 @@ func (n *Nacos) createConfigClient() error {
 	return nil
 }
 
-// Read implements InputBinding's Read method
+// Read implements InputBinding's Read method.
 func (n *Nacos) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	n.readHandler = handler
 
@@ -143,7 +144,7 @@ func (n *Nacos) Close() error {
 	return nil
 }
 
-// Invoke implements OutputBinding's Invoke method
+// Invoke implements OutputBinding's Invoke method.
 func (n *Nacos) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
@@ -157,7 +158,7 @@ func (n *Nacos) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	}
 }
 
-// Operations implements OutputBinding's Operations method
+// Operations implements OutputBinding's Operations method.
 func (n *Nacos) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation}
 }

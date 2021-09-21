@@ -10,10 +10,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -44,7 +45,7 @@ func getRuntimeMetadata() map[string]string {
 	}
 }
 
-// go test -v -count=1 ./bindings/twitter/
+// go test -v -count=1 ./bindings/twitter/.
 func TestInit(t *testing.T) {
 	m := getTestMetadata()
 	tw := NewTwitter(logger.NewLogger("test"))
@@ -53,7 +54,7 @@ func TestInit(t *testing.T) {
 }
 
 // TestReadError excutes the Read method and fails before the Twitter API call
-// go test -v -count=1 -run TestReadError ./bindings/twitter/
+// go test -v -count=1 -run TestReadError ./bindings/twitter/.
 func TestReadError(t *testing.T) {
 	tw := NewTwitter(logger.NewLogger("test"))
 	m := getTestMetadata()
@@ -69,7 +70,7 @@ func TestReadError(t *testing.T) {
 }
 
 // TestRead executes the Read method which calls Twiter API
-// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestReed ./bindings/twitter/
+// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestReed ./bindings/twitter/.
 func TestReed(t *testing.T) {
 	if os.Getenv("RUN_LIVE_TW_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra
@@ -99,7 +100,7 @@ func TestReed(t *testing.T) {
 
 // TestInvoke executes the Invoke method which calls Twiter API
 // test tokens must be set
-// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestInvoke ./bindings/twitter/
+// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestInvoke ./bindings/twitter/.
 func TestInvoke(t *testing.T) {
 	if os.Getenv("RUN_LIVE_TW_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra

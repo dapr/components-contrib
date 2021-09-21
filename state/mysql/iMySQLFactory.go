@@ -7,7 +7,7 @@ package mysql
 
 import "database/sql"
 
-// This interface is used to help improve testing
+// This interface is used to help improve testing.
 type iMySQLFactory interface {
 	Open(connectionString string) (*sql.DB, error)
 	RegisterTLSConfig(pemPath string) error

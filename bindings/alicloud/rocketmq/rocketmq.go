@@ -18,6 +18,7 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqw "github.com/cinience/go_rocketmq"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -42,7 +43,7 @@ func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
 	}
 }
 
-// Init performs metadata parsing
+// Init performs metadata parsing.
 func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 	var err error
 	if err = a.settings.Decode(metadata.Properties); err != nil {
@@ -68,7 +69,7 @@ func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Read triggers the rocketmq subscription
+// Read triggers the rocketmq subscription.
 func (a *AliCloudRocketMQ) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	a.logger.Debugf("binding rocketmq: start read input binding")
 
@@ -183,7 +184,7 @@ func (a *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
 	return nil, errors.New("binding-rocketmq error: cannot found rocketmq producer")
 }
 
-// Operations returns list of operations supported by rocketmq binding
+// Operations returns list of operations supported by rocketmq binding.
 func (a *AliCloudRocketMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }

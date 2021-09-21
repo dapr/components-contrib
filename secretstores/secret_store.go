@@ -5,7 +5,7 @@
 
 package secretstores
 
-// SecretStore is the interface for a component that handles secrets management
+// SecretStore is the interface for a component that handles secrets management.
 type SecretStore interface {
 	// Init authenticates with the actual secret store and performs other init operation
 	Init(metadata Metadata) error

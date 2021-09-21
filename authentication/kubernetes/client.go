@@ -27,7 +27,7 @@ func init() {
 	}
 }
 
-// GetKubeClient returns a kubernetes client
+// GetKubeClient returns a kubernetes client.
 func GetKubeClient() (*kubernetes.Clientset, error) {
 	flag.Parse()
 	conf, err := rest.InClusterConfig()

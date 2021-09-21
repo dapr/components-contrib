@@ -11,8 +11,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func getFakeProperties() map[string]string {

@@ -1,6 +1,6 @@
 package pubsub
 
-// GCPPubSubMetaData pubsub metadata
+// GCPPubSubMetaData pubsub metadata.
 type metadata struct {
 	consumerID              string
 	Type                    string

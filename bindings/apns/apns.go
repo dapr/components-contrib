@@ -15,9 +15,10 @@ import (
 	"net/http"
 	"sync"
 
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (

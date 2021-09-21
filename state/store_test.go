@@ -86,7 +86,7 @@ var (
 	_ Store = &Store2{}
 )
 
-// example of store which doesn't support bulk method
+// example of store which doesn't support bulk method.
 type Store1 struct {
 	DefaultBulkStore
 	count     int
@@ -119,7 +119,7 @@ func (s *Store1) Ping() error {
 	return nil
 }
 
-// example of store which supports bulk method
+// example of store which supports bulk method.
 type Store2 struct {
 	// DefaultBulkStore
 	count     int

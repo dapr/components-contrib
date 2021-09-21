@@ -2,6 +2,7 @@ package sentinel
 
 import (
 	"github.com/alibaba/sentinel-golang/logging"
+
 	"github.com/dapr/kit/logger"
 )
 

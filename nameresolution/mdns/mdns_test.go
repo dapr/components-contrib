@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
-	nr "github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	nr "github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/logger"
 )
 
 func TestInit(t *testing.T) {

@@ -8,8 +8,9 @@ package firestore
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
 )
 
 func TestGetFirestoreMetadata(t *testing.T) {

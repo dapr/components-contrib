@@ -56,7 +56,7 @@ const (
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 )
 
-// MongoDB is a state store implementation for MongoDB
+// MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
 	state.DefaultBulkStore
 	client           *mongo.Client
@@ -81,14 +81,14 @@ type mongoDBMetadata struct {
 	operationTimeout time.Duration
 }
 
-// Item is Mongodb document wrapper
+// Item is Mongodb document wrapper.
 type Item struct {
 	Key   string `bson:"_id"`
 	Value string `bson:"value"`
 	Etag  string `bson:"_etag"`
 }
 
-// NewMongoDB returns a new MongoDB state store
+// NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) *MongoDB {
 	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -99,7 +99,7 @@ func NewMongoDB(logger logger.Logger) *MongoDB {
 	return s
 }
 
-// Init establishes connection to the store based on the metadata
+// Init establishes connection to the store based on the metadata.
 func (m *MongoDB) Init(metadata state.Metadata) error {
 	meta, err := getMongoDBMetaData(metadata)
 	if err != nil {
@@ -140,12 +140,12 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (m *MongoDB) Features() []state.Feature {
 	return m.features
 }
 
-// Set saves state into MongoDB
+// Set saves state into MongoDB.
 func (m *MongoDB) Set(req *state.SetRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
@@ -192,7 +192,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	return nil
 }
 
-// Get retrieves state from MongoDB with a key
+// Get retrieves state from MongoDB with a key.
 func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var result Item
 
@@ -219,7 +219,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
@@ -249,7 +249,7 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	return nil
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (m *MongoDB) Multi(request *state.TransactionalStateRequest) error {
 	sess, err := m.client.StartSession()
 	txnOpts := options.Transaction().SetReadConcern(readconcern.Snapshot()).

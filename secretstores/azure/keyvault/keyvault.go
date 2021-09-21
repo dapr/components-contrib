@@ -19,7 +19,7 @@ import (
 )
 
 // Keyvault secret store component metadata properties
-// This is in addition to what's defined in authentication/azure
+// This is in addition to what's defined in authentication/azure.
 const (
 	componentVaultName = "vaultName"
 	VersionID          = "version_id"
@@ -34,7 +34,7 @@ type keyvaultSecretStore struct {
 	logger logger.Logger
 }
 
-// NewAzureKeyvaultSecretStore returns a new Azure Key Vault secret store
+// NewAzureKeyvaultSecretStore returns a new Azure Key Vault secret store.
 func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &keyvaultSecretStore{
 		vaultName:   "",
@@ -43,7 +43,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 	}
 }
 
-// Init creates a Azure Key Vault client
+// Init creates a Azure Key Vault client.
 func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	// Fix for maintaining backwards compatibility with a change introduced in 1.3 that allowed specifying an Azure environment by setting a FQDN for vault name
 	// This should be considered deprecated and users should rely the "azureEnvironment" metadata instead, but it's maintained here for backwards-compatibility
@@ -85,7 +85,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	return err
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	versionID := ""
 	if value, ok := req.Metadata[VersionID]; ok {
@@ -109,7 +109,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 	}, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	vaultURI := k.getVaultURI()
 
@@ -154,7 +154,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 	return resp, nil
 }
 
-// getVaultURI returns Azure Key Vault URI
+// getVaultURI returns Azure Key Vault URI.
 func (k *keyvaultSecretStore) getVaultURI() string {
 	return fmt.Sprintf("https://%s.%s", k.vaultName, k.vaultDNSSuffix)
 }

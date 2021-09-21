@@ -3,9 +3,10 @@ package snssqs
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/require"
 )
 
 type testUnitFixture struct {
@@ -20,7 +21,7 @@ func Test_parseTopicArn(t *testing.T) {
 	r.Equal("qqnoob", parseTopicArn("arn:aws:sqs:us-east-1:000000000000:qqnoob"))
 }
 
-// Verify that all metadata ends up in the correct spot
+// Verify that all metadata ends up in the correct spot.
 func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)

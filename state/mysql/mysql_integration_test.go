@@ -24,10 +24,10 @@ import (
 )
 
 const (
-	// Environment variable containing the connection string
+	// Environment variable containing the connection string.
 	connectionStringEnvKey = "DAPR_TEST_MYSQL_CONNSTRING"
 
-	// Set to the path of the PEM file required to connect to MySQL over SSL
+	// Set to the path of the PEM file required to connect to MySQL over SSL.
 	pemPathEnvKey = "DAPR_TEST_MYSQL_PEMPATH"
 )
 
@@ -292,7 +292,7 @@ func deleteWithInvalidEtagFails(t *testing.T, mys *MySQL) {
 }
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is
-// invalid - expect failure
+// invalid - expect failure.
 func newItemWithEtagFails(t *testing.T, mys *MySQL) {
 	value := &fakeItem{Color: "teal"}
 	invalidETag := "12345"
@@ -358,7 +358,7 @@ func updateAndDeleteWithETagSucceeds(t *testing.T, mys *MySQL) {
 	assert.False(t, storeItemExists(t, key), "Item is not in the data store")
 }
 
-// Tests valid bulk sets and deletes
+// Tests valid bulk sets and deletes.
 func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 	setReq := []state.SetRequest{
 		{
@@ -488,7 +488,7 @@ func testCreateTable(t *testing.T, mys *MySQL) {
 	dropTable(t, mys.db, tableName)
 }
 
-// testInitConfiguration tests valid and invalid config settings
+// testInitConfiguration tests valid and invalid config settings.
 func testInitConfiguration(t *testing.T) {
 	logger := logger.NewLogger("test")
 
@@ -619,7 +619,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	return returnValue, insertdate, updatedate, eTag
 }
 
-// Connects to MySQL using SSL if required
+// Connects to MySQL using SSL if required.
 func connectToDB(t *testing.T) (*sql.DB, error) {
 	val := getPemPath()
 	if val != "" {
@@ -649,7 +649,7 @@ func randomJSON() *fakeItem {
 }
 
 // Returns the connection string
-// The value is read from an environment variable
+// The value is read from an environment variable.
 func getConnectionString(database string) string {
 	connectionString := os.Getenv(connectionStringEnvKey)
 
@@ -663,7 +663,7 @@ func getConnectionString(database string) string {
 
 // Returns the full path to the PEM file used to connect to Azure MySQL over
 // SSL. The connection string must end with &tls=custom
-// The value is read from an environment variable
+// The value is read from an environment variable.
 func getPemPath() string {
 	return os.Getenv(pemPathEnvKey)
 }

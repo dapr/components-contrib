@@ -50,6 +50,7 @@ const (
 	accountNameKey = "accountName"
 	accountKeyKey  = "accountKey"
 	tableNameKey   = "tableName"
+	userAgent      = "dapr"
 )
 
 type StateStore struct {
@@ -76,6 +77,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	client, _ := storage.NewBasicClient(meta.accountName, meta.accountKey)
 	tables := client.GetTableService()
+	client.AddToUserAgent(userAgent)
 	r.table = tables.GetTableReference(meta.tableName)
 
 	// check table exists

@@ -7,7 +7,9 @@ package kafka_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -60,10 +62,14 @@ const (
 	topicName  = "neworder"
 )
 
-var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
+var (
+	brokers          = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
+	oauthClientQuery = "https://localhost:4444/clients/dapr"
+)
 
 func TestKafka(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
+	// log.SetOutputLevel(logger.DebugLevel)
 	component := pubsub_loader.New("kafka", func() pubsub.PubSub {
 		return pubsub_kafka.NewKafka(log)
 	})
@@ -230,6 +236,24 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
+		Step("wait for Dapr OAuth client", retry.Do(10*time.Second, 6, func(ctx flow.Context) error {
+			httpClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true, // test server certificate is not trusted.
+					},
+				},
+			}
+
+			resp, err := httpClient.Get(oauthClientQuery)
+			if err != nil {
+				return err
+			}
+			if resp.StatusCode != 200 {
+				return fmt.Errorf("oauth client query for 'dapr' not successful")
+			}
+			return nil
+		})).
 		//
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
@@ -249,7 +273,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
+			embedded.WithComponentsPath("./components/mtls-consumer"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -266,7 +290,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer2"),
+			embedded.WithComponentsPath("./components/oauth-consumer"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),

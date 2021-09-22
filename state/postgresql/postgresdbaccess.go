@@ -252,7 +252,7 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 	return err
 }
 
-// Close implements io.Close
+// Close implements io.Close.
 func (p *postgresDBAccess) Close() error {
 	if p.db != nil {
 		return p.db.Close()

@@ -14,10 +14,11 @@ import (
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockPublishMessageClient struct {

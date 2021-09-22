@@ -95,7 +95,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	return r.features
 }

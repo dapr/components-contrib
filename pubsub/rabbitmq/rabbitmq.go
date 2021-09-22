@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/streadway/amqp"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
-	"github.com/streadway/amqp"
 )
 
 const (
@@ -44,7 +45,7 @@ const (
 	queueModeLazy         = "lazy"
 )
 
-// RabbitMQ allows sending/receiving messages in pub/sub format
+// RabbitMQ allows sending/receiving messages in pub/sub format.
 type rabbitMQ struct {
 	connection        rabbitMQConnectionBroker
 	channel           rabbitMQChannelBroker
@@ -62,7 +63,7 @@ type rabbitMQ struct {
 	cancel        context.CancelFunc
 }
 
-// interface used to allow unit testing
+// interface used to allow unit testing.
 type rabbitMQChannelBroker interface {
 	Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
@@ -74,12 +75,12 @@ type rabbitMQChannelBroker interface {
 	Qos(prefetchCount, prefetchSize int, global bool) error
 }
 
-// interface used to allow unit testing
+// interface used to allow unit testing.
 type rabbitMQConnectionBroker interface {
 	Close() error
 }
 
-// NewRabbitMQ creates a new RabbitMQ pub/sub
+// NewRabbitMQ creates a new RabbitMQ pub/sub.
 func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
@@ -103,7 +104,7 @@ func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) 
 	return conn, ch, nil
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata)
 	if err != nil {

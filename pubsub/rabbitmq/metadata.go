@@ -25,7 +25,7 @@ type metadata struct {
 	maxLenBytes      int64
 }
 
-// createMetadata creates a new instance from the pubsub metadata
+// createMetadata creates a new instance from the pubsub metadata.
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	result := metadata{
 		deleteWhenUnused: true,

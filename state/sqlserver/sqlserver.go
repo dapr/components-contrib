@@ -22,10 +22,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// KeyType defines type of the table identifier
+// KeyType defines type of the table identifier.
 type KeyType string
 
-// KeyTypeFromString tries to create a KeyType from a string value
+// KeyTypeFromString tries to create a KeyType from a string value.
 func KeyTypeFromString(k string) (KeyType, error) {
 	switch k {
 	case string(StringKeyType):
@@ -40,16 +40,16 @@ func KeyTypeFromString(k string) (KeyType, error) {
 }
 
 const (
-	// StringKeyType defines a key of type string
+	// StringKeyType defines a key of type string.
 	StringKeyType KeyType = "string"
 
-	// UUIDKeyType defines a key of type UUID/GUID
+	// UUIDKeyType defines a key of type UUID/GUID.
 	UUIDKeyType KeyType = "uuid"
 
-	// IntegerKeyType defines a key of type integer
+	// IntegerKeyType defines a key of type integer.
 	IntegerKeyType KeyType = "integer"
 
-	// InvalidKeyType defines an invalid key type
+	// InvalidKeyType defines an invalid key type.
 	InvalidKeyType KeyType = "invalid"
 )
 
@@ -70,7 +70,7 @@ const (
 	defaultTable     = "state"
 )
 
-// NewSQLServerStateStore creates a new instance of a Sql Server transaction store
+// NewSQLServerStateStore creates a new instance of a Sql Server transaction store.
 func NewSQLServerStateStore(logger logger.Logger) *SQLServer {
 	store := SQLServer{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -81,14 +81,14 @@ func NewSQLServerStateStore(logger logger.Logger) *SQLServer {
 	return &store
 }
 
-// IndexedProperty defines a indexed property
+// IndexedProperty defines a indexed property.
 type IndexedProperty struct {
 	ColumnName string `json:"column"`
 	Property   string `json:"property"`
 	Type       string `json:"type"`
 }
 
-// SQLServer defines a Ms SQL Server based state store
+// SQLServer defines a Ms SQL Server based state store.
 type SQLServer struct {
 	connectionString  string
 	databaseName      string
@@ -145,7 +145,7 @@ func isValidIndexedPropertyType(s string) bool {
 	return true
 }
 
-// Init initializes the SQL server state store
+// Init initializes the SQL server state store.
 func (s *SQLServer) Init(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
 		s.connectionString = val
@@ -194,7 +194,7 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Returns validated index properties
+// Returns validated index properties.
 func (s *SQLServer) getIndexedProperties(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[indexedPropertiesKey]; ok && val != "" {
 		var indexedProperties []IndexedProperty
@@ -246,7 +246,7 @@ func (s *SQLServer) validateIndexedProperties(indexedProperties []IndexedPropert
 	return nil
 }
 
-// Validates and returns the key type
+// Validates and returns the key type.
 func (s *SQLServer) getKeyType(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[keyTypeKey]; ok && val != "" {
 		kt, err := KeyTypeFromString(val)
@@ -280,7 +280,7 @@ func (s *SQLServer) getKeyType(metadata state.Metadata) error {
 	return nil
 }
 
-// Returns the schema name if set or the default value otherwise
+// Returns the schema name if set or the default value otherwise.
 func (s *SQLServer) getSchema(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[schemaKey]; ok && val != "" {
 		if !isValidSQLName(val) {
@@ -294,7 +294,7 @@ func (s *SQLServer) getSchema(metadata state.Metadata) error {
 	return nil
 }
 
-// Returns the database name if set or the default value otherwise
+// Returns the database name if set or the default value otherwise.
 func (s *SQLServer) getDatabase(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[databaseNameKey]; ok && val != "" {
 		if !isValidSQLName(val) {
@@ -309,7 +309,7 @@ func (s *SQLServer) getDatabase(metadata state.Metadata) error {
 	return nil
 }
 
-// Returns the table name if set or the default value otherwise
+// Returns the table name if set or the default value otherwise.
 func (s *SQLServer) getTable(metadata state.Metadata) error {
 	if val, ok := metadata.Properties[tableNameKey]; ok && val != "" {
 		if !isValidSQLName(val) {
@@ -328,12 +328,12 @@ func (s *SQLServer) Ping() error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (s *SQLServer) Features() []state.Feature {
 	return s.features
 }
 
-// Multi performs multiple updates on a Sql server store
+// Multi performs multiple updates on a Sql server store.
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
@@ -367,7 +367,7 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
-// Returns the set requests
+// Returns the set requests.
 func (s *SQLServer) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
 	setReq, ok := req.Request.(state.SetRequest)
 	if !ok {
@@ -381,7 +381,7 @@ func (s *SQLServer) getSets(req state.TransactionalStateOperation) (state.SetReq
 	return setReq, nil
 }
 
-// Returns the delete requests
+// Returns the delete requests.
 func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
 	delReq, ok := req.Request.(state.DeleteRequest)
 	if !ok {
@@ -424,7 +424,7 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 	return tx.Commit()
 }
 
-// Delete removes an entity from the store
+// Delete removes an entity from the store.
 func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	var err error
 	var res sql.Result
@@ -460,13 +460,13 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-// TvpDeleteTableStringKey defines a table type with string key
+// TvpDeleteTableStringKey defines a table type with string key.
 type TvpDeleteTableStringKey struct {
 	ID         string
 	RowVersion []byte
 }
 
-// BulkDelete removes multiple entries from the store
+// BulkDelete removes multiple entries from the store.
 func (s *SQLServer) BulkDelete(req []state.DeleteRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -523,7 +523,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 	return nil
 }
 
-// Get returns an entity from store
+// Get returns an entity from store.
 func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	rows, err := s.db.Query(s.getCommand, sql.Named(keyColumnName, req.Key))
 	if err != nil {
@@ -555,17 +555,17 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// BulkGet performs a bulks get operations
+// BulkGet performs a bulks get operations.
 func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 
-// Set adds/updates an entity on store
+// Set adds/updates an entity on store.
 func (s *SQLServer) Set(req *state.SetRequest) error {
 	return s.executeSet(s.db, req)
 }
 
-// dbExecutor implements a common functionality implemented by db or tx
+// dbExecutor implements a common functionality implemented by db or tx.
 type dbExecutor interface {
 	Exec(query string, args ...interface{}) (sql.Result, error)
 }
@@ -614,7 +614,7 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 	return nil
 }
 
-// BulkSet adds/updates multiple entities on store
+// BulkSet adds/updates multiple entities on store.
 func (s *SQLServer) BulkSet(req []state.SetRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {

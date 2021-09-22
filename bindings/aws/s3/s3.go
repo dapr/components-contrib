@@ -16,10 +16,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/google/uuid"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
 )
 
 const (
@@ -31,7 +32,7 @@ const (
 	maxResults = 1000
 )
 
-// AWSS3 is a binding for an AWS S3 storage bucket
+// AWSS3 is a binding for an AWS S3 storage bucket.
 type AWSS3 struct {
 	metadata   *s3Metadata
 	s3Client   *s3.S3
@@ -63,12 +64,12 @@ type listPayload struct {
 	Delimiter  string `json:"delimiter"`
 }
 
-// NewAWSS3 returns a new AWSS3 instance
+// NewAWSS3 returns a new AWSS3 instance.
 func NewAWSS3(logger logger.Logger) *AWSS3 {
 	return &AWSS3{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
@@ -277,7 +278,7 @@ func (s *AWSS3) getSession(metadata *s3Metadata) (*session.Session, error) {
 	return sess, nil
 }
 
-// Helper to merge config and request metadata
+// Helper to merge config and request metadata.
 func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (s3Metadata, error) {
 	merged := metadata
 

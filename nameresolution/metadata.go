@@ -23,11 +23,11 @@ const (
 	DaprPort string = "DAPR_PORT"
 	// AppPort is the port of the application, http/grpc depending on mode.
 	AppPort string = "APP_PORT"
-	// AppID is the ID of the application
+	// AppID is the ID of the application.
 	AppID string = "APP_ID"
 )
 
-// Metadata contains a name resolution specific set of metadata properties
+// Metadata contains a name resolution specific set of metadata properties.
 type Metadata struct {
 	Properties    map[string]string `json:"properties"`
 	Configuration interface{}

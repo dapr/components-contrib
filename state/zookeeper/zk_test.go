@@ -21,7 +21,7 @@ import (
 
 //go:generate mockgen -package zookeeper -source zk.go -destination zk_mock.go
 
-// newConfig
+// newConfig.
 func TestNewConfig(t *testing.T) {
 	t.Run("With all required fields", func(t *testing.T) {
 		properties := map[string]string{
@@ -61,7 +61,7 @@ func TestNewConfig(t *testing.T) {
 	})
 }
 
-// Get
+// Get.
 func TestGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -88,7 +88,7 @@ func TestGet(t *testing.T) {
 	})
 }
 
-// Delete
+// Delete.
 func TestDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -137,7 +137,7 @@ func TestDelete(t *testing.T) {
 	})
 }
 
-// BulkDelete
+// BulkDelete.
 func TestBulkDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -179,7 +179,7 @@ func TestBulkDelete(t *testing.T) {
 	})
 }
 
-// Set
+// Set.
 func TestSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -229,7 +229,7 @@ func TestSet(t *testing.T) {
 	})
 }
 
-// BulkSet
+// BulkSet.
 func TestBulkSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

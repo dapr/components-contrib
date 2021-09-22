@@ -11,9 +11,10 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -347,7 +348,7 @@ func TestSetHandlesErr(t *testing.T) {
 	})
 }
 
-// Verifies that MySQL passes through to myDBAccess
+// Verifies that MySQL passes through to myDBAccess.
 func TestMySQLDeleteHandlesNoKey(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -511,7 +512,7 @@ func TestTableExists(t *testing.T) {
 	assert.True(t, actual, `table does not exists`)
 }
 
-// Verifies that the code returns an error if the create table command fails
+// Verifies that the code returns an error if the create table command fails.
 func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -550,7 +551,7 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 }
 
 // Verify that the call to MySQL init get passed through
-// to the DbAccess instance
+// to the DbAccess instance.
 func TestInitReturnsErrorOnNoConnectionString(t *testing.T) {
 	// Arrange
 	t.Parallel()
@@ -637,7 +638,7 @@ func TestInitSetsSchemaName(t *testing.T) {
 }
 
 // This state store does not support BulkGet so it must return false and
-// nil nil
+// nil nil.
 func TestBulkGetReturnsNil(t *testing.T) {
 	// Arrange
 	t.Parallel()

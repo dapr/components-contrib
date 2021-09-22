@@ -9,10 +9,12 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 func getKafkaPubsub() *Kafka {

@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
+
+	"github.com/dapr/kit/logger"
 )
 
 func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {

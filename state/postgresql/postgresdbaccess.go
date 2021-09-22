@@ -12,11 +12,12 @@ import (
 	"strconv"
 
 	"github.com/agrea/ptr"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 
-	// Blank import for the underlying PostgreSQL driver
+	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
@@ -26,7 +27,7 @@ const (
 	tableName                  = "state"
 )
 
-// postgresDBAccess implements dbaccess
+// postgresDBAccess implements dbaccess.
 type postgresDBAccess struct {
 	logger           logger.Logger
 	metadata         state.Metadata
@@ -34,7 +35,7 @@ type postgresDBAccess struct {
 	connectionString string
 }
 
-// newPostgresDBAccess creates a new instance of postgresAccess
+// newPostgresDBAccess creates a new instance of postgresAccess.
 func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 	logger.Debug("Instantiating new PostgreSQL state store")
 
@@ -43,7 +44,7 @@ func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
 	}
 }
 
-// Init sets up PostgreSQL connection and ensures that the state table exists
+// Init sets up PostgreSQL connection and ensures that the state table exists.
 func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 	p.logger.Debug("Initializing PostgreSQL state store")
 	p.metadata = metadata

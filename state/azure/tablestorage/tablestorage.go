@@ -199,7 +199,11 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	err := entity.Insert(storage.FullMetadata, nil)
 	if err != nil {
 		if etag == "" {
-			return state.NewETagError(state.ETagMismatch, err)
+			if req.Options.Concurrency == state.FirstWrite {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+
+			return entity.Update(true, nil)
 		}
 		err := entity.Update(false, nil)
 		if err != nil {

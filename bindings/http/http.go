@@ -36,12 +36,12 @@ type httpMetadata struct {
 	URL string `mapstructure:"url"`
 }
 
-// NewHTTP returns a new HTTPSource
+// NewHTTP returns a new HTTPSource.
 func NewHTTP(logger logger.Logger) *HTTPSource {
 	return &HTTPSource{logger: logger}
 }
 
-// Init performs metadata parsing
+// Init performs metadata parsing.
 func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	if err := mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
 		return err

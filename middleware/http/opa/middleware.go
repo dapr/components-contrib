@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
-
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/valyala/fasthttp"
+
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 type Status int
@@ -25,17 +25,17 @@ type middlewareMetadata struct {
 	IncludedHeaders string `json:"includedHeaders,omitempty"`
 }
 
-// NewMiddleware returns a new Open Policy Agent middleware
+// NewMiddleware returns a new Open Policy Agent middleware.
 func NewMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
-// Middleware is an OPA  middleware
+// Middleware is an OPA  middleware.
 type Middleware struct {
 	logger logger.Logger
 }
 
-// RegoResult is the expected result from rego policy
+// RegoResult is the expected result from rego policy.
 type RegoResult struct {
 	Allow             bool              `json:"allow"`
 	AdditionalHeaders map[string]string `json:"additional_headers,omitempty"`
@@ -79,12 +79,12 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Check status is in the correct range for RFC 2616 status codes [100-599]
+// Check status is in the correct range for RFC 2616 status codes [100-599].
 func (s *Status) Valid() bool {
 	return s != nil && *s >= 100 && *s < 600
 }
 
-// GetHandler returns the HTTP handler provided by the middleware
+// GetHandler returns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
@@ -204,7 +204,7 @@ func (m *Middleware) handleRegoResult(ctx *fasthttp.RequestCtx, meta *middleware
 
 	// If the result isn't allowed, set the response status and
 	// apply the additional headers to the response.
-	// Otherwise, set the headers on the ongoing request (overriding as necessary)
+	// Otherwise, set the headers on the ongoing request (overriding as necessary).
 	if !regoResult.Allow {
 		ctx.Error(fasthttp.StatusMessage(regoResult.StatusCode), regoResult.StatusCode)
 		for key, value := range regoResult.AdditionalHeaders {

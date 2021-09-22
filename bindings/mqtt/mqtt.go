@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// Keys
+	// Keys.
 	mqttURL               = "url"
 	mqttTopic             = "topic"
 	mqttQOS               = "qos"
@@ -39,17 +39,17 @@ const (
 	mqttClientKey         = "clientKey"
 	mqttBackOffMaxRetries = "backOffMaxRetries"
 
-	// errors
+	// errors.
 	errorMsgPrefix = "mqtt binding error:"
 
-	// Defaults
+	// Defaults.
 	defaultQOS          = 0
 	defaultRetain       = false
 	defaultWait         = 3 * time.Second
 	defaultCleanSession = true
 )
 
-// MQTT allows sending and receiving data to/from an MQTT broker
+// MQTT allows sending and receiving data to/from an MQTT broker.
 type MQTT struct {
 	producer mqtt.Client
 	consumer mqtt.Client
@@ -61,7 +61,7 @@ type MQTT struct {
 	backOff backoff.BackOff
 }
 
-// NewMQTT returns a new MQTT instance
+// NewMQTT returns a new MQTT instance.
 func NewMQTT(logger logger.Logger) *MQTT {
 	return &MQTT{logger: logger}
 }
@@ -153,7 +153,7 @@ func parseMQTTMetaData(md bindings.Metadata) (*metadata, error) {
 	return &m, nil
 }
 
-// Init does MQTT connection parsing
+// Init does MQTT connection parsing.
 func (m *MQTT) Init(metadata bindings.Metadata) error {
 	mqttMeta, err := parseMQTTMetaData(metadata)
 	if err != nil {

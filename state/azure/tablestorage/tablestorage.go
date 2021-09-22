@@ -198,21 +198,33 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 
 	err := entity.Insert(storage.FullMetadata, nil)
 	if err != nil {
-		if etag == "" {
-			if req.Options.Concurrency == state.FirstWrite {
-				return state.NewETagError(state.ETagMismatch, err)
+		// If Insert failed because item already exists, try to Update instead per Upsert semantics
+		if isEntityAlreadyExistsError(err) {
+			// Always Update using the etag when provided even if Concurrency != FirstWrite.
+			// Today the presence of etag takes precedence over Concurrency.
+			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
+			if etag != "" {
+				uerr := entity.Update(false, nil)
+				if uerr != nil {
+					if isNotFoundError(uerr) {
+						return state.NewETagError(state.ETagMismatch, uerr)
+					}
+					return uerr
+				}
+			} else if req.Options.Concurrency == state.FirstWrite {
+				// Otherwise, if FirstWrite was set, but no etag was provided for an Update operation
+				// explicitly flag it as an error.
+				// entity.Update itself does not flag the test case as a mismatch as it does not distinguish
+				// between nil and "" etags, the initial etag will always be "", which would match on update.
+				return state.NewETagError(state.ETagMismatch, errors.New("update with Concurrency.FirstWrite without ETag"))
+			} else {
+				// Finally, last write semantics without ETag should always perform a force update.
+				return entity.Update(true, nil)
 			}
-
-			return entity.Update(true, nil)
+		} else {
+			// Any other unexpected error on Insert is propagated to the caller
+			return err
 		}
-		err := entity.Update(false, nil)
-		if err != nil {
-			if isNotFoundError(err) {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
-		}
-
-		return err
 	}
 
 	return nil
@@ -222,6 +234,12 @@ func isNotFoundError(err error) bool {
 	azureError, ok := err.(storage.AzureStorageServiceError)
 
 	return ok && azureError.Code == "ResourceNotFound"
+}
+
+func isEntityAlreadyExistsError(err error) bool {
+	azureError, ok := err.(storage.AzureStorageServiceError)
+
+	return ok && azureError.Code == "EntityAlreadyExists"
 }
 
 func isTableAlreadyExistsError(err error) bool {

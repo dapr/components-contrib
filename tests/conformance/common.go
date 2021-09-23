@@ -52,6 +52,7 @@ import (
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
@@ -370,7 +371,7 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
-	case "cosmosdb":
+	case "azure.cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
@@ -380,6 +381,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "azure.tablestorage":
+		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	default:
 		return nil
 	}

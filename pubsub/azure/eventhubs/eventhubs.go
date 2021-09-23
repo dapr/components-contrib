@@ -17,29 +17,30 @@ import (
 	"github.com/Azure/azure-event-hubs-go/v3/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
 
 const (
-	// metadata
+	// metadata.
 	connectionString = "connectionString"
 	consumerID       = "consumerID" // passed by dapr runtime
 
-	// required by subscriber
+	// required by subscriber.
 	storageAccountName   = "storageAccountName"
 	storageAccountKey    = "storageAccountKey"
 	storageContainerName = "storageContainerName"
 
-	// errors
+	// errors.
 	missingConnectionStringErrorMsg     = "error: connectionString is a required attribute"
 	missingStorageAccountNameErrorMsg   = "error: storageAccountName is a required attribute"
 	missingStorageAccountKeyErrorMsg    = "error: storageAccountKey is a required attribute"
 	missingStorageContainerNameErrorMsg = "error: storageContainerName is a required attribute"
 	missingConsumerIDErrorMsg           = "error: missing consumerID attribute"
 
-	// Event Hubs SystemProperties names for metadata passthrough
+	// Event Hubs SystemProperties names for metadata passthrough.
 	sysPropSequenceNumber             = "x-opt-sequence-number"
 	sysPropEnqueuedTime               = "x-opt-enqueued-time"
 	sysPropOffset                     = "x-opt-offset"
@@ -90,7 +91,7 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 	return handler(ctx, &res)
 }
 
-// AzureEventHubs allows sending/receiving Azure Event Hubs events
+// AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
 	hub      *eventhub.Hub
 	metadata azureEventHubsMetadata
@@ -109,7 +110,7 @@ type azureEventHubsMetadata struct {
 	storageContainerName string
 }
 
-// NewAzureEventHubs returns a new Azure Event hubs instance
+// NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 	return &AzureEventHubs{logger: logger}
 }
@@ -150,7 +151,7 @@ func parseEventHubsMetadata(meta pubsub.Metadata) (azureEventHubsMetadata, error
 	return m, nil
 }
 
-// Init connects to Azure Event Hubs
+// Init connects to Azure Event Hubs.
 func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	m, err := parseEventHubsMetadata(metadata)
 	if err != nil {
@@ -176,7 +177,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-// Publish sends data to Azure Event Hubs
+// Publish sends data to Azure Event Hubs.
 func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	err := aeh.hub.Send(aeh.ctx, &eventhub.Event{Data: req.Data})
 	if err != nil {
@@ -186,7 +187,7 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-// Subscribe receives data from Azure Event Hubs
+// Subscribe receives data from Azure Event Hubs.
 func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	cred, err := azblob.NewSharedKeyCredential(aeh.metadata.storageAccountName, aeh.metadata.storageAccountKey)
 	if err != nil {

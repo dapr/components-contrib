@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/dapr/kit/logger"
 	"github.com/go-sql-driver/mysql"
+
+	"github.com/dapr/kit/logger"
 )
 
 type mySQLFactory struct {

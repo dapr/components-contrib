@@ -12,9 +12,10 @@ import (
 	"time"
 
 	r "github.com/dancannon/gorethink"
+	"github.com/pkg/errors"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/pkg/errors"
 )
 
 // Binding represents RethinkDB change change state input binding which fires handler with
@@ -26,7 +27,7 @@ type Binding struct {
 	stopCh  chan bool
 }
 
-// StateConfig is the binding config
+// StateConfig is the binding config.
 type StateConfig struct {
 	r.ConnectOpts
 	Table string `json:"table"`
@@ -34,7 +35,7 @@ type StateConfig struct {
 
 var _ = bindings.InputBinding(&Binding{})
 
-// NewRethinkDBStateChangeBinding returns a new RethinkDB actor event input binding
+// NewRethinkDBStateChangeBinding returns a new RethinkDB actor event input binding.
 func NewRethinkDBStateChangeBinding(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,
@@ -42,7 +43,7 @@ func NewRethinkDBStateChangeBinding(logger logger.Logger) *Binding {
 	}
 }
 
-// Init initializes the RethinkDB binding
+// Init initializes the RethinkDB binding.
 func (b *Binding) Init(metadata bindings.Metadata) error {
 	cfg, err := metadataToConfig(metadata.Properties, b.logger)
 	if err != nil {
@@ -59,7 +60,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Read triggers the RethinkDB scheduler
+// Read triggers the RethinkDB scheduler.
 func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	b.logger.Infof("subscribing to state changes in %s.%s...", b.config.Database, b.config.Table)
 	cursor, err := r.DB(b.config.Database).Table(b.config.Table).Changes(r.ChangesOpts{

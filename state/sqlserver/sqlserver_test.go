@@ -8,9 +8,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -332,7 +333,7 @@ func TestInvalidConfiguration(t *testing.T) {
 	}
 }
 
-// Test that if the migration fails the error is reported
+// Test that if the migration fails the error is reported.
 func TestExecuteMigrationFails(t *testing.T) {
 	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
 	sqlStore.migratorFactory = func(s *SQLServer) migrator {

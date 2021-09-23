@@ -8,8 +8,9 @@ package mongodb
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
 )
 
 func TestGetMongoDBMetadata(t *testing.T) {

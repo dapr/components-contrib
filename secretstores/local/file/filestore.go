@@ -36,14 +36,14 @@ type localSecretStore struct {
 	logger          logger.Logger
 }
 
-// NewLocalSecretStore returns a new Local secret store
+// NewLocalSecretStore returns a new Local secret store.
 func NewLocalSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &localSecretStore{
 		logger: logger,
 	}
 }
 
-// Init creates a Local secret store
+// Init creates a Local secret store.
 func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 	meta, err := j.getLocalSecretStoreMetadata(metadata)
 	if err != nil {
@@ -86,7 +86,7 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	secretValue, exists := j.secrets[req.Name]
 	if !exists {
@@ -115,7 +115,7 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	}, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	r := map[string]map[string]string{}
 

@@ -2,7 +2,7 @@ package opa
 
 import (
 	"testing"
-
+	
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +20,7 @@ func TestOpaPolicy(t *testing.T) {
 		req                RequestConfiguator
 		status             int
 		headers            *[][]string
+		body               []string
 		shouldHandlerError bool
 		shouldRegoError    bool
 	}{
@@ -198,17 +199,18 @@ func TestOpaPolicy(t *testing.T) {
 				Properties: map[string]string{
 					"rego": `
 						package http
-						default allow = true
-
-						allow = { 
-							input.request.body = "allow"
+						default allow = false
+						
+						allow = { "status_code": 200 } {
+							input.request.body == "allow"
 						}
 						`,
 				},
 			},
 			req: func(ctx *fh.RequestCtx) {
+				ctx.SetContentType("text/plain; charset=utf8")
 				ctx.Request.SetHost("https://my.site")
-				ctx.Request.SetBody("allow")
+				ctx.Request.SetBodyString("allow")
 			},
 			status: 200,
 		},

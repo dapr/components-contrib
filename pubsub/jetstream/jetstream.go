@@ -5,10 +5,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
-	"github.com/nats-io/nats.go"
 )
 
 type jetstreamPubSub struct {

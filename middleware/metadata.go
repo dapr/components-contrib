@@ -5,7 +5,7 @@
 
 package middleware
 
-// Metadata represents a set of middleware specific properties
+// Metadata represents a set of middleware specific properties.
 type Metadata struct {
 	Properties map[string]string `json:"properties"`
 }

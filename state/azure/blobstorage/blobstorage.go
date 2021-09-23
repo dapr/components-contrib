@@ -57,7 +57,7 @@ const (
 	cacheControl       = "CacheControl"
 )
 
-// StateStore Type
+// StateStore Type.
 type StateStore struct {
 	state.DefaultBulkStore
 	containerURL azblob.ContainerURL
@@ -109,19 +109,19 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 
-// Delete the state
+// Delete the state.
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
 	return r.deleteFile(req)
 }
 
-// Get the state
+// Get the state.
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	data, etag, err := r.readFile(req)
@@ -141,7 +141,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, err
 }
 
-// Set the state
+// Set the state.
 func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
@@ -158,7 +158,7 @@ func (r *StateStore) Ping() error {
 	return nil
 }
 
-// NewAzureBlobStorageStore instance
+// NewAzureBlobStorageStore instance.
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,

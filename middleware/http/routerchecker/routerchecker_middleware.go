@@ -4,24 +4,28 @@ import (
 	"encoding/json"
 	"regexp"
 
-	"github.com/dapr/components-contrib/middleware"
 	"github.com/valyala/fasthttp"
+
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
-// Metadata is the routerchecker middleware config
-type routerCheckerMiddlewareMetadata struct {
+// Metadata is the routerchecker middleware config.
+type Metadata struct {
 	Rule string `json:"rule"`
 }
 
-// NewRouterCheckerMiddleware returns a new routerchecker middleware
-func NewRouterCheckerMiddleware() *Middleware {
-	return &Middleware{}
+// NewRouterCheckerMiddleware returns a new routerchecker middleware.
+func NewMiddleware(logger logger.Logger) *Middleware {
+	return &Middleware{logger: logger}
 }
 
-// Middleware is an routerchecker middleware
-type Middleware struct{}
+// Middleware is an routerchecker middleware.
+type Middleware struct {
+	logger logger.Logger
+}
 
-// GetHandler retruns the HTTP handler provided by the middleware
+// GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 	func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
@@ -31,8 +35,9 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-			isMatch, err := m.isMatchRule(meta.Rule, string(ctx.RequestURI()))
+			isMatch, err := regexp.MatchString(meta.Rule, string(ctx.RequestURI()))
 			if err != nil {
+				m.logger.Error("regexp match failed", err.Error())
 				ctx.Error("regexp match failed", fasthttp.StatusBadRequest)
 
 				return
@@ -47,25 +52,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 	}, nil
 }
 
-func (m *Middleware) isMatchRule(rule string, uri string) (bool, error) {
-	var (
-		isMatch bool
-		err     error
-	)
-	if isMatch, err = regexp.MatchString(rule, uri); err != nil {
-		return isMatch, err
-	}
-
-	return isMatch, nil
-}
-
-func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*routerCheckerMiddlewareMetadata, error) {
+func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*Metadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
 
-	var middlewareMetadata routerCheckerMiddlewareMetadata
+	var middlewareMetadata Metadata
 	err = json.Unmarshal(b, &middlewareMetadata)
 	if err != nil {
 		return nil, err

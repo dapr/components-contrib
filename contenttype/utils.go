@@ -24,7 +24,7 @@ func IsJSONContentType(contentType string) bool {
 	return isContentType(contentType, JSONContentType)
 }
 
-// IsStringContentType determines if content type is string
+// IsStringContentType determines if content type is string.
 func IsStringContentType(contentType string) bool {
 	if strings.HasPrefix(strings.ToLower(contentType), "text/") {
 		return true
@@ -33,7 +33,7 @@ func IsStringContentType(contentType string) bool {
 	return isContentType(contentType, "application/xml")
 }
 
-// IsBinaryContentType determines if content type is byte[]
+// IsBinaryContentType determines if content type is byte[].
 func IsBinaryContentType(contentType string) bool {
 	return isContentType(contentType, "application/octet-stream")
 }

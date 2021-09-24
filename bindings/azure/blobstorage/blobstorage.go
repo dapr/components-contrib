@@ -16,22 +16,23 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
 )
 
 const (
-	// Used to reference the blob relative to the container
+	// Used to reference the blob relative to the container.
 	metadataKeyBlobName = "blobName"
 	// A string value that identifies the portion of the list to be returned with the next list operation.
 	// The operation returns a marker value within the response body if the list returned was not complete. The marker
 	// value may then be used in a subsequent call to request the next set of list items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
 	metadataKeyMarker = "marker"
-	// The number of blobs that will be returned in a list operation
+	// The number of blobs that will be returned in a list operation.
 	metadataKeyNumber = "number"
-	// Defines if the user defined metadata should be returned in the get operation
+	// Defines if the user defined metadata should be returned in the get operation.
 	metadataKeyIncludeMetadata = "includeMetadata"
 	// Defines the delete snapshots option for the delete operation.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob#request-headers
@@ -45,7 +46,7 @@ const (
 	metadataKeyContentDisposition = "contentDisposition"
 	meatdataKeyCacheControl       = "cacheControl"
 	// Specifies the maximum number of HTTP GET requests that will be made while reading from a RetryReader. A value
-	// of zero means that no additional HTTP GET requests will be made
+	// of zero means that no additional HTTP GET requests will be made.
 	defaultGetBlobRetryCount = 10
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
@@ -65,7 +66,7 @@ const (
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
-// AzureBlobStorage allows saving blobs to an Azure Blob Storage account
+// AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
 	metadata     *blobStorageMetadata
 	containerURL azblob.ContainerURL
@@ -101,12 +102,12 @@ type listPayload struct {
 	Include    listInclude `json:"include"`
 }
 
-// NewAzureBlobStorage returns a new Azure Blob Storage instance
+// NewAzureBlobStorage returns a new Azure Blob Storage instance.
 func NewAzureBlobStorage(logger logger.Logger) *AzureBlobStorage {
 	return &AzureBlobStorage{logger: logger}
 }
 
-// Init performs metadata parsing
+// Init performs metadata parsing.
 func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {

@@ -11,10 +11,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -36,7 +37,7 @@ const (
 	metadataTTLKey           = "ttlInSeconds"
 )
 
-// Cassandra is a state store implementation for Apache Cassandra
+// Cassandra is a state store implementation for Apache Cassandra.
 type Cassandra struct {
 	state.DefaultBulkStore
 	session *gocql.Session
@@ -58,7 +59,7 @@ type cassandraMetadata struct {
 	keyspace          string
 }
 
-// NewCassandraStateStore returns a new cassandra state store
+// NewCassandraStateStore returns a new cassandra state store.
 func NewCassandraStateStore(logger logger.Logger) *Cassandra {
 	s := &Cassandra{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
@@ -66,7 +67,7 @@ func NewCassandraStateStore(logger logger.Logger) *Cassandra {
 	return s
 }
 
-// Init performs metadata and connection parsing
+// Init performs metadata and connection parsing.
 func (c *Cassandra) Init(metadata state.Metadata) error {
 	meta, err := getCassandraMetadata(metadata)
 	if err != nil {
@@ -100,7 +101,7 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (c *Cassandra) Features() []state.Feature {
 	return nil
 }
@@ -220,12 +221,12 @@ func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
 	return &meta, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (c *Cassandra) Delete(req *state.DeleteRequest) error {
 	return c.session.Query("DELETE FROM ? WHERE key = ?", c.table, req.Key).Exec()
 }
 
-// Get retrieves state from cassandra with a key
+// Get retrieves state from cassandra with a key.
 func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
@@ -259,7 +260,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Set saves state into cassandra
+// Set saves state into cassandra.
 func (c *Cassandra) Set(req *state.SetRequest) error {
 	var bt []byte
 	b, ok := req.Value.([]byte)

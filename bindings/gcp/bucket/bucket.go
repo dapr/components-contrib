@@ -15,11 +15,12 @@ import (
 	"strconv"
 
 	"cloud.google.com/go/storage"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -33,7 +34,7 @@ const (
 	metadataKeyBC = "name"
 )
 
-// GCPStorage allows saving data to GCP bucket storage
+// GCPStorage allows saving data to GCP bucket storage.
 type GCPStorage struct {
 	metadata *gcpMetadata
 	client   *storage.Client
@@ -66,12 +67,12 @@ type createResponse struct {
 	ObjectURL string `json:"objectURL"`
 }
 
-// NewGCPStorage returns a new GCP storage instance
+// NewGCPStorage returns a new GCP storage instance.
 func NewGCPStorage(logger logger.Logger) *GCPStorage {
 	return &GCPStorage{logger: logger}
 }
 
-// Init performs connection parsing
+// Init performs connection parsing.
 func (g *GCPStorage) Init(metadata bindings.Metadata) error {
 	m, b, err := g.parseMetadata(metadata)
 	if err != nil {

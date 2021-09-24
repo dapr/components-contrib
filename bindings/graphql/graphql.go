@@ -13,20 +13,21 @@ import (
 	"strings"
 	"time"
 
+	graphql "github.com/machinebox/graphql"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	graphql "github.com/machinebox/graphql"
 )
 
 const (
-	// configurations to connect to GraphQL
+	// configurations to connect to GraphQL.
 	connectionEndPointKey = "endpoint"
 
-	// keys from request's metadata
+	// keys from request's metadata.
 	commandQuery    = "query"
 	commandMutation = "mutation"
 
-	// keys from response's metadata
+	// keys from response's metadata.
 	respOpKey        = "operation"
 	respStartTimeKey = "start-time"
 	respEndTimeKey   = "end-time"
@@ -36,7 +37,7 @@ const (
 	MutationOperation bindings.OperationKind = "mutation"
 )
 
-// GraphQL represents GraphQL output bindings
+// GraphQL represents GraphQL output bindings.
 type GraphQL struct {
 	client *graphql.Client
 	header map[string]string
@@ -45,12 +46,12 @@ type GraphQL struct {
 
 var _ = bindings.OutputBinding(&GraphQL{})
 
-// NewGraphQL returns a new GraphQL binding instance
+// NewGraphQL returns a new GraphQL binding instance.
 func NewGraphQL(logger logger.Logger) *GraphQL {
 	return &GraphQL{logger: logger}
 }
 
-// Init initializes the GraphQL binding
+// Init initializes the GraphQL binding.
 func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 	gql.logger.Debug("GraphQL Error: Initializing GraphQL binding")
 
@@ -74,7 +75,7 @@ func (gql *GraphQL) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Operations returns list of operations supported by GraphQL binding
+// Operations returns list of operations supported by GraphQL binding.
 func (gql *GraphQL) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		QueryOperation,
@@ -82,7 +83,7 @@ func (gql *GraphQL) Operations() []bindings.OperationKind {
 	}
 }
 
-// Invoke handles all invoke operations
+// Invoke handles all invoke operations.
 func (gql *GraphQL) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GraphQL Error: Invoke request required")

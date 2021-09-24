@@ -15,6 +15,7 @@ GIT_COMMIT  = $(shell git rev-list -1 HEAD)
 GIT_VERSION = $(shell git describe --always --abbrev=7 --dirty)
 # By default, disable CGO_ENABLED. See the details on https://golang.org/cmd/cgo
 CGO         ?= 0
+ORIGINAL_CGO = $(go env CGO_ENABLED)
 
 LOCAL_ARCH := $(shell uname -m)
 ifeq ($(LOCAL_ARCH),x86_64)
@@ -53,7 +54,9 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	go env -w CGO_ENABLED=$(CGO)
+	go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	go env -w CGO_ENABLED=$(ORIGINAL_CGO)
 
 ################################################################################
 # Target: lint                                                                 #

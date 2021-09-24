@@ -91,8 +91,10 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: state.cosmosdb
+        - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.tablestorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage

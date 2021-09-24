@@ -10,14 +10,14 @@ import (
 	"strconv"
 )
 
-// InvokeRequest is the object given to a dapr output binding
+// InvokeRequest is the object given to a dapr output binding.
 type InvokeRequest struct {
 	Data      []byte            `json:"data"`
 	Metadata  map[string]string `json:"metadata"`
 	Operation OperationKind     `json:"operation"`
 }
 
-// OperationKind defines an output binding operation
+// OperationKind defines an output binding operation.
 type OperationKind string
 
 // Non exhaustive list of operations. A binding can add operations that are not in this list.
@@ -28,7 +28,7 @@ const (
 	ListOperation   OperationKind = "list"
 )
 
-// GetMetadataAsBool parses metadata as bool
+// GetMetadataAsBool parses metadata as bool.
 func (r *InvokeRequest) GetMetadataAsBool(key string) (bool, error) {
 	if val, ok := r.Metadata[key]; ok {
 		boolVal, err := strconv.ParseBool(val)
@@ -42,7 +42,7 @@ func (r *InvokeRequest) GetMetadataAsBool(key string) (bool, error) {
 	return false, nil
 }
 
-// GetMetadataAsInt64 parses metadata as int64
+// GetMetadataAsInt64 parses metadata as int64.
 func (r *InvokeRequest) GetMetadataAsInt64(key string, bitSize int) (int64, error) {
 	if val, ok := r.Metadata[key]; ok {
 		intVal, err := strconv.ParseInt(val, 10, bitSize)

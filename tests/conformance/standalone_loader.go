@@ -22,19 +22,19 @@ const (
 	componentKind = "Component"
 )
 
-// StandaloneComponents loads components in a standalone mode environment
+// StandaloneComponents loads components in a standalone mode environment.
 type StandaloneComponents struct {
 	componentsPath string
 }
 
-// NewStandaloneComponents returns a new standalone loader
+// NewStandaloneComponents returns a new standalone loader.
 func NewStandaloneComponents(componentPath string) *StandaloneComponents {
 	return &StandaloneComponents{
 		componentsPath: componentPath,
 	}
 }
 
-// LoadComponents loads dapr components from a given directory
+// LoadComponents loads dapr components from a given directory.
 func (s *StandaloneComponents) LoadComponents() ([]Component, error) {
 	dir := s.componentsPath
 	files, err := ioutil.ReadDir(dir)
@@ -63,7 +63,7 @@ func (s *StandaloneComponents) LoadComponents() ([]Component, error) {
 	return list, nil
 }
 
-// isYaml checks whether the file is yaml or not
+// isYaml checks whether the file is yaml or not.
 func (s *StandaloneComponents) isYaml(fileName string) bool {
 	extension := strings.ToLower(filepath.Ext(fileName))
 	if extension == ".yaml" || extension == ".yml" {
@@ -73,7 +73,7 @@ func (s *StandaloneComponents) isYaml(fileName string) bool {
 	return false
 }
 
-// decodeYaml decodes the yaml document
+// decodeYaml decodes the yaml document.
 func (s *StandaloneComponents) decodeYaml(filename string, b []byte) ([]Component, []error) {
 	list := []Component{}
 	errors := []error{}
@@ -98,7 +98,7 @@ func (s *StandaloneComponents) decodeYaml(filename string, b []byte) ([]Componen
 	return list, errors
 }
 
-// decode reads the YAML resource in document
+// decode reads the YAML resource in document.
 func (s *StandaloneComponents) decode(scanner *bufio.Scanner, c interface{}) error {
 	if scanner.Scan() {
 		return yaml.Unmarshal(scanner.Bytes(), &c)
@@ -112,7 +112,7 @@ func (s *StandaloneComponents) decode(scanner *bufio.Scanner, c interface{}) err
 	return err
 }
 
-// splitYamlDoc - splits the yaml docs
+// splitYamlDoc - splits the yaml docs.
 func (s *StandaloneComponents) splitYamlDoc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil

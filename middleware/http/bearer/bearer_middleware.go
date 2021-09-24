@@ -11,9 +11,10 @@ import (
 	"strings"
 
 	oidc "github.com/coreos/go-oidc"
+	"github.com/valyala/fasthttp"
+
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
-	"github.com/valyala/fasthttp"
 )
 
 type bearerMiddlewareMetadata struct {
@@ -21,12 +22,12 @@ type bearerMiddlewareMetadata struct {
 	ClientID  string `json:"clientID"`
 }
 
-// NewBearerMiddleware returns a new oAuth2 middleware
+// NewBearerMiddleware returns a new oAuth2 middleware.
 func NewBearerMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
-// Middleware is an oAuth2 authentication middleware
+// Middleware is an oAuth2 authentication middleware.
 type Middleware struct {
 	logger logger.Logger
 }
@@ -36,7 +37,7 @@ const (
 	bearerPrefixLength = len(bearerPrefix)
 )
 
-// GetHandler retruns the HTTP handler provided by the middleware
+// GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {

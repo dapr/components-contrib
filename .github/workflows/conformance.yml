@@ -43,6 +43,7 @@ jobs:
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
+        - bindings.influx
         - bindings.kafka
         - bindings.redis
         - bindings.mqtt-mosquitto
@@ -57,11 +58,14 @@ jobs:
         - pubsub.mqtt-vernemq
         - pubsub.hazelcast
         - pubsub.rabbitmq
+        - pubsub.in-memory
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
         - state.mongodb
         - state.redis
+        - state.sqlserver
+        - state.mysql
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -87,14 +91,20 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: state.cosmosdb
+        - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.tablestorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: pubsub.azure.eventhubs
+          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.eventhubs
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
@@ -128,6 +138,12 @@ jobs:
       uses: actions/checkout@v2
       with:
         path: ./src/github.com/dapr/components-contrib
+
+    - name: Setup test output
+      shell: bash
+      run: |
+        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
+        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
       with:
@@ -185,6 +201,10 @@ jobs:
         mongodb-replica-set: test-rs
       if: contains(matrix.component, 'mongodb')
 
+    - name: Start sqlserver
+      run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
+      if: contains(matrix.component, 'sqlserver')
+
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
       if: contains(matrix.component, 'kafka')
@@ -217,6 +237,18 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
 
+    - name: Start influxdb
+      run: |
+        export INFLUX_TOKEN=$(openssl rand -base64 32)
+        echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
+      if: contains(matrix.component, 'influx')
+
+    - name: Start mysql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
+      if: contains(matrix.component, 'mysql')
+
     - name: Start KinD
       uses: helm/kind-action@v1.0.0
       if: contains(matrix.component, 'kubernetes')
@@ -229,10 +261,13 @@ jobs:
 
     - name: Set up Go
       uses: actions/setup-go@v2
+      with:
+        go-version: '^1.16.6'
     
     - name: Download Go dependencies
       run: |
         go mod download
+        go install gotest.tools/gotestsum@latest
 
     - name: Run tests
       continue-on-error: true
@@ -249,8 +284,10 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         set +e
-        go test -timeout=15m -v -tags=conftests -count=1 ./tests/conformance \
-          --run="Test${KIND_UPPER}Conformance/${NAME}" 2>&1 | tee output.log
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
+
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
         if test $status -ne 0; then
@@ -260,7 +297,7 @@ jobs:
         set -e
 
         # Fail the step if we found no test to run
-        if grep -q "warning: no tests to run" output.log ; then
+        if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
@@ -288,3 +325,11 @@ jobs:
         if [[ -v CONFORMANCE_FAILURE ]]; then
           exit 1
         fi
+
+    # Upload logs for test analytics to consume
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{ matrix.component }}_conformance_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*

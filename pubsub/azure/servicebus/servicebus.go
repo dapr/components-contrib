@@ -17,6 +17,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -24,7 +25,7 @@ import (
 )
 
 const (
-	// Keys
+	// Keys.
 	connectionString                = "connectionString"
 	consumerID                      = "consumerID"
 	maxDeliveryCount                = "maxDeliveryCount"
@@ -45,7 +46,7 @@ const (
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	errorMessagePrefix              = "azure service bus error:"
 
-	// Defaults
+	// Defaults.
 	defaultTimeoutInSec        = 60
 	defaultHandlerTimeoutInSec = 60
 	defaultLockRenewalInSec    = 20
@@ -76,7 +77,7 @@ type azureServiceBus struct {
 	cancel context.CancelFunc
 }
 
-// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
+// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:        logger,
@@ -413,7 +414,14 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.metadata.MaxActiveMessages,
 				a.metadata.MaxActiveMessagesRecoveryInSec)
 			if innerErr != nil {
-				a.logger.Error(innerErr)
+				var detachError *amqp.DetachError
+				var ampqError *amqp.Error
+				if errors.Is(innerErr, detachError) ||
+					(errors.As(innerErr, &ampqError) && ampqError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(innerErr)
+				} else {
+					a.logger.Error(innerErr)
+				}
 			}
 			cancel() // Cancel receive context
 

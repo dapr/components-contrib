@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -111,6 +112,11 @@ func TestPostgresIntegration(t *testing.T) {
 		req.Data = nil
 		_, err := b.Invoke(req)
 		assert.NoError(t, err)
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := b.Close()
+		assert.NoError(t, err, "expected no error closing output binding")
 	})
 }
 

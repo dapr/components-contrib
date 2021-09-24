@@ -3,11 +3,11 @@ package servicebus
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -42,7 +42,7 @@ func newSubscription(topic string, sub *azservicebus.Subscription, maxConcurrent
 	return s
 }
 
-// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic
+// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic.
 func (s *subscription) ReceiveAndBlock(ctx context.Context, handler pubsub.Handler, lockRenewalInSec int, handlerTimeoutInSec int, timeoutInSec int, maxActiveMessages int, maxActiveMessagesRecoveryInSec int) error {
 	// Close subscription
 	defer func() {
@@ -203,11 +203,7 @@ func (s *subscription) tryRenewLocks() {
 func (s *subscription) receiveMessage(ctx context.Context, handler azservicebus.HandlerFunc) error {
 	s.logger.Debugf("Waiting to receive message on topic %s", s.topic)
 	if err := s.entity.ReceiveOne(ctx, handler); err != nil {
-		if strings.Contains(err.Error(), "force detached") {
-			return nil
-		}
-
-		return fmt.Errorf("%s error receiving message on topic %s, %s", errorMessagePrefix, s.topic, err)
+		return fmt.Errorf("%s error receiving message on topic %s, %w", errorMessagePrefix, s.topic, err)
 	}
 
 	return nil

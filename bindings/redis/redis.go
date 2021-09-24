@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"time"
 
 	"github.com/go-redis/redis/v8"
 
@@ -19,16 +17,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	maxRetries             = "maxRetries"
-	maxRetryBackoff        = "maxRetryBackoff"
-	defaultBase            = 10
-	defaultBitSize         = 0
-	defaultMaxRetries      = 3
-	defaultMaxRetryBackoff = time.Second * 2
-)
-
-// Redis is a redis output binding
+// Redis is a redis output binding.
 type Redis struct {
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
@@ -38,18 +27,13 @@ type Redis struct {
 	cancel context.CancelFunc
 }
 
-// NewRedis returns a new redis bindings instance
+// NewRedis returns a new redis bindings instance.
 func NewRedis(logger logger.Logger) *Redis {
 	return &Redis{logger: logger}
 }
 
-// Init performs metadata parsing and connection creation
-func (r *Redis) Init(meta bindings.Metadata) error {
-	_, err := r.parseMetadata(meta)
-	if err != nil {
-		return err
-	}
-
+// Init performs metadata parsing and connection creation.
+func (r *Redis) Init(meta bindings.Metadata) (err error) {
 	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
 	if err != nil {
 		return err
@@ -63,30 +47,6 @@ func (r *Redis) Init(meta bindings.Metadata) error {
 	}
 
 	return err
-}
-
-func (r *Redis) parseMetadata(meta bindings.Metadata) (metadata, error) {
-	m := metadata{}
-
-	m.maxRetries = defaultMaxRetries
-	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis binding error: can't parse maxRetries field: %s", err)
-		}
-		m.maxRetries = int(parsedVal)
-	}
-
-	m.maxRetryBackoff = defaultMaxRetryBackoff
-	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis binding error: can't parse maxRetries field: %s", err)
-		}
-		m.maxRetryBackoff = time.Duration(parsedVal)
-	}
-
-	return m, nil
 }
 
 func (r *Redis) Operations() []bindings.OperationKind {

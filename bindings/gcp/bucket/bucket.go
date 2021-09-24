@@ -276,7 +276,7 @@ func (g *GCPStorage) Close() error {
 	return g.client.Close()
 }
 
-// Helper to merge config and request metadata
+// Helper to merge config and request metadata.
 func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (gcpMetadata, error) {
 	merged := metadata
 

@@ -28,6 +28,12 @@ type CosmosDB struct {
 	logger logger.Logger
 }
 
+type CosmosItem struct {
+	documentdb.Document
+	PartitionKey string      `json:"partitionKey,omitempty"`
+	Value        interface{} `json:"value,omitempty"`
+}
+
 type cosmosDBCredentials struct {
 	URL          string `json:"url"`
 	MasterKey    string `json:"masterKey"`
@@ -122,18 +128,27 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var obj interface{}
+	var obj map[string]interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {
 		return nil, err
 	}
+
+	var item CosmosItem
+	err = json.Unmarshal(req.Data, &item)
+	if err != nil {
+		return nil, err
+	}
+	item.Value = obj
 
 	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
+	item.PartitionKey = val.(string)
+
+	_, err = c.client.CreateDocument(c.collection.Self, &item, documentdb.PartitionKey(val))
 	if err != nil {
 		return nil, err
 	}

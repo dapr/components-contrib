@@ -5,7 +5,7 @@
 
 package azure
 
-// MetadataKeys : Keys for all metadata properties
+// MetadataKeys : Keys for all metadata properties.
 var MetadataKeys = map[string][]string{ // nolint: gochecknoglobals
 	// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
 
@@ -29,5 +29,5 @@ var MetadataKeys = map[string][]string{ // nolint: gochecknoglobals
 	"AzureEnvironment": {"azureEnvironment"},
 }
 
-// Default Azure environment
+// Default Azure environment.
 const DefaultAzureEnvironment = "AZUREPUBLICCLOUD"

@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	// Keys
+	// Keys.
 	connectionString                = "connectionString"
 	consumerID                      = "consumerID"
 	maxDeliveryCount                = "maxDeliveryCount"
@@ -44,7 +44,7 @@ const (
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	errorMessagePrefix              = "azure service bus error:"
 
-	// Defaults
+	// Defaults.
 	defaultTimeoutInSec        = 60
 	defaultHandlerTimeoutInSec = 60
 	defaultLockRenewalInSec    = 20
@@ -75,7 +75,7 @@ type azureServiceBus struct {
 	cancel context.CancelFunc
 }
 
-// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
+// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:        logger,

@@ -12,10 +12,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/streadway/amqp"
+
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/streadway/amqp"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 	defaultBitSize             = 0
 )
 
-// RabbitMQ allows sending/receiving data to/from RabbitMQ
+// RabbitMQ allows sending/receiving data to/from RabbitMQ.
 type RabbitMQ struct {
 	connection *amqp.Connection
 	channel    *amqp.Channel
@@ -41,7 +42,7 @@ type RabbitMQ struct {
 	queue      amqp.Queue
 }
 
-// Metadata is the rabbitmq config
+// Metadata is the rabbitmq config.
 type rabbitMQMetadata struct {
 	Host             string `json:"host"`
 	QueueName        string `json:"queueName"`
@@ -53,12 +54,12 @@ type rabbitMQMetadata struct {
 	defaultQueueTTL  *time.Duration
 }
 
-// NewRabbitMQ returns a new rabbitmq instance
+// NewRabbitMQ returns a new rabbitmq instance.
 func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
 	return &RabbitMQ{logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
 	err := r.parseMetadata(metadata)
 	if err != nil {
@@ -97,6 +98,12 @@ func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 		DeliveryMode: amqp.Persistent,
 		ContentType:  "text/plain",
 		Body:         req.Data,
+	}
+
+	contentType, ok := contrib_metadata.TryGetContentType(req.Metadata)
+
+	if ok {
+		pub.ContentType = contentType
 	}
 
 	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)

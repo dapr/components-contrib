@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
+
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -32,14 +33,14 @@ type consumer struct {
 	callback func(*bindings.ReadResponse) ([]byte, error)
 }
 
-// QueueHelper enables injection for testnig
+// QueueHelper enables injection for testnig.
 type QueueHelper interface {
 	Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error
 	Write(data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 }
 
-// AzureQueueHelper concrete impl of queue helper
+// AzureQueueHelper concrete impl of queue helper.
 type AzureQueueHelper struct {
 	credential   *azqueue.SharedKeyCredential
 	queueURL     azqueue.QueueURL
@@ -48,7 +49,7 @@ type AzureQueueHelper struct {
 	decodeBase64 bool
 }
 
-// Init sets up this helper
+// Init sets up this helper.
 func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error {
 	credential, err := azqueue.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
@@ -124,7 +125,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	return nil
 }
 
-// NewAzureQueueHelper creates new helper
+// NewAzureQueueHelper creates new helper.
 func NewAzureQueueHelper(logger logger.Logger) QueueHelper {
 	return &AzureQueueHelper{
 		reqURI: "https://%s.queue.core.windows.net/%s",
@@ -132,7 +133,7 @@ func NewAzureQueueHelper(logger logger.Logger) QueueHelper {
 	}
 }
 
-// AzureStorageQueues is an input/output binding reading from and sending events to Azure Storage queues
+// AzureStorageQueues is an input/output binding reading from and sending events to Azure Storage queues.
 type AzureStorageQueues struct {
 	metadata *storageQueuesMetadata
 	helper   QueueHelper
@@ -148,12 +149,12 @@ type storageQueuesMetadata struct {
 	ttl          *time.Duration
 }
 
-// NewAzureStorageQueues returns a new AzureStorageQueues instance
+// NewAzureStorageQueues returns a new AzureStorageQueues instance.
 func NewAzureStorageQueues(logger logger.Logger) *AzureStorageQueues {
 	return &AzureStorageQueues{helper: NewAzureQueueHelper(logger), logger: logger}
 }
 
-// Init parses connection properties and creates a new Storage Queue client
+// Init parses connection properties and creates a new Storage Queue client.
 func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 	meta, err := a.parseMetadata(metadata)
 	if err != nil {

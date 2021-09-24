@@ -40,6 +40,9 @@ do
         PREFIX="${opt#*=}"
         ;;
 
+    --credentials=*)
+        CREDENTIALS_PATH="${opt#*=}"
+        ;;
     *)
         echo "$0: Unknown option: $opt"
         ERR=1
@@ -66,7 +69,9 @@ OVERVIEW:
 Sets up Azure resources needed for conformance tests and populates the secrets
 needed for the conformance.yml GitHub workflow to run. Also generates a .rc file
 that can be used to set environment variables for the conformance test to be run
-on the local device.
+on the local device. The script aims to be idempotent for the same inputs and
+can be rerun on failure, except that any auto-generated Service Principal
+credentials will be rotated on rerun.
 
 PREREQUISITES:
 This script requires that the Azure CLI is installed, and the user is already
@@ -77,13 +82,20 @@ will be deployed. For example:
     $ az account set -s "My Test Subscription"
 
 USAGE:
-    $ ./setup-azure-conf-test.sh --user=<Azure user UPN> [--location="..."] \
-[--prefix="..."] [--outpath="..."] [--ngrok-token="..."]
+    $ ./setup-azure-conf-test.sh --user=<Azure user UPN> [--credentials="..."] \
+[--location="..."] [--prefix="..."] [--outpath="..."] [--ngrok-token="..."]
 
 OPTIONS:
     -h, --help      Print this help message.
     --user          The UPN for the Azure user in the current subscription who
                     will own all created resources, e.g. "myalias@contoso.com".
+    --credentials   Optional. The path to a file containing Azure credentials of
+                    the Service Principal (SP) that will be running conformance
+                    tests. The file should be the JSON output when the SP was
+                    created with the Azure CLI 'az ad sp create-for-rbac'
+                    command. If not specified, a new SP will be created, and its
+                    credentials saved in the AZURE_CREDENTIALS file under the
+                    --outpath.
     --location      Optional. The location for the Azure deployment. Defaults to
                     "WestUS2" if not specified.
     --prefix        Optional. 3-15 character string to prefix all created
@@ -121,6 +133,9 @@ fi
 if [[ -z ${NGROK_TOKEN} ]]; then
     echo "WARN: --ngrok-token is not specified, will not set AzureEventGridNgrokToken used by GitHub workflow for bindings.azure.eventgrid conformance test."
 fi
+if [[ -z ${CREDENTIALS_PATH} ]]; then
+    echo "INFO: --credentials is not specified, will generate a new service principal and credentials ..."
+fi
 
 echo
 echo "Starting setup-azure-conf-test with the following parameters:"
@@ -129,6 +144,7 @@ echo "PREFIX=${PREFIX}"
 echo "DEPLOY_LOCATION=${DEPLOY_LOCATION}"
 echo "OUTPUT_PATH=${OUTPUT_PATH}"
 echo "NGROK_TOKEN=${NGROK_TOKEN}"
+echo "CREDENTIALS_PATH=${CREDENTIALS_PATH}"
 
 ##==============================================================================
 ##
@@ -185,15 +201,27 @@ az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --skip-assignment --years
 CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
 echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
-SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
-SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
-echo "${SDK_AUTH_SP_INFO}"
-echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
-
-AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
-echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
-SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
-SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+if [[ -n ${CREDENTIALS_PATH} ]]; then
+    SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
+        echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
+        exit 1
+    fi
+    SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME}"
+else
+    SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
+    SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    echo "${SDK_AUTH_SP_INFO}"
+    echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
+    AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
+    echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
+fi
 
 # Build the bicep template and deploy to Azure
 az bicep install
@@ -204,7 +232,11 @@ az bicep build --file conf-test-azure.bicep --outfile "${ARM_TEMPLATE_FILE}"
 echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resource prefix ${PREFIX}-* ..."
 az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}"
 
+echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
+sleep 5s
+
 # Query the deployed resource names from the bicep deployment outputs
+echo "Querying deployed resource names ..."
 RESOURCE_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.confTestRgName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: RESOURCE_GROUP_NAME=${RESOURCE_GROUP_NAME}"
 SERVICE_BUS_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.serviceBusName.value" | sed -E 's/[[:space:]]|\"//g')"
@@ -270,10 +302,15 @@ echo "Purging key vault ${KEYVAULT_NAME} ..."
 az keyvault purge --name "${KEYVAULT_NAME}"
 echo "Deleting service principal ${CERT_AUTH_SP_NAME} ..."
 az ad sp delete --id "${CERT_AUTH_SP_ID}"
-echo "Deleting service principal ${SDK_AUTH_SP_NAME} ..."
-az ad sp delete --id "${SDK_AUTH_SP_ID}"
-echo "INFO: ${PREFIX}-teardown-conf-test completed."
 EOF
+
+# Only remove the test runner Service Principal if it was not pre-existing
+if [[ -z ${CREDENTIALS_PATH} ]]; then
+    echo "echo \"Deleting service principal ${SDK_AUTH_SP_NAME} ...\"" >> "${TEARDOWN_SCRIPT_NAME}"
+    echo "az ad sp delete --id \"${SDK_AUTH_SP_ID}\"" >> "${TEARDOWN_SCRIPT_NAME}"
+fi
+echo "echo \"INFO: ${PREFIX}-teardown-conf-test completed.\"" >> "${TEARDOWN_SCRIPT_NAME}"
+
 chmod +x "${TEARDOWN_SCRIPT_NAME}"
 echo "INFO: Created ${TEARDOWN_SCRIPT_NAME}."
 
@@ -439,5 +476,7 @@ az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-
 
 echo "INFO: setup-azure-conf-test completed."
 echo "INFO: Remember to \`source ${ENV_CONFIG_FILENAME}\` before running local conformance tests."
-echo "INFO: ${AZURE_CREDENTIALS_FILENAME} contains the repository secret to set to run the GitHub conformance test workflow."
+if [[ -z ${CREDENTIALS_PATH} ]]; then
+    echo "INFO: ${AZURE_CREDENTIALS_FILENAME} contains the repository secret to set to run the GitHub conformance test workflow."
+fi
 echo "INFO: To teardown the conformance test resources, run ${TEARDOWN_SCRIPT_NAME}."

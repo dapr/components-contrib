@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 	maxIdleConnections = "maxIdleConnections"
 	timeout            = "timeout"
 	ttlInSeconds       = "ttlInSeconds"
-	// These defaults are already provided by gomemcache
+	// These defaults are already provided by gomemcache.
 	defaultMaxIdleConnections = 2
 	defaultTimeout            = 1000 * time.Millisecond
 )
@@ -67,7 +68,7 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
 	return nil
 }

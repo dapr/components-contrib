@@ -52,6 +52,7 @@ import (
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
@@ -86,7 +87,7 @@ type TestComponent struct {
 	Config        map[string]interface{} `yaml:"config,omitempty"`
 }
 
-// NewTestConfiguration reads the tests.yml and loads the TestConfiguration
+// NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
 func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
 	if isYaml(configFilepath) {
 		b, err := readTestConfiguration(configFilepath)
@@ -176,7 +177,7 @@ func ConvertMetadataToProperties(items []MetadataItem) (map[string]string, error
 	return properties, nil
 }
 
-// isYaml checks whether the file is yaml or not
+// isYaml checks whether the file is yaml or not.
 func isYaml(fileName string) bool {
 	extension := strings.ToLower(filepath.Ext(fileName))
 	if extension == ".yaml" || extension == ".yml" {
@@ -369,7 +370,7 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
-	case "cosmosdb":
+	case "azure.cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
@@ -377,6 +378,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "azure.tablestorage":
+		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	default:
 		return nil
 	}

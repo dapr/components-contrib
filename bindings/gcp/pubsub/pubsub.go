@@ -11,9 +11,10 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/pubsub"
+	"google.golang.org/api/option"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"google.golang.org/api/option"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 	topic       = "topic"
 )
 
-// GCPPubSub is an input/output binding for GCP Pub Sub
+// GCPPubSub is an input/output binding for GCP Pub Sub.
 type GCPPubSub struct {
 	client   *pubsub.Client
 	metadata *pubSubMetadata
@@ -44,12 +45,12 @@ type pubSubMetadata struct {
 	ClientCertURL       string `json:"client_x509_cert_url"`
 }
 
-// NewGCPPubSub returns a new GCPPubSub instance
+// NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) *GCPPubSub {
 	return &GCPPubSub{logger: logger}
 }
 
-// Init parses metadata and creates a new Pub Sub client
+// Init parses metadata and creates a new Pub Sub client.
 func (g *GCPPubSub) Init(metadata bindings.Metadata) error {
 	b, err := g.parseMetadata(metadata)
 	if err != nil {

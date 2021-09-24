@@ -1,7 +1,7 @@
 // ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
-// ------------------------------------------------------------
+// ------------------------------------------------------------.
 
 package servicebus
 
@@ -17,6 +17,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -89,7 +90,7 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	m := metadata{}
 
-	/* Required configuration settings - no defaults */
+	/* Required configuration settings - no defaults. */
 	if val, ok := meta.Properties[connectionString]; ok && val != "" {
 		m.ConnectionString = val
 	} else {
@@ -102,7 +103,7 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		return m, fmt.Errorf("%s missing consumerID", errorMessagePrefix)
 	}
 
-	/* Optional configuration settings - defaults will be set by the client */
+	/* Optional configuration settings - defaults will be set by the client. */
 	m.TimeoutInSec = defaultTimeoutInSec
 	if val, ok := meta.Properties[timeoutInSec]; ok && val != "" {
 		var err error
@@ -175,7 +176,7 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	/* Nullable configuration settings - defaults will be set by the server */
+	/* Nullable configuration settings - defaults will be set by the server. */
 	if val, ok := meta.Properties[maxDeliveryCount]; ok && val != "" {
 		valAsInt, err := strconv.Atoi(val)
 		if err != nil {
@@ -319,14 +320,14 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 		}
 		var ampqError *amqp.Error
 		if errors.As(err, &ampqError) && ampqError.Condition == "com.microsoft:server-busy" {
-			return ampqError // Retries
+			return ampqError // Retries.
 		}
 		var connClosedError azservicebus.ErrConnectionClosed
 		if errors.As(err, &connClosedError) {
-			return connClosedError // Retries
+			return connClosedError // Retries.
 		}
 
-		return backoff.Permanent(err) // Does not retry
+		return backoff.Permanent(err) // Does not retry.
 	}, bo, func(err error, _ time.Duration) {
 		a.logger.Debugf("Could not publish service bus message. Retrying...: %v", err)
 	}, func() {
@@ -344,13 +345,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 	}
 
 	go func() {
-		// Limit the number of attempted reconnects we make
+		// Limit the number of attempted reconnects we make.
 		reconnAttempts := make(chan struct{}, a.metadata.MaxReconnectionAttempts)
 		for i := 0; i < a.metadata.MaxReconnectionAttempts; i++ {
 			reconnAttempts <- struct{}{}
 		}
 
-		// len(reconnAttempts) should be considered stale but we can afford a little error here
+		// len(reconnAttempts) should be considered stale but we can afford a little error here.
 		readAttemptsStale := func() int { return len(reconnAttempts) }
 
 		// Periodically refill the reconnect attempts channel to avoid
@@ -375,7 +376,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 			}
 		}()
 
-		// Reconnect loop
+		// Reconnect loop.
 		for {
 			topic, err := a.namespace.NewTopic(req.Topic)
 			if err != nil {
@@ -420,7 +421,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 					a.logger.Error(innerErr)
 				}
 			}
-			cancel() // Cancel receive context
+			cancel() // Cancel receive context.
 
 			attempts := readAttemptsStale()
 			if attempts == 0 {

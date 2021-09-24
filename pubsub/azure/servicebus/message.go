@@ -7,55 +7,56 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
+
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
 const (
 	// MessageIDMetadataKey defines the metadata key for the message id.
-	MessageIDMetadataKey = "MessageId" // GET/SET
+	MessageIDMetadataKey = "MessageId" // read, write.
 
 	// CorrelationIDMetadataKey defines the metadata key for the correlation id.
-	CorrelationIDMetadataKey = "CorrelationId" // GET/SET
+	CorrelationIDMetadataKey = "CorrelationId" // read, write.
 
 	// SessionIDMetadataKey defines the metadata key for the session id.
-	SessionIDMetadataKey = "SessionId" // GET/SET
+	SessionIDMetadataKey = "SessionId" // read, write.
 
 	// LabelMetadataKey defines the metadata key for the label.
-	LabelMetadataKey = "Label" // GET/SET
+	LabelMetadataKey = "Label" // read, write.
 
 	// ReplyToMetadataKey defines the metadata key for the reply to value.
-	ReplyToMetadataKey = "ReplyTo" // GET/SET
+	ReplyToMetadataKey = "ReplyTo" // read, write.
 
 	// ToMetadataKey defines the metadata key for the to value.
-	ToMetadataKey = "To" // GET/SET
+	ToMetadataKey = "To" // read, write.
 
 	// PartitionKeyMetadataKey defines the metadata key for the partition key.
-	PartitionKeyMetadataKey = "PartitionKey" // GET/SET
+	PartitionKeyMetadataKey = "PartitionKey" // read, write.
 
 	// ContentTypeMetadataKey defines the metadata key for the content type.
-	ContentTypeMetadataKey = "ContentType" // GET/SET
+	ContentTypeMetadataKey = "ContentType" // read, write.
 
 	// DeliveryCountMetadataKey defines the metadata key for the delivery count.
-	DeliveryCountMetadataKey = "DeliveryCount" // GET
+	DeliveryCountMetadataKey = "DeliveryCount" // read.
 
 	// LockedUntilUtcMetadataKey defines the metadata key for the locked until utc value.
-	LockedUntilUtcMetadataKey = "LockedUntilUtc" // GET
+	LockedUntilUtcMetadataKey = "LockedUntilUtc" // read.
 
 	// LockTokenMetadataKey defines the metadata key for the lock token.
-	LockTokenMetadataKey = "LockToken" // GET
+	LockTokenMetadataKey = "LockToken" // read.
 
 	// EnqueuedTimeUtcMetadataKey defines the metadata key for the enqueued time utc value.
-	EnqueuedTimeUtcMetadataKey = "EnqueuedTimeUtc" // GET
+	EnqueuedTimeUtcMetadataKey = "EnqueuedTimeUtc" // read.
 
 	// SequenceNumberMetadataKey defines the metadata key for the sequence number.
-	SequenceNumberMetadataKey = "SequenceNumber" // GET
+	SequenceNumberMetadataKey = "SequenceNumber" // read.
 
 	// ScheduledEnqueueTimeUtcMetadataKey defines the metadata key for the scheduled enqueue time utc value.
-	ScheduledEnqueueTimeUtcMetadataKey = "ScheduledEnqueueTimeUtc" // GET/SET
+	ScheduledEnqueueTimeUtcMetadataKey = "ScheduledEnqueueTimeUtc" // read, write.
 
 	// ReplyToSessionID defines the metadata key for the reply to session id.
-	ReplyToSessionID = "ReplyToSessionId" // GET/SET
+	ReplyToSessionID = "ReplyToSessionId" // read, write.
 )
 
 func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) (*pubsub.NewMessage, error) {

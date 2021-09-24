@@ -8,9 +8,10 @@ import (
 
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	azservicebus "github.com/Azure/azure-service-bus-go"
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func TestNewASBMessageFromPubsubRequest(t *testing.T) {
@@ -99,10 +100,10 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// act
+			// act.
 			msg, err := NewASBMessageFromPubsubRequest(&tc.pubsubRequest)
 
-			// assert
+			// assert.
 			if tc.expectError {
 				require.NotNil(t, err)
 			} else {
@@ -196,10 +197,10 @@ func TestNewPubsubMessageFromAzServiceBusMessage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// act
+			// act.
 			pubsubMsg, err := NewPubsubMessageFromASBMessage(&tc.azServiceBusMessage, tc.topic)
 
-			// assert
+			// assert.
 			if tc.expectError {
 				require.NotNil(t, err)
 			} else {

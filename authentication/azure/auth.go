@@ -72,7 +72,7 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 // GetAuthorizer creates an Authorizer retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI
+// 3. MSI.
 func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 	spt, err := s.GetServicePrincipalToken()
 	if err != nil {
@@ -85,7 +85,7 @@ func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 // GetServicePrincipalToken returns a Service Principal Token retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI
+// 3. MSI.
 func (s EnvironmentSettings) GetServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
@@ -154,7 +154,7 @@ func (s EnvironmentSettings) GetMSI() MSIConfig {
 	return config
 }
 
-// CredentialsConfig provides the options to get a bearer authorizer from client credentials
+// CredentialsConfig provides the options to get a bearer authorizer from client credentials.
 type CredentialsConfig struct {
 	*auth.ClientCredentialsConfig
 }

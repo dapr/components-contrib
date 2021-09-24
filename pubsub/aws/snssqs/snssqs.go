@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -69,7 +70,7 @@ const (
 	awsSnsTopicNameKey = "dapr-topic-name"
 )
 
-// NewSnsSqs - constructor for a new snssqs dapr component
+// NewSnsSqs - constructor for a new snssqs dapr component.
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,

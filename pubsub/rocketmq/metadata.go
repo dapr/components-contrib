@@ -24,6 +24,7 @@ const (
 )
 
 type rocketMQMetaData struct {
+	AccessProto string `mapstructure:"accessProto"`
 	// rocketmq Credentials
 	AccessKey  string `mapstructure:"accessKey"`
 	SecretKey  string `mapstructure:"secretKey"`
@@ -44,6 +45,7 @@ type rocketMQMetaData struct {
 
 func getDefaultRocketMQMetaData() *rocketMQMetaData {
 	return &rocketMQMetaData{
+		AccessProto:       "",
 		AccessKey:         "",
 		SecretKey:         "",
 		NameServer:        "",
@@ -53,7 +55,7 @@ func getDefaultRocketMQMetaData() *rocketMQMetaData {
 		ConsumerBatchSize: 0,
 		NameServerDomain:  "",
 		ContentType:       pubsub.DefaultCloudEventDataContentType,
-		Retries:           0,
+		Retries:           3,
 		SendTimeOut:       10,
 	}
 }

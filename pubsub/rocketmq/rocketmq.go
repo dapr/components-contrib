@@ -34,9 +34,10 @@ type rocketMQ struct {
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	return &rocketMQ{
-		name:   "rocketmq",
-		logger: l,
-		topics: make(map[string]mqc.MessageSelector),
+		name:         "rocketmq",
+		logger:       l,
+		topics:       make(map[string]mqc.MessageSelector),
+		producerPool: cache.New(5*time.Minute, 10*time.Minute),
 	}
 }
 
@@ -55,13 +56,10 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 		"backOff"); err != nil {
 		return fmt.Errorf("retry configuration error: %w", err)
 	}
-	r.producerPool = cache.New(5*time.Minute, 10*time.Minute)
 	r.producerPool.OnEvicted(func(s string, i interface{}) {
-		if p, ok := r.producerPool.Get(s); ok {
-			producer := p.(mq.Producer)
-			if producer != nil {
-				producer.Shutdown()
-			}
+		producer := i.(mq.Producer)
+		if producer != nil {
+			_ = producer.Shutdown()
 		}
 	})
 	return nil
@@ -296,6 +294,12 @@ func (r *rocketMQ) Close() error {
 	r.cancel()
 	if r.pushConsumer != nil {
 		_ = r.pushConsumer.Shutdown()
+	}
+	for _, p := range r.producerPool.Items() {
+		if p.Object != nil {
+			producer := p.Object.(mq.Producer)
+			_ = producer.Shutdown()
+		}
 	}
 	r.producerPool.Flush()
 	return nil

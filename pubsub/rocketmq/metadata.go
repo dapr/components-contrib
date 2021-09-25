@@ -7,12 +7,11 @@ import (
 	"github.com/dapr/kit/config"
 )
 
-var(
-	rocketmqPublishMsgError = errors.New("rocketmq publish msg error")
+var (
+	rocketmqPublishMsgError         = errors.New("rocketmq publish msg error")
 	rocketmqValidPublishMsgTypError = errors.New("rocketmq publish msg error, invalid msg type")
-	rocketmqSubscribeTopicError = errors.New("rocketmq subscribe topic failed")
+	rocketmqSubscribeTopicError     = errors.New("rocketmq subscribe topic failed")
 )
-
 
 const (
 	metadataRocketmqTag           = "rocketmq-tag"
@@ -39,7 +38,24 @@ type rocketMQMetaData struct {
 	// msg's content-type
 	ContentType string `mapstructure:"content-type"`
 	// retry times to connect rocketmq's broker
-	Retries int `mapstructure:"retries"`
+	Retries     int `mapstructure:"retries"`
+	SendTimeOut int `mapstructure:"sendTimeOut"`
+}
+
+func getDefaultRocketMQMetaData() *rocketMQMetaData {
+	return &rocketMQMetaData{
+		AccessKey:         "",
+		SecretKey:         "",
+		NameServer:        "",
+		GroupName:         "",
+		NameSpace:         "",
+		ConsumerGroup:     "",
+		ConsumerBatchSize: 0,
+		NameServerDomain:  "",
+		ContentType:       pubsub.DefaultCloudEventDataContentType,
+		Retries:           0,
+		SendTimeOut:       10,
+	}
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
@@ -50,12 +66,12 @@ func (s *rocketMQMetaData) Decode(in interface{}) error {
 }
 
 func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) {
-	rMetaData := &rocketMQMetaData{
-		ContentType: pubsub.DefaultCloudEventDataContentType,
-	}
-	err := rMetaData.Decode(metadata.Properties)
-	if err != nil {
-		return nil, fmt.Errorf("rocketmq configuration error: %w", err)
+	rMetaData := getDefaultRocketMQMetaData()
+	if metadata.Properties != nil {
+		err := rMetaData.Decode(metadata.Properties)
+		if err != nil {
+			return nil, fmt.Errorf("rocketmq configuration error: %w", err)
+		}
 	}
 	return rMetaData, nil
 }

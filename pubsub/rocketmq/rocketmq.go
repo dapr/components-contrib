@@ -20,7 +20,6 @@ import (
 type rocketMQ struct {
 	name         string
 	metadata     *rocketMQMetaData
-	producer     mq.Producer
 	pushConsumer mq.PushConsumer
 
 	logger logger.Logger

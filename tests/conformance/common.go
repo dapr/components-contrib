@@ -8,6 +8,7 @@ package conformance
 import (
 	"errors"
 	"fmt"
+	"github.com/dapr/components-contrib/pubsub/rocketmq"
 	"io/ioutil"
 	"log"
 	"os"
@@ -339,6 +340,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
 		pubsub = p_inmemory.New(testLogger)
+	case "rocketmq":
+		pubsub = rocketmq.NewRocketMQ(testLogger)
 
 	default:
 		return nil

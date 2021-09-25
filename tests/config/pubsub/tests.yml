@@ -48,3 +48,5 @@ components:
       checkInOrderProcessing: false
   - component: in-memory
     allOperations: true
+  - component: rocketmq
+    allOperations: true

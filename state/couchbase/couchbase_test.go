@@ -8,9 +8,10 @@ package couchbase
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/couchbase/gocb.v1"
+
+	"github.com/dapr/components-contrib/state"
 )
 
 func TestValidateMetadata(t *testing.T) {

@@ -8,9 +8,10 @@ package smtp
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -81,6 +82,44 @@ func TestParseMetadata(t *testing.T) {
 			"host":          "mailserver.dapr.io",
 			"port":          "25",
 			"user":          "user@dapr.io",
+			"password":      "P@$$w0rd!",
+			"skipTLSVerify": "true",
+			"emailFrom":     "from@dapr.io",
+			"emailTo":       "to@dapr.io",
+			"emailCC":       "cc@dapr.io",
+			"emailBCC":      "bcc@dapr.io",
+			"subject":       "Test email",
+			"priority":      "0",
+		}
+		r := Mailer{logger: logger}
+		smtpMeta, err := r.parseMetadata(m)
+		assert.NotNil(t, smtpMeta)
+		assert.NotNil(t, err)
+	})
+	t.Run("Incorrrect  metadata (user, no password)", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"host":          "mailserver.dapr.io",
+			"port":          "25",
+			"user":          "user@dapr.io",
+			"skipTLSVerify": "true",
+			"emailFrom":     "from@dapr.io",
+			"emailTo":       "to@dapr.io",
+			"emailCC":       "cc@dapr.io",
+			"emailBCC":      "bcc@dapr.io",
+			"subject":       "Test email",
+			"priority":      "0",
+		}
+		r := Mailer{logger: logger}
+		smtpMeta, err := r.parseMetadata(m)
+		assert.NotNil(t, smtpMeta)
+		assert.NotNil(t, err)
+	})
+	t.Run("Incorrrect  metadata (no user, password)", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"host":          "mailserver.dapr.io",
+			"port":          "25",
 			"password":      "P@$$w0rd!",
 			"skipTLSVerify": "true",
 			"emailFrom":     "from@dapr.io",

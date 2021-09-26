@@ -43,6 +43,7 @@ jobs:
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
+        - bindings.influx
         - bindings.kafka
         - bindings.redis
         - bindings.mqtt-mosquitto
@@ -57,11 +58,14 @@ jobs:
         - pubsub.mqtt-vernemq
         - pubsub.hazelcast
         - pubsub.rabbitmq
+        - pubsub.in-memory
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
         - state.mongodb
         - state.redis
+        - state.sqlserver
+        - state.mysql
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -87,14 +91,20 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: state.cosmosdb
+        - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.tablestorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: pubsub.azure.eventhubs
+          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.eventhubs
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
@@ -191,6 +201,10 @@ jobs:
         mongodb-replica-set: test-rs
       if: contains(matrix.component, 'mongodb')
 
+    - name: Start sqlserver
+      run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
+      if: contains(matrix.component, 'sqlserver')
+
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
       if: contains(matrix.component, 'kafka')
@@ -222,6 +236,18 @@ jobs:
     - name: Start rabbitmq
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
+
+    - name: Start influxdb
+      run: |
+        export INFLUX_TOKEN=$(openssl rand -base64 32)
+        echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
+      if: contains(matrix.component, 'influx')
+
+    - name: Start mysql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
+      if: contains(matrix.component, 'mysql')
 
     - name: Start KinD
       uses: helm/kind-action@v1.0.0
@@ -258,7 +284,8 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         set +e
-        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json --format standard-verbose -- \
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
           -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
 
         status=$?
@@ -299,10 +326,10 @@ jobs:
           exit 1
         fi
 
-    # Upload logs for dashboard like dapr/dapr E2E tests
+    # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@master
       with:
-        name: ${{ matrix.component }}_conformance_test.json
-        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json
+        name: ${{ matrix.component }}_conformance_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*

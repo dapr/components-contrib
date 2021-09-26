@@ -3,8 +3,9 @@ package pubsub
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func TestInit(t *testing.T) {
@@ -22,6 +23,7 @@ func TestInit(t *testing.T) {
 			"identityProjectId":       "project1",
 			"tokenUri":                "https://token",
 			"type":                    "serviceaccount",
+			"enableMessageOrdering":   "true",
 		}
 		b, err := createMetadata(m)
 		assert.Nil(t, err)
@@ -36,6 +38,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, "project1", b.IdentityProjectID)
 		assert.Equal(t, "https://token", b.TokenURI)
 		assert.Equal(t, "serviceaccount", b.Type)
+		assert.Equal(t, true, b.EnableMessageOrdering)
 	})
 
 	t.Run("metadata is correct with implicit creds", func(t *testing.T) {

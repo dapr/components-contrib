@@ -15,14 +15,16 @@ import (
 
 	"github.com/a8m/documentdb"
 	"github.com/agrea/ptr"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
 
-// StateStore is a CosmosDB state store
+// StateStore is a CosmosDB state store.
 type StateStore struct {
 	state.DefaultBulkStore
 	client      *documentdb.DocumentDB
@@ -44,7 +46,7 @@ type metadata struct {
 	ContentType string `json:"contentType"`
 }
 
-// CosmosItem is a wrapper around a CosmosDB document
+// CosmosItem is a wrapper around a CosmosDB document.
 type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
@@ -66,7 +68,7 @@ const (
 	metadataTTLKey       = "ttlInSeconds"
 )
 
-// NewCosmosDBStateStore returns a new CosmosDB state store
+// NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -77,7 +79,7 @@ func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
@@ -99,9 +101,6 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	if m.URL == "" {
 		return errors.New("url is required")
 	}
-	if m.MasterKey == "" {
-		return errors.New("masterKey is required")
-	}
 	if m.Database == "" {
 		return errors.New("database is required")
 	}
@@ -112,11 +111,25 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return errors.New("contentType is required")
 	}
 
-	client := documentdb.New(m.URL, &documentdb.Config{
-		MasterKey: &documentdb.Key{
+	// Create the client; first, try authenticating with a master key, if present
+	var config *documentdb.Config
+	if m.MasterKey != "" {
+		config = documentdb.NewConfig(&documentdb.Key{
 			Key: m.MasterKey,
-		},
-	})
+		})
+	} else {
+		// Fallback to using Azure AD
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		if errB != nil {
+			return errB
+		}
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
+		}
+		config = documentdb.NewConfigWithServicePrincipal(spt)
+	}
+	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
 		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
@@ -179,12 +192,12 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (c *StateStore) Features() []state.Feature {
 	return c.features
 }
 
-// Get retrieves a CosmosDB item
+// Get retrieves a CosmosDB item.
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
@@ -230,7 +243,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Set saves a CosmosDB item
+// Set saves a CosmosDB item.
 func (c *StateStore) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -241,10 +254,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
+		options = append(options, documentdb.IfMatch((*req.ETag)))
+	}
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		etag := uuid.NewString()
 		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
@@ -258,7 +271,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
+	_, err = c.client.UpsertDocument(c.collection.Self, &doc, options...)
 
 	if err != nil {
 		if req.ETag != nil {
@@ -271,7 +284,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -295,11 +308,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
-		options = append(options, documentdb.IfMatch((etag)))
+		options = append(options, documentdb.IfMatch((*req.ETag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -322,7 +331,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	return err
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	upserts := []CosmosItem{}
 	deletes := []CosmosItem{}

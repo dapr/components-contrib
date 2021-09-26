@@ -1,9 +1,8 @@
 package pubsub
 
-// GCPPubSubMetaData pubsub metadata
+// GCPPubSubMetaData pubsub metadata.
 type metadata struct {
 	consumerID              string
-	DisableEntityManagement bool
 	Type                    string
 	IdentityProjectID       string
 	ProjectID               string
@@ -15,4 +14,6 @@ type metadata struct {
 	TokenURI                string
 	AuthProviderCertURL     string
 	ClientCertURL           string
+	DisableEntityManagement bool
+	EnableMessageOrdering   bool
 }

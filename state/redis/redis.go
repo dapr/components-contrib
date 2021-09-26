@@ -38,7 +38,7 @@ const (
 	defaultMaxRetryBackoff   = time.Second * 2
 )
 
-// StateStore is a Redis state store
+// StateStore is a Redis state store.
 type StateStore struct {
 	state.DefaultBulkStore
 	client         redis.UniversalClient
@@ -54,7 +54,7 @@ type StateStore struct {
 	cancel context.CancelFunc
 }
 
-// NewRedisStateStore returns a new redis state store
+// NewRedisStateStore returns a new redis state store.
 func NewRedisStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
@@ -87,6 +87,17 @@ func parseRedisMetadata(meta state.Metadata) (metadata, error) {
 		m.maxRetryBackoff = time.Duration(parsedVal)
 	}
 
+	if val, ok := meta.Properties[ttlInSeconds]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)
+		}
+		intVal := int(parsedVal)
+		m.ttlInSeconds = &intVal
+	} else {
+		m.ttlInSeconds = nil
+	}
+
 	return m, nil
 }
 
@@ -98,7 +109,7 @@ func (r *StateStore) Ping() error {
 	return nil
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (r *StateStore) Init(metadata state.Metadata) error {
 	m, err := parseRedisMetadata(metadata)
 	if err != nil {
@@ -123,7 +134,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return err
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
@@ -170,7 +181,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	return nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -197,7 +208,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 	}, nil
 }
 
-// Get retrieves state from redis with a key
+// Get retrieves state from redis with a key.
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
@@ -234,6 +245,10 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	ttl, err := r.parseTTL(req)
 	if err != nil {
 		return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+	}
+	// apply global TTL
+	if ttl == nil {
+		ttl = r.metadata.ttlInSeconds
 	}
 
 	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
@@ -275,12 +290,12 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	return nil
 }
 
-// Set saves state into redis
+// Set saves state into redis.
 func (r *StateStore) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(r.setValue, req)
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
@@ -295,6 +310,11 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			if err != nil {
 				return fmt.Errorf("failed to parse ttl from metadata: %s", err)
 			}
+			// apply global TTL
+			if ttl == nil {
+				ttl = r.metadata.ttlInSeconds
+			}
+
 			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
 			if ttl != nil && *ttl > 0 {

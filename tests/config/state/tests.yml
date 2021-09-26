@@ -5,5 +5,11 @@ components:
     allOperations: true
   - component: mongodb
     allOperations: true
-  - component: cosmosdb
+  - component: azure.cosmosdb
     allOperations: true
+  - component: sqlserver
+    allOperations: true
+  - component: mysql
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
+  - component: azure.tablestorage
+    operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]

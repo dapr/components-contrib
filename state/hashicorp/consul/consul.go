@@ -10,10 +10,11 @@ import (
 	"fmt"
 
 	"github.com/agrea/ptr"
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 	"github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 // Consul is a state store implementation for HashiCorp Consul.
@@ -41,7 +42,7 @@ func NewConsulStateStore(logger logger.Logger) *Consul {
 }
 
 // Init does metadata and config parsing and initializes the
-// Consul client
+// Consul client.
 func (c *Consul) Init(metadata state.Metadata) error {
 	consulConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
@@ -71,7 +72,7 @@ func (c *Consul) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (c *Consul) Features() []state.Feature {
 	// Etag is just returned and not handled in set or delete operations.
 	return nil
@@ -92,7 +93,7 @@ func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 	return &config, nil
 }
 
-// Get retrieves a Consul KV item
+// Get retrieves a Consul KV item.
 func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	queryOpts := &api.QueryOptions{}
 	if req.Options.Consistency == state.Strong {
@@ -114,7 +115,7 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Set saves a Consul KV item
+// Set saves a Consul KV item.
 func (c *Consul) Set(req *state.SetRequest) error {
 	var reqValByte []byte
 	b, ok := req.Value.([]byte)
@@ -141,7 +142,7 @@ func (c *Consul) Ping() error {
 	return nil
 }
 
-// Delete performes a Consul KV delete operation
+// Delete performes a Consul KV delete operation.
 func (c *Consul) Delete(req *state.DeleteRequest) error {
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
 	_, err := c.client.KV().Delete(keyWithPath, nil)

@@ -2,15 +2,17 @@ package redisnative
 
 import (
 	"context"
-	"github.com/alicebob/miniredis/v2"
-	"github.com/dapr/components-contrib/configuration"
-	"github.com/dapr/kit/logger"
-	"github.com/go-redis/redis/v7"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v7"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/configuration"
+	"github.com/dapr/kit/logger"
 )
 
 func TestConfigurationStore_Get(t *testing.T) {
@@ -116,6 +118,11 @@ func TestConfigurationStore_Get(t *testing.T) {
 				return
 			}
 
+			if got == nil {
+				t.Errorf("Get() got configuration response is nil")
+				return
+			}
+
 			if len(got.Items) != len(tt.want.Items) {
 				t.Errorf("Get() got len = %v, want len = %v", len(got.Items), len(tt.want.Items))
 				return
@@ -125,7 +132,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				return
 			}
 
-			for k, _ := range got.Items {
+			for k := range got.Items {
 				assert.Equal(t, tt.want.Items[k], got.Items[k])
 			}
 		})

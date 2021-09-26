@@ -5,8 +5,10 @@ import (
 	"strings"
 )
 
-const separator = "/"
-const channelPrefix = "__keyspace@0__:"
+const (
+	channelPrefix = "__keyspace@0__:"
+	separator     = "/"
+)
 
 func GetRedisValueAndVersion(redisValue string) (string, string) {
 	valueAndRevision := strings.Split(redisValue, separator)

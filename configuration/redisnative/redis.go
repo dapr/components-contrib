@@ -14,11 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-redis/redis/v7"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/configuration/redisnative/internal"
 	"github.com/dapr/kit/logger"
-	"github.com/go-redis/redis/v7"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 	defaultEnableTLS         = false
 )
 
-// ConfigurationStore is a Redis configuration store
+// ConfigurationStore is a Redis configuration store.
 type ConfigurationStore struct {
 	client   *redis.Client
 	json     jsoniter.API
@@ -49,7 +50,7 @@ type ConfigurationStore struct {
 	logger logger.Logger
 }
 
-// NewRedisConfigurationStore returns a new redis state store
+// NewRedisConfigurationStore returns a new redis state store.
 func NewRedisConfigurationStore(logger logger.Logger) configuration.Store {
 	s := &ConfigurationStore{
 		json:   jsoniter.ConfigFastest,
@@ -119,7 +120,7 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 	return m, nil
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	m, err := parseRedisMetadata(metadata)
 	if err != nil {

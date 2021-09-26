@@ -8,19 +8,19 @@ type Item struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// GetRequest is the object describing a get configuration request
+// GetRequest is the object describing a request to get configuration.
 type GetRequest struct {
 	Keys     []string          `json:"keys"`
 	Metadata map[string]string `json:"metadata"`
 }
 
-// SubscribeRequest is the object describing a subscribe configuration request
+// SubscribeRequest is the object describing a request to subscribe configuration.
 type SubscribeRequest struct {
 	Keys     []string          `json:"keys"`
 	Metadata map[string]string `json:"metadata"`
 }
 
-// UpdateEvent is the object describing a configuration update event
+// UpdateEvent is the object describing a configuration update event.
 type UpdateEvent struct {
 	Items []*Item `json:"items"`
 }

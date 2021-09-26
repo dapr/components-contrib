@@ -1,4 +1,4 @@
-package redisNative
+package redisnative
 
 import (
 	"context"

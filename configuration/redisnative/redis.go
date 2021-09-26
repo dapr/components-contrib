@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package redisNative
+package redisnative
 
 import (
 	"context"
@@ -250,7 +250,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) error {
 	if len(req.Keys) == 0 {
-		go r.doSubscribe(ctx, req, handler, fmt.Sprintf("__keyspace@0__:*"))
+		go r.doSubscribe(ctx, req, handler, "__keyspace@0__:*")
 		return nil
 	}
 	for _, k := range req.Keys {

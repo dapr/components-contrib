@@ -8,11 +8,10 @@ package tablestore
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
-
 	"github.com/agrea/ptr"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 

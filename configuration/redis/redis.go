@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package redisnative
+package redis
 
 import (
 	"context"
@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/configuration"
-	"github.com/dapr/components-contrib/configuration/redisnative/internal"
+	"github.com/dapr/components-contrib/configuration/redis/internal"
 	"github.com/dapr/kit/logger"
 )
 
@@ -38,11 +38,13 @@ const (
 	defaultMaxRetries        = 3
 	defaultMaxRetryBackoff   = time.Second * 2
 	defaultEnableTLS         = false
+	keySpacePrefix           = "__keyspace@0__:"
+	keySpaceAny              = "__keyspace@0__:*"
 )
 
 // ConfigurationStore is a Redis configuration store.
 type ConfigurationStore struct {
-	client   *redis.Client
+	client   redis.UniversalClient
 	json     jsoniter.API
 	metadata metadata
 	replicas int
@@ -134,7 +136,7 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		r.client = r.newClient(m)
 	}
 
-	if _, err = r.client.Ping().Result(); err != nil {
+	if _, err = r.client.Ping(context.TODO()).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
 	}
 
@@ -183,7 +185,7 @@ func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
 }
 
 func (r *ConfigurationStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.DoContext(context.Background(), "INFO", "replication").Result()
+	res, err := r.client.Do(context.Background(), "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}
@@ -203,7 +205,6 @@ func (r *ConfigurationStore) parseConnectedSlaves(res string) int {
 	for _, info := range infos {
 		if strings.Contains(info, connectedSlavesReplicas) {
 			parsedReplicas, _ := strconv.ParseUint(info[len(connectedSlavesReplicas):], 10, 32)
-
 			return int(parsedReplicas)
 		}
 	}
@@ -215,8 +216,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	keys := req.Keys
 	var err error
 	if len(keys) == 0 {
-		// get all keys
-		if keys, err = r.client.Keys("*").Result(); err != nil {
+		if keys, err = r.client.Keys(ctx, "*").Result(); err != nil {
 			r.logger.Errorf("failed to all keys, error is %s", err)
 		}
 	}
@@ -229,7 +229,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			Metadata: map[string]string{},
 		}
 
-		redisValue, err := r.client.Get(redisKey).Result()
+		redisValue, err := r.client.Get(ctx, redisKey).Result()
 		if err != nil {
 			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", redisKey, err)
 		}
@@ -251,19 +251,19 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) error {
 	if len(req.Keys) == 0 {
-		go r.doSubscribe(ctx, req, handler, "__keyspace@0__:*")
+		go r.doSubscribe(ctx, req, handler, keySpaceAny)
 		return nil
 	}
 	for _, k := range req.Keys {
-		go r.doSubscribe(ctx, req, handler, fmt.Sprintf("__keyspace@0__:%s", k))
+		go r.doSubscribe(ctx, req, handler, keySpacePrefix+k)
 	}
 	return nil
 }
 
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string) {
 	// enable notify-keyspace-events by redis Set command
-	r.client.ConfigSet("notify-keyspace-events", "KA")
-	p := r.client.Subscribe(redisChannel4revision)
+	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
+	p := r.client.Subscribe(ctx, redisChannel4revision)
 	for msg := range p.Channel() {
 		r.handleSubscribedChange(ctx, req, handler, msg)
 	}
@@ -275,7 +275,6 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
 		}
 	}()
-	// msg.Channel
 	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
 	if err != nil {
 		return

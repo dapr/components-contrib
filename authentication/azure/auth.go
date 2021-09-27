@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
-	"github.com/dapr/kit/logger"
 	"golang.org/x/crypto/pkcs12"
 )
 
@@ -88,7 +87,6 @@ func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 // 2. Client certificate
 // 3. MSI.
 func (s EnvironmentSettings) GetServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
-	adal.AddToUserAgent("dapr-" + logger.DaprVersion)
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
 		return c.ServicePrincipalToken()

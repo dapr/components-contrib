@@ -178,7 +178,7 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 
 	b, err := json.Marshal(resp)
 	if err != nil {
-		return nil, fmt.Errorf("gcp 1binding error. error marshalling create response: %w", err)
+		return nil, fmt.Errorf("gcp binding error. error marshalling create response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -189,7 +189,7 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("gcp binding binding error. error merge metadata : %w", err)
 	}
 
 	var key string

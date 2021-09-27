@@ -75,7 +75,6 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 // 2. Client certificate
 // 3. MSI.
 func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
-	adal.AddToUserAgent("dapr-" + logger.DaprVersion)
 	spt, err := s.GetServicePrincipalToken()
 	if err != nil {
 		return nil, err
@@ -89,6 +88,7 @@ func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 // 2. Client certificate
 // 3. MSI.
 func (s EnvironmentSettings) GetServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
+	adal.AddToUserAgent("dapr-" + logger.DaprVersion)
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
 		return c.ServicePrincipalToken()

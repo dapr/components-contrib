@@ -27,7 +27,6 @@ const (
 	// metadata.
 	connectionString = "connectionString"
 	consumerID       = "consumerID" // passed by dapr runtime
-	userAgent        = "dapr"
 
 	// required by subscriber.
 	storageAccountName   = "storageAccountName"
@@ -158,6 +157,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
+	userAgent := "dapr-" + logger.DaprVersion
 	aeh.metadata = m
 	hub, err := eventhub.NewHubFromConnectionString(aeh.metadata.connectionString,
 		eventhub.HubWithUserAgent(userAgent))

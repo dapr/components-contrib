@@ -313,6 +313,13 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), metadata.operationTimeout)
 	defer cancel()
 
+	daprUserAgent := "dapr-" + logger.DaprVersion
+	if clientOptions.AppName != nil {
+		clientOptions.SetAppName(daprUserAgent + ":" + *clientOptions.AppName)
+	} else {
+		clientOptions.SetAppName(daprUserAgent)
+	}
+
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return nil, err

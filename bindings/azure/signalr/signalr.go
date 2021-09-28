@@ -50,6 +50,7 @@ type SignalR struct {
 	accessKey  string
 	version    string
 	hub        string
+	userAgent  string
 	tokens     map[string]signalrCachedToken
 	httpClient *http.Client
 
@@ -58,6 +59,8 @@ type SignalR struct {
 
 // Init is responsible for initializing the SignalR output based on the metadata.
 func (s *SignalR) Init(metadata bindings.Metadata) error {
+	s.userAgent = "dapr-" + logger.DaprVersion
+
 	connectionString, ok := metadata.Properties[connectionStringKey]
 	if !ok || connectionString == "" {
 		return fmt.Errorf("missing connection string")
@@ -128,6 +131,7 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("User-Agent", s.userAgent)
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {

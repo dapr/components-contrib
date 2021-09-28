@@ -84,7 +84,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
 
-	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+	userAgent := "dapr-" + logger.DaprVersion
+	options := azblob.PipelineOptions{
+		Telemetry: azblob.TelemetryOptions{Value: userAgent},
+	}
+	p := azblob.NewPipeline(credential, options)
 
 	var containerURL azblob.ContainerURL
 	customEndpoint, ok := metadata.Properties[endpointKey]

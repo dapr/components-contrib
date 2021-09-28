@@ -58,7 +58,13 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 	d.credential = credential
 	d.decodeBase64 = decodeBase64
 	u, _ := url.Parse(fmt.Sprintf(d.reqURI, accountName, queueName))
-	d.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, azqueue.PipelineOptions{}))
+	userAgent := "dapr-" + logger.DaprVersion
+	pipelineOptions := azqueue.PipelineOptions{
+		Telemetry: azqueue.TelemetryOptions{
+			Value: userAgent,
+		},
+	}
+	d.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, pipelineOptions))
 	ctx := context.TODO()
 	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
 	if err != nil {

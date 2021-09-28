@@ -119,7 +119,12 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %w", err)
 	}
-	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+
+	userAgent := "dapr-" + logger.DaprVersion
+	options := azblob.PipelineOptions{
+		Telemetry: azblob.TelemetryOptions{Value: userAgent},
+	}
+	p := azblob.NewPipeline(credential, options)
 
 	containerName := a.metadata.Container
 	URL, _ := url.Parse(

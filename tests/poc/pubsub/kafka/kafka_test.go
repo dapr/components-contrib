@@ -19,7 +19,6 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/app"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/sidecar"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/watcher"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/harness"
 )
 
@@ -33,17 +32,15 @@ const (
 )
 
 func TestKafka(t *testing.T) {
+	messages := harness.NewWatcher()
+
 	flow.New(t, "kafka comformance").
-		Task("create watchers", watcher.Create("messages")).
 		Service(clusterName,
 			dockercompose.Up(dockerComposeYAML),
 			dockercompose.Down(dockerComposeYAML)).
 		Service(appName,
 			app.Run(appName, ":8000",
 				func(ctx flow.Context, s common.Service) error {
-					var messages *harness.Watcher
-					ctx.MustGet("messages", &messages)
-
 					if err := s.AddTopicEventHandler(&common.Subscription{
 						PubsubName: "messagebus",
 						Topic:      "neworder",
@@ -71,11 +68,8 @@ func TestKafka(t *testing.T) {
 			)),
 			sidecar.Stop(sidecarName)).
 		Func("send and wait", func(ctx flow.Context) error {
-			var messages *harness.Watcher
 			var client *sidecar.Client
-			ctx.MustGet(
-				"messages", &messages,
-				sidecarName, &client)
+			ctx.MustGet(sidecarName, &client)
 
 			ctx.Log("Sending messages!")
 

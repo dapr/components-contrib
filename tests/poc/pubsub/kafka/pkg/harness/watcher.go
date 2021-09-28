@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type Watcher struct {
@@ -78,9 +79,24 @@ func (w *Watcher) AssertResult(t TestingT, duration time.Duration) bool {
 	select {
 	case <-time.After(duration):
 		t.Error(ErrTimeout)
+
 		return false
 	case <-w.finished:
 		w.remainingMu.Lock()
+
 		return assert.Equal(t, w.expected, w.observed)
+	}
+}
+
+func (w *Watcher) RequireResult(t TestingT, duration time.Duration) {
+	select {
+	case <-time.After(duration):
+		t.Error(ErrTimeout)
+
+		require.FailNow(t, "timeout")
+	case <-w.finished:
+		w.remainingMu.Lock()
+
+		require.Equal(t, w.expected, w.observed)
 	}
 }

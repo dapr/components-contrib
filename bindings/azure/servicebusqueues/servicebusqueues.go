@@ -51,9 +51,11 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	userAgent := "dapr-" + logger.DaprVersion
 	a.metadata = meta
 
-	ns, err := servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
+	ns, err := servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
+		servicebus.NamespaceWithUserAgent(userAgent))
 	if err != nil {
 		return err
 	}

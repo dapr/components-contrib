@@ -77,6 +77,7 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 	authorizer, err := settings.GetAuthorizer()
 	if err == nil {
 		k.vaultClient.Authorizer = authorizer
+		k.vaultClient.UserAgent = "dapr-" + logger.DaprVersion
 	}
 
 	k.vaultName = settings.Values[componentVaultName]

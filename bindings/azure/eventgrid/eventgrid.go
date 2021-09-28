@@ -23,8 +23,9 @@ import (
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events.
 type AzureEventGrid struct {
-	metadata *azureEventGridMetadata
-	logger   logger.Logger
+	metadata  *azureEventGridMetadata
+	logger    logger.Logger
+	userAgent string
 }
 
 type azureEventGridMetadata struct {
@@ -55,6 +56,7 @@ func NewAzureEventGrid(logger logger.Logger) *AzureEventGrid {
 
 // Init performs metadata init.
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
+	a.userAgent = "dapr-" + logger.DaprVersion
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -126,6 +128,7 @@ func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	request.Header.SetMethod(fasthttp.MethodPost)
 	request.Header.Set("Content-Type", "application/cloudevents+json")
 	request.Header.Set("aeg-sas-key", a.metadata.AccessKey)
+	request.Header.Set("User-Agent", a.userAgent)
 	request.SetRequestURI(a.metadata.TopicEndpoint)
 	request.SetBody(req.Data)
 
@@ -222,6 +225,7 @@ func (a *AzureEventGrid) createSubscription() error {
 	clientCredentialsConfig := auth.NewClientCredentialsConfig(a.metadata.ClientID, a.metadata.ClientSecret, a.metadata.TenantID)
 
 	subscriptionClient := eventgrid.NewEventSubscriptionsClient(a.metadata.SubscriptionID)
+	subscriptionClient.AddToUserAgent(a.userAgent)
 	authorizer, err := clientCredentialsConfig.Authorizer()
 	if err != nil {
 		return err

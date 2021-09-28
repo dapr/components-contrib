@@ -26,6 +26,7 @@ import (
 const (
 	// Environment variable containing the connection string to Azure Service Bus
 	testServiceBusEnvKey = "DAPR_TEST_AZURE_SERVICEBUS"
+	ttlInSeconds         = 5
 )
 
 func getTestServiceBusConnectionString() string {
@@ -66,7 +67,7 @@ func TestQueueWithTTL(t *testing.T) {
 	queueName := uuid.New().String()
 	a := NewAzureServiceBusQueues(logger.NewLogger("test"))
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"connectionString": serviceBusConnectionString, "queueName": queueName, metadata.TTLMetadataKey: "1"}
+	m.Properties = map[string]string{"connectionString": serviceBusConnectionString, "queueName": queueName, metadata.TTLMetadataKey: fmt.Sprintf("%d", ttlInSeconds)}
 	err := a.Init(m)
 	assert.Nil(t, err)
 
@@ -81,16 +82,15 @@ func TestQueueWithTTL(t *testing.T) {
 
 	queueEntity, err := qmr.Get(context.Background(), queueName)
 	assert.Nil(t, err)
-	assert.Equal(t, "PT1S", *queueEntity.DefaultMessageTimeToLive)
+	assert.Equal(t, fmt.Sprintf("PT%dS", ttlInSeconds), *queueEntity.DefaultMessageTimeToLive)
 
 	// Assert that if waited too long, we won't see any message
 	const tooLateMsgContent = "too_late_msg"
 	_, err = a.Invoke(&bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * (ttlInSeconds + 2))
 
-	const ttlInSeconds = 1
 	const maxGetDuration = ttlInSeconds * time.Second
 
 	_, ok, err := getMessageWithRetries(queue, maxGetDuration)
@@ -108,7 +108,7 @@ func TestQueueWithTTL(t *testing.T) {
 	msgBody := string(msg.Data)
 	assert.Equal(t, testMsgContent, msgBody)
 	assert.NotNil(t, msg.TTL)
-	assert.Equal(t, time.Second, *msg.TTL)
+	assert.Equal(t, ttlInSeconds*time.Second, *msg.TTL)
 }
 
 func TestPublishingWithTTL(t *testing.T) {
@@ -141,15 +141,14 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest := bindings.InvokeRequest{
 		Data: []byte(tooLateMsgContent),
 		Metadata: map[string]string{
-			metadata.TTLMetadataKey: "1",
+			metadata.TTLMetadataKey: fmt.Sprintf("%d", ttlInSeconds),
 		},
 	}
 	_, err = queueBinding1.Invoke(&writeRequest)
 	assert.Nil(t, err)
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * (ttlInSeconds + 2))
 
-	const ttlInSeconds = 1
 	const maxGetDuration = ttlInSeconds * time.Second
 
 	_, ok, err := getMessageWithRetries(queue, maxGetDuration)
@@ -165,7 +164,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	writeRequest = bindings.InvokeRequest{
 		Data: []byte(testMsgContent),
 		Metadata: map[string]string{
-			metadata.TTLMetadataKey: "1",
+			metadata.TTLMetadataKey: fmt.Sprintf("%d", ttlInSeconds),
 		},
 	}
 	_, err = queueBinding2.Invoke(&writeRequest)
@@ -178,5 +177,5 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.Equal(t, testMsgContent, msgBody)
 	assert.NotNil(t, msg.TTL)
 
-	assert.Equal(t, time.Second, *msg.TTL)
+	assert.Equal(t, ttlInSeconds*time.Second, *msg.TTL)
 }

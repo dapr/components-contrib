@@ -40,7 +40,7 @@ func TestKafka(t *testing.T) {
 			dockercompose.Up(dockerComposeYAML),
 			dockercompose.Down(dockerComposeYAML)).
 		Task("wait for kafka readiness",
-			network.WaitForAddresses(5*time.Second, "localhost:9092")).
+			network.WaitForAddresses(time.Minute, "localhost:9092")).
 		Service(appName,
 			app.Start(appName, ":8000",
 				func(ctx flow.Context, s common.Service) error {

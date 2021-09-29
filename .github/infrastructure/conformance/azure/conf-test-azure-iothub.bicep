@@ -8,6 +8,7 @@ param rgLocation string = resourceGroup().location
 param confTestTags object = {}
 
 var iotHubBindingsConsumerGroupName = '${iotHubName}/events/bindings-cg'
+var iotHubPubsubConsumerGroupName = '${iotHubName}/events/pubsub-cg'
 
 resource iotHub 'Microsoft.Devices/IotHubs@2021-03-31' = {
   name: iotHubName
@@ -37,4 +38,15 @@ resource iotHubBindingsConsumerGroup 'Microsoft.Devices/IotHubs/eventHubEndpoint
   ]
 }
 
+resource iotHubPubsubConsumerGroup 'Microsoft.Devices/IotHubs/eventHubEndpoints/ConsumerGroups@2021-03-31' = {
+  name: iotHubPubsubConsumerGroupName
+  properties: {
+    name: 'pubsub-cg'
+  }
+  dependsOn: [
+    iotHub
+  ]
+}
+
 output iotHubBindingsConsumerGroupName string = iotHubBindingsConsumerGroup.name
+output iotHubPubsubConsumerGroupName string = iotHubPubsubConsumerGroup.name

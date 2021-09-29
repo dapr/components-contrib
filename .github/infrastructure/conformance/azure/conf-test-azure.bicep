@@ -128,6 +128,7 @@ output eventHubPubsubPolicyName string = eventHubsNamespace.outputs.eventHubPubs
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace.outputs.eventHubPubsubConsumerGroupName
 output iotHubName string = iotHub.name
 output iotHubBindingsConsumerGroupName string = iotHub.outputs.iotHubBindingsConsumerGroupName
+output iotHubPubsubConsumerGroupName string = iotHub.outputs.iotHubPubsubConsumerGroupName
 output keyVaultName string = keyVault.name
 output serviceBusName string = serviceBus.name
 output storageName string = storage.name

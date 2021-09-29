@@ -16,14 +16,15 @@ func Do(fn func() error) Runnable {
 }
 
 type Flow struct {
-	t          *testing.T
-	ctx        context.Context
-	name       string
-	varsMu     sync.RWMutex
-	variables  map[string]interface{}
-	tasks      []namedRunnable
-	cleanup    []string
-	cleanupMap map[string]Runnable
+	t           *testing.T
+	ctx         context.Context
+	name        string
+	varsMu      sync.RWMutex
+	variables   map[string]interface{}
+	tasks       []namedRunnable
+	cleanup     []string
+	uncalledMap map[string]Runnable
+	cleanupMap  map[string]Runnable
 }
 
 type namedRunnable struct {
@@ -33,13 +34,14 @@ type namedRunnable struct {
 
 func New(t *testing.T, name string) *Flow {
 	return &Flow{
-		t:          t,
-		ctx:        context.Background(),
-		name:       name,
-		variables:  make(map[string]interface{}, 25),
-		tasks:      make([]namedRunnable, 0, 25),
-		cleanup:    make([]string, 0, 25),
-		cleanupMap: make(map[string]Runnable, 10),
+		t:           t,
+		ctx:         context.Background(),
+		name:        name,
+		variables:   make(map[string]interface{}, 25),
+		tasks:       make([]namedRunnable, 0, 25),
+		cleanup:     make([]string, 0, 25),
+		uncalledMap: make(map[string]Runnable, 10),
+		cleanupMap:  make(map[string]Runnable, 10),
 	}
 }
 
@@ -66,7 +68,7 @@ func as(source, target interface{}) bool {
 	return false
 }
 
-func (f *Flow) Task(name string, runnable Runnable) *Flow {
+func (f *Flow) Step(name string, runnable Runnable) *Flow {
 	f.tasks = append(f.tasks, namedRunnable{name, runnable})
 	return f
 }
@@ -74,22 +76,7 @@ func (f *Flow) Task(name string, runnable Runnable) *Flow {
 func (f *Flow) Service(name string, start Runnable, stop Runnable) *Flow {
 	f.tasks = append(f.tasks, namedRunnable{name, start})
 	f.cleanup = append(f.cleanup, name)
-	f.cleanupMap[name] = stop
-	return f
-}
-
-func (f *Flow) Stop(name string) *Flow {
-	ctx := Context{
-		name:    name,
-		Context: f.ctx,
-		T:       f.t,
-		Flow:    f,
-	}
-	if cleanup, ok := f.cleanupMap[name]; ok {
-		delete(f.cleanupMap, name)
-		cleanup(ctx)
-	}
-
+	f.uncalledMap[name] = stop
 	return f
 }
 
@@ -111,6 +98,11 @@ func (f *Flow) Run() {
 		}()
 
 		for _, r := range f.tasks {
+			if c, ok := f.uncalledMap[r.name]; ok {
+				f.cleanupMap[r.name] = c
+				delete(f.uncalledMap, r.name)
+			}
+
 			if !t.Run(r.name, func(t *testing.T) {
 				ctx := Context{
 					name:    r.name,

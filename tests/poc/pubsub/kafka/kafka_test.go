@@ -27,7 +27,7 @@ var log = logger.NewLogger("dapr.components")
 
 const (
 	sidecarName       = "sidecar-1"
-	appName           = "app-1"
+	applicationName   = "app-1"
 	clusterName       = "kafka"
 	dockerComposeYAML = "kafka-cluster.yaml"
 )
@@ -39,10 +39,10 @@ func TestKafka(t *testing.T) {
 		Service(clusterName,
 			dockercompose.Up(dockerComposeYAML),
 			dockercompose.Down(dockerComposeYAML)).
-		Task("wait for kafka readiness",
+		Step("wait for kafka readiness",
 			network.WaitForAddresses(time.Minute, "localhost:9092")).
-		Service(appName,
-			app.Start(appName, ":8000",
+		Service(applicationName,
+			app.Start(applicationName, ":8000",
 				func(ctx flow.Context, s common.Service) error {
 					if err := s.AddTopicEventHandler(&common.Subscription{
 						PubsubName: "messagebus",
@@ -59,8 +59,8 @@ func TestKafka(t *testing.T) {
 
 					return nil
 				}),
-			app.Stop(appName)).
-		Service("start sidecar",
+			app.Stop(applicationName)).
+		Service(sidecarName,
 			sidecar.Start(sidecarName, runtime.WithPubSubs(
 				pubsub_loader.New("kafka", func() pubsub.PubSub {
 					return pubsub_kafka.NewKafka(log)
@@ -70,7 +70,7 @@ func TestKafka(t *testing.T) {
 				}),
 			)),
 			sidecar.Stop(sidecarName)).
-		Task("send and wait", func(ctx flow.Context) error {
+		Step("send and wait", func(ctx flow.Context) error {
 			var client *sidecar.Client
 			ctx.MustGet(sidecarName, &client)
 

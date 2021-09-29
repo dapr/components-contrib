@@ -20,20 +20,19 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/network"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/sidecar"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/harness"
+	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/watcher"
 )
 
-var log = logger.NewLogger("dapr.components")
-
 const (
-	sidecarName       = "sidecar-1"
+	sidecarName       = "dapr-1"
 	applicationName   = "app-1"
 	clusterName       = "kafka"
 	dockerComposeYAML = "kafka-cluster.yaml"
 )
 
 func TestKafka(t *testing.T) {
-	messages := harness.NewWatcher()
+	log := logger.NewLogger("dapr.components")
+	messages := watcher.New()
 
 	flow.New(t, "kafka comformance").
 		Service(clusterName,
@@ -76,14 +75,22 @@ func TestKafka(t *testing.T) {
 
 			ctx.Log("Sending messages!")
 
-			msg := "Hello World!"
-			messages.Expect(msg)
+			// Declare what is expected BEFORE performing any steps
+			// that will satisfy the test.
+			msgs := []string{"Hello, World!", "Hello Again!"}
+			messages.ExpectStrings(msgs...)
 
-			err := client.PublishEventFromCustomContent(
-				ctx, "messagebus", "neworder", msg)
-			require.NoError(ctx, err, "error publishing message")
+			// Send events that the application above will observe.
+			for _, msg := range msgs {
+				ctx.Logf("Sending: %q", msg)
+				err := client.PublishEventFromCustomContent(
+					ctx, "messagebus", "neworder", msg)
+				require.NoError(ctx, err, "error publishing message")
+			}
 
+			// Do the messages we observed match what we expect?
 			messages.AssertResult(ctx, 5*time.Second)
+
 			return nil
 		}).
 		Run()

@@ -18,6 +18,7 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/app"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/network"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/harness"
 )
@@ -38,8 +39,10 @@ func TestKafka(t *testing.T) {
 		Service(clusterName,
 			dockercompose.Up(dockerComposeYAML),
 			dockercompose.Down(dockerComposeYAML)).
+		Task("wait for kafka readiness",
+			network.WaitForAddresses(5*time.Second, "localhost:9092")).
 		Service(appName,
-			app.Run(appName, ":8000",
+			app.Start(appName, ":8000",
 				func(ctx flow.Context, s common.Service) error {
 					if err := s.AddTopicEventHandler(&common.Subscription{
 						PubsubName: "messagebus",
@@ -67,14 +70,14 @@ func TestKafka(t *testing.T) {
 				}),
 			)),
 			sidecar.Stop(sidecarName)).
-		Func("send and wait", func(ctx flow.Context) error {
+		Task("send and wait", func(ctx flow.Context) error {
 			var client *sidecar.Client
 			ctx.MustGet(sidecarName, &client)
 
 			ctx.Log("Sending messages!")
 
 			msg := "Hello World!"
-			messages.Expect("Hello World!")
+			messages.Expect(msg)
 
 			err := client.PublishEventFromCustomContent(
 				ctx, "messagebus", "neworder", msg)

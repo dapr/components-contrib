@@ -5,22 +5,13 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/harness"
 )
 
-type create struct {
-	flow.Task
-	names []string
-}
+func Create(names ...string) flow.Runnable {
+	return func(ctx flow.Context) error {
+		for _, name := range names {
+			watcher := harness.NewWatcher()
+			ctx.Set(name, watcher)
+		}
 
-func Create(names ...string) *create {
-	return &create{
-		names: names,
+		return nil
 	}
-}
-
-func (c *create) Run() error {
-	for _, name := range c.names {
-		watcher := harness.NewWatcher()
-		c.Set(name, watcher)
-	}
-
-	return nil
 }

@@ -4,17 +4,14 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
 )
 
-type up struct {
-	flow.Task
-	filename string
-}
-
 func Up(filename string) flow.Runnable {
-	return &up{
-		filename: filename,
+	return func(ctx flow.Context) error {
+		return nil
 	}
 }
 
-func (d *up) Run() error {
-	return nil
+func Down(filename string) flow.Runnable {
+	return func(ctx flow.Context) error {
+		return nil
+	}
 }

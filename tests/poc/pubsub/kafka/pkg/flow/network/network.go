@@ -13,13 +13,14 @@ func WaitForAddresses(timeout time.Duration, addresses ...string) flow.Runnable 
 		start := time.Now().UTC()
 
 		for _, address := range addresses {
+			ctx.Logf("Waiting for address %q", address)
 		check:
 			for {
 				d := timeout - time.Since(start)
 				if d <= 0 {
 					return errors.New("timeout")
 				}
-				ctx.Logf("Waiting for address %q", address)
+
 				conn, _ := net.DialTimeout("tcp", address, d)
 				if conn != nil {
 					conn.Close()
@@ -29,6 +30,7 @@ func WaitForAddresses(timeout time.Duration, addresses ...string) flow.Runnable 
 
 				time.Sleep(time.Millisecond * 500)
 			}
+			ctx.Logf("Address %q is ready", address)
 		}
 
 		return nil

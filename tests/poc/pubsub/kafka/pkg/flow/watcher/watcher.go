@@ -201,7 +201,22 @@ func (w *Watcher) WaitForResult(duration time.Duration) error {
 	return nil
 }
 
-func (w *Watcher) AssertResult(t TestingT, duration time.Duration) bool {
+func (w *Watcher) Result(t TestingT, duration time.Duration) (TestingT, interface{}, interface{}) {
+	select {
+	case <-time.After(duration):
+		t.Error(ErrTimeout)
+		t.FailNow()
+
+		return t, nil, nil
+	case <-w.finished:
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return t, w.expected, w.observed
+	}
+}
+
+func (w *Watcher) Assert(t TestingT, duration time.Duration) bool {
 	select {
 	case <-time.After(duration):
 		t.Error(ErrTimeout)
@@ -215,7 +230,7 @@ func (w *Watcher) AssertResult(t TestingT, duration time.Duration) bool {
 	}
 }
 
-func (w *Watcher) RequireResult(t TestingT, duration time.Duration) {
+func (w *Watcher) Require(t TestingT, duration time.Duration) {
 	select {
 	case <-time.After(duration):
 		t.Error(ErrTimeout)

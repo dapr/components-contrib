@@ -68,15 +68,15 @@ func as(source, target interface{}) bool {
 	return false
 }
 
-func (f *Flow) Step(name string, runnable Runnable) *Flow {
-	f.tasks = append(f.tasks, namedRunnable{name, runnable})
-	return f
-}
+func (f *Flow) Step(name string, runnable Runnable, cleanup ...Runnable) *Flow {
+	if runnable != nil {
+		f.tasks = append(f.tasks, namedRunnable{name, runnable})
+	}
+	if len(cleanup) == 1 {
+		f.cleanup = append(f.cleanup, name)
+		f.uncalledMap[name] = cleanup[0]
+	}
 
-func (f *Flow) Service(name string, start Runnable, stop Runnable) *Flow {
-	f.tasks = append(f.tasks, namedRunnable{name, start})
-	f.cleanup = append(f.cleanup, name)
-	f.uncalledMap[name] = stop
 	return f
 }
 

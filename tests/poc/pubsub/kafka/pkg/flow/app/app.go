@@ -11,33 +11,65 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
 )
 
-func Start(appName, address string, setup func(flow.Context, common.Service) error) flow.Runnable {
-	return func(ctx flow.Context) error {
-		s := daprd.NewService(":8000")
+type App struct {
+	appName string
+	address string
+	setup   SetupFn
+}
 
-		if err := setup(ctx, s); err != nil {
-			return err
-		}
+type SetupFn func(flow.Context, common.Service) error
 
-		go func() {
-			if err := s.Start(); err != nil && err != http.ErrServerClosed {
-				log.Printf("error listenning: %v", err)
-			}
-		}()
+func Step(appName, address string, setup SetupFn) (string, flow.Runnable, flow.Runnable) {
+	return New(appName, address, setup).ToStep()
+}
 
-		ctx.Set(appName, s)
-
-		return nil
+func New(appName, address string, setup SetupFn) App {
+	return App{
+		appName: appName,
+		address: address,
+		setup:   setup,
 	}
 }
 
-func Stop(appName string) flow.Runnable {
-	return func(ctx flow.Context) error {
-		var s common.Service
-		if ctx.Get(appName, &s) {
-			return s.Stop()
-		}
+func (a App) AppName() string {
+	return a.appName
+}
 
-		return nil
+func (a App) ToStep() (string, flow.Runnable, flow.Runnable) {
+	return a.appName, a.Start, a.Stop
+}
+
+func Start(appName, address string, setup SetupFn) flow.Runnable {
+	return New(appName, address, setup).Start
+}
+
+func (a App) Start(ctx flow.Context) error {
+	s := daprd.NewService(":8000")
+
+	if err := a.setup(ctx, s); err != nil {
+		return err
 	}
+
+	go func() {
+		if err := s.Start(); err != nil && err != http.ErrServerClosed {
+			log.Printf("error listenning: %v", err)
+		}
+	}()
+
+	ctx.Set(a.appName, s)
+
+	return nil
+}
+
+func Stop(appName string) flow.Runnable {
+	return App{appName: appName}.Stop
+}
+
+func (a App) Stop(ctx flow.Context) error {
+	var s common.Service
+	if ctx.Get(a.appName, &s) {
+		return s.Stop()
+	}
+
+	return nil
 }

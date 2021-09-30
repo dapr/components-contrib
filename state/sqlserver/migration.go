@@ -41,7 +41,7 @@ func (m *migration) newMigrationResult() migrationResult {
 	r := migrationResult{
 		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.store.tableName),
 		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.store.schema, m.store.tableName),
-		upsertProcName:           fmt.Sprintf("sp_Upsert_%s", m.store.tableName),
+		upsertProcName:           fmt.Sprintf("sp_Upsert_v2_%s", m.store.tableName),
 		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key", m.store.schema, m.store.tableName),
 		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.store.schema, m.store.tableName),
 		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.store.schema, m.store.tableName),

@@ -76,8 +76,7 @@ func TestKafka(t *testing.T) {
 	}
 
 	flow.New(t, "kafka certification").
-		Step(
-			dockercompose.Step(clusterName, dockerComposeYAML)).
+		Step(dockercompose.Step(clusterName, dockerComposeYAML)).
 		Step("wait for kafka readiness",
 			network.WaitForAddresses(5*time.Minute,
 				"localhost:19092", "localhost:29092", "localhost:39092")).

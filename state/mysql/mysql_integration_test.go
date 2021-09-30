@@ -255,13 +255,13 @@ func multiWithDeleteAndSet(t *testing.T, mys *MySQL) {
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, mys *MySQL) {
-	// Delete the item with a fake eTag
+	// Delete the item with a key not in the store
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
 
 	err := mys.Delete(deleteReq)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func deleteWithNoKeyFails(t *testing.T, mys *MySQL) {

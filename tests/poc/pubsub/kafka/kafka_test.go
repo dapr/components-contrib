@@ -40,7 +40,7 @@ var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 
 func TestKafka(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	messages := watcher.New()
+	messages := watcher.NewOrdered()
 
 	test := func(ctx flow.Context) error {
 		client := sidecar.GetClient(ctx, sidecarName)

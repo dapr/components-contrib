@@ -17,6 +17,7 @@ type Watcher struct {
 	remaining    map[interface{}]struct{}
 	finished     chan struct{}
 	finishedOnce sync.Once
+	verifyOrder  bool
 }
 
 // TestingT is an interface wrapper around *testing.T
@@ -28,12 +29,21 @@ type TestingT interface {
 
 var ErrTimeout = errors.New("timeout")
 
-func New() *Watcher {
+func NewOrdered() *Watcher {
+	return New(true)
+}
+
+func NewUnordered() *Watcher {
+	return New(false)
+}
+
+func New(verifyOrder bool) *Watcher {
 	return &Watcher{
-		expected:  make([]interface{}, 0, 1000),
-		observed:  make([]interface{}, 0, 1000),
-		remaining: make(map[interface{}]struct{}, 1000),
-		finished:  make(chan struct{}, 1),
+		expected:    make([]interface{}, 0, 1000),
+		observed:    make([]interface{}, 0, 1000),
+		remaining:   make(map[interface{}]struct{}, 1000),
+		finished:    make(chan struct{}, 1),
+		verifyOrder: verifyOrder,
 	}
 }
 
@@ -226,7 +236,11 @@ func (w *Watcher) Assert(t TestingT, duration time.Duration) bool {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 
-		return assert.Equal(t, w.expected, w.observed)
+		if w.verifyOrder {
+			return assert.Equal(t, w.expected, w.observed)
+		}
+
+		return assert.ElementsMatch(t, w.expected, w.observed)
 	}
 }
 
@@ -240,6 +254,10 @@ func (w *Watcher) Require(t TestingT, duration time.Duration) {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 
-		require.Equal(t, w.expected, w.observed)
+		if w.verifyOrder {
+			require.Equal(t, w.expected, w.observed)
+		} else {
+			require.ElementsMatch(t, w.expected, w.observed)
+		}
 	}
 }

@@ -3,6 +3,8 @@ module github.com/dapr/components-contrib/tests/poc/pubsub/kafka
 go 1.17
 
 require (
+	github.com/Shopify/sarama v1.23.1
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dapr/components-contrib v1.4.0-rc2
 	github.com/dapr/dapr v1.4.0
 	github.com/dapr/go-sdk v1.2.0
@@ -23,14 +25,12 @@ require (
 	github.com/DataDog/zstd v1.3.6-0.20190409195224-796139022798 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/Shopify/sarama v1.23.1 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -121,4 +121,6 @@ require (
 
 //replace github.com/dapr/dapr => ../../../../../dapr
 
-replace github.com/dapr/dapr => github.com/pkedy/dapr v1.3.1-0.20210919202608-677e747bd7ec
+replace github.com/dapr/dapr => github.com/pkedy/dapr v1.3.1-0.20211001012132-9925e2784bcb
+
+replace github.com/dapr/components-contrib => ../../../../

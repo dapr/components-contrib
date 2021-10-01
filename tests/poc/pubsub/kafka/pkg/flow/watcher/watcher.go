@@ -24,6 +24,7 @@ type Watcher struct {
 type TestingT interface {
 	Error(args ...interface{})
 	Errorf(format string, args ...interface{})
+	Fail()
 	FailNow()
 }
 
@@ -214,8 +215,12 @@ func (w *Watcher) WaitForResult(duration time.Duration) error {
 func (w *Watcher) Result(t TestingT, duration time.Duration) (TestingT, interface{}, interface{}) {
 	select {
 	case <-time.After(duration):
-		t.Error(ErrTimeout)
-		t.FailNow()
+		w.mu.Lock()
+		remainingCount := len(w.remaining)
+		w.mu.Unlock()
+
+		t.Errorf("Timed out with %d items remaining", remainingCount)
+		t.Fail()
 
 		return t, nil, nil
 	case <-w.finished:
@@ -229,7 +234,11 @@ func (w *Watcher) Result(t TestingT, duration time.Duration) (TestingT, interfac
 func (w *Watcher) Assert(t TestingT, duration time.Duration) bool {
 	select {
 	case <-time.After(duration):
-		t.Error(ErrTimeout)
+		w.mu.Lock()
+		remainingCount := len(w.remaining)
+		w.mu.Unlock()
+
+		t.Errorf("Timed out with %d items remaining", remainingCount)
 
 		return false
 	case <-w.finished:
@@ -247,7 +256,11 @@ func (w *Watcher) Assert(t TestingT, duration time.Duration) bool {
 func (w *Watcher) Require(t TestingT, duration time.Duration) {
 	select {
 	case <-time.After(duration):
-		t.Error(ErrTimeout)
+		w.mu.Lock()
+		remainingCount := len(w.remaining)
+		w.mu.Unlock()
+
+		t.Errorf("Timed out with %d items remaining", remainingCount)
 
 		require.FailNow(t, "timeout")
 	case <-w.finished:

@@ -12,3 +12,7 @@ spec:
     value: kafkaCertification
   - name: authRequired
     value: "false"
+  - name: initialOffset
+    value: oldest
+  - name: backOffDuration
+    value: 50ms

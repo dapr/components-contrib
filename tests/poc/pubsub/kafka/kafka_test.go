@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/network"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/retry"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/sidecar"
+	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/simulate"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/watcher"
 )
 
@@ -63,18 +64,24 @@ func TestKafka(t *testing.T) {
 		}
 
 		// Do the messages we observed match what we expect?
-		messages.Assert(ctx, 5*time.Second)
+		messages.Assert(ctx, time.Minute)
 
 		return nil
 	}
 
 	service := func(ctx flow.Context, s common.Service) (err error) {
+		sim := simulate.Error(ctx, 100)
+
 		err = multierr.Append(err,
 			s.AddTopicEventHandler(&common.Subscription{
 				PubsubName: "messagebus",
 				Topic:      "neworder",
 				Route:      "/orders",
 			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				if err := sim(); err != nil {
+					return true, err
+				}
+
 				messages.Observe(e.Data)
 				ctx.Logf("Event - pubsub: %s, topic: %s, id: %s, data: %s",
 					e.PubsubName, e.Topic, e.ID, e.Data)

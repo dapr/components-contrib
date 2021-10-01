@@ -2,7 +2,6 @@ package opa
 
 import (
 	"testing"
-	
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"

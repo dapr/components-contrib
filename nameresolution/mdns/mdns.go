@@ -35,7 +35,7 @@ const (
 	refreshInterval = time.Second * 30
 	// addressTTL is the duration an address has before
 	// becoming stale and being evicted.
-	addressTTL = time.Second * 45
+	addressTTL = time.Second * 60
 )
 
 // address is used to store an ip address along with
@@ -359,14 +359,13 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 
 	// expired addresses will be evicted by getAppIDs()
 	for _, appID := range m.getAppIDs() {
-		_appID := appID
 		wg.Add(1)
 
-		go func() {
+		go func(a string) {
 			defer wg.Done()
 
-			m.refreshApp(ctx, _appID)
-		}()
+			m.refreshApp(ctx, a)
+		}(appID)
 	}
 
 	// wait for all the app refreshes to complete.

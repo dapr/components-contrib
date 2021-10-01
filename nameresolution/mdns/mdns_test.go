@@ -225,11 +225,11 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 
 	// act
 	addressList.add("addr1")
-	expiryDeltaInSec := int(addressList.addresses[1].expiresAt.Sub(expiry).Seconds())
+	deltaSec := int(addressList.addresses[1].expiresAt.Sub(expiry).Seconds())
 
 	// assert
 	require.Len(t, addressList.addresses, 2)
-	require.Greater(t, expiryDeltaInSec, 0) // Ensures expiry has been extended for existing address.
+	require.Greater(t, deltaSec, 0) // Ensures expiry has been extended for existing address.
 }
 
 func TestAddressListNext(t *testing.T) {

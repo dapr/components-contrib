@@ -161,7 +161,7 @@ func TestAddressListExpire(t *testing.T) {
 	expired := base.Add(-60 * time.Second)
 	notExpired := base.Add(60 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "expired0",
 				expiresAt: expired,
@@ -188,7 +188,7 @@ func TestAddressListAddNewAddress(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(60 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -212,7 +212,7 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -226,18 +226,18 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 
 	// act
 	addressList.add("addr1")
-	deltaSec := int(addressList.addresses[1].expiresAt.Sub(expiry).Seconds())
+	expiryDeltaInSec := int(addressList.addresses[1].expiresAt.Sub(expiry).Seconds())
 
 	// assert
 	require.Len(t, addressList.addresses, 2)
-	require.Greater(t, deltaSec, 0)
+	require.Greater(t, expiryDeltaInSec, 0) // Ensures expiry has been extended for existing address.
 }
 
 func TestAddressListNext(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -280,7 +280,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -322,7 +322,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 func TestAddressListNextNoAddress(t *testing.T) {
 	// arrange
 	addressList := &addressList{
-		addresses: []*address{},
+		addresses: []address{},
 	}
 
 	// act & assert
@@ -333,7 +333,7 @@ func TestAddressListNextWithAdd(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -379,7 +379,7 @@ func TestAddressListNextWithExpiration(t *testing.T) {
 	expiry := time.Now().Add(10 * time.Second)
 	expired := time.Now().Add(-60 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expired,

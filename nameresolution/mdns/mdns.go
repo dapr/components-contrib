@@ -49,7 +49,7 @@ type address struct {
 // addressList represents a set of addresses along with
 // data used to control and access said addresses.
 type addressList struct {
-	addresses []*address
+	addresses []address
 	counter   uint32
 	mu        sync.RWMutex
 }
@@ -67,9 +67,6 @@ func (a *addressList) expire() {
 			i++
 		}
 	}
-	for j := i; j < len(a.addresses); j++ {
-		a.addresses[j] = nil // clear truncated pointers
-	}
 	a.addresses = a.addresses[:i] // resize slice
 }
 
@@ -81,14 +78,14 @@ func (a *addressList) add(ip string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	for _, addr := range a.addresses {
-		if addr.ip == ip {
-			addr.expiresAt = time.Now().Add(addressTTL)
+	for i := range a.addresses {
+		if a.addresses[i].ip == ip {
+			a.addresses[i].expiresAt = time.Now().Add(addressTTL)
 
 			return
 		}
 	}
-	a.addresses = append(a.addresses, &address{
+	a.addresses = append(a.addresses, address{
 		ip:        ip,
 		expiresAt: time.Now().Add(addressTTL),
 	})

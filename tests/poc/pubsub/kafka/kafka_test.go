@@ -2,9 +2,11 @@ package kafka_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/app"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/network"
+	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/retry"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/watcher"
 )
@@ -28,9 +31,12 @@ import (
 const (
 	sidecarName       = "dapr-1"
 	applicationID     = "app-1"
-	clusterName       = "kafka"
+	clusterName       = "kafkacertification"
 	dockerComposeYAML = "docker-compose.yml"
+	numMessages       = 1000
 )
+
+var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 
 func TestKafka(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
@@ -41,7 +47,10 @@ func TestKafka(t *testing.T) {
 
 		// Declare what is expected BEFORE performing any steps
 		// that will satisfy the test.
-		msgs := []string{"Hello, World!", "Hello Again!"}
+		msgs := make([]string, numMessages)
+		for i := range msgs {
+			msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
+		}
 		messages.ExpectStrings(msgs...)
 
 		// Send events that the application above will observe.
@@ -59,7 +68,7 @@ func TestKafka(t *testing.T) {
 		return nil
 	}
 
-	server := func(ctx flow.Context, s common.Service) (err error) {
+	service := func(ctx flow.Context, s common.Service) (err error) {
 		err = multierr.Append(err,
 			s.AddTopicEventHandler(&common.Subscription{
 				PubsubName: "messagebus",
@@ -77,10 +86,25 @@ func TestKafka(t *testing.T) {
 
 	flow.New(t, "kafka certification").
 		Step(dockercompose.Step(clusterName, dockerComposeYAML)).
-		Step("wait for kafka readiness",
-			network.WaitForAddresses(5*time.Minute,
-				"localhost:19092", "localhost:29092", "localhost:39092")).
-		Step(app.Step(applicationID, ":8000", server)).
+		Step("wait for broker sockets",
+			network.WaitForAddresses(5*time.Minute, brokers...)).
+		Step("wait for kafka readiness", retry.Do(time.Second, 15, func(ctx flow.Context) error {
+			config := sarama.NewConfig()
+			config.ClientID = "go-kafka-consumer"
+			config.Consumer.Return.Errors = true
+
+			// Create new consumer
+			client, err := sarama.NewConsumer(brokers, config)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+
+			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
+
+			return err
+		})).
+		Step(app.Step(applicationID, ":8000", service)).
 		Step(sidecar.Step(sidecarName, runtime.WithPubSubs(
 			pubsub_loader.New("kafka", func() pubsub.PubSub {
 				return pubsub_kafka.NewKafka(log)

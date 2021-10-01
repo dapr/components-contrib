@@ -3,10 +3,12 @@ kind: Component
 metadata:
   name: messagebus
 spec:
-  type: pubsub.redis
+  type: pubsub.kafka
   version: v1
   metadata:
-  - name: redisHost
-    value: localhost:6379
-  - name: redisPassword
-    value: ""
+  - name: brokers
+    value: localhost:19092,localhost:29092,localhost:39092
+  - name: consumerGroup
+    value: kafkaCertification
+  - name: authRequired
+    value: "false"

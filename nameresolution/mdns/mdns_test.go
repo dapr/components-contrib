@@ -7,7 +7,6 @@ package mdns
 
 import (
 	"fmt"
-	"math"
 	"testing"
 	"time"
 
@@ -313,7 +312,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
 	require.Equal(t, "addr3", *addressList.next())
-	addressList.counter = math.MaxUint32
+	addressList.counter = maxInt
 	require.Equal(t, "addr0", *addressList.next())
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())

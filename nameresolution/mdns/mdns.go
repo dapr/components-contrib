@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"strconv"
@@ -36,6 +35,8 @@ const (
 	// addressTTL is the duration an address has before
 	// becoming stale and being evicted.
 	addressTTL = time.Second * 60
+	// max integer value supported on this architecture.
+	maxInt = int(^uint(0) >> 1)
 )
 
 // address is used to store an ip address along with
@@ -50,7 +51,7 @@ type address struct {
 // data used to control and access said addresses.
 type addressList struct {
 	addresses []address
-	counter   uint32
+	counter   int
 	mu        sync.RWMutex
 }
 
@@ -103,10 +104,10 @@ func (a *addressList) next() *string {
 		return nil
 	}
 
-	if a.counter == math.MaxUint32 {
+	if a.counter == maxInt {
 		a.counter = 0
 	}
-	index := a.counter % uint32(len(a.addresses))
+	index := a.counter % len(a.addresses)
 	addr := a.addresses[index]
 	a.counter++
 

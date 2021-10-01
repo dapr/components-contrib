@@ -482,7 +482,7 @@ func (m *resolver) getAppIDsIPv4() []string {
 	m.ipv4Mu.RLock()
 	defer m.ipv4Mu.RUnlock()
 
-	appIDs := make([]string, len(m.appAddressesIPv4))
+	appIDs := make([]string, 0, len(m.appAddressesIPv4))
 	for appID, addr := range m.appAddressesIPv4 {
 		old := len(addr.addresses)
 		addr.expire()
@@ -499,7 +499,7 @@ func (m *resolver) getAppIDsIPv6() []string {
 	m.ipv6Mu.RLock()
 	defer m.ipv6Mu.RUnlock()
 
-	appIDs := make([]string, len(m.appAddressesIPv6))
+	appIDs := make([]string, 0, len(m.appAddressesIPv6))
 	for appID, addr := range m.appAddressesIPv6 {
 		old := len(addr.addresses)
 		addr.expire()

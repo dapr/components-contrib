@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/asaskevich/EventBus"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )

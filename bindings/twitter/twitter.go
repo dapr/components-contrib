@@ -14,14 +14,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
-// Binding represents Twitter input/output binding
+// Binding represents Twitter input/output binding.
 type Binding struct {
 	client *twitter.Client
 	query  string
@@ -30,12 +31,12 @@ type Binding struct {
 
 var _ = bindings.InputBinding(&Binding{})
 
-// NewTwitter returns a new Twitter event input binding
+// NewTwitter returns a new Twitter event input binding.
 func NewTwitter(logger logger.Logger) *Binding {
 	return &Binding{logger: logger}
 }
 
-// Init initializes the Twitter binding
+// Init initializes the Twitter binding.
 func (t *Binding) Init(metadata bindings.Metadata) error {
 	ck, f := metadata.Properties["consumerKey"]
 	if !f || ck == "" {
@@ -70,12 +71,12 @@ func (t *Binding) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Operations returns list of operations supported by twitter binding
+// Operations returns list of operations supported by twitter binding.
 func (t *Binding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.GetOperation}
 }
 
-// Read triggers the Twitter search and events on each result tweet
+// Read triggers the Twitter search and events on each result tweet.
 func (t *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	if t.query == "" {
 		return nil
@@ -144,7 +145,7 @@ func (t *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 	return nil
 }
 
-// Invoke handles all operations
+// Invoke handles all operations.
 func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	t.logger.Debugf("operation: %v", req.Operation)
 	if req.Metadata == nil {

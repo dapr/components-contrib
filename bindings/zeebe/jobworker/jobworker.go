@@ -19,6 +19,7 @@ import (
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/entities"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/worker"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/components-contrib/metadata"
@@ -27,7 +28,7 @@ import (
 
 var ErrMissingJobType = errors.New("jobType is a required attribute")
 
-// ZeebeJobWorker allows handling jobs from the Zeebe command engine
+// ZeebeJobWorker allows handling jobs from the Zeebe command engine.
 type ZeebeJobWorker struct {
 	clientFactory zeebe.ClientFactory
 	client        zbc.Client
@@ -53,12 +54,12 @@ type jobHandler struct {
 	logger   logger.Logger
 }
 
-// NewZeebeJobWorker returns a new ZeebeJobWorker instance
+// NewZeebeJobWorker returns a new ZeebeJobWorker instance.
 func NewZeebeJobWorker(logger logger.Logger) *ZeebeJobWorker {
 	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 	meta, err := z.parseMetadata(metadata)
 	if err != nil {

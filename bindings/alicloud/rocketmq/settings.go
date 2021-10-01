@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	rocketmq "github.com/cinience/go_rocketmq"
+
 	"github.com/dapr/kit/config"
 )
 
-// rocketmq
+// rocketmq.
 const (
 	metadataRocketmqTopic         = "rocketmq-topic"
 	metadataRocketmqTag           = "rocketmq-tag"

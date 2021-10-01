@@ -37,6 +37,7 @@ var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
+var iotHubName = '${toLower(namePrefix)}-conf-test-iothub'
 var keyVaultName = '${toLower(namePrefix)}-conf-test-kv'
 var serviceBusName = '${toLower(namePrefix)}-conf-test-servicebus'
 var storageName = '${toLower(namePrefix)}ctstorage'
@@ -71,6 +72,15 @@ module eventHubsNamespace 'conf-test-azure-eventHubs.bicep' = {
   params: {
     confTestTags: confTestTags
     eventHubsNamespaceName: eventHubsNamespaceName
+  }
+}
+
+module iotHub 'conf-test-azure-iothub.bicep' = {
+  name: iotHubName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    iotHubName: iotHubName
   }
 }
 
@@ -116,6 +126,9 @@ output eventHubBindingsConsumerGroupName string = eventHubsNamespace.outputs.eve
 output eventHubPubsubName string = eventHubsNamespace.outputs.eventHubPubsubName
 output eventHubPubsubPolicyName string = eventHubsNamespace.outputs.eventHubPubsubPolicyName
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace.outputs.eventHubPubsubConsumerGroupName
+output iotHubName string = iotHub.name
+output iotHubBindingsConsumerGroupName string = iotHub.outputs.iotHubBindingsConsumerGroupName
+output iotHubPubsubConsumerGroupName string = iotHub.outputs.iotHubPubsubConsumerGroupName
 output keyVaultName string = keyVault.name
 output serviceBusName string = serviceBus.name
 output storageName string = storage.name

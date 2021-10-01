@@ -67,7 +67,7 @@ func (a *addressList) expire() {
 			i++
 		}
 	}
-	a.addresses = a.addresses[:i] // resize slice
+	a.addresses = a.addresses[:i]
 }
 
 // add adds a new address to the address list with a
@@ -456,7 +456,8 @@ func (m *resolver) addAppAddressIPv4(appID string, addr string) {
 
 	m.logger.Debugf("Adding IPv4 address %s for app id %s cache entry.", addr, appID)
 	if _, ok := m.appAddressesIPv4[appID]; !ok {
-		m.appAddressesIPv4[appID] = &addressList{}
+		var addrList addressList
+		m.appAddressesIPv4[appID] = &addrList
 	}
 	m.appAddressesIPv4[appID].add(addr)
 }
@@ -469,7 +470,8 @@ func (m *resolver) addAppAddressIPv6(appID string, addr string) {
 
 	m.logger.Debugf("Adding IPv6 address %s for app id %s cache entry.", addr, appID)
 	if _, ok := m.appAddressesIPv6[appID]; !ok {
-		m.appAddressesIPv6[appID] = &addressList{}
+		var addrList addressList
+		m.appAddressesIPv6[appID] = &addrList
 	}
 	m.appAddressesIPv6[appID].add(addr)
 }

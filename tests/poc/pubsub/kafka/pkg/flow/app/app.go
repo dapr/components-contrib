@@ -19,7 +19,7 @@ type App struct {
 
 type SetupFn func(flow.Context, common.Service) error
 
-func Step(appName, address string, setup SetupFn) (string, flow.Runnable, flow.Runnable) {
+func Run(appName, address string, setup SetupFn) (string, flow.Runnable, flow.Runnable) {
 	return New(appName, address, setup).ToStep()
 }
 

@@ -93,7 +93,7 @@ func TestKafka(t *testing.T) {
 	}
 
 	flow.New(t, "kafka certification").
-		Step(dockercompose.Step(clusterName, dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
 		Step("wait for kafka readiness", retry.Do(time.Second, 15, func(ctx flow.Context) error {
@@ -112,8 +112,8 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
-		Step(app.Step(applicationID, fmt.Sprintf(":%d", appPort), service)).
-		Step(sidecar.Step(sidecarName,
+		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), service)).
+		Step(sidecar.Run(sidecarName,
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),

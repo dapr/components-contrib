@@ -11,7 +11,7 @@ type Compose struct {
 	filename string
 }
 
-func Step(project, filename string) (string, flow.Runnable, flow.Runnable) {
+func Run(project, filename string) (string, flow.Runnable, flow.Runnable) {
 	return New(project, filename).ToStep()
 }
 

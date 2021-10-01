@@ -47,7 +47,7 @@ func GetClient(ctx flow.Context, sidecarName string) *Client {
 	return client
 }
 
-func Step(appID string, options ...interface{}) (string, flow.Runnable, flow.Runnable) {
+func Run(appID string, options ...interface{}) (string, flow.Runnable, flow.Runnable) {
 	return New(appID, options...).ToStep()
 }
 

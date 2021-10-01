@@ -13,12 +13,12 @@ import (
 	// Pub/Sub.
 	"github.com/dapr/components-contrib/pubsub"
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
-	pubsub_redis "github.com/dapr/components-contrib/pubsub/redis"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
 
+	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/embedded"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/app"
 	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/dockercompose"
@@ -35,6 +35,7 @@ const (
 	clusterName       = "kafkacertification"
 	dockerComposeYAML = "docker-compose.yml"
 	numMessages       = 1000
+	appPort           = 8000
 )
 
 var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
@@ -111,15 +112,16 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
-		Step(app.Step(applicationID, ":8000", service)).
-		Step(sidecar.Step(sidecarName, runtime.WithPubSubs(
-			pubsub_loader.New("kafka", func() pubsub.PubSub {
-				return pubsub_kafka.NewKafka(log)
-			}),
-			pubsub_loader.New("redis", func() pubsub.PubSub {
-				return pubsub_redis.NewRedisStreams(log)
-			}),
-		))).
+		Step(app.Step(applicationID, fmt.Sprintf(":%d", appPort), service)).
+		Step(sidecar.Step(sidecarName,
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			runtime.WithPubSubs(
+				pubsub_loader.New("kafka", func() pubsub.PubSub {
+					return pubsub_kafka.NewKafka(log)
+				}),
+			))).
 		Step("send and wait", test).
 		Run()
 }

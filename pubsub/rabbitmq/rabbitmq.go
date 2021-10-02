@@ -24,6 +24,7 @@ const (
 
 	metadataHostKey              = "host"
 	metadataConsumerIDKey        = "consumerID"
+	metadataDurable              = "durable"
 	metadataDeleteWhenUnusedKey  = "deletedWhenUnused"
 	metadataAutoAckKey           = "autoAck"
 	metadataDeliveryModeKey      = "deliveryMode"
@@ -31,7 +32,7 @@ const (
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
 
 	defaultReconnectWaitSeconds = 10
-	metadataprefetchCount       = "prefetchCount"
+	metadataPrefetchCount       = "prefetchCount"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -228,7 +229,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
-	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, nil)
+	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, nil)
 	if err != nil {
 		return nil, err
 	}

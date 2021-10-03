@@ -26,6 +26,7 @@ const (
 
 	metadataHostKey              = "host"
 	metadataConsumerIDKey        = "consumerID"
+	metadataDurable              = "durable"
 	metadataDeleteWhenUnusedKey  = "deletedWhenUnused"
 	metadataAutoAckKey           = "autoAck"
 	metadataDeliveryModeKey      = "deliveryMode"
@@ -36,7 +37,7 @@ const (
 	metadataMaxLenBytes          = "maxLenBytes"
 
 	defaultReconnectWaitSeconds = 10
-	metadataprefetchCount       = "prefetchCount"
+	metadataPrefetchCount       = "prefetchCount"
 
 	argQueueMode          = "x-queue-mode"
 	argMaxLength          = "x-max-length"
@@ -264,7 +265,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
-	q, err := channel.QueueDeclare(queueName, true, r.metadata.deleteWhenUnused, false, false, args)
+	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
 		return nil, err
 	}

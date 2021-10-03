@@ -130,7 +130,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[metadataprefetchCount] = "1"
+		fakeMetaData.Properties[metadataPrefetchCount] = "1"
 
 		// act
 		m, err := createMetadata(fakeMetaData)
@@ -229,6 +229,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData := pubsub.Metadata{
 				Properties: fakeProperties,
 			}
+			fakeMetaData.Properties[metadataDurable] = tt.in
 
 			// act
 			m, err := createMetadata(fakeMetaData)
@@ -237,6 +238,7 @@ func TestCreateMetadata(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+			assert.Equal(t, tt.expected, m.durable)
 		})
 	}
 

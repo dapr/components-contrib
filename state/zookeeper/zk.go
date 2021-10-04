@@ -106,7 +106,7 @@ type Conn interface {
 
 //--- StateStore ---
 
-// StateStore is a state store
+// StateStore is a state store.
 type StateStore struct {
 	*config
 	conn Conn
@@ -120,7 +120,7 @@ var (
 	_ state.Store = (*StateStore)(nil)
 )
 
-// NewZookeeperStateStore returns a new Zookeeper state store
+// NewZookeeperStateStore returns a new Zookeeper state store.
 func NewZookeeperStateStore(logger logger.Logger) *StateStore {
 	return &StateStore{
 		features: []state.Feature{state.FeatureETag},
@@ -147,12 +147,12 @@ func (s *StateStore) Init(metadata state.Metadata) (err error) {
 	return
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (s *StateStore) Features() []state.Feature {
 	return s.features
 }
 
-// Get retrieves state from Zookeeper with a key
+// Get retrieves state from Zookeeper with a key.
 func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	value, stat, err := s.conn.Get(s.prefixedKey(req.Key))
 	if err != nil {
@@ -169,13 +169,13 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// BulkGet performs a bulks get operations
+// BulkGet performs a bulks get operations.
 func (s *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with Multi for performance
 	return false, nil, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (s *StateStore) Delete(req *state.DeleteRequest) error {
 	r, err := s.newDeleteRequest(req)
 	if err != nil {
@@ -200,7 +200,7 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 	}, req)
 }
 
-// BulkDelete performs a bulk delete operation
+// BulkDelete performs a bulk delete operation.
 func (s *StateStore) BulkDelete(reqs []state.DeleteRequest) error {
 	ops := make([]interface{}, 0, len(reqs))
 
@@ -227,7 +227,7 @@ func (s *StateStore) BulkDelete(reqs []state.DeleteRequest) error {
 	return err
 }
 
-// Set saves state into Zookeeper
+// Set saves state into Zookeeper.
 func (s *StateStore) Set(req *state.SetRequest) error {
 	r, err := s.newSetDataRequest(req)
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 	}, req)
 }
 
-// BulkSet performs a bulks save operation
+// BulkSet performs a bulks save operation.
 func (s *StateStore) BulkSet(reqs []state.SetRequest) error {
 	ops := make([]interface{}, 0, len(reqs))
 

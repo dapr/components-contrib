@@ -6,13 +6,15 @@ package mysql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -311,7 +313,79 @@ func TestSetHandlesUpdate(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// Verifies that MySQL passes through to myDBAccess
+func TestSetHandlesErr(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.mySQL.Close()
+
+	t.Run("error occurs when update with tag", func(t *testing.T) {
+		m.mock1.ExpectExec("UPDATE state").WillReturnError(errors.New("error"))
+
+		eTag := "946af561"
+		request := createSetRequest()
+		request.ETag = &eTag
+
+		// Act
+		err := m.mySQL.setValue(&request)
+
+		// Assert
+		assert.NotNil(t, err)
+		assert.IsType(t, &state.ETagError{}, err)
+		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
+	})
+
+	t.Run("error occurs when insert", func(t *testing.T) {
+		m.mock1.ExpectExec("INSERT INTO state").WillReturnError(errors.New("error"))
+		request := createSetRequest()
+
+		// Act
+		err := m.mySQL.setValue(&request)
+
+		// Assert
+		assert.NotNil(t, err)
+		assert.Equal(t, "error", err.Error())
+	})
+
+	t.Run("insert on conflict", func(t *testing.T) {
+		m.mock1.ExpectExec("INSERT INTO state").WillReturnResult(sqlmock.NewResult(1, 2))
+		request := createSetRequest()
+
+		// Act
+		err := m.mySQL.setValue(&request)
+
+		// Assert
+		assert.Nil(t, err)
+	})
+
+	t.Run("too many rows error", func(t *testing.T) {
+		m.mock1.ExpectExec("INSERT INTO state").WillReturnResult(sqlmock.NewResult(1, 3))
+		request := createSetRequest()
+
+		// Act
+		err := m.mySQL.setValue(&request)
+
+		// Assert
+		assert.NotNil(t, err)
+	})
+
+	t.Run("no rows effected error", func(t *testing.T) {
+		m.mock1.ExpectExec("UPDATE state").WillReturnResult(sqlmock.NewResult(1, 0))
+
+		eTag := "illegal etag"
+		request := createSetRequest()
+		request.ETag = &eTag
+
+		// Act
+		err := m.mySQL.setValue(&request)
+
+		// Assert
+		assert.NotNil(t, err)
+		assert.IsType(t, &state.ETagError{}, err)
+		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
+	})
+}
+
+// Verifies that MySQL passes through to myDBAccess.
 func TestMySQLDeleteHandlesNoKey(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -333,8 +407,7 @@ func TestDeleteWithETag(t *testing.T) {
 
 	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
 
-	eTag := "946af56e"
-
+	eTag := "946af562"
 	request := createDeleteRequest()
 	request.ETag = &eTag
 
@@ -345,59 +418,39 @@ func TestDeleteWithETag(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestReturnNDBResultsRowsAffectedReturnsError(t *testing.T) {
+func TestDeleteWithErr(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	request := &fakeSQLRequest{
-		rowsAffected: 3,
-		lastInsertID: 0,
-		err:          fmt.Errorf("RowAffectedError"),
-	}
+	t.Run("error occurs when delete", func(t *testing.T) {
+		m.mock1.ExpectExec("DELETE FROM").WillReturnError(errors.New("error"))
 
-	// Act
-	err := m.mySQL.returnNDBResults(request, nil, 2)
+		request := createDeleteRequest()
 
-	// Assert
-	assert.NotNil(t, err)
-	assert.Equal(t, "RowAffectedError", err.Error())
-}
+		// Act
+		err := m.mySQL.deleteValue(&request)
 
-func TestReturnNDBResultsNoRows(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
+		// Assert
+		assert.NotNil(t, err)
+		assert.Equal(t, "error", err.Error())
+	})
 
-	request := &fakeSQLRequest{
-		rowsAffected: 0,
-		lastInsertID: 0,
-	}
+	t.Run("etag mismatch", func(t *testing.T) {
+		m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
 
-	// Act
-	err := m.mySQL.returnNDBResults(request, nil, 2)
+		eTag := "946af563"
+		request := createDeleteRequest()
+		request.ETag = &eTag
 
-	// Assert
-	assert.NotNil(t, err)
-	assert.Equal(t, "rows affected error: no rows match given key and eTag", err.Error())
-}
+		// Act
+		err := m.mySQL.deleteValue(&request)
 
-func TestReturnNDBResultsTooManyRows(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	request := &fakeSQLRequest{
-		rowsAffected: 3,
-		lastInsertID: 0,
-	}
-
-	// Act
-	err := m.mySQL.returnNDBResults(request, nil, 2)
-
-	// Assert
-	assert.NotNil(t, err)
-	assert.Equal(t, "rows affected error: more than 2 row affected, expected 2, actual 3", err.Error())
+		// Assert
+		assert.NotNil(t, err)
+		assert.IsType(t, &state.ETagError{}, err)
+		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
+	})
 }
 
 func TestGetHandlesNoRows(t *testing.T) {
@@ -496,7 +549,7 @@ func TestTableExists(t *testing.T) {
 	assert.True(t, actual, `table does not exists`)
 }
 
-// Verifies that the code returns an error if the create table command fails
+// Verifies that the code returns an error if the create table command fails.
 func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -535,7 +588,7 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 }
 
 // Verify that the call to MySQL init get passed through
-// to the DbAccess instance
+// to the DbAccess instance.
 func TestInitReturnsErrorOnNoConnectionString(t *testing.T) {
 	// Arrange
 	t.Parallel()
@@ -644,7 +697,7 @@ func TestInitSetsSchemaName(t *testing.T) {
 }
 
 // This state store does not support BulkGet so it must return false and
-// nil nil
+// nil nil.
 func TestBulkGetReturnsNil(t *testing.T) {
 	// Arrange
 	t.Parallel()
@@ -797,20 +850,6 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 
 	// Assert
 	assert.NotNil(t, err)
-}
-
-type fakeSQLRequest struct {
-	lastInsertID int64
-	rowsAffected int64
-	err          error
-}
-
-func (f *fakeSQLRequest) LastInsertId() (int64, error) {
-	return f.lastInsertID, f.err
-}
-
-func (f *fakeSQLRequest) RowsAffected() (int64, error) {
-	return f.rowsAffected, f.err
 }
 
 func createSetRequest() state.SetRequest {

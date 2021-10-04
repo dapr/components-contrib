@@ -27,7 +27,7 @@ const (
 	key = "partitionKey"
 )
 
-// Kafka allows reading/writing to a Kafka consumer group
+// Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
 	producer      sarama.SyncProducer
 	consumerGroup string
@@ -36,6 +36,7 @@ type Kafka struct {
 	authRequired  bool
 	saslUsername  string
 	saslPassword  string
+	initialOffset int64
 	cg            sarama.ConsumerGroup
 	topics        map[string]bool
 	cancel        context.CancelFunc
@@ -52,6 +53,7 @@ type kafkaMetadata struct {
 	AuthRequired    bool     `json:"authRequired"`
 	SaslUsername    string   `json:"saslUsername"`
 	SaslPassword    string   `json:"saslPassword"`
+	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int      `json:"maxMessageBytes"`
 }
 
@@ -105,12 +107,12 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// NewKafka returns a new kafka pubsub instance
+// NewKafka returns a new kafka pubsub instance.
 func NewKafka(l logger.Logger) pubsub.PubSub {
 	return &Kafka{logger: l}
 }
 
-// Init does metadata parsing and connection establishment
+// Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	meta, err := k.getKafkaMetadata(metadata)
 	if err != nil {
@@ -120,9 +122,11 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.brokers = meta.Brokers
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
+	k.initialOffset = meta.InitialOffset
 
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_0_0_0
+	config.Consumer.Offsets.Initial = k.initialOffset
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID
@@ -157,7 +161,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-// Publish message to Kafka cluster
+// Publish message to Kafka cluster.
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 	k.logger.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
 
@@ -196,7 +200,7 @@ func (k *Kafka) addTopic(newTopic string) []string {
 	return topics
 }
 
-// Close down consumer group resources, refresh once
+// Close down consumer group resources, refresh once.
 func (k *Kafka) closeSubscriptionResources() {
 	if k.cg != nil {
 		k.cancel()
@@ -213,7 +217,7 @@ func (k *Kafka) closeSubscriptionResources() {
 }
 
 // Subscribe to topic in the Kafka cluster
-// This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go
+// This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go.
 func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
@@ -275,7 +279,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 	return nil
 }
 
-// getKafkaMetadata returns new Kafka metadata
+// getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
@@ -294,6 +298,12 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		meta.ClientID = val
 		k.logger.Debugf("Using %s as ClientID", meta.ClientID)
 	}
+
+	initialOffset, err := parseInitialOffset(metadata.Properties["initialOffset"])
+	if err != nil {
+		return nil, err
+	}
+	meta.InitialOffset = initialOffset
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")
@@ -393,4 +403,17 @@ type asBase64String []byte
 
 func (s asBase64String) String() string {
 	return base64.StdEncoding.EncodeToString(s)
+}
+
+func parseInitialOffset(value string) (initialOffset int64, err error) {
+	initialOffset = sarama.OffsetNewest // Default
+	if strings.EqualFold(value, "oldest") {
+		initialOffset = sarama.OffsetOldest
+	} else if strings.EqualFold(value, "newest") {
+		initialOffset = sarama.OffsetNewest
+	} else if value != "" {
+		return 0, fmt.Errorf("kafka error: invalid initialOffset: %s", value)
+	}
+
+	return initialOffset, err
 }

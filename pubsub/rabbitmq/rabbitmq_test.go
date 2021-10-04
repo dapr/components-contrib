@@ -5,10 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 func newBroker() *rabbitMQInMemoryBroker {

@@ -40,6 +40,9 @@ do
         PREFIX="${opt#*=}"
         ;;
 
+    --credentials=*)
+        CREDENTIALS_PATH="${opt#*=}"
+        ;;
     *)
         echo "$0: Unknown option: $opt"
         ERR=1
@@ -66,7 +69,9 @@ OVERVIEW:
 Sets up Azure resources needed for conformance tests and populates the secrets
 needed for the conformance.yml GitHub workflow to run. Also generates a .rc file
 that can be used to set environment variables for the conformance test to be run
-on the local device.
+on the local device. The script aims to be idempotent for the same inputs and
+can be rerun on failure, except that any auto-generated Service Principal
+credentials will be rotated on rerun.
 
 PREREQUISITES:
 This script requires that the Azure CLI is installed, and the user is already
@@ -77,13 +82,20 @@ will be deployed. For example:
     $ az account set -s "My Test Subscription"
 
 USAGE:
-    $ ./setup-azure-conf-test.sh --user=<Azure user UPN> [--location="..."] \
-[--prefix="..."] [--outpath="..."] [--ngrok-token="..."]
+    $ ./setup-azure-conf-test.sh --user=<Azure user UPN> [--credentials="..."] \
+[--location="..."] [--prefix="..."] [--outpath="..."] [--ngrok-token="..."]
 
 OPTIONS:
     -h, --help      Print this help message.
     --user          The UPN for the Azure user in the current subscription who
                     will own all created resources, e.g. "myalias@contoso.com".
+    --credentials   Optional. The path to a file containing Azure credentials of
+                    the Service Principal (SP) that will be running conformance
+                    tests. The file should be the JSON output when the SP was
+                    created with the Azure CLI 'az ad sp create-for-rbac'
+                    command. If not specified, a new SP will be created, and its
+                    credentials saved in the AZURE_CREDENTIALS file under the
+                    --outpath.
     --location      Optional. The location for the Azure deployment. Defaults to
                     "WestUS2" if not specified.
     --prefix        Optional. 3-15 character string to prefix all created
@@ -121,6 +133,9 @@ fi
 if [[ -z ${NGROK_TOKEN} ]]; then
     echo "WARN: --ngrok-token is not specified, will not set AzureEventGridNgrokToken used by GitHub workflow for bindings.azure.eventgrid conformance test."
 fi
+if [[ -z ${CREDENTIALS_PATH} ]]; then
+    echo "INFO: --credentials is not specified, will generate a new service principal and credentials ..."
+fi
 
 echo
 echo "Starting setup-azure-conf-test with the following parameters:"
@@ -129,6 +144,7 @@ echo "PREFIX=${PREFIX}"
 echo "DEPLOY_LOCATION=${DEPLOY_LOCATION}"
 echo "OUTPUT_PATH=${OUTPUT_PATH}"
 echo "NGROK_TOKEN=${NGROK_TOKEN}"
+echo "CREDENTIALS_PATH=${CREDENTIALS_PATH}"
 
 ##==============================================================================
 ##
@@ -158,6 +174,11 @@ EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubConnectionStri
 EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureEventHubsPubsubConsumerGroup"
 EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME="AzureEventHubsPubsubContainer"
 
+IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
+IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
+IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME="AzureIotHubBindingsConsumerGroup"
+IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureIotHubPubsubConsumerGroup"
+
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
@@ -179,21 +200,36 @@ DEPLOY_NAME="${PREFIX}-azure-conf-test"
 # Setup output path
 mkdir -p "${OUTPUT_PATH}"
 
+# Configure Azure CLI to install azure-iot and other extensions without prompts
+az config set extension.use_dynamic_install=yes_without_prompt
+
 # Create Service Principals for use with the conformance tests
 CERT_AUTH_SP_NAME="${PREFIX}-akv-conf-test-sp"
 az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --skip-assignment --years 1
 CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
 echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
-SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
-SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
-echo "${SDK_AUTH_SP_INFO}"
-echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
-
-AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
-echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
-SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
-SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+if [[ -n ${CREDENTIALS_PATH} ]]; then
+    SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
+        echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
+        exit 1
+    fi
+    SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME}"
+else
+    SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
+    SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    echo "${SDK_AUTH_SP_INFO}"
+    echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
+    AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
+    echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
+fi
 
 # Build the bicep template and deploy to Azure
 az bicep install
@@ -204,7 +240,11 @@ az bicep build --file conf-test-azure.bicep --outfile "${ARM_TEMPLATE_FILE}"
 echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resource prefix ${PREFIX}-* ..."
 az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}"
 
+echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
+sleep 5s
+
 # Query the deployed resource names from the bicep deployment outputs
+echo "Querying deployed resource names ..."
 RESOURCE_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.confTestRgName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: RESOURCE_GROUP_NAME=${RESOURCE_GROUP_NAME}"
 SERVICE_BUS_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.serviceBusName.value" | sed -E 's/[[:space:]]|\"//g')"
@@ -235,6 +275,12 @@ EVENT_HUB_PUBSUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" -
 echo "INFO: EVENT_HUB_PUBSUB_POLICY_NAME=${EVENT_HUB_PUBSUB_POLICY_NAME}"
 EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME=${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
+IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: IOT_HUB_NAME=${IOT_HUB_NAME}"
+IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubBindingsConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME=${IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME}"
+IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME=${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -245,6 +291,11 @@ EVENT_GRID_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}
 # MSYS_NO_PATHCONV is needed to prevent MSYS in Git Bash from converting the scope string to a local filesystem path and is benign on Linux
 echo "Assigning \"EventGrid EventSubscription Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${EVENT_GRID_SCOPE}\"..."
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "EventGrid EventSubscription Contributor" --scope "${EVENT_GRID_SCOPE}"
+
+# Add Contributor role to the SDK auth Service Principal so it can add devices to the Azure IoT Hub for tests.
+IOT_HUB_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
+echo "Assigning \"Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${IOT_HUB_SCOPE}\"..."
+MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "${IOT_HUB_SCOPE}"
 
 ##==============================================================================
 ##
@@ -270,10 +321,15 @@ echo "Purging key vault ${KEYVAULT_NAME} ..."
 az keyvault purge --name "${KEYVAULT_NAME}"
 echo "Deleting service principal ${CERT_AUTH_SP_NAME} ..."
 az ad sp delete --id "${CERT_AUTH_SP_ID}"
-echo "Deleting service principal ${SDK_AUTH_SP_NAME} ..."
-az ad sp delete --id "${SDK_AUTH_SP_ID}"
-echo "INFO: ${PREFIX}-teardown-conf-test completed."
 EOF
+
+# Only remove the test runner Service Principal if it was not pre-existing
+if [[ -z ${CREDENTIALS_PATH} ]]; then
+    echo "echo \"Deleting service principal ${SDK_AUTH_SP_NAME} ...\"" >> "${TEARDOWN_SCRIPT_NAME}"
+    echo "az ad sp delete --id \"${SDK_AUTH_SP_ID}\"" >> "${TEARDOWN_SCRIPT_NAME}"
+fi
+echo "echo \"INFO: ${PREFIX}-teardown-conf-test completed.\"" >> "${TEARDOWN_SCRIPT_NAME}"
+
 chmod +x "${TEARDOWN_SCRIPT_NAME}"
 echo "INFO: Created ${TEARDOWN_SCRIPT_NAME}."
 
@@ -437,7 +493,32 @@ EVENT_HUBS_PUBSUB_CONTAINER_NAME="${PREFIX}-eventhubs-pubsub-container"
 echo export ${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONTAINER_NAME}"
 
+# ----------------------------------
+# Populate IoT Hub test settings
+# ----------------------------------
+echo "Configuring IoT Hub test settings ..."
+
+echo export ${IOT_HUB_NAME_VAR_NAME}=\"${IOT_HUB_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_NAME}"
+
+IOT_HUB_EVENT_HUB_CONNECTION_STRING="$(az iot hub connection-string show -n ${IOT_HUB_NAME} --default-eventhub --policy-name service --query connectionString | sed -E 's/[[:space:]]|\"//g')"
+echo export ${IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME}=\"${IOT_HUB_EVENT_HUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_EVENT_HUB_CONNECTION_STRING}"
+
+IOT_HUB_BINDINGS_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME})"
+echo export ${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_BINDINGS_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_BINDINGS_CONSUMER_GROUP_NAME}"
+
+IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME})"
+echo export ${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}"
+
+# ---------------------------
+# Display completion message
+# ---------------------------
 echo "INFO: setup-azure-conf-test completed."
 echo "INFO: Remember to \`source ${ENV_CONFIG_FILENAME}\` before running local conformance tests."
-echo "INFO: ${AZURE_CREDENTIALS_FILENAME} contains the repository secret to set to run the GitHub conformance test workflow."
+if [[ -z ${CREDENTIALS_PATH} ]]; then
+    echo "INFO: ${AZURE_CREDENTIALS_FILENAME} contains the repository secret to set to run the GitHub conformance test workflow."
+fi
 echo "INFO: To teardown the conformance test resources, run ${TEARDOWN_SCRIPT_NAME}."

@@ -10,18 +10,19 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/keighl/postmark"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/keighl/postmark"
 )
 
-// Postmark allows sending of emails using the 3rd party Postmark service
+// Postmark allows sending of emails using the 3rd party Postmark service.
 type Postmark struct {
 	metadata postmarkMetadata
 	logger   logger.Logger
 }
 
-// Our metadata holds standard email properties
+// Our metadata holds standard email properties.
 type postmarkMetadata struct {
 	ServerToken  string `json:"serverToken"`
 	AccountToken string `json:"accountToken"`
@@ -32,12 +33,12 @@ type postmarkMetadata struct {
 	EmailBcc     string `json:"emailBcc"`
 }
 
-// NewPostmark returns a new Postmark bindings instance
+// NewPostmark returns a new Postmark bindings instance.
 func NewPostmark(logger logger.Logger) *Postmark {
 	return &Postmark{logger: logger}
 }
 
-// Helper to parse metadata
+// Helper to parse metadata.
 func (p *Postmark) parseMetadata(meta bindings.Metadata) (postmarkMetadata, error) {
 	pMeta := postmarkMetadata{}
 
@@ -63,7 +64,7 @@ func (p *Postmark) parseMetadata(meta bindings.Metadata) (postmarkMetadata, erro
 	return pMeta, nil
 }
 
-// Init does metadata parsing and not much else :)
+// Init does metadata parsing and not much else :).
 func (p *Postmark) Init(metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := p.parseMetadata(metadata)
@@ -77,12 +78,12 @@ func (p *Postmark) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Operations returns list of operations supported by Postmark binding
+// Operations returns list of operations supported by Postmark binding.
 func (p *Postmark) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Invoke does the work of sending message to Postmark API
+// Invoke does the work of sending message to Postmark API.
 func (p *Postmark) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present

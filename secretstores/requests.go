@@ -11,7 +11,7 @@ type GetSecretRequest struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
-// BulkGetSecretRequest describes a bulk get secret request from a secret store
+// BulkGetSecretRequest describes a bulk get secret request from a secret store.
 type BulkGetSecretRequest struct {
 	Metadata map[string]string `json:"metadata"`
 }

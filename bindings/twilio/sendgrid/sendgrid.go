@@ -12,19 +12,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
-// SendGrid allows sending of emails using the 3rd party SendGrid service
+// SendGrid allows sending of emails using the 3rd party SendGrid service.
 type SendGrid struct {
 	metadata sendGridMetadata
 	logger   logger.Logger
 }
 
-// Our metadata holds standard email properties
+// Our metadata holds standard email properties.
 type sendGridMetadata struct {
 	APIKey    string `json:"apiKey"`
 	EmailFrom string `json:"emailFrom"`
@@ -34,7 +35,7 @@ type sendGridMetadata struct {
 	EmailBcc  string `json:"emailBcc"`
 }
 
-// Wrapper to help decode SendGrid API errors
+// Wrapper to help decode SendGrid API errors.
 type sendGridRestError struct {
 	Errors []struct {
 		Field   interface{} `json:"field"`
@@ -43,12 +44,12 @@ type sendGridRestError struct {
 	} `json:"errors"`
 }
 
-// NewSendGrid returns a new SendGrid bindings instance
+// NewSendGrid returns a new SendGrid bindings instance.
 func NewSendGrid(logger logger.Logger) *SendGrid {
 	return &SendGrid{logger: logger}
 }
 
-// Helper to parse metadata
+// Helper to parse metadata.
 func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, error) {
 	sgMeta := sendGridMetadata{}
 
@@ -69,7 +70,7 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 	return sgMeta, nil
 }
 
-// Init does metadata parsing and not much else :)
+// Init does metadata parsing and not much else :).
 func (sg *SendGrid) Init(metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := sg.parseMetadata(metadata)
@@ -87,7 +88,7 @@ func (sg *SendGrid) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Write does the work of sending message to SendGrid API
+// Write does the work of sending message to SendGrid API.
 func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present

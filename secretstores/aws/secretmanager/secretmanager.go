@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -21,7 +22,7 @@ const (
 	VersionStage = "version_stage"
 )
 
-// NewSecretManager returns a new secret manager store
+// NewSecretManager returns a new secret manager store.
 func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
 	return &smSecretStore{logger: logger}
 }
@@ -38,7 +39,7 @@ type smSecretStore struct {
 	logger logger.Logger
 }
 
-// Init creates a AWS secret manager client
+// Init creates a AWS secret manager client.
 func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
@@ -54,7 +55,7 @@ func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	var versionID *string
 	if value, ok := req.Metadata[VersionID]; ok {
@@ -84,7 +85,7 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 	return resp, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},

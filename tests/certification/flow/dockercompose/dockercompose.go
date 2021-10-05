@@ -3,7 +3,7 @@ package dockercompose
 import (
 	"os/exec"
 
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow"
 )
 
 type Compose struct {

@@ -8,7 +8,7 @@ import (
 
 	daprd "github.com/dapr/go-sdk/service/http"
 
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow"
 )
 
 type App struct {

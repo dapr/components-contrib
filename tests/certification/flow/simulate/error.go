@@ -3,7 +3,7 @@ package simulate
 import (
 	"sync/atomic"
 
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/pkg/errors"
 )
 

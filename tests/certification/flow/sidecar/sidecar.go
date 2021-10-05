@@ -7,11 +7,11 @@ import (
 	"github.com/dapr/dapr/pkg/runtime/embedded"
 	"github.com/dapr/kit/logger"
 
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow"
 
-	rtembedded "github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/embedded"
+	rtembedded "github.com/dapr/components-contrib/tests/certification/embedded"
 	// Go SDK
-	dapr "github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/client"
+	dapr "github.com/dapr/components-contrib/tests/certification/client"
 )
 
 type (

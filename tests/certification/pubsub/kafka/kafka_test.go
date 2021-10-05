@@ -18,15 +18,15 @@ import (
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
 
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/embedded"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/app"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/dockercompose"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/network"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/retry"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/sidecar"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/simulate"
-	"github.com/dapr/components-contrib/tests/poc/pubsub/kafka/pkg/flow/watcher"
+	"github.com/dapr/components-contrib/tests/certification/embedded"
+	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow/app"
+	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/retry"
+	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
+	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
 
 const (
@@ -96,7 +96,7 @@ func TestKafka(t *testing.T) {
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
-		Step("wait for kafka readiness", retry.Do(time.Second, 15, func(ctx flow.Context) error {
+		Step("wait for kafka readiness", retry.Do(time.Second, 30, func(ctx flow.Context) error {
 			config := sarama.NewConfig()
 			config.ClientID = "go-kafka-consumer"
 			config.Consumer.Return.Errors = true

@@ -3,8 +3,9 @@ package client
 import (
 	"context"
 
-	pb "github.com/dapr/dapr/pkg/proto/runtime/v1"
 	"github.com/pkg/errors"
+
+	pb "github.com/dapr/dapr/pkg/proto/runtime/v1"
 )
 
 // InvokeBindingRequest represents binding invocation request

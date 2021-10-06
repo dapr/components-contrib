@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"strconv"
@@ -35,7 +34,9 @@ const (
 	refreshInterval = time.Second * 30
 	// addressTTL is the duration an address has before
 	// becoming stale and being evicted.
-	addressTTL = time.Second * 45
+	addressTTL = time.Second * 60
+	// max integer value supported on this architecture.
+	maxInt = int(^uint(0) >> 1)
 )
 
 // address is used to store an ip address along with
@@ -49,8 +50,8 @@ type address struct {
 // addressList represents a set of addresses along with
 // data used to control and access said addresses.
 type addressList struct {
-	addresses []*address
-	counter   uint32
+	addresses []address
+	counter   int
 	mu        sync.RWMutex
 }
 
@@ -67,10 +68,7 @@ func (a *addressList) expire() {
 			i++
 		}
 	}
-	for j := i; j < len(a.addresses); j++ {
-		a.addresses[j] = nil // clear truncated pointers
-	}
-	a.addresses = a.addresses[:i] // resize slice
+	a.addresses = a.addresses[:i]
 }
 
 // add adds a new address to the address list with a
@@ -81,14 +79,14 @@ func (a *addressList) add(ip string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	for _, addr := range a.addresses {
-		if addr.ip == ip {
-			addr.expiresAt = time.Now().Add(addressTTL)
+	for i := range a.addresses {
+		if a.addresses[i].ip == ip {
+			a.addresses[i].expiresAt = time.Now().Add(addressTTL)
 
 			return
 		}
 	}
-	a.addresses = append(a.addresses, &address{
+	a.addresses = append(a.addresses, address{
 		ip:        ip,
 		expiresAt: time.Now().Add(addressTTL),
 	})
@@ -106,10 +104,10 @@ func (a *addressList) next() *string {
 		return nil
 	}
 
-	if a.counter == math.MaxUint32 {
+	if a.counter == maxInt {
 		a.counter = 0
 	}
-	index := a.counter % uint32(len(a.addresses))
+	index := a.counter % len(a.addresses)
 	addr := a.addresses[index]
 	a.counter++
 
@@ -362,14 +360,13 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 
 	// expired addresses will be evicted by getAppIDs()
 	for _, appID := range m.getAppIDs() {
-		_appID := appID
 		wg.Add(1)
 
-		go func() {
+		go func(a string) {
 			defer wg.Done()
 
-			m.refreshApp(ctx, _appID)
-		}()
+			m.refreshApp(ctx, a)
+		}(appID)
 	}
 
 	// wait for all the app refreshes to complete.
@@ -459,7 +456,8 @@ func (m *resolver) addAppAddressIPv4(appID string, addr string) {
 
 	m.logger.Debugf("Adding IPv4 address %s for app id %s cache entry.", addr, appID)
 	if _, ok := m.appAddressesIPv4[appID]; !ok {
-		m.appAddressesIPv4[appID] = &addressList{}
+		var addrList addressList
+		m.appAddressesIPv4[appID] = &addrList
 	}
 	m.appAddressesIPv4[appID].add(addr)
 }
@@ -472,7 +470,8 @@ func (m *resolver) addAppAddressIPv6(appID string, addr string) {
 
 	m.logger.Debugf("Adding IPv6 address %s for app id %s cache entry.", addr, appID)
 	if _, ok := m.appAddressesIPv6[appID]; !ok {
-		m.appAddressesIPv6[appID] = &addressList{}
+		var addrList addressList
+		m.appAddressesIPv6[appID] = &addrList
 	}
 	m.appAddressesIPv6[appID].add(addr)
 }
@@ -483,7 +482,7 @@ func (m *resolver) getAppIDsIPv4() []string {
 	m.ipv4Mu.RLock()
 	defer m.ipv4Mu.RUnlock()
 
-	appIDs := make([]string, len(m.appAddressesIPv4))
+	appIDs := make([]string, 0, len(m.appAddressesIPv4))
 	for appID, addr := range m.appAddressesIPv4 {
 		old := len(addr.addresses)
 		addr.expire()
@@ -500,7 +499,7 @@ func (m *resolver) getAppIDsIPv6() []string {
 	m.ipv6Mu.RLock()
 	defer m.ipv6Mu.RUnlock()
 
-	appIDs := make([]string, len(m.appAddressesIPv6))
+	appIDs := make([]string, 0, len(m.appAddressesIPv6))
 	for appID, addr := range m.appAddressesIPv6 {
 		old := len(addr.addresses)
 		addr.expire()

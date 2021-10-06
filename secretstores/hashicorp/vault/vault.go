@@ -356,8 +356,7 @@ func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
 	return res, nil
 }
 
-// isSecretPath checks if the key is a valid secret path
-// or it is part of the secret path
+// isSecretPath checks if the key is a valid secret path or it is part of the secret path.
 func (v *vaultSecretStore) isSecretPath(key string) bool {
 	return !strings.HasSuffix(key, "/")
 }

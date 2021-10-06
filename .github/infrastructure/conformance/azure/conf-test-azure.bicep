@@ -33,6 +33,10 @@ param sdkAuthSpId string
 @description('Provide the objectId of the Service Principal using cert auth with get and list access to all assets in Azure Key Vault.')
 param certAuthSpId string
 
+@minLength(16)
+@description('Provide the SQL server admin password of at least 16 characters.')
+param sqlServerAdminPassword string
+
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
@@ -40,6 +44,7 @@ var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
 var iotHubName = '${toLower(namePrefix)}-conf-test-iothub'
 var keyVaultName = '${toLower(namePrefix)}-conf-test-kv'
 var serviceBusName = '${toLower(namePrefix)}-conf-test-servicebus'
+var sqlServerName = '${toLower(namePrefix)}-conf-test-sql'
 var storageName = '${toLower(namePrefix)}ctstorage'
 
 resource confTestRg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -105,6 +110,16 @@ module serviceBus 'conf-test-azure-servicebus.bicep' = {
   }
 }
 
+module sqlServer 'conf-test-azure-sqlserver.bicep' = {
+  name: sqlServerName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    sqlServerName: sqlServerName
+    sqlServerAdminPassword: sqlServerAdminPassword
+  }
+}
+
 module storage 'conf-test-azure-storage.bicep' = {
   name: storageName
   scope: resourceGroup(confTestRg.name)
@@ -131,4 +146,6 @@ output iotHubBindingsConsumerGroupName string = iotHub.outputs.iotHubBindingsCon
 output iotHubPubsubConsumerGroupName string = iotHub.outputs.iotHubPubsubConsumerGroupName
 output keyVaultName string = keyVault.name
 output serviceBusName string = serviceBus.name
+output sqlServerName string = sqlServer.name
+output sqlServerAdminName string = sqlServer.outputs.sqlServerAdminName
 output storageName string = storage.name

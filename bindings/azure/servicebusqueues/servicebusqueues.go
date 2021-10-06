@@ -8,6 +8,7 @@ package servicebusqueues
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	servicebus "github.com/Azure/azure-service-bus-go"
@@ -129,6 +130,9 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	}
 
 	m.ttl = ttl
+
+	// Queue names are case-insensitive and are forced to lowercase. This mimics the Azure portal's behavior.
+	m.QueueName = strings.ToLower(m.QueueName)
 
 	return &m, nil
 }

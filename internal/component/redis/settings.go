@@ -18,6 +18,8 @@ type Settings struct {
 	Host string `mapstructure:"redisHost"`
 	// The Redis password
 	Password string `mapstructure:"redisPassword"`
+	// The Redis username
+	Username string `mapstructure:"redisUsername"`
 	// Database to be selected after connecting to the server.
 	DB int `mapstructure:"redisDB"`
 	// The redis type node or cluster

@@ -377,6 +377,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
+	case "azure.sql":
+		fallthrough
 	case "sqlserver":
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	case "mysql":

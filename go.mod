@@ -86,6 +86,7 @@ require (
 	github.com/kataras/go-serializer v0.0.4 // indirect
 	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
 	github.com/kr/text v0.2.0 // indirect
+	github.com/labd/commercetools-go-sdk v0.3.1 // indirect
 	github.com/machinebox/graphql v0.2.2
 	github.com/matryer/is v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect

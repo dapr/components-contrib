@@ -8,14 +8,14 @@ package rocketmq
 import (
 	"errors"
 	"fmt"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/config"
 )
 
 var (
-	rocketmqPublishMsgError         = errors.New("rocketmq publish msg error")
-	rocketmqValidPublishMsgTypError = errors.New("rocketmq publish msg error, invalid msg type")
-	rocketmqSubscribeTopicError     = errors.New("rocketmq subscribe topic failed")
+	ErrRocketmqPublishMsg         = errors.New("rocketmq publish msg error")
+	ErrRocketmqValidPublishMsgTyp = errors.New("rocketmq publish msg error, invalid msg type")
 )
 
 const (

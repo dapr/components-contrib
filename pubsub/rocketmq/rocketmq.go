@@ -10,6 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	mq "github.com/apache/rocketmq-client-go/v2"
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -18,8 +21,6 @@ import (
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 	"github.com/patrickmn/go-cache"
-	"sync"
-	"time"
 )
 
 type rocketMQ struct {
@@ -138,7 +139,7 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	result, err := producer.SendSync(ctx, msg)
 	if err != nil {
 		r.logger.Errorf("error send message topic:%s : %v", req.Topic, err)
-		return rocketmqPublishMsgError
+		return ErrRocketmqPublishMsg
 	}
 	r.logger.Debugf("rocketmq send result topic:%s tag:%s status:%v", req.Topic, msg.GetTags(), result.Status)
 	return nil
@@ -219,7 +220,7 @@ func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 	if req.Metadata == nil {
 		req.Metadata = make(map[string]string)
 	}
-	var consumerGroup = r.metadata.ConsumerGroup
+	consumerGroup := r.metadata.ConsumerGroup
 	// get consumer group from request first
 	if group, ok := req.Metadata[metadataRocketmqConsumerGroup]; ok {
 		consumerGroup = group
@@ -230,7 +231,7 @@ func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 		err    error
 	)
 	if !r.validMqTypeParams(mqType) {
-		return rocketmqValidPublishMsgTypError
+		return ErrRocketmqValidPublishMsgTyp
 	}
 	r.closeSubscriptionResources()
 	if r.pushConsumer, err = r.setUpConsumer(); err != nil {

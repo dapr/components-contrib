@@ -8,7 +8,6 @@ package conformance
 import (
 	"errors"
 	"fmt"
-	p_rocketmq "github.com/dapr/components-contrib/pubsub/rocketmq"
 	"io/ioutil"
 	"log"
 	"os"
@@ -48,6 +47,7 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
+	p_rocketmq "github.com/dapr/components-contrib/pubsub/rocketmq"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"

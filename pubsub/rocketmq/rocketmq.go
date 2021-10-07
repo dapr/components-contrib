@@ -291,7 +291,7 @@ func (r *rocketMQ) addTopic(topic string, selector mqc.MessageSelector) []string
 
 func (r *rocketMQ) getAllTopics() []string {
 	topics := make([]string, 0, len(r.topics))
-	for topic, _ := range r.topics {
+	for topic := range r.topics {
 		topics = append(topics, topic)
 	}
 	return topics

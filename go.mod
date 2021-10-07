@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/pubsub v1.5.0
 	cloud.google.com/go/secretmanager v1.0.0
 	cloud.google.com/go/storage v1.10.0
+	github.com/Azure/azure-amqp-common-go/v3 v3.2.0
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.10
 	github.com/Azure/azure-sdk-for-go v57.2.0+incompatible
 	github.com/Azure/azure-service-bus-go v0.11.1

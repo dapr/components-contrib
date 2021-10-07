@@ -8,12 +8,13 @@ package rocketmq
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
-func TestMetaDataDecode(t *testing.T) { //nolint:paralleltest
+func TestMetaDataDecode(t *testing.T) {
 	props := map[string]string{
 		"accessProto":   "http",
 		"accessKey":     "**",

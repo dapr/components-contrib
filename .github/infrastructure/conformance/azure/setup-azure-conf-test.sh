@@ -184,7 +184,12 @@ KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
 KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 
+RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
+
 SERVICE_BUS_CONNECTION_STRING_VAR_NAME="AzureServiceBusConnectionString"
+
+SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
+SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
 STORAGE_ACCOUNT_VAR_NAME="AzureBlobStorageAccount"
@@ -231,6 +236,9 @@ else
     echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
 fi
 
+# Generate new password for SQL Server admin
+SQL_SERVER_ADMIN_PASSWORD=$(openssl rand -base64 32)
+
 # Build the bicep template and deploy to Azure
 az bicep install
 ARM_TEMPLATE_FILE="${OUTPUT_PATH}/${PREFIX}-azure-conf-test.json"
@@ -238,7 +246,7 @@ echo "Building conf-test-azure.bicep to ${ARM_TEMPLATE_FILE} ..."
 az bicep build --file conf-test-azure.bicep --outfile "${ARM_TEMPLATE_FILE}"
 
 echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resource prefix ${PREFIX}-* ..."
-az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}"
+az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}" -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
 echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
 sleep 5s
@@ -281,6 +289,10 @@ IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEP
 echo "INFO: IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME=${IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME}"
 IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME=${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME}"
+SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
+SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -296,6 +308,11 @@ MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --ro
 IOT_HUB_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
 echo "Assigning \"Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${IOT_HUB_SCOPE}\"..."
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "${IOT_HUB_SCOPE}"
+
+# Add SQL Server Contributor role to the SDK auth Service Principal so it can update firewall rules to run sqlserver state conformance tests.
+SQL_SERVER_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Sql/servers/${SQL_SERVER_NAME}"
+echo "Assigning \"Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${SQL_SERVER_SCOPE}\"..."
+MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "${SQL_SERVER_SCOPE}"
 
 ##==============================================================================
 ##
@@ -465,6 +482,23 @@ echo "Configuring Service Bus test settings ..."
 SERVICE_BUS_CONNECTION_STRING="$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name "${SERVICE_BUS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
 echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
+
+# ----------------------------------
+# Populate SQL Server test settings
+# ----------------------------------
+echo "Configuring SQL Server test settings ..."
+
+# Not specific to SQL server, but this is currently only consumed by setting SQL server firewall rules 
+echo export ${RESOURCE_GROUP_NAME_VAR_NAME}=\"${RESOURCE_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${RESOURCE_GROUP_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${RESOURCE_GROUP_NAME}"
+
+echo export ${SQL_SERVER_NAME_VAR_NAME}=\"${SQL_SERVER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${SQL_SERVER_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_NAME}"
+
+# Note that `az sql db show-connection-string` does not currently support a `go` --client type, so we construct our own here.
+SQL_SERVER_CONNECTION_STRING="Server=${SQL_SERVER_NAME}.database.windows.net;port=1433;User ID=${SQL_SERVER_ADMIN_NAME};Password=${SQL_SERVER_ADMIN_PASSWORD};Encrypt=true;"
+echo export ${SQL_SERVER_CONNECTION_STRING_VAR_NAME}=\"${SQL_SERVER_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${SQL_SERVER_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_CONNECTION_STRING}"
 
 # ----------------------------------
 # Populate Event Hubs test settings

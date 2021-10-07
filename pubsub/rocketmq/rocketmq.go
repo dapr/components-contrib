@@ -17,10 +17,11 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqp "github.com/apache/rocketmq-client-go/v2/producer"
+	"github.com/patrickmn/go-cache"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
-	"github.com/patrickmn/go-cache"
 )
 
 type rocketMQ struct {
@@ -257,7 +258,7 @@ func (r *rocketMQ) validMqTypeParams(mqType string) bool {
 	return true
 }
 
-// Close down consumer group resources, refresh once
+// Close down consumer group resources, refresh once.
 func (r *rocketMQ) closeSubscriptionResources() {
 	if r.pushConsumer != nil {
 		if len(r.topics) > 0 {

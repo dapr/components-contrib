@@ -13,9 +13,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/require"
 )
 
 func getTestMetadata() map[string]string {

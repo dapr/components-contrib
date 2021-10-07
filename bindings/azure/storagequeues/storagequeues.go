@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strings"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -77,13 +77,17 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 func (d *AzureQueueHelper) Write(data []byte, ttl *time.Duration) error {
 	ctx := context.TODO()
 	messagesURL := d.queueURL.NewMessagesURL()
-	s := string(data)
+
+	s, err := strconv.Unquote(string(data))
+	if err != nil {
+		s = string(data)
+	}
 
 	if ttl == nil {
 		ttlToUse := defaultTTL
 		ttl = &ttlToUse
 	}
-	_, err := messagesURL.Enqueue(ctx, s, time.Second*0, *ttl)
+	_, err = messagesURL.Enqueue(ctx, s, time.Second*0, *ttl)
 
 	return err
 }
@@ -105,7 +109,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	var data []byte
 
 	if d.decodeBase64 {
-		decoded, decodeError := base64.StdEncoding.DecodeString(strings.Trim(mt, "\""))
+		decoded, decodeError := base64.StdEncoding.DecodeString(mt)
 		if decodeError != nil {
 			return decodeError
 		}

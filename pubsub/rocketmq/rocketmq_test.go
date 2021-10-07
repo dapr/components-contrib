@@ -10,11 +10,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
+	"testing"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/require"
-	"sync/atomic"
-	"testing"
 )
 
 func getTestMetadata() map[string]string {

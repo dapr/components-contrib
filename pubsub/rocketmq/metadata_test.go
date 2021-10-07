@@ -6,10 +6,11 @@
 package rocketmq
 
 import (
+	"testing"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestMetaDataDecode(t *testing.T) { //nolint:paralleltest

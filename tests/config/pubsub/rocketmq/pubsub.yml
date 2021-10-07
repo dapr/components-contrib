@@ -6,11 +6,11 @@ spec:
   type: pubsub.rocketmq
   version: v1
   metadata:
-    - name: nameServer
-      value: "127.0.0.1:9876"
-    - name: consumerGroup
-      value: "dapr.rocketmq.producer"
-    - name: accessKey
-      value: "RocketMQ"
-    - name: secretKey
-      value: "12345"
+  - name: nameServer
+    value: "127.0.0.1:9876"
+  - name: consumerGroup
+    value: "dapr.rocketmq.producer"
+  - name: accessKey
+    value: "RocketMQ"
+  - name: secretKey
+    value: "12345"

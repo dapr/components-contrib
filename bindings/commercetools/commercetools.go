@@ -121,7 +121,7 @@ func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 
 // HandleGraphQLQuery executes the provided query against the commercetools backend
 func HandleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindings.InvokeResponse, error) {
-	ct.logger.Infof("HandleProductQuery")
+	ct.logger.Infof("HandleGraphQLQuery")
 
 	res := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 

@@ -63,6 +63,7 @@ type rabbitMQChannelBroker interface {
 	Ack(tag uint64, multiple bool) error
 	ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
 	Qos(prefetchCount, prefetchSize int, global bool) error
+	Close() error
 }
 
 // interface used to allow unit testing.
@@ -88,7 +89,8 @@ func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) 
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return conn, nil, err
+		conn.Close()
+		return nil, nil, err
 	}
 
 	return conn, ch, nil
@@ -146,15 +148,13 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	conn, ch, err := r.connectionDial(r.metadata.host)
+	r.connection, r.channel, err = r.connectionDial(r.metadata.host)
 	if err != nil {
 		r.reset()
 
 		return err
 	}
 
-	r.connection = conn
-	r.channel = ch
 	r.connectionCount++
 
 	r.logger.Infof("%s connected", logMessagePrefix)
@@ -251,22 +251,19 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	return &q, nil
 }
 
-func (r *rabbitMQ) subscribeForever(
-	req pubsub.SubscribeRequest,
-	queueName string,
-	handler pubsub.Handler) {
-	var err error
-	var connectionCount int
-	var channel rabbitMQChannelBroker
-	var q *amqp.Queue
-
+func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler) {
 	for {
-		err = nil
+		var (
+			err             error
+			connectionCount int
+			channel         rabbitMQChannelBroker
+			q               *amqp.Queue
+			msgs            <-chan amqp.Delivery
+		)
 		for {
 			channel, connectionCount = r.getChannel()
 			if channel == nil {
 				err = errors.New("channel not initialized")
-
 				break
 			}
 
@@ -275,18 +272,16 @@ func (r *rabbitMQ) subscribeForever(
 				break
 			}
 
-			msgs, err2 := channel.Consume(
+			msgs, err = channel.Consume(
 				q.Name,
 				queueName,          // consumerId
 				r.metadata.autoAck, // autoAck
-				false,
-				false, // noLocal
-				false, // noWait
+				false,              // exclusive
+				false,              // noLocal
+				false,              // noWait
 				nil,
 			)
-			if err2 != nil {
-				err = err2
-
+			if err != nil {
 				break
 			}
 
@@ -300,7 +295,7 @@ func (r *rabbitMQ) subscribeForever(
 			return
 		}
 
-		r.logger.Errorf("%s error in subscription for %s, %s", logMessagePrefix, queueName, err)
+		r.logger.Errorf("%s error in subscription for %s: %v", logMessagePrefix, queueName, err)
 
 		if mustReconnect(channel, err) {
 			time.Sleep(r.metadata.reconnectWait)
@@ -395,19 +390,24 @@ func (r *rabbitMQ) putExchange(exchange string) {
 	r.declaredExchanges[exchange] = true
 }
 
-func (r *rabbitMQ) reset() error {
-	conn := r.connection
-	r.connection = nil
-	r.channel = nil
+func (r *rabbitMQ) reset() (err error) {
 	if len(r.declaredExchanges) > 0 {
 		r.declaredExchanges = make(map[string]bool)
 	}
 
-	if conn != nil {
-		return conn.Close()
+	if r.channel != nil {
+		err = r.channel.Close()
+		r.channel = nil
+	}
+	if r.connection != nil {
+		err2 := r.connection.Close()
+		r.connection = nil
+		if err == nil {
+			err = err2
+		}
 	}
 
-	return nil
+	return
 }
 
 func (r *rabbitMQ) isStopped() bool {

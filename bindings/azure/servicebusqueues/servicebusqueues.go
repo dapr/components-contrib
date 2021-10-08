@@ -8,9 +8,11 @@ package servicebusqueues
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	servicebus "github.com/Azure/azure-service-bus-go"
+
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -25,7 +27,7 @@ const (
 	AzureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
 )
 
-// AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues
+// AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
 	metadata *serviceBusQueuesMetadata
 	client   *servicebus.Queue
@@ -39,20 +41,22 @@ type serviceBusQueuesMetadata struct {
 	ttl              time.Duration
 }
 
-// NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance
+// NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
 	return &AzureServiceBusQueues{logger: logger}
 }
 
-// Init parses connection properties and creates a new Service Bus Queue client
+// Init parses connection properties and creates a new Service Bus Queue client.
 func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	meta, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
+	userAgent := "dapr-" + logger.DaprVersion
 	a.metadata = meta
 
-	ns, err := servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
+	ns, err := servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
+		servicebus.NamespaceWithUserAgent(userAgent))
 	if err != nil {
 		return err
 	}
@@ -126,6 +130,9 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	}
 
 	m.ttl = ttl
+
+	// Queue names are case-insensitive and are forced to lowercase. This mimics the Azure portal's behavior.
+	m.QueueName = strings.ToLower(m.QueueName)
 
 	return &m, nil
 }

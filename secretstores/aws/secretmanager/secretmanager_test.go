@@ -10,9 +10,10 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const secretValue = "secret"

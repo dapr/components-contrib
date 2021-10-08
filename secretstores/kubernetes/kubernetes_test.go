@@ -9,8 +9,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/kit/logger"
 )
 
 func TestGetNamespace(t *testing.T) {

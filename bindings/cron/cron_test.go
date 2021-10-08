@@ -9,9 +9,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 func getTestMetadata(schedule string) bindings.Metadata {
@@ -32,7 +33,7 @@ func getNewCron() *Binding {
 	return NewCron(l)
 }
 
-// go test -v -timeout 15s -count=1 ./bindings/cron/
+// go test -v -timeout 15s -count=1 ./bindings/cron/.
 func TestCronInitSuccess(t *testing.T) {
 	c := getNewCron()
 	err := c.Init(getTestMetadata("@every 1h"))
@@ -52,7 +53,7 @@ func TestCronInitFailure(t *testing.T) {
 }
 
 // TestLongRead
-// go test -v -count=1 -timeout 15s -run TestLongRead ./bindings/cron/
+// go test -v -count=1 -timeout 15s -run TestLongRead ./bindings/cron/.
 func TestCronReadWithDeleteInvoke(t *testing.T) {
 	c := getNewCron()
 	schedule := "@every 1s"

@@ -425,7 +425,7 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
-	case "azure.eventhubs":
+	case eventhubs:
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.cosmosdb":
 		binding = b_azure_cosmosdb.NewCosmosDB(testLogger)

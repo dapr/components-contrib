@@ -98,6 +98,10 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
+	if v, ok := req.Value.(string); ok && v == "" {
+		return fmt.Errorf("empty string is not allowed in set operation")
+	}
+
 	v := req.Value
 	byteArray, isBinary := req.Value.([]uint8)
 	if isBinary {

@@ -20,7 +20,7 @@ components:
   - component: azure.cosmosdb
     operations: ["create", "operations"]
     config:
-      outputData: '{"id": "$((uuid))", "orderid": "abcdef-test", "value": "something of value for testing", "description": "conformance test item"}'
+      outputData: '{"id": "$((uuid))", "orderid": "abcdef-test", "nestedproperty": {"subproperty": "something of value for testing"}, "description": "conformance test item"}'
   - component: azure.eventhubs
     operations: ["create", "operations", "read"]
   - component: azure.eventgrid

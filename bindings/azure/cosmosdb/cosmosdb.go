@@ -149,6 +149,7 @@ func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	item.PartitionKey = val.(string)
 
 	_, err = c.client.CreateDocument(c.collection.Self, &item, documentdb.PartitionKey(val))
+
 	if err != nil {
 		return nil, err
 	}

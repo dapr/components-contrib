@@ -51,7 +51,7 @@ require (
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.3.2
+	github.com/eclipse/paho.mqtt.golang v1.3.5
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect

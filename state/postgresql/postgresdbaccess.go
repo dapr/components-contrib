@@ -172,13 +172,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 		return nil, err
 	}
 
-	if !isBinary {
-		return &state.GetResponse{
-			Data:     []byte(value),
-			ETag:     ptr.String(strconv.Itoa(etag)),
-			Metadata: req.Metadata,
-		}, nil
-	} else {
+	if isBinary {
 		var s string
 		var data []byte
 
@@ -196,6 +190,12 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 			Metadata: req.Metadata,
 		}, nil
 	}
+
+	return &state.GetResponse{
+		Data:     []byte(value),
+		ETag:     ptr.String(strconv.Itoa(etag)),
+		Metadata: req.Metadata,
+	}, nil
 }
 
 // Delete removes an item from the state store.

@@ -7,6 +7,7 @@ package postgresql
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -97,8 +98,14 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
+	v := req.Value
+	byteArray, isBinary := req.Value.([]uint8)
+	if isBinary {
+		v = base64.StdEncoding.EncodeToString(byteArray)
+	}
+
 	// Convert to json string
-	bt, _ := utils.Marshal(req.Value, json.Marshal)
+	bt, _ := utils.Marshal(v, json.Marshal)
 	value := string(bt)
 
 	var result sql.Result
@@ -107,9 +114,9 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	// Other parameters use sql.DB parameter substitution.
 	if req.ETag == nil {
 		result, err = p.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s (key, value) VALUES ($1, $2)
-			ON CONFLICT (key) DO UPDATE SET value = $2, updatedate = NOW();`,
-			tableName), req.Key, value)
+			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3)
+			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW();`,
+			tableName), req.Key, value, isBinary)
 	} else {
 		// Convert req.ETag to integer for postgres compatibility
 		var etag int
@@ -120,9 +127,9 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 
 		// When an etag is provided do an update - no insert
 		result, err = p.db.Exec(fmt.Sprintf(
-			`UPDATE %s SET value = $1, updatedate = NOW() 
-			 WHERE key = $2 AND xmin = $3;`,
-			tableName), value, req.Key, etag)
+			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW()
+			 WHERE key = $3 AND xmin = $4;`,
+			tableName), value, isBinary, req.Key, etag)
 	}
 
 	if err != nil {
@@ -153,8 +160,9 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 	}
 
 	var value string
+	var isBinary bool
 	var etag int
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value, xmin as etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &etag)
+	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, xmin as etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -164,13 +172,30 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 		return nil, err
 	}
 
-	response := &state.GetResponse{
-		Data:     []byte(value),
-		ETag:     ptr.String(strconv.Itoa(etag)),
-		Metadata: req.Metadata,
-	}
+	if !isBinary {
+		return &state.GetResponse{
+			Data:     []byte(value),
+			ETag:     ptr.String(strconv.Itoa(etag)),
+			Metadata: req.Metadata,
+		}, nil
+	} else {
+		var s string
+		var data []byte
 
-	return response, nil
+		if err = json.Unmarshal([]byte(value), &s); err != nil {
+			return nil, err
+		}
+
+		if data, err = base64.StdEncoding.DecodeString(s); err != nil {
+			return nil, err
+		}
+
+		return &state.GetResponse{
+			Data:     data,
+			ETag:     ptr.String(strconv.Itoa(etag)),
+			Metadata: req.Metadata,
+		}, nil
+	}
 }
 
 // Delete removes an item from the state store.
@@ -271,7 +296,8 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 		p.logger.Info("Creating PostgreSQL state table")
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 									key text NOT NULL PRIMARY KEY,
-									value text NOT NULL,
+									value json NOT NULL,
+									isbinary boolean NOT NULL,
 									insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 									updatedate TIMESTAMP WITH TIME ZONE NULL);`, stateTableName)
 		_, err = p.db.Exec(createTable)

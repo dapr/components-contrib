@@ -45,8 +45,11 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, false, m.autoAck)
 		assert.Equal(t, false, m.requeueInFailure)
 		assert.Equal(t, true, m.deleteWhenUnused)
+		assert.Equal(t, false, m.enableDeadLetter)
 		assert.Equal(t, uint8(0), m.deliveryMode)
 		assert.Equal(t, uint8(0), m.prefetchCount)
+		assert.Equal(t, int64(0), m.maxLen)
+		assert.Equal(t, int64(0), m.maxLenBytes)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {
@@ -139,6 +142,26 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, uint8(1), m.prefetchCount)
 	})
 
+	t.Run("maxLen and maxLenBytes is set", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[metadataMaxLen] = "1"
+		fakeMetaData.Properties[metadataMaxLenBytes] = "2000000"
+
+		// act
+		m, err := createMetadata(fakeMetaData)
+
+		// assert
+		assert.NoError(t, err)
+		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+		assert.Equal(t, int64(1), m.maxLen)
+		assert.Equal(t, int64(2000000), m.maxLenBytes)
+	})
+
 	for _, tt := range booleanFlagTests {
 		t.Run(fmt.Sprintf("autoAck value=%s", tt.in), func(t *testing.T) {
 			fakeProperties := getFakeProperties()
@@ -220,12 +243,13 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
-		t.Run(fmt.Sprintf("backOffEnable value=%s", tt.in), func(t *testing.T) {
+		t.Run(fmt.Sprintf("enableDeadLetter value=%s", tt.in), func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
 				Properties: fakeProperties,
 			}
+			fakeMetaData.Properties[metadataEnableDeadLetter] = tt.in
 
 			// act
 			m, err := createMetadata(fakeMetaData)
@@ -234,6 +258,7 @@ func TestCreateMetadata(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+			assert.Equal(t, tt.expected, m.enableDeadLetter)
 		})
 	}
 }

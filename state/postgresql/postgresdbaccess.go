@@ -296,7 +296,7 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 		p.logger.Info("Creating PostgreSQL state table")
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 									key text NOT NULL PRIMARY KEY,
-									value json NOT NULL,
+									value jsonb NOT NULL,
 									isbinary boolean NOT NULL,
 									insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 									updatedate TIMESTAMP WITH TIME ZONE NULL);`, stateTableName)

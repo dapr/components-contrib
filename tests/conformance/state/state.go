@@ -6,6 +6,7 @@
 package state
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -225,7 +226,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
-					assert.Equal(t, scenario.expectedReadResponse, res.Data)
+					assertEquals(t, scenario, res)
 				}
 			}
 		})
@@ -276,7 +277,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
-					assert.Equal(t, scenario.expectedReadResponse, res.Data)
+					assertEquals(t, scenario, res)
 				}
 			}
 		})
@@ -371,7 +372,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 								},
 							})
 							assert.Nil(t, err)
-							assert.Equal(t, scenario.expectedReadResponse, res.Data)
+							assertEquals(t, scenario, res)
 						}
 
 						if scenario.toBeDeleted && (scenario.transactionGroup == transactionGroup-1) {
@@ -597,5 +598,17 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			err = statestore.Set(request)
 			assert.NotNil(t, err)
 		})
+	}
+}
+
+func assertEquals(t *testing.T, scenario scenario, res *state.GetResponse) {
+	if _, ok := scenario.value.(ValueType); ok {
+		var v ValueType
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, scenario.value, v)
+	} else {
+		assert.Equal(t, scenario.expectedReadResponse, res.Data)
 	}
 }

@@ -123,7 +123,7 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var obj map[string]interface{}
+	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,6 @@ func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	}
 
 	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
-
 	if err != nil {
 		return nil, err
 	}

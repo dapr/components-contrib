@@ -454,7 +454,7 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
-	case "azure.eventhubs":
+	case eventhubs:
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)

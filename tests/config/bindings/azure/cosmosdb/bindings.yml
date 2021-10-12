@@ -16,4 +16,4 @@ spec:
   - name: collection
     value: ${{AzureCosmosDBCollection}}
   - name: partitionKey
-    value: nestedproperty.subproperty
+    value: partitionKey

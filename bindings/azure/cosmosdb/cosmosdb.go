@@ -74,6 +74,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		}
 		config = documentdb.NewConfigWithServicePrincipal(spt)
 	}
+	config.IdentificationHydrator = nil
 	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
@@ -134,21 +135,12 @@ func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 		return nil, err
 	}
 
-	var item CosmosItem
-	err = json.Unmarshal(req.Data, &item)
-	if err != nil {
-		return nil, err
-	}
-	item.Value = obj
-
 	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
 	if err != nil {
 		return nil, err
 	}
 
-	item.PartitionKey = val.(string)
-
-	_, err = c.client.CreateDocument(c.collection.Self, &item, documentdb.PartitionKey(val))
+	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
 
 	if err != nil {
 		return nil, err

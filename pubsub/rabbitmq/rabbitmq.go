@@ -17,10 +17,12 @@ import (
 )
 
 const (
-	fanoutExchangeKind     = "fanout"
-	logMessagePrefix       = "rabbitmq pub/sub:"
-	errorMessagePrefix     = "rabbitmq pub/sub error:"
-	errorChannelConnection = "channel/connection is not open"
+	fanoutExchangeKind              = "fanout"
+	logMessagePrefix                = "rabbitmq pub/sub:"
+	errorMessagePrefix              = "rabbitmq pub/sub error:"
+	errorChannelConnection          = "channel/connection is not open"
+	defaultDeadLetterExchangeFormat = "dlx-%s"
+	defaultDeadLetterQueueFormat    = "dlq-%s"
 
 	metadataHostKey              = "host"
 	metadataConsumerIDKey        = "consumerID"
@@ -30,9 +32,18 @@ const (
 	metadataDeliveryModeKey      = "deliveryMode"
 	metadataRequeueInFailureKey  = "requeueInFailure"
 	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
+	metadataEnableDeadLetter     = "enableDeadLetter"
+	metadataMaxLen               = "maxLen"
+	metadataMaxLenBytes          = "maxLenBytes"
 
 	defaultReconnectWaitSeconds = 10
 	metadataPrefetchCount       = "prefetchCount"
+
+	argQueueMode          = "x-queue-mode"
+	argMaxLength          = "x-max-length"
+	argMaxLengthBytes     = "x-max-length-bytes"
+	argDeadLetterExchange = "x-dead-letter-exchange"
+	queueModeLazy         = "lazy"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -229,7 +240,32 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
-	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, nil)
+	var args amqp.Table
+	if r.metadata.enableDeadLetter {
+		// declare dead letter exchange
+		dlxName := fmt.Sprintf(defaultDeadLetterExchangeFormat, queueName)
+		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
+		err = r.ensureExchangeDeclared(channel, dlxName)
+		if err != nil {
+			return nil, err
+		}
+		var q amqp.Queue
+		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
+		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
+		dlqArgs[argQueueMode] = queueModeLazy
+		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
+		if err != nil {
+			return nil, err
+		}
+		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
+		if err != nil {
+			return nil, err
+		}
+		r.logger.Debugf("declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", queueName, dlqName, dlxName)
+		args = amqp.Table{argDeadLetterExchange: dlxName}
+	}
+	args = r.metadata.formatQueueDeclareArgs(args)
+	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
 		return nil, err
 	}

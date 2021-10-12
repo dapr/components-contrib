@@ -28,12 +28,6 @@ type CosmosDB struct {
 	logger logger.Logger
 }
 
-type CosmosItem struct {
-	documentdb.Document
-	PartitionKey string      `json:"partitionKey,omitempty"`
-	Value        interface{} `json:"value,omitempty"`
-}
-
 type cosmosDBCredentials struct {
 	URL          string `json:"url"`
 	MasterKey    string `json:"masterKey"`

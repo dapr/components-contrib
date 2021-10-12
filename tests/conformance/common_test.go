@@ -6,6 +6,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -104,14 +105,25 @@ func TestConvertMetadataToProperties(t *testing.T) {
 
 func TestParseConfigurationMap(t *testing.T) {
 	testMap := map[string]interface{}{
-		"key":  "$((uuid))",
-		"blob": "testblob",
+		"key":       "$((uuid))",
+		"blob":      "testblob",
+		"mapString": `{"nestedkey": "$((uuid))", "somethingtested": "somevalue"}`,
+		"map": map[string]interface{}{
+			"nestedkey": "$((uuid))",
+		},
 	}
 
 	ParseConfigurationMap(t, testMap)
-	assert.Equal(t, 2, len(testMap))
+	assert.Equal(t, 4, len(testMap))
 	assert.Equal(t, "testblob", testMap["blob"])
 	_, err := uuid.ParseBytes([]byte(testMap["key"].(string)))
+	assert.NoError(t, err)
+
+	var nestedMap map[string]interface{}
+	json.Unmarshal([]byte(testMap["mapString"].(string)), &nestedMap)
+	_, err = uuid.ParseBytes([]byte(nestedMap["nestedkey"].(string)))
+	assert.NoError(t, err)
+	_, err = uuid.ParseBytes([]byte(testMap["map"].(map[string]interface{})["nestedkey"].(string)))
 	assert.NoError(t, err)
 }
 

@@ -384,7 +384,6 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		ETag:     ptr.String(eTag),
 		Metadata: req.Metadata,
 	}, nil
-
 }
 
 // Set adds/updates an entity on store

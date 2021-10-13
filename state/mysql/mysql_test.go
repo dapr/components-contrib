@@ -10,13 +10,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/state/utils"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 

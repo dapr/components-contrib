@@ -35,14 +35,14 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-			isMatch, err := regexp.MatchString(meta.Rule, string(ctx.RequestURI()))
+			isPass, err := regexp.MatchString(meta.Rule, string(ctx.RequestURI()))
 			if err != nil {
 				m.logger.Error("regexp match failed", err.Error())
 				ctx.Error("regexp match failed", fasthttp.StatusBadRequest)
 
 				return
 			}
-			if isMatch {
+			if !isPass {
 				ctx.Error("invalid router", fasthttp.StatusBadRequest)
 
 				return

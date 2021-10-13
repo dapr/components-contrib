@@ -18,7 +18,7 @@ func (ro *RouterOutput) handle(ctx *fasthttp.RequestCtx) {
 
 func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	meta := middleware.Metadata{Properties: map[string]string{
-		"rule": "[\\s]",
+		"rule": "^[A-Za-z0-9/._-]+$",
 	}}
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)
@@ -37,7 +37,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 
 func TestRequestHandlerWithLegalRouterRule(t *testing.T) {
 	meta := middleware.Metadata{Properties: map[string]string{
-		"rule": "[\\s]",
+		"rule": "^[A-Za-z0-9/._-]+$",
 	}}
 
 	log := logger.NewLogger("routerchecker.test")

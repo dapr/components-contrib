@@ -8,7 +8,9 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"strconv"
@@ -24,7 +26,12 @@ import (
 )
 
 const (
-	key = "partitionKey"
+	key        = "partitionKey"
+	skipVerify = "skipVerify"
+	cACert     = "caCert"
+	clientCert = "clientCert"
+	clientKey  = "clientKey"
+	useTLS     = "useTLS"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group.
@@ -42,6 +49,7 @@ type Kafka struct {
 	cancel        context.CancelFunc
 	consumer      consumer
 	config        *sarama.Config
+	metadata      *kafkaMetadata
 
 	backOffConfig retry.Config
 }
@@ -55,6 +63,11 @@ type kafkaMetadata struct {
 	SaslPassword    string   `json:"saslPassword"`
 	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int      `json:"maxMessageBytes"`
+	SkipVerify      bool
+	CaCert          string
+	UseTLS          bool
+	ClientCert      string
+	ClientKey       string
 }
 
 type consumer struct {
@@ -119,6 +132,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
+	k.metadata = meta
 	k.brokers = meta.Brokers
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
@@ -136,6 +150,10 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		k.saslUsername = meta.SaslUsername
 		k.saslPassword = meta.SaslPassword
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+	err = k.updateTLSConfig()
+	if err != nil {
+		return err
 	}
 
 	k.config = config
@@ -350,7 +368,51 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		meta.MaxMessageBytes = maxBytes
 	}
 
+	if val, ok := metadata.Properties[useTLS]; ok && val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", useTLS, err)
+		}
+		meta.UseTLS = boolVal
+	}
+
+	// ignore client tls properties if useTLS is false
+	if meta.UseTLS {
+		if val, ok := metadata.Properties[clientCert]; ok && val != "" {
+			if !isValidPEM(val) {
+				return nil, errors.New("kafka error: invalid client certificate")
+			}
+			meta.ClientCert = val
+		}
+		if val, ok := metadata.Properties[clientKey]; ok && val != "" {
+			if !isValidPEM(val) {
+				return nil, errors.New("kafka error: invalid client key")
+			}
+			meta.ClientKey = val
+		}
+		if cACertVal, ok := metadata.Properties[cACert]; ok && cACertVal != "" {
+			if !isValidPEM(cACertVal) {
+				return nil, errors.New("kafka error: invalid ca certificate")
+			}
+			meta.CaCert = cACertVal
+		}
+		if val, ok := metadata.Properties[skipVerify]; ok && val != "" {
+			boolVal, err := strconv.ParseBool(val)
+			if err != nil {
+				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", skipVerify, err)
+			}
+			meta.SkipVerify = boolVal
+		}
+	}
+
 	return &meta, nil
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+
+	return block != nil
 }
 
 func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
@@ -376,13 +438,31 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 	config.Net.SASL.User = saslUsername
 	config.Net.SASL.Password = saslPassword
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+}
 
-	config.Net.TLS.Enable = true
-	// nolint: gosec
-	config.Net.TLS.Config = &tls.Config{
-		// InsecureSkipVerify: true,
-		ClientAuth: 0,
+func (k *Kafka) updateTLSConfig() error {
+	if !k.metadata.UseTLS {
+		return nil
 	}
+	k.config.Net.TLS.Enable = k.metadata.UseTLS
+	// nolint: gosec
+	k.config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: k.metadata.SkipVerify}
+	if k.metadata.ClientCert != "" && k.metadata.ClientKey != "" {
+		cert, err := tls.LoadX509KeyPair(k.metadata.ClientCert, k.metadata.ClientCert)
+		if err != nil {
+			return fmt.Errorf("unable to load client certificate and key pair. Err: %w", err)
+		}
+		k.config.Net.TLS.Config.Certificates = []tls.Certificate{cert}
+	}
+	if k.metadata.CaCert != "" {
+		caCertPool := x509.NewCertPool()
+		if ok := caCertPool.AppendCertsFromPEM([]byte(k.metadata.CaCert)); !ok {
+			k.logger.Warnf("unable to load ca certificate.")
+		}
+		k.config.Net.TLS.Config.RootCAs = caCertPool
+	}
+
+	return nil
 }
 
 func (k *Kafka) Close() error {

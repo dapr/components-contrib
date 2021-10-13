@@ -17,13 +17,34 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+var (
+	clientCertPemMock = `-----BEGIN CERTIFICATE-----
+Y2xpZW50Q2VydA==
+-----END CERTIFICATE-----`
+	clientKeyMock = `-----BEGIN RSA PRIVATE KEY-----
+Y2xpZW50S2V5
+-----END RSA PRIVATE KEY-----`
+	caCertMock = `-----BEGIN CERTIFICATE-----
+Y2FDZXJ0
+-----END CERTIFICATE-----`
+)
+
 func getKafkaPubsub() *Kafka {
 	return &Kafka{logger: logger.NewLogger("kafka_test")}
 }
 
-func TestParseMetadata(t *testing.T) {
+func getBaseMetadata() pubsub.Metadata {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"consumerGroup": "a", "clientID": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048"}
+	return m
+}
+
+func TestParseMetadata(t *testing.T) {
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{
+		"consumerGroup": "a", "clientID": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048",
+		useTLS: "true", skipVerify: "false", clientCert: clientCertPemMock, clientKey: clientKeyMock, cACert: caCertMock,
+	}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
 	assert.Nil(t, err)
@@ -31,6 +52,11 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "a", meta.ConsumerGroup)
 	assert.Equal(t, "a", meta.ClientID)
 	assert.Equal(t, 2048, meta.MaxMessageBytes)
+	assert.Equal(t, true, meta.UseTLS)
+	assert.Equal(t, false, meta.SkipVerify)
+	assert.Equal(t, clientCertPemMock, meta.ClientCert)
+	assert.Equal(t, clientKeyMock, meta.ClientKey)
+	assert.Equal(t, caCertMock, meta.CaCert)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -113,4 +139,49 @@ func TestInitialOffset(t *testing.T) {
 	meta, err = k.getKafkaMetadata(m)
 	require.NoError(t, err)
 	assert.Equal(t, sarama.OffsetNewest, meta.InitialOffset)
+}
+
+func TestTls(t *testing.T) {
+	k := getKafkaPubsub()
+
+	t.Run("disable tls", func(t *testing.T) {
+		m := getBaseMetadata()
+		m.Properties[useTLS] = "false"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		assert.NotNil(t, meta)
+	})
+
+	t.Run("wrong client cert format", func(t *testing.T) {
+		m := getBaseMetadata()
+		m.Properties[useTLS] = "true"
+		m.Properties[clientCert] = "clientCert"
+		meta, err := k.getKafkaMetadata(m)
+		assert.Error(t, err)
+		assert.Nil(t, meta)
+
+		assert.Equal(t, "kafka error: invalid client certificate", err.Error())
+	})
+
+	t.Run("wrong client key format", func(t *testing.T) {
+		m := getBaseMetadata()
+		m.Properties[useTLS] = "true"
+		m.Properties[clientKey] = "clientKey"
+		meta, err := k.getKafkaMetadata(m)
+		assert.Error(t, err)
+		assert.Nil(t, meta)
+
+		assert.Equal(t, "kafka error: invalid client key", err.Error())
+	})
+
+	t.Run("wrong ca cert format", func(t *testing.T) {
+		m := getBaseMetadata()
+		m.Properties[useTLS] = "true"
+		m.Properties[cACert] = "caCert"
+		meta, err := k.getKafkaMetadata(m)
+		assert.Error(t, err)
+		assert.Nil(t, meta)
+
+		assert.Equal(t, "kafka error: invalid ca certificate", err.Error())
+	})
 }

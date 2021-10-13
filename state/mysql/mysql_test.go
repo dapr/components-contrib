@@ -477,8 +477,8 @@ func TestGetSucceeds(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	rows := sqlmock.NewRows([]string{"value", "eTag"}).AddRow("{}", "946af56e")
-	m.mock1.ExpectQuery("SELECT value, eTag FROM state WHERE id = ?").WillReturnRows(rows)
+	rows := sqlmock.NewRows([]string{"value", "eTag", "isbinary"}).AddRow("{}", "946af56e", false)
+	m.mock1.ExpectQuery("SELECT value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
 
 	request := &state.GetRequest{
 		Key: "UnitTest",

@@ -152,14 +152,14 @@ func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	case execOperation:
 		r, err := m.exec(s)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", s, err)
+			return nil, errors.Wrapf(err, "error executing %s", s)
 		}
 		resp.Metadata[respRowsAffectedKey] = strconv.FormatInt(r, 10)
 
 	case queryOperation:
 		d, err := m.query(s)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", s, err)
+			return nil, errors.Wrapf(err, "error executing %s", s)
 		}
 		resp.Data = d
 
@@ -198,7 +198,7 @@ func (m *Mysql) query(s string) ([]byte, error) {
 
 	rows, err := m.db.Query(s)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing %s", s)
+		return nil, err
 	}
 
 	defer func() {
@@ -208,7 +208,7 @@ func (m *Mysql) query(s string) ([]byte, error) {
 
 	result, err := m.jsonify(rows)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error marshalling query result for %s", s)
+		return nil, errors.Errorf("error marshalling query result, %s", err.Error())
 	}
 
 	return result, nil
@@ -219,7 +219,7 @@ func (m *Mysql) exec(sql string) (int64, error) {
 
 	res, err := m.db.Exec(sql)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error executing %s", sql)
+		return 0, err
 	}
 
 	return res.RowsAffected()

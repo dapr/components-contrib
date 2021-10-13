@@ -132,13 +132,18 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	userAgent := "dapr-" + logger.DaprVersion
 	a.metadata = m
-	hub, err := eventhub.NewHubFromConnectionString(a.metadata.connectionString)
+	hub, err := eventhub.NewHubFromConnectionString(a.metadata.connectionString,
+		eventhub.HubWithUserAgent(userAgent),
+	)
 
 	// Create partitioned sender if the partitionID is configured
 	if a.metadata.partitioned() {
 		hub, err = eventhub.NewHubFromConnectionString(a.metadata.connectionString,
-			eventhub.HubWithPartitionedSender(a.metadata.partitionID))
+			eventhub.HubWithPartitionedSender(a.metadata.partitionID),
+			eventhub.HubWithUserAgent(userAgent),
+		)
 	}
 
 	if err != nil {

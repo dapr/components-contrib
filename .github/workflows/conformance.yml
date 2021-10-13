@@ -93,14 +93,20 @@ jobs:
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.sql
+          required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
         - component: state.azure.tablestorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: pubsub.azure.eventhubs
+          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.eventhubs
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
@@ -265,6 +271,18 @@ jobs:
         go mod download
         go install gotest.tools/gotestsum@latest
 
+    - name: Configure Azure SQL Firewall
+      run: |
+        set +e
+        TEST_OUTPUT="$(go test -v -tags=conftests -count=1 -timeout=1m ./tests/conformance -run=TestStateConformance/azure.sql)"
+        echo "Trial run result:\n\"$TEST_OUTPUT\""
+        PUBLIC_IP=$(echo "$TEST_OUTPUT" | grep -Po "Client with IP address '\K[^']*")
+        if [[ -n ${PUBLIC_IP} ]]; then
+          echo "Setting Azure SQL firewall-rule AllowTestRunnerIP to allow $PUBLIC_IP..."
+          az sql server firewall-rule create --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n "AllowTestRunnerIP" --start-ip-address "$PUBLIC_IP" --end-ip-address "$PUBLIC_IP"
+        fi
+      if: contains(matrix.component, 'azure.sql')
+
     - name: Run tests
       continue-on-error: true
       run: |
@@ -302,6 +320,13 @@ jobs:
       if: contains(matrix.component, 'azure.eventgrid')
       continue-on-error: true
       run: pkill ngrok; cat /tmp/ngrok.log
+
+    - name: Cleanup Azure SQL Firewall and test DB instance
+      if: contains(matrix.component, 'azure.sql')
+      continue-on-error: true
+      run: |
+        az sql server firewall-rule delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n "AllowTestRunnerIP"
+        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n dapr --yes
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs

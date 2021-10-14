@@ -174,12 +174,22 @@ EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubConnectionStri
 EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureEventHubsPubsubConsumerGroup"
 EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME="AzureEventHubsPubsubContainer"
 
+IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
+IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
+IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME="AzureIotHubBindingsConsumerGroup"
+IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureIotHubPubsubConsumerGroup"
+
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
 KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 
+RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
+
 SERVICE_BUS_CONNECTION_STRING_VAR_NAME="AzureServiceBusConnectionString"
+
+SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
+SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
 STORAGE_ACCOUNT_VAR_NAME="AzureBlobStorageAccount"
@@ -194,6 +204,9 @@ DEPLOY_NAME="${PREFIX}-azure-conf-test"
 
 # Setup output path
 mkdir -p "${OUTPUT_PATH}"
+
+# Configure Azure CLI to install azure-iot and other extensions without prompts
+az config set extension.use_dynamic_install=yes_without_prompt
 
 # Create Service Principals for use with the conformance tests
 CERT_AUTH_SP_NAME="${PREFIX}-akv-conf-test-sp"
@@ -223,6 +236,9 @@ else
     echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
 fi
 
+# Generate new password for SQL Server admin
+SQL_SERVER_ADMIN_PASSWORD=$(openssl rand -base64 32)
+
 # Build the bicep template and deploy to Azure
 az bicep install
 ARM_TEMPLATE_FILE="${OUTPUT_PATH}/${PREFIX}-azure-conf-test.json"
@@ -230,7 +246,7 @@ echo "Building conf-test-azure.bicep to ${ARM_TEMPLATE_FILE} ..."
 az bicep build --file conf-test-azure.bicep --outfile "${ARM_TEMPLATE_FILE}"
 
 echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resource prefix ${PREFIX}-* ..."
-az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}"
+az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}" -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
 echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
 sleep 5s
@@ -267,6 +283,16 @@ EVENT_HUB_PUBSUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" -
 echo "INFO: EVENT_HUB_PUBSUB_POLICY_NAME=${EVENT_HUB_PUBSUB_POLICY_NAME}"
 EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
 echo "INFO: EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME=${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
+IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: IOT_HUB_NAME=${IOT_HUB_NAME}"
+IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubBindingsConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME=${IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME}"
+IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME=${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME}"
+SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
+SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" | sed -E 's/[[:space:]]|\"//g')"
+echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -277,6 +303,16 @@ EVENT_GRID_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}
 # MSYS_NO_PATHCONV is needed to prevent MSYS in Git Bash from converting the scope string to a local filesystem path and is benign on Linux
 echo "Assigning \"EventGrid EventSubscription Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${EVENT_GRID_SCOPE}\"..."
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "EventGrid EventSubscription Contributor" --scope "${EVENT_GRID_SCOPE}"
+
+# Add Contributor role to the SDK auth Service Principal so it can add devices to the Azure IoT Hub for tests.
+IOT_HUB_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
+echo "Assigning \"Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${IOT_HUB_SCOPE}\"..."
+MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "${IOT_HUB_SCOPE}"
+
+# Add SQL Server Contributor role to the SDK auth Service Principal so it can update firewall rules to run sqlserver state conformance tests.
+SQL_SERVER_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Sql/servers/${SQL_SERVER_NAME}"
+echo "Assigning \"Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${SQL_SERVER_SCOPE}\"..."
+MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "${SQL_SERVER_SCOPE}"
 
 ##==============================================================================
 ##
@@ -448,6 +484,23 @@ echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
 
 # ----------------------------------
+# Populate SQL Server test settings
+# ----------------------------------
+echo "Configuring SQL Server test settings ..."
+
+# Not specific to SQL server, but this is currently only consumed by setting SQL server firewall rules 
+echo export ${RESOURCE_GROUP_NAME_VAR_NAME}=\"${RESOURCE_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${RESOURCE_GROUP_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${RESOURCE_GROUP_NAME}"
+
+echo export ${SQL_SERVER_NAME_VAR_NAME}=\"${SQL_SERVER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${SQL_SERVER_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_NAME}"
+
+# Note that `az sql db show-connection-string` does not currently support a `go` --client type, so we construct our own here.
+SQL_SERVER_CONNECTION_STRING="Server=${SQL_SERVER_NAME}.database.windows.net;port=1433;User ID=${SQL_SERVER_ADMIN_NAME};Password=${SQL_SERVER_ADMIN_PASSWORD};Encrypt=true;"
+echo export ${SQL_SERVER_CONNECTION_STRING_VAR_NAME}=\"${SQL_SERVER_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${SQL_SERVER_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_CONNECTION_STRING}"
+
+# ----------------------------------
 # Populate Event Hubs test settings
 # ----------------------------------
 echo "Configuring Event Hub test settings ..."
@@ -474,6 +527,29 @@ EVENT_HUBS_PUBSUB_CONTAINER_NAME="${PREFIX}-eventhubs-pubsub-container"
 echo export ${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONTAINER_NAME}"
 
+# ----------------------------------
+# Populate IoT Hub test settings
+# ----------------------------------
+echo "Configuring IoT Hub test settings ..."
+
+echo export ${IOT_HUB_NAME_VAR_NAME}=\"${IOT_HUB_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_NAME}"
+
+IOT_HUB_EVENT_HUB_CONNECTION_STRING="$(az iot hub connection-string show -n ${IOT_HUB_NAME} --default-eventhub --policy-name service --query connectionString | sed -E 's/[[:space:]]|\"//g')"
+echo export ${IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME}=\"${IOT_HUB_EVENT_HUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_EVENT_HUB_CONNECTION_STRING}"
+
+IOT_HUB_BINDINGS_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME})"
+echo export ${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_BINDINGS_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_BINDINGS_CONSUMER_GROUP_NAME}"
+
+IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME})"
+echo export ${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}"
+
+# ---------------------------
+# Display completion message
+# ---------------------------
 echo "INFO: setup-azure-conf-test completed."
 echo "INFO: Remember to \`source ${ENV_CONFIG_FILENAME}\` before running local conformance tests."
 if [[ -z ${CREDENTIALS_PATH} ]]; then

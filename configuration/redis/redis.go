@@ -239,7 +239,6 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		item.Value = val
 
 		if item.Value != "" {
-			// Hash key/value exist and "Content" filed in Hash value exist
 			items = append(items, item)
 		}
 	}
@@ -277,6 +276,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 	}()
 	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
 	if err != nil {
+		r.logger.Errorf("parse redis key failed: %s", err)
 		return
 	}
 
@@ -286,6 +286,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 		Keys:     []string{targetKey},
 	})
 	if err != nil {
+		r.logger.Errorf("get response from redis failed: %s", err)
 		return
 	}
 

@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dapr/components-contrib v1.4.0-rc2
-	github.com/dapr/dapr v1.4.0
+	github.com/dapr/dapr v1.4.4-0.20211014212830-cf6463b1e459
 	github.com/dapr/go-sdk v1.2.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/golang/protobuf v1.5.2
@@ -100,6 +100,6 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-replace github.com/dapr/dapr => github.com/pkedy/dapr v1.3.1-0.20211001012132-9925e2784bcb
-
 replace github.com/dapr/components-contrib => ../../
+
+replace github.com/dapr/go-sdk => github.com/pkedy/go-sdk v1.2.1-0.20211013135613-3be3a7c44354

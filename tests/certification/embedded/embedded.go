@@ -79,7 +79,8 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 		appID, []string{}, controlPlaneAddress,
 		allowedOrigins, config, componentsPath, string(runtime.HTTPProtocol), string(mode),
 		daprHTTPPort, daprInternalGRPC, daprAPIGRPCPort, []string{"127.0.0.1"}, nil, appPort, profilePort,
-		enableProfiling, maxConcurrency, enableMTLS, sentryAddress, appSSL, maxRequestBodySize, "")
+		enableProfiling, maxConcurrency, enableMTLS, sentryAddress, appSSL, maxRequestBodySize, "",
+		runtime.DefaultReadBufferSize, false)
 
 	for _, o := range opts {
 		o(runtimeConfig)

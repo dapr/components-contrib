@@ -4,20 +4,19 @@ import (
 	"time"
 
 	"github.com/dapr/dapr/pkg/runtime"
-	"github.com/dapr/dapr/pkg/runtime/embedded"
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/tests/certification/flow"
 
 	rtembedded "github.com/dapr/components-contrib/tests/certification/embedded"
 	// Go SDK
-	dapr "github.com/dapr/components-contrib/tests/certification/client"
+	dapr "github.com/dapr/go-sdk/client"
 )
 
 type (
 	Client struct {
 		dapr.Client
-		embedded.ComponentRegistry
+		runtime.ComponentRegistry
 		rt *runtime.DaprRuntime
 	}
 
@@ -97,7 +96,7 @@ func (s Sidecar) Start(ctx flow.Context) error {
 		rt: rt,
 	}
 
-	opts = append(opts, runtime.WithComponentsCallback(func(reg embedded.ComponentRegistry) error {
+	opts = append(opts, runtime.WithComponentsCallback(func(reg runtime.ComponentRegistry) error {
 		client.ComponentRegistry = reg
 
 		return nil

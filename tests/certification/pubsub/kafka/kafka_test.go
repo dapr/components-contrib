@@ -59,7 +59,7 @@ func TestKafka(t *testing.T) {
 		ctx.Log("Sending messages!")
 		for _, msg := range msgs {
 			ctx.Logf("Sending: %q", msg)
-			err := client.PublishEventFromCustomContent(
+			err := client.PublishEvent(
 				ctx, "messagebus", "neworder", msg)
 			require.NoError(ctx, err, "error publishing message")
 		}

@@ -43,7 +43,7 @@ func TestParseMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{
 		"consumerGroup": "a", "clientID": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048",
-		skipVerify: "true", clientCert: clientCertPemMock, clientKey: clientKeyMock, cACert: caCertMock,
+		skipVerify: "true", clientCert: clientCertPemMock, clientKey: clientKeyMock, caCert: caCertMock,
 	}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
@@ -196,7 +196,7 @@ func TestTls(t *testing.T) {
 
 	t.Run("wrong ca cert format", func(t *testing.T) {
 		m := getBaseMetadata()
-		m.Properties[cACert] = "caCert"
+		m.Properties[caCert] = "caCert"
 		meta, err := k.getKafkaMetadata(m)
 		assert.Error(t, err)
 		assert.Nil(t, meta)

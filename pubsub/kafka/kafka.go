@@ -28,7 +28,7 @@ import (
 const (
 	key        = "partitionKey"
 	skipVerify = "skipVerify"
-	cACert     = "caCert"
+	caCert     = "caCert"
 	clientCert = "clientCert"
 	clientKey  = "clientKey"
 )
@@ -380,11 +380,11 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 	if (meta.TLSClientKey == "") != (meta.TLSClientCert == "") {
 		return nil, errors.New("kafka error: clientKey or clientCert is missing")
 	}
-	if cACertVal, ok := metadata.Properties[cACert]; ok && cACertVal != "" {
-		if !isValidPEM(cACertVal) {
+	if val, ok := metadata.Properties[caCert]; ok && val != "" {
+		if !isValidPEM(val) {
 			return nil, errors.New("kafka error: invalid ca certificate")
 		}
-		meta.TLSCaCert = cACertVal
+		meta.TLSCaCert = val
 	}
 	if val, ok := metadata.Properties[skipVerify]; ok && val != "" {
 		boolVal, err := strconv.ParseBool(val)
@@ -392,6 +392,9 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", skipVerify, err)
 		}
 		meta.TLSSkipVerify = boolVal
+		if boolVal {
+			k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
+		}
 	}
 
 	return &meta, nil

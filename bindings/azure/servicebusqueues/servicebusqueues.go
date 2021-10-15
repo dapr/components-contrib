@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	servicebus "github.com/Azure/azure-service-bus-go"
@@ -16,6 +17,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -30,9 +32,13 @@ const (
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
 	metadata *serviceBusQueuesMetadata
-	client   *servicebus.Queue
-
-	logger logger.Logger
+	ns       *servicebus.Namespace
+	queue    *servicebus.QueueEntity
+	readLock *sync.RWMutex
+	shutdown bool
+	logger   logger.Logger
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 type serviceBusQueuesMetadata struct {
@@ -43,7 +49,7 @@ type serviceBusQueuesMetadata struct {
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
-	return &AzureServiceBusQueues{logger: logger}
+	return &AzureServiceBusQueues{readLock: &sync.RWMutex{}, logger: logger}
 }
 
 // Init parses connection properties and creates a new Service Bus Queue client.
@@ -60,6 +66,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	a.ns = ns
 
 	qm := ns.NewQueueManager()
 
@@ -97,12 +104,11 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 			return err
 		}
 	}
+	a.queue = entity
 
-	client, err := ns.NewQueue(entity.Name)
-	if err != nil {
-		return err
-	}
-	a.client = client
+	a.setShutdown(false)
+
+	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	return nil
 }
@@ -145,6 +151,12 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
+	client, err := a.ns.NewQueue(a.queue.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close(context.Background())
+
 	msg := servicebus.NewMessage(req.Data)
 	if val, ok := req.Metadata[id]; ok && val != "" {
 		msg.ID = val
@@ -162,7 +174,7 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 		msg.TTL = &ttl
 	}
 
-	return nil, a.client.Send(ctx, msg)
+	return nil, client.Send(ctx, msg)
 }
 
 func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
@@ -178,13 +190,70 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byt
 		return msg.Abandon(ctx)
 	}
 
-	if err := a.client.Receive(context.Background(), sbHandler); err != nil {
-		return err
-	}
+	reconnCtx, reconnCancel := context.WithCancel(context.Background())
+	defer reconnCancel()
 
-	return nil
+	// Simple retry for error handling (like a malformed message).
+	defaultConfig := retry.DefaultConfig()
+	simpleBackoff := defaultConfig.NewBackOffWithContext(reconnCtx)
+
+	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
+	connConfig := retry.DefaultConfig()
+	connConfig.Policy = retry.PolicyExponential
+	connConfig.MaxInterval, _ = time.ParseDuration("5m")
+	connBackoff := connConfig.NewBackOffWithContext(reconnCtx)
+
+	return retry.NotifyRecover(func() error {
+		for !a.getShutdown() {
+			var client *servicebus.Queue
+			retry.NotifyRecover(func() error {
+				clientAttempt, err := a.ns.NewQueue(a.queue.Name)
+				if err != nil {
+					return err
+				}
+				client = clientAttempt
+				return nil
+			}, connBackoff,
+				func(err error, d time.Duration) {
+					a.logger.Debugf("Failed to connect to Azure Service Bus Queue Binding with error: %s", err.Error())
+				},
+				func() {
+					a.logger.Debug("Successfully reconnected to Azure Service Bus.")
+					connBackoff.Reset()
+				})
+
+			if client == nil {
+				a.logger.Errorf("Failed to connect to Azure Service Bus Queue.")
+			}
+			defer client.Close(context.Background())
+
+			if err := client.Receive(a.ctx, sbHandler); err != nil {
+				a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+			}
+		}
+		return nil
+	}, simpleBackoff,
+		func(err error, d time.Duration) {
+			a.logger.Debugf("Failed to read from Azure Service Bus Queue Binding with error: %s", err.Error())
+		},
+		func() { /* Reading from the queue never returns unless an error is encountered. */ })
 }
 
 func (a *AzureServiceBusQueues) Close() error {
-	return a.client.Close(context.Background())
+	defer a.cancel()
+	a.logger.Info("Shutdown called!")
+	a.setShutdown(true)
+	return nil
+}
+
+func (a *AzureServiceBusQueues) setShutdown(val bool) {
+	a.readLock.Lock()
+	defer a.readLock.Unlock()
+	a.shutdown = val
+}
+
+func (a *AzureServiceBusQueues) getShutdown() bool {
+	a.readLock.RLock()
+	defer a.readLock.RUnlock()
+	return a.shutdown
 }

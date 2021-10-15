@@ -20,6 +20,7 @@ const (
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		connectionString:               "fakeConnectionString",
+		namespaceName:                  "fakeNamespace",
 		consumerID:                     "fakeConId",
 		disableEntityManagement:        "true",
 		timeoutInSec:                   "90",
@@ -82,7 +83,41 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 10, *m.PrefetchCount)
 	})
 
-	t.Run("missing required connectionString", func(t *testing.T) {
+	t.Run("missing required connectionString and namespaceName", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[connectionString] = ""
+		fakeMetaData.Properties[namespaceName] = ""
+
+		// act.
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert.
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+		assert.Empty(t, m.ConnectionString)
+	})
+
+	t.Run("connectionString makes namespace optional", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[namespaceName] = ""
+
+		// act.
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert.
+		assert.NoError(t, err)
+		assert.Equal(t, "fakeConnectionString", m.ConnectionString)
+	})
+
+	t.Run("namespace makes conectionString optional", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
@@ -94,9 +129,24 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert.
-		assert.Error(t, err)
-		assertValidErrorMessage(t, err)
-		assert.Empty(t, m.ConnectionString)
+		assert.NoError(t, err)
+		assert.Equal(t, "fakeNamespace", m.NamespaceName)
+	})
+
+	t.Run("connectionString preferred over namespace", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+
+		// act.
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert.
+		assert.NoError(t, err)
+		assert.Equal(t, "fakeConnectionString", m.ConnectionString)
+		assert.Empty(t, m.NamespaceName)
 	})
 
 	t.Run("missing required consumerID", func(t *testing.T) {

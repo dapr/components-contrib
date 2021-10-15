@@ -208,7 +208,7 @@ func (m *Mysql) query(sql string) ([]byte, error) {
 
 	result, err := m.jsonify(rows)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error marshalling query result for %s", s)
+		return nil, errors.Wrapf(err, "error marshalling query result for %s", sql)
 	}
 
 	return result, nil

@@ -21,6 +21,7 @@ const (
 	logMessagePrefix                = "rabbitmq pub/sub:"
 	errorMessagePrefix              = "rabbitmq pub/sub error:"
 	errorChannelConnection          = "channel/connection is not open"
+	errorUnexpectedCommand          = "unexpected command received"
 	defaultDeadLetterExchangeFormat = "dlx-%s"
 	defaultDeadLetterQueueFormat    = "dlq-%s"
 
@@ -477,5 +478,5 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 		return false
 	}
 
-	return strings.Contains(err.Error(), errorChannelConnection)
+	return strings.Contains(err.Error(), errorChannelConnection) || strings.Contains(err.Error(), errorUnexpectedCommand)
 }

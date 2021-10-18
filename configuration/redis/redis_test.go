@@ -50,6 +50,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				req: &configuration.GetRequest{
 					Keys: []string{"testKey"},
 				},
+				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
 				Items: []*configuration.Item{
@@ -70,6 +71,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 			},
 			args: args{
 				req: &configuration.GetRequest{},
+				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
 				Items: []*configuration.Item{
@@ -96,6 +98,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				req: &configuration.GetRequest{
 					Keys: []string{"notExistKey"},
 				},
+				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
 				Items: []*configuration.Item{},

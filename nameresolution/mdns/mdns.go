@@ -66,9 +66,9 @@ func (a *addressList) expire() bool {
 	defer a.mu.Unlock()
 
 	i := 0
-	for _, addr := range a.addresses {
-		if time.Now().Before(addr.expiresAt) {
-			a.addresses[i] = addr
+	for _, address := range a.addresses {
+		if time.Now().Before(address.expiresAt) {
+			a.addresses[i] = address
 			i++
 		}
 	}
@@ -81,19 +81,19 @@ func (a *addressList) expire() bool {
 // maximum expiry time. For existing addresses, the
 // expiry time is updated to the maximum.
 // TODO: Consider enforcing a maximum address list size.
-func (a *addressList) add(ip string, ttl time.Duration) {
+func (a *addressList) add(addr string, ttl time.Duration) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	for i := range a.addresses {
-		if a.addresses[i].value == ip {
+		if a.addresses[i].value == addr {
 			a.addresses[i].expiresAt = time.Now().Add(ttl)
 
 			return
 		}
 	}
 	a.addresses = append(a.addresses, address{
-		value:     ip,
+		value:     addr,
 		expiresAt: time.Now().Add(addressTTL),
 	})
 }
@@ -114,10 +114,10 @@ func (a *addressList) next() *string {
 		a.counter = 0
 	}
 	index := a.counter % len(a.addresses)
-	addr := a.addresses[index]
+	address := a.addresses[index]
 	a.counter++
 
-	return &addr.value
+	return &address.value
 }
 
 // NewResolver creates the instance of mDNS name resolver.
@@ -244,17 +244,17 @@ func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, p
 // ResolveID resolves name to address via mDNS.
 func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
 	// check for cached IPv4 addresses for this app id first.
-	if addr := m.nextIPv4Address(req.ID); addr != nil {
-		return *addr, nil
+	if address := m.nextIPv4Address(req.ID); address != nil {
+		return *address, nil
 	}
 
 	// check for cached IPv6 addresses for this app id second.
-	if addr := m.nextIPv6Address(req.ID); addr != nil {
-		return *addr, nil
+	if address := m.nextIPv6Address(req.ID); address != nil {
+		return *address, nil
 	}
 
 	// cache miss, fallback to browsing the network for addresses.
-	m.logger.Debugf("No mDNS address found in cache, browsing network for app id %s", req.ID)
+	m.logger.Debugf("no mDNS address found in cache, browsing network for app id %s", req.ID)
 
 	// get the first address we receive...
 	addr, err := m.browseFirstOnly(context.Background(), req.ID)
@@ -270,7 +270,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 // matching the provided app id. It will return the first address it
 // receives and stop browsing for any more.
 func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, error) {
-	var addr string
+	var address string
 
 	ctx, cancel := context.WithTimeout(ctx, firstOnlyTimeout)
 	defer cancel()
@@ -281,11 +281,11 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, e
 	// first address. Ensure that multiple invocations of this
 	// function are safe.
 	onFirst := func(ip string) {
-		addr = ip
+		address = ip
 		cancel() // cancel to stop browsing.
 	}
 
-	m.logger.Debugf("Browsing for first mDNS address for app id %s", appID)
+	m.logger.Debugf("browsing for first mDNS address for app id %s", appID)
 
 	err := m.browse(ctx, appID, onFirst)
 	if err != nil {
@@ -297,17 +297,17 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, e
 
 	if errors.Is(ctx.Err(), context.Canceled) {
 		// expect this when we've found an address and canceled the browse.
-		m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
+		m.logger.Debugf("browsing for first mDNS address for app id %s canceled.", appID)
 	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		// expect this when we've been unable to find the first address before the timeout.
-		m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
+		m.logger.Debugf("browsing for first mDNS address for app id %s timed out.", appID)
 	}
 
-	if addr == "" {
+	if address == "" {
 		return "", fmt.Errorf("couldn't find service: %s", appID)
 	}
 
-	return addr, nil
+	return address, nil
 }
 
 // refreshApp will perform a mDNS network browse for a provided
@@ -317,7 +317,7 @@ func (m *resolver) refreshApp(ctx context.Context, appID string) error {
 		return nil
 	}
 
-	m.logger.Debugf("Refreshing mDNS addresses for app id %s.", appID)
+	m.logger.Debugf("refreshing mDNS addresses for app id %s.", appID)
 
 	ctx, cancel := context.WithTimeout(ctx, refreshTimeout)
 	defer cancel()
@@ -331,10 +331,10 @@ func (m *resolver) refreshApp(ctx context.Context, appID string) error {
 
 	if errors.Is(ctx.Err(), context.Canceled) {
 		// this is not expected, investigate why context was canceled.
-		m.logger.Warnf("Refreshing mDNS addresses for app id %s canceled.", appID)
+		m.logger.Warnf("refreshing mDNS addresses for app id %s canceled.", appID)
 	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		// expect this when our browse has timedout.
-		m.logger.Debugf("Refreshing mDNS addresses for app id %s timed out.", appID)
+		// expect this when our browse has timed out.
+		m.logger.Debugf("refreshing mDNS addresses for app id %s timed out.", appID)
 	}
 
 	return nil
@@ -343,13 +343,13 @@ func (m *resolver) refreshApp(ctx context.Context, appID string) error {
 // refreshAllApps will perform a mDNS network browse for each address
 // currently in the cache. This function is blocking.
 func (m *resolver) refreshAllApps(ctx context.Context) error {
-	m.logger.Debug("Refreshing all mDNS addresses.")
+	m.logger.Debug("refreshing all mDNS addresses.")
 
 	// check if we have any IPv4 or IPv6 addresses
 	// in the address cache that need refreshing.
-	numApps := m.appAddressesIPv4Count.Load() + m.appAddressesIPv6Count.Load()
-	if numApps == 0 {
-		m.logger.Debug("No mDNS apps to refresh.")
+	appsCount := m.appAddressesIPv4Count.Load() + m.appAddressesIPv6Count.Load()
+	if appsCount == 0 {
+		m.logger.Debug("no mDNS apps to refresh.")
 
 		return nil
 	}
@@ -415,23 +415,23 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 						break
 					}
 
-					var addr string
+					var address string
 					port := entry.Port
 
 					// TODO: We currently only use the first IPv4 and IPv6 address.
 					// We should understand the cases in which additional addresses
 					// are returned and whether we need to support them.
 					if hasIPv4Address {
-						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
-						m.addAppAddressIPv4(appID, addr, addressTTL)
+						address = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
+						m.addAppAddressIPv4(appID, address, addressTTL)
 					}
 					if hasIPv6Address {
-						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
-						m.addAppAddressIPv6(appID, addr, addressTTL)
+						address = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
+						m.addAppAddressIPv6(appID, address, addressTTL)
 					}
 
 					if onEach != nil {
-						onEach(addr) // invoke callback.
+						onEach(address) // invoke callback.
 					}
 				}
 			}
@@ -447,14 +447,14 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 
 // addAppAddressIPv4 adds an IPv4 address to the
 // cache for the provided app id.
-func (m *resolver) addAppAddressIPv4(appID string, addr string, ttl time.Duration) {
-	addAddress(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count, appID, addr, ttl)
+func (m *resolver) addAppAddressIPv4(appID string, address string, ttl time.Duration) {
+	addAddress(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count, appID, address, ttl)
 }
 
 // addAppIPv4Address adds an IPv6 address to the
 // cache for the provided app id.
-func (m *resolver) addAppAddressIPv6(appID string, addr string, ttl time.Duration) {
-	addAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count, appID, addr, ttl)
+func (m *resolver) addAppAddressIPv6(appID string, address string, ttl time.Duration) {
+	addAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count, appID, address, ttl)
 }
 
 // expireAndGetAppIDsIPv4 returns a list of the current IPv4 app IDs.
@@ -487,45 +487,45 @@ func (m *resolver) nextIPv6Address(appID string) *string {
 	return nextAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, appID)
 }
 
-func nextAddress(logger logger.Logger, IPFamily string, addresses *sync.Map, appID string) *string {
-	value, exists := addresses.Load(appID)
+func nextAddress(logger logger.Logger, IPFamily string, addressesMap *sync.Map, appID string) *string {
+	value, exists := addressesMap.Load(appID)
 	if exists {
-		addrList := value.(*addressList)
-		addr := addrList.next()
-		if addr != nil {
-			return addr
+		addressList := value.(*addressList)
+		addresss := addressList.next()
+		if addresss != nil {
+			return addresss
 		}
 	}
 
-	logger.Debugf("Couldn't find mDNS %s address for %s in cache.", IPFamily, appID)
+	logger.Debugf("couldn't find mDNS %s address for %s in cache.", IPFamily, appID)
 	return nil
 }
 
-func addAddress(logger logger.Logger, IPFamily string, addresses *sync.Map, addressesCount *atomic.Uint32, appID string, addr string, ttl time.Duration) {
-	logger.Debugf("Adding %s address %s for app id %s cache entry.", IPFamily, addr, appID)
+func addAddress(logger logger.Logger, IPFamily string, addressesMap *sync.Map, addressesCount *atomic.Uint32, appID string, address string, ttl time.Duration) {
+	logger.Debugf("adding %s address %s for app id %s cache entry.", IPFamily, address, appID)
 
-	var newAddrList addressList
-	addressesInterface, loaded := addresses.LoadOrStore(appID, &newAddrList)
+	var newAddressList addressList
+	addressesInterface, loaded := addressesMap.LoadOrStore(appID, &newAddressList)
 	if !loaded {
 		// If we didn't load, we stored a new address list so we increment the address count.
 		addressesCount.Inc()
 	}
-	addrList := addressesInterface.(*addressList)
-	addrList.add(addr, ttl)
+	addressList := addressesInterface.(*addressList)
+	addressList.add(address, ttl)
 }
 
-func expireAddresses(logger logger.Logger, IPFamily string, addresses *sync.Map, addressesCount *atomic.Uint32) []string {
+func expireAddresses(logger logger.Logger, IPFamily string, addressesMap *sync.Map, addressesCount *atomic.Uint32) []string {
 	appIDs := make([]string, 0, addressesCount.Load())
-	addresses.Range(func(key, value interface{}) bool {
+	addressesMap.Range(func(key, value interface{}) bool {
 		appID := key.(string)
-		addrList := value.(*addressList)
+		addressList := value.(*addressList)
 
-		old := len(addrList.addresses)
-		isEmpty := addrList.expire()
-		logger.Debugf("%d %s address(es) expired for app id %s.", old-len(addrList.addresses), IPFamily, appID)
+		old := len(addressList.addresses)
+		isEmpty := addressList.expire()
+		logger.Debugf("%d %s address(es) expired for app id %s.", old-len(addressList.addresses), IPFamily, appID)
 
 		if isEmpty {
-			addresses.Delete(appID)
+			addressesMap.Delete(appID)
 			addressesCount.Dec()
 			logger.Debugf("app id %s %s address list is empty, removing entry from cache.", appID, IPFamily)
 		}

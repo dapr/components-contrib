@@ -9,6 +9,7 @@ package mongodb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -16,14 +17,15 @@ import (
 
 	"github.com/agrea/ptr"
 	"github.com/google/uuid"
-	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
 )
 
@@ -83,9 +85,9 @@ type mongoDBMetadata struct {
 
 // Item is Mongodb document wrapper.
 type Item struct {
-	Key   string `bson:"_id"`
-	Value string `bson:"value"`
-	Etag  string `bson:"_etag"`
+	Key   string      `bson:"_id"`
+	Value interface{} `bson:"value"`
+	Etag  string      `bson:"_etag"`
 }
 
 // NewMongoDB returns a new MongoDB state store.
@@ -167,12 +169,14 @@ func (m *MongoDB) Ping() error {
 }
 
 func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error {
-	var vStr string
-	b, ok := req.Value.([]byte)
-	if ok {
-		vStr = string(b)
-	} else {
-		vStr, _ = json.MarshalToString(req.Value)
+	var v interface{}
+	switch obj := req.Value.(type) {
+	case []byte:
+		v = string(obj)
+	case string:
+		v = fmt.Sprintf("%q", obj)
+	default:
+		v = req.Value
 	}
 
 	// create a document based on request key and value
@@ -183,13 +187,10 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		filter[etag] = uuid.NewString()
 	}
 
-	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
+	update := bson.M{"$set": bson.M{id: req.Key, value: v, etag: uuid.NewString()}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 // Get retrieves state from MongoDB with a key.
@@ -202,7 +203,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
-		if err.Error() == "mongo: no documents in result" {
+		if err == mongo.ErrNoDocuments {
 			// Key not found, not an error.
 			// To behave the same as other state stores in conf tests.
 			return &state.GetResponse{}, nil
@@ -211,10 +212,22 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, err
 	}
 
-	value := []byte(result.Value)
+	var data []byte
+	switch obj := result.Value.(type) {
+	case string:
+		data = []byte(obj)
+	case primitive.D:
+		if data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+			return &state.GetResponse{}, err
+		}
+	default:
+		if data, err = json.Marshal(result.Value); err != nil {
+			return &state.GetResponse{}, err
+		}
+	}
 
 	return &state.GetResponse{
-		Data: value,
+		Data: data,
 		ETag: ptr.String(result.Etag),
 	}, nil
 }
@@ -289,6 +302,27 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 	}
 
 	return nil
+}
+
+// Query executes a query against store.
+func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
+	defer cancel()
+
+	q := &Query{}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(ctx, m.collection)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
 }
 
 func getMongoURI(metadata *mongoDBMetadata) string {

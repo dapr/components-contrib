@@ -21,6 +21,7 @@ import (
 	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
 )
 
@@ -377,6 +378,23 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	}
 
 	return nil
+}
+
+func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	q := &Query{}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(c.client, c.collection)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
 }
 
 func (c *StateStore) Ping() error {

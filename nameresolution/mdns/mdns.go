@@ -39,8 +39,8 @@ const (
 	// max integer value supported on this architecture.
 	maxInt = int(^uint(0) >> 1)
 
-	IPFamilyIPv4 = "IPv4"
-	IPFamilyIPv6 = "IPv6"
+	ipFamilyIPv4 = "IPv4"
+	ipFamilyIPv6 = "IPv6"
 )
 
 // address is used to store an address value along with
@@ -114,10 +114,10 @@ func (a *addressList) next() *string {
 		a.counter = 0
 	}
 	index := a.counter % len(a.addresses)
-	address := a.addresses[index]
+	nextAddress := a.addresses[index]
 	a.counter++
 
-	return &address.value
+	return &nextAddress.value
 }
 
 // NewResolver creates the instance of mDNS name resolver.
@@ -439,7 +439,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 	}(entries)
 
 	if err = resolver.Browse(ctx, appID, "local.", entries); err != nil {
-		return fmt.Errorf("failed to browse: %s", err.Error())
+		return errors.Wrap(err, "failed to browse")
 	}
 
 	return nil
@@ -448,25 +448,25 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 // addAppAddressIPv4 adds an IPv4 address to the
 // cache for the provided app id.
 func (m *resolver) addAppAddressIPv4(appID string, address string, ttl time.Duration) {
-	addAddress(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count, appID, address, ttl)
+	addAddress(m.logger, ipFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count, appID, address, ttl)
 }
 
 // addAppIPv4Address adds an IPv6 address to the
 // cache for the provided app id.
 func (m *resolver) addAppAddressIPv6(appID string, address string, ttl time.Duration) {
-	addAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count, appID, address, ttl)
+	addAddress(m.logger, ipFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count, appID, address, ttl)
 }
 
 // expireAndGetAppIDsIPv4 returns a list of the current IPv4 app IDs.
 // This method uses expire on read to evict expired addreses.
 func (m *resolver) expireAndGetAppIDsIPv4() []string {
-	return expireAddresses(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count)
+	return expireAddresses(m.logger, ipFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count)
 }
 
 // expireAndGetAppIDsIPv6 returns a list of the known IPv6 app IDs.
 // This method uses expire on read to evict expired addreses.
 func (m *resolver) expireAndGetAppIDsIPv6() []string {
-	return expireAddresses(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count)
+	return expireAddresses(m.logger, ipFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count)
 }
 
 // expireAndGetAppIDs returns a list of app ids currently in
@@ -478,16 +478,16 @@ func (m *resolver) expireAndGetAppIDs() []string {
 // nextIPv4Address returns the next IPv4 address for
 // the provided app id from the cache.
 func (m *resolver) nextIPv4Address(appID string) *string {
-	return nextAddress(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, appID)
+	return nextAddress(m.logger, ipFamilyIPv4, &m.appAddressesIPv4, appID)
 }
 
 // nextIPv6Address returns the next IPv6 address for
 // the provided app id from the cache.
 func (m *resolver) nextIPv6Address(appID string) *string {
-	return nextAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, appID)
+	return nextAddress(m.logger, ipFamilyIPv6, &m.appAddressesIPv6, appID)
 }
 
-func nextAddress(logger logger.Logger, IPFamily string, addressesMap *sync.Map, appID string) *string {
+func nextAddress(logger logger.Logger, ipFamily string, addressesMap *sync.Map, appID string) *string {
 	value, exists := addressesMap.Load(appID)
 	if exists {
 		addressList := value.(*addressList)
@@ -497,7 +497,7 @@ func nextAddress(logger logger.Logger, IPFamily string, addressesMap *sync.Map, 
 		}
 	}
 
-	logger.Debugf("couldn't find mDNS %s address for %s in cache.", IPFamily, appID)
+	logger.Debugf("couldn't find mDNS %s address for %s in cache.", ipFamily, appID)
 	return nil
 }
 

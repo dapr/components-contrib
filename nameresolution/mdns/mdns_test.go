@@ -497,9 +497,9 @@ func TestAddAddressIncrementsCount(t *testing.T) {
 	expectedAddressesCount := 2
 
 	// act
-	addAddress(logger, IPFamilyIPv4, &addresses, &addressesCount, appAID, "127.0.0.1:1234", ttl)
-	addAddress(logger, IPFamilyIPv4, &addresses, &addressesCount, appAID, "127.0.0.1:5678", ttl)
-	addAddress(logger, IPFamilyIPv4, &addresses, &addressesCount, appBID, "127.0.0.1:8080", ttl)
+	addAddress(logger, ipFamilyIPv4, &addresses, &addressesCount, appAID, "127.0.0.1:1234", ttl)
+	addAddress(logger, ipFamilyIPv4, &addresses, &addressesCount, appAID, "127.0.0.1:5678", ttl)
+	addAddress(logger, ipFamilyIPv4, &addresses, &addressesCount, appBID, "127.0.0.1:8080", ttl)
 
 	// assert
 	appAAddressesInterface, loaded := addresses.Load(appAID)
@@ -550,7 +550,7 @@ func TestExpireAddressesDecrementsCount(t *testing.T) {
 	require.True(t, loaded)
 
 	// act
-	expireAddresses(logger, IPFamilyIPv4, &addresses, &addressesCount)
+	expireAddresses(logger, ipFamilyIPv4, &addresses, &addressesCount)
 
 	// assert
 	require.Equal(t, 1, int(addressesCount.Load()))
@@ -566,7 +566,7 @@ func TestNextAddressReturnsNilForUnknownAppID(t *testing.T) {
 	var addresses sync.Map
 
 	// act and assert
-	require.Nil(t, nextAddress(logger, IPFamilyIPv4, &addresses, "AppA"))
+	require.Nil(t, nextAddress(logger, ipFamilyIPv4, &addresses, "AppA"))
 }
 
 func TestNextAddressReturnsAddressListForKnownAppID(t *testing.T) {
@@ -596,5 +596,5 @@ func TestNextAddressReturnsAddressListForKnownAppID(t *testing.T) {
 	addresses.Store("appB", appBAddresses)
 	addressesCount.Store(2)
 
-	require.Equal(t, "addr0", *nextAddress(logger, IPFamilyIPv4, &addresses, "appB"))
+	require.Equal(t, "addr0", *nextAddress(logger, ipFamilyIPv4, &addresses, "appB"))
 }

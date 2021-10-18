@@ -6,6 +6,8 @@
 name: Components Conformance Tests
 
 on:
+  repository_dispatch:
+    types: [conformance-test]
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
@@ -136,6 +138,21 @@ jobs:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
     steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      uses: actions/github-script@v1
+      with:
+        github-token: ${{secrets.DAPR_BOT_TOKEN}}
+        script: |
+          const testPayload = context.payload.client_payload;
+          if (testPayload && testPayload.command == "ok-to-test") {
+            var fs = require('fs');
+            // Set environment variables
+            fs.appendFileSync(process.env.GITHUB_ENV,
+              `CHECKOUT_REPO=${testPayload.pull_head_repo}\n`+
+              `CHECKOUT_REF=${testPayload.pull_head_ref}`);
+          }
+  
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:

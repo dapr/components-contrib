@@ -3,8 +3,9 @@ package pubsub
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func TestInit(t *testing.T) {

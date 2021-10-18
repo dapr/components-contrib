@@ -6,6 +6,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,6 +28,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
 	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
@@ -52,6 +54,7 @@ import (
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
@@ -86,7 +89,7 @@ type TestComponent struct {
 	Config        map[string]interface{} `yaml:"config,omitempty"`
 }
 
-// NewTestConfiguration reads the tests.yml and loads the TestConfiguration
+// NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
 func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
 	if isYaml(configFilepath) {
 		b, err := readTestConfiguration(configFilepath)
@@ -130,6 +133,16 @@ func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -148,6 +161,16 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -176,7 +199,7 @@ func ConvertMetadataToProperties(items []MetadataItem) (map[string]string, error
 	return properties, nil
 }
 
-// isYaml checks whether the file is yaml or not
+// isYaml checks whether the file is yaml or not.
 func isYaml(fileName string) bool {
 	extension := strings.ToLower(filepath.Ext(fileName))
 	if extension == ".yaml" || extension == ".yml" {
@@ -369,14 +392,18 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
-	case "cosmosdb":
+	case "azure.cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
+	case "azure.sql":
+		fallthrough
 	case "sqlserver":
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "azure.tablestorage":
+		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -400,6 +427,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case eventhubs:
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
+	case "azure.cosmosdb":
+		binding = b_azure_cosmosdb.NewCosmosDB(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":

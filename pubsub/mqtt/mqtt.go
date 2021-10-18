@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	// Keys
+	// Keys.
 	mqttURL               = "url"
 	mqttQOS               = "qos"
 	mqttRetain            = "retain"
@@ -35,10 +35,10 @@ const (
 	mqttClientKey         = "clientKey"
 	mqttBackOffMaxRetries = "backOffMaxRetries"
 
-	// errors
+	// errors.
 	errorMsgPrefix = "mqtt pub sub error:"
 
-	// Defaults
+	// Defaults.
 	defaultQOS          = 0
 	defaultRetain       = false
 	defaultWait         = 3 * time.Second

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Azure/azure-amqp-common-go/v3/aad"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -83,19 +82,6 @@ func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 	}
 
 	return autorest.NewBearerAuthorizer(spt), nil
-}
-
-// GetTokenProvider creates a TokenProvider retrieved from, in order:
-// 1. Client credentials
-// 2. Client certificate
-// 3. MSI.
-func (s EnvironmentSettings) GetTokenProvider() (*aad.TokenProvider, error) {
-	spt, err := s.GetServicePrincipalToken()
-	if err != nil {
-		return nil, err
-	}
-
-	return aad.NewJWTProvider(aad.JWTProviderWithAADToken(spt), aad.JWTProviderWithAzureEnvironment(s.AzureEnvironment))
 }
 
 // GetServicePrincipalToken returns a Service Principal Token retrieved from, in order:

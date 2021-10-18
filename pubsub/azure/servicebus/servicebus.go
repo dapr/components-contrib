@@ -277,14 +277,13 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 			return err
 		}
 
-		tokenProvider, err := settings.GetTokenProvider()
+		tokenProvider, err := settings.GetAADTokenProvider()
 		if err != nil {
 			return err
 		}
 
 		a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithTokenProvider(tokenProvider),
 			azservicebus.NamespaceWithUserAgent(userAgent))
-
 		if err != nil {
 			return err
 		}
@@ -293,7 +292,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 		// pattern unless you allow it to recreate the entire environment which seems wasteful.
 		a.namespace.Name = a.metadata.NamespaceName
 		a.namespace.Environment = *settings.AzureEnvironment
-		a.namespace.Suffix = *&settings.AzureEnvironment.ServiceBusEndpointSuffix
+		a.namespace.Suffix = settings.AzureEnvironment.ServiceBusEndpointSuffix
 	}
 
 	a.topicManager = a.namespace.NewTopicManager()

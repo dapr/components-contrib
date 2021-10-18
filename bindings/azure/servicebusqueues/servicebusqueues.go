@@ -72,19 +72,18 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		}
 	} else {
 		// Initialization code
-		settings, err := azauth.NewEnvironmentSettings("serviceBus", metadata.Properties)
-		if err != nil {
-			return err
+		settings, sErr := azauth.NewEnvironmentSettings("serviceBus", metadata.Properties)
+		if sErr != nil {
+			return sErr
 		}
 
-		tokenProvider, err := settings.GetTokenProvider()
-		if err != nil {
-			return err
+		tokenProvider, tErr := settings.GetAADTokenProvider()
+		if tErr != nil {
+			return tErr
 		}
 
 		ns, err = servicebus.NewNamespace(servicebus.NamespaceWithTokenProvider(tokenProvider),
 			servicebus.NamespaceWithUserAgent(userAgent))
-
 		if err != nil {
 			return err
 		}
@@ -93,7 +92,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		// pattern unless you allow it to recreate the entire environment which seems wasteful.
 		ns.Name = a.metadata.NamespaceName
 		ns.Environment = *settings.AzureEnvironment
-		ns.Suffix = *&settings.AzureEnvironment.ServiceBusEndpointSuffix
+		ns.Suffix = settings.AzureEnvironment.ServiceBusEndpointSuffix
 	}
 	a.ns = ns
 

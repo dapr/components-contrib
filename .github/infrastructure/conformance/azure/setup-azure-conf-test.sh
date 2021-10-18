@@ -309,7 +309,7 @@ echo "Created Identity ${MANAGED_IDENTITY_ID}"
 # az container create -g ${RESOURCE_GROUP_NAME} -n testcontainer --image golang:latest --command-line "tail -f /dev/null" --assign-identity $MANAGED_IDENTITY_ID
 
 echo "Granting identity azure-managed-identity permissions to access the Key Vault ${KEYVAULT_NAME}"
-az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list set delete --object-id "${MANAGED_IDENTITY_SP}"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${MANAGED_IDENTITY_SP}"
 # Other tests verifying managed identity will want to grant permission like so:
 # MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id "${MANAGED_IDENTITY_SP}" --assignee-principal-type ServicePrincipal --role "Azure Service Bus Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.ServiceBus/namespaces/${SERVICE_BUS_NAME}"
 

@@ -6,6 +6,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,6 +28,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
 	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
@@ -131,6 +133,16 @@ func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -149,6 +161,16 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -405,6 +427,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case eventhubs:
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
+	case "azure.cosmosdb":
+		binding = b_azure_cosmosdb.NewCosmosDB(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":

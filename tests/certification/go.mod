@@ -6,7 +6,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dapr/components-contrib v1.4.0-rc2
 	github.com/dapr/dapr v1.4.4-0.20211014212830-cf6463b1e459
-	github.com/dapr/go-sdk v0.8.1-0.20200925214701-2d699b6c653f
+	github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/go-cmp v0.5.6
 	github.com/pkg/errors v0.9.1

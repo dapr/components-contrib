@@ -26,7 +26,6 @@ type ValueType struct {
 type scenario struct {
 	key                  string
 	value                interface{}
-	expectedReadResponse []byte
 	toBeDeleted          bool
 	bulkOnly             bool
 	transactionOnly      bool
@@ -60,122 +59,102 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			key:                  fmt.Sprintf("%s-int", key),
 			value:                123,
-			expectedReadResponse: []byte("123"),
 		},
 		{
 			key:                  fmt.Sprintf("%s-bool", key),
 			value:                true,
-			expectedReadResponse: []byte("true"),
 		},
 		{
 			key:                  fmt.Sprintf("%s-bytes", key),
 			value:                []byte{0x1},
-			expectedReadResponse: []byte{0x1},
 		},
 		{
 			key:                  fmt.Sprintf("%s-string-with-json", key),
 			value:                "{\"a\":\"b\"}",
-			expectedReadResponse: []byte("\"{\\\"a\\\":\\\"b\\\"}\""),
 		},
 		{
 			key:                  fmt.Sprintf("%s-string", key),
 			value:                "hello world",
-			expectedReadResponse: []byte("\"hello world\""),
 		},
 		{
 			key:                  fmt.Sprintf("%s-struct", key),
 			value:                ValueType{Message: "test"},
-			expectedReadResponse: []byte("{\"message\":\"test\"}"),
 		},
 		{
 			key:                  fmt.Sprintf("%s-to-be-deleted", key),
 			value:                "to be deleted",
-			expectedReadResponse: []byte("\"to be deleted\""),
 			toBeDeleted:          true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-int", key),
 			value:                123,
-			expectedReadResponse: []byte("123"),
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-bool", key),
 			value:                true,
-			expectedReadResponse: []byte("true"),
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-bytes", key),
 			value:                []byte{0x1},
-			expectedReadResponse: []byte{0x1},
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-string", key),
 			value:                "hello world",
-			expectedReadResponse: []byte("\"hello world\""),
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-struct", key),
 			value:                ValueType{Message: "test"},
-			expectedReadResponse: []byte("{\"message\":\"test\"}"),
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-to-be-deleted", key),
 			value:                "to be deleted",
-			expectedReadResponse: []byte("\"to be deleted\""),
 			toBeDeleted:          true,
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
 			value:                "to be deleted too",
-			expectedReadResponse: []byte("\"to be deleted too\""),
 			toBeDeleted:          true,
 			bulkOnly:             true,
 		},
 		{
 			key:                  fmt.Sprintf("%s-trx-int", key),
 			value:                123,
-			expectedReadResponse: []byte("123"),
 			transactionOnly:      true,
 			transactionGroup:     1,
 		},
 		{
 			key:                  fmt.Sprintf("%s-trx-bool", key),
 			value:                true,
-			expectedReadResponse: []byte("true"),
 			transactionOnly:      true,
 			transactionGroup:     1,
 		},
 		{
 			key:                  fmt.Sprintf("%s-trx-bytes", key),
 			value:                []byte{0x1},
-			expectedReadResponse: []byte{0x1},
 			transactionOnly:      true,
 			transactionGroup:     1,
 		},
 		{
 			key:                  fmt.Sprintf("%s-trx-string", key),
 			value:                "hello world",
-			expectedReadResponse: []byte("\"hello world\""),
 			transactionOnly:      true,
 			transactionGroup:     1,
 		},
 		{
 			key:                  fmt.Sprintf("%s-trx-struct", key),
 			value:                ValueType{Message: "test"},
-			expectedReadResponse: []byte("{\"message\":\"test\"}"),
 			transactionOnly:      true,
 			transactionGroup:     2,
 		},
 		{
 			key:                  fmt.Sprintf("%s-trx-to-be-deleted", key),
 			value:                "to be deleted",
-			expectedReadResponse: []byte("\"to be deleted\""),
 			toBeDeleted:          true,
 			transactionOnly:      true,
 			transactionGroup:     1,
@@ -183,7 +162,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			key:                  fmt.Sprintf("%s-trx-to-be-deleted-too", key),
 			value:                "to be deleted too",
-			expectedReadResponse: []byte("\"to be deleted too\""),
 			toBeDeleted:          true,
 			transactionOnly:      true,
 			transactionGroup:     3,

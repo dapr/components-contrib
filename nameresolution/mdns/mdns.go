@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grandcat/zeroconf"
+	"go.uber.org/atomic"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -37,13 +38,16 @@ const (
 	addressTTL = time.Second * 60
 	// max integer value supported on this architecture.
 	maxInt = int(^uint(0) >> 1)
+
+	IPFamilyIPv4 = "IPv4"
+	IPFamilyIPv6 = "IPv6"
 )
 
-// address is used to store an ip address along with
+// address is used to store an address value along with
 // an expiry time at which point the address is considered
 // too stale to trust.
 type address struct {
-	ip        string
+	value     string
 	expiresAt time.Time
 }
 
@@ -56,8 +60,8 @@ type addressList struct {
 }
 
 // expire removes any addresses with an expiry time earlier
-// than the current time.
-func (a *addressList) expire() {
+// than the current time. Returns true if address list empty.
+func (a *addressList) expire() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -69,25 +73,27 @@ func (a *addressList) expire() {
 		}
 	}
 	a.addresses = a.addresses[:i]
+
+	return len(a.addresses) == 0
 }
 
 // add adds a new address to the address list with a
 // maximum expiry time. For existing addresses, the
 // expiry time is updated to the maximum.
 // TODO: Consider enforcing a maximum address list size.
-func (a *addressList) add(ip string) {
+func (a *addressList) add(ip string, ttl time.Duration) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	for i := range a.addresses {
-		if a.addresses[i].ip == ip {
-			a.addresses[i].expiresAt = time.Now().Add(addressTTL)
+		if a.addresses[i].value == ip {
+			a.addresses[i].expiresAt = time.Now().Add(ttl)
 
 			return
 		}
 	}
 	a.addresses = append(a.addresses, address{
-		ip:        ip,
+		value:     ip,
 		expiresAt: time.Now().Add(addressTTL),
 	})
 }
@@ -111,16 +117,16 @@ func (a *addressList) next() *string {
 	addr := a.addresses[index]
 	a.counter++
 
-	return &addr.ip
+	return &addr.value
 }
 
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	r := &resolver{
-		appAddressesIPv4: make(map[string]*addressList),
-		appAddressesIPv6: make(map[string]*addressList),
-		refreshChan:      make(chan string),
-		logger:           logger,
+		appAddressesIPv4Count: &atomic.Uint32{},
+		appAddressesIPv6Count: &atomic.Uint32{},
+		refreshChan:           make(chan string),
+		logger:                logger,
 	}
 
 	// refresh app addresses on demand.
@@ -147,12 +153,12 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 type resolver struct {
-	ipv4Mu           sync.RWMutex
-	appAddressesIPv4 map[string]*addressList
-	ipv6Mu           sync.RWMutex
-	appAddressesIPv6 map[string]*addressList
-	refreshChan      chan string
-	logger           logger.Logger
+	appAddressesIPv4      sync.Map
+	appAddressesIPv4Count *atomic.Uint32
+	appAddressesIPv6      sync.Map
+	appAddressesIPv6Count *atomic.Uint32
+	refreshChan           chan string
+	logger                logger.Logger
 }
 
 // Init registers service for mDNS.
@@ -341,15 +347,7 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 
 	// check if we have any IPv4 or IPv6 addresses
 	// in the address cache that need refreshing.
-	m.ipv4Mu.RLock()
-	numAppIPv4Addr := len(m.appAddressesIPv4)
-	m.ipv4Mu.RUnlock()
-
-	m.ipv6Mu.RLock()
-	numAppIPv6Addr := len(m.appAddressesIPv6)
-	m.ipv6Mu.RUnlock()
-
-	numApps := numAppIPv4Addr + numAppIPv6Addr
+	numApps := m.appAddressesIPv4Count.Load() + m.appAddressesIPv6Count.Load()
 	if numApps == 0 {
 		m.logger.Debug("no mDNS apps to refresh.")
 
@@ -358,8 +356,7 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 
-	// expired addresses will be evicted by getAppIDs()
-	for _, appID := range m.getAppIDs() {
+	for _, appID := range m.expireAndGetAppIDs() {
 		wg.Add(1)
 
 		go func(a string) {
@@ -426,11 +423,11 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 					// are returned and whether we need to support them.
 					if hasIPv4Address {
 						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
-						m.addAppAddressIPv4(appID, addr)
+						m.addAppAddressIPv4(appID, addr, addressTTL)
 					}
 					if hasIPv6Address {
 						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
-						m.addAppAddressIPv6(appID, addr)
+						m.addAppAddressIPv6(appID, addr, addressTTL)
 					}
 
 					if onEach != nil {
@@ -450,82 +447,53 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 
 // addAppAddressIPv4 adds an IPv4 address to the
 // cache for the provided app id.
-func (m *resolver) addAppAddressIPv4(appID string, addr string) {
-	m.ipv4Mu.Lock()
-	defer m.ipv4Mu.Unlock()
-
-	m.logger.Debugf("Adding IPv4 address %s for app id %s cache entry.", addr, appID)
-	if _, ok := m.appAddressesIPv4[appID]; !ok {
-		var addrList addressList
-		m.appAddressesIPv4[appID] = &addrList
-	}
-	m.appAddressesIPv4[appID].add(addr)
+func (m *resolver) addAppAddressIPv4(appID string, addr string, ttl time.Duration) {
+	addAddress(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count, appID, addr, ttl)
 }
 
 // addAppIPv4Address adds an IPv6 address to the
 // cache for the provided app id.
-func (m *resolver) addAppAddressIPv6(appID string, addr string) {
-	m.ipv6Mu.Lock()
-	defer m.ipv6Mu.Unlock()
-
-	m.logger.Debugf("Adding IPv6 address %s for app id %s cache entry.", addr, appID)
-	if _, ok := m.appAddressesIPv6[appID]; !ok {
-		var addrList addressList
-		m.appAddressesIPv6[appID] = &addrList
-	}
-	m.appAddressesIPv6[appID].add(addr)
+func (m *resolver) addAppAddressIPv6(appID string, addr string, ttl time.Duration) {
+	addAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count, appID, addr, ttl)
 }
 
-// getAppIDsIPv4 returns a list of the current IPv4 app IDs.
+// expireAndGetAppIDsIPv4 returns a list of the current IPv4 app IDs.
 // This method uses expire on read to evict expired addreses.
-func (m *resolver) getAppIDsIPv4() []string {
-	m.ipv4Mu.RLock()
-	defer m.ipv4Mu.RUnlock()
-
-	appIDs := make([]string, 0, len(m.appAddressesIPv4))
-	for appID, addr := range m.appAddressesIPv4 {
-		old := len(addr.addresses)
-		addr.expire()
-		m.logger.Debugf("%d IPv4 address(es) expired for app id %s.", old-len(addr.addresses), appID)
-		appIDs = append(appIDs, appID)
-	}
-
-	return appIDs
+func (m *resolver) expireAndGetAppIDsIPv4() []string {
+	return expireAddresses(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, m.appAddressesIPv4Count)
 }
 
-// getAppIDsIPv6 returns a list of the known IPv6 app IDs.
+// expireAndGetAppIDsIPv6 returns a list of the known IPv6 app IDs.
 // This method uses expire on read to evict expired addreses.
-func (m *resolver) getAppIDsIPv6() []string {
-	m.ipv6Mu.RLock()
-	defer m.ipv6Mu.RUnlock()
-
-	appIDs := make([]string, 0, len(m.appAddressesIPv6))
-	for appID, addr := range m.appAddressesIPv6 {
-		old := len(addr.addresses)
-		addr.expire()
-		m.logger.Debugf("%d IPv6 address(es) expired for app id %s.", old-len(addr.addresses), appID)
-		appIDs = append(appIDs, appID)
-	}
-
-	return appIDs
+func (m *resolver) expireAndGetAppIDsIPv6() []string {
+	return expireAddresses(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, m.appAddressesIPv6Count)
 }
 
-// getAppIDs returns a list of app ids currently in
+// expireAndGetAppIDs returns a list of app ids currently in
 // the cache, ensuring expired addresses are evicted.
-func (m *resolver) getAppIDs() []string {
-	return union(m.getAppIDsIPv4(), m.getAppIDsIPv6())
+func (m *resolver) expireAndGetAppIDs() []string {
+	return union(m.expireAndGetAppIDsIPv4(), m.expireAndGetAppIDsIPv6())
 }
 
 // nextIPv4Address returns the next IPv4 address for
 // the provided app id from the cache.
 func (m *resolver) nextIPv4Address(appID string) *string {
-	m.ipv4Mu.RLock()
-	defer m.ipv4Mu.RUnlock()
-	addrList, exists := m.appAddressesIPv4[appID]
+	return nextAddress(m.logger, IPFamilyIPv4, &m.appAddressesIPv4, appID)
+}
+
+// nextIPv6Address returns the next IPv6 address for
+// the provided app id from the cache.
+func (m *resolver) nextIPv6Address(appID string) *string {
+	return nextAddress(m.logger, IPFamilyIPv6, &m.appAddressesIPv6, appID)
+}
+
+func nextAddress(logger logger.Logger, IPFamily string, addresses *sync.Map, appID string) *string {
+	value, exists := addresses.Load(appID)
 	if exists {
+		addrList := value.(*addressList)
 		addr := addrList.next()
 		if addr != nil {
-			m.logger.Debugf("found mDNS IPv4 address in cache: %s", *addr)
+			logger.Debugf("found mDNS %s address in cache: %s", IPFamily, *addr)
 
 			return addr
 		}
@@ -534,22 +502,39 @@ func (m *resolver) nextIPv4Address(appID string) *string {
 	return nil
 }
 
-// nextIPv6Address returns the next IPv6 address for
-// the provided app id from the cache.
-func (m *resolver) nextIPv6Address(appID string) *string {
-	m.ipv6Mu.RLock()
-	defer m.ipv6Mu.RUnlock()
-	addrList, exists := m.appAddressesIPv6[appID]
-	if exists {
-		addr := addrList.next()
-		if addr != nil {
-			m.logger.Debugf("found mDNS IPv6 address in cache: %s", *addr)
+func addAddress(logger logger.Logger, IPFamily string, addresses *sync.Map, addressesCount *atomic.Uint32, appID string, addr string, ttl time.Duration) {
+	logger.Debugf("Adding %s address %s for app id %s cache entry.", IPFamily, addr, appID)
 
-			return addr
-		}
+	var newAddrList addressList
+	addressesInterface, loaded := addresses.LoadOrStore(appID, &newAddrList)
+	if !loaded {
+		// If we didn't load, we stored a new address list so we increment the address count.
+		addressesCount.Inc()
 	}
+	addrList := addressesInterface.(*addressList)
+	addrList.add(addr, ttl)
+}
 
-	return nil
+func expireAddresses(logger logger.Logger, IPFamily string, addresses *sync.Map, addressesCount *atomic.Uint32) []string {
+	appIDs := make([]string, 0, addressesCount.Load())
+	addresses.Range(func(key, value interface{}) bool {
+		appID := key.(string)
+		addrList := value.(*addressList)
+
+		old := len(addrList.addresses)
+		isEmpty := addrList.expire()
+		logger.Debugf("%d %s address(es) expired for app id %s.", old-len(addrList.addresses), IPFamily, appID)
+
+		if isEmpty {
+			addresses.Delete(appID)
+			addressesCount.Dec()
+			logger.Debugf("app id %s %s address list is empty, removing entry from cache.", appID, IPFamily)
+		}
+
+		return true
+	})
+
+	return appIDs
 }
 
 // union merges the elements from two lists into a set.

@@ -6,12 +6,12 @@
 package mdns
 
 import (
-	"fmt"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -62,7 +62,7 @@ func TestInit(t *testing.T) {
 			err := resolver.Init(nr.Metadata{Properties: tt.props})
 
 			// assert
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -75,6 +75,7 @@ func TestResolver(t *testing.T) {
 		nr.MDNSInstanceAddress: "127.0.0.1",
 		nr.MDNSInstancePort:    "1234",
 	}}
+	expectedAddress := "127.0.0.1:1234"
 
 	// act
 	err := resolver.Init(md)
@@ -85,7 +86,7 @@ func TestResolver(t *testing.T) {
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:1234", pt)
+	require.Equal(t, expectedAddress, pt)
 }
 
 func TestResolverMultipleInstances(t *testing.T) {
@@ -93,36 +94,22 @@ func TestResolverMultipleInstances(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
 
 	// register instance A
-	instanceAID := "A"
-	instanceAName := "testAppID"
-	instanceAAddress := "127.0.0.1"
-	instanceAPort := "1234"
-	instanceAPQDN := fmt.Sprintf("%s:%s", instanceAAddress, instanceAPort)
-
-	instanceA := nr.Metadata{Properties: map[string]string{
-		nr.MDNSInstanceName:    instanceAName,
-		nr.MDNSInstanceAddress: instanceAAddress,
-		nr.MDNSInstancePort:    instanceAPort,
-		nr.MDNSInstanceID:      instanceAID,
-	}}
-	err1 := resolver.Init(instanceA)
-	require.NoError(t, err1)
+	require.NoError(t, registerAndInitResolver(
+		resolver,
+		"A",
+		"testAppID",
+		"127.0.0.1",
+		"1234"))
+	expectedInstanceAAddress := "127.0.0.1:1234"
 
 	// register instance B
-	instanceBID := "B"
-	instanceBName := "testAppID"
-	instanceBAddress := "127.0.0.1"
-	instanceBPort := "5678"
-	instanceBPQDN := fmt.Sprintf("%s:%s", instanceBAddress, instanceBPort)
-
-	instanceB := nr.Metadata{Properties: map[string]string{
-		nr.MDNSInstanceName:    instanceBName,
-		nr.MDNSInstanceAddress: instanceBAddress,
-		nr.MDNSInstancePort:    instanceBPort,
-		nr.MDNSInstanceID:      instanceBID,
-	}}
-	err2 := resolver.Init(instanceB)
-	require.NoError(t, err2)
+	require.NoError(t, registerAndInitResolver(
+		resolver,
+		"B",
+		"testAppID",
+		"127.0.0.1",
+		"5678"))
+	expectedInstanceBAddress := "127.0.0.1:5678"
 
 	// act...
 	request := nr.ResolveRequest{ID: "testAppID"}
@@ -130,7 +117,7 @@ func TestResolverMultipleInstances(t *testing.T) {
 	// first resolution will return the first responder's address and trigger a cache refresh.
 	addr1, err := resolver.ResolveID(request)
 	require.NoError(t, err)
-	require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr1)
+	require.Contains(t, []string{expectedInstanceAAddress, expectedInstanceBAddress}, addr1)
 
 	// delay long enough for the background address cache to populate.
 	time.Sleep(1 * time.Second)
@@ -142,16 +129,27 @@ func TestResolverMultipleInstances(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		addr, err := resolver.ResolveID(request)
 		require.NoError(t, err)
-		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
-		if addr == instanceAPQDN {
+		require.Contains(t, []string{expectedInstanceAAddress, expectedInstanceBAddress}, addr)
+		if addr == expectedInstanceAAddress {
 			instanceACount++
-		} else if addr == instanceBPQDN {
+		} else if addr == expectedInstanceBAddress {
 			instanceBCount++
 		}
 	}
 	// 45 allows some variation in distribution.
 	require.Greater(t, instanceACount, 45)
 	require.Greater(t, instanceBCount, 45)
+}
+
+// registerAndInitResolver uses an existing resolver to register and a new mDNS instance.
+func registerAndInitResolver(resolver nr.Resolver, id, name, address, port string) error {
+	instance := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    name,
+		nr.MDNSInstanceAddress: address,
+		nr.MDNSInstancePort:    port,
+		nr.MDNSInstanceID:      id,
+	}}
+	return resolver.Init(instance)
 }
 
 func TestAddressListExpire(t *testing.T) {
@@ -162,25 +160,49 @@ func TestAddressListExpire(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "expired0",
+				value:     "expired0",
 				expiresAt: expired,
 			},
 			{
-				ip:        "expired1",
+				value:     "expired1",
 				expiresAt: expired,
 			},
 			{
-				ip:        "notExpired0",
+				value:     "notExpired0",
 				expiresAt: notExpired,
 			},
 		},
 	}
 
 	// act
-	addressList.expire()
+	require.False(t, addressList.expire())
 
 	// assert
 	require.Len(t, addressList.addresses, 1)
+}
+
+func TestAddressListExpireEmpty(t *testing.T) {
+	// arrange
+	base := time.Now()
+	expired := base.Add(-60 * time.Second)
+	addressList := &addressList{
+		addresses: []address{
+			{
+				value:     "expired0",
+				expiresAt: expired,
+			},
+			{
+				value:     "expired1",
+				expiresAt: expired,
+			},
+		},
+	}
+
+	// act
+	require.True(t, addressList.expire())
+
+	// assert
+	require.Len(t, addressList.addresses, 0)
 }
 
 func TestAddressListAddNewAddress(t *testing.T) {
@@ -189,22 +211,22 @@ func TestAddressListAddNewAddress(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "addr0",
+				value:     "addr0",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr1",
+				value:     "addr1",
 				expiresAt: expiry,
 			},
 		},
 	}
 
 	// act
-	addressList.add("addr2")
+	addressList.add("addr2", addressTTL)
 
 	// assert
 	require.Len(t, addressList.addresses, 3)
-	require.Equal(t, "addr2", addressList.addresses[2].ip)
+	require.Equal(t, "addr2", addressList.addresses[2].value)
 }
 
 func TestAddressListAddExisitingAddress(t *testing.T) {
@@ -213,18 +235,18 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "addr0",
+				value:     "addr0",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr1",
+				value:     "addr1",
 				expiresAt: expiry,
 			},
 		},
 	}
 
 	// act
-	addressList.add("addr1")
+	addressList.add("addr1", addressTTL)
 	deltaSec := int(addressList.addresses[1].expiresAt.Sub(expiry).Seconds())
 
 	// assert
@@ -238,27 +260,27 @@ func TestAddressListNext(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "addr0",
+				value:     "addr0",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr1",
+				value:     "addr1",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr2",
+				value:     "addr2",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr3",
+				value:     "addr3",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr4",
+				value:     "addr4",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr5",
+				value:     "addr5",
 				expiresAt: expiry,
 			},
 		},
@@ -281,27 +303,27 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "addr0",
+				value:     "addr0",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr1",
+				value:     "addr1",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr2",
+				value:     "addr2",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr3",
+				value:     "addr3",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr4",
+				value:     "addr4",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr5",
+				value:     "addr5",
 				expiresAt: expiry,
 			},
 		},
@@ -334,27 +356,27 @@ func TestAddressListNextWithAdd(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "addr0",
+				value:     "addr0",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr1",
+				value:     "addr1",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr2",
+				value:     "addr2",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr3",
+				value:     "addr3",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr4",
+				value:     "addr4",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr5",
+				value:     "addr5",
 				expiresAt: expiry,
 			},
 		},
@@ -365,7 +387,7 @@ func TestAddressListNextWithAdd(t *testing.T) {
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
 	require.Equal(t, "addr3", *addressList.next())
-	addressList.add("addr6")
+	addressList.add("addr6", addressTTL)
 	require.Equal(t, "addr4", *addressList.next())
 	require.Equal(t, "addr5", *addressList.next())
 	require.Equal(t, "addr6", *addressList.next())
@@ -380,27 +402,27 @@ func TestAddressListNextWithExpiration(t *testing.T) {
 	addressList := &addressList{
 		addresses: []address{
 			{
-				ip:        "addr0",
+				value:     "addr0",
 				expiresAt: expired,
 			},
 			{
-				ip:        "addr1",
+				value:     "addr1",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr2",
+				value:     "addr2",
 				expiresAt: expired,
 			},
 			{
-				ip:        "addr3",
+				value:     "addr3",
 				expiresAt: expiry,
 			},
 			{
-				ip:        "addr4",
+				value:     "addr4",
 				expiresAt: expired,
 			},
 			{
-				ip:        "addr5",
+				value:     "addr5",
 				expiresAt: expiry,
 			},
 		},
@@ -411,7 +433,7 @@ func TestAddressListNextWithExpiration(t *testing.T) {
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
 	require.Equal(t, "addr3", *addressList.next())
-	addressList.expire()
+	require.False(t, addressList.expire())
 	require.Equal(t, "addr3", *addressList.next())
 	require.Equal(t, "addr5", *addressList.next())
 	require.Equal(t, "addr1", *addressList.next())
@@ -461,4 +483,118 @@ func TestUnion(t *testing.T) {
 		}
 		require.Equal(t, len(tt.expected), matches)
 	}
+}
+
+func TestAddAddressIncrementsCount(t *testing.T) {
+	// arrange
+	logger := logger.NewLogger("test")
+	var addresses sync.Map
+	var addressesCount atomic.Uint32
+	ttl := time.Second * 10
+	appAID := "testAppIDA"
+	appBID := "testAppIDB"
+
+	expectedAddressesCount := 2
+
+	// act
+	addAddress(logger, IPFamilyIPv4, &addresses, &addressesCount, appAID, "127.0.0.1:1234", ttl)
+	addAddress(logger, IPFamilyIPv4, &addresses, &addressesCount, appAID, "127.0.0.1:5678", ttl)
+	addAddress(logger, IPFamilyIPv4, &addresses, &addressesCount, appBID, "127.0.0.1:8080", ttl)
+
+	// assert
+	appAAddressesInterface, loaded := addresses.Load(appAID)
+	require.True(t, loaded)
+	appAAddresses := appAAddressesInterface.(*addressList)
+	require.Equal(t, 2, len(appAAddresses.addresses))
+
+	appBAddressesInterface, loaded := addresses.Load(appBID)
+	require.True(t, loaded)
+	appBAddresses := appBAddressesInterface.(*addressList)
+	require.Equal(t, 1, len(appBAddresses.addresses))
+
+	require.Equal(t, expectedAddressesCount, int(addressesCount.Load()))
+}
+
+func TestExpireAddressesDecrementsCount(t *testing.T) {
+	// arrange
+	logger := logger.NewLogger("test")
+	var addresses sync.Map
+	var addressesCount atomic.Uint32
+
+	expired := time.Now().Add(-60 * time.Second)
+	notExpired := time.Now().Add(60 * time.Second)
+	appAAddresses := &addressList{
+		addresses: []address{
+			{
+				value:     "addr0",
+				expiresAt: expired,
+			},
+		},
+	}
+	appBAddresses := &addressList{
+		addresses: []address{
+			{
+				value:     "addr0",
+				expiresAt: notExpired,
+			},
+		},
+	}
+
+	addresses.Store("appA", appAAddresses)
+	addresses.Store("appB", appBAddresses)
+	addressesCount.Store(2)
+	require.Equal(t, 2, int(addressesCount.Load()))
+	_, loaded := addresses.Load("appA")
+	require.True(t, loaded)
+	_, loaded = addresses.Load("appB")
+	require.True(t, loaded)
+
+	// act
+	expireAddresses(logger, IPFamilyIPv4, &addresses, &addressesCount)
+
+	// assert
+	require.Equal(t, 1, int(addressesCount.Load()))
+	_, loaded = addresses.Load("appA")
+	require.False(t, loaded)
+	_, loaded = addresses.Load("appB")
+	require.True(t, loaded)
+}
+
+func TestNextAddressReturnsNilForUnknownAppID(t *testing.T) {
+	// arrange
+	logger := logger.NewLogger("test")
+	var addresses sync.Map
+
+	// act and assert
+	require.Nil(t, nextAddress(logger, IPFamilyIPv4, &addresses, "AppA"))
+}
+
+func TestNextAddressReturnsAddressListForKnownAppID(t *testing.T) {
+	// arrange
+	logger := logger.NewLogger("test")
+	var addresses sync.Map
+	var addressesCount atomic.Uint32
+
+	notExpired := time.Now().Add(60 * time.Second)
+	appAAddresses := &addressList{
+		addresses: []address{
+			{
+				value:     "addr0",
+				expiresAt: notExpired,
+			},
+		},
+	}
+	appBAddresses := &addressList{
+		addresses: []address{
+			{
+				value:     "addr0",
+				expiresAt: notExpired,
+			},
+		},
+	}
+	addresses.Store("appA", appAAddresses)
+	addresses.Store("appB", appBAddresses)
+	addressesCount.Store(2)
+
+	require.Equal(t, "addr0", *nextAddress(logger, IPFamilyIPv4, &addresses, "appB"))
 }

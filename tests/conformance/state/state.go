@@ -24,12 +24,12 @@ type ValueType struct {
 }
 
 type scenario struct {
-	key                  string
-	value                interface{}
-	toBeDeleted          bool
-	bulkOnly             bool
-	transactionOnly      bool
-	transactionGroup     int
+	key              string
+	value            interface{}
+	toBeDeleted      bool
+	bulkOnly         bool
+	transactionOnly  bool
+	transactionGroup int
 }
 
 type TestConfig struct {
@@ -57,114 +57,114 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	scenarios := []scenario{
 		{
-			key:                  fmt.Sprintf("%s-int", key),
-			value:                123,
+			key:   fmt.Sprintf("%s-int", key),
+			value: 123,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bool", key),
-			value:                true,
+			key:   fmt.Sprintf("%s-bool", key),
+			value: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bytes", key),
-			value:                []byte{0x1},
+			key:   fmt.Sprintf("%s-bytes", key),
+			value: []byte{0x1},
 		},
 		{
-			key:                  fmt.Sprintf("%s-string-with-json", key),
-			value:                "{\"a\":\"b\"}",
+			key:   fmt.Sprintf("%s-string-with-json", key),
+			value: "{\"a\":\"b\"}",
 		},
 		{
-			key:                  fmt.Sprintf("%s-string", key),
-			value:                "hello world",
+			key:   fmt.Sprintf("%s-string", key),
+			value: "hello world",
 		},
 		{
-			key:                  fmt.Sprintf("%s-struct", key),
-			value:                ValueType{Message: "test"},
+			key:   fmt.Sprintf("%s-struct", key),
+			value: ValueType{Message: "test"},
 		},
 		{
-			key:                  fmt.Sprintf("%s-to-be-deleted", key),
-			value:                "to be deleted",
-			toBeDeleted:          true,
+			key:         fmt.Sprintf("%s-to-be-deleted", key),
+			value:       "to be deleted",
+			toBeDeleted: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-int", key),
-			value:                123,
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-int", key),
+			value:    123,
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-bool", key),
-			value:                true,
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-bool", key),
+			value:    true,
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-bytes", key),
-			value:                []byte{0x1},
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-bytes", key),
+			value:    []byte{0x1},
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-string", key),
-			value:                "hello world",
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-string", key),
+			value:    "hello world",
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-struct", key),
-			value:                ValueType{Message: "test"},
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-struct", key),
+			value:    ValueType{Message: "test"},
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-to-be-deleted", key),
-			value:                "to be deleted",
-			toBeDeleted:          true,
-			bulkOnly:             true,
+			key:         fmt.Sprintf("%s-bulk-to-be-deleted", key),
+			value:       "to be deleted",
+			toBeDeleted: true,
+			bulkOnly:    true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
-			value:                "to be deleted too",
-			toBeDeleted:          true,
-			bulkOnly:             true,
+			key:         fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
+			value:       "to be deleted too",
+			toBeDeleted: true,
+			bulkOnly:    true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-int", key),
-			value:                123,
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-int", key),
+			value:            123,
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-bool", key),
-			value:                true,
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-bool", key),
+			value:            true,
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-bytes", key),
-			value:                []byte{0x1},
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-bytes", key),
+			value:            []byte{0x1},
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-string", key),
-			value:                "hello world",
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-string", key),
+			value:            "hello world",
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-struct", key),
-			value:                ValueType{Message: "test"},
-			transactionOnly:      true,
-			transactionGroup:     2,
+			key:              fmt.Sprintf("%s-trx-struct", key),
+			value:            ValueType{Message: "test"},
+			transactionOnly:  true,
+			transactionGroup: 2,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-to-be-deleted", key),
-			value:                "to be deleted",
-			toBeDeleted:          true,
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-to-be-deleted", key),
+			value:            "to be deleted",
+			toBeDeleted:      true,
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-to-be-deleted-too", key),
-			value:                "to be deleted too",
-			toBeDeleted:          true,
-			transactionOnly:      true,
-			transactionGroup:     3,
+			key:              fmt.Sprintf("%s-trx-to-be-deleted-too", key),
+			value:            "to be deleted too",
+			toBeDeleted:      true,
+			transactionOnly:  true,
+			transactionGroup: 3,
 		},
 	}
 

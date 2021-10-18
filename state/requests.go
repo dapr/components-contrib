@@ -5,6 +5,8 @@
 
 package state
 
+import "github.com/dapr/components-contrib/state/query"
+
 // GetRequest is the object describing a state fetch request.
 type GetRequest struct {
 	Key      string            `json:"key"`
@@ -92,4 +94,8 @@ type TransactionalStateOperation struct {
 type KeyInt interface {
 	GetKey() string
 	GetMetadata() map[string]string
+}
+
+type QueryRequest struct {
+	Query query.Query `json:"query"`
 }

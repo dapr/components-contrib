@@ -119,5 +119,3 @@ require (
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
-
-replace github.com/dapr/go-sdk => github.com/pkedy/go-sdk v1.2.1-0.20211013135613-3be3a7c44354

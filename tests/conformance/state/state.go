@@ -226,7 +226,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
-					assertEquals(t, scenario, res)
+					assertEquals(t, scenario.value, res)
 				}
 			}
 		})
@@ -277,7 +277,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
-					assertEquals(t, scenario, res)
+					assertEquals(t, scenario.value, res)
 				}
 			}
 		})
@@ -372,7 +372,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 								},
 							})
 							assert.Nil(t, err)
-							assertEquals(t, scenario, res)
+							assertEquals(t, scenario.value, res)
 						}
 
 						if scenario.toBeDeleted && (scenario.transactionGroup == transactionGroup-1) {
@@ -429,7 +429,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 
 			assert.Nil(t, err)
-			assert.Equal(t, firstValue, res.Data)
+			assertEquals(t, firstValue, res)
 			etag := res.ETag
 
 			// Try and update with wrong ETag, expect failure.
@@ -453,7 +453,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key: testKey,
 			})
 			assert.Nil(t, err)
-			assert.Equal(t, secondValue, res.Data)
+			assertEquals(t, secondValue, res)
 			assert.NotEqual(t, etag, res.ETag)
 			etag = res.ETag
 
@@ -536,7 +536,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					Key: testKey,
 				})
 				assert.Nil(t, err)
-				assert.Equal(t, firstValue, res.Data)
+				assertEquals(t, firstValue, res)
 
 				// Second write expect fail
 				err = statestore.Set(requestSet[1])
@@ -568,7 +568,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key: testKey,
 			})
 			assert.Nil(t, err)
-			assert.Equal(t, firstValue, res.Data)
+			assertEquals(t, firstValue, res)
 
 			etag := res.ETag
 
@@ -590,7 +590,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			assert.Nil(t, err)
 			assert.NotEqual(t, etag, res.ETag)
-			assert.Equal(t, secondValue, res.Data)
+			assertEquals(t, secondValue, res)
 
 			request.ETag = etag
 
@@ -601,14 +601,27 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 }
 
-func assertEquals(t *testing.T, scenario scenario, res *state.GetResponse) {
-	if _, ok := scenario.value.(ValueType); ok {
-		var v ValueType
+func assertEquals(t *testing.T, value interface{}, res *state.GetResponse) {
+	switch v := value.(type) {
+	case ValueType:
+		// Custom type requires case mapping
 		if err := json.Unmarshal(res.Data, &v); err != nil {
 			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
 		}
-		assert.Equal(t, scenario.value, v)
-	} else {
-		assert.Equal(t, scenario.expectedReadResponse, res.Data)
+		assert.Equal(t, value, v)
+	case int:
+		// json.Unmarshal to float64 by default, case mapping to int coerces to int type
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
+	case []byte:
+		assert.Equal(t, value, res.Data)
+	default:
+		// Other golang primitive types (string, bool ...)
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
 	}
 }

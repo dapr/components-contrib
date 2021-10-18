@@ -7,62 +7,64 @@ import (
 )
 
 type Terraform struct {
-	project string
+	project  string
+	filename string
 }
 
-func Run(project) (string, flow.Runnable, flow.Runnable) {
-	return New(project).ToStep()
+func Run(project, filename string) (string, flow.Runnable, flow.Runnable) {
+	return New(project, filename).ToStep()
 }
 
-func New(project) Terraform {
+func New(project, filename string) Terraform {
 	return Terraform{
-		project: project,
+		project:  project,
+		filename: filename,
 	}
+}
+
+func (t Terraform) ToStep() (string, flow.Runnable, flow.Runnable) {
+	return t.project, t.init, t.apply
 }
 
 func (t Terraform) AppID() string {
 	return t.project
 }
 
-func (t Terraform) ToStep() (string, flow.Runnable, flow.Runnable, flow.Runnable) {
-	return t.project, t.init, t.apply, t.destroy
+func initiate(project, filename string) flow.Runnable {
+	return New(project, filename).init
 }
 
-func init(project) flow.Runnable {
-	return New(project).init
-}
-
-func (t terrafom) init(ctx flow.Context) error {
+func (t Terraform) init(ctx flow.Context) error {
 	out, err := exec.Command("terraform", "init").CombinedOutput()
 	ctx.Log(string(out))
 	return err
 }
 
-func show(project) flow.Runnable {
-	return New(project).show
+func apply(project, filename string) flow.Runnable {
+	return New(project, filename).apply
 }
 
-func (t terrafom) show(ctx flow.Context) error {
-	out, err := exec.Command("terraform", "show").CombinedOutput()
-	ctx.Log(string(out))
-	return err
-}
-
-func apply(project) flow.Runnable {
-	return New(project).apply
-}
-
-func (t terrafom) apply(ctx flow.Context) error {
+func (t Terraform) apply(ctx flow.Context) error {
 	out, err := exec.Command("terraform", "apply").CombinedOutput()
 	ctx.Log(string(out))
 	return err
 }
 
-func destroy(project) flow.Runnable {
-	return New(project).destroy
+func show(project, filename string) flow.Runnable {
+	return New(project, filename).show
 }
 
-func (t terrafom) destroy(ctx flow.Context) error {
+func (t Terraform) show(ctx flow.Context) error {
+	out, err := exec.Command("terraform", "show").CombinedOutput()
+	ctx.Log(string(out))
+	return err
+}
+
+func destroy(project, filename string) flow.Runnable {
+	return New(project, filename).destroy
+}
+
+func (t Terraform) destroy(ctx flow.Context) error {
 	out, err := exec.Command("terraform", "destroy").CombinedOutput()
 	ctx.Log(string(out))
 	return err

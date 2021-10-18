@@ -501,8 +501,8 @@ func nextAddress(logger logger.Logger, ipFamily string, addressesMap *sync.Map, 
 	return nil
 }
 
-func addAddress(logger logger.Logger, IPFamily string, addressesMap *sync.Map, addressesCount *atomic.Uint32, appID string, address string, ttl time.Duration) {
-	logger.Debugf("adding %s address %s for app id %s cache entry.", IPFamily, address, appID)
+func addAddress(logger logger.Logger, ipFamily string, addressesMap *sync.Map, addressesCount *atomic.Uint32, appID string, address string, ttl time.Duration) {
+	logger.Debugf("adding %s address %s for app id %s cache entry.", ipFamily, address, appID)
 
 	var newAddressList addressList
 	addressesInterface, loaded := addressesMap.LoadOrStore(appID, &newAddressList)
@@ -514,7 +514,7 @@ func addAddress(logger logger.Logger, IPFamily string, addressesMap *sync.Map, a
 	addressList.add(address, ttl)
 }
 
-func expireAddresses(logger logger.Logger, IPFamily string, addressesMap *sync.Map, addressesCount *atomic.Uint32) []string {
+func expireAddresses(logger logger.Logger, ipFamily string, addressesMap *sync.Map, addressesCount *atomic.Uint32) []string {
 	appIDs := make([]string, 0, addressesCount.Load())
 	addressesMap.Range(func(key, value interface{}) bool {
 		appID := key.(string)
@@ -522,12 +522,12 @@ func expireAddresses(logger logger.Logger, IPFamily string, addressesMap *sync.M
 
 		old := len(addressList.addresses)
 		isEmpty := addressList.expire()
-		logger.Debugf("%d %s address(es) expired for app id %s.", old-len(addressList.addresses), IPFamily, appID)
+		logger.Debugf("%d %s address(es) expired for app id %s.", old-len(addressList.addresses), ipFamily, appID)
 
 		if isEmpty {
 			addressesMap.Delete(appID)
 			addressesCount.Dec()
-			logger.Debugf("app id %s %s address list is empty, removing entry from cache.", appID, IPFamily)
+			logger.Debugf("app id %s %s address list is empty, removing entry from cache.", appID, ipFamily)
 		}
 
 		return true

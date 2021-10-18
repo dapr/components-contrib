@@ -7,7 +7,6 @@ package mdns
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grandcat/zeroconf"
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/dapr/components-contrib/nameresolution"
@@ -254,7 +254,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	}
 
 	// cache miss, fallback to browsing the network for addresses.
-	m.logger.Debugf("no mDNS address found in cache, browsing network for app id %s", req.ID)
+	m.logger.Debugf("No mDNS address found in cache, browsing network for app id %s", req.ID)
 
 	// get the first address we receive...
 	addr, err := m.browseFirstOnly(context.Background(), req.ID)
@@ -349,7 +349,7 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 	// in the address cache that need refreshing.
 	numApps := m.appAddressesIPv4Count.Load() + m.appAddressesIPv6Count.Load()
 	if numApps == 0 {
-		m.logger.Debug("no mDNS apps to refresh.")
+		m.logger.Debug("No mDNS apps to refresh.")
 
 		return nil
 	}
@@ -376,7 +376,7 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip string)) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
-		return fmt.Errorf("failed to initialize resolver: %e", err)
+		return errors.Wrap(err, "failed to initialize resolver")
 	}
 	entries := make(chan *zeroconf.ServiceEntry)
 
@@ -493,12 +493,11 @@ func nextAddress(logger logger.Logger, IPFamily string, addresses *sync.Map, app
 		addrList := value.(*addressList)
 		addr := addrList.next()
 		if addr != nil {
-			logger.Debugf("found mDNS %s address in cache: %s", IPFamily, *addr)
-
 			return addr
 		}
 	}
 
+	logger.Debugf("Couldn't find mDNS %s address for %s in cache.", IPFamily, appID)
 	return nil
 }
 

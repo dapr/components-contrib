@@ -5,7 +5,11 @@ components:
     operations: ["get"]
   - component: localfile
     allOperations: true
-  - component: azure.keyvault
+  - component: azure.keyvault.certificate
+    allOperations: true
+  - component: azure.keyvault.managedidentity
+    allOperations: true
+  - component: azure.keyvault.serviceprincipal
     allOperations: true
   - component: kubernetes
     allOperations: true

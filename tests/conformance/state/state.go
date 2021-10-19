@@ -82,9 +82,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			value: "hello world",
 		},
 		{
-			key:                  fmt.Sprintf("%s-struct", key),
-			value:                ValueType{Message: fmt.Sprintf("%s-test", key)},
-			expectedReadResponse: []byte(fmt.Sprintf("{\"message\":\"%s-test\"}", key)),
+			key:   fmt.Sprintf("%s-struct", key),
+			value: ValueType{Message: fmt.Sprintf("%s-test", key)},
 		},
 		{
 			key:         fmt.Sprintf("%s-to-be-deleted", key),

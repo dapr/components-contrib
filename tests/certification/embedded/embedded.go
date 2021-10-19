@@ -16,8 +16,7 @@ import (
 )
 
 const (
-	appID               = "kafka-test"
-	placementAddresses  = "localhost"
+	placementAddresses  = "127.0.0.1"
 	controlPlaneAddress = ""
 	allowedOrigins      = cors.DefaultAllowedOrigins
 	mode                = modes.StandaloneMode
@@ -82,8 +81,8 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 		enableProfiling, maxConcurrency, enableMTLS, sentryAddress, appSSL, maxRequestBodySize, "",
 		runtime.DefaultReadBufferSize, false)
 
-	for _, o := range opts {
-		o(runtimeConfig)
+	for _, opt := range opts {
+		opt(runtimeConfig)
 	}
 
 	variables := map[string]string{

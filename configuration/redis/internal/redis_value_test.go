@@ -36,7 +36,7 @@ func TestGetRedisValueAndVersion(t *testing.T) {
 		{
 			name: "value without version",
 			args: args{
-				redisValue: "mockValue/",
+				redisValue: "mockValue||",
 			},
 			want:  "mockValue",
 			want1: "",
@@ -44,7 +44,7 @@ func TestGetRedisValueAndVersion(t *testing.T) {
 		{
 			name: "value with version",
 			args: args{
-				redisValue: "mockValue/v1.0.0",
+				redisValue: "mockValue||v1.0.0",
 			},
 			want:  "mockValue",
 			want1: "v1.0.0",

@@ -53,14 +53,14 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers         []string `json:"brokers"`
-	ConsumerGroup   string   `json:"consumerGroup"`
-	ClientID        string   `json:"clientID"`
-	AuthRequired    bool     `json:"authRequired"`
-	SaslUsername    string   `json:"saslUsername"`
-	SaslPassword    string   `json:"saslPassword"`
-	InitialOffset   int64    `json:"initialOffset"`
-	MaxMessageBytes int      `json:"maxMessageBytes"`
+	Brokers         []string
+	ConsumerGroup   string
+	ClientID        string
+	AuthRequired    bool
+	SaslUsername    string
+	SaslPassword    string
+	InitialOffset   int64
+	MaxMessageBytes int
 	TLSSkipVerify   bool
 	TLSCaCert       string
 	TLSClientCert   string

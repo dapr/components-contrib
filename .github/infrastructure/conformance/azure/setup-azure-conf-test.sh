@@ -181,6 +181,8 @@ IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureIotHubPubsubConsumerGroup"
 
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientSecret"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
 KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 
@@ -313,6 +315,15 @@ az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --s
 # Other tests verifying managed identity will want to grant permission like so:
 # MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id "${MANAGED_IDENTITY_SP}" --assignee-principal-type ServicePrincipal --role "Azure Service Bus Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.ServiceBus/namespaces/${SERVICE_BUS_NAME}"
 
+# Creating service principal for service principal authentication with KeyVault
+AKV_SPAUTH_SP_NAME="${PREFIX}-akv-spauth-conf-test-sp"
+echo "Creating service principal ${AKV_SPAUTH_SP_NAME} for use with KeyVault ${KEYVAULT_NAME}"
+{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+
+# Give the service principal read access to the KeyVault Secrets
+AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query objectId -otsv)"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${AKV_SPAUTH_SP_OBJECTID}"
+
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
 az ad sp credential reset --name "${CERT_AUTH_SP_NAME}" --create-cert --cert "${KEYVAULT_CERT_NAME}" --keyvault "${KEYVAULT_NAME}"
@@ -418,6 +429,13 @@ KEYVAULT_CLIENT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --quer
 echo export ${KEYVAULT_CLIENT_ID_VAR_NAME}=\"${KEYVAULT_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_CLIENT_ID}"
 
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID=${AKV_SPAUTH_SP_CLIENT_ID}
+echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID}"
+
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET=${AKV_SPAUTH_SP_CLIENT_SECRET}
+echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}"
 # ------------------------------------
 # Populate Blob Storage test settings
 # ------------------------------------

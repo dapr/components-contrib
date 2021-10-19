@@ -113,7 +113,7 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault
+        - component: secretstores.azure.keyvault.certificate
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
         EOF

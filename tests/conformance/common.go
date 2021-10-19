@@ -375,7 +375,11 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	var store secretstores.SecretStore
 	switch tc.Component {
-	case "azure.keyvault":
+	case "azure.keyvault.certificate":
+		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
+	case "azure.keyvault.managedidentity":
+		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
+	case "azure.keyvault.serviceprincipal":
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "kubernetes":
 		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)

@@ -12,7 +12,7 @@ import (
 
 const (
 	channelPrefix = "__keyspace@0__:"
-	separator     = "/"
+	separator     = "||"
 )
 
 func GetRedisValueAndVersion(redisValue string) (string, string) {

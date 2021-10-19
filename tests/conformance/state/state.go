@@ -32,6 +32,11 @@ type scenario struct {
 	transactionGroup int
 }
 
+type queryScenario struct {
+	query   string
+	results []state.QueryResult
+}
+
 type TestConfig struct {
 	utils.CommonConfig
 }
@@ -77,8 +82,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			value: "hello world",
 		},
 		{
-			key:   fmt.Sprintf("%s-struct", key),
-			value: ValueType{Message: "test"},
+			key:                  fmt.Sprintf("%s-struct", key),
+			value:                ValueType{Message: fmt.Sprintf("%s-test", key)},
+			expectedReadResponse: []byte(fmt.Sprintf("{\"message\":\"%s-test\"}", key)),
 		},
 		{
 			key:         fmt.Sprintf("%s-to-be-deleted", key),
@@ -168,6 +174,33 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		},
 	}
 
+	queryScenarios := []queryScenario{
+		{
+			query: `
+			{
+				"query": {
+					"filter": {
+						"OR": [
+							{
+								"EQ": {"value.message": "dummy"}
+							},
+							{
+								"IN": {"value.message": ["` + key + `-test", "dummy"]}
+							}
+						]
+					}
+				}
+			}
+			`,
+			results: []state.QueryResult{
+				{
+					Key:  fmt.Sprintf("%s-struct", key),
+					Data: []byte(fmt.Sprintf("{\"message\":\"%s-test\"}", key)),
+				},
+			},
+		},
+	}
+
 	t.Run("init", func(t *testing.T) {
 		err := statestore.Init(state.Metadata{
 			Properties: props,
@@ -205,6 +238,26 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					})
 					assert.Nil(t, err)
 					assertEquals(t, scenario.value, res)
+				}
+			}
+		})
+	}
+
+	if config.HasOperation("query") {
+		t.Run("query", func(t *testing.T) {
+			querier, ok := statestore.(state.Querier)
+			assert.Truef(t, ok, "Querier interface is not implemented")
+			for _, scenario := range queryScenarios {
+				t.Logf("Querying value presence for %s", scenario.query)
+				var req state.QueryRequest
+				err := json.Unmarshal([]byte(scenario.query), &req)
+				assert.NoError(t, err)
+				resp, err := querier.Query(&req)
+				assert.NoError(t, err)
+				assert.Equal(t, len(scenario.results), len(resp.Results))
+				for i := range scenario.results {
+					assert.Equal(t, scenario.results[i].Key, resp.Results[i].Key)
+					assert.Equal(t, string(scenario.results[i].Data), string(resp.Results[i].Data))
 				}
 			}
 		})

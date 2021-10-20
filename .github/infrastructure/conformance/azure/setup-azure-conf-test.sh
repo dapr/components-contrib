@@ -302,6 +302,7 @@ MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --ro
 # Create Identity if it doesn't exist
 # We use the standard name "azure-managed-identity" for the identity so we can easily query for it later using the CLI
 if az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv; then
+    echo "Reusing Identity azure-managed-identity"
     MANAGED_IDENTITY_SP="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query principalId -otsv)"
 else
     echo "Creating Identity azure-managed-identity"

@@ -47,6 +47,7 @@ var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 
 func TestKafka(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
+	// For Kafka, we should ensure messages are received in order.
 	messages := watcher.NewOrdered()
 
 	test := func(ctx flow.Context) error {
@@ -75,9 +76,11 @@ func TestKafka(t *testing.T) {
 		return nil
 	}
 
-	service := func(ctx flow.Context, s common.Service) (err error) {
-		sim := simulate.Error(ctx, 100)
+	application := func(ctx flow.Context, s common.Service) (err error) {
+		// Simulate periodic errors.
+		sim := simulate.PeriodicError(ctx, 100)
 
+		// Setup the /orders event handler.
 		err = multierr.Append(err,
 			s.AddTopicEventHandler(&common.Subscription{
 				PubsubName: "messagebus",
@@ -88,6 +91,7 @@ func TestKafka(t *testing.T) {
 					return true, err
 				}
 
+				// Track/Observe the data of the event.
 				messages.Observe(e.Data)
 				ctx.Logf("Event - pubsub: %s, topic: %s, id: %s, data: %s",
 					e.PubsubName, e.Topic, e.ID, e.Data)
@@ -98,6 +102,7 @@ func TestKafka(t *testing.T) {
 	}
 
 	flow.New(t, "kafka certification").
+		// Run Kafka using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
@@ -113,11 +118,15 @@ func TestKafka(t *testing.T) {
 			}
 			defer client.Close()
 
+			// Ensure the brokers are ready by attempting to consume
+			// a topic partition.
 			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
 
 			return err
 		})).
-		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), service)).
+		// Run the application logic above.
+		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
+		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName,
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),

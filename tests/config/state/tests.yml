@@ -7,6 +7,8 @@ components:
     allOperations: true
   - component: azure.cosmosdb
     allOperations: true
+  - component: azure.sql
+    allOperations: true
   - component: sqlserver
     allOperations: true
   - component: mysql

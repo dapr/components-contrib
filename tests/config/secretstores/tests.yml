@@ -7,8 +7,6 @@ components:
     allOperations: true
   - component: azure.keyvault.certificate
     allOperations: true
-  - component: azure.keyvault.managedidentity
-    allOperations: true
   - component: azure.keyvault.serviceprincipal
     allOperations: true
   - component: kubernetes

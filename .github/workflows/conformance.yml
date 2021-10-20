@@ -116,6 +116,8 @@ jobs:
         - component: secretstores.azure.keyvault.certificate
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
+        - component: secretstores.azure.keyvault.serviceprincipal
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"

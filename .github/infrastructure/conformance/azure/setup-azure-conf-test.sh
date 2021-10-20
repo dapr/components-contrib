@@ -299,11 +299,16 @@ echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
 
-# Create Identity
+# Create Identity if it doesn't exist
 # We use the standard name "azure-managed-identity" for the identity so we can easily query for it later using the CLI
-echo "Creating Identity azure-managed-identity"
-MANAGED_IDENTITY_SP="$(az identity create -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --location ${DEPLOY_LOCATION} --query principalId -otsv)"
-# This identity can later be injected into services for managed identity authentication
+if az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv; then
+    MANAGED_IDENTITY_SP="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query principalId -otsv)"
+else
+    echo "Creating Identity azure-managed-identity"
+    MANAGED_IDENTITY_SP="$(az identity create -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --location ${DEPLOY_LOCATION} --query principalId -otsv)"
+    # This identity can later be injected into services for managed identity authentication
+fi
+
 MANAGED_IDENTITY_ID="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv)"
 echo "Created Identity ${MANAGED_IDENTITY_ID}"
 

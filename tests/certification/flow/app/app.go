@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package app
 
 import (
@@ -44,7 +49,7 @@ func Start(appName, address string, setup SetupFn) flow.Runnable {
 }
 
 func (a App) Start(ctx flow.Context) error {
-	s := daprd.NewService(":8000")
+	s := daprd.NewService(a.address)
 
 	if err := a.setup(ctx, s); err != nil {
 		return err

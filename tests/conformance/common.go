@@ -377,8 +377,6 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	switch tc.Component {
 	case "azure.keyvault.certificate":
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
-	case "azure.keyvault.managedidentity":
-		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "azure.keyvault.serviceprincipal":
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "kubernetes":

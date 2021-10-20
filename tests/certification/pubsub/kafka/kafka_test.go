@@ -50,6 +50,8 @@ func TestKafka(t *testing.T) {
 	// For Kafka, we should ensure messages are received in order.
 	messages := watcher.NewOrdered()
 
+	// Test logic that sends messages to a topic and
+	// verifies the application has received them.
 	test := func(ctx flow.Context) error {
 		client := sidecar.GetClient(ctx, sidecarName)
 
@@ -76,6 +78,7 @@ func TestKafka(t *testing.T) {
 		return nil
 	}
 
+	// Application logic that tracks messages from a topic.
 	application := func(ctx flow.Context, s common.Service) (err error) {
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, 100)

@@ -15,6 +15,8 @@ components:
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: mysql
+    allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
   - component: azure.tablestorage
+    allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]

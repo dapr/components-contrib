@@ -2,12 +2,12 @@ package opa
 
 import (
 	"encoding/json"
-	"testing"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fh "github.com/valyala/fasthttp"
+	"testing"
 )
 
 func mockedRequestHandler(ctx *fh.RequestCtx) {}
@@ -194,7 +194,7 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			shouldRegoError: true,
 		},
-    "status config": {
+		"status config": {
 			meta: middleware.Metadata{
 				Properties: map[string]string{
 					"rego": `

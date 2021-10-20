@@ -113,9 +113,11 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault
+        - component: secretstores.azure.keyvault.certificate
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
+        - component: secretstores.azure.keyvault.serviceprincipal
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"

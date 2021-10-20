@@ -181,6 +181,8 @@ IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureIotHubPubsubConsumerGroup"
 
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientSecret"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
 KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 
@@ -197,9 +199,9 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --upn "${ADMIN_UPN}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
-SUB_ID="$(az account show --query "id" | sed -E 's/[[:space:]]|\"//g')"
-TENANT_ID="$(az account show --query "tenantId" | sed -E 's/[[:space:]]|\"//g')"
+ADMIN_ID="$(az ad user list --upn "${ADMIN_UPN}" --query "[].objectId" --output tsv)"
+SUB_ID="$(az account show --query "id" --output tsv)"
+TENANT_ID="$(az account show --query "tenantId" --output tsv)"
 DEPLOY_NAME="${PREFIX}-azure-conf-test"
 
 # Setup output path
@@ -211,7 +213,7 @@ az config set extension.use_dynamic_install=yes_without_prompt
 # Create Service Principals for use with the conformance tests
 CERT_AUTH_SP_NAME="${PREFIX}-akv-conf-test-sp"
 az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --skip-assignment --years 1
-CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
 echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
@@ -222,14 +224,14 @@ if [[ -n ${CREDENTIALS_PATH} ]]; then
         echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
         exit 1
     fi
-    SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" | grep \" | sed -E 's/[[:space:]]|\"//g')"
-    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" --output tsv)"
+    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "objectId" --output tsv)"
     echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME}"
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
     SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
     SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
-    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
     echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
     AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
@@ -253,46 +255,80 @@ sleep 5s
 
 # Query the deployed resource names from the bicep deployment outputs
 echo "Querying deployed resource names ..."
-RESOURCE_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.confTestRgName.value" | sed -E 's/[[:space:]]|\"//g')"
+RESOURCE_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.confTestRgName.value" --output tsv)"
 echo "INFO: RESOURCE_GROUP_NAME=${RESOURCE_GROUP_NAME}"
-SERVICE_BUS_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.serviceBusName.value" | sed -E 's/[[:space:]]|\"//g')"
+SERVICE_BUS_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.serviceBusName.value" --output tsv)"
 echo "INFO: SERVICE_BUS_NAME=${SERVICE_BUS_NAME}"
-KEYVAULT_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.keyVaultName.value" | sed -E 's/[[:space:]]|\"//g')"
+KEYVAULT_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.keyVaultName.value" --output tsv)"
 echo "INFO: KEYVAULT_NAME=${KEYVAULT_NAME}"
-STORAGE_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.storageName.value" | sed -E 's/[[:space:]]|\"//g')"
+STORAGE_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.storageName.value" --output tsv)"
 echo "INFO: STORAGE_NAME=${STORAGE_NAME}"
-COSMOS_DB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbName.value" | sed -E 's/[[:space:]]|\"//g')"
+COSMOS_DB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbName.value" --output tsv)"
 echo "INFO: COSMOS_DB_NAME=${COSMOS_DB_NAME}"
-COSMOS_DB_SQL_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlName.value" | sed -E 's/[[:space:]]|\"//g')"
+COSMOS_DB_SQL_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlName.value" --output tsv)"
 echo "INFO: COSMOS_DB_SQL_NAME=${COSMOS_DB_SQL_NAME}"
-COSMOS_DB_CONTAINER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlContainerName.value" | sed -E 's/[[:space:]]|\"//g')"
+COSMOS_DB_CONTAINER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlContainerName.value" --output tsv)"
 echo "INFO: COSMOS_DB_CONTAINER_NAME=${COSMOS_DB_CONTAINER_NAME}"
-EVENT_GRID_TOPIC_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventGridTopicName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_GRID_TOPIC_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventGridTopicName.value" --output tsv)"
 echo "INFO: EVENT_GRID_TOPIC_NAME=${EVENT_GRID_TOPIC_NAME}"
-EVENT_HUBS_NAMESPACE="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubsNamespace.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUBS_NAMESPACE="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubsNamespace.value" --output tsv)"
 echo "INFO: EVENT_HUBS_NAMESPACE=${EVENT_HUBS_NAMESPACE}"
-EVENT_HUB_BINDINGS_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUB_BINDINGS_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsName.value" --output tsv)"
 echo "INFO: EVENT_HUB_BINDINGS_NAME=${EVENT_HUB_BINDINGS_NAME}"
-EVENT_HUB_BINDINGS_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsPolicyName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUB_BINDINGS_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsPolicyName.value" --output tsv)"
 echo "INFO: EVENT_HUB_BINDINGS_POLICY_NAME=${EVENT_HUB_BINDINGS_POLICY_NAME}"
-EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubBindingsConsumerGroupName.value" --output tsv)"
 echo "INFO: EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME=${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME}"
-EVENT_HUB_PUBSUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUB_PUBSUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubName.value" --output tsv)"
 echo "INFO: EVENT_HUB_PUBSUB_NAME=${EVENT_HUB_PUBSUB_NAME}"
-EVENT_HUB_PUBSUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubPolicyName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUB_PUBSUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubPolicyName.value" --output tsv)"
 echo "INFO: EVENT_HUB_PUBSUB_POLICY_NAME=${EVENT_HUB_PUBSUB_POLICY_NAME}"
-EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubConsumerGroupName.value" --output tsv)"
 echo "INFO: EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME=${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
-IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" | sed -E 's/[[:space:]]|\"//g')"
+IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" --output tsv)"
 echo "INFO: IOT_HUB_NAME=${IOT_HUB_NAME}"
-IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubBindingsConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubBindingsConsumerGroupName.value" --output tsv)"
 echo "INFO: IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME=${IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME}"
-IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubPubsubConsumerGroupName.value" | sed -E 's/[[:space:]]|\"//g')"
+IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubPubsubConsumerGroupName.value" --output tsv)"
 echo "INFO: IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME=${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME}"
-SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerName.value" | sed -E 's/[[:space:]]|\"//g')"
+SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerName.value" --output tsv)"
 echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
-SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" | sed -E 's/[[:space:]]|\"//g')"
+SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" --output tsv)"
 echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
+
+# Give the service principal used by the SDK write access to the entire resource group
+MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
+
+# Create Identity if it doesn't exist
+# We use the standard name "azure-managed-identity" for the identity so we can easily query for it later using the CLI
+if az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv; then
+    echo "Reusing Identity azure-managed-identity"
+    MANAGED_IDENTITY_SP="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query principalId -otsv)"
+else
+    echo "Creating Identity azure-managed-identity"
+    MANAGED_IDENTITY_SP="$(az identity create -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --location ${DEPLOY_LOCATION} --query principalId -otsv)"
+    # This identity can later be injected into services for managed identity authentication
+fi
+
+MANAGED_IDENTITY_ID="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv)"
+echo "Created Identity ${MANAGED_IDENTITY_ID}"
+
+# Example to inject the identity into a supported Azure service (may be necessary in integration tests):
+# az container create -g ${RESOURCE_GROUP_NAME} -n testcontainer --image golang:latest --command-line "tail -f /dev/null" --assign-identity $MANAGED_IDENTITY_ID
+
+echo "Granting identity azure-managed-identity permissions to access the Key Vault ${KEYVAULT_NAME}"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${MANAGED_IDENTITY_SP}"
+# Other tests verifying managed identity will want to grant permission like so:
+# MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id "${MANAGED_IDENTITY_SP}" --assignee-principal-type ServicePrincipal --role "Azure Service Bus Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.ServiceBus/namespaces/${SERVICE_BUS_NAME}"
+
+# Creating service principal for service principal authentication with KeyVault
+AKV_SPAUTH_SP_NAME="${PREFIX}-akv-spauth-conf-test-sp"
+echo "Creating service principal ${AKV_SPAUTH_SP_NAME} for use with KeyVault ${KEYVAULT_NAME}"
+{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+
+# Give the service principal read access to the KeyVault Secrets
+AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query objectId -otsv)"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${AKV_SPAUTH_SP_OBJECTID}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -391,14 +427,21 @@ echo export ${KEYVAULT_CERT_NAME}=\"${KEYVAULT_CERT_FILE}\" >> "${ENV_CONFIG_FIL
 echo export ${KEYVAULT_NAME_VAR_NAME}=\"${KEYVAULT_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_NAME}"
 
-KEYVAULT_TENANT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appOwnerTenantId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+KEYVAULT_TENANT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
 echo export ${KEYVAULT_TENANT_ID_VAR_NAME}=\"${KEYVAULT_TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_TENANT_ID}"
 
-KEYVAULT_CLIENT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+KEYVAULT_CLIENT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appId" --output tsv)"
 echo export ${KEYVAULT_CLIENT_ID_VAR_NAME}=\"${KEYVAULT_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_CLIENT_ID}"
 
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID=${AKV_SPAUTH_SP_CLIENT_ID}
+echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID}"
+
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET=${AKV_SPAUTH_SP_CLIENT_SECRET}
+echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}"
 # ------------------------------------
 # Populate Blob Storage test settings
 # ------------------------------------
@@ -415,7 +458,7 @@ STORAGE_QUEUE_NAME="${PREFIX}-conf-test-queue"
 echo export ${STORAGE_QUEUE_VAR_NAME}=\"${STORAGE_QUEUE_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${STORAGE_QUEUE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${STORAGE_QUEUE_NAME}"
 
-STORAGE_ACCESS_KEY="$(az storage account keys list --account-name "${STORAGE_NAME}" --query "[?keyName=='key1'].value" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+STORAGE_ACCESS_KEY="$(az storage account keys list --account-name "${STORAGE_NAME}" --query "[?keyName=='key1'].value" --output tsv)"
 echo export ${STORAGE_ACCESS_KEY_VAR_NAME}=\"${STORAGE_ACCESS_KEY}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${STORAGE_ACCESS_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${STORAGE_ACCESS_KEY}"
 
@@ -431,11 +474,11 @@ az keyvault secret set --name "${COSMOS_DB_VAR_NAME}" --vault-name "${KEYVAULT_N
 echo export ${COSMOS_DB_COLLECTION_VAR_NAME}=\"${COSMOS_DB_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${COSMOS_DB_COLLECTION_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_CONTAINER_NAME}"
 
-COSMOS_DB_URL="$(az cosmosdb list --query "[?name=='${COSMOS_DB_NAME}'].documentEndpoint" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+COSMOS_DB_URL="$(az cosmosdb list --query "[?name=='${COSMOS_DB_NAME}'].documentEndpoint" --output tsv)"
 echo export ${COSMOS_DB_URL_VAR_NAME}=\"${COSMOS_DB_URL}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${COSMOS_DB_URL_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_URL}"
 
-COSMOS_DB_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryMasterKey" | sed -E 's/[[:space:]]|\"//g')"
+COSMOS_DB_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryMasterKey" --output tsv)"
 echo export ${COSMOS_DB_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${COSMOS_DB_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_MASTER_KEY}"
 
@@ -444,11 +487,11 @@ az keyvault secret set --name "${COSMOS_DB_MASTER_KEY_VAR_NAME}" --vault-name "$
 # ----------------------------------
 echo "Configuring Event Grid test settings ..."
 
-EVENT_GRID_ACCESS_KEY="$(az eventgrid topic key list --name "${EVENT_GRID_TOPIC_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "key1" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_GRID_ACCESS_KEY="$(az eventgrid topic key list --name "${EVENT_GRID_TOPIC_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "key1" --output tsv)"
 echo export ${EVENT_GRID_ACCESS_KEY_VAR_NAME}=\"${EVENT_GRID_ACCESS_KEY}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_GRID_ACCESS_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_GRID_ACCESS_KEY}"
 
-SDK_AUTH_SP_APP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].appId" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+SDK_AUTH_SP_APP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].appId" --output tsv)"
 echo export ${EVENT_GRID_CLIENT_ID_VAR_NAME}=\"${SDK_AUTH_SP_APP_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_GRID_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SDK_AUTH_SP_APP_ID}"
 
@@ -471,7 +514,7 @@ az keyvault secret set --name "${EVENT_GRID_SUB_ID_VAR_NAME}" --vault-name "${KE
 echo export ${EVENT_GRID_TENANT_ID_VAR_NAME}=\"${TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_GRID_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${TENANT_ID}"
 
-EVENT_GRID_TOPIC_ENDPOINT="$(az eventgrid topic list --query "[?name=='${EVENT_GRID_TOPIC_NAME}'].endpoint" | grep \" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_GRID_TOPIC_ENDPOINT="$(az eventgrid topic list --query "[?name=='${EVENT_GRID_TOPIC_NAME}'].endpoint" --output tsv)"
 echo export ${EVENT_GRID_TOPIC_ENDPOINT_VAR_NAME}=\"${EVENT_GRID_TOPIC_ENDPOINT}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_GRID_TOPIC_ENDPOINT_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_GRID_TOPIC_ENDPOINT}"
 
@@ -479,7 +522,7 @@ az keyvault secret set --name "${EVENT_GRID_TOPIC_ENDPOINT_VAR_NAME}" --vault-na
 # Populate Service Bus test settings
 # -----------------------------------
 echo "Configuring Service Bus test settings ..."
-SERVICE_BUS_CONNECTION_STRING="$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name "${SERVICE_BUS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
+SERVICE_BUS_CONNECTION_STRING="$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name "${SERVICE_BUS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
 echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
 
@@ -505,7 +548,7 @@ az keyvault secret set --name "${SQL_SERVER_CONNECTION_STRING_VAR_NAME}" --vault
 # ----------------------------------
 echo "Configuring Event Hub test settings ..."
 
-EVENT_HUBS_BINDINGS_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_BINDINGS_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_BINDINGS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUBS_BINDINGS_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_BINDINGS_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_BINDINGS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
 echo export ${EVENT_HUBS_BINDINGS_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_BINDINGS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_BINDINGS_CONNECTION_STRING}"
 
@@ -516,7 +559,7 @@ EVENT_HUBS_BINDINGS_CONTAINER_NAME="${PREFIX}-eventhubs-bindings-container"
 echo export ${EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_BINDINGS_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_BINDINGS_CONTAINER_NAME}"
 
-EVENT_HUBS_PUBSUB_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_PUBSUB_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_PUBSUB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" | sed -E 's/[[:space:]]|\"//g')"
+EVENT_HUBS_PUBSUB_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_PUBSUB_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_PUBSUB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
 echo export ${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONNECTION_STRING}"
 
@@ -535,7 +578,7 @@ echo "Configuring IoT Hub test settings ..."
 echo export ${IOT_HUB_NAME_VAR_NAME}=\"${IOT_HUB_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${IOT_HUB_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_NAME}"
 
-IOT_HUB_EVENT_HUB_CONNECTION_STRING="$(az iot hub connection-string show -n ${IOT_HUB_NAME} --default-eventhub --policy-name service --query connectionString | sed -E 's/[[:space:]]|\"//g')"
+IOT_HUB_EVENT_HUB_CONNECTION_STRING="$(az iot hub connection-string show -n ${IOT_HUB_NAME} --default-eventhub --policy-name service --query connectionString --output tsv)"
 echo export ${IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME}=\"${IOT_HUB_EVENT_HUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_EVENT_HUB_CONNECTION_STRING}"
 

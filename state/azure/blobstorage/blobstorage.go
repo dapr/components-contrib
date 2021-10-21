@@ -230,7 +230,7 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 
-	if req.ContentType != nil && req.ContentType != "" {
+	if req.ContentType != "" {
 		blobHTTPHeaders.ContentType = req.ContentType
 	}
 

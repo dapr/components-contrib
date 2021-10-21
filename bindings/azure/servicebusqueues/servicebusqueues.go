@@ -8,6 +8,7 @@ package servicebusqueues
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -150,6 +151,10 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return nil, err
+	}
+
+	if m.ConnectionString != "" && m.NamespaceName != "" {
+		return nil, errors.New("connectionString and namespaceName are mutually exclusive.")
 	}
 
 	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)

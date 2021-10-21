@@ -20,7 +20,7 @@ const (
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		connectionString:               "fakeConnectionString",
-		namespaceName:                  "fakeNamespace",
+		namespaceName:                  "",
 		consumerID:                     "fakeConId",
 		disableEntityManagement:        "true",
 		timeoutInSec:                   "90",
@@ -123,6 +123,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
+		fakeMetaData.Properties[namespaceName] = "fakeNamespace"
 		fakeMetaData.Properties[connectionString] = ""
 
 		// act.
@@ -133,20 +134,21 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, "fakeNamespace", m.NamespaceName)
 	})
 
-	t.Run("connectionString preferred over namespace", func(t *testing.T) {
+	t.Run("connectionString and namespace are mutually exclusive", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
 
+		fakeMetaData.Properties[namespaceName] = "fakeNamespace"
+
 		// act.
-		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert.
-		assert.NoError(t, err)
-		assert.Equal(t, "fakeConnectionString", m.ConnectionString)
-		assert.Empty(t, m.NamespaceName)
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
 	})
 
 	t.Run("missing required consumerID", func(t *testing.T) {

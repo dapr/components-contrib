@@ -95,6 +95,11 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	/* Required configuration settings - no defaults. */
 	if val, ok := meta.Properties[connectionString]; ok && val != "" {
 		m.ConnectionString = val
+
+		// The connection string and the namespace cannot both be present.
+		if namespace, present := meta.Properties[namespaceName]; present && namespace != "" {
+			return m, fmt.Errorf("%s connectionString and namespaceName cannot both be specified.", errorMessagePrefix)
+		}
 	} else if val, ok := meta.Properties[namespaceName]; ok && val != "" {
 		m.NamespaceName = val
 	} else {

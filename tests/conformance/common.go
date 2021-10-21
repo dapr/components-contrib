@@ -58,6 +58,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
@@ -405,6 +406,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		fallthrough
 	case "sqlserver":
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
+	case "postgresql":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "azure.tablestorage":

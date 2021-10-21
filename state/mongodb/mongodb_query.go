@@ -128,19 +128,19 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]state.QueryResult, string, error) {
+func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]state.QueryItem, string, error) {
 	cur, err := collection.Find(ctx, q.filter, []*options.FindOptions{q.opts}...)
 	if err != nil {
 		return nil, "", err
 	}
 	defer cur.Close(ctx)
-	ret := []state.QueryResult{}
+	ret := []state.QueryItem{}
 	for cur.Next(ctx) {
 		var item Item
 		if err = cur.Decode(&item); err != nil {
 			return nil, "", err
 		}
-		result := state.QueryResult{
+		result := state.QueryItem{
 			Key:  item.Key,
 			ETag: &item.Etag,
 		}

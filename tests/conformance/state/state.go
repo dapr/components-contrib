@@ -35,7 +35,7 @@ type scenario struct {
 
 type queryScenario struct {
 	query   string
-	results []state.QueryResult
+	results []state.QueryItem
 }
 
 type TestConfig struct {
@@ -213,7 +213,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			`,
-			results: []state.QueryResult{
+			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct", key),
 					Data: []byte(fmt.Sprintf("{\"message\":\"%s-test\"}", key)),

@@ -21,7 +21,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// metadata values
+// metadata values.
 const (
 	hosts     = "hosts"
 	namespace = "namespace"
@@ -33,7 +33,7 @@ var (
 	errInvalidHosts = errors.New("aerospike: invalid value for hosts")
 )
 
-// Aerospike is a state store
+// Aerospike is a state store.
 type Aerospike struct {
 	state.DefaultBulkStore
 	namespace string
@@ -45,7 +45,7 @@ type Aerospike struct {
 	logger   logger.Logger
 }
 
-// NewAerospikeStateStore returns a new Aerospike state store
+// NewAerospikeStateStore returns a new Aerospike state store.
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
 	s := &Aerospike{
 		json:     jsoniter.ConfigFastest,
@@ -75,7 +75,7 @@ func validateMetadata(metadata state.Metadata) error {
 	return nil
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (aspike *Aerospike) Init(metadata state.Metadata) error {
 	err := validateMetadata(metadata)
 	if err != nil {
@@ -96,12 +96,12 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (aspike *Aerospike) Features() []state.Feature {
 	return aspike.features
 }
 
-// Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings
+// Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings.
 func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -153,7 +153,7 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// Get retrieves state from Aerospike with a key
+// Get retrieves state from Aerospike with a key.
 func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	asKey, err := as.NewKey(aspike.namespace, aspike.set, req.Key)
 	if err != nil {
@@ -187,7 +187,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 	}, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {

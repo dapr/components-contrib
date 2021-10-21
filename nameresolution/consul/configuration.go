@@ -13,7 +13,7 @@ import (
 
 // The intermediateConfig is based off of the consul api types. User configurations are
 // deserialized into this type before being converted to the equivalent consul types
-// that way breaking changes in future versions of the consul api cannot break user configuration
+// that way breaking changes in future versions of the consul api cannot break user configuration.
 type intermediateConfig struct {
 	Client               *Config
 	Checks               []*AgentServiceCheck

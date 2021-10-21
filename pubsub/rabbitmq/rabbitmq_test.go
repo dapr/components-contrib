@@ -5,10 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 func newBroker() *rabbitMQInMemoryBroker {
@@ -183,7 +184,7 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, "hello world", lastMessage)
 	// Check that reconnection happened
 	assert.Equal(t, 2, broker.connectCount)
-	assert.Equal(t, 1, broker.closeCount)
+	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
@@ -231,7 +232,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	// Close PubSub
 	err = pubsubRabbitMQ.Close()
 	assert.Nil(t, err)
-	assert.Equal(t, 1, broker.closeCount)
+	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
 	assert.NotNil(t, err)
@@ -239,7 +240,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	assert.Equal(t, "hello world", lastMessage)
 	// Check that reconnection did not happened
 	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 1, broker.closeCount)
+	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
 }
 
 func TestSubscribeReconnect(t *testing.T) {
@@ -289,7 +290,7 @@ func TestSubscribeReconnect(t *testing.T) {
 
 	// Check that reconnection happened
 	assert.Equal(t, 2, broker.connectCount)
-	assert.Equal(t, 1, broker.closeCount)
+	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
 }
 
 func createAMQPMessage(body []byte) amqp.Delivery {

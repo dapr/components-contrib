@@ -7,6 +7,7 @@ package mysql
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -241,11 +242,12 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
-			id varchar(255) NOT NULL PRIMARY KEY,
-			value text NOT NULL,
+			id VARCHAR(255) NOT NULL PRIMARY KEY,
+			value JSON NOT NULL,
+			isbinary BOOLEAN NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			eTag varchar(36) NOT NULL
+			eTag VARCHAR(36) NOT NULL
 			);`, stateTableName)
 
 		_, err = m.db.Exec(createTable)
@@ -344,10 +346,11 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	var eTag, value string
+	var isBinary bool
 
 	err := m.db.QueryRow(fmt.Sprintf(
-		`SELECT value, eTag FROM %s WHERE id = ?`,
-		m.tableName), req.Key).Scan(&value, &eTag)
+		`SELECT value, eTag, isbinary FROM %s WHERE id = ?`,
+		m.tableName), req.Key).Scan(&value, &eTag, &isBinary)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -357,13 +360,30 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, err
 	}
 
-	response := &state.GetResponse{
-		ETag:     ptr.String(eTag),
-		Metadata: req.Metadata,
-		Data:     []byte(value),
+	if isBinary {
+		var s string
+		var data []byte
+
+		if err = json.Unmarshal([]byte(value), &s); err != nil {
+			return nil, err
+		}
+
+		if data, err = base64.StdEncoding.DecodeString(s); err != nil {
+			return nil, err
+		}
+
+		return &state.GetResponse{
+			Data:     data,
+			ETag:     ptr.String(eTag),
+			Metadata: req.Metadata,
+		}, nil
 	}
 
-	return response, nil
+	return &state.GetResponse{
+		Data:     []byte(value),
+		ETag:     ptr.String(eTag),
+		Metadata: req.Metadata,
+	}, nil
 }
 
 // Set adds/updates an entity on store
@@ -386,8 +406,18 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
+	if v, ok := req.Value.(string); ok && v == "" {
+		return fmt.Errorf("empty string is not allowed in set operation")
+	}
+
+	v := req.Value
+	byteArray, isBinary := req.Value.([]uint8)
+	if isBinary {
+		v = base64.StdEncoding.EncodeToString(byteArray)
+	}
+
 	// Convert to json string
-	bt, _ := utils.Marshal(req.Value, json.Marshal)
+	bt, _ := utils.Marshal(v, json.Marshal)
 	value := string(bt)
 
 	var result sql.Result
@@ -399,15 +429,15 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	if req.ETag == nil || *req.ETag == "" {
 		// If this is a duplicate MySQL returns that two rows affected
 		result, err = m.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s (value, id, eTag)
-			 VALUES (?, ?, ?) on duplicate key update value=?, eTag=?;`,
-			m.tableName), value, req.Key, eTag, value, eTag)
+			`INSERT INTO %s (value, id, eTag, isbinary)
+			 VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
+			m.tableName), value, req.Key, eTag, isBinary, value, eTag, isBinary)
 	} else {
 		// When an eTag is provided do an update - not insert
 		result, err = m.db.Exec(fmt.Sprintf(
-			`UPDATE %s SET value = ?, eTag = ?
+			`UPDATE %s SET value = ?, eTag = ?, isbinary = ?
 			 WHERE id = ? AND eTag = ?;`,
-			m.tableName), value, eTag, req.Key, *req.ETag)
+			m.tableName), value, eTag, isBinary, req.Key, *req.ETag)
 	}
 
 	if err != nil {

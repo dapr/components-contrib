@@ -9,6 +9,7 @@ package mongodb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -16,14 +17,15 @@ import (
 
 	"github.com/agrea/ptr"
 	"github.com/google/uuid"
-	json "github.com/json-iterator/go"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
 )
 
@@ -56,7 +58,7 @@ const (
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 )
 
-// MongoDB is a state store implementation for MongoDB
+// MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
 	state.DefaultBulkStore
 	client           *mongo.Client
@@ -81,14 +83,14 @@ type mongoDBMetadata struct {
 	operationTimeout time.Duration
 }
 
-// Item is Mongodb document wrapper
+// Item is Mongodb document wrapper.
 type Item struct {
-	Key   string `bson:"_id"`
-	Value string `bson:"value"`
-	Etag  string `bson:"_etag"`
+	Key   string      `bson:"_id"`
+	Value interface{} `bson:"value"`
+	Etag  string      `bson:"_etag"`
 }
 
-// NewMongoDB returns a new MongoDB state store
+// NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) *MongoDB {
 	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -99,7 +101,7 @@ func NewMongoDB(logger logger.Logger) *MongoDB {
 	return s
 }
 
-// Init establishes connection to the store based on the metadata
+// Init establishes connection to the store based on the metadata.
 func (m *MongoDB) Init(metadata state.Metadata) error {
 	meta, err := getMongoDBMetaData(metadata)
 	if err != nil {
@@ -140,12 +142,12 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (m *MongoDB) Features() []state.Feature {
 	return m.features
 }
 
-// Set saves state into MongoDB
+// Set saves state into MongoDB.
 func (m *MongoDB) Set(req *state.SetRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
@@ -167,12 +169,14 @@ func (m *MongoDB) Ping() error {
 }
 
 func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error {
-	var vStr string
-	b, ok := req.Value.([]byte)
-	if ok {
-		vStr = string(b)
-	} else {
-		vStr, _ = json.MarshalToString(req.Value)
+	var v interface{}
+	switch obj := req.Value.(type) {
+	case []byte:
+		v = string(obj)
+	case string:
+		v = fmt.Sprintf("%q", obj)
+	default:
+		v = req.Value
 	}
 
 	// create a document based on request key and value
@@ -183,16 +187,13 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		filter[etag] = uuid.NewString()
 	}
 
-	update := bson.M{"$set": bson.M{id: req.Key, value: vStr, etag: uuid.NewString()}}
+	update := bson.M{"$set": bson.M{id: req.Key, value: v, etag: uuid.NewString()}}
 	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
-// Get retrieves state from MongoDB with a key
+// Get retrieves state from MongoDB with a key.
 func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var result Item
 
@@ -202,7 +203,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
-		if err.Error() == "mongo: no documents in result" {
+		if err == mongo.ErrNoDocuments {
 			// Key not found, not an error.
 			// To behave the same as other state stores in conf tests.
 			return &state.GetResponse{}, nil
@@ -211,15 +212,27 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return &state.GetResponse{}, err
 	}
 
-	value := []byte(result.Value)
+	var data []byte
+	switch obj := result.Value.(type) {
+	case string:
+		data = []byte(obj)
+	case primitive.D:
+		if data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+			return &state.GetResponse{}, err
+		}
+	default:
+		if data, err = json.Marshal(result.Value); err != nil {
+			return &state.GetResponse{}, err
+		}
+	}
 
 	return &state.GetResponse{
-		Data: value,
+		Data: data,
 		ETag: ptr.String(result.Etag),
 	}, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (m *MongoDB) Delete(req *state.DeleteRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
@@ -249,7 +262,7 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	return nil
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (m *MongoDB) Multi(request *state.TransactionalStateRequest) error {
 	sess, err := m.client.StartSession()
 	txnOpts := options.Transaction().SetReadConcern(readconcern.Snapshot()).
@@ -291,6 +304,27 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 	return nil
 }
 
+// Query executes a query against store.
+func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
+	defer cancel()
+
+	q := &Query{}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(ctx, m.collection)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
+}
+
 func getMongoURI(metadata *mongoDBMetadata) string {
 	if len(metadata.server) != 0 {
 		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.server, metadata.params)
@@ -312,6 +346,13 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	// Connect to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), metadata.operationTimeout)
 	defer cancel()
+
+	daprUserAgent := "dapr-" + logger.DaprVersion
+	if clientOptions.AppName != nil {
+		clientOptions.SetAppName(daprUserAgent + ":" + *clientOptions.AppName)
+	} else {
+		clientOptions.SetAppName(daprUserAgent)
+	}
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {

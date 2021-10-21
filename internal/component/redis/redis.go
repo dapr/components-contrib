@@ -45,6 +45,7 @@ func newFailoverClient(s *Settings) redis.UniversalClient {
 		MasterName:         s.SentinelMasterName,
 		SentinelAddrs:      []string{s.Host},
 		Password:           s.Password,
+		Username:           s.Username,
 		MaxRetries:         s.RedisMaxRetries,
 		MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
 		MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
@@ -83,6 +84,7 @@ func newClient(s *Settings) redis.UniversalClient {
 		options := &redis.ClusterOptions{
 			Addrs:              strings.Split(s.Host, ","),
 			Password:           s.Password,
+			Username:           s.Username,
 			MaxRetries:         s.RedisMaxRetries,
 			MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
 			MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
@@ -109,6 +111,7 @@ func newClient(s *Settings) redis.UniversalClient {
 	options := &redis.Options{
 		Addr:               s.Host,
 		Password:           s.Password,
+		Username:           s.Username,
 		DB:                 s.DB,
 		MaxRetries:         s.RedisMaxRetries,
 		MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),

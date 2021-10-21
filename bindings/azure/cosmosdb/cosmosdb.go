@@ -11,12 +11,14 @@ import (
 	"strings"
 
 	"github.com/a8m/documentdb"
+
 	"github.com/dapr/components-contrib/authentication/azure"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
 
-// CosmosDB allows performing state operations on collections
+// CosmosDB allows performing state operations on collections.
 type CosmosDB struct {
 	client       *documentdb.DocumentDB
 	collection   *documentdb.Collection
@@ -34,12 +36,12 @@ type cosmosDBCredentials struct {
 	PartitionKey string `json:"partitionKey"`
 }
 
-// NewCosmosDB returns a new CosmosDB instance
+// NewCosmosDB returns a new CosmosDB instance.
 func NewCosmosDB(logger logger.Logger) *CosmosDB {
 	return &CosmosDB{logger: logger}
 }
 
-// Init performs CosmosDB connection parsing and connecting
+// Init performs CosmosDB connection parsing and connecting.
 func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
@@ -66,6 +68,10 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		}
 		config = documentdb.NewConfigWithServicePrincipal(spt)
 	}
+	// disable the identification hydrator (which autogenerates IDs if missing from the request)
+	// so we aren't forced to use a struct by the upstream SDK
+	// this allows us to provide the most flexibility in the request document sent to this binding
+	config.IdentificationHydrator = nil
 	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{
@@ -120,23 +126,28 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var obj interface{}
-	err := json.Unmarshal(req.Data, &obj)
-	if err != nil {
-		return nil, err
-	}
+	switch req.Operation {
+	case bindings.CreateOperation:
+		var obj interface{}
+		err := json.Unmarshal(req.Data, &obj)
+		if err != nil {
+			return nil, err
+		}
 
-	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
-	if err != nil {
-		return nil, err
-	}
+		val, err := c.getPartitionKeyValue(c.partitionKey, obj)
+		if err != nil {
+			return nil, err
+		}
 
-	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
-	if err != nil {
-		return nil, err
-	}
+		_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
+		if err != nil {
+			return nil, err
+		}
 
-	return nil, nil
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("operation kind %s not supported", req.Operation)
+	}
 }
 
 func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (interface{}, error) {

@@ -32,7 +32,7 @@ type Hazelcast struct {
 	backOff backoff.BackOff
 }
 
-// NewHazelcastPubSub returns a new hazelcast pub-sub implementation
+// NewHazelcastPubSub returns a new hazelcast pub-sub implementation.
 func NewHazelcastPubSub(logger logger.Logger) pubsub.PubSub {
 	return &Hazelcast{logger: logger}
 }

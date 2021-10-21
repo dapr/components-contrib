@@ -10,13 +10,14 @@ import (
 	"fmt"
 
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	// operations
+	// operations.
 	TopologyOperation         bindings.OperationKind = "topology"
 	DeployProcessOperation    bindings.OperationKind = "deploy-process"
 	CreateInstanceOperation   bindings.OperationKind = "create-instance"
@@ -38,19 +39,19 @@ var (
 	}
 )
 
-// ZeebeCommand executes Zeebe commands
+// ZeebeCommand executes Zeebe commands.
 type ZeebeCommand struct {
 	clientFactory zeebe.ClientFactory
 	client        zbc.Client
 	logger        logger.Logger
 }
 
-// NewZeebeCommand returns a new ZeebeCommand instance
+// NewZeebeCommand returns a new ZeebeCommand instance.
 func NewZeebeCommand(logger logger.Logger) *ZeebeCommand {
 	return &ZeebeCommand{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
 }
 
-// Init does metadata parsing and connection creation
+// Init does metadata parsing and connection creation.
 func (z *ZeebeCommand) Init(metadata bindings.Metadata) error {
 	client, err := z.clientFactory.Get(metadata)
 	if err != nil {

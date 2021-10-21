@@ -23,12 +23,13 @@ type BulkGetResponse struct {
 
 // QueryResponse is the response object for querying state.
 type QueryResponse struct {
-	Results []QueryResult `json:"results"`
-	Token   string        `json:"token,omitempty"`
+	Results  []QueryItem       `json:"results"`
+	Token    string            `json:"token,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// QueryResult is an object representing a single entry in query result.
-type QueryResult struct {
+// QueryItem is an object representing a single entry in query results.
+type QueryItem struct {
 	Key   string  `json:"key"`
 	Data  []byte  `json:"data"`
 	ETag  *string `json:"etag,omitempty"`

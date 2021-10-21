@@ -97,5 +97,6 @@ type KeyInt interface {
 }
 
 type QueryRequest struct {
-	Query query.Query `json:"query"`
+	Query    query.Query       `json:"query"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }

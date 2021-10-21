@@ -395,6 +395,10 @@ func (k *Kafka) Features() []pubsub.Feature {
 	return nil
 }
 
+func (k *Kafka) Ping() error {
+	return nil
+}
+
 // asBase64String implements the `fmt.Stringer` interface in order to print
 // `[]byte` as a base 64 encoded string.
 // It is used above to log the message key. The call to `EncodeToString`

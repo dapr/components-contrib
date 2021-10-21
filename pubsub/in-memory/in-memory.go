@@ -55,3 +55,7 @@ func (a *bus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		}
 	})
 }
+
+func (a *bus) Ping() error {
+	return nil
+}

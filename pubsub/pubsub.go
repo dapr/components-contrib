@@ -5,10 +5,15 @@
 
 package pubsub
 
-import "context"
+import (
+	"context"
+
+	"github.com/dapr/components-contrib/health"
+)
 
 // PubSub is the interface for message buses.
 type PubSub interface {
+	health.Pinger
 	Init(metadata Metadata) error
 	Features() []Feature
 	Publish(req *PublishRequest) error

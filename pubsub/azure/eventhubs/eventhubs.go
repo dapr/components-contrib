@@ -241,3 +241,7 @@ func (aeh *AzureEventHubs) Close() error {
 func (aeh *AzureEventHubs) Features() []pubsub.Feature {
 	return nil
 }
+
+func (aeh *AzureEventHubs) Ping() error {
+	return nil
+}

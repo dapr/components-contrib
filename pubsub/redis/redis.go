@@ -421,3 +421,7 @@ func (r *redisStreams) Close() error {
 func (r *redisStreams) Features() []pubsub.Feature {
 	return nil
 }
+
+func (r *redisStreams) Ping() error {
+	return nil
+}

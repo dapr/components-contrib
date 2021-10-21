@@ -575,6 +575,10 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 	return a.features
 }
 
+func (a *azureServiceBus) Ping() error {
+	return nil
+}
+
 func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) azservicebus.SubscriptionManagementOption {
 	return func(d *azservicebus.SubscriptionDescription) error {
 		mdc := int32(*maxDeliveryCount)

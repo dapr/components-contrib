@@ -153,3 +153,7 @@ func (js *jetstreamPubSub) Close() error {
 
 	return js.nc.Drain()
 }
+
+func (js *jetstreamPubSub) Ping() error {
+	return nil
+}

@@ -120,6 +120,10 @@ func (p *Hazelcast) Features() []pubsub.Feature {
 	return nil
 }
 
+func (p *Hazelcast) Ping() error {
+	return nil
+}
+
 type hazelcastMessageListener struct {
 	p             *Hazelcast
 	topicName     string

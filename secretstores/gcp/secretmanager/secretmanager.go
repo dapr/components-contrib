@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/option"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 
+	"github.com/dapr/components-contrib/health"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -35,6 +36,7 @@ type secretManagerMetadata struct {
 
 // Store contains and GCP secret manager client and project id.
 type Store struct {
+	health.Pinger
 	client    *secretmanager.Client
 	ProjectID string
 
@@ -182,4 +184,8 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 	}
 
 	return &meta, nil
+}
+
+func (s *Store) Ping() error {
+	return nil
 }

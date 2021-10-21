@@ -229,6 +229,10 @@ func (r *rocketMQ) Features() []pubsub.Feature {
 	return nil
 }
 
+func (r *rocketMQ) Ping() error {
+	return nil
+}
+
 func (r *rocketMQ) Close() error {
 	r.cancel()
 

@@ -241,3 +241,7 @@ func (p *Pulsar) Close() error {
 func (p *Pulsar) Features() []pubsub.Feature {
 	return nil
 }
+
+func (p *Pulsar) Ping() error {
+	return nil
+}

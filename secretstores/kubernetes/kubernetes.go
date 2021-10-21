@@ -98,3 +98,7 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 
 	return "", errors.New("namespace is missing on metadata and NAMESPACE env variable")
 }
+
+func (k *kubernetesSecretStore) Ping() error {
+	return nil
+}

@@ -257,6 +257,10 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
+func (s *snsSqs) Ping() error {
+	return nil
+}
+
 func (s *snsSqs) createTopic(topic string) (string, string, error) {
 	sanitizedName := nameToAWSSanitizedName(topic)
 	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{

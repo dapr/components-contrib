@@ -343,6 +343,10 @@ func (p *Pulsar) Features() []pubsub.Feature {
 	return nil
 }
 
+func (p *Pulsar) Ping() error {
+	return nil
+}
+
 // formatTopic formats the topic into pulsar's structure with tenant and namespace.
 func (p *Pulsar) formatTopic(topic string) string {
 	persist := persistentStr

@@ -259,3 +259,7 @@ func (j *localSecretStore) readLocalFile(secretsFile string) (map[string]interfa
 
 	return jsonConfig, nil
 }
+
+func (j *localSecretStore) Ping() error {
+	return nil
+}

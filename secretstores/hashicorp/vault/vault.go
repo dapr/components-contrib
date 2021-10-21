@@ -474,6 +474,10 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 	return certPool, nil
 }
 
+func (v *vaultSecretStore) Ping() error {
+	return nil
+}
+
 // readCertificateFile reads the certificate at given path.
 func readCertificateFile(certPool *x509.CertPool, path string) error {
 	// Read certificate file

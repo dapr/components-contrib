@@ -401,3 +401,7 @@ func (g *GCPPubSub) Close() error {
 func (g *GCPPubSub) Features() []pubsub.Feature {
 	return nil
 }
+
+func (g *GCPPubSub) Ping() error {
+	return nil
+}

@@ -348,3 +348,7 @@ func (n *natsStreamingPubSub) Close() error {
 func (n *natsStreamingPubSub) Features() []pubsub.Feature {
 	return nil
 }
+
+func (n *natsStreamingPubSub) Ping() error {
+	return nil
+}

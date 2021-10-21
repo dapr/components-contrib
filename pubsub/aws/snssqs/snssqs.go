@@ -231,6 +231,10 @@ func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, e
 	return *(createTopicResponse.TopicArn), nil
 }
 
+func (s *snsSqs) Ping() error {
+	return nil
+}
+
 func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, error) {
 	ctx, cancelFn := context.WithTimeout(parentCtx, s.opsTimeout)
 	arn := s.buildARN("sns", topic)

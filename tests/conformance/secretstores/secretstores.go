@@ -55,6 +55,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		err := store.Ping()
+		assert.Nil(t, err)
+	})
+
 	// Get
 	if config.HasOperation("get") {
 		getSecretRequest := secretstores.GetSecretRequest{

@@ -425,3 +425,7 @@ func (m *mqttPubSub) Close() error {
 func (m *mqttPubSub) Features() []pubsub.Feature {
 	return nil
 }
+
+func (m *mqttPubSub) Ping() error {
+	return nil
+}

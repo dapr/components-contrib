@@ -13,15 +13,17 @@ limitations under the License.
 
 package state
 
+import "github.com/dapr/components-contrib/health"
+
 // Store is an interface to perform operations on store.
 type Store interface {
 	BulkStore
+	health.Pinger
 	Init(metadata Metadata) error
 	Features() []Feature
 	Delete(req *DeleteRequest) error
 	Get(req *GetRequest) (*GetResponse, error)
 	Set(req *SetRequest) error
-	Ping() error
 }
 
 // BulkStore is an interface to perform bulk operations on store.

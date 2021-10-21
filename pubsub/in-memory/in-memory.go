@@ -79,3 +79,7 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 
 	return nil
 }
+
+func (a *bus) Ping() error {
+	return nil
+}

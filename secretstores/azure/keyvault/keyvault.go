@@ -198,3 +198,8 @@ func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]stri
 
 	return nil, nil
 }
+
+// getVaultURI returns Azure Key Vault URI.
+func (k *keyvaultSecretStore) Ping() error {
+	return nil
+}

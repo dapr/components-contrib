@@ -99,6 +99,11 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		err := ps.Ping()
+		assert.Nil(t, err)
+	})
+
 	// Generate a unique ID for this run to isolate messages to this test
 	// and prevent messages still stored in a locally running broker
 	// from being considered as part of this test.

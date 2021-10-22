@@ -33,12 +33,18 @@ param sdkAuthSpId string
 @description('Provide the objectId of the Service Principal using cert auth with get and list access to all assets in Azure Key Vault.')
 param certAuthSpId string
 
+@minLength(16)
+@description('Provide the SQL server admin password of at least 16 characters.')
+param sqlServerAdminPassword string
+
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
+var iotHubName = '${toLower(namePrefix)}-conf-test-iothub'
 var keyVaultName = '${toLower(namePrefix)}-conf-test-kv'
 var serviceBusName = '${toLower(namePrefix)}-conf-test-servicebus'
+var sqlServerName = '${toLower(namePrefix)}-conf-test-sql'
 var storageName = '${toLower(namePrefix)}ctstorage'
 
 resource confTestRg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -74,6 +80,15 @@ module eventHubsNamespace 'conf-test-azure-eventHubs.bicep' = {
   }
 }
 
+module iotHub 'conf-test-azure-iothub.bicep' = {
+  name: iotHubName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    iotHubName: iotHubName
+  }
+}
+
 module keyVault 'conf-test-azure-keyVault.bicep' = {
   name: keyVaultName
   scope: resourceGroup(confTestRg.name)
@@ -92,6 +107,16 @@ module serviceBus 'conf-test-azure-servicebus.bicep' = {
   params: {
     confTestTags: confTestTags
     serviceBusName: serviceBusName
+  }
+}
+
+module sqlServer 'conf-test-azure-sqlserver.bicep' = {
+  name: sqlServerName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    sqlServerName: sqlServerName
+    sqlServerAdminPassword: sqlServerAdminPassword
   }
 }
 
@@ -116,6 +141,11 @@ output eventHubBindingsConsumerGroupName string = eventHubsNamespace.outputs.eve
 output eventHubPubsubName string = eventHubsNamespace.outputs.eventHubPubsubName
 output eventHubPubsubPolicyName string = eventHubsNamespace.outputs.eventHubPubsubPolicyName
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace.outputs.eventHubPubsubConsumerGroupName
+output iotHubName string = iotHub.name
+output iotHubBindingsConsumerGroupName string = iotHub.outputs.iotHubBindingsConsumerGroupName
+output iotHubPubsubConsumerGroupName string = iotHub.outputs.iotHubPubsubConsumerGroupName
 output keyVaultName string = keyVault.name
 output serviceBusName string = serviceBus.name
+output sqlServerName string = sqlServer.name
+output sqlServerAdminName string = sqlServer.outputs.sqlServerAdminName
 output storageName string = storage.name

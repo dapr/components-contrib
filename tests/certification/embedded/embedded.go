@@ -52,6 +52,12 @@ func WithAppProtocol(protocol runtime.Protocol, port int) Option {
 	}
 }
 
+func WithoutApp() Option {
+	return func(config *runtime.Config) {
+		config.ApplicationPort = 0
+	}
+}
+
 func WithDaprHTTPPort(port int) Option {
 	return func(config *runtime.Config) {
 		config.HTTPPort = port

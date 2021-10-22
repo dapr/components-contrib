@@ -82,6 +82,12 @@ func WithListenAddresses(addresses []string) Option {
 	}
 }
 
+func WithComponentsPath(path string) Option {
+	return func(config *runtime.Config) {
+		config.Standalone.ComponentsPath = path
+	}
+}
+
 func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 	var err error
 

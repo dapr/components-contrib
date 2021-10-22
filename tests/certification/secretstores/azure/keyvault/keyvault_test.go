@@ -10,10 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	// SecretStores.
+	// SecretStores
 	"github.com/dapr/components-contrib/secretstores"
 	akv "github.com/dapr/components-contrib/secretstores/azure/keyvault"
-	secretstore_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/kit/logger"
 
@@ -24,13 +25,13 @@ import (
 )
 
 const (
-	sidecarName = "dapr-1"
+	sidecarName = "keyvault-sidecar"
 )
 
-func TestKeyvault(t *testing.T) {
+func TestKeyVaultServicePrincipal(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 
-	testSecretsAPI := func(ctx flow.Context) error {
+	testGetKnownSecret := func(ctx flow.Context) error {
 		client, err := client.NewClient()
 		if err != nil {
 			panic(err)
@@ -41,23 +42,45 @@ func TestKeyvault(t *testing.T) {
 			"version": "2",
 		}
 
-		_, err = client.GetSecret(ctx, "azurekeyvault-service-principal", "secondsecret", opt)
+		// See .github/infrastructure/conformance/azure/setup-azure-conf-test.sh
+		res, err := client.GetSecret(ctx, "azurekeyvault-service-principal", "secondsecret", opt)
 		assert.NoError(t, err)
-
+		assert.Equal(t, "efgh", res["secondsecret"])
 		return nil
 	}
 
-	flow.New(t, "keyvault certification").
+	flow.New(t, "keyvault authentication using service principal").
 		// Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run(sidecarName,
-			// embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/serviceprincipal"),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			runtime.WithSecretStores(
-				secretstore_loader.New("azure.keyvault", func() secretstores.SecretStore {
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+				secretstores_loader.New("azure.keyvault", func() secretstores.SecretStore {
 					return akv.NewAzureKeyvaultSecretStore(log)
 				}),
 			))).
-		Step("send and wait", testSecretsAPI).
+		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
+		Run()
+
+	flow.New(t, "keyvault authentication using certificate").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/certificate"),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+				secretstores_loader.New("azure.keyvault", func() secretstores.SecretStore {
+					return akv.NewAzureKeyvaultSecretStore(log)
+				}),
+			))).
+		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
 		Run()
 }

@@ -71,3 +71,16 @@ func TestFileName(t *testing.T) {
 		assert.Equal(t, "key", key)
 	})
 }
+
+func TestBlobHttpHeaderGeneration(t *testing.T) {
+
+	t.Run("Content type is set from request", func(t *testing.T) {
+		req := &state.SetRequest{
+			ContentType: "application/json",
+		}
+
+		blobHeaders, err := createBlobHttpHeadersFromRequest(req)
+		assert.Nil(t, err)
+		assert.Equal(t, "application/json", blobHeaders.ContentType)
+	})
+}

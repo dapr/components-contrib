@@ -128,7 +128,7 @@ func (q *Query) setNextParameter(val string) string {
 	return pname
 }
 
-func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Collection) ([]state.QueryResult, string, error) {
+func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Collection) ([]state.QueryItem, string, error) {
 	opts := []documentdb.CallOption{documentdb.CrossPartition()}
 	if q.limit != 0 {
 		opts = append(opts, documentdb.Limit(q.limit))
@@ -143,7 +143,7 @@ func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Co
 	}
 	token := resp.Header.Get(documentdb.HeaderContinuation)
 
-	ret := make([]state.QueryResult, len(items))
+	ret := make([]state.QueryItem, len(items))
 	for i := range items {
 		ret[i].Key = items[i].ID
 		ret[i].ETag = ptr.String(items[i].Etag)

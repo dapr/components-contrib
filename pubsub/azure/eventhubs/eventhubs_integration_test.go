@@ -88,6 +88,7 @@ func testReadIotHubEvents(t *testing.T) {
 	assert.Greater(t, len(messages), 0, "Failed to receive any IotHub events")
 	logger.Infof("Received %d messages", len(messages))
 	for _, r := range messages {
+		logger.Infof("Message metadata: %v", r.Metadata)
 		assert.Equal(t, r.Topic, testTopic, "Message topic doesn't match subscription")
 		assert.Contains(t, string(r.Data), "Integration test message")
 
@@ -100,6 +101,7 @@ func testReadIotHubEvents(t *testing.T) {
 		assert.Contains(t, r.Metadata, sysPropIotHubAuthGenerationID, "IoT device event missing: %s", sysPropIotHubAuthGenerationID)
 		assert.Contains(t, r.Metadata, sysPropIotHubConnectionAuthMethod, "IoT device event missing: %s", sysPropIotHubConnectionAuthMethod)
 		assert.Contains(t, r.Metadata, sysPropIotHubEnqueuedTime, "IoT device event missing: %s", sysPropIotHubEnqueuedTime)
+		assert.Contains(t, r.Metadata, sysPropMessageID, "IoT device event missing: %s", sysPropMessageID)
 	}
 
 	eh.Close()

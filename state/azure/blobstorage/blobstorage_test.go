@@ -73,7 +73,6 @@ func TestFileName(t *testing.T) {
 }
 
 func TestBlobHTTPHeaderGeneration(t *testing.T) {
-
 	t.Run("Content type is set from request", func(t *testing.T) {
 		req := &state.SetRequest{
 			ContentType: "application/json",

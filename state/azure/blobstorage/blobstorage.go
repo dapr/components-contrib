@@ -229,7 +229,7 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
 	// this is for backward compatibility where it might have come from http request
-	blobHTTPHeaders, err := createBlobHttpHeadersFromRequest(req)
+	blobHTTPHeaders, err := createBlobHTTPHeadersFromRequest(req)
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	return nil
 }
 
-func createBlobHttpHeadersFromRequest(req *state.SetRequest) (azblob.BlobHTTPHeaders, error) {
+func createBlobHTTPHeadersFromRequest(req *state.SetRequest) (azblob.BlobHTTPHeaders, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 
 	if req.ContentType != "" {

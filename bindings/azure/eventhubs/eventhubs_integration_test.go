@@ -81,6 +81,7 @@ func testReadIotHubEvents(t *testing.T) {
 	assert.Greater(t, len(readResponses), 0, "Failed to receive any IotHub events")
 	logger.Infof("Received %d messages", len(readResponses))
 	for _, r := range readResponses {
+		logger.Infof("Message metadata: %v", r.Metadata)
 		assert.Contains(t, string(r.Data), "Integration test message")
 
 		// Verify expected IoT Hub device event metadata exists
@@ -92,6 +93,7 @@ func testReadIotHubEvents(t *testing.T) {
 		assert.Contains(t, r.Metadata, sysPropIotHubAuthGenerationID, "IoT device event missing: %s", sysPropIotHubAuthGenerationID)
 		assert.Contains(t, r.Metadata, sysPropIotHubConnectionAuthMethod, "IoT device event missing: %s", sysPropIotHubConnectionAuthMethod)
 		assert.Contains(t, r.Metadata, sysPropIotHubEnqueuedTime, "IoT device event missing: %s", sysPropIotHubEnqueuedTime)
+		assert.Contains(t, r.Metadata, sysPropMessageID, "IoT device event missing: %s", sysPropMessageID)
 	}
 
 	eh.Close()

@@ -22,6 +22,7 @@ func TestOpaPolicy(t *testing.T) {
 		req                RequestConfiguator
 		status             int
 		headers            *[][]string
+		body               []string
 		shouldHandlerError bool
 		shouldRegoError    bool
 	}{
@@ -219,6 +220,26 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			},
 			status: 301,
+		},
+		"allow on body contains allow": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = false
+						
+						allow = { "status_code": 200 } {
+							input.request.body == "allow"
+						}
+						`,
+				},
+			},
+			req: func(ctx *fh.RequestCtx) {
+				ctx.SetContentType("text/plain; charset=utf8")
+				ctx.Request.SetHost("https://my.site")
+				ctx.Request.SetBodyString("allow")
+			},
+			status: 200,
 		},
 	}
 

@@ -129,6 +129,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		}
 		config = documentdb.NewConfigWithServicePrincipal(spt)
 	}
+	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{

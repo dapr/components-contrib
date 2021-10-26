@@ -7,6 +7,7 @@ package keyvault_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -20,6 +21,7 @@ import (
 
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/go-sdk/client"
 )
@@ -65,22 +67,23 @@ func TestKeyVaultServicePrincipal(t *testing.T) {
 				}),
 			))).
 		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
+		Step("Interrupting network traffic", network.InterruptNetwork(30*time.Second, false, nil, nil, "8080", "8081")).
 		Run()
 
-	flow.New(t, "keyvault authentication using certificate").
-		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/certificate"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-				secretstores_loader.New("azure.keyvault", func() secretstores.SecretStore {
-					return akv.NewAzureKeyvaultSecretStore(log)
-				}),
-			))).
-		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
-		Run()
+	// flow.New(t, "keyvault authentication using certificate").
+	// 	Step(sidecar.Run(sidecarName,
+	// 		embedded.WithoutApp(),
+	// 		embedded.WithComponentsPath("./components/certificate"),
+	// 		embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+	// 		embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+	// 		runtime.WithSecretStores(
+	// 			secretstores_loader.New("local.env", func() secretstores.SecretStore {
+	// 				return secretstore_env.NewEnvSecretStore(log)
+	// 			}),
+	// 			secretstores_loader.New("azure.keyvault", func() secretstores.SecretStore {
+	// 				return akv.NewAzureKeyvaultSecretStore(log)
+	// 			}),
+	// 		))).
+	// 	Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
+	// 	Run()
 }

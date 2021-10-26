@@ -6,6 +6,7 @@
 package keyvault_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -30,11 +31,14 @@ const (
 	sidecarName = "keyvault-sidecar"
 )
 
-func TestKeyVaultServicePrincipal(t *testing.T) {
+func TestKeyVault(t *testing.T) {
+	currentGrpcPort := runtime.DefaultDaprAPIGRPCPort
+	currentHttpPort := runtime.DefaultDaprHTTPPort
+
 	log := logger.NewLogger("dapr.components")
 
 	testGetKnownSecret := func(ctx flow.Context) error {
-		client, err := client.NewClient()
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -45,19 +49,18 @@ func TestKeyVaultServicePrincipal(t *testing.T) {
 		}
 
 		// See .github/infrastructure/conformance/azure/setup-azure-conf-test.sh
-		res, err := client.GetSecret(ctx, "azurekeyvault-service-principal", "secondsecret", opt)
+		res, err := client.GetSecret(ctx, "azurekeyvault", "secondsecret", opt)
 		assert.NoError(t, err)
 		assert.Equal(t, "efgh", res["secondsecret"])
 		return nil
 	}
 
 	flow.New(t, "keyvault authentication using service principal").
-		// Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components/serviceprincipal"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHttpPort),
 			runtime.WithSecretStores(
 				secretstores_loader.New("local.env", func() secretstores.SecretStore {
 					return secretstore_env.NewEnvSecretStore(log)
@@ -66,24 +69,28 @@ func TestKeyVaultServicePrincipal(t *testing.T) {
 					return akv.NewAzureKeyvaultSecretStore(log)
 				}),
 			))).
-		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
-		Step("Interrupting network traffic", network.InterruptNetwork(30*time.Second, false, nil, nil, "8080", "8081")).
+		Step("Interrupting network traffic for 10 seconds", network.InterruptNetwork(10*time.Second, nil, nil, "80", "443")).
+		Step("Getting known secret", testGetKnownSecret).
 		Run()
 
-	// flow.New(t, "keyvault authentication using certificate").
-	// 	Step(sidecar.Run(sidecarName,
-	// 		embedded.WithoutApp(),
-	// 		embedded.WithComponentsPath("./components/certificate"),
-	// 		embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-	// 		embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-	// 		runtime.WithSecretStores(
-	// 			secretstores_loader.New("local.env", func() secretstores.SecretStore {
-	// 				return secretstore_env.NewEnvSecretStore(log)
-	// 			}),
-	// 			secretstores_loader.New("azure.keyvault", func() secretstores.SecretStore {
-	// 				return akv.NewAzureKeyvaultSecretStore(log)
-	// 			}),
-	// 		))).
-	// 	Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
-	// 	Run()
+	// Currently port reuse is still not quite working in the Dapr runtime.
+	currentGrpcPort++
+	currentHttpPort++
+	flow.New(t, "keyvault authentication using certificate").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/certificate"),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHttpPort),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+				secretstores_loader.New("azure.keyvault", func() secretstores.SecretStore {
+					return akv.NewAzureKeyvaultSecretStore(log)
+				}),
+			))).
+		Step("Interrupting network traffic for 10 seconds", network.InterruptNetwork(10*time.Second, nil, nil, "80", "443")).
+		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
+		Run()
 }

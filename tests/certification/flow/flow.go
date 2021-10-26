@@ -44,6 +44,7 @@ type Flow struct {
 type namedRunnable struct {
 	name     string
 	runnable Runnable
+	isAsync  bool
 }
 
 func New(t *testing.T, name string) *Flow {
@@ -84,7 +85,19 @@ func as(source, target interface{}) bool {
 
 func (f *Flow) Step(name string, runnable Runnable, cleanup ...Runnable) *Flow {
 	if runnable != nil {
-		f.tasks = append(f.tasks, namedRunnable{name, runnable})
+		f.tasks = append(f.tasks, namedRunnable{name, runnable, false})
+	}
+	if len(cleanup) == 1 {
+		f.cleanup = append(f.cleanup, name)
+		f.uncalledMap[name] = cleanup[0]
+	}
+
+	return f
+}
+
+func (f *Flow) StepAsync(name string, runnable Runnable, cleanup ...Runnable) *Flow {
+	if runnable != nil {
+		f.tasks = append(f.tasks, namedRunnable{name, runnable, true})
 	}
 	if len(cleanup) == 1 {
 		f.cleanup = append(f.cleanup, name)

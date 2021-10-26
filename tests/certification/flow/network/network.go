@@ -10,10 +10,15 @@ import (
 	"net"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/tylertreat/comcast/throttler"
 
 	"github.com/dapr/components-contrib/tests/certification/flow"
+=======
+>>>>>>> f0f6d2e (remove async handling)
 	"github.com/tylertreat/comcast/throttler"
+
+	"github.com/dapr/components-contrib/tests/certification/flow"
 )
 
 func WaitForAddresses(timeout time.Duration, addresses ...string) flow.Runnable {
@@ -46,11 +51,7 @@ func WaitForAddresses(timeout time.Duration, addresses ...string) flow.Runnable 
 }
 
 // InterruptNetwork uses operating system specific functionality to block network traffic on select IPs and ports.
-<<<<<<< HEAD
 func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, ports ...string) flow.Runnable {
-=======
-func InterruptNetwork(duration time.Duration, isAsync bool, ipv4s []string, ipv6s []string, ports ...string) flow.Runnable {
->>>>>>> 0de7fff (Adds network interruption capabilities)
 	/*
 		duration:
 			- 0: the network will be interrupted indefinitely

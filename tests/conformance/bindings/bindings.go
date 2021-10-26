@@ -113,8 +113,10 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 	// Init
 	t.Run("init", func(t *testing.T) {
+		testLogger.Info("Init test running ...")
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
+			testLogger.Info("Init output binding ...")
 			err := outputBinding.Init(bindings.Metadata{
 				Properties: props,
 			})
@@ -122,16 +124,19 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		}
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
+			testLogger.Info("Init input binding ...")
 			err := inputBinding.Init(bindings.Metadata{
 				Properties: props,
 			})
 			assert.NoError(t, err, "expected no error setting up input binding")
 		}
+		testLogger.Info("Init test done.")
 	})
 
 	// Operations
 	if config.HasOperation("operations") {
 		t.Run("operations", func(t *testing.T) {
+			testLogger.Info("Enumerating operations ...")
 			ops := outputBinding.Operations()
 			for op := range config.Operations {
 				match := false
@@ -146,6 +151,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 				}
 				assert.Truef(t, match, "expected operation %s to match list", op)
 			}
+			testLogger.Info("Enumerating operations done.")
 		})
 	}
 
@@ -153,7 +159,9 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 	readChan := make(chan int)
 	if config.HasOperation("read") {
 		t.Run("read", func(t *testing.T) {
+			testLogger.Info("Read test running ...")
 			go func() {
+				testLogger.Info("Read callback invoked ...")
 				err := inputBinding.Read(func(r *bindings.ReadResponse) ([]byte, error) {
 					inputBindingCall++
 					readChan <- inputBindingCall
@@ -162,6 +170,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 				})
 				assert.True(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close")
 			}()
+			testLogger.Info("Read test done.")
 		})
 		// Special case for message brokers that are also bindings
 		// Need a small wait here because with brokers like MQTT
@@ -175,17 +184,20 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 	// Order matters here, we use the result of the create in other validations.
 	if config.HasOperation(string(bindings.CreateOperation)) {
 		t.Run("create", func(t *testing.T) {
+			testLogger.Info("Create test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.CreateOperation
 			_, err := outputBinding.Invoke(&req)
 			assert.NoError(t, err, "expected no error invoking output binding")
 			createPerformed = true
+			testLogger.Info("Create test done.")
 		})
 	}
 
 	// GetOperation
 	if config.HasOperation(string(bindings.GetOperation)) {
 		t.Run("get", func(t *testing.T) {
+			testLogger.Info("Get test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			resp, err := outputBinding.Invoke(&req)
@@ -193,34 +205,42 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
 			}
+			testLogger.Info("Get test done.")
 		})
 	}
 
 	// ListOperation
 	if config.HasOperation(string(bindings.ListOperation)) {
 		t.Run("list", func(t *testing.T) {
+			testLogger.Info("List test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			_, err := outputBinding.Invoke(&req)
 			assert.NoError(t, err, "expected no error invoking output binding")
+			testLogger.Info("List test done.")
 		})
 	}
 
 	if config.CommonConfig.HasOperation("read") {
 		t.Run("verify read", func(t *testing.T) {
+			testLogger.Info("Verify Read test running ...")
 			// To stop the test from hanging if there's no response, we can setup a simple timeout.
 			select {
 			case <-readChan:
 				assert.Greater(t, inputBindingCall, 0)
+				testLogger.Info("Read channel signalled.")
 			case <-time.After(config.ReadBindingTimeout):
 				assert.Greater(t, inputBindingCall, 0)
+				testLogger.Info("Read timeout.")
 			}
+			testLogger.Info("Verify Read test done.")
 		})
 	}
 
 	// DeleteOperation
 	if config.HasOperation(string(bindings.DeleteOperation)) {
 		t.Run("delete", func(t *testing.T) {
+			testLogger.Info("Delete test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
 			_, err := outputBinding.Invoke(&req)
@@ -233,12 +253,15 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 				assert.NotNil(t, resp)
 				assert.Nil(t, resp.Data)
 			}
+			testLogger.Info("Delete test done.")
 		})
 	}
 
 	t.Run("close", func(t *testing.T) {
+		testLogger.Info("Close test running ...")
 		// Check for an input-binding specific operation before close
 		if config.HasOperation("read") {
+			testLogger.Info("Closing read connection ...")
 			if closer, ok := inputBinding.(io.Closer); ok {
 				err := closer.Close()
 				assert.NoError(t, err, "expected no error closing input binding")
@@ -246,10 +269,12 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		}
 		// Check for an output-binding specific operation before close
 		if config.HasOperation("operations") {
+			testLogger.Info("Closing output connection ...")
 			if closer, ok := outputBinding.(io.Closer); ok {
 				err := closer.Close()
 				assert.NoError(t, err, "expected no error closing output binding")
 			}
 		}
+		testLogger.Info("Close test done.")
 	})
 }

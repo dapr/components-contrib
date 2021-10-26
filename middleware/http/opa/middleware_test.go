@@ -12,7 +12,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func mockedRequestHandler(ctx *fh.RequestCtx) {}
+func mockedRequestHandler(ctx *fh.RequestCtx) {
+	ctx.Response.SetStatusCode(200)
+	ctx.Response.SetBody([]byte("from mock"))
+}
 
 type RequestConfiguator func(*fh.RequestCtx)
 

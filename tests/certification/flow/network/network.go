@@ -81,25 +81,24 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 		t := time.NewTimer(duration)
 		defer t.Stop()
 
-		for {
-			select {
-			case <-ctx.Done():
-			case <-t.C:
-				throttler.Run(&throttler.Config{
-					Device:           "",
-					Stop:             true,
-					Latency:          -1,
-					TargetBandwidth:  -1,
-					DefaultBandwidth: -1,
-					PacketLoss:       0,
-					TargetIps:        nil,
-					TargetIps6:       nil,
-					TargetPorts:      nil,
-					TargetProtos:     nil,
-					DryRun:           false,
-				})
-				return nil
-			}
+		select {
+		case <-ctx.Done():
+		case <-t.C:
+			throttler.Run(&throttler.Config{
+				Device:           "",
+				Stop:             true,
+				Latency:          -1,
+				TargetBandwidth:  -1,
+				DefaultBandwidth: -1,
+				PacketLoss:       0,
+				TargetIps:        nil,
+				TargetIps6:       nil,
+				TargetPorts:      nil,
+				TargetProtos:     nil,
+				DryRun:           false,
+			})
+			return nil
 		}
+		return nil
 	}
 }

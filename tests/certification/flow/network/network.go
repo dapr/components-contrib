@@ -102,6 +102,7 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 			TargetProtos:     nil,
 			DryRun:           false,
 		})
+
 		return nil
 	}
 }

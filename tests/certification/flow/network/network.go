@@ -61,7 +61,7 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 			- nil: the network interruption will be applied to all ports
 
 		Example:
-			InterruptNetwork(30 * time.Second, true, nil, nil, "8080", "8081")
+			InterruptNetwork(30 * time.Second, nil, nil, "8080", "9000:9999")
 	*/
 	return func(ctx flow.Context) error {
 		throttler.Run(&throttler.Config{

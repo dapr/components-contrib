@@ -8,7 +8,9 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"strconv"
@@ -24,7 +26,11 @@ import (
 )
 
 const (
-	key = "partitionKey"
+	key        = "partitionKey"
+	skipVerify = "skipVerify"
+	caCert     = "caCert"
+	clientCert = "clientCert"
+	clientKey  = "clientKey"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group.
@@ -47,14 +53,18 @@ type Kafka struct {
 }
 
 type kafkaMetadata struct {
-	Brokers         []string `json:"brokers"`
-	ConsumerGroup   string   `json:"consumerGroup"`
-	ClientID        string   `json:"clientID"`
-	AuthRequired    bool     `json:"authRequired"`
-	SaslUsername    string   `json:"saslUsername"`
-	SaslPassword    string   `json:"saslPassword"`
-	InitialOffset   int64    `json:"initialOffset"`
-	MaxMessageBytes int      `json:"maxMessageBytes"`
+	Brokers         []string
+	ConsumerGroup   string
+	ClientID        string
+	AuthRequired    bool
+	SaslUsername    string
+	SaslPassword    string
+	InitialOffset   int64
+	MaxMessageBytes int
+	TLSSkipVerify   bool
+	TLSCaCert       string
+	TLSClientCert   string
+	TLSClientKey    string
 }
 
 type consumer struct {
@@ -136,6 +146,10 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		k.saslUsername = meta.SaslUsername
 		k.saslPassword = meta.SaslPassword
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
+	}
+	err = updateTLSConfig(config, meta)
+	if err != nil {
+		return err
 	}
 
 	k.config = config
@@ -350,7 +364,47 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		meta.MaxMessageBytes = maxBytes
 	}
 
+	if val, ok := metadata.Properties[clientCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return nil, errors.New("kafka error: invalid client certificate")
+		}
+		meta.TLSClientCert = val
+	}
+	if val, ok := metadata.Properties[clientKey]; ok && val != "" {
+		if !isValidPEM(val) {
+			return nil, errors.New("kafka error: invalid client key")
+		}
+		meta.TLSClientKey = val
+	}
+	// clientKey and clientCert need to be all specified or all not specified.
+	if (meta.TLSClientKey == "") != (meta.TLSClientCert == "") {
+		return nil, errors.New("kafka error: clientKey or clientCert is missing")
+	}
+	if val, ok := metadata.Properties[caCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return nil, errors.New("kafka error: invalid ca certificate")
+		}
+		meta.TLSCaCert = val
+	}
+	if val, ok := metadata.Properties[skipVerify]; ok && val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", skipVerify, err)
+		}
+		meta.TLSSkipVerify = boolVal
+		if boolVal {
+			k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
+		}
+	}
+
 	return &meta, nil
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+
+	return block != nil
 }
 
 func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
@@ -376,13 +430,31 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 	config.Net.SASL.User = saslUsername
 	config.Net.SASL.Password = saslPassword
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+}
 
+func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
+	if !metadata.TLSSkipVerify && metadata.TLSCaCert == "" && metadata.TLSClientCert == "" {
+		return nil
+	}
 	config.Net.TLS.Enable = true
 	// nolint: gosec
-	config.Net.TLS.Config = &tls.Config{
-		// InsecureSkipVerify: true,
-		ClientAuth: 0,
+	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify}
+	if metadata.TLSClientCert != "" && metadata.TLSClientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(metadata.TLSClientCert), []byte(metadata.TLSClientKey))
+		if err != nil {
+			return fmt.Errorf("unable to load client certificate and key pair. Err: %w", err)
+		}
+		config.Net.TLS.Config.Certificates = []tls.Certificate{cert}
 	}
+	if metadata.TLSCaCert != "" {
+		caCertPool := x509.NewCertPool()
+		if ok := caCertPool.AppendCertsFromPEM([]byte(metadata.TLSCaCert)); !ok {
+			return errors.New("kafka error: unable to load ca certificate")
+		}
+		config.Net.TLS.Config.RootCAs = caCertPool
+	}
+
+	return nil
 }
 
 func (k *Kafka) Close() error {

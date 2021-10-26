@@ -72,6 +72,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	// so we aren't forced to use a struct by the upstream SDK
 	// this allows us to provide the most flexibility in the request document sent to this binding
 	config.IdentificationHydrator = nil
+	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 	client := documentdb.New(m.URL, config)
 
 	dbs, err := client.QueryDatabases(&documentdb.Query{

@@ -12,6 +12,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+
 	"github.com/labd/commercetools-go-sdk/commercetools"
 )
 
@@ -51,7 +52,7 @@ func NewCommercetools(logger logger.Logger) *Binding {
 	return &Binding{logger: logger}
 }
 
-// Init does metadata parsing and connection establishment
+// Init does metadata parsing and connection establishment.
 func (ct *Binding) Init(metadata bindings.Metadata) error {
 	commercetoolsM := commercetoolsMetadata{}
 
@@ -74,7 +75,6 @@ func (ct *Binding) Init(metadata bindings.Metadata) error {
 			Scopes:       []string{commercetoolsM.Scopes},
 		},
 	})
-
 	if err != nil {
 		ct.logger.Errorf("error creating commercetools client: %s", err)
 
@@ -91,7 +91,7 @@ func (ct *Binding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-// Invoke is triggered from Dapr
+// Invoke is triggered from Dapr.
 func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var reqData Data
 	json.Unmarshal(req.Data, &reqData)
@@ -119,7 +119,7 @@ func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	return res, nil
 }
 
-// HandleGraphQLQuery executes the provided query against the commercetools backend
+// HandleGraphQLQuery executes the provided query against the commercetools backend.
 func HandleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindings.InvokeResponse, error) {
 	ct.logger.Infof("HandleGraphQLQuery")
 
@@ -140,13 +140,13 @@ func HandleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindin
 
 		res = &bindings.InvokeResponse{Data: bQuery, Metadata: nil}
 	} else {
-		return nil, errors.New("commercetools error: No GraphQL query is provided")
+		return res, errors.New("commercetools error: No GraphQL query is provided")
 	}
 
 	return res, nil
 }
 
-// getCommercetoolsMetadata returns new commercetools metadata
+// getCommercetoolsMetadata returns new commercetools metadata.
 func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commercetoolsMetadata, error) {
 	meta := commercetoolsMetadata{}
 	meta.Region = metadata.Properties["Region"]

@@ -1,0 +1,366 @@
+# Due to https://github.com/golangci/golangci-lint/issues/580, we need to add --fix for windows
+golangci-lint run --timeout=20m
+bindings/alicloud/tablestore/tablestore.go:4:64        godot             Comment should end in a period
+bindings/alicloud/tablestore/tablestore_test.go:4:64   godot             Comment should end in a period
+bindings/alicloud/tablestore/tablestore_test.go:46:16  godot             Comment should end in a period
+bindings/alicloud/tablestore/tablestore.go:64:1        cyclop            calculated cyclomatic complexity for function Invoke is 11, max is 10
+bindings/alicloud/tablestore/tablestore.go:46:10       exhaustivestruct  metadata is missing in AliCloudTableStore
+bindings/alicloud/tablestore/tablestore.go:70:11       exhaustivestruct  Data is missing in InvokeResponse
+bindings/alicloud/tablestore/tablestore.go:140:15      exhaustivestruct  PrimaryKeyOption is missing in PrimaryKeyColumn
+bindings/alicloud/tablestore/tablestore.go:146:15      exhaustivestruct  TimeRange, Filter, StartColumn, EndColumn, TransactionId are missing in SingleRowQueryCriteria
+bindings/alicloud/tablestore/tablestore.go:186:15      exhaustivestruct  PrimaryKey, TimeRange, Filter, StartColumn, EndColumn are missing in MultiRowQueryCriteria
+bindings/alicloud/tablestore/tablestore.go:193:10      exhaustivestruct  PrimaryKeys is missing in PrimaryKey
+bindings/alicloud/tablestore/tablestore.go:200:20      exhaustivestruct  MultiRowQueryCriteria is missing in BatchGetRowRequest
+bindings/alicloud/tablestore/tablestore.go:235:15      exhaustivestruct  PrimaryKeyOption is missing in PrimaryKeyColumn
+bindings/alicloud/tablestore/tablestore.go:244:19      exhaustivestruct  Timestamp is missing in AttributeColumn
+bindings/alicloud/tablestore/tablestore.go:252:12      exhaustivestruct  Condition is missing in PutRowChange
+bindings/alicloud/tablestore/tablestore.go:285:15      exhaustivestruct  PrimaryKeyOption is missing in PrimaryKeyColumn
+bindings/alicloud/tablestore/tablestore.go:291:13      exhaustivestruct  Condition, TransactionId are missing in DeleteRowChange
+bindings/alicloud/tablestore/tablestore_test.go:20:7   exhaustivestruct  Name, Properties are missing in Metadata
+bindings/alicloud/tablestore/tablestore_test.go:22:24  exhaustivestruct  logger, client, metadata are missing in AliCloudTableStore
+bindings/alicloud/tablestore/tablestore_test.go:41:14  exhaustivestruct  Name is missing in Metadata
+bindings/alicloud/tablestore/tablestore_test.go:19:1   paralleltest      Function TestTableStoreMetadata missing the call to method parallel
+
+bindings/alicloud/tablestore/tablestore_test.go:34:1  paralleltest  Function TestDataEncodeAndDecode missing the call to method parallel
+
+bindings/alicloud/tablestore/tablestore.go:33:22   tagliatelle   json(camel): got 'accessKeyID' want 'accessKeyId'
+bindings/alicloud/tablestore/tablestore.go:116:15  wrapcheck     error returned from external package is unwrapped: sig: func encoding/json.Marshal(v interface{}) ([]byte, error)
+bindings/alicloud/tablestore/tablestore.go:122:15  wrapcheck     error returned from external package is unwrapped: sig: func encoding/json.Unmarshal(data []byte, v interface{}) error
+bindings/alicloud/tablestore/tablestore.go:136:10  wrapcheck     error returned from external package is unwrapped: sig: func encoding/json.Unmarshal(data []byte, v interface{}) error
+bindings/alicloud/tablestore/tablestore.go:157:10  wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.TableStoreClient).GetRow(request *github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.GetRowRequest) (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.GetRowResponse, error)
+bindings/alicloud/tablestore/tablestore.go:173:9   wrapcheck     error returned from external package is unwrapped: sig: func encoding/json.Marshal(v interface{}) ([]byte, error)
+bindings/alicloud/tablestore/tablestore.go:183:10  wrapcheck     error returned from external package is unwrapped: sig: func encoding/json.Unmarshal(data []byte, v interface{}) error
+bindings/alicloud/tablestore/tablestore.go:204:10  wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.TableStoreClient).BatchGetRow(request *github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.BatchGetRowRequest) (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.BatchGetRowResponse, error)
+bindings/alicloud/tablestore/tablestore.go:221:9   wrapcheck     error returned from external package is unwrapped: sig: func encoding/json.Marshal(v interface{}) ([]byte, error)
+bindings/alicloud/tablestore/tablestore.go:269:10  wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.TableStoreClient).PutRow(request *github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.PutRowRequest) (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.PutRowResponse, error)
+bindings/alicloud/tablestore/tablestore.go:300:10  wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.TableStoreClient).DeleteRow(request *github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.DeleteRowRequest) (*github.com/aliyun/aliyun-tablestore-go-sdk/tablestore.DeleteRowResponse, error)
+metadata/utils_test.go:14:1                        paralleltest  Function TestIsRawPayload missing the call to method parallel
+
+metadata/utils_test.go:15:2  paralleltest  Function TestIsRawPayload has missing the call to method parallel in the test run
+
+metadata/utils_test.go:24:2  paralleltest  Function TestIsRawPayload has missing the call to method parallel in the test run
+
+metadata/utils_test.go:31:2  paralleltest  Function TestIsRawPayload has missing the call to method parallel in the test run
+
+metadata/utils_test.go:59:1  paralleltest  Function TestTryGetContentType missing the call to method parallel
+
+metadata/utils_test.go:60:2  paralleltest  Function TestTryGetContentType has missing the call to method parallel in the test run
+
+metadata/utils_test.go:67:2  paralleltest  Function TestTryGetContentType has missing the call to method parallel in the test run
+
+metadata/utils_test.go:76:2  paralleltest  Function TestTryGetContentType has missing the call to method parallel in the test run
+
+metadata/duration.go:37:11             wrapcheck         error returned from external package is unwrapped: sig: func time.ParseDuration(s string) (time.Duration, error)
+pubsub/gcp/pubsub/pubsub.go:65:1       cyclop            calculated cyclomatic complexity for function createMetadata is 31, max is 10
+pubsub/gcp/pubsub/pubsub.go:151:80     errorlint         non-wrapping format verb for fmt.Errorf. Use `%w` to format errors
+pubsub/gcp/pubsub/pubsub.go:201:92     errorlint         non-wrapping format verb for fmt.Errorf. Use `%w` to format errors
+pubsub/gcp/pubsub/pubsub.go:220:92     errorlint         non-wrapping format verb for fmt.Errorf. Use `%w` to format errors
+pubsub/gcp/pubsub/pubsub.go:62:10      exhaustivestruct  client, metadata are missing in GCPPubSub
+pubsub/gcp/pubsub/pubsub.go:67:12      exhaustivestruct  consumerID, IdentityProjectID, ProjectID, PrivateKeyID, PrivateKey, ClientEmail, ClientID, AuthURI, TokenURI, AuthProviderCertURL, ClientCertURL, EnableMessageOrdering are missing in metadata
+pubsub/gcp/pubsub/pubsub.go:208:32     exhaustivestruct  ID, Attributes, PublishTime, DeliveryAttempt, OrderingKey are missing in Message
+pubsub/gcp/pubsub/pubsub.go:239:11     exhaustivestruct  Metadata is missing in NewMessage
+pubsub/gcp/pubsub/pubsub.go:288:4      exhaustivestruct  PushConfig, AckDeadline, RetainAckedMessages, RetentionDuration, ExpirationPolicy, Labels, DeadLetterPolicy, Filter, RetryPolicy, Detached are missing in SubscriptionConfig
+pubsub/gcp/pubsub/pubsub_test.go:13:8  exhaustivestruct  Properties is missing in Metadata
+pubsub/gcp/pubsub/pubsub_test.go:45:8  exhaustivestruct  Properties is missing in Metadata
+pubsub/gcp/pubsub/pubsub_test.go:58:8  exhaustivestruct  Properties is missing in Metadata
+pubsub/gcp/pubsub/pubsub.go:278:2      ifshort           variable 'err' is only used in the if-statement (pubsub/gcp/pubsub/pubsub.go:279:2); consider using short syntax
+pubsub/gcp/pubsub/pubsub_test.go:11:1  paralleltest      Function TestInit missing the call to method parallel
+
+pubsub/gcp/pubsub/pubsub_test.go:12:2  paralleltest  Function TestInit has missing the call to method parallel in the test run
+
+pubsub/gcp/pubsub/pubsub_test.go:44:2  paralleltest  Function TestInit has missing the call to method parallel in the test run
+
+pubsub/gcp/pubsub/pubsub_test.go:57:2  paralleltest  Function TestInit has missing the call to method parallel in the test run
+
+pubsub/gcp/pubsub/pubsub.go:44:29                  tagliatelle       json(camel): got 'project_id' want 'projectId'
+pubsub/gcp/pubsub/pubsub.go:45:29                  tagliatelle       json(camel): got 'private_key_id' want 'privateKeyId'
+pubsub/gcp/pubsub/pubsub.go:46:29                  tagliatelle       json(camel): got 'private_key' want 'privateKey'
+pubsub/gcp/pubsub/pubsub.go:47:29                  tagliatelle       json(camel): got 'client_email' want 'clientEmail'
+pubsub/gcp/pubsub/pubsub.go:48:29                  tagliatelle       json(camel): got 'client_id' want 'clientId'
+pubsub/gcp/pubsub/pubsub.go:49:29                  tagliatelle       json(camel): got 'auth_uri' want 'authUri'
+pubsub/gcp/pubsub/pubsub.go:50:29                  tagliatelle       json(camel): got 'token_uri' want 'tokenUri'
+pubsub/gcp/pubsub/pubsub.go:51:29                  tagliatelle       json(camel): got 'auth_provider_x509_cert_url' want 'authProviderX509CertUrl'
+pubsub/gcp/pubsub/pubsub.go:52:29                  tagliatelle       json(camel): got 'client_x509_cert_url' want 'clientX509CertUrl'
+pubsub/gcp/pubsub/pubsub.go:183:25                 wrapcheck         error returned from external package is unwrapped: sig: func cloud.google.com/go/pubsub.NewClient(ctx context.Context, projectID string, opts ...google.golang.org/api/option.ClientOption) (c *cloud.google.com/go/pubsub.Client, err error)
+pubsub/gcp/pubsub/pubsub.go:189:25                 wrapcheck         error returned from external package is unwrapped: sig: func cloud.google.com/go/pubsub.NewClient(ctx context.Context, projectID string, opts ...google.golang.org/api/option.ClientOption) (c *cloud.google.com/go/pubsub.Client, err error)
+pubsub/gcp/pubsub/pubsub.go:212:9                  wrapcheck         error returned from external package is unwrapped: sig: func (*cloud.google.com/go/pubsub.PublishResult).Get(ctx context.Context) (serverID string, err error)
+pubsub/gcp/pubsub/pubsub.go:251:9                  wrapcheck         error returned from external package is unwrapped: sig: func (*cloud.google.com/go/pubsub.Subscription).Receive(ctx context.Context, f func(context.Context, *cloud.google.com/go/pubsub.Message)) error
+pubsub/gcp/pubsub/pubsub.go:258:10                 wrapcheck         error returned from external package is unwrapped: sig: func (*cloud.google.com/go/pubsub.Topic).Exists(ctx context.Context) (bool, error)
+pubsub/gcp/pubsub/pubsub.go:267:10                 wrapcheck         error returned from external package is unwrapped: sig: func (*cloud.google.com/go/pubsub.Client).CreateTopic(ctx context.Context, topicID string) (*cloud.google.com/go/pubsub.Topic, error)
+pubsub/gcp/pubsub/pubsub.go:291:9                  wrapcheck         error returned from external package is unwrapped: sig: func (*cloud.google.com/go/pubsub.Client).CreateSubscription(ctx context.Context, id string, cfg cloud.google.com/go/pubsub.SubscriptionConfig) (*cloud.google.com/go/pubsub.Subscription, error)
+pubsub/gcp/pubsub/pubsub.go:299:9                  wrapcheck         error returned from external package is unwrapped: sig: func (*cloud.google.com/go/pubsub.Client).Close() error
+secretstores/azure/keyvault/keyvault.go:39:10      exhaustivestruct  vaultDNSSuffix is missing in keyvaultSecretStore
+secretstores/azure/keyvault/keyvault.go:61:5       gosimple          S1017: should replace this `if` statement with an unconditional `strings.TrimPrefix`
+secretstores/azure/keyvault/keyvault_test.go:16:1  paralleltest      Function TestInit missing the call to method parallel
+
+secretstores/azure/keyvault/keyvault.go:74:10     wrapcheck         error returned from external package is unwrapped: sig: func github.com/dapr/components-contrib/authentication/azure.NewEnvironmentSettings(resourceName string, values map[string]string) (github.com/dapr/components-contrib/authentication/azure.EnvironmentSettings, error)
+secretstores/azure/keyvault/keyvault.go:86:9      wrapcheck         error returned from external package is unwrapped: sig: func (github.com/dapr/components-contrib/authentication/azure.EnvironmentSettings).GetAuthorizer() (github.com/Azure/go-autorest/autorest.Authorizer, error)
+secretstores/azure/keyvault/keyvault.go:98:44     wrapcheck         error returned from external package is unwrapped: sig: func (github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault.BaseClient).GetSecret(ctx context.Context, vaultBaseURL string, secretName string, secretVersion string) (result github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault.SecretBundle, err error)
+secretstores/azure/keyvault/keyvault.go:124:48    wrapcheck         error returned from external package is unwrapped: sig: func (github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault.BaseClient).GetSecretsComplete(ctx context.Context, vaultBaseURL string, maxresults *int32) (result github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault.SecretListResultIterator, err error)
+secretstores/azure/keyvault/keyvault.go:141:50    wrapcheck         error returned from external package is unwrapped: sig: func (github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault.BaseClient).GetSecret(ctx context.Context, vaultBaseURL string, secretName string, secretVersion string) (result github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault.SecretBundle, err error)
+secretstores/azure/keyvault/keyvault.go:168:16    wrapcheck         error returned from external package is unwrapped: sig: func strconv.Atoi(s string) (int, error)
+tests/conformance/pubsub/pubsub.go:71:1           cyclop            calculated cyclomatic complexity for function ConformanceTests is 16, max is 10
+tests/conformance/pubsub/pubsub.go:68:13          wrapcheck         error returned from external package is unwrapped: sig: func github.com/dapr/kit/config.Decode(input interface{}, output interface{}) error
+tests/conformance/pubsub/pubsub.go:118:13         wrapcheck         error returned from external package is unwrapped: sig: func strconv.Atoi(s string) (int, error)
+bindings/azure/eventhubs/eventhubs.go:62:1        cyclop            calculated cyclomatic complexity for function readHandler is 11, max is 10
+bindings/azure/eventhubs/eventhubs.go:158:1       cyclop            calculated cyclomatic complexity for function parseMetadata is 13, max is 10
+bindings/azure/eventhubs/eventhubs.go:126:10      exhaustivestruct  hub, metadata are missing in AzureEventHubs
+bindings/azure/eventhubs/eventhubs.go:159:8       exhaustivestruct  connectionString, consumerGroup, storageAccountName, storageAccountKey, storageContainerName, partitionID, partitionKey are missing in azureEventHubsMetadata
+bindings/azure/eventhubs/eventhubs.go:208:12      exhaustivestruct  PartitionKey, Properties, ID, SystemProperties are missing in Event
+bindings/azure/eventhubs/eventhubs_test.go:20:23  exhaustivestruct  Name is missing in Metadata
+bindings/azure/eventhubs/eventhubs_test.go:67:24  exhaustivestruct  Name is missing in Metadata
+bindings/azure/eventhubs/eventhubs_test.go:16:1   paralleltest      Function TestParseMetadata missing the call to method parallel
+
+bindings/azure/eventhubs/eventhubs_test.go:65:2  paralleltest  Range statement for test TestParseMetadata missing the call to method parallel in test Run
+
+bindings/azure/eventhubs/eventhubs.go:224:15  wrapcheck         error returned from external package is unwrapped: sig: func (*github.com/Azure/azure-event-hubs-go/v3.Hub).Send(ctx context.Context, event *github.com/Azure/azure-event-hubs-go/v3.Event, opts ...github.com/Azure/azure-event-hubs-go/v3.SendOption) error
+bindings/azure/eventhubs/eventhubs.go:258:10  wrapcheck         error returned from external package is unwrapped: sig: func (*github.com/Azure/azure-event-hubs-go/v3.Hub).GetRuntimeInformation(ctx context.Context) (*github.com/Azure/azure-event-hubs-go/v3.HubRuntimeInformation, error)
+bindings/azure/eventhubs/eventhubs.go:283:11  wrapcheck         error returned from external package is unwrapped: sig: func (*github.com/Azure/azure-event-hubs-go/v3.Hub).Receive(ctx context.Context, partitionID string, handler github.com/Azure/azure-event-hubs-go/v3.Handler, opts ...github.com/Azure/azure-event-hubs-go/v3.ReceiveOption) (*github.com/Azure/azure-event-hubs-go/v3.ListenerHandle, error)
+bindings/azure/eventhubs/eventhubs.go:305:10  wrapcheck         error returned from external package is unwrapped: sig: func github.com/Azure/azure-storage-blob-go/azblob.NewSharedKeyCredential(accountName string, accountKey string) (*github.com/Azure/azure-storage-blob-go/azblob.SharedKeyCredential, error)
+bindings/azure/eventhubs/eventhubs.go:310:10  wrapcheck         error returned from external package is unwrapped: sig: func github.com/Azure/azure-event-hubs-go/v3/storage.NewStorageLeaserCheckpointer(credential github.com/Azure/azure-event-hubs-go/v3/storage.Credential, accountName string, containerName string, env github.com/Azure/go-autorest/autorest/azure.Environment, opts ...github.com/Azure/azure-event-hubs-go/v3/storage.LeaserCheckpointerOption) (*github.com/Azure/azure-event-hubs-go/v3/storage.LeaserCheckpointer, error)
+bindings/azure/eventhubs/eventhubs.go:315:10  wrapcheck         error returned from external package is unwrapped: sig: func github.com/Azure/azure-event-hubs-go/v3/eph.NewFromConnectionString(ctx context.Context, connStr string, leaser github.com/Azure/azure-event-hubs-go/v3/eph.Leaser, checkpointer github.com/Azure/azure-event-hubs-go/v3/eph.Checkpointer, opts ...github.com/Azure/azure-event-hubs-go/v3/eph.EventProcessorHostOption) (*github.com/Azure/azure-event-hubs-go/v3/eph.EventProcessorHost, error)
+bindings/azure/eventhubs/eventhubs.go:323:10  wrapcheck         error returned from external package is unwrapped: sig: func (*github.com/Azure/azure-event-hubs-go/v3/eph.EventProcessorHost).RegisterHandler(ctx context.Context, handler github.com/Azure/azure-event-hubs-go/v3.Handler) (github.com/Azure/azure-event-hubs-go/v3/eph.HandlerID, error)
+bindings/azure/eventhubs/eventhubs.go:328:10  wrapcheck         error returned from external package is unwrapped: sig: func (*github.com/Azure/azure-event-hubs-go/v3/eph.EventProcessorHost).StartNonBlocking(ctx context.Context) error
+bindings/azure/eventhubs/eventhubs.go:335:9   wrapcheck         error returned from external package is unwrapped: sig: func (*github.com/Azure/azure-event-hubs-go/v3.Hub).Close(ctx context.Context) error
+bindings/rabbitmq/rabbitmq_test.go:22:19      revive            var-declaration: should omit type time.Duration from declaration of var oneSecondTTL; it will be inferred from the right-hand side
+bindings/rabbitmq/rabbitmq.go:139:1           cyclop            calculated cyclomatic complexity for function parseMetadata is 23, max is 10
+bindings/rabbitmq/rabbitmq.go:59:10           exhaustivestruct  connection, channel, metadata, queue are missing in RabbitMQ
+bindings/rabbitmq/rabbitmq.go:97:9            exhaustivestruct  Headers, ContentEncoding, Priority, CorrelationId, ReplyTo, Expiration, MessageId, Timestamp, Type, UserId, AppId are missing in Publishing
+bindings/rabbitmq/rabbitmq.go:140:7           exhaustivestruct  Host, QueueName, Exclusive, Durable, DeleteWhenUnused, PrefetchCount, MaxPriority, defaultQueueTTL are missing in rabbitMQMetadata
+bindings/rabbitmq/rabbitmq.go:248:23          exhaustivestruct  Metadata is missing in ReadResponse
+bindings/rabbitmq/rabbitmq_test.go:99:9       exhaustivestruct  Name, Properties are missing in Metadata
+bindings/rabbitmq/rabbitmq_test.go:101:9      exhaustivestruct  connection, channel, metadata, queue are missing in RabbitMQ
+bindings/rabbitmq/rabbitmq_test.go:140:9      exhaustivestruct  Name, Properties are missing in Metadata
+bindings/rabbitmq/rabbitmq_test.go:142:9      exhaustivestruct  connection, channel, metadata, queue are missing in RabbitMQ
+bindings/rabbitmq/rabbitmq_test.go:19:1       paralleltest      Function TestParseMetadata missing the call to method parallel
+
+bindings/rabbitmq/rabbitmq_test.go:97:2  paralleltest  Range statement for test TestParseMetadata missing the call to method parallel in test Run
+
+bindings/rabbitmq/rabbitmq_test.go:116:1  paralleltest  Function TestParseMetadataWithInvalidTTL missing the call to method parallel
+
+bindings/rabbitmq/rabbitmq_test.go:138:2  paralleltest  Range statement for test TestParseMetadataWithInvalidTTL missing the call to method parallel in test Run
+
+bindings/rabbitmq/rabbitmq_test.go:149:1  paralleltest  Function TestParseMetadataWithInvalidMaxPriority missing the call to method parallel
+
+bindings/rabbitmq/rabbitmq_test.go:175:2  paralleltest  Range statement for test TestParseMetadataWithInvalidMaxPriority missing the call to method parallel in test Run
+
+bindings/rabbitmq/rabbitmq.go:71:10                    wrapcheck     error returned from external package is unwrapped: sig: func github.com/streadway/amqp.Dial(url string) (*github.com/streadway/amqp.Connection, error)
+bindings/rabbitmq/rabbitmq.go:76:10                    wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/streadway/amqp.Connection).Channel() (*github.com/streadway/amqp.Channel, error)
+bindings/rabbitmq/rabbitmq.go:111:15                   wrapcheck     error returned from external package is unwrapped: sig: func github.com/dapr/components-contrib/metadata.TryGetTTL(props map[string]string) (time.Duration, bool, error)
+bindings/rabbitmq/rabbitmq.go:123:15                   wrapcheck     error returned from external package is unwrapped: sig: func github.com/dapr/components-contrib/metadata.TryGetPriority(props map[string]string) (uint8, bool, error)
+bindings/rabbitmq/rabbitmq.go:133:15                   wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/streadway/amqp.Channel).Publish(exchange string, key string, mandatory bool, immediate bool, msg github.com/streadway/amqp.Publishing) error
+bindings/rabbitmq/rabbitmq.go:203:10                   wrapcheck     error returned from external package is unwrapped: sig: func github.com/dapr/components-contrib/metadata.TryGetTTL(props map[string]string) (time.Duration, bool, error)
+bindings/rabbitmq/rabbitmq.go:227:9                    wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/streadway/amqp.Channel).QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args github.com/streadway/amqp.Table) (github.com/streadway/amqp.Queue, error)
+bindings/rabbitmq/rabbitmq.go:241:10                   wrapcheck     error returned from external package is unwrapped: sig: func (*github.com/streadway/amqp.Channel).Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args github.com/streadway/amqp.Table) (<-chan github.com/streadway/amqp.Delivery, error)
+configuration/redis/internal/redis_value_test.go:10:1  paralleltest  Function TestGetRedisValueAndVersion missing the call to method parallel
+
+configuration/redis/internal/redis_value_test.go:53:2  paralleltest  Range statement for test TestGetRedisValueAndVersion missing the call to method parallel in test Run
+
+configuration/redis/internal/redis_value_test.go:66:1  paralleltest  Function TestParseRedisKeyFromEvent missing the call to method parallel
+
+configuration/redis/internal/redis_value_test.go:92:2  paralleltest  Range statement for test TestParseRedisKeyFromEvent missing the call to method parallel in test Run
+
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware.go:46:8         exhaustivestruct  tokenProvider is missing in Middleware
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware_test.go:76:12   exhaustivestruct  RefreshToken is missing in Token
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware_test.go:124:12  exhaustivestruct  RefreshToken is missing in Token
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware_test.go:134:12  exhaustivestruct  RefreshToken is missing in Token
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware.go:116:5        forcetypeassert   type assertion must be checked
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware_test.go:27:1    paralleltest      Function TestOAuth2ClientCredentialsMetadata missing the call to method parallel
+
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware_test.go:63:1  paralleltest  Function TestOAuth2ClientCredentialsToken missing the call to method parallel
+
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware_test.go:111:1  paralleltest  Function TestOAuth2ClientCredentialsCache missing the call to method parallel
+
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware.go:29:29  tagliatelle       json(camel): got 'clientID' want 'clientId'
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware.go:32:29  tagliatelle       json(camel): got 'tokenURL' want 'tokenUrl'
+middleware/http/oauth2clientcredentials/oauth2clientcredentials_middleware.go:188:9  wrapcheck         error returned from interface method should be wrapped: sig: func (golang.org/x/oauth2.TokenSource).Token() (*golang.org/x/oauth2.Token, error)
+pubsub/kafka/kafka.go:297:1                                                          cyclop            calculated cyclomatic complexity for function getKafkaMetadata is 35, max is 10
+pubsub/kafka/kafka.go:84:10                                                          exhaustivestruct  Metadata is missing in NewMessage
+pubsub/kafka/kafka.go:122:10                                                         exhaustivestruct  producer, consumerGroup, brokers, authRequired, saslUsername, saslPassword, initialOffset, cg, topics, cancel, consumer, config, backOffConfig are missing in Kafka
+pubsub/kafka/kafka.go:182:10                                                         exhaustivestruct  Key, Headers, Metadata, Offset, Partition, Timestamp are missing in ProducerMessage
+pubsub/kafka/kafka.go:256:15                                                         exhaustivestruct  once is missing in consumer
+pubsub/kafka/kafka.go:298:10                                                         exhaustivestruct  Brokers, ConsumerGroup, ClientID, AuthRequired, SaslUsername, SaslPassword, InitialOffset, MaxMessageBytes, TLSSkipVerify, TLSCaCert, TLSClientCert, TLSClientKey are missing in kafkaMetadata
+pubsub/kafka/kafka.go:441:27                                                         exhaustivestruct  Rand, Time, Certificates, NameToCertificate, GetCertificate, GetClientCertificate, GetConfigForClient, VerifyPeerCertificate, VerifyConnection, RootCAs, NextProtos, ServerName, ClientAuth, ClientCAs, CipherSuites, PreferServerCipherSuites, SessionTicketsDisabled, SessionTicketKey, ClientSessionCache, MinVersion, MaxVersion, CurvePreferences, DynamicRecordSizingDisabled, Renegotiation, KeyLogWriter are missing in Config
+pubsub/kafka/kafka_test.go:33:10                                                     exhaustivestruct  producer, consumerGroup, brokers, authRequired, saslUsername, saslPassword, initialOffset, cg, topics, cancel, consumer, config, backOffConfig are missing in Kafka
+pubsub/kafka/kafka_test.go:151:9                                                     exhaustivestruct  Admin, Net, Metadata, Producer, Consumer, ClientID, ChannelBufferSize, Version, MetricRegistry are missing in Config
+pubsub/kafka/kafka_test.go:42:1                                                      paralleltest      Function TestParseMetadata missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:61:1  paralleltest  Function TestMissingBrokers missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:72:1  paralleltest  Function TestMissingAuthRequired missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:83:1  paralleltest  Function TestMissingSaslValues missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:102:1  paralleltest  Function TestPresentSaslValues missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:119:1  paralleltest  Function TestInvalidAuthRequiredFlag missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:130:1  paralleltest  Function TestInitialOffset missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:143:1  paralleltest  Function TestTls missing the call to method parallel
+
+pubsub/kafka/kafka_test.go:146:2  paralleltest  Function TestTls has missing the call to method parallel in the test run
+
+pubsub/kafka/kafka_test.go:157:2  paralleltest  Function TestTls has missing the call to method parallel in the test run
+
+pubsub/kafka/kafka_test.go:167:2  paralleltest  Function TestTls has missing the call to method parallel in the test run
+
+pubsub/kafka/kafka.go:101:11                       wrapcheck         error returned from external package is unwrapped: sig: func github.com/dapr/kit/retry.NotifyRecover(operation github.com/cenkalti/backoff/v4.Operation, b github.com/cenkalti/backoff/v4.BackOff, notify github.com/cenkalti/backoff/v4.Notify, recovered func()) error
+pubsub/kafka/kafka.go:170:10                       wrapcheck         error returned from external package is unwrapped: sig: func github.com/dapr/kit/retry.DecodeConfigWithPrefix(c *github.com/dapr/kit/retry.Config, input interface{}, prefix string) error
+pubsub/kafka/kafka.go:196:10                       wrapcheck         error returned from interface method should be wrapped: sig: func (github.com/Shopify/sarama.SyncProducer).SendMessage(msg *github.com/Shopify/sarama.ProducerMessage) (partition int32, offset int64, err error)
+pubsub/kafka/kafka.go:247:10                       wrapcheck         error returned from external package is unwrapped: sig: func github.com/Shopify/sarama.NewConsumerGroup(addrs []string, groupID string, config *github.com/Shopify/sarama.Config) (github.com/Shopify/sarama.ConsumerGroup, error)
+pubsub/kafka/kafka.go:422:15                       wrapcheck         error returned from external package is unwrapped: sig: func github.com/Shopify/sarama.NewSyncProducer(addrs []string, config *github.com/Shopify/sarama.Config) (github.com/Shopify/sarama.SyncProducer, error)
+middleware/http/bearer/bearer_middleware.go:52:33  exhaustivestruct  SupportedSigningAlgs, SkipClientIDCheck, SkipExpiryCheck, SkipIssuerCheck, Now are missing in Config
+middleware/http/bearer/bearer_middleware.go:21:19  tagliatelle       json(camel): got 'issuerURL' want 'issuerUrl'
+middleware/http/bearer/bearer_middleware.go:22:19  tagliatelle       json(camel): got 'clientID' want 'clientId'
+secretstores/hashicorp/vault/vault.go:89:1         cyclop            calculated cyclomatic complexity for function Init is 12, max is 10
+secretstores/hashicorp/vault/vault_test.go:27:1    paralleltest      Function TestReadVaultToken missing the call to method parallel
+
+secretstores/hashicorp/vault/vault_test.go:28:2  paralleltest  Function TestReadVaultToken has missing the call to method parallel in the test run
+
+secretstores/hashicorp/vault/vault_test.go:48:2  paralleltest  Function TestReadVaultToken has missing the call to method parallel in the test run
+
+secretstores/hashicorp/vault/vault_test.go:67:2  paralleltest  Function TestReadVaultToken has missing the call to method parallel in the test run
+
+secretstores/hashicorp/vault/vault_test.go:79:1  paralleltest  Function TestVaultTLSConfig missing the call to method parallel
+
+secretstores/hashicorp/vault/vault_test.go:101:1  paralleltest  Function TestVaultTokenPrefix missing the call to method parallel
+
+secretstores/hashicorp/vault/vault_test.go:102:2  paralleltest  Function TestVaultTokenPrefix has missing the call to method parallel in the test run
+
+secretstores/hashicorp/vault/vault_test.go:125:2  paralleltest  Function TestVaultTokenPrefix has missing the call to method parallel in the test run
+
+secretstores/hashicorp/vault/vault_test.go:150:2  paralleltest  Function TestVaultTokenPrefix has missing the call to method parallel in the test run
+
+bindings/mqtt/mqtt.go:76:1                                      cyclop           calculated cyclomatic complexity for function parseMQTTMetaData is 28, max is 10
+bindings/twitter/twitter.go:149:1                               cyclop           calculated cyclomatic complexity for function Invoke is 15, max is 10
+middleware/http/opa/middleware.go:41:38                         tagliatelle      json(camel): got 'additional_headers' want 'additionalHeaders'
+middleware/http/opa/middleware.go:42:38                         tagliatelle      json(camel): got 'status_code' want 'statusCode'
+pubsub/natsstreaming/natsstreaming.go:78:1                      cyclop           calculated cyclomatic complexity for function parseNATSStreamingMetadata is 36, max is 10
+pubsub/natsstreaming/natsstreaming.go:271:1                     cyclop           calculated cyclomatic complexity for function subscriptionOptions is 12, max is 10
+state/cloudstate/cloudstate_crdt.go:319:1                       cyclop           calculated cyclomatic complexity for function Handle is 14, max is 10
+state/cloudstate/cloudstate_crdt.go:326:6                       errorlint        comparing with == will fail on wrapped errors. Use errors.Is to check for a specific error
+state/query/query.go:90:1                                       cyclop           calculated cyclomatic complexity for function UnmarshalJSON is 12, max is 10
+bindings/alicloud/oss/oss.go:28:21                              tagliatelle      json(camel): got 'accessKeyID' want 'accessKeyId'
+bindings/alicloud/oss/oss.go:59:2                               wastedassign     assigned to key, but reassigned without using the value
+state/alicloud/tablestore/mock_client.go:130:1                  cyclop           calculated cyclomatic complexity for function BatchWriteRow is 11, max is 10
+state/alicloud/tablestore/mock_client.go:20:4                   forcetypeassert  type assertion must be checked
+state/alicloud/tablestore/mock_client.go:35:4                   forcetypeassert  type assertion must be checked
+state/alicloud/tablestore/tablestore.go:34:22                   tagliatelle      json(camel): got 'accessKeyID' want 'accessKeyId'
+tests/conformance/state/state.go:58:1                           cyclop           calculated cyclomatic complexity for function ConformanceTests is 41, max is 10
+tests/conformance/state/state.go:634:6                          thelper          test helper function should start from t.Helper()
+middleware/http/sentinel/middleware.go:87:1                     cyclop           calculated cyclomatic complexity for function loadSentinelRules is 11, max is 10
+middleware/http/oauth2/oauth2_middleware.go:23:24               tagliatelle      json(camel): got 'clientID' want 'clientId'
+middleware/http/oauth2/oauth2_middleware.go:26:24               tagliatelle      json(camel): got 'authURL' want 'authUrl'
+middleware/http/oauth2/oauth2_middleware.go:27:24               tagliatelle      json(camel): got 'tokenURL' want 'tokenUrl'
+middleware/http/oauth2/oauth2_middleware.go:29:24               tagliatelle      json(camel): got 'redirectURL' want 'redirectUrl'
+middleware/http/oauth2/oauth2_middleware.go:30:24               tagliatelle      json(camel): got 'forceHTTPS' want 'forceHttps'
+bindings/localstorage/localstorage.go:216:11                    wastedassign     assigned to err, but reassigned without using the value
+bindings/postmark/postmark.go:87:1                              cyclop           calculated cyclomatic complexity for function Invoke is 15, max is 10
+bindings/postmark/postmark.go:148:5                             ifshort          variable 'err' is only used in the if-statement (bindings/postmark/postmark.go:149:2); consider using short syntax
+bindings/zeebe/jobworker/jobworker_test.go:31:2                 staticcheck      SA4005: ineffective assignment to field mockClientFactory.metadata
+pubsub/redis/redis.go:63:1                                      cyclop           calculated cyclomatic complexity for function parseRedisMetadata is 20, max is 10
+pubsub/redis/redis.go:320:1                                     cyclop           calculated cyclomatic complexity for function reclaimPendingMessages is 12, max is 10
+state/mongodb/mongodb.go:365:1                                  cyclop           calculated cyclomatic complexity for function getMongoDBMetaData is 26, max is 10
+state/mongodb/mongodb_query.go:49:1                             cyclop           calculated cyclomatic complexity for function visitFilters is 11, max is 10
+state/mongodb/mongodb_query.go:131:1                            cyclop           calculated cyclomatic complexity for function execute is 13, max is 10
+state/mongodb/mongodb.go:206:6                                  errorlint        comparing with == will fail on wrapped errors. Use errors.Is to check for a specific error
+state/mongodb/mongodb.go:155:2                                  ifshort          variable 'err' is only used in the if-statement (state/mongodb/mongodb.go:156:2); consider using short syntax
+bindings/aws/s3/s3.go:57:20                                     tagliatelle      json(camel): got 'versionID' want 'versionId'
+middleware/http/nethttpadaptor/nethttpadaptor_test.go:17:1      cyclop           calculated cyclomatic complexity for function TestNewNetHTTPHandlerFuncRequests is 12, max is 10
+middleware/http/nethttpadaptor/nethttpadaptor_test.go:29:4      thelper          test helper function should start from t.Helper()
+middleware/http/nethttpadaptor/nethttpadaptor_test.go:40:4      thelper          test helper function should start from t.Helper()
+secretstores/aws/secretmanager/secretmanager.go:95:26           revive           var-declaration: should drop = nil from declaration of var nextToken; it is the zero value
+secretstores/kubernetes/kubernetes.go:94:2                      ifshort          variable 'val' is only used in the if-statement (secretstores/kubernetes/kubernetes.go:95:2); consider using short syntax
+state/mysql/mysql.go:397:1                                      cyclop           calculated cyclomatic complexity for function setValue is 14, max is 10
+state/mysql/mysql_test.go:300:19                                errorlint        type assertion on error will fail on wrapped errors. Use errors.As to check for specific errors
+state/mysql/mysql_test.go:350:19                                errorlint        type assertion on error will fail on wrapped errors. Use errors.As to check for specific errors
+state/mysql/mysql_test.go:418:19                                errorlint        type assertion on error will fail on wrapped errors. Use errors.As to check for specific errors
+state/mysql/mysql.go:180:2                                      ifshort          variable 'pingErr' is only used in the if-statement (state/mysql/mysql.go:182:2); consider using short syntax
+state/mysql/mysql_integration_test.go:624:2                     ifshort          variable 'val' is only used in the if-statement (state/mysql/mysql_integration_test.go:625:2); consider using short syntax
+state/mysql/mysql_integration_test.go:68:2                      predeclared      variable error has same name as predeclared identifier
+bindings/azure/servicebusqueues/servicebusqueues_test.go:20:24  revive           var-declaration: should omit type time.Duration from declaration of var oneSecondDuration; it will be inferred from the right-hand side
+bindings/azure/servicebusqueues/servicebusqueues.go:50:1        cyclop           calculated cyclomatic complexity for function Init is 11, max is 10
+pubsub/jetstream/jetstream.go:77:1                              cyclop           calculated cyclomatic complexity for function Subscribe is 11, max is 10
+bindings/http/http.go:28:6                                      revive           exported: type name will be used as http.HTTPSource by other packages, and that stutters; consider calling this Source
+bindings/http/http.go:83:1                                      cyclop           calculated cyclomatic complexity for function Invoke is 19, max is 10
+pubsub/pulsar/metadata.go:5:20                                  tagliatelle      json(camel): got 'consumerID' want 'consumerId'
+pubsub/pulsar/metadata.go:6:20                                  tagliatelle      json(camel): got 'enableTLS' want 'enableTls'
+go.mod:160:1                                                    gomoddirectives  replacement are not allowed: k8s.io/client
+go.mod:162:1                                                    gomoddirectives  local replacement are not allowed: github.com/dapr/components-contrib
+state/utils/utils.go:9:18                                       revive           var-declaration: should drop = nil from declaration of var err; it is the zero value
+state/cassandra/cassandra.go:134:1                              cyclop           calculated cyclomatic complexity for function getConsistency is 11, max is 10
+state/cassandra/cassandra.go:161:1                              cyclop           calculated cyclomatic complexity for function getCassandraMetadata is 22, max is 10
+bindings/azure/storagequeues/storagequeues_test.go:258:24       revive           var-declaration: should omit type time.Duration from declaration of var oneSecondDuration; it will be inferred from the right-hand side
+secretstores/gcp/secretmanager/secretmanager.go:125:6           errorlint        comparing with == will fail on wrapped errors. Use errors.Is to check for a specific error
+secretstores/gcp/secretmanager/secretmanager.go:21:29           tagliatelle      json(camel): got 'project_id' want 'projectId'
+secretstores/gcp/secretmanager/secretmanager.go:22:29           tagliatelle      json(camel): got 'private_key' want 'privateKey'
+secretstores/gcp/secretmanager/secretmanager.go:23:29           tagliatelle      json(camel): got 'client_email' want 'clientEmail'
+secretstores/gcp/secretmanager/secretmanager.go:24:29           tagliatelle      json(camel): got 'private_key_id' want 'privateKeyId'
+secretstores/gcp/secretmanager/secretmanager.go:25:29           tagliatelle      json(camel): got 'client_id' want 'clientId'
+secretstores/gcp/secretmanager/secretmanager.go:26:29           tagliatelle      json(camel): got 'auth_uri' want 'authUri'
+secretstores/gcp/secretmanager/secretmanager.go:27:29           tagliatelle      json(camel): got 'token_uri' want 'tokenUri'
+secretstores/gcp/secretmanager/secretmanager.go:28:29           tagliatelle      json(camel): got 'auth_provider_x509_cert_url' want 'authProviderX509CertUrl'
+secretstores/gcp/secretmanager/secretmanager.go:29:29           tagliatelle      json(camel): got 'client_x509_cert_url' want 'clientX509CertUrl'
+bindings/postgres/postgres.go:74:1                              cyclop           calculated cyclomatic complexity for function Invoke is 11, max is 10
+bindings/postgres/postgres_test.go:31:6                         tparallel        TestOperations's subtests should call t.Parallel
+bindings/smtp/smtp.go:124:1                                     cyclop           calculated cyclomatic complexity for function parseMetadata is 11, max is 10
+bindings/smtp/smtp.go:39:23                                     tagliatelle      json(camel): got 'skipTLSVerify' want 'skipTlsVerify'
+bindings/smtp/smtp.go:43:23                                     tagliatelle      json(camel): got 'emailCC' want 'emailCc'
+bindings/smtp/smtp.go:44:23                                     tagliatelle      json(camel): got 'emailBCC' want 'emailBcc'
+pubsub/azure/servicebus/message.go:62:1                         cyclop           calculated cyclomatic complexity for function NewPubsubMessageFromASBMessage is 16, max is 10
+pubsub/azure/servicebus/message.go:131:1                        cyclop           calculated cyclomatic complexity for function NewASBMessageFromPubsubRequest is 15, max is 10
+pubsub/azure/servicebus/servicebus.go:90:1                      cyclop           calculated cyclomatic complexity for function parseAzureServiceBusMetadata is 53, max is 10
+pubsub/azure/servicebus/servicebus.go:342:1                     cyclop           calculated cyclomatic complexity for function Subscribe is 17, max is 10
+pubsub/azure/servicebus/metadata.go:12:41                       tagliatelle      json(camel): got 'consumerID' want 'consumerId'
+bindings/rethinkdb/statechange/statechange.go:113:1             cyclop           calculated cyclomatic complexity for function metadataToConfig is 28, max is 10
+bindings/cron/cron.go:49:5                                      ifshort          variable 'err' is only used in the if-statement (bindings/cron/cron.go:50:2); consider using short syntax
+bindings/kubernetes/kubernetes.go:82:17                         revive           var-declaration: should omit type chan EventResponse from declaration of var resultChan; it will be inferred from the right-hand side
+state/aerospike/aerospike.go:70:5                               ifshort          variable 'err' is only used in the if-statement (state/aerospike/aerospike.go:71:2); consider using short syntax
+state/azure/tablestorage/tablestorage.go:167:15                 revive           errorf: should replace errors.New(fmt.Sprintf(...)) with fmt.Errorf(...)
+state/azure/tablestorage/tablestorage.go:173:15                 revive           errorf: should replace errors.New(fmt.Sprintf(...)) with fmt.Errorf(...)
+state/azure/tablestorage/tablestorage.go:179:15                 revive           errorf: should replace errors.New(fmt.Sprintf(...)) with fmt.Errorf(...)
+state/zookeeper/zk.go:257:1                                     cyclop           calculated cyclomatic complexity for function BulkSet is 11, max is 10
+bindings/azure/signalr/signalr.go:61:1                          cyclop           calculated cyclomatic complexity for function Init is 14, max is 10
+bindings/zeebe/command/command.go:83:1                          cyclop           calculated cyclomatic complexity for function Invoke is 18, max is 10
+bindings/zeebe/command/command_test.go:32:2                     staticcheck      SA4005: ineffective assignment to field mockClientFactory.metadata
+state/azure/blobstorage/blobstorage.go:218:1                    cyclop           calculated cyclomatic complexity for function writeFile is 20, max is 10
+bindings/apns/apns.go:41:19                                     tagliatelle      json(camel): got 'messageID' want 'messageId'
+state/sqlserver/sqlserver.go:573:1                              cyclop           calculated cyclomatic complexity for function executeSet is 11, max is 10
+bindings/mysql/mysql.go:122:1                                   cyclop           calculated cyclomatic complexity for function Invoke is 11, max is 10
+pubsub/mqtt/mqtt.go:73:1                                        cyclop           calculated cyclomatic complexity for function parseMQTTMetaData is 26, max is 10
+state/azure/cosmosdb/cosmosdb.go:84:1                           cyclop           calculated cyclomatic complexity for function Init is 20, max is 10
+state/azure/cosmosdb/cosmosdb.go:249:1                          cyclop           calculated cyclomatic complexity for function Set is 11, max is 10
+state/azure/cosmosdb/cosmosdb_query.go:55:1                     cyclop           calculated cyclomatic complexity for function visitFilters is 11, max is 10
+state/rethinkdb/rethinkdb.go:60:1                               cyclop           calculated cyclomatic complexity for function Init is 14, max is 10
+state/rethinkdb/rethinkdb.go:316:1                              cyclop           calculated cyclomatic complexity for function metadataToConfig is 30, max is 10
+tests/conformance/bindings/bindings.go:104:1                    cyclop           calculated cyclomatic complexity for function ConformanceTests is 26, max is 10
+bindings/azure/blobstorage/blobstorage.go:87:17                 tagliatelle      json(camel): got 'blobURL' want 'blobUrl'
+secretstores/aws/parameterstore/parameterstore.go:94:26         revive           var-declaration: should drop = nil from declaration of var nextToken; it is the zero value
+secretstores/local/file/filestore.go:166:5                      ifshort          variable 'exists' is only used in the if-statement (secretstores/local/file/filestore.go:168:2); consider using short syntax
+nameresolution/consul/configuration.go:318:6                    revive           var-naming: type HttpBasicAuth should be HTTPBasicAuth
+nameresolution/consul/configuration.go:327:2                    revive           var-naming: struct field HttpAuth should be HTTPAuth
+nameresolution/consul/consul_test.go:794:6                      tparallel        TestMapConfig's subtests should call t.Parallel
+nameresolution/consul/consul.go:133:2                           wastedassign     assigned to addr, but reassigned without using the value
+state/postgresql/postgresdbaccess.go:317:13                     revive           var-declaration: should omit type bool from declaration of var exists; it will be inferred from the right-hand side
+state/postgresql/postgresql_integration_test.go:551:13          revive           var-declaration: should omit type bool from declaration of var exists; it will be inferred from the right-hand side
+state/postgresql/postgresdbaccess.go:70:2                       ifshort          variable 'pingErr' is only used in the if-statement (state/postgresql/postgresdbaccess.go:71:2); consider using short syntax
+state/postgresql/postgresql_integration_test.go:48:2            predeclared      variable error has same name as predeclared identifier
+state/postgresql/postgresql_integration_test.go:29:6            tparallel        TestPostgreSQLIntegration should call t.Parallel on the top level as well as its subtests
+state/gcp/firestore/firestore.go:35:29                          tagliatelle      json(camel): got 'project_id' want 'projectId'
+state/gcp/firestore/firestore.go:36:29                          tagliatelle      json(camel): got 'private_key_id' want 'privateKeyId'
+state/gcp/firestore/firestore.go:37:29                          tagliatelle      json(camel): got 'private_key' want 'privateKey'
+state/gcp/firestore/firestore.go:38:29                          tagliatelle      json(camel): got 'client_email' want 'clientEmail'
+state/gcp/firestore/firestore.go:39:29                          tagliatelle      json(camel): got 'client_id' want 'clientId'
+state/gcp/firestore/firestore.go:40:29                          tagliatelle      json(camel): got 'auth_uri' want 'authUri'
+state/gcp/firestore/firestore.go:41:29                          tagliatelle      json(camel): got 'token_uri' want 'tokenUri'
+state/gcp/firestore/firestore.go:42:29                          tagliatelle      json(camel): got 'auth_provider_x509_cert_url' want 'authProviderX509CertUrl'
+state/gcp/firestore/firestore.go:43:29                          tagliatelle      json(camel): got 'client_x509_cert_url' want 'clientX509CertUrl'
+go.mod:161:1                                                    gomoddirectives  replacement are not allowed: k8s.io/client
+go.mod:163:1                                                    gomoddirectives  local replacement are not allowed: github.com/dapr/components-contrib
+state/couchbase/couchbase.go:207:21                             revive           var-declaration: should drop = 0 from declaration of var cas; it is the zero value
+state/couchbase/couchbase.go:237:21                             revive           var-declaration: should drop = 0 from declaration of var cas; it is the zero value
+state/couchbase/couchbase_test.go:112:19                        stylecheck       ST1023: should omit type gocb.Cas from declaration; it will be inferred from the right-hand side
+bindings/azure/storagequeues/storagequeues_test.go:200:1        nolintlint       directive `//nolint:godot` is unused for linter "godot"
+pubsub/azure/servicebus/message.go:104:2                        nolintlint       directive `//nolint:golint,nestif` is unused for linter "golint"
+state/redis/redis.go:302:3                                      nolintlint       directive `//nolint:golint,nestif` is unused for linter "golint"

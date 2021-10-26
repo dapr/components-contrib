@@ -10,8 +10,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/tylertreat/comcast/throttler"
+
+	"github.com/dapr/components-contrib/tests/certification/flow"
 )
 
 func WaitForAddresses(timeout time.Duration, addresses ...string) flow.Runnable {
@@ -44,14 +45,11 @@ func WaitForAddresses(timeout time.Duration, addresses ...string) flow.Runnable 
 }
 
 // InterruptNetwork uses operating system specific functionality to block network traffic on select IPs and ports.
-func InterruptNetwork(duration time.Duration, isAsync bool, ipv4s []string, ipv6s []string, ports ...string) flow.Runnable {
+func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, ports ...string) flow.Runnable {
 	/*
 		duration:
 			- 0: the network will be interrupted indefinitely
 			- >0: the network will be interrupted for the specified duration
-		isAsync:
-			- true: the function will return immediately after the network interruption has been started
-			- false: the function will block until the network interruption duration has elapsed
 		ipv4s:
 			- []string: the list of IPv4 addresses to which the network interruption will be applied
 			- nil: the network interruption will be applied to all IPv4 addresses
@@ -80,37 +78,28 @@ func InterruptNetwork(duration time.Duration, isAsync bool, ipv4s []string, ipv6
 			DryRun:           false,
 		})
 
-		timedNetworkPolicyCleanup := func() {
-			t := time.NewTimer(duration)
-			defer t.Stop()
+		t := time.NewTimer(duration)
+		defer t.Stop()
 
-			for {
-				select {
-				case <-ctx.Done():
-				case <-t.C:
-					throttler.Run(&throttler.Config{
-						Device:           "",
-						Stop:             true,
-						Latency:          -1,
-						TargetBandwidth:  -1,
-						DefaultBandwidth: -1,
-						PacketLoss:       0,
-						TargetIps:        nil,
-						TargetIps6:       nil,
-						TargetPorts:      nil,
-						TargetProtos:     nil,
-						DryRun:           false,
-					})
-					return
-				}
+		for {
+			select {
+			case <-ctx.Done():
+			case <-t.C:
+				throttler.Run(&throttler.Config{
+					Device:           "",
+					Stop:             true,
+					Latency:          -1,
+					TargetBandwidth:  -1,
+					DefaultBandwidth: -1,
+					PacketLoss:       0,
+					TargetIps:        nil,
+					TargetIps6:       nil,
+					TargetPorts:      nil,
+					TargetProtos:     nil,
+					DryRun:           false,
+				})
+				return nil
 			}
 		}
-
-		if isAsync {
-			go timedNetworkPolicyCleanup()
-		} else {
-			timedNetworkPolicyCleanup()
-		}
-		return nil
 	}
 }

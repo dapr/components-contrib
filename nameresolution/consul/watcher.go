@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	// retryInterval is the base retry value
+	// retryInterval is the base retry value.
 	retryInterval = 5 * time.Second
 
-	// maximum back off time, this is to prevent exponential runaway
+	// maximum back off time, this is to prevent exponential runaway.
 	maxBackoffTime = 180 * time.Second
 )
 
@@ -33,7 +33,7 @@ type blockingParamVal interface {
 
 type waitIndexVal uint64
 
-// Equal implements BlockingParamVal
+// Equal implements BlockingParamVal.
 func (idx waitIndexVal) equal(other blockingParamVal) bool {
 	if otherIdx, ok := other.(waitIndexVal); ok {
 		return idx == otherIdx
@@ -42,7 +42,7 @@ func (idx waitIndexVal) equal(other blockingParamVal) bool {
 	return false
 }
 
-// Next implements BlockingParamVal
+// Next implements BlockingParamVal.
 func (idx waitIndexVal) next(previous blockingParamVal) blockingParamVal {
 	if previous == nil {
 		return idx

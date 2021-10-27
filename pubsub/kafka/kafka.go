@@ -283,7 +283,7 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 			}, func() {
 				k.logger.Infof("Recovered consuming %v", topics)
 			})
-			if innerErr != nil && errors.Is(innerErr, context.Canceled) {
+			if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
 				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
 			}
 

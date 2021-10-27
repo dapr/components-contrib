@@ -78,9 +78,11 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 			DryRun:           false,
 		})
 
+		alreadyCleanedUp := false
+
 		t := time.NewTimer(duration)
 		defer func() {
-			if !t.Stop() {
+			if !t.Stop() && !alreadyCleanedUp {
 				<-t.C
 			}
 		}()
@@ -89,6 +91,7 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 		case <-ctx.Done():
 		case <-t.C:
 		}
+		alreadyCleanedUp = true
 		throttler.Run(&throttler.Config{
 			Device:           "",
 			Stop:             true,

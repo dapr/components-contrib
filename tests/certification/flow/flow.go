@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 )
 
 type Runnable func(ctx Context) error
@@ -17,6 +18,14 @@ type Runnable func(ctx Context) error
 func Do(fn func() error) Runnable {
 	return func(_ Context) error {
 		return fn()
+	}
+}
+
+func Sleep(t time.Duration) Runnable {
+	return func(_ Context) error {
+		time.Sleep(t)
+
+		return nil
 	}
 }
 
@@ -108,20 +117,19 @@ func (f *Flow) Run() {
 				delete(f.uncalledMap, r.name)
 			}
 
-			if !t.Run(r.name, func(t *testing.T) {
-				ctx := Context{
-					name:    r.name,
-					Context: f.ctx,
-					T:       t,
-					Flow:    f,
-				}
-				if err := r.runnable(ctx); err != nil {
-					t.Fatal(err)
+			t.Logf("Running step: %s", r.name)
+			ctx := Context{
+				name:    r.name,
+				Context: f.ctx,
+				T:       t,
+				Flow:    f,
+			}
+			err := r.runnable(ctx)
+			t.Logf("Completed step: %s", r.name)
+			if err != nil {
+				t.Fatal(err)
 
-					return
-				}
-			}) {
-				break
+				return
 			}
 		}
 	})

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -272,17 +273,23 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 
 		for {
 			k.logger.Debugf("Starting loop to consume.")
-			// Consume the requested topic
-			innerError := k.cg.Consume(ctx, topics, &(k.consumer))
-			if innerError != nil {
-				k.logger.Errorf("Error consuming %v: %v", topics, innerError)
+
+			// Consume the requested topics
+			bo := backoff.WithContext(backoff.NewConstantBackOff(100*time.Millisecond), ctx)
+			innerErr := retry.NotifyRecover(func() error {
+				return k.cg.Consume(ctx, topics, &(k.consumer))
+			}, bo, func(err error, t time.Duration) {
+				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+			}, func() {
+				k.logger.Infof("Recovered consuming %v", topics)
+			})
+			if innerErr != nil && errors.Is(innerErr, context.Canceled) {
+				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
 			}
 
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
 			// us out of the consume loop
 			if ctx.Err() != nil {
-				k.logger.Debugf("Context error, stopping consumer: %v", ctx.Err())
-
 				return
 			}
 		}

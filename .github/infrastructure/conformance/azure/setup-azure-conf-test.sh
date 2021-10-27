@@ -191,6 +191,7 @@ RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
 SERVICE_BUS_CONNECTION_STRING_VAR_NAME="AzureServiceBusConnectionString"
 
 SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
+SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
 SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
@@ -539,6 +540,10 @@ az keyvault secret set --name "${RESOURCE_GROUP_NAME_VAR_NAME}" --vault-name "${
 
 echo export ${SQL_SERVER_NAME_VAR_NAME}=\"${SQL_SERVER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SQL_SERVER_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_NAME}"
+
+# Export a default value for DB name to be used when running conformance test locally.
+# This is not added to the keyvault as the conformance.yml workflow generates a unique DB name each time.
+echo export ${SQL_SERVER_DB_NAME_VAR_NAME}=\"${PREFIX}SqlDb\" >> "${ENV_CONFIG_FILENAME}"
 
 # Note that `az sql db show-connection-string` does not currently support a `go` --client type, so we construct our own here.
 SQL_SERVER_CONNECTION_STRING="Server=${SQL_SERVER_NAME}.database.windows.net;port=1433;User ID=${SQL_SERVER_ADMIN_NAME};Password=${SQL_SERVER_ADMIN_PASSWORD};Encrypt=true;"

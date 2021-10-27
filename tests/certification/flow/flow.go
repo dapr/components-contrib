@@ -44,7 +44,6 @@ type Flow struct {
 type namedRunnable struct {
 	name     string
 	runnable Runnable
-	isAsync  bool
 }
 
 func New(t *testing.T, name string) *Flow {
@@ -85,19 +84,7 @@ func as(source, target interface{}) bool {
 
 func (f *Flow) Step(name string, runnable Runnable, cleanup ...Runnable) *Flow {
 	if runnable != nil {
-		f.tasks = append(f.tasks, namedRunnable{name, runnable, false})
-	}
-	if len(cleanup) == 1 {
-		f.cleanup = append(f.cleanup, name)
-		f.uncalledMap[name] = cleanup[0]
-	}
-
-	return f
-}
-
-func (f *Flow) StepAsync(name string, runnable Runnable, cleanup ...Runnable) *Flow {
-	if runnable != nil {
-		f.tasks = append(f.tasks, namedRunnable{name, runnable, true})
+		f.tasks = append(f.tasks, namedRunnable{name, runnable})
 	}
 	if len(cleanup) == 1 {
 		f.cleanup = append(f.cleanup, name)
@@ -130,6 +117,7 @@ func (f *Flow) Run() {
 				delete(f.uncalledMap, r.name)
 			}
 
+<<<<<<< HEAD
 			t.Logf("Running step: %s", r.name)
 			ctx := Context{
 				name:    r.name,
@@ -143,6 +131,22 @@ func (f *Flow) Run() {
 				t.Fatal(err)
 
 				return
+=======
+			if !t.Run(r.name, func(t *testing.T) {
+				ctx := Context{
+					name:    r.name,
+					Context: f.ctx,
+					T:       t,
+					Flow:    f,
+				}
+				if err := r.runnable(ctx); err != nil {
+					t.Fatal(err)
+
+					return
+				}
+			}) {
+				break
+>>>>>>> 83dd9fb (get with the flow)
 			}
 		}
 	})

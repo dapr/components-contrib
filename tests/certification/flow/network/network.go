@@ -10,12 +10,6 @@ import (
 	"net"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/tylertreat/comcast/throttler"
-
-	"github.com/dapr/components-contrib/tests/certification/flow"
-=======
->>>>>>> f0f6d2e (remove async handling)
 	"github.com/tylertreat/comcast/throttler"
 
 	"github.com/dapr/components-contrib/tests/certification/flow"

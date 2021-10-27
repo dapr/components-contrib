@@ -8,7 +8,6 @@ package keyvault_test
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -22,7 +21,6 @@ import (
 
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/go-sdk/client"
 )
@@ -69,7 +67,6 @@ func TestKeyVault(t *testing.T) {
 					return akv.NewAzureKeyvaultSecretStore(log)
 				}),
 			))).
-		Step("Interrupting network traffic for 10 seconds", network.InterruptNetwork(10*time.Second, nil, nil, "80", "443")).
 		Step("Getting known secret", testGetKnownSecret).
 		Run()
 
@@ -90,7 +87,6 @@ func TestKeyVault(t *testing.T) {
 					return akv.NewAzureKeyvaultSecretStore(log)
 				}),
 			))).
-		Step("Interrupting network traffic for 10 seconds", network.InterruptNetwork(10*time.Second, nil, nil, "80", "443")).
 		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
 		Run()
 }

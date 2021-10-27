@@ -93,12 +93,12 @@ func TestKafka(t *testing.T) {
 	}
 
 	// Application logic that tracks messages from a topic.
-	application := func(ctx flow.Context, s common.Service) (err error) {
+	application := func(ctx flow.Context, s common.Service) error {
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, 100)
 
 		// Setup the /orders event handler.
-		err = multierr.Append(err,
+		return multierr.Combine(
 			s.AddTopicEventHandler(&common.Subscription{
 				PubsubName: "messagebus",
 				Topic:      "neworder",
@@ -112,8 +112,6 @@ func TestKafka(t *testing.T) {
 				messages.Observe(e.Data)
 				return false, nil
 			}))
-
-		return err
 	}
 
 	// sendMessagesInBackground and assertMessages are

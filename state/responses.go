@@ -7,9 +7,10 @@ package state
 
 // GetResponse is the response object for getting state.
 type GetResponse struct {
-	Data     []byte            `json:"data"`
-	ETag     *string           `json:"etag,omitempty"`
-	Metadata map[string]string `json:"metadata"`
+	Data        []byte            `json:"data"`
+	ETag        *string           `json:"etag,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
+	ContentType string            `json:"contentType,omitempty"`
 }
 
 // BulkGetResponse is the response object for bulk get response.

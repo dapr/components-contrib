@@ -297,16 +297,11 @@ jobs:
         go mod download
         go install gotest.tools/gotestsum@latest
 
-    - name: Configure Azure SQL Firewall
+    - name: Generate Azure SQL DB name
       run: |
-        set +e
-        TEST_OUTPUT="$(go test -v -tags=conftests -count=1 -timeout=1m ./tests/conformance -run=TestStateConformance/azure.sql)"
-        echo "Trial run result:\n\"$TEST_OUTPUT\""
-        PUBLIC_IP=$(echo "$TEST_OUTPUT" | grep -Po "Client with IP address '\K[^']*")
-        if [[ -n ${PUBLIC_IP} ]]; then
-          echo "Setting Azure SQL firewall-rule AllowTestRunnerIP to allow $PUBLIC_IP..."
-          az sql server firewall-rule create --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n "AllowTestRunnerIP" --start-ip-address "$PUBLIC_IP" --end-ip-address "$PUBLIC_IP"
-        fi
+        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
+        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
+        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
       if: contains(matrix.component, 'azure.sql')
 
     - name: Run tests
@@ -347,12 +342,16 @@ jobs:
       continue-on-error: true
       run: pkill ngrok; cat /tmp/ngrok.log
 
-    - name: Cleanup Azure SQL Firewall and test DB instance
+    - name: Cleanup Azure SQL test DB instance
       if: contains(matrix.component, 'azure.sql')
       continue-on-error: true
       run: |
-        az sql server firewall-rule delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n "AllowTestRunnerIP"
-        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n dapr --yes
+        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
+        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
+        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
+        # deletion may be ongoing in sequential runs.
+        sleep 1m
+        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs

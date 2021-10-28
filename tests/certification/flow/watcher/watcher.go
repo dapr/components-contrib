@@ -16,13 +16,30 @@ import (
 )
 
 type Watcher struct {
-	mu           sync.Mutex
-	expected     []interface{}
-	observed     []interface{}
-	remaining    map[interface{}]struct{}
+	mu sync.Mutex
+
+	// Expected and observed data slices.
+	// Calling Add/Expect* adds data to expected.
+	// Calling Observe adds data to observed.
+	expected []interface{}
+	observed []interface{}
+
+	// Expected data that is yet to be observed.
+	// Calling Prepare/Expect adds data and
+	// calling Observe removes it.
+	remaining map[interface{}]struct{}
+
+	// When the watcher begins waiting for expected data
+	// to be observed, closable set to true.
+	closable bool
+	// When closable is true and all remaining data is
+	// observed, this channel is closed to signal completion.
 	finished     chan struct{}
 	finishedOnce sync.Once
-	verifyOrder  bool
+
+	// If true, tests that the observed data is in the exact
+	// order of the expected data.
+	verifyOrder bool
 }
 
 // TestingT is an interface wrapper around *testing.T
@@ -33,8 +50,13 @@ type TestingT interface {
 	FailNow()
 }
 
+// ErrTimeout denotes that the Watcher timed out
+// waiting for remaining data to be observed.
 var ErrTimeout = errors.New("timeout")
 
+// NewOrdered creates a Watcher that expects
+// observed data to match the ordering of the
+// expected data.
 func NewOrdered() *Watcher {
 	return New(true)
 }
@@ -53,16 +75,64 @@ func New(verifyOrder bool) *Watcher {
 	}
 }
 
-func (w *Watcher) Expect(data ...interface{}) {
+// Reset clears all the underlying state and returns
+// the watcher to a initial state.
+func (w *Watcher) Reset() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.expected = append(w.expected, data...)
+	w.expected = make([]interface{}, 0, 1000)
+	w.observed = make([]interface{}, 0, 1000)
+	w.remaining = make(map[interface{}]struct{}, 1000)
+	w.closable = false
+	w.finished = make(chan struct{}, 1)
+	w.finishedOnce = sync.Once{}
+}
+
+// Prepare is called before a network operation
+// is called to add expected `data` to the `remaining` map.
+// This is so that Observe can verify the data is expected
+// and  add it to the `observed` slice.
+// Use Prepare and Add together when created expected data
+// while a separate goroutine that calls Observer is running.
+func (w *Watcher) Prepare(data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	for _, item := range data {
 		w.remaining[item] = struct{}{}
 	}
 }
 
+// Add is called after the network operation completes
+// successfully and adds `data` to the `expected` slice
+// so that it can be compared to the `observed` data
+// at the end of the test scenario.
+// Use Prepare and Add together when created expected data
+// while a separate goroutine that calls Observer is running.
+func (w *Watcher) Add(data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.expected = append(w.expected, data...)
+}
+
+// Expect adds data to both the `remaining` map
+// add the expected slice in a single call.
+// Use this only when a test scenario can prepare
+// the expected data prior to an Observe calls.
+func (w *Watcher) Expect(data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for _, item := range data {
+		w.remaining[item] = struct{}{}
+	}
+	w.expected = append(w.expected, data...)
+}
+
+// ExpectStrings provides a simple function to
+// add expected strings.
 func (w *Watcher) ExpectStrings(data ...string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -73,6 +143,8 @@ func (w *Watcher) ExpectStrings(data ...string) {
 	}
 }
 
+// ExpectInts provides a simple function to
+// add expected integers.
 func (w *Watcher) ExpectInts(data ...int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -83,6 +155,8 @@ func (w *Watcher) ExpectInts(data ...int) {
 	}
 }
 
+// ExpectI64s provides a simple function to
+// add expected int64s.
 func (w *Watcher) ExpectI64s(data ...int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -93,6 +167,8 @@ func (w *Watcher) ExpectI64s(data ...int64) {
 	}
 }
 
+// ExpectI32s provides a simple function to
+// add expected int32s.
 func (w *Watcher) ExpectI32s(data ...int32) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -103,6 +179,8 @@ func (w *Watcher) ExpectI32s(data ...int32) {
 	}
 }
 
+// ExpectI16s provides a simple function to
+// add expected int16s.
 func (w *Watcher) ExpectI16s(data ...int16) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -113,6 +191,8 @@ func (w *Watcher) ExpectI16s(data ...int16) {
 	}
 }
 
+// ExpectI8s provides a simple function to
+// add expected int8s.
 func (w *Watcher) ExpectI8s(data ...int8) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -123,6 +203,8 @@ func (w *Watcher) ExpectI8s(data ...int8) {
 	}
 }
 
+// ExpectUInts provides a simple function to
+// add expected unsigned integers.
 func (w *Watcher) ExpectUInts(data ...uint) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -133,6 +215,8 @@ func (w *Watcher) ExpectUInts(data ...uint) {
 	}
 }
 
+// ExpectU64s provides a simple function to
+// add expected uint64s.
 func (w *Watcher) ExpectU64s(data ...uint64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -143,6 +227,8 @@ func (w *Watcher) ExpectU64s(data ...uint64) {
 	}
 }
 
+// ExpectU32s provides a simple function to
+// add expected uint32s.
 func (w *Watcher) ExpectU32s(data ...uint32) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -153,6 +239,8 @@ func (w *Watcher) ExpectU32s(data ...uint32) {
 	}
 }
 
+// ExpectU16s provides a simple function to
+// add expected uint16s.
 func (w *Watcher) ExpectU16s(data ...uint16) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -163,6 +251,8 @@ func (w *Watcher) ExpectU16s(data ...uint16) {
 	}
 }
 
+// ExpectBytes provides a simple function to
+// add expected bytes.
 func (w *Watcher) ExpectBytes(data ...byte) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -173,6 +263,8 @@ func (w *Watcher) ExpectBytes(data ...byte) {
 	}
 }
 
+// ExpectRunes provides a simple function to
+// add expected runes.
 func (w *Watcher) ExpectRunes(data ...rune) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -183,6 +275,11 @@ func (w *Watcher) ExpectRunes(data ...rune) {
 	}
 }
 
+// Observe adds any data that is in `remaining` to
+// the `observed` slice. If the the watcher is closable
+// (all expected data captured) and there is no more
+// remaining data to observe, then the finish channel
+// is closed.
 func (w *Watcher) Observe(data ...interface{}) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -194,16 +291,19 @@ func (w *Watcher) Observe(data ...interface{}) {
 		}
 	}
 
-	if len(w.remaining) == 0 {
-		w.finishedOnce.Do(func() {
-			close(w.finished)
-		})
+	if w.closable && len(w.remaining) == 0 {
+		w.finish()
 	}
 }
 
-func (w *Watcher) WaitForResult(duration time.Duration) error {
+// WaitForResult waits for up to `timeout` for all
+// expected data to be observed and returns an error
+// if expected and observed data differ.
+func (w *Watcher) WaitForResult(timeout time.Duration) error {
+	w.checkClosable()
+
 	select {
-	case <-time.After(duration):
+	case <-time.After(timeout):
 		return ErrTimeout
 	case <-w.finished:
 		w.mu.Lock()
@@ -217,9 +317,14 @@ func (w *Watcher) WaitForResult(duration time.Duration) error {
 	return nil
 }
 
-func (w *Watcher) Result(t TestingT, duration time.Duration) (TestingT, interface{}, interface{}) {
+// Result waits for up to `timeout` for all
+// expected data to be observed and returns
+// the expected and observed slices.
+func (w *Watcher) Result(t TestingT, timeout time.Duration) (TestingT, interface{}, interface{}) {
+	w.checkClosable()
+
 	select {
-	case <-time.After(duration):
+	case <-time.After(timeout):
 		w.mu.Lock()
 		remainingCount := len(w.remaining)
 		w.mu.Unlock()
@@ -236,9 +341,16 @@ func (w *Watcher) Result(t TestingT, duration time.Duration) (TestingT, interfac
 	}
 }
 
-func (w *Watcher) Assert(t TestingT, duration time.Duration) bool {
+// Assert waits for up to `timeout` for all
+// expected data to be observed and asserts
+// the expected and observed data are either
+// equal (in order) or have matching elemenets
+// (out of order is acceptable).
+func (w *Watcher) Assert(t TestingT, timeout time.Duration) bool {
+	w.checkClosable()
+
 	select {
-	case <-time.After(duration):
+	case <-time.After(timeout):
 		w.mu.Lock()
 		remainingCount := len(w.remaining)
 		w.mu.Unlock()
@@ -258,9 +370,16 @@ func (w *Watcher) Assert(t TestingT, duration time.Duration) bool {
 	}
 }
 
-func (w *Watcher) Require(t TestingT, duration time.Duration) {
+// Assert waits for up to `timeout` for all
+// expected data to be observed and requires
+// the expected and observed data are either
+// equal (in order) or have matching elemenets
+// (out of order is acceptable).
+func (w *Watcher) Require(t TestingT, timeout time.Duration) {
+	w.checkClosable()
+
 	select {
-	case <-time.After(duration):
+	case <-time.After(timeout):
 		w.mu.Lock()
 		remainingCount := len(w.remaining)
 		w.mu.Unlock()
@@ -278,4 +397,23 @@ func (w *Watcher) Require(t TestingT, duration time.Duration) {
 			require.ElementsMatch(t, w.expected, w.observed)
 		}
 	}
+}
+
+func (w *Watcher) checkClosable() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.closable = true
+
+	// Close the finished channel if observations
+	// are already complete.
+	if len(w.remaining) == 0 {
+		w.finish()
+	}
+}
+
+func (w *Watcher) finish() {
+	w.finishedOnce.Do(func() {
+		close(w.finished)
+	})
 }

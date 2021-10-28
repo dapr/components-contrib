@@ -17,15 +17,15 @@ import (
 )
 
 const (
-	Region          = "Region"
-	Provider        = "Provider"
-	ProjectKey      = "ProjectKey"
-	ClientID        = "ClientID"
-	ClientSecret    = "ClientSecret"
-	Scopes          = "Scopes"
-	ProductTypeName = "ProductTypeName"
-	ProductTypeKey  = "ProductTypeKey"
-	RequestJSON     = "RequestJSON"
+	region          = "region"
+	provider        = "provider"
+	projectKey      = "projectKey"
+	clientID        = "clientID"
+	clientSecret    = "clientSecret"
+	scopes          = "scopes"
+	productTypeName = "productTypeName"
+	productTypeKey  = "productTypeKey"
+	requestJSON     = "requestJSON"
 )
 
 type Binding struct {
@@ -40,12 +40,12 @@ type Data struct {
 }
 
 type commercetoolsMetadata struct {
-	Region       string
-	Provider     string
-	ProjectKey   string
-	ClientID     string
-	ClientSecret string
-	Scopes       string
+	region       string
+	provider     string
+	projectKey   string
+	clientID     string
+	clientSecret string
+	scopes       string
 }
 
 func NewCommercetools(logger logger.Logger) *Binding {
@@ -54,25 +54,21 @@ func NewCommercetools(logger logger.Logger) *Binding {
 
 // Init does metadata parsing and connection establishment.
 func (ct *Binding) Init(metadata bindings.Metadata) error {
-	commercetoolsM := commercetoolsMetadata{}
-
-	commercetoolsM.Region = metadata.Properties[Region]
-	commercetoolsM.Provider = metadata.Properties[Provider]
-	commercetoolsM.ProjectKey = metadata.Properties[ProjectKey]
-	commercetoolsM.ClientID = metadata.Properties[ClientID]
-	commercetoolsM.ClientSecret = metadata.Properties[ClientSecret]
-	commercetoolsM.Scopes = metadata.Properties[Scopes]
+	commercetoolsM, err := ct.getCommercetoolsMetadata(metadata)
+	if err != nil {
+		return err
+	}
 
 	// Create the new client. When an empty value is passed it will use the CTP_*
 	// environment variables to get the value. The HTTPClient arg is optional,
 	// and when empty will automatically be created using the env values.
 	client, err := commercetools.NewClient(&commercetools.ClientConfig{
-		ProjectKey: commercetoolsM.ProjectKey,
-		Endpoints:  commercetools.NewClientEndpoints(commercetoolsM.Region, commercetoolsM.Provider),
+		ProjectKey: commercetoolsM.projectKey,
+		Endpoints:  commercetools.NewClientEndpoints(commercetoolsM.region, commercetoolsM.provider),
 		Credentials: &commercetools.ClientCredentials{
-			ClientID:     commercetoolsM.ClientID,
-			ClientSecret: commercetoolsM.ClientSecret,
-			Scopes:       []string{commercetoolsM.Scopes},
+			ClientID:     commercetoolsM.clientID,
+			ClientSecret: commercetoolsM.clientSecret,
+			Scopes:       []string{commercetoolsM.scopes},
 		},
 	})
 	if err != nil {
@@ -81,7 +77,6 @@ func (ct *Binding) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
-	ct.metadata = commercetoolsM
 	ct.client = client
 
 	return nil
@@ -105,7 +100,7 @@ func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	if len(reqData.CommercetoolsAPI) > 0 {
 		ct.logger.Infof("commercetoolsAPI: %s", reqData.CommercetoolsAPI)
 		if reqData.CommercetoolsAPI == "GraphQLQuery" {
-			res, err = HandleGraphQLQuery(ctx, ct, query)
+			res, err = handleGraphQLQuery(ctx, ct, query)
 			if err != nil {
 				ct.logger.Errorf("error GraphQLQuery")
 
@@ -120,8 +115,8 @@ func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 }
 
 // HandleGraphQLQuery executes the provided query against the commercetools backend.
-func HandleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindings.InvokeResponse, error) {
-	ct.logger.Infof("HandleGraphQLQuery")
+func handleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindings.InvokeResponse, error) {
+	ct.logger.Infof("handleGraphQLQuery")
 
 	res := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 
@@ -149,12 +144,66 @@ func HandleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindin
 // getCommercetoolsMetadata returns new commercetools metadata.
 func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commercetoolsMetadata, error) {
 	meta := commercetoolsMetadata{}
-	meta.Region = metadata.Properties["Region"]
-	meta.Provider = metadata.Properties["Provider"]
-	meta.ProjectKey = metadata.Properties["ProjectKey"]
-	meta.ClientID = metadata.Properties["ClientID"]
-	meta.ClientSecret = metadata.Properties["ClientSecret"]
-	meta.Scopes = metadata.Properties["Scopes"]
+
+	val, ok := metadata.Properties["region"]
+	if !ok {
+		return nil, errors.New("commercetools error: missing 'region' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("commercetools error: 'region' attribute was empty")
+	}
+	meta.region = metadata.Properties["region"]
+
+	val, ok = metadata.Properties["provider"]
+	if !ok {
+		return nil, errors.New("commercetools error: missing 'provider' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("commercetools error: 'provider' attribute was empty")
+	}
+	meta.provider = metadata.Properties["provider"]
+
+	val, ok = metadata.Properties["projectKey"]
+	if !ok {
+		return nil, errors.New("commercetools error: missing 'projectKey' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("commercetools error: 'projectKey' attribute was empty")
+	}
+	meta.projectKey = metadata.Properties["projectKey"]
+
+	val, ok = metadata.Properties["clientID"]
+	if !ok {
+		return nil, errors.New("commercetools error: missing 'clientID' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("commercetools error: 'clientID' attribute was empty")
+	}
+	meta.clientID = metadata.Properties["clientID"]
+
+	val, ok = metadata.Properties["clientSecret"]
+	if !ok {
+		return nil, errors.New("commercetools error: missing 'clientSecret' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("commercetools error: 'clientSecret' attribute was empty")
+	}
+	meta.clientSecret = metadata.Properties["clientSecret"]
+
+	val, ok = metadata.Properties["scopes"]
+	if !ok {
+		return nil, errors.New("commercetools error: missing 'scopes' attribute")
+	}
+	if val == "" {
+		return nil, errors.New("commercetools error: 'scopes' attribute was empty")
+	}
+	meta.scopes = metadata.Properties["scopes"]
 
 	return &meta, nil
+}
+
+func (ct *Binding) Close() error {
+	ct.client = nil
+
+	return nil
 }

@@ -1,12 +1,13 @@
-module github.com/dapr/components-contrib/tests/poc/pubsub/kafka
+module github.com/dapr/components-contrib/tests/certification/pubsub/kafka
 
 go 1.17
 
 require (
 	github.com/Shopify/sarama v1.23.1
+	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/dapr/components-contrib v1.4.0-rc2
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.4.4-0.20211014212830-cf6463b1e459
+	github.com/dapr/dapr v1.4.4-0.20211027184736-b4766bc9b2fa
 	github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0
@@ -27,7 +28,6 @@ require (
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
@@ -81,6 +81,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
+	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.28.0 // indirect
 	go.opencensus.io v0.22.5 // indirect
@@ -119,3 +120,8 @@ require (
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
+
+// Uncomment for local development for testing with changes
+// in the Dapr runtime. Don't commit with this uncommented!
+//
+// replace github.com/dapr/dapr => ../../../../../dapr

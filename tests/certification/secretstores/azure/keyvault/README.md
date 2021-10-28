@@ -1,14 +1,14 @@
-# Azure KeyVault certifcation testing
+# Azure KeyVault certification testing
 
 This project aims to test the Azure KeyVault Secret Store component under various conditions.
 
 ## Test plan
 
-### Basic conformance tests
+### Basic SecretStore certification tests
 
 * Currently handled by TestSecretStoreConformance
 
-### Authentication tests
+### Active Directory Authentication tests
 
 * Authenticate with Azure Active Directory using Service Principal Certificate
 * Authenticate with Azure Active Directory using Service Principal Client Secret
@@ -16,7 +16,7 @@ This project aims to test the Azure KeyVault Secret Store component under variou
 
 ### Other tests
 
-* Client reconnects (if applicable) upon network interruption
+* Client reconnects (if applicable) upon network interruption: Not required as no connection is being maintained.
 
 
 ### Running the tests

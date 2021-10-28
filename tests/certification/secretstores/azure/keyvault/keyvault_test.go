@@ -46,7 +46,9 @@ func TestKeyVault(t *testing.T) {
 			"version": "2",
 		}
 
-		// See .github/infrastructure/conformance/azure/setup-azure-conf-test.sh
+		// This test reuses the Azure conformance test resources created using
+		// .github/infrastructure/conformance/azure/setup-azure-conf-test.sh,
+		// so it reuses the tests/conformance/secretstores/secretstores.go test secrets.
 		res, err := client.GetSecret(ctx, "azurekeyvault", "secondsecret", opt)
 		assert.NoError(t, err)
 		assert.Equal(t, "efgh", res["secondsecret"])
@@ -71,8 +73,8 @@ func TestKeyVault(t *testing.T) {
 		Run()
 
 	// Currently port reuse is still not quite working in the Dapr runtime.
-	currentGrpcPort++
-	currentHttpPort++
+	currentGrpcPort += 37 // arbitrary to avoid port conflict
+	currentHttpPort += 37 // arbitrary to avoid port conflict
 	flow.New(t, "keyvault authentication using certificate").
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),

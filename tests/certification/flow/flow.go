@@ -117,7 +117,6 @@ func (f *Flow) Run() {
 				delete(f.uncalledMap, r.name)
 			}
 
-<<<<<<< HEAD
 			t.Logf("Running step: %s", r.name)
 			ctx := Context{
 				name:    r.name,
@@ -131,22 +130,6 @@ func (f *Flow) Run() {
 				t.Fatal(err)
 
 				return
-=======
-			if !t.Run(r.name, func(t *testing.T) {
-				ctx := Context{
-					name:    r.name,
-					Context: f.ctx,
-					T:       t,
-					Flow:    f,
-				}
-				if err := r.runnable(ctx); err != nil {
-					t.Fatal(err)
-
-					return
-				}
-			}) {
-				break
->>>>>>> 83dd9fb (get with the flow)
 			}
 		}
 	})

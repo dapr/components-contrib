@@ -38,6 +38,24 @@ By default, the script will prefix all resources it creates with your user alias
 - `AzureKeyVaultSecretStoreCert.pfx` is a local copy of the cert for the Service Principal used in the `secretstore.azure.keyvault` conformance test. The path to this is referenced as part of the environment variables in the `*-conf-test-config.rc`.
 - `AZURE_CREDENTIALS` contains the credentials for the Service Principal you can use to run the conformance test GitHub workflow against the created Azure resources.
 
+### Deploying for use in GitHub workflows
+
+If you are running the script to enable running the conformance test workflow in your fork of dapr/components-contrib, you will also need to run the `allow-github-ips-in-azuresql.py` script to allow the ports used by GitHub Actions through the test Azure SQL Server's firewall.
+
+The script coalesces the IP addresses published by the GitHub meta API endpoint and adds them as firewall rules to the target SQL server, for example:
+
+```bash
+python3 allow-github-ips-in-azuresql.py --outpath ~/sql_firewall_settings --sqlserver "${AzureSqlServerName}" --resource-group "${AzureResourceGroupName}"
+```
+
+This script will also allow you to generate the template for adding the firewall rules without deploying them with the `--no-deployment` flag, so you can inspect the rules first as needed:
+
+```bash
+python3 allow-github-ips-in-azuresql.py --outpath ~/sql_firewall_settings --no-deployment
+```
+
+For more details on the parameters, run the script with the `--help` flag.
+
 ## Running Azure conformance tests locally
 
 1. Apply all the environment variables needed to run the Azure conformance test from your device, by sourcing the generated `*-conf-test-config.rc` file. For example:
@@ -46,9 +64,21 @@ By default, the script will prefix all resources it creates with your user alias
     source ~/azure-conf-test/myazurealias-conf-test-config.rc
     ```
 
-2. Follow the [instructions for running individual conformance tests](../../../../tests/conformance/README.md#running-conormance-tests).
+2. Follow the [instructions for running individual conformance tests](../../../../tests/conformance/README.md#running-conformance-tests).
 
     > The `bindings.azure.eventgrid` test and others may require additional setup before running the conformance test, such as setting up non-Azure resources like an Ngrok endpoint. See [conformance.yml](../../../../.github/workflows/conformance.yml) for details.
+
+    > The `state.azure.sql` test expects that the SQL Server firewall port has been opened to the test client. The GitHub workflow relies on all IPs used by GitHub Actions being allowed via the `allow-github-ips-in-azuresql.py` script, but when running locally, you will need to open the port to your client IP as indicated in the initial test failure message.
+    >
+    > ```bash
+    > # Capture the blocked IP from the test failure
+    > TEST_OUTPUT="$(go test -v -tags=conftests -count=1 ./tests/conformance -run=TestStateConformance/azure.sql)"
+    > BLOCKED_IP=$(echo "$TEST_OUTPUT" | grep -Po "Client with IP address '\K[^']*")
+    >
+    > # Login to the account with Contributor access to the SQL server instance
+    > az login
+    > az sql server firewall-rule create --resource-group "$AzureResourceGroupName" --server "$AzureSqlServerName" -n "AllowTestClientIP" --start-ip-address "$BLOCKED_IP" --end-ip-address "$BLOCKED_IP"
+    > ```
 
 ## Running Azure conformance tests via GitHub workflows
 

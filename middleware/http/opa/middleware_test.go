@@ -12,7 +12,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func mockedRequestHandler(ctx *fh.RequestCtx) {}
+// mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
+func mockedRequestHandler(ctx *fh.RequestCtx) {
+	ctx.Response.SetStatusCode(200)
+	ctx.Response.SetBody([]byte("from mock"))
+}
 
 type RequestConfiguator func(*fh.RequestCtx)
 

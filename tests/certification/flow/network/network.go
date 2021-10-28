@@ -109,19 +109,3 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 		return nil
 	}
 }
-
-// Helper function to return a random unused port number. Consecutive calls to this function will return different port numbers.
-func GetAvailablePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return -1, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return -1, err
-	}
-	defer l.Close()
-
-	return l.Addr().(*net.TCPAddr).Port, nil
-}

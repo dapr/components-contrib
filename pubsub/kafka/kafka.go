@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -26,11 +27,12 @@ import (
 )
 
 const (
-	key        = "partitionKey"
-	skipVerify = "skipVerify"
-	caCert     = "caCert"
-	clientCert = "clientCert"
-	clientKey  = "clientKey"
+	key                  = "partitionKey"
+	skipVerify           = "skipVerify"
+	caCert               = "caCert"
+	clientCert           = "clientCert"
+	clientKey            = "clientKey"
+	consumeRetryInterval = "consumeRetryInterval"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group.
@@ -49,22 +51,24 @@ type Kafka struct {
 	consumer      consumer
 	config        *sarama.Config
 
-	backOffConfig retry.Config
+	backOffConfig        retry.Config
+	consumeRetryInterval time.Duration
 }
 
 type kafkaMetadata struct {
-	Brokers         []string
-	ConsumerGroup   string
-	ClientID        string
-	AuthRequired    bool
-	SaslUsername    string
-	SaslPassword    string
-	InitialOffset   int64
-	MaxMessageBytes int
-	TLSSkipVerify   bool
-	TLSCaCert       string
-	TLSClientCert   string
-	TLSClientKey    string
+	Brokers              []string
+	ConsumerGroup        string
+	ClientID             string
+	AuthRequired         bool
+	SaslUsername         string
+	SaslPassword         string
+	InitialOffset        int64
+	MaxMessageBytes      int
+	TLSSkipVerify        bool
+	TLSCaCert            string
+	TLSClientCert        string
+	TLSClientKey         string
+	ConsumeRetryInterval time.Duration
 }
 
 type consumer struct {
@@ -169,6 +173,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		"backOff"); err != nil {
 		return err
 	}
+	k.consumeRetryInterval = meta.ConsumeRetryInterval
 
 	k.logger.Debug("Kafka message bus initialization complete")
 
@@ -272,17 +277,23 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 
 		for {
 			k.logger.Debugf("Starting loop to consume.")
-			// Consume the requested topic
-			innerError := k.cg.Consume(ctx, topics, &(k.consumer))
-			if innerError != nil {
-				k.logger.Errorf("Error consuming %v: %v", topics, innerError)
+
+			// Consume the requested topics
+			bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
+			innerErr := retry.NotifyRecover(func() error {
+				return k.cg.Consume(ctx, topics, &(k.consumer))
+			}, bo, func(err error, t time.Duration) {
+				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+			}, func() {
+				k.logger.Infof("Recovered consuming %v", topics)
+			})
+			if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
+				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
 			}
 
 			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
 			// us out of the consume loop
 			if ctx.Err() != nil {
-				k.logger.Debugf("Context error, stopping consumer: %v", ctx.Err())
-
 				return
 			}
 		}
@@ -295,7 +306,9 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 
 // getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
-	meta := kafkaMetadata{}
+	meta := kafkaMetadata{
+		ConsumeRetryInterval: 100 * time.Millisecond,
+	}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
 	if val, ok := metadata.Properties["consumerID"]; ok && val != "" {
 		meta.ConsumerGroup = val
@@ -395,6 +408,17 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		if boolVal {
 			k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
 		}
+	}
+	if val, ok := metadata.Properties[consumeRetryInterval]; ok && val != "" {
+		durationVal, err := time.ParseDuration(val)
+		if err != nil {
+			intVal, err := strconv.ParseUint(val, 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", consumeRetryInterval, err)
+			}
+			durationVal = time.Duration(intVal) * time.Millisecond
+		}
+		meta.ConsumeRetryInterval = durationVal
 	}
 
 	return &meta, nil

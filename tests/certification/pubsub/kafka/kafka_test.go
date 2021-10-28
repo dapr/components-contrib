@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -19,10 +20,15 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+
+	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
+	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
+	kit_retry "github.com/dapr/kit/retry"
 
+	// Certification testing runnables
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
@@ -50,9 +56,16 @@ func TestKafka(t *testing.T) {
 	// For Kafka, we should ensure messages are received in order.
 	messages := watcher.NewOrdered()
 
+	// Set the partition key on all messages so they
+	// are written to the same partition.
+	// This allows for checking of ordered messages.
+	metadata := map[string]string{
+		"partitionKey": "test",
+	}
+
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
-	test := func(ctx flow.Context) error {
+	basicTest := func(ctx flow.Context) error {
 		client := sidecar.GetClient(ctx, sidecarName)
 
 		// Declare what is expected BEFORE performing any steps
@@ -68,7 +81,8 @@ func TestKafka(t *testing.T) {
 		for _, msg := range msgs {
 			ctx.Logf("Sending: %q", msg)
 			err := client.PublishEvent(
-				ctx, "messagebus", "neworder", msg)
+				ctx, "messagebus", "neworder", msg,
+				dapr.PublishEventWithMetadata(metadata))
 			require.NoError(ctx, err, "error publishing message")
 		}
 
@@ -79,12 +93,12 @@ func TestKafka(t *testing.T) {
 	}
 
 	// Application logic that tracks messages from a topic.
-	application := func(ctx flow.Context, s common.Service) (err error) {
+	application := func(ctx flow.Context, s common.Service) error {
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, 100)
 
 		// Setup the /orders event handler.
-		err = multierr.Append(err,
+		return multierr.Combine(
 			s.AddTopicEventHandler(&common.Subscription{
 				PubsubName: "messagebus",
 				Topic:      "neworder",
@@ -96,12 +110,63 @@ func TestKafka(t *testing.T) {
 
 				// Track/Observe the data of the event.
 				messages.Observe(e.Data)
-				ctx.Logf("Event - pubsub: %s, topic: %s, id: %s, data: %s",
-					e.PubsubName, e.Topic, e.ID, e.Data)
 				return false, nil
 			}))
+	}
 
-		return err
+	// sendMessagesInBackground and assertMessages are
+	// Runnables for testing publishing and consuming
+	// messages reliably when infrastructure and network
+	// interruptions occur.
+	var cctx context.Context
+	var cancel context.CancelFunc
+	var done chan struct{}
+	sendMessagesInBackground := func(ctx flow.Context) error {
+		cctx, cancel = context.WithCancel(ctx)
+		client := sidecar.GetClient(ctx, sidecarName)
+		messages.Reset()
+
+		go func() {
+			done = make(chan struct{}, 1)
+			t := time.NewTicker(100 * time.Millisecond)
+			defer func() {
+				t.Stop()
+				close(done)
+			}()
+
+			counter := 1
+			for {
+				select {
+				case <-cctx.Done():
+					return
+				case <-t.C:
+					msg := fmt.Sprintf("Background message - %03d", counter)
+					messages.Prepare(msg) // Track for observation
+
+					// Publish with retries.
+					bo := backoff.WithContext(backoff.NewConstantBackOff(time.Second), cctx)
+					if err := kit_retry.NotifyRecover(func() error {
+						return client.PublishEvent(
+							cctx, "messagebus", "neworder", msg,
+							dapr.PublishEventWithMetadata(metadata))
+					}, bo, func(err error, t time.Duration) {
+						ctx.Logf("Error publishing message, retrying in %s", t)
+					}, func() {}); err == nil {
+						messages.Add(msg) // Success
+						counter++
+					}
+				}
+			}
+		}()
+
+		return nil
+	}
+	assertMessages := func(ctx flow.Context) error {
+		cancel() // Signal sendMessagesInBackground to stop.
+		<-done   // Wait for sendMessagesInBackground to complete.
+		messages.Assert(ctx, 5*time.Minute)
+
+		return nil
 	}
 
 	flow.New(t, "kafka certification").
@@ -127,8 +192,10 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
+		//
 		// Run the application logic above.
 		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
+		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName,
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -139,6 +206,43 @@ func TestKafka(t *testing.T) {
 					return pubsub_kafka.NewKafka(log)
 				}),
 			))).
-		Step("send and wait", test).
+		Step("send and wait", basicTest).
+		//
+		// Gradually stop each broker.
+		// This tests the components ability to handle reconnections
+		// when brokers are shutdown cleanly.
+		Step("steady flow of messages to publish", sendMessagesInBackground).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("stop broker 1", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka1")).
+		Step("wait", flow.Sleep(5*time.Second)).
+		//
+		// Errors will likely start occurring here since quorum is lost.
+		Step("stop broker 2", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka2")).
+		Step("wait", flow.Sleep(10*time.Second)).
+		//
+		// Errors will definitely occur here.
+		Step("stop broker 3", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka3")).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("restart broker 3", dockercompose.Start(clusterName, dockerComposeYAML, "kafka3")).
+		Step("restart broker 2", dockercompose.Start(clusterName, dockerComposeYAML, "kafka2")).
+		Step("restart broker 1", dockercompose.Start(clusterName, dockerComposeYAML, "kafka1")).
+		//
+		// Component should recover at this point.
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("assert messages", assertMessages).
+		//
+		// Simulate a network interruption.
+		// This tests the components ability to handle reconnections
+		// when Dapr is disconnected abnormally.
+		Step("steady flow of messages to publish", sendMessagesInBackground).
+		Step("wait", flow.Sleep(5*time.Second)).
+		//
+		// Errors will occurring here.
+		Step("interrupt network",
+			network.InterruptNetwork(30*time.Second, nil, nil, "19092", "29092", "39092")).
+		//
+		// Component should recover at this point.
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("assert messages", assertMessages).
 		Run()
 }

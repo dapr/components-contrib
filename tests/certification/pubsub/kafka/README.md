@@ -24,8 +24,10 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
 * Stop 1 broker node so that 2 of 3 are active
     * The 2 applications should handle the server rebalance
 * Stop another broker so that 1 of 3 are active (loss of quorum)
-    * Test: Begins trying to connect & publish
-    * Component: Begins trying to connect & re-subscribe
+    * Test: Begins trying to reconnect & publish
+    * Component: Begins trying to reconnect & re-subscribe
+* Stop the last broker so that 0 of 3 are active (complete outage)
+    * Same as reconnection behavior above
 * Restart both brokers so that 3 of 3 are active
     * Test & Component: Reconnect
     * Count of total sent should equal total received
@@ -33,12 +35,18 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
     * Test: Publishes a specific amount of messages
     * Each consumer should receive all messages
 
+### Network tests
+
+* Simulate network interruption
+    * Test: Begins trying to reconnect & publish
+    * Component: Begins trying to reconnect & re-subscribe
+
 ### Data integrity tests
 
-* Start a new sidecar/application
-* Verify cloud events 
-    * Publish various cloud events
-    * App receives Kafka messages and verifies their binary encoding
-* Verify raw events
-    * Publish various raw events
-    * App receives Kafka messages and verifies their binary encoding
+* **TODO** Start a new sidecar/application
+* **TODO** Verify cloud events 
+    * **TODO** Publish various cloud events
+    * **TODO** App receives Kafka messages and verifies their binary encoding
+* **TODO** Verify raw events
+    * **TODO** Publish various raw events
+    * **TODO** App receives Kafka messages and verifies their binary encoding

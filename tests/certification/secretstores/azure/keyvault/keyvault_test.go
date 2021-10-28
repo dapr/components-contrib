@@ -21,6 +21,7 @@ import (
 
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/go-sdk/client"
 )
@@ -30,8 +31,10 @@ const (
 )
 
 func TestKeyVault(t *testing.T) {
-	currentGrpcPort := runtime.DefaultDaprAPIGRPCPort
-	currentHttpPort := runtime.DefaultDaprHTTPPort
+	currentGrpcPort, err := network.GetAvailablePort()
+	assert.NoError(t, err)
+	currentHttpPort, err := network.GetAvailablePort()
+	assert.NoError(t, err)
 
 	log := logger.NewLogger("dapr.components")
 
@@ -73,8 +76,11 @@ func TestKeyVault(t *testing.T) {
 		Run()
 
 	// Currently port reuse is still not quite working in the Dapr runtime.
-	currentGrpcPort += 37 // arbitrary to avoid port conflict
-	currentHttpPort += 37 // arbitrary to avoid port conflict
+	currentGrpcPort, err = network.GetAvailablePort()
+	assert.NoError(t, err)
+	currentHttpPort, err = network.GetAvailablePort()
+	assert.NoError(t, err)
+
 	flow.New(t, "keyvault authentication using certificate").
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),

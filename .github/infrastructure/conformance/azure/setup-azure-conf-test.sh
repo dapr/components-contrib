@@ -181,6 +181,8 @@ IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureIotHubPubsubConsumerGroup"
 
 KEYVAULT_CERT_NAME="AzureKeyVaultSecretStoreCert"
 KEYVAULT_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreClientId"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientSecret"
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureKeyVaultSecretStoreServicePrincipalClientId"
 KEYVAULT_TENANT_ID_VAR_NAME="AzureKeyVaultSecretStoreTenantId"
 KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 
@@ -189,6 +191,7 @@ RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
 SERVICE_BUS_CONNECTION_STRING_VAR_NAME="AzureServiceBusConnectionString"
 
 SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
+SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
 SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
@@ -216,8 +219,8 @@ echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
     SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
-    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\".*//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
     if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
         echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
         exit 1
@@ -228,7 +231,7 @@ if [[ -n ${CREDENTIALS_PATH} ]]; then
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
     SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
     SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
     echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
@@ -297,11 +300,17 @@ echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
 
-# Create Identity
+# Create Identity if it doesn't exist
 # We use the standard name "azure-managed-identity" for the identity so we can easily query for it later using the CLI
-echo "Creating Identity azure-managed-identity"
-MANAGED_IDENTITY_SP="$(az identity create -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --location ${DEPLOY_LOCATION} --query principalId -otsv)"
-# This identity can later be injected into services for managed identity authentication
+if az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv; then
+    echo "Reusing Identity azure-managed-identity"
+    MANAGED_IDENTITY_SP="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query principalId -otsv)"
+else
+    echo "Creating Identity azure-managed-identity"
+    MANAGED_IDENTITY_SP="$(az identity create -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --location ${DEPLOY_LOCATION} --query principalId -otsv)"
+    # This identity can later be injected into services for managed identity authentication
+fi
+
 MANAGED_IDENTITY_ID="$(az identity show -g ${RESOURCE_GROUP_NAME} -n azure-managed-identity --query id -otsv)"
 echo "Created Identity ${MANAGED_IDENTITY_ID}"
 
@@ -312,6 +321,15 @@ echo "Granting identity azure-managed-identity permissions to access the Key Vau
 az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${MANAGED_IDENTITY_SP}"
 # Other tests verifying managed identity will want to grant permission like so:
 # MSYS_NO_PATHCONV=1 az role assignment create --assignee-object-id "${MANAGED_IDENTITY_SP}" --assignee-principal-type ServicePrincipal --role "Azure Service Bus Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.ServiceBus/namespaces/${SERVICE_BUS_NAME}"
+
+# Creating service principal for service principal authentication with KeyVault
+AKV_SPAUTH_SP_NAME="${PREFIX}-akv-spauth-conf-test-sp"
+echo "Creating service principal ${AKV_SPAUTH_SP_NAME} for use with KeyVault ${KEYVAULT_NAME}"
+{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+
+# Give the service principal read access to the KeyVault Secrets
+AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query objectId -otsv)"
+az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${AKV_SPAUTH_SP_OBJECTID}"
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
@@ -357,6 +375,8 @@ echo "Purging key vault ${KEYVAULT_NAME} ..."
 az keyvault purge --name "${KEYVAULT_NAME}"
 echo "Deleting service principal ${CERT_AUTH_SP_NAME} ..."
 az ad sp delete --id "${CERT_AUTH_SP_ID}"
+echo "Deleting service principal ${AKV_SPAUTH_SP_NAME} ..."
+az ad sp delete --id "${AKV_SPAUTH_SP_OBJECTID}"
 EOF
 
 # Only remove the test runner Service Principal if it was not pre-existing
@@ -418,6 +438,13 @@ KEYVAULT_CLIENT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --quer
 echo export ${KEYVAULT_CLIENT_ID_VAR_NAME}=\"${KEYVAULT_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_CLIENT_ID}"
 
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID=${AKV_SPAUTH_SP_CLIENT_ID}
+echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID}"
+
+KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET=${AKV_SPAUTH_SP_CLIENT_SECRET}
+echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}"
 # ------------------------------------
 # Populate Blob Storage test settings
 # ------------------------------------
@@ -513,6 +540,10 @@ az keyvault secret set --name "${RESOURCE_GROUP_NAME_VAR_NAME}" --vault-name "${
 
 echo export ${SQL_SERVER_NAME_VAR_NAME}=\"${SQL_SERVER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SQL_SERVER_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_NAME}"
+
+# Export a default value for DB name to be used when running conformance test locally.
+# This is not added to the keyvault as the conformance.yml workflow generates a unique DB name each time.
+echo export ${SQL_SERVER_DB_NAME_VAR_NAME}=\"${PREFIX}SqlDb\" >> "${ENV_CONFIG_FILENAME}"
 
 # Note that `az sql db show-connection-string` does not currently support a `go` --client type, so we construct our own here.
 SQL_SERVER_CONNECTION_STRING="Server=${SQL_SERVER_NAME}.database.windows.net;port=1433;User ID=${SQL_SERVER_ADMIN_NAME};Password=${SQL_SERVER_ADMIN_PASSWORD};Encrypt=true;"

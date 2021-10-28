@@ -17,11 +17,11 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/go-sdk/client"
 )
@@ -31,10 +31,11 @@ const (
 )
 
 func TestKeyVault(t *testing.T) {
-	currentGrpcPort, err := network.GetAvailablePort()
+	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
-	currentHttpPort, err := network.GetAvailablePort()
-	assert.NoError(t, err)
+
+	currentGrpcPort := ports[0]
+	currentHttpPort := ports[1]
 
 	log := logger.NewLogger("dapr.components")
 
@@ -76,10 +77,10 @@ func TestKeyVault(t *testing.T) {
 		Run()
 
 	// Currently port reuse is still not quite working in the Dapr runtime.
-	currentGrpcPort, err = network.GetAvailablePort()
+	ports, err = dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
-	currentHttpPort, err = network.GetAvailablePort()
-	assert.NoError(t, err)
+	currentGrpcPort = ports[0]
+	currentHttpPort = ports[1]
 
 	flow.New(t, "keyvault authentication using certificate").
 		Step(sidecar.Run(sidecarName,

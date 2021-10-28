@@ -9,13 +9,16 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	servicebus "github.com/Azure/azure-service-bus-go"
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -29,10 +32,13 @@ const (
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
-	metadata *serviceBusQueuesMetadata
-	client   *servicebus.Queue
-
-	logger logger.Logger
+	metadata       *serviceBusQueuesMetadata
+	ns             *servicebus.Namespace
+	queue          *servicebus.QueueEntity
+	shutdownSignal int32
+	logger         logger.Logger
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
 type serviceBusQueuesMetadata struct {
@@ -60,6 +66,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	a.ns = ns
 
 	qm := ns.NewQueueManager()
 
@@ -91,18 +98,16 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		if !ok {
 			ttl = a.metadata.ttl
 		}
-
 		entity, err = qm.Put(ctx, a.metadata.QueueName, servicebus.QueueEntityWithMessageTimeToLive(&ttl))
 		if err != nil {
 			return err
 		}
 	}
+	a.queue = entity
 
-	client, err := ns.NewQueue(entity.Name)
-	if err != nil {
-		return err
-	}
-	a.client = client
+	a.clearShutdown()
+
+	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	return nil
 }
@@ -145,6 +150,12 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
+	client, err := a.ns.NewQueue(a.queue.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close(context.Background())
+
 	msg := servicebus.NewMessage(req.Data)
 	if val, ok := req.Metadata[id]; ok && val != "" {
 		msg.ID = val
@@ -162,7 +173,7 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 		msg.TTL = &ttl
 	}
 
-	return nil, a.client.Send(ctx, msg)
+	return nil, client.Send(ctx, msg)
 }
 
 func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
@@ -178,13 +189,64 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byt
 		return msg.Abandon(ctx)
 	}
 
-	if err := a.client.Receive(context.Background(), sbHandler); err != nil {
-		return err
-	}
+	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
+	connConfig := retry.DefaultConfig()
+	connConfig.Policy = retry.PolicyExponential
+	connConfig.MaxInterval, _ = time.ParseDuration("5m")
+	connBackoff := connConfig.NewBackOffWithContext(a.ctx)
 
+	for !a.isShutdown() {
+		client := a.attemptConnectionForever(connBackoff)
+
+		if client == nil {
+			a.logger.Errorf("Failed to connect to Azure Service Bus Queue.")
+			continue
+		}
+		defer client.Close(context.Background())
+
+		if err := client.Receive(a.ctx, sbHandler); err != nil {
+			a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+		}
+	}
 	return nil
 }
 
+func (a *AzureServiceBusQueues) attemptConnectionForever(backoff backoff.BackOff) *servicebus.Queue {
+	var client *servicebus.Queue
+	retry.NotifyRecover(func() error {
+		clientAttempt, err := a.ns.NewQueue(a.queue.Name)
+		if err != nil {
+			return err
+		}
+		client = clientAttempt
+		return nil
+	}, backoff,
+		func(err error, d time.Duration) {
+			a.logger.Debugf("Failed to connect to Azure Service Bus Queue Binding with error: %s", err.Error())
+		},
+		func() {
+			a.logger.Debug("Successfully reconnected to Azure Service Bus.")
+			backoff.Reset()
+		})
+	return client
+}
+
 func (a *AzureServiceBusQueues) Close() error {
-	return a.client.Close(context.Background())
+	defer a.cancel()
+	a.logger.Info("Shutdown called!")
+	a.setShutdown()
+	return nil
+}
+
+func (a *AzureServiceBusQueues) setShutdown() {
+	atomic.CompareAndSwapInt32(&a.shutdownSignal, 0, 1)
+}
+
+func (a *AzureServiceBusQueues) clearShutdown() {
+	atomic.CompareAndSwapInt32(&a.shutdownSignal, 1, 0)
+}
+
+func (a *AzureServiceBusQueues) isShutdown() bool {
+	val := atomic.LoadInt32(&a.shutdownSignal)
+	return val == 1
 }

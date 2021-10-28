@@ -4,10 +4,6 @@ This project aims to test the Azure KeyVault Secret Store component under variou
 
 ## Test plan
 
-### Basic SecretStore certification tests
-
-* Currently handled by TestSecretStoreConformance
-
 ### Active Directory Authentication tests
 
 * Authenticate with Azure Active Directory using Service Principal Certificate

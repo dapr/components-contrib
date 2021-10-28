@@ -315,25 +315,6 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 		s.logger.Errorf("error fetching queue attributes for %s: %v", queueName, err)
 	}
 
-	// add permissions to allow SNS to send messages to this queue
-	_, err = s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
-		Attributes: map[string]*string{
-			"Policy": aws.String(fmt.Sprintf(`{
-				"Statement": [{
-					"Effect":"Allow",
-					"Principal":"*",
-					"Action":"sqs:SendMessage",
-					"Resource":"%s"				
-				}]
-			}`, *(queueAttributesResponse.Attributes["QueueArn"]))),
-		},
-		QueueUrl: createQueueResponse.QueueUrl,
-	}))
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &sqsQueueInfo{
 		arn: *(queueAttributesResponse.Attributes["QueueArn"]),
 		url: *(createQueueResponse.QueueUrl),
@@ -527,6 +508,34 @@ func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 	return sqsSetQueueAttributesInput, nil
 }
 
+func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo, snsARN string) error {
+	// only permit SNS to send messages to SQS using the created subscription
+	_, err := s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
+		Attributes: map[string]*string{
+			"Policy": aws.String(fmt.Sprintf(`{
+				"Version": "2012-10-17",
+				"Statement": [{
+					"Effect":"Allow",
+					"Principal":{"Service": "sns.amazonaws.com"},
+					"Action":"sqs:SendMessage",
+					"Resource":"%s",
+					"Condition": {
+						"ArnEquals":{
+						  "aws:SourceArn":"%s"
+						}
+					  }	
+				}]
+			}`, sqsQueueInfo.arn, snsARN)),
+		},
+		QueueUrl: &sqsQueueInfo.url,
+	}))
+	if err != nil {
+		return fmt.Errorf("error setting queue subscription policy: %v", err)
+	}
+
+	return nil
+}
+
 func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	// subscribers declare a topic ARN
 	// and declare a SQS queue to use
@@ -548,6 +557,15 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 		return err
 	}
 
+	// only after a SQS queue and SNS topic had been setup, we restrict the SendMessage action to SNS as sole source
+	// to prevent anyone but SNS to publish message to SQS
+	err = s.restrictQueuePublishPolicyToOnlySNS(queueInfo, topicArn)
+	if err != nil {
+		s.logger.Errorf("error setting sns-sqs subscription policy: %w", err)
+		return err
+	}
+
+	// apply the dead letters queue attributes to the current queue
 	var deadLettersQueueInfo *sqsQueueInfo
 	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
 		var derr error
@@ -572,8 +590,6 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 			return derr
 		}
 	}
-
-	// apply the dead letters queue attributes to the current queue
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{

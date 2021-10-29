@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagettl
+  namespace: default
+spec:
+  type: bindings.azure.servicebusqueues
+  version: v1
+  metadata:
+  - name: connectionString
+    secretKeyRef:
+      name: AzureServiceBusConnectionString
+      key: AzureServiceBusConnectionString
+  - name: queueName
+    value: messagettlqueue
+auth:
+  secretStore: envvar-secret-store

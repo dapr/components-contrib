@@ -98,7 +98,7 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 
 		// The connection string and the namespace cannot both be present.
 		if namespace, present := meta.Properties[namespaceName]; present && namespace != "" {
-			return m, fmt.Errorf("%s connectionString and namespaceName cannot both be specified.", errorMessagePrefix)
+			return m, fmt.Errorf("%s connectionString and namespaceName cannot both be specified", errorMessagePrefix)
 		}
 	} else if val, ok := meta.Properties[namespaceName]; ok && val != "" {
 		m.NamespaceName = val
@@ -277,7 +277,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 		}
 	} else {
 		// Initialization code
-		settings, err := azauth.NewEnvironmentSettings("serviceBus", metadata.Properties)
+		settings, err := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
 		if err != nil {
 			return err
 		}

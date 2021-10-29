@@ -7,6 +7,10 @@ package azure
 
 import "github.com/Azure/azure-amqp-common-go/v3/aad"
 
+const (
+	AzureServiceBusResourceName string = "serviceBus"
+)
+
 // GetTokenProvider creates a TokenProvider for AAD retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate

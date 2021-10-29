@@ -73,7 +73,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 		}
 	} else {
 		// Initialization code
-		settings, sErr := azauth.NewEnvironmentSettings("serviceBus", metadata.Properties)
+		settings, sErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
 		if sErr != nil {
 			return sErr
 		}
@@ -154,7 +154,7 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	}
 
 	if m.ConnectionString != "" && m.NamespaceName != "" {
-		return nil, errors.New("connectionString and namespaceName are mutually exclusive.")
+		return nil, errors.New("connectionString and namespaceName are mutually exclusive")
 	}
 
 	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)

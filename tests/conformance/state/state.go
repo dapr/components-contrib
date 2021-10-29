@@ -6,6 +6,7 @@
 package state
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -23,13 +24,17 @@ type ValueType struct {
 }
 
 type scenario struct {
-	key                  string
-	value                interface{}
-	expectedReadResponse []byte
-	toBeDeleted          bool
-	bulkOnly             bool
-	transactionOnly      bool
-	transactionGroup     int
+	key              string
+	value            interface{}
+	toBeDeleted      bool
+	bulkOnly         bool
+	transactionOnly  bool
+	transactionGroup int
+}
+
+type queryScenario struct {
+	query   string
+	results []state.QueryItem
 }
 
 type TestConfig struct {
@@ -57,135 +62,141 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	scenarios := []scenario{
 		{
-			key:                  fmt.Sprintf("%s-int", key),
-			value:                123,
-			expectedReadResponse: []byte("123"),
+			key:   fmt.Sprintf("%s-int", key),
+			value: 123,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bool", key),
-			value:                true,
-			expectedReadResponse: []byte("true"),
+			key:   fmt.Sprintf("%s-bool", key),
+			value: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bytes", key),
-			value:                []byte{0x1},
-			expectedReadResponse: []byte{0x1},
+			key:   fmt.Sprintf("%s-bytes", key),
+			value: []byte{0x1},
 		},
 		{
-			key:                  fmt.Sprintf("%s-string-with-json", key),
-			value:                "{\"a\":\"b\"}",
-			expectedReadResponse: []byte("\"{\\\"a\\\":\\\"b\\\"}\""),
+			key:   fmt.Sprintf("%s-string-with-json", key),
+			value: "{\"a\":\"b\"}",
 		},
 		{
-			key:                  fmt.Sprintf("%s-string", key),
-			value:                "hello world",
-			expectedReadResponse: []byte("\"hello world\""),
+			key:   fmt.Sprintf("%s-string", key),
+			value: "hello world",
 		},
 		{
-			key:                  fmt.Sprintf("%s-struct", key),
-			value:                ValueType{Message: "test"},
-			expectedReadResponse: []byte("{\"message\":\"test\"}"),
+			key:   fmt.Sprintf("%s-struct", key),
+			value: ValueType{Message: fmt.Sprintf("%s-test", key)},
 		},
 		{
-			key:                  fmt.Sprintf("%s-to-be-deleted", key),
-			value:                "to be deleted",
-			expectedReadResponse: []byte("\"to be deleted\""),
-			toBeDeleted:          true,
+			key:         fmt.Sprintf("%s-to-be-deleted", key),
+			value:       "to be deleted",
+			toBeDeleted: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-int", key),
-			value:                123,
-			expectedReadResponse: []byte("123"),
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-int", key),
+			value:    123,
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-bool", key),
-			value:                true,
-			expectedReadResponse: []byte("true"),
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-bool", key),
+			value:    true,
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-bytes", key),
-			value:                []byte{0x1},
-			expectedReadResponse: []byte{0x1},
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-bytes", key),
+			value:    []byte{0x1},
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-string", key),
-			value:                "hello world",
-			expectedReadResponse: []byte("\"hello world\""),
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-string", key),
+			value:    "hello world",
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-struct", key),
-			value:                ValueType{Message: "test"},
-			expectedReadResponse: []byte("{\"message\":\"test\"}"),
-			bulkOnly:             true,
+			key:      fmt.Sprintf("%s-bulk-struct", key),
+			value:    ValueType{Message: "test"},
+			bulkOnly: true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-to-be-deleted", key),
-			value:                "to be deleted",
-			expectedReadResponse: []byte("\"to be deleted\""),
-			toBeDeleted:          true,
-			bulkOnly:             true,
+			key:         fmt.Sprintf("%s-bulk-to-be-deleted", key),
+			value:       "to be deleted",
+			toBeDeleted: true,
+			bulkOnly:    true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
-			value:                "to be deleted too",
-			expectedReadResponse: []byte("\"to be deleted too\""),
-			toBeDeleted:          true,
-			bulkOnly:             true,
+			key:         fmt.Sprintf("%s-bulk-to-be-deleted-too", key),
+			value:       "to be deleted too",
+			toBeDeleted: true,
+			bulkOnly:    true,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-int", key),
-			value:                123,
-			expectedReadResponse: []byte("123"),
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-int", key),
+			value:            123,
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-bool", key),
-			value:                true,
-			expectedReadResponse: []byte("true"),
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-bool", key),
+			value:            true,
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-bytes", key),
-			value:                []byte{0x1},
-			expectedReadResponse: []byte{0x1},
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-bytes", key),
+			value:            []byte{0x1},
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-string", key),
-			value:                "hello world",
-			expectedReadResponse: []byte("\"hello world\""),
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-string", key),
+			value:            "hello world",
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-struct", key),
-			value:                ValueType{Message: "test"},
-			expectedReadResponse: []byte("{\"message\":\"test\"}"),
-			transactionOnly:      true,
-			transactionGroup:     2,
+			key:              fmt.Sprintf("%s-trx-struct", key),
+			value:            ValueType{Message: "test"},
+			transactionOnly:  true,
+			transactionGroup: 2,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-to-be-deleted", key),
-			value:                "to be deleted",
-			expectedReadResponse: []byte("\"to be deleted\""),
-			toBeDeleted:          true,
-			transactionOnly:      true,
-			transactionGroup:     1,
+			key:              fmt.Sprintf("%s-trx-to-be-deleted", key),
+			value:            "to be deleted",
+			toBeDeleted:      true,
+			transactionOnly:  true,
+			transactionGroup: 1,
 		},
 		{
-			key:                  fmt.Sprintf("%s-trx-to-be-deleted-too", key),
-			value:                "to be deleted too",
-			expectedReadResponse: []byte("\"to be deleted too\""),
-			toBeDeleted:          true,
-			transactionOnly:      true,
-			transactionGroup:     3,
+			key:              fmt.Sprintf("%s-trx-to-be-deleted-too", key),
+			value:            "to be deleted too",
+			toBeDeleted:      true,
+			transactionOnly:  true,
+			transactionGroup: 3,
+		},
+	}
+
+	queryScenarios := []queryScenario{
+		{
+			query: `
+			{
+				"query": {
+					"filter": {
+						"OR": [
+							{
+								"EQ": {"value.message": "dummy"}
+							},
+							{
+								"IN": {"value.message": ["` + key + `-test", "dummy"]}
+							}
+						]
+					}
+				}
+			}
+			`,
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct", key),
+					Data: []byte(fmt.Sprintf("{\"message\":\"%s-test\"}", key)),
+				},
+			},
 		},
 	}
 
@@ -225,7 +236,27 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
-					assert.Equal(t, scenario.expectedReadResponse, res.Data)
+					assertEquals(t, scenario.value, res)
+				}
+			}
+		})
+	}
+
+	if config.HasOperation("query") {
+		t.Run("query", func(t *testing.T) {
+			querier, ok := statestore.(state.Querier)
+			assert.Truef(t, ok, "Querier interface is not implemented")
+			for _, scenario := range queryScenarios {
+				t.Logf("Querying value presence for %s", scenario.query)
+				var req state.QueryRequest
+				err := json.Unmarshal([]byte(scenario.query), &req)
+				assert.NoError(t, err)
+				resp, err := querier.Query(&req)
+				assert.NoError(t, err)
+				assert.Equal(t, len(scenario.results), len(resp.Results))
+				for i := range scenario.results {
+					assert.Equal(t, scenario.results[i].Key, resp.Results[i].Key)
+					assert.Equal(t, string(scenario.results[i].Data), string(resp.Results[i].Data))
 				}
 			}
 		})
@@ -276,7 +307,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
-					assert.Equal(t, scenario.expectedReadResponse, res.Data)
+					assertEquals(t, scenario.value, res)
 				}
 			}
 		})
@@ -371,7 +402,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 								},
 							})
 							assert.Nil(t, err)
-							assert.Equal(t, scenario.expectedReadResponse, res.Data)
+							assertEquals(t, scenario.value, res)
 						}
 
 						if scenario.toBeDeleted && (scenario.transactionGroup == transactionGroup-1) {
@@ -428,7 +459,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 
 			assert.Nil(t, err)
-			assert.Equal(t, firstValue, res.Data)
+			assertEquals(t, firstValue, res)
 			etag := res.ETag
 
 			// Try and update with wrong ETag, expect failure.
@@ -452,7 +483,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key: testKey,
 			})
 			assert.Nil(t, err)
-			assert.Equal(t, secondValue, res.Data)
+			assertEquals(t, secondValue, res)
 			assert.NotEqual(t, etag, res.ETag)
 			etag = res.ETag
 
@@ -535,7 +566,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					Key: testKey,
 				})
 				assert.Nil(t, err)
-				assert.Equal(t, firstValue, res.Data)
+				assertEquals(t, firstValue, res)
 
 				// Second write expect fail
 				err = statestore.Set(requestSet[1])
@@ -567,7 +598,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key: testKey,
 			})
 			assert.Nil(t, err)
-			assert.Equal(t, firstValue, res.Data)
+			assertEquals(t, firstValue, res)
 
 			etag := res.ETag
 
@@ -589,7 +620,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			})
 			assert.Nil(t, err)
 			assert.NotEqual(t, etag, res.ETag)
-			assert.Equal(t, secondValue, res.Data)
+			assertEquals(t, secondValue, res)
 
 			request.ETag = etag
 
@@ -597,5 +628,30 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			err = statestore.Set(request)
 			assert.NotNil(t, err)
 		})
+	}
+}
+
+func assertEquals(t *testing.T, value interface{}, res *state.GetResponse) {
+	switch v := value.(type) {
+	case ValueType:
+		// Custom type requires case mapping
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
+	case int:
+		// json.Unmarshal to float64 by default, case mapping to int coerces to int type
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
+	case []byte:
+		assert.Equal(t, value, res.Data)
+	default:
+		// Other golang primitive types (string, bool ...)
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
 	}
 }

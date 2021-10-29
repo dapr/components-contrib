@@ -6,6 +6,8 @@
 name: Components Conformance Tests
 
 on:
+  repository_dispatch:
+    types: [conformance-test]
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
@@ -65,6 +67,7 @@ jobs:
         - state.mongodb
         - state.redis
         - state.sqlserver
+        - state.postgresql
         - state.mysql
         EOF
         )
@@ -111,9 +114,11 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault
+        - component: secretstores.azure.keyvault.certificate
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
+        - component: secretstores.azure.keyvault.serviceprincipal
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
@@ -136,6 +141,21 @@ jobs:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
     steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      uses: actions/github-script@v1
+      with:
+        github-token: ${{secrets.DAPR_BOT_TOKEN}}
+        script: |
+          const testPayload = context.payload.client_payload;
+          if (testPayload && testPayload.command == "ok-to-test") {
+            var fs = require('fs');
+            // Set environment variables
+            fs.appendFileSync(process.env.GITHUB_ENV,
+              `CHECKOUT_REPO=${testPayload.pull_head_repo}\n`+
+              `CHECKOUT_REF=${testPayload.pull_head_ref}`);
+          }
+  
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
@@ -255,6 +275,12 @@ jobs:
       uses: helm/kind-action@v1.0.0
       if: contains(matrix.component, 'kubernetes')
 
+    - name: Start postgresql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
+      if: contains(matrix.component, 'postgresql')
+
+
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
       run: |
@@ -271,16 +297,11 @@ jobs:
         go mod download
         go install gotest.tools/gotestsum@latest
 
-    - name: Configure Azure SQL Firewall
+    - name: Generate Azure SQL DB name
       run: |
-        set +e
-        TEST_OUTPUT="$(go test -v -tags=conftests -count=1 -timeout=1m ./tests/conformance -run=TestStateConformance/azure.sql)"
-        echo "Trial run result:\n\"$TEST_OUTPUT\""
-        PUBLIC_IP=$(echo "$TEST_OUTPUT" | grep -Po "Client with IP address '\K[^']*")
-        if [[ -n ${PUBLIC_IP} ]]; then
-          echo "Setting Azure SQL firewall-rule AllowTestRunnerIP to allow $PUBLIC_IP..."
-          az sql server firewall-rule create --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n "AllowTestRunnerIP" --start-ip-address "$PUBLIC_IP" --end-ip-address "$PUBLIC_IP"
-        fi
+        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
+        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
+        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
       if: contains(matrix.component, 'azure.sql')
 
     - name: Run tests
@@ -321,12 +342,16 @@ jobs:
       continue-on-error: true
       run: pkill ngrok; cat /tmp/ngrok.log
 
-    - name: Cleanup Azure SQL Firewall and test DB instance
+    - name: Cleanup Azure SQL test DB instance
       if: contains(matrix.component, 'azure.sql')
       continue-on-error: true
       run: |
-        az sql server firewall-rule delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n "AllowTestRunnerIP"
-        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n dapr --yes
+        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
+        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
+        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
+        # deletion may be ongoing in sequential runs.
+        sleep 1m
+        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs

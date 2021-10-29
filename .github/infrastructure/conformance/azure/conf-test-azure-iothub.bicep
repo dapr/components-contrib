@@ -16,7 +16,7 @@ resource iotHub 'Microsoft.Devices/IotHubs@2021-03-31' = {
   tags: confTestTags
   sku: {
       capacity: 1
-      name: 'F1'
+      name: 'S1'
   }
   properties: {
     eventHubEndpoints: {

@@ -11,12 +11,17 @@ import (
 
 func TestParsePulsarMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
-	m.Properties = map[string]string{"host": "a", "enableTLS": "false"}
+	m.Properties = map[string]string{
+		"host":            "a",
+		"enableTLS":       "false",
+		"disableBatching": "true",
+	}
 	meta, err := parsePulsarMetadata(m)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.Host)
 	assert.Equal(t, false, meta.EnableTLS)
+	assert.Equal(t, true, meta.DisableBatching)
 }
 
 func TestParsePublishMetadata(t *testing.T) {

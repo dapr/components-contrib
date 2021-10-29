@@ -20,6 +20,7 @@ const (
 	enableTLS         = "enableTLS"
 	deliverAt         = "deliverAt"
 	deliverAfter      = "deliverAfter"
+	disableBatching   = "disableBatching"
 	cachedNumProducer = 10
 )
 
@@ -53,6 +54,13 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			return nil, errors.New("pulsar error: invalid value for enableTLS")
 		}
 		m.EnableTLS = tls
+	}
+	if val, ok := meta.Properties[disableBatching]; ok {
+		enableBatching, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for disableBatching")
+		}
+		m.DisableBatching = enableBatching
 	}
 
 	return &m, nil
@@ -115,7 +123,8 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if cache == nil {
 		p.logger.Debugf("creating producer for topic %s", req.Topic)
 		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
-			Topic: req.Topic,
+			Topic:           req.Topic,
+			DisableBatching: p.metadata.DisableBatching,
 		})
 		if err != nil {
 			return err

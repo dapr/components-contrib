@@ -75,7 +75,6 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
-		pattern: regexp.MustCompile("[^a-zA-Z0-9_\\-]+"),
 	}
 }
 
@@ -512,7 +511,7 @@ func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 
 func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo, snsARN string) error {
 	// only permit SNS to send messages to SQS using the created subscription.
-	_, err := s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
+	if _, err := s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
 		Attributes: map[string]*string{
 			"Policy": aws.String(fmt.Sprintf(`{
 				"Version": "2012-10-17",
@@ -530,8 +529,7 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo,
 			}`, sqsQueueInfo.arn, snsARN)),
 		},
 		QueueUrl: &sqsQueueInfo.url,
-	}))
-	if err != nil {
+	})); err != nil {
 		return fmt.Errorf("error setting queue subscription policy: %w", err)
 	}
 

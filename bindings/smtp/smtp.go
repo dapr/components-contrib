@@ -98,11 +98,17 @@ func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 
 	msg.SetHeader("Subject", metadata.Subject)
 	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
+
 	body, err := strconv.Unquote(string(req.Data))
+
 	if err != nil {
-		return nil, fmt.Errorf("smtp binding error: can't unquote data field %w", err)
+		// When data arrives over gRPC it's not quoted. Unquoting the original data will result in an error.
+		// Instead of unquoting it we'll just use the raw string as that one's already in the right format.
+
+		msg.SetBody("text/html", string(req.Data))
+	} else {
+		msg.SetBody("text/html", body)
 	}
-	msg.SetBody("text/html", body)
 
 	// Send message
 	dialer := gomail.NewDialer(metadata.Host, metadata.Port, metadata.User, metadata.Password)

@@ -135,7 +135,6 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 		return smtpMeta, errors.New("smtp binding error: host and port fields are required in metadata")
 	}
 
-	//nolint
 	if (meta.Properties["user"] != "" && meta.Properties["password"] == "") ||
 		(meta.Properties["user"] == "" && meta.Properties["password"] != "") {
 		return smtpMeta, errors.New("smtp binding error: both user and password fields are required in metadata")

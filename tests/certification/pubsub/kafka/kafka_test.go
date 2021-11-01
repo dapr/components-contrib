@@ -293,38 +293,5 @@ func TestKafka(t *testing.T) {
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages", assertMessages(messages1, messages2)).
-
-		// ////////////
-		// Step("send and wait with 2 consumers", func(ctx flow.Context) error {
-		// 	messages1.Reset()
-		// 	sendRecvTest(messages1, messages2)
-
-		// 	return nil
-		// }).
-		// ///----------
-		// //
-		// // Gradually stop each broker.
-		// // This tests the components ability to handle reconnections
-		// // when brokers are shutdown cleanly.
-		// Step("steady flow of messages to publish",
-		// 	sendMessagesInBackground(messages1, messages2)).
-		// Step("wait", flow.Sleep(5*time.Second)).
-		// Step("stop broker 1", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka1")).
-		// Step("wait", flow.Sleep(5*time.Second)).
-		// //
-		// // Errors will likely start occurring here since quorum is lost.
-		// Step("stop broker 2", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka2")).
-		// Step("wait", flow.Sleep(10*time.Second)).
-		// //
-		// // Errors will definitely occur here.
-		// Step("stop broker 3", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka3")).
-		// Step("wait", flow.Sleep(30*time.Second)).
-		// Step("restart broker 3", dockercompose.Start(clusterName, dockerComposeYAML, "kafka3")).
-		// Step("restart broker 2", dockercompose.Start(clusterName, dockerComposeYAML, "kafka2")).
-		// Step("restart broker 1", dockercompose.Start(clusterName, dockerComposeYAML, "kafka1")).
-		// //
-		// // Component should recover at this point.
-		// Step("wait", flow.Sleep(30*time.Second)).
-		// Step("assert messages", assertMessages(messages1)).
 		Run()
 }

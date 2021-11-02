@@ -6,6 +6,7 @@
 package sqlserver_test
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -21,8 +22,6 @@ import (
 	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-
-	// mssql "github.com/denisenkom/go-mssqldb"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
@@ -77,6 +76,16 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	createCustomSchema := func(ctx flow.Context) error {
+		db, err := sql.Open("sqlserver", "server=localhost;user id=sa;password=Pass@Word1;port=1433;")
+		if err != nil {
+			return err
+		}
+		db.Exec("CREATE SCHEMA customschema;")
+		db.Close()
+		return nil
+	}
+
 	flow.New(t, "SQLServer certification using SQL Server Docker").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
@@ -106,6 +115,38 @@ func TestSqlServer(t *testing.T) {
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarName)).
+		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
+		Run()
+
+	ports, err = dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGrpcPort = ports[0]
+	currentHttpPort = ports[1]
+
+	flow.New(t, "Using existing custom schema").
+		// Run SQL Server using Docker Compose.
+		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
+		// This step only applies to spinning up the docker container for the first time
+		Step("Wait for Docker", flow.Sleep(time.Second*10)).
+		Step("Creating schema", createCustomSchema).
+
+		// Run the Dapr sidecar with the Kafka component.
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithComponentsPath("components/docker/customschema"),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				})),
+			runtime.WithStates(
+				state_loader.New("sqlserver", func() state.Store {
+					return state_sqlserver.NewSQLServerStateStore(log)
+				}),
+			))).
+		Step("Run basic test", basicTest).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
 

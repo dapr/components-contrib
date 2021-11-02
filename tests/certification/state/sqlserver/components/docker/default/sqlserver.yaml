@@ -6,6 +6,6 @@ spec:
   type: state.sqlserver
   metadata:
   - name: connectionString
-    value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;Connection Timeout=30;"
+    value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;Connection Timeout=5;"
   - name: databaseName
     value: certificationtest

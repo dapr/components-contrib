@@ -79,8 +79,9 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	// this test function heavily depends on the values defined in ./components/docker/customschemawithindex
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
-		// verify indices were created by Dapr
+		// verify indices were created by Dapr as specified in the component metadata
 		db, err := sql.Open("sqlserver", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
 		assert.NoError(t, err)
 		defer db.Close()
@@ -102,10 +103,9 @@ func TestSqlServer(t *testing.T) {
 				}
 			}
 		}
-
 		assert.Equal(t, 3, indexFoundCount)
 
-		// write JSON data to the table (which will automatically be indexed in separate columns)
+		// write JSON data to the state store (which will automatically be indexed in separate columns)
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
 		if err != nil {
 			panic(err)
@@ -130,6 +130,20 @@ func TestSqlServer(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, string(data), string(item.Value))
 
+		// check that Dapr wrote the indexed properties to separate columns
+		rows, err = db.Query("SELECT TOP 1 transactionid, customerid FROM [customschema].[mystates];")
+		assert.NoError(t, err)
+		if rows.Next() {
+			var transactionId int
+			var customerId string
+			err = rows.Scan(&transactionId, &customerId)
+			assert.NoError(t, err)
+			assert.Equal(t, transactionId, order.ID)
+			assert.Equal(t, customerId, order.Customer)
+		} else {
+			assert.Fail(t, "no rows returned")
+		}
+
 		// delete state for key certificationkey1
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1")
 		assert.NoError(t, err)
@@ -137,6 +151,7 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	// helper function for testing the use of an existing custom schema
 	createCustomSchema := func(ctx flow.Context) error {
 		db, err := sql.Open("sqlserver", dockerConnectionString)
 		assert.NoError(t, err)
@@ -146,6 +161,7 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	// helper function to insure the SQL Server Docker Container is truly ready
 	checkSqlServerAvailability := func(ctx flow.Context) error {
 		db, err := sql.Open("sqlserver", dockerConnectionString)
 		if err != nil {
@@ -179,12 +195,13 @@ func TestSqlServer(t *testing.T) {
 				}),
 			))).
 		Step("Run basic test", basicTest).
-		// Introduce network interruption
+		// Introduce network interruption of 15 seconds
+		// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
 		Step("interrupt network",
-			network.InterruptNetwork(40*time.Second, nil, nil, "1433", "1434")).
+			network.InterruptNetwork(15*time.Second, nil, nil, "1433", "1434")).
 
 		// Component should recover at this point.
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(5*time.Second)).
 		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()

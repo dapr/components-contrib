@@ -7,6 +7,7 @@ package kafka
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Shopify/sarama"
 
@@ -44,6 +45,7 @@ func TestParseMetadata(t *testing.T) {
 	m.Properties = map[string]string{
 		"consumerGroup": "a", "clientID": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048",
 		skipVerify: "true", clientCert: clientCertPemMock, clientKey: clientKeyMock, caCert: caCertMock,
+		"consumeRetryInterval": "200",
 	}
 	k := getKafkaPubsub()
 	meta, err := k.getKafkaMetadata(m)
@@ -56,6 +58,7 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, clientCertPemMock, meta.TLSClientCert)
 	assert.Equal(t, clientKeyMock, meta.TLSClientKey)
 	assert.Equal(t, caCertMock, meta.TLSCaCert)
+	assert.Equal(t, 200*time.Millisecond, meta.ConsumeRetryInterval)
 }
 
 func TestMissingBrokers(t *testing.T) {

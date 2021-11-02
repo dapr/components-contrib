@@ -254,8 +254,6 @@ github.com/cyberdelia/templates v0.0.0-20141128023046-ca7fffd4298c/go.mod h1:GyV
 github.com/cyphar/filepath-securejoin v0.2.2/go.mod h1:FpkQEhXnPnOthhzymB7CGsFk2G9VLXONKD9G7QGMM+4=
 github.com/dancannon/gorethink v4.0.0+incompatible/go.mod h1:BLvkat9KmZc1efyYwhz3WnybhRZtgF1K929FD8z1avU=
 github.com/dapr/dapr v1.4.3/go.mod h1:jqB+3LI4HTXmhG8GnJDL3YSzAurBWLm2ag0xu3RHWcs=
-github.com/dapr/dapr v1.4.4-0.20211014212830-cf6463b1e459 h1:vDkVxHvzyHHap3sRz7jjxzz8LSNwUGOxJAyvSyxvy6o=
-github.com/dapr/dapr v1.4.4-0.20211014212830-cf6463b1e459/go.mod h1:aw2iMYi6QfBUQjL5CHqXGmcScbCAuFgiY7pm+JP8oEY=
 github.com/dapr/dapr v1.4.4-0.20211026235832-5e8d7275a35e h1:2SmQLj3oCH+OFujYG+KYmdn7Wx1G6KIKCWcRVLy193k=
 github.com/dapr/dapr v1.4.4-0.20211026235832-5e8d7275a35e/go.mod h1:kYXmuIPSj72TZf8mi8EEAIPFleBqwu9bsouFlsf1nDw=
 github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9 h1:Z8r84jBgbp5sP+fA5on7w0bL2j8Cd/mfNZ0osDmUFRM=
@@ -1115,6 +1113,7 @@ go.uber.org/atomic v1.6.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
 go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/atomic v1.8.0 h1:CUhrE4N1rqSE6FM9ecihEjRkLQu8cDfgDyoOs83mEY4=
 go.uber.org/atomic v1.8.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
+go.uber.org/automaxprocs v1.4.0/go.mod h1:/mTEdr7LvHhs0v7mjdxDreTz1OG5zdZGqgOnhWiR/+Q=
 go.uber.org/goleak v1.1.10/go.mod h1:8a7PlsEVH3e/a/GLqe5IIrQx6GzcnRmZEufDUTk4A7A=
 go.uber.org/multierr v1.1.0/go.mod h1:wR5kodmAFQ0UK8QlbwjlSNy0Z68gJhDJUG5sjR94q/0=
 go.uber.org/multierr v1.2.0/go.mod h1:wR5kodmAFQ0UK8QlbwjlSNy0Z68gJhDJUG5sjR94q/0=

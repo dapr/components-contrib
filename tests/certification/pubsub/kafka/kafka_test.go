@@ -13,6 +13,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -44,13 +45,16 @@ import (
 const (
 	sidecarName1      = "dapr-1"
 	sidecarName2      = "dapr-2"
+	sidecarName3      = "dapr-3"
 	appID1            = "app-1"
 	appID2            = "app-2"
+	appID3            = "app-3"
 	clusterName       = "kafkacertification"
 	dockerComposeYAML = "docker-compose.yml"
 	numMessages       = 1000
 	appPort           = 8000
 	portOffset        = 2
+	messageKey        = "partitionKey"
 
 	pubsubName = "messagebus"
 	topicName  = "neworder"
@@ -66,7 +70,9 @@ func TestKafka(t *testing.T) {
 
 	// For Kafka, we should ensure messages are received in order.
 	messages1 := watcher.NewOrdered()
-	messages2 := watcher.NewOrdered()
+	// This watcher is across multiple consumers in the same group
+	// so exact ordering is not expected.
+	messages2 := watcher.NewUnordered()
 
 	// Application logic that tracks messages from a topic.
 	application := func(messages *watcher.Watcher) app.SetupFn {
@@ -97,12 +103,13 @@ func TestKafka(t *testing.T) {
 	// are written to the same partition.
 	// This allows for checking of ordered messages.
 	metadata := map[string]string{
-		"partitionKey": "test",
+		messageKey: "test",
 	}
 
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
-	sendRecvTest := func(messages ...*watcher.Watcher) flow.Runnable {
+	sendRecvTest := func(metadata map[string]string, messages ...*watcher.Watcher) flow.Runnable {
+		_, hasKey := metadata[messageKey]
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName1)
 
@@ -114,6 +121,12 @@ func TestKafka(t *testing.T) {
 			}
 			for _, m := range messages {
 				m.ExpectStrings(msgs...)
+			}
+			// If no key it provided, create a random one.
+			// For Kafka, this will spread messages across
+			// the topic's partitions.
+			if !hasKey {
+				metadata[messageKey] = uuid.NewString()
 			}
 
 			// Send events that the application above will observe.
@@ -242,7 +255,28 @@ func TestKafka(t *testing.T) {
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			runtime.WithPubSubs(component))).
-		Step("send and wait", sendRecvTest(messages1, messages2)).
+		//
+		// Send messages using the same metadata/message key so we can expect
+		// in-order processing.
+		Step("send and wait", sendRecvTest(metadata, messages1, messages2)).
+		//
+		// Run the third application.
+		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
+			application(messages2))).
+		//
+		// Run the Dapr sidecar with the Kafka component.
+		Step(sidecar.Run(sidecarName3,
+			embedded.WithComponentsPath("./components/consumer2"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
+			runtime.WithPubSubs(component))).
+		Step("reset", flow.Reset(messages2)).
+		//
+		// Send messages with random keys to test message consumption
+		// across more than one consumer group and consumers per group.
+		Step("send and wait", sendRecvTest(map[string]string{}, messages2)).
 		//
 		// Gradually stop each broker.
 		// This tests the components ability to handle reconnections

@@ -29,6 +29,20 @@ func Sleep(t time.Duration) Runnable {
 	}
 }
 
+type Resetable interface {
+	Reset()
+}
+
+func Reset(reset ...Resetable) Runnable {
+	return func(_ Context) error {
+		for _, r := range reset {
+			r.Reset()
+		}
+
+		return nil
+	}
+}
+
 type AsyncTask struct {
 	Context
 	cancelOnce   sync.Once

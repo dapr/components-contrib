@@ -139,64 +139,53 @@ func TestKafka(t *testing.T) {
 	// Runnables for testing publishing and consuming
 	// messages reliably when infrastructure and network
 	// interruptions occur.
-	var cctx context.Context
-	var cancel context.CancelFunc
-	var done chan struct{}
+	var task flow.AsyncTask
 	sendMessagesInBackground := func(messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-			cctx, cancel = context.WithCancel(ctx)
 			client := sidecar.GetClient(ctx, sidecarName1)
 			for _, m := range messages {
 				m.Reset()
 			}
 
-			go func() {
-				done = make(chan struct{}, 1)
-				t := time.NewTicker(100 * time.Millisecond)
-				defer func() {
-					t.Stop()
-					close(done)
-				}()
+			t := time.NewTicker(100 * time.Millisecond)
+			defer t.Stop()
 
-				counter := 1
-				for {
-					select {
-					case <-cctx.Done():
-						return
-					case <-t.C:
-						msg := fmt.Sprintf("Background message - %03d", counter)
+			counter := 1
+			for {
+				select {
+				case <-task.Done():
+					return nil
+				case <-t.C:
+					msg := fmt.Sprintf("Background message - %03d", counter)
+					for _, m := range messages {
+						m.Prepare(msg) // Track for observation
+					}
+
+					// Publish with retries.
+					bo := backoff.WithContext(backoff.NewConstantBackOff(time.Second), task)
+					if err := kit_retry.NotifyRecover(func() error {
+						return client.PublishEvent(
+							// Using ctx instead of task here is deliberate.
+							// We don't want cancelation to prevent adding
+							// the message, only to interrupt between tries.
+							ctx, pubsubName, topicName, msg,
+							dapr.PublishEventWithMetadata(metadata))
+					}, bo, func(err error, t time.Duration) {
+						ctx.Logf("Error publishing message, retrying in %s", t)
+					}, func() {}); err == nil {
 						for _, m := range messages {
-							m.Prepare(msg) // Track for observation
+							m.Add(msg) // Success
 						}
-
-						// Publish with retries.
-						bo := backoff.WithContext(backoff.NewConstantBackOff(time.Second), cctx)
-						if err := kit_retry.NotifyRecover(func() error {
-							return client.PublishEvent(
-								// Using ctx instead of cctx here is deliberate.
-								// We don't want cancelation to prevent adding
-								// the message, only to interrupt between tries.
-								ctx, pubsubName, topicName, msg,
-								dapr.PublishEventWithMetadata(metadata))
-						}, bo, func(err error, t time.Duration) {
-							ctx.Logf("Error publishing message, retrying in %s", t)
-						}, func() {}); err == nil {
-							for _, m := range messages {
-								m.Add(msg) // Success
-							}
-							counter++
-						}
+						counter++
 					}
 				}
-			}()
-
-			return nil
+			}
 		}
 	}
 	assertMessages := func(messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-			cancel() // Signal sendMessagesInBackground to stop.
-			<-done   // Wait for sendMessagesInBackground to complete.
+			// Signal sendMessagesInBackground to stop and wait for it to complete.
+			task.CancelAndWait()
 			for _, m := range messages {
 				m.Assert(ctx, 5*time.Minute)
 			}
@@ -258,7 +247,7 @@ func TestKafka(t *testing.T) {
 		// Gradually stop each broker.
 		// This tests the components ability to handle reconnections
 		// when brokers are shutdown cleanly.
-		Step("steady flow of messages to publish",
+		StepAsync("steady flow of messages to publish", &task,
 			sendMessagesInBackground(messages1, messages2)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("stop broker 1", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka1")).
@@ -282,7 +271,7 @@ func TestKafka(t *testing.T) {
 		// Simulate a network interruption.
 		// This tests the components ability to handle reconnections
 		// when Dapr is disconnected abnormally.
-		Step("steady flow of messages to publish",
+		StepAsync("steady flow of messages to publish", &task,
 			sendMessagesInBackground(messages1, messages2)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		//

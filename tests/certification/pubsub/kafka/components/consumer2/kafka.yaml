@@ -9,7 +9,7 @@ spec:
   - name: brokers
     value: localhost:19092,localhost:29092,localhost:39092
   - name: consumerGroup
-    value: kafkaCertification
+    value: kafkaCertification2
   - name: authRequired
     value: "false"
   - name: initialOffset

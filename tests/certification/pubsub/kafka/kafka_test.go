@@ -69,10 +69,10 @@ func TestKafka(t *testing.T) {
 	})
 
 	// For Kafka, we should ensure messages are received in order.
-	messages1 := watcher.NewOrdered()
+	consumerGroup1 := watcher.NewOrdered()
 	// This watcher is across multiple consumers in the same group
 	// so exact ordering is not expected.
-	messages2 := watcher.NewUnordered()
+	consumerGroup2 := watcher.NewUnordered()
 
 	// Application logic that tracks messages from a topic.
 	application := func(messages *watcher.Watcher) app.SetupFn {
@@ -233,7 +233,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			application(messages1))).
+			application(consumerGroup1))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName1,
@@ -245,7 +245,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the second application.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-			application(messages2))).
+			application(consumerGroup2))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
@@ -258,11 +258,11 @@ func TestKafka(t *testing.T) {
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
-		Step("send and wait", sendRecvTest(metadata, messages1, messages2)).
+		Step("send and wait", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
 		//
 		// Run the third application.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
-			application(messages2))).
+			application(consumerGroup2))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
@@ -272,17 +272,17 @@ func TestKafka(t *testing.T) {
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
 			runtime.WithPubSubs(component))).
-		Step("reset", flow.Reset(messages2)).
+		Step("reset", flow.Reset(consumerGroup2)).
 		//
 		// Send messages with random keys to test message consumption
 		// across more than one consumer group and consumers per group.
-		Step("send and wait", sendRecvTest(map[string]string{}, messages2)).
+		Step("send and wait", sendRecvTest(map[string]string{}, consumerGroup2)).
 		//
 		// Gradually stop each broker.
 		// This tests the components ability to handle reconnections
 		// when brokers are shutdown cleanly.
 		StepAsync("steady flow of messages to publish", &task,
-			sendMessagesInBackground(messages1, messages2)).
+			sendMessagesInBackground(consumerGroup1, consumerGroup2)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("stop broker 1", dockercompose.Stop(clusterName, dockerComposeYAML, "kafka1")).
 		Step("wait", flow.Sleep(5*time.Second)).
@@ -300,13 +300,13 @@ func TestKafka(t *testing.T) {
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(messages1, messages2)).
+		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
 		//
 		// Simulate a network interruption.
 		// This tests the components ability to handle reconnections
 		// when Dapr is disconnected abnormally.
 		StepAsync("steady flow of messages to publish", &task,
-			sendMessagesInBackground(messages1, messages2)).
+			sendMessagesInBackground(consumerGroup1, consumerGroup2)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		//
 		// Errors will occurring here.
@@ -315,18 +315,18 @@ func TestKafka(t *testing.T) {
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(messages1, messages2)).
+		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
 		//
 		// Reset and test that all messages are received during a
 		// consumer rebalance.
-		Step("reset", flow.Reset(messages2)).
+		Step("reset", flow.Reset(consumerGroup2)).
 		StepAsync("steady flow of messages to publish", &task,
-			sendMessagesInBackground(messages2)).
+			sendMessagesInBackground(consumerGroup2)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("stop sidecar 2", sidecar.Stop(sidecarName2)).
 		Step("wait", flow.Sleep(3*time.Second)).
 		Step("stop app 2", app.Stop(appID2)).
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(messages2)).
+		Step("assert messages", assertMessages(consumerGroup2)).
 		Run()
 }

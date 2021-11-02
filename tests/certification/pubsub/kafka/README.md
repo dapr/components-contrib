@@ -35,6 +35,9 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
 * Restart both brokers so that 3 of 3 are active
     * Test & Component: Reconnect
     * Count of total sent should equal total received
+* Stop consumer with >1 sidecar subscribed
+    * Test: Publishes messages in the background
+    * Component: Handles a consumer rebalance
 
 ### Network tests
 

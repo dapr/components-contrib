@@ -316,5 +316,17 @@ func TestKafka(t *testing.T) {
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages", assertMessages(messages1, messages2)).
+		//
+		// Reset and test that all messages are received during a
+		// consumer rebalance.
+		Step("reset", flow.Reset(messages2)).
+		StepAsync("steady flow of messages to publish", &task,
+			sendMessagesInBackground(messages2)).
+		Step("wait", flow.Sleep(15*time.Second)).
+		Step("stop sidecar 2", sidecar.Stop(sidecarName2)).
+		Step("wait", flow.Sleep(3*time.Second)).
+		Step("stop app 2", app.Stop(appID2)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("assert messages", assertMessages(messages2)).
 		Run()
 }

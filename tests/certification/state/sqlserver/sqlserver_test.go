@@ -174,6 +174,38 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	// checks the state store component is not vulnerable to SQL injection
+	verifySQLInjectionTest := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		// common SQL injection techniques for SQL Server
+		sqlInjectionAttempts := []string{
+			"; DROP states--",
+			"dapr' OR '1'='1",
+		}
+
+		for _, sqlInjectionAttempt := range sqlInjectionAttempts {
+			// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
+			err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt))
+			assert.NoError(t, err)
+
+			// get state for key sqlInjectionAttempt's value
+			item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt)
+			assert.NoError(t, err)
+			assert.Equal(t, sqlInjectionAttempt, string(item.Value))
+
+			// delete state for key sqlInjectionAttempt's value
+			err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt)
+			assert.NoError(t, err)
+		}
+
+		return nil
+	}
+
 	flow.New(t, "SQLServer certification using SQL Server Docker").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
@@ -202,7 +234,8 @@ func TestSqlServer(t *testing.T) {
 
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
+		Step("Run basic test again to verify reconnection occurred", basicTest).
+		Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
 
@@ -261,6 +294,7 @@ func TestSqlServer(t *testing.T) {
 
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(10*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarNamePrefix+"azure")).
+		Step("Run basic test again to verify reconnection occurred", basicTest).
+		Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"azure")).
 		Run()
 }

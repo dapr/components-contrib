@@ -45,6 +45,7 @@ jobs:
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - pubsub.kafka
+        - pubsub.rabbitmq
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

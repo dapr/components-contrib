@@ -4,7 +4,7 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
 
 ## Test plan
 
-### Basic conformance tests
+### Basic tests
 
 * Bring up a 3-node Kafka cluster
     * Configured to have 10+ partitions per topic

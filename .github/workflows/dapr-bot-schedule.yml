@@ -59,4 +59,3 @@ jobs:
         exempt-pr-labels: 'pinned'
         operations-per-run: 500
         ascending: true
-        

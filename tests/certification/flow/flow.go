@@ -29,6 +29,85 @@ func Sleep(t time.Duration) Runnable {
 	}
 }
 
+type Resetable interface {
+	Reset()
+}
+
+func Reset(reset ...Resetable) Runnable {
+	return func(_ Context) error {
+		for _, r := range reset {
+			r.Reset()
+		}
+
+		return nil
+	}
+}
+
+type AsyncTask struct {
+	Context
+	cancelOnce   sync.Once
+	cancel       context.CancelFunc
+	completeOnce sync.Once
+	complete     chan struct{}
+}
+
+func (t *AsyncTask) Cancel() {
+	t.cancelOnce.Do(func() {
+		t.cancel()
+	})
+}
+
+func (t *AsyncTask) Complete() {
+	t.completeOnce.Do(func() {
+		close(t.complete)
+	})
+}
+
+func (t *AsyncTask) Wait() {
+	<-t.complete
+}
+
+func (t *AsyncTask) CancelAndWait() {
+	t.Cancel()
+	t.Wait()
+}
+
+func Async(task *AsyncTask, runnable Runnable, cleanup ...Runnable) (Runnable, Runnable) {
+	var cleanupFn Runnable
+	if len(cleanup) == 1 {
+		cleanupFn = cleanup[0]
+	}
+	return func(ctx Context) error {
+			cctx, cancel := ctx.WithCancel()
+			*task = AsyncTask{
+				Context:      cctx,
+				cancelOnce:   sync.Once{},
+				cancel:       cancel,
+				completeOnce: sync.Once{},
+				complete:     make(chan struct{}, 1),
+			}
+
+			go func() {
+				defer func() {
+					task.Cancel()
+					task.Complete()
+				}()
+
+				runnable(ctx)
+			}()
+
+			return nil
+		},
+		func(ctx Context) error {
+			task.CancelAndWait()
+			if cleanupFn != nil {
+				cleanupFn(ctx)
+			}
+
+			return nil
+		}
+}
+
 type Flow struct {
 	t           *testing.T
 	ctx         context.Context
@@ -92,6 +171,11 @@ func (f *Flow) Step(name string, runnable Runnable, cleanup ...Runnable) *Flow {
 	}
 
 	return f
+}
+
+func (f *Flow) StepAsync(name string, task *AsyncTask, runnable Runnable, cleanup ...Runnable) *Flow {
+	r, c := Async(task, runnable, cleanup...)
+	return f.Step(name, r, c)
 }
 
 func (f *Flow) Run() {

@@ -182,6 +182,9 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 // Publish message to Kafka cluster.
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
+	if k.producer == nil {
+		return errors.New("component is closed")
+	}
 	k.logger.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
 
 	msg := &sarama.ProducerMessage{
@@ -481,10 +484,15 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 	return nil
 }
 
-func (k *Kafka) Close() error {
+func (k *Kafka) Close() (err error) {
 	k.closeSubscriptionResources()
 
-	return k.producer.Close()
+	if k.producer != nil {
+		err = k.producer.Close()
+		k.producer = nil
+	}
+
+	return err
 }
 
 func (k *Kafka) Features() []pubsub.Feature {

@@ -18,6 +18,26 @@ type Context struct {
 	*Flow
 }
 
+func (c Context) WithCancel() (Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(c.ctx)
+	return Context{
+		name:    c.name,
+		Context: ctx,
+		T:       c.T,
+		Flow:    c.Flow,
+	}, cancel
+}
+
+func (c Context) WithTimeout(timeout time.Duration) (Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(c.ctx, timeout)
+	return Context{
+		name:    c.name,
+		Context: ctx,
+		T:       c.T,
+		Flow:    c.Flow,
+	}, cancel
+}
+
 func (c Context) Name() string {
 	return c.name
 }

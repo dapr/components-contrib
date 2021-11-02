@@ -7,6 +7,7 @@ package sqlserver_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -76,12 +77,69 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
+		// verify indices were created by Dapr
+		db, err := sql.Open("sqlserver", "server=localhost;user id=sa;password=Pass@Word1;port=1433;database=certificationtest;")
+		assert.NoError(t, err)
+		defer db.Close()
+
+		rows, err := db.Query("sp_helpindex '[customschema].[mystates]'")
+		assert.NoError(t, err)
+
+		indexFoundCount := 0
+		for rows.Next() {
+			var indexedField, otherdata1, otherdata2 string
+			err = rows.Scan(&indexedField, &otherdata1, &otherdata2)
+			assert.NoError(t, err)
+
+			expectedIndices := []string{"IX_customerid", "IX_transactionid", "PK_mystates"}
+			for _, item := range expectedIndices {
+				if item == indexedField {
+					indexFoundCount++
+					break
+				}
+			}
+		}
+
+		assert.Equal(t, 3, indexFoundCount)
+
+		// write JSON data to the table (which will automatically be indexed in separate columns)
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		order := struct {
+			ID          int    `json:"id"`
+			Customer    string `json:"customer"`
+			Description string `json:"description"`
+		}{123456, "John Doe", "something"}
+
+		data, err := json.Marshal(order)
+		assert.NoError(t, err)
+
+		// save state with the key certificationkey1, default options: strong, last-write
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data)
+		assert.NoError(t, err)
+
+		// get state for key certificationkey1
+		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1")
+		assert.NoError(t, err)
+		assert.Equal(t, string(data), string(item.Value))
+
+		// delete state for key certificationkey1
+		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1")
+		assert.NoError(t, err)
+
+		return nil
+	}
+
 	createCustomSchema := func(ctx flow.Context) error {
 		db, err := sql.Open("sqlserver", "server=localhost;user id=sa;password=Pass@Word1;port=1433;")
-		if err != nil {
-			return err
-		}
-		db.Exec("CREATE SCHEMA customschema;")
+		assert.NoError(t, err)
+		_, err = db.Exec("CREATE SCHEMA customschema;")
+		assert.NoError(t, err)
 		db.Close()
 		return nil
 	}
@@ -124,7 +182,7 @@ func TestSqlServer(t *testing.T) {
 	currentGrpcPort = ports[0]
 	currentHttpPort = ports[1]
 
-	flow.New(t, "Using existing custom schema").
+	flow.New(t, "Using existing custom schema with indexed data").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
 		// This step only applies to spinning up the docker container for the first time
@@ -136,17 +194,13 @@ func TestSqlServer(t *testing.T) {
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
-			embedded.WithComponentsPath("components/docker/customschema"),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				})),
+			embedded.WithComponentsPath("components/docker/customschemawithindex"),
 			runtime.WithStates(
 				state_loader.New("sqlserver", func() state.Store {
 					return state_sqlserver.NewSQLServerStateStore(log)
 				}),
 			))).
-		Step("Run basic test", basicTest).
+		Step("Run indexed properties verfication test", verifyIndexedPopertiesTest).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
 
@@ -173,8 +227,6 @@ func TestSqlServer(t *testing.T) {
 				}),
 			))).
 		Step("Run basic test", basicTest).
-
-		// Errors will occurring here.
 		Step("interrupt network",
 			network.InterruptNetwork(40*time.Second, nil, nil, "1433", "1434")).
 

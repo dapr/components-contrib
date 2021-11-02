@@ -35,15 +35,17 @@ import (
 
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/go-sdk/client"
 )
 
 const (
-	sidecarName             = "dapr-1"
+	sidecarNamePrefix       = "sqlserver-sidecar-"
 	dockerComposeYAML       = "docker-compose.yml"
 	stateStoreName          = "dapr-state-store"
 	certificationTestPrefix = "stable-certification-"
+	dockerConnectionString  = "server=localhost;user id=sa;password=Pass@Word1;port=1433;"
 )
 
 func TestSqlServer(t *testing.T) {
@@ -61,7 +63,7 @@ func TestSqlServer(t *testing.T) {
 		}
 		defer client.Close()
 
-		// save state with the key certification1, default options: strong, last-write
+		// save state with the key certificationkey1, default options: strong, last-write
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"))
 		assert.NoError(t, err)
 
@@ -79,7 +81,7 @@ func TestSqlServer(t *testing.T) {
 
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr
-		db, err := sql.Open("sqlserver", "server=localhost;user id=sa;password=Pass@Word1;port=1433;database=certificationtest;")
+		db, err := sql.Open("sqlserver", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
 		assert.NoError(t, err)
 		defer db.Close()
 
@@ -136,7 +138,7 @@ func TestSqlServer(t *testing.T) {
 	}
 
 	createCustomSchema := func(ctx flow.Context) error {
-		db, err := sql.Open("sqlserver", "server=localhost;user id=sa;password=Pass@Word1;port=1433;")
+		db, err := sql.Open("sqlserver", dockerConnectionString)
 		assert.NoError(t, err)
 		_, err = db.Exec("CREATE SCHEMA customschema;")
 		assert.NoError(t, err)
@@ -144,14 +146,25 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	checkSqlServerAvailability := func(ctx flow.Context) error {
+		db, err := sql.Open("sqlserver", dockerConnectionString)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("SELECT * FROM INFORMATION_SCHEMA.TABLES;")
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	flow.New(t, "SQLServer certification using SQL Server Docker").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
-		// This step only applies to spinning up the docker container for the first time
-		Step("Wait for Docker", flow.Sleep(time.Second*10)).
+		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSqlServerAvailability)).
 
-		// Run the Dapr sidecar with the Kafka component.
-		Step(sidecar.Run(sidecarName,
+		// Run the Dapr sidecar with the SQL Server component.
+		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
@@ -172,7 +185,7 @@ func TestSqlServer(t *testing.T) {
 
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(10*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarName)).
+		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
 
@@ -185,12 +198,11 @@ func TestSqlServer(t *testing.T) {
 	flow.New(t, "Using existing custom schema with indexed data").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
-		// This step only applies to spinning up the docker container for the first time
-		Step("Wait for Docker", flow.Sleep(time.Second*10)).
+		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSqlServerAvailability)).
 		Step("Creating schema", createCustomSchema).
 
-		// Run the Dapr sidecar with the Kafka component.
-		Step(sidecar.Run(sidecarName,
+		// Run the Dapr sidecar with the SQL Server component.
+		Step(sidecar.Run(sidecarNamePrefix+"dockerCustomSchema",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
@@ -200,7 +212,7 @@ func TestSqlServer(t *testing.T) {
 					return state_sqlserver.NewSQLServerStateStore(log)
 				}),
 			))).
-		Step("Run indexed properties verfication test", verifyIndexedPopertiesTest).
+		Step("Run indexed properties verfication test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
 
@@ -212,7 +224,7 @@ func TestSqlServer(t *testing.T) {
 
 	flow.New(t, "SQL Server certification using Azure SQL").
 		// Run the Dapr sidecar with the SQL Server component.
-		Step(sidecar.Run(sidecarName,
+		Step(sidecar.Run(sidecarNamePrefix+"azure",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
@@ -232,6 +244,6 @@ func TestSqlServer(t *testing.T) {
 
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(10*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarName)).
+		Step("Run basic test again to verify reconnection occurred", basicTest, sidecar.Stop(sidecarNamePrefix+"azure")).
 		Run()
 }

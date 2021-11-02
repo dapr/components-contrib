@@ -7,7 +7,7 @@ package mongodb
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,7 +38,7 @@ func TestMongoQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := os.ReadFile(test.input)
+		data, err := ioutil.ReadFile(test.input)
 		assert.NoError(t, err)
 		var qq query.Query
 		err = json.Unmarshal(data, &qq)

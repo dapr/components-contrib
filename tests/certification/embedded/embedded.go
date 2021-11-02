@@ -13,6 +13,7 @@ import (
 	global_config "github.com/dapr/dapr/pkg/config"
 	env "github.com/dapr/dapr/pkg/config/env"
 	"github.com/dapr/dapr/pkg/cors"
+	"github.com/dapr/dapr/pkg/grpc"
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/operator/client"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -37,7 +38,7 @@ const (
 
 	daprHTTPPort     = runtime.DefaultDaprHTTPPort
 	daprAPIGRPCPort  = runtime.DefaultDaprAPIGRPCPort
-	daprInternalGRPC = runtime.DefaultDaprAPIGRPCPort + 1
+	daprInternalGRPC = 0 // use ephemeral port
 	appPort          = 8000
 )
 
@@ -88,6 +89,12 @@ func WithComponentsPath(path string) Option {
 	}
 }
 
+func WithProfilePort(port int) Option {
+	return func(config *runtime.Config) {
+		config.ProfilePort = port
+	}
+}
+
 func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 	var err error
 
@@ -100,6 +107,12 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 
 	for _, opt := range opts {
 		opt(runtimeConfig)
+	}
+
+	if runtimeConfig.InternalGRPCPort == 0 {
+		if runtimeConfig.InternalGRPCPort, err = grpc.GetFreePort(); err != nil {
+			return nil, err
+		}
 	}
 
 	variables := map[string]string{

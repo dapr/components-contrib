@@ -7,7 +7,7 @@ package cosmosdb
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/a8m/documentdb"
@@ -119,7 +119,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := os.ReadFile(test.input)
+		data, err := ioutil.ReadFile(test.input)
 		assert.NoError(t, err)
 		var qq query.Query
 		err = json.Unmarshal(data, &qq)

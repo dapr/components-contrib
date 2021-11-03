@@ -1,18 +1,33 @@
-# Azure KeyVault certification testing
+# SQL Server certification testing
 
-This project aims to test the Azure KeyVault Secret Store component under various conditions.
+This project aims to test the SQL Server State Store component under various conditions.
 
 ## Test plan
 
-### Active Directory Authentication tests
+### SQL Injection
 
-* Authenticate with Azure Active Directory using Service Principal Certificate
-* Authenticate with Azure Active Directory using Service Principal Client Secret
-* TODO: Authenticate with Azure Active Directory using Azure Managed Identity (also known as Managed Service Identity)
+* Not prone to SQL injection on write
+* Not prone to SQL injection on read
+* Bit oribe ti SQK injection on delete
+
+### Indexed Properties
+
+* Verifies Indices are created for each indexed property in component metadata
+* Verifies JSON data properties are parsed and written to dedicated database columns
+
+### Custom Properties
+
+* Verifies the use of custom tablename (default is states)
+* Verifies the use of a custom schema (default is dbo)
+
+### Connection to different SQL Server types
+
+* Verifies connection handling with Azure SQL Server
+* Verifies connection handling with SQL Server in Docker to present self hosted SQL Server options
 
 ### Other tests
 
-* Client reconnects (if applicable) upon network interruption: Not required as no connection is being maintained.
+* Client reconnects (if applicable) upon network interruption
 
 
 ### Running the tests

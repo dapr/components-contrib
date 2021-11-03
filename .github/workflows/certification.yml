@@ -78,6 +78,8 @@ jobs:
         - component: secretstores.azure.keyvault
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
           required-certs: AzureKeyVaultSecretStoreCert
+        - component: state.sqlserver
+          required-secrets: AzureSqlServerConnectionString
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"

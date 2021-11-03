@@ -54,7 +54,7 @@ func TestSqlServer(t *testing.T) {
 	assert.NoError(t, err)
 
 	currentGrpcPort := ports[0]
-	currentHttpPort := ports[1]
+	currentHTTPPort := ports[1]
 
 	basicTest := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
@@ -88,6 +88,8 @@ func TestSqlServer(t *testing.T) {
 
 		rows, err := db.Query("sp_helpindex '[customschema].[mystates]'")
 		assert.NoError(t, err)
+		assert.NoError(t, rows.Err())
+		defer rows.Close()
 
 		indexFoundCount := 0
 		for rows.Next() {
@@ -133,13 +135,15 @@ func TestSqlServer(t *testing.T) {
 		// check that Dapr wrote the indexed properties to separate columns
 		rows, err = db.Query("SELECT TOP 1 transactionid, customerid FROM [customschema].[mystates];")
 		assert.NoError(t, err)
+		assert.NoError(t, rows.Err())
+		defer rows.Close()
 		if rows.Next() {
-			var transactionId int
-			var customerId string
-			err = rows.Scan(&transactionId, &customerId)
+			var transactionID int
+			var customerID string
+			err = rows.Scan(&transactionID, &customerID)
 			assert.NoError(t, err)
-			assert.Equal(t, transactionId, order.ID)
-			assert.Equal(t, customerId, order.Customer)
+			assert.Equal(t, transactionID, order.ID)
+			assert.Equal(t, customerID, order.Customer)
 		} else {
 			assert.Fail(t, "no rows returned")
 		}
@@ -162,7 +166,7 @@ func TestSqlServer(t *testing.T) {
 	}
 
 	// helper function to insure the SQL Server Docker Container is truly ready
-	checkSqlServerAvailability := func(ctx flow.Context) error {
+	checkSQLServerAvailability := func(ctx flow.Context) error {
 		db, err := sql.Open("sqlserver", dockerConnectionString)
 		if err != nil {
 			return err
@@ -209,13 +213,13 @@ func TestSqlServer(t *testing.T) {
 	flow.New(t, "SQLServer certification using SQL Server Docker").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
-		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSqlServerAvailability)).
+		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSQLServerAvailability)).
 
 		// Run the Dapr sidecar with the SQL Server component.
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/default"),
 			runtime.WithSecretStores(
 				secretstores_loader.New("local.env", func() secretstores.SecretStore {
@@ -243,26 +247,26 @@ func TestSqlServer(t *testing.T) {
 	assert.NoError(t, err)
 
 	currentGrpcPort = ports[0]
-	currentHttpPort = ports[1]
+	currentHTTPPort = ports[1]
 
 	flow.New(t, "Using existing custom schema with indexed data").
 		// Run SQL Server using Docker Compose.
 		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
-		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSqlServerAvailability)).
+		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSQLServerAvailability)).
 		Step("Creating schema", createCustomSchema).
 
 		// Run the Dapr sidecar with the SQL Server component.
 		Step(sidecar.Run(sidecarNamePrefix+"dockerCustomSchema",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/customschemawithindex"),
 			runtime.WithStates(
 				state_loader.New("sqlserver", func() state.Store {
 					return state_sqlserver.NewSQLServerStateStore(log)
 				}),
 			))).
-		Step("Run indexed properties verfication test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
+		Step("Run indexed properties verification test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
 
@@ -270,14 +274,14 @@ func TestSqlServer(t *testing.T) {
 	assert.NoError(t, err)
 
 	currentGrpcPort = ports[0]
-	currentHttpPort = ports[1]
+	currentHTTPPort = ports[1]
 
 	flow.New(t, "SQL Server certification using Azure SQL").
 		// Run the Dapr sidecar with the SQL Server component.
 		Step(sidecar.Run(sidecarNamePrefix+"azure",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/azure"),
 			runtime.WithSecretStores(
 				secretstores_loader.New("local.env", func() secretstores.SecretStore {

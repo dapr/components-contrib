@@ -8,12 +8,11 @@ package rabbitmq_test
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os/exec"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -29,19 +28,26 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
 
 const (
-	sidecarName       = "dapr-1"
-	applicationID     = "app-1"
+	sidecarName1      = "dapr-1"
+	sidecarName2      = "dapr-2"
+	sidecarName3      = "dapr-3"
+	applicationID1    = "app-1"
+	applicationID2    = "app-2"
+	applicationID3    = "app-3"
 	clusterName       = "rabbitmqcertification"
 	dockerComposeYAML = "docker-compose.yml"
 	numMessages       = 1000
 	errFrequency      = 100
 	appPort           = 8000
+
+	rabbitMQURL = "amqp://test:test@localhost:5672"
 
 	pubsubAlpha = "mq-alpha"
 	pubsubBeta  = "mq-beta"
@@ -56,48 +62,21 @@ type consumer struct {
 	messages map[string]*watcher.Watcher
 }
 
-func rabbitmqStatus(c flow.Context) error {
-	ctx, cancel := context.WithTimeout(c, time.Minute)
-	defer cancel()
-
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case <-ticker.C:
-			cmd := exec.Command("docker", "exec", "rabbitmq", "rabbitmq-diagnostics", "status")
-			_, err := cmd.CombinedOutput()
-			if err == nil {
-				return nil
-			}
+func amqpReady(url string) flow.Runnable {
+	return func(ctx flow.Context) error {
+		conn, err := amqp.Dial(url)
+		if err != nil {
+			return err
 		}
-	}
-}
+		defer conn.Close()
 
-func daprStatus(c flow.Context) error {
-	url := fmt.Sprintf("http://localhost:%d/v1.0/healthz", runtime.DefaultDaprHTTPPort)
-
-	ctx, cancel := context.WithTimeout(c, time.Minute)
-	defer cancel()
-
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case <-ticker.C:
-			resp, err := http.Get(url)
-			if err == nil && resp.StatusCode == http.StatusNoContent {
-				return nil
-			}
+		ch, err := conn.Channel()
+		if err != nil {
+			return err
 		}
+		defer ch.Close()
+
+		return nil
 	}
 }
 
@@ -112,7 +91,7 @@ func TestSingleTopicSingleConsumer(t *testing.T) {
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
 	test := func(ctx flow.Context) error {
-		client := sidecar.GetClient(ctx, sidecarName)
+		client := sidecar.GetClient(ctx, sidecarName1)
 
 		// Declare what is expected BEFORE performing any steps
 		// that will satisfy the test.
@@ -121,7 +100,11 @@ func TestSingleTopicSingleConsumer(t *testing.T) {
 			msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
 		}
 		messages.ExpectStrings(msgs...)
+
+		// Wait until we know Dapr has subscribed
+		// so we know published messages will be persisted/consumed.
 		<-subscribed
+
 		// Send events that the application above will observe.
 		ctx.Log("Sending messages!")
 		for _, msg := range msgs {
@@ -139,14 +122,11 @@ func TestSingleTopicSingleConsumer(t *testing.T) {
 
 	// Application logic that tracks messages from a topic.
 	application := func(ctx flow.Context, s common.Service) (err error) {
-		defer func() {
-			subscribed <- struct{}{}
-		}()
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, errFrequency)
 
 		// Setup topic event handler.
-		err = multierr.Append(err,
+		err = multierr.Combine(
 			s.AddTopicEventHandler(&common.Subscription{
 				PubsubName: pubsubAlpha,
 				Topic:      topicRed,
@@ -169,11 +149,12 @@ func TestSingleTopicSingleConsumer(t *testing.T) {
 	flow.New(t, "rabbitmq certification").
 		// Run RabbitMQ using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		//Step("rabbitmq up", rabbitmqStatus).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		// Run the application logic above.
-		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
+		Step(app.Run(applicationID1, fmt.Sprintf(":%d", appPort), application)).
 		// Run the Dapr sidecar with the RabbitMQ component.
-		Step(sidecar.Run(sidecarName,
+		Step(sidecar.Run(sidecarName1,
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -182,8 +163,9 @@ func TestSingleTopicSingleConsumer(t *testing.T) {
 					return pubsub_rabbitmq.NewRabbitMQ(log)
 				}),
 			))).
-		//Step("dapr up", daprStatus).
-		Step("dapr up", flow.Sleep(15*time.Second)).
+		Step("signal subscribed", flow.MustDo(func() {
+			close(subscribed)
+		})).
 		Step("send and wait", test).
 		Run()
 }
@@ -205,7 +187,7 @@ func TestMultiTopicSingleConsumer(t *testing.T) {
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
 	test := func(ctx flow.Context) error {
-		client := sidecar.GetClient(ctx, sidecarName)
+		client := sidecar.GetClient(ctx, sidecarName2)
 
 		// Declare what is expected BEFORE performing any steps
 		// that will satisfy the test.
@@ -213,6 +195,7 @@ func TestMultiTopicSingleConsumer(t *testing.T) {
 		for i := range msgs {
 			msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
 		}
+
 		<-subscribed
 
 		// expecting no messages in topicGreen
@@ -244,16 +227,12 @@ func TestMultiTopicSingleConsumer(t *testing.T) {
 
 	// Application logic that tracks messages from a topic.
 	application := func(ctx flow.Context, s common.Service) (err error) {
-		defer func() {
-			subscribed <- struct{}{}
-		}()
-
 		for _, topic := range topics {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, errFrequency)
 
 			// Setup topic event handler.
-			err = multierr.Append(err,
+			err = multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{
 					PubsubName: pubsubAlpha,
 					Topic:      topic,
@@ -276,21 +255,23 @@ func TestMultiTopicSingleConsumer(t *testing.T) {
 	flow.New(t, "rabbitmq certification").
 		// Run RabbitMQ using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		//Step("rabbitmq up", rabbitmqStatus).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		// Run the application logic above.
-		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
+		Step(app.Run(applicationID2, fmt.Sprintf(":%d", appPort+2), application)).
 		// Run the Dapr sidecar with the RabbitMQ component.
-		Step(sidecar.Run(sidecarName,
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+		Step(sidecar.Run(sidecarName2,
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
 			runtime.WithPubSubs(
 				pubsub_loader.New("rabbitmq", func() pubsub.PubSub {
 					return pubsub_rabbitmq.NewRabbitMQ(log)
 				}),
 			))).
-		//Step("dapr up", daprStatus).
-		Step("dapr up", flow.Sleep(15*time.Second)).
+		Step("signal subscribed", flow.MustDo(func() {
+			close(subscribed)
+		})).
 		Step("send and wait", test).
 		Run()
 }
@@ -314,7 +295,7 @@ func TestMultiTopicMuliConsumer(t *testing.T) {
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
 	test := func(ctx flow.Context) error {
-		client := sidecar.GetClient(ctx, sidecarName)
+		client := sidecar.GetClient(ctx, sidecarName3)
 
 		// Declare what is expected BEFORE performing any steps
 		// that will satisfy the test.
@@ -322,6 +303,7 @@ func TestMultiTopicMuliConsumer(t *testing.T) {
 		for i := range msgs {
 			msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
 		}
+
 		<-subscribed
 
 		// expecting no messages in topicGrey
@@ -362,15 +344,12 @@ func TestMultiTopicMuliConsumer(t *testing.T) {
 
 	// Application logic that tracks messages from a topic.
 	application := func(ctx flow.Context, s common.Service) (err error) {
-		defer func() {
-			subscribed <- struct{}{}
-		}()
-
 		for _, topic := range topics {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, errFrequency)
+
 			// Setup topic event handler.
-			err = multierr.Append(err,
+			err = multierr.Combine(
 				s.AddTopicEventHandler(
 					&common.Subscription{
 						PubsubName: alpha.pubsub,
@@ -379,8 +358,6 @@ func TestMultiTopicMuliConsumer(t *testing.T) {
 					},
 					eventHandler(ctx, alpha, topic, sim),
 				),
-			)
-			err = multierr.Append(err,
 				s.AddTopicEventHandler(
 					&common.Subscription{
 						PubsubName: beta.pubsub,
@@ -389,8 +366,6 @@ func TestMultiTopicMuliConsumer(t *testing.T) {
 					},
 					eventHandler(ctx, beta, topic, sim),
 				),
-			)
-			err = multierr.Append(err,
 				s.AddTopicEventHandler(
 					&common.Subscription{
 						PubsubName: beta.pubsub,
@@ -407,21 +382,23 @@ func TestMultiTopicMuliConsumer(t *testing.T) {
 	flow.New(t, "rabbitmq certification").
 		// Run RabbitMQ using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		//Step("rabbitmq up", rabbitmqStatus).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		// Run the application logic above.
-		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
+		Step(app.Run(applicationID3, fmt.Sprintf(":%d", appPort+4), application)).
 		// Run the Dapr sidecar with the RabbitMQ component.
-		Step(sidecar.Run(sidecarName,
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+		Step(sidecar.Run(sidecarName3,
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
 			runtime.WithPubSubs(
 				pubsub_loader.New("rabbitmq", func() pubsub.PubSub {
 					return pubsub_rabbitmq.NewRabbitMQ(log)
 				}),
 			))).
-		//Step("dapr up", daprStatus).
-		Step("dapr up", flow.Sleep(15*time.Second)).
+		Step("signal subscribed", flow.MustDo(func() {
+			close(subscribed)
+		})).
 		Step("send and wait", test).
 		Run()
 }

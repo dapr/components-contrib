@@ -95,7 +95,7 @@ func WithProfilePort(port int) Option {
 	}
 }
 
-func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
+func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
 
 	runtimeConfig := runtime.NewRuntimeConfig(
@@ -111,7 +111,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 
 	if runtimeConfig.InternalGRPCPort == 0 {
 		if runtimeConfig.InternalGRPCPort, err = grpc.GetFreePort(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -128,7 +128,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 	for key, value := range variables {
 		err := os.Setenv(key, value)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -137,7 +137,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 
 	if enableMTLS {
 		if runtimeConfig.CertChain, err = security.GetCertChain(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -149,7 +149,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 		case modes.KubernetesMode:
 			client, conn, clientErr := client.GetOperatorClient(controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
 			if clientErr != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			defer conn.Close()
 			namespace = os.Getenv("NAMESPACE")
@@ -164,7 +164,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 	}
 
 	if configErr != nil {
-		return nil, fmt.Errorf("error loading configuration: %w", configErr)
+		return nil, nil, fmt.Errorf("error loading configuration: %w", configErr)
 	}
 	if globalConfig == nil {
 		log.Info("loading default configuration")
@@ -173,8 +173,8 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, error) {
 
 	accessControlList, err = acl.ParseAccessControlSpec(globalConfig.Spec.AccessControlSpec, string(runtimeConfig.ApplicationProtocol))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return runtime.NewDaprRuntime(runtimeConfig, globalConfig, accessControlList), nil
+	return runtime.NewDaprRuntime(runtimeConfig, globalConfig, accessControlList), runtimeConfig, nil
 }

@@ -7,7 +7,11 @@ package keyvault_test
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -73,8 +77,8 @@ func TestKeyVault(t *testing.T) {
 					return akv.NewAzureKeyvaultSecretStore(log)
 				}),
 			))).
-		Step("Getting known secret", testGetKnownSecret).
-		Run()
+		Step("Getting known secret", testGetKnownSecret)
+		// Run()
 
 	// Currently port reuse is still not quite working in the Dapr runtime.
 	ports, err = dapr_testing.GetFreePorts(2)
@@ -96,6 +100,42 @@ func TestKeyVault(t *testing.T) {
 					return akv.NewAzureKeyvaultSecretStore(log)
 				}),
 			))).
-		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
+		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName))
+		// Run()
+
+	// az acr create -g dapr2-conf-test-rg -n dapr2conftestacr --sku Standard
+
+	msiFunc := func(ctx flow.Context) error {
+		_, err := exec.LookPath("az")
+		if err != nil {
+			t.Error("azure-cli not installed")
+		}
+		groupName, envVarFound := os.LookupEnv("AzureResourceGroupName")
+		if envVarFound == false {
+			t.Error("AzureResourceGroupName environment variable not set")
+		}
+
+		managedIdentityQuery := fmt.Sprintf("az identity show -g %s -n azure-managed-identity -otsv --query id", groupName)
+		managedIdentityID, err := exec.Command("bash", "-c", managedIdentityQuery).Output()
+		if err != nil {
+			t.Error("azure-managed-identity not found")
+		}
+
+		// generate random string
+		rand.Seed(time.Now().UnixNano())
+		containerName := fmt.Sprintf("managedidentitytest%d", rand.Intn(10000)+1)
+
+		containerCreateCommand := fmt.Sprintf("az container create -g %s -n %s --image ubuntu:latest --command-line 'tail -f /dev/null' --memory 4 --cpu 2 --assign-identity %s", groupName, containerName, managedIdentityID)
+		fmt.Printf("Running Command ==== : %s", containerCreateCommand)
+		// err = exec.Command("bash", "-c", containerCreateCommand).Run()
+		// if err != nil {
+		// 	t.Error(fmt.Sprintf("container %s not created: %s", containerName, err))
+		// }
+
+		return nil
+	}
+
+	flow.New(t, "keyvault authentication using managed identity").
+		Step("Run the thing", msiFunc).
 		Run()
 }

@@ -21,6 +21,14 @@ func Do(fn func() error) Runnable {
 	}
 }
 
+func MustDo(fn func()) Runnable {
+	return func(_ Context) error {
+		fn()
+
+		return nil
+	}
+}
+
 func Sleep(t time.Duration) Runnable {
 	return func(_ Context) error {
 		time.Sleep(t)

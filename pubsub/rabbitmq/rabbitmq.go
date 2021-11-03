@@ -145,6 +145,10 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
+	return r.doReconnect(connectionCount)
+}
+
+func (r *rabbitMQ) doReconnect(connectionCount int) error {
 	if r.stopped {
 		// Do not reconnect on stopped service.
 		return errors.New("cannot connect after component is stopped")
@@ -175,20 +179,17 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 }
 
 func (r *rabbitMQ) getChannelOrReconnect() (rabbitMQChannelBroker, int, error) {
-	channel, connectionCount := r.getChannel()
-	if channel != nil {
-		return channel, connectionCount, nil
+	r.channelMutex.Lock()
+	defer r.channelMutex.Unlock()
+
+	if r.channel != nil {
+		return r.channel, r.connectionCount, nil
 	}
 
 	r.logger.Warnf("%s reconnecting ...", logMessagePrefix)
-	err := r.reconnect(connectionCount)
-	if err != nil {
-		return nil, connectionCount, err
-	}
+	err := r.doReconnect(r.connectionCount)
 
-	channel, connectionCount = r.getChannel()
-
-	return channel, connectionCount, nil
+	return r.channel, r.connectionCount, err
 }
 
 func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
@@ -228,6 +229,11 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 	}
 
 	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
+
+	// // By the time Subscribe exits, the subscription should be active.
+	if _, _, _, err := r.ensureSubscription(req, queueName); err != nil {
+		return err
+	}
 
 	go r.subscribeForever(req, queueName, handler)
 
@@ -288,6 +294,18 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	return &q, nil
 }
 
+func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest,
+	queueName string) (rabbitMQChannelBroker, int, *amqp.Queue, error) {
+	channel, connectionCount := r.getChannel()
+	if channel == nil {
+		return nil, 0, nil, errors.New("channel not initialized")
+	}
+
+	q, err := r.prepareSubscription(channel, req, queueName)
+
+	return channel, connectionCount, q, err
+}
+
 func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler) {
 	for {
 		var (
@@ -298,13 +316,7 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 			msgs            <-chan amqp.Delivery
 		)
 		for {
-			channel, connectionCount = r.getChannel()
-			if channel == nil {
-				err = errors.New("channel not initialized")
-				break
-			}
-
-			q, err = r.prepareSubscription(channel, req, queueName)
+			channel, connectionCount, q, err = r.ensureSubscription(req, queueName)
 			if err != nil {
 				break
 			}

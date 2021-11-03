@@ -8,6 +8,7 @@ require (
 	github.com/dapr/dapr v1.4.4-0.20211026235832-5e8d7275a35e
 	github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
+	github.com/streadway/amqp v1.0.0
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/multierr v1.7.0
 )
@@ -71,7 +72,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	github.com/streadway/amqp v1.0.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.28.0 // indirect
 	go.opencensus.io v0.22.5 // indirect

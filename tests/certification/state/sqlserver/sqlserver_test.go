@@ -27,6 +27,7 @@ import (
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
+	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
 
 	// Certification testing runnables
@@ -37,7 +38,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-	"github.com/dapr/go-sdk/client"
 )
 
 const (
@@ -63,16 +63,16 @@ func TestSqlServer(t *testing.T) {
 		}
 		defer client.Close()
 
-		// save state with the key certificationkey1, default options: strong, last-write
+		// save state, default options: strong, last-write
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"))
 		assert.NoError(t, err)
 
-		// get state for key certificationkey1
+		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1")
 		assert.NoError(t, err)
 		assert.Equal(t, "certificationdata", string(item.Value))
 
-		// delete state for key certificationkey1
+		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1")
 		assert.NoError(t, err)
 

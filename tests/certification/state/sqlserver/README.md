@@ -8,7 +8,7 @@ This project aims to test the SQL Server State Store component under various con
 
 * Not prone to SQL injection on write
 * Not prone to SQL injection on read
-* Bit oribe ti SQK injection on delete
+* Not prone to SQL injection on delete
 
 ### Indexed Properties
 
@@ -23,7 +23,7 @@ This project aims to test the SQL Server State Store component under various con
 ### Connection to different SQL Server types
 
 * Verifies connection handling with Azure SQL Server
-* Verifies connection handling with SQL Server in Docker to present self hosted SQL Server options
+* Verifies connection handling with SQL Server in Docker to represent self hosted SQL Server options
 
 ### Other tests
 

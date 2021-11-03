@@ -6,6 +6,7 @@
 package sidecar
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -92,7 +93,7 @@ func (s Sidecar) Start(ctx flow.Context) error {
 		}
 	}
 
-	rt, err := rtembedded.NewRuntime(s.appID, rtoptions...)
+	rt, rtConf, err := rtembedded.NewRuntime(s.appID, rtoptions...)
 	if err != nil {
 		return err
 	}
@@ -111,7 +112,7 @@ func (s Sidecar) Start(ctx flow.Context) error {
 		return err
 	}
 
-	daprClient, err := dapr.NewClient()
+	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%d", rtConf.APIGRPCPort))
 	if err != nil {
 		return err
 	}

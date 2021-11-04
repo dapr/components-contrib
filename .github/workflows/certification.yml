@@ -76,7 +76,7 @@ jobs:
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - component: secretstores.azure.keyvault
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName,AzureResourceGroupName
           required-certs: AzureKeyVaultSecretStoreCert
         - component: state.sqlserver
           required-secrets: AzureSqlServerConnectionString

@@ -7,7 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/dapr/components-contrib v1.4.0-rc2
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.4.4-0.20211027184736-b4766bc9b2fa
+	github.com/dapr/dapr v1.4.4-0.20211104200044-e40edbd52063
 	github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.2.0

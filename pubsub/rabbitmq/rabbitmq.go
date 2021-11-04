@@ -260,20 +260,26 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
 		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
 		dlqArgs[argQueueMode] = queueModeLazy
+		r.channelMutex.Lock()
 		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
 		if err != nil {
+			r.channelMutex.Unlock()
 			return nil, err
 		}
 		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
 		if err != nil {
+			r.channelMutex.Unlock()
 			return nil, err
 		}
+		r.channelMutex.Unlock()
 		r.logger.Debugf("declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", queueName, dlqName, dlxName)
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
+	r.channelMutex.Lock()
 	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
+		r.channelMutex.Unlock()
 		return nil, err
 	}
 
@@ -281,6 +287,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		r.logger.Debugf("setting prefetch count to %s", strconv.Itoa(int(r.metadata.prefetchCount)))
 		err = channel.Qos(int(r.metadata.prefetchCount), 0, false)
 		if err != nil {
+			r.channelMutex.Unlock()
 			return nil, err
 		}
 	}
@@ -288,8 +295,10 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	r.logger.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
 	err = channel.QueueBind(q.Name, "", req.Topic, false, nil)
 	if err != nil {
+		r.channelMutex.Unlock()
 		return nil, err
 	}
+	r.channelMutex.Unlock()
 
 	return &q, nil
 }

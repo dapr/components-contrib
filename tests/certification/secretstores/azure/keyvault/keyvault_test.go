@@ -104,6 +104,8 @@ func TestKeyVault(t *testing.T) {
 		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
 		Run()
 
+	// This test reuses the Azure conformance test resources created using
+	// .github/infrastructure/conformance/azure/setup-azure-conf-test.sh
 	managedIdentityTest := func(ctx flow.Context) error {
 		_, err := exec.LookPath("az")
 		if err != nil {

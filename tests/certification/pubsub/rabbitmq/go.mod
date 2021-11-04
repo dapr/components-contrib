@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/dapr/components-contrib v1.4.0-rc2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211022173956-72754c603665
-	github.com/dapr/dapr v1.4.4-0.20211026235832-5e8d7275a35e
+	github.com/dapr/dapr v1.4.4-0.20211104200044-e40edbd52063
 	github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/streadway/amqp v1.0.0

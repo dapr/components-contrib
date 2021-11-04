@@ -267,8 +267,8 @@ github.com/dancannon/gorethink v4.0.0+incompatible/go.mod h1:BLvkat9KmZc1efyYwhz
 github.com/danieljoos/wincred v1.0.2/go.mod h1:SnuYRW9lp1oJrZX/dXJqr0cPK5gYXqx3EJbmjhLdK9U=
 github.com/dapr/dapr v1.4.3/go.mod h1:jqB+3LI4HTXmhG8GnJDL3YSzAurBWLm2ag0xu3RHWcs=
 github.com/dapr/dapr v1.4.4-0.20211026235832-5e8d7275a35e/go.mod h1:kYXmuIPSj72TZf8mi8EEAIPFleBqwu9bsouFlsf1nDw=
-github.com/dapr/dapr v1.4.4-0.20211027184736-b4766bc9b2fa h1:O9MUT9PCgONvLn3JXQO5N6/Kh7xrrKGOH6W9kq9ggpc=
-github.com/dapr/dapr v1.4.4-0.20211027184736-b4766bc9b2fa/go.mod h1:kYXmuIPSj72TZf8mi8EEAIPFleBqwu9bsouFlsf1nDw=
+github.com/dapr/dapr v1.4.4-0.20211104200044-e40edbd52063 h1:5N/f4i0IVTUwaMW19I0jgyDmieTYVmv8O7rwnaCn3Fw=
+github.com/dapr/dapr v1.4.4-0.20211104200044-e40edbd52063/go.mod h1:HNIly8gR46m5ksXhiM54XRFrLGLkc2I/v4EbfV3Mx/A=
 github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9 h1:Z8r84jBgbp5sP+fA5on7w0bL2j8Cd/mfNZ0osDmUFRM=
 github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9/go.mod h1:EWfgqnXxY7XyzIVtZ1abU01vD7JLFMprM/6yf/pT0Lk=
 github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233 h1:M0dWIG8kUxEFU57IqTWeqptNqlBsfosFgsA5Ov7rJ8g=

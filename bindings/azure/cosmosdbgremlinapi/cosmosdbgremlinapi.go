@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package cosmosgraphdb
+package cosmosdbgremlinapi
 
 import (
 	"encoding/json"
@@ -31,26 +31,26 @@ const (
 	respDurationKey  = "duration"
 )
 
-// CosmosGraphDB allows performing state operations on collections.
-type CosmosGraphDB struct {
-	metadata *cosmosGraphDBCredentials
+// CosmosDBGremlinAPI allows performing state operations on collections.
+type CosmosDBGremlinAPI struct {
+	metadata *cosmosDBGremlinAPICredentials
 	client   *gremcos.Cosmos
 	logger   logger.Logger
 }
 
-type cosmosGraphDBCredentials struct {
+type cosmosDBGremlinAPICredentials struct {
 	URL       string `json:"url"`
 	MasterKey string `json:"masterKey"`
 	Username  string `json:"username"`
 }
 
-// NewCosmosGraphDB returns a new CosmosGraphDB instance.
-func NewCosmosGraphDB(logger logger.Logger) *CosmosGraphDB {
-	return &CosmosGraphDB{logger: logger}
+// NewCosmosDBGremlinAPI returns a new CosmosDBGremlinAPI instance.
+func NewCosmosDBGremlinAPI(logger logger.Logger) *CosmosDBGremlinAPI {
+	return &CosmosDBGremlinAPI{logger: logger}
 }
 
-// Init performs CosmosDB connection parsing and connecting.
-func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
+// Init performs CosmosDBGremlinAPI connection parsing and connecting.
+func (c *CosmosDBGremlinAPI) Init(metadata bindings.Metadata) error {
 	c.logger.Debug("Initializing Cosmos Graph DB binding")
 
 	m, err := c.parseMetadata(metadata)
@@ -62,7 +62,7 @@ func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 		gremcos.WithAuth(c.metadata.Username, c.metadata.MasterKey),
 	)
 	if err != nil {
-		return errors.New("CosmosGraphDB Error: failed to create the Cosmos Graph DB connector")
+		return errors.New("CosmosDBGremlinAPI Error: failed to create the Cosmos Graph DB connector")
 	}
 
 	c.client = client
@@ -70,13 +70,13 @@ func (c *CosmosGraphDB) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (c *CosmosGraphDB) parseMetadata(metadata bindings.Metadata) (*cosmosGraphDBCredentials, error) {
+func (c *CosmosDBGremlinAPI) parseMetadata(metadata bindings.Metadata) (*cosmosDBGremlinAPICredentials, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
 
-	var creds cosmosGraphDBCredentials
+	var creds cosmosDBGremlinAPICredentials
 	err = json.Unmarshal(b, &creds)
 	if err != nil {
 		return nil, err
@@ -85,21 +85,21 @@ func (c *CosmosGraphDB) parseMetadata(metadata bindings.Metadata) (*cosmosGraphD
 	return &creds, nil
 }
 
-func (c *CosmosGraphDB) Operations() []bindings.OperationKind {
+func (c *CosmosDBGremlinAPI) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{queryOperation}
 }
 
-func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDBGremlinAPI) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var jsonPoint map[string]interface{}
 	err := json.Unmarshal(req.Data, &jsonPoint)
 	if err != nil {
-		return nil, errors.New("CosmosGraphDB Error: Cannot convert request data")
+		return nil, errors.New("CosmosDBGremlinAPI Error: Cannot convert request data")
 	}
 
 	gq := fmt.Sprintf("%s", jsonPoint[commandGremlinKey])
 
 	if gq == "" {
-		return nil, errors.New("CosmosGraphDB Error: missing data - gremlin query not set")
+		return nil, errors.New("CosmosDBGremlinAPI Error: missing data - gremlin query not set")
 	}
 	startTime := time.Now().UTC()
 	resp := &bindings.InvokeResponse{
@@ -111,7 +111,7 @@ func (c *CosmosGraphDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	}
 	d, err := c.client.Execute(gq)
 	if err != nil {
-		return nil, errors.New("CosmosGraphDB Error:error excuting gremlin")
+		return nil, errors.New("CosmosDBGremlinAPI Error:error excuting gremlin")
 	}
 	if len(d) > 0 {
 		resp.Data = d[0].Result.Data

@@ -241,6 +241,9 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 }
 
 func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
+	r.channelMutex.RLock()
+	defer r.channelMutex.RUnlock()
+
 	err := r.ensureExchangeDeclared(channel, req.Topic)
 	if err != nil {
 		return nil, err
@@ -260,26 +263,20 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
 		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
 		dlqArgs[argQueueMode] = queueModeLazy
-		r.channelMutex.Lock()
 		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
 		if err != nil {
-			r.channelMutex.Unlock()
 			return nil, err
 		}
 		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
 		if err != nil {
-			r.channelMutex.Unlock()
 			return nil, err
 		}
-		r.channelMutex.Unlock()
 		r.logger.Debugf("declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", queueName, dlqName, dlxName)
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
-	r.channelMutex.Lock()
 	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
-		r.channelMutex.Unlock()
 		return nil, err
 	}
 
@@ -287,7 +284,6 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		r.logger.Debugf("setting prefetch count to %s", strconv.Itoa(int(r.metadata.prefetchCount)))
 		err = channel.Qos(int(r.metadata.prefetchCount), 0, false)
 		if err != nil {
-			r.channelMutex.Unlock()
 			return nil, err
 		}
 	}
@@ -295,10 +291,8 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	r.logger.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
 	err = channel.QueueBind(q.Name, "", req.Topic, false, nil)
 	if err != nil {
-		r.channelMutex.Unlock()
 		return nil, err
 	}
-	r.channelMutex.Unlock()
 
 	return &q, nil
 }
@@ -433,18 +427,12 @@ func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchang
 }
 
 func (r *rabbitMQ) containsExchange(exchange string) bool {
-	r.channelMutex.RLock()
-	defer r.channelMutex.RUnlock()
-
 	_, exists := r.declaredExchanges[exchange]
 
 	return exists
 }
 
 func (r *rabbitMQ) putExchange(exchange string) {
-	r.channelMutex.Lock()
-	defer r.channelMutex.Unlock()
-
 	r.declaredExchanges[exchange] = true
 }
 

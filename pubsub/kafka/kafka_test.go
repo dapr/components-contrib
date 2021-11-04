@@ -40,16 +40,49 @@ func getBaseMetadata() pubsub.Metadata {
 	return m
 }
 
-func TestParseMetadata(t *testing.T) {
+func getCompleteMetadata() pubsub.Metadata {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{
 		"consumerGroup": "a", "clientID": "a", "brokers": "a", "authRequired": "false", "maxMessageBytes": "2048",
 		skipVerify: "true", clientCert: clientCertPemMock, clientKey: clientKeyMock, caCert: caCertMock,
 		"consumeRetryInterval": "200",
 	}
+	return m
+}
+
+func TestParseMetadata(t *testing.T) {
 	k := getKafkaPubsub()
-	meta, err := k.getKafkaMetadata(m)
-	assert.Nil(t, err)
+	t.Run("default kafka version", func(t *testing.T) {
+		m := getCompleteMetadata()
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		assert.NotNil(t, meta)
+		assertMetadata(t, meta)
+		assert.Equal(t, sarama.V2_0_0_0, meta.Version)
+	})
+
+	t.Run("specific kafka version", func(t *testing.T) {
+		m := getCompleteMetadata()
+		m.Properties["version"] = "0.10.2.0"
+		meta, err := k.getKafkaMetadata(m)
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assertMetadata(t, meta)
+		assert.Equal(t, sarama.V0_10_2_0, meta.Version)
+	})
+
+	t.Run("invalid kafka version", func(t *testing.T) {
+		m := getCompleteMetadata()
+		m.Properties["version"] = "not_valid_version"
+		meta, err := k.getKafkaMetadata(m)
+		assert.Error(t, err)
+		assert.Nil(t, meta)
+
+		assert.Equal(t, "kafka error: invalid kafka version", err.Error())
+	})
+}
+
+func assertMetadata(t *testing.T, meta *kafkaMetadata) {
 	assert.Equal(t, "a", meta.Brokers[0])
 	assert.Equal(t, "a", meta.ConsumerGroup)
 	assert.Equal(t, "a", meta.ClientID)

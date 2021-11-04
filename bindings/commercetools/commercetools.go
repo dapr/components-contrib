@@ -16,22 +16,9 @@ import (
 	"github.com/labd/commercetools-go-sdk/commercetools"
 )
 
-const (
-	region          = "region"
-	provider        = "provider"
-	projectKey      = "projectKey"
-	clientID        = "clientID"
-	clientSecret    = "clientSecret"
-	scopes          = "scopes"
-	productTypeName = "productTypeName"
-	productTypeKey  = "productTypeKey"
-	requestJSON     = "requestJSON"
-)
-
 type Binding struct {
-	metadata commercetoolsMetadata
-	client   *commercetools.Client
-	logger   logger.Logger
+	client *commercetools.Client
+	logger logger.Logger
 }
 
 type Data struct {

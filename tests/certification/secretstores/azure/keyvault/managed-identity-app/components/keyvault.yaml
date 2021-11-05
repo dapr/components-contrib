@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azurekeyvault
+  namespace: default
+spec:
+  type: secretstores.azure.keyvault
+  version: v1
+  metadata:
+  - name: vaultName
+    secretKeyRef:
+        name: AzureKeyVaultName
+        key:  AzureKeyVaultName
+
+auth:
+  secretStore: envvar-secret-store

@@ -17,6 +17,8 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.Host)
 	assert.Equal(t, false, meta.EnableTLS)
+	assert.Equal(t, defaultTenant, meta.Tenant)
+	assert.Equal(t, defaultNamespace, meta.Namespace)
 }
 
 func TestParsePublishMetadata(t *testing.T) {
@@ -52,4 +54,18 @@ func TestInvalidTLSInput(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, meta)
 	assert.Equal(t, "pulsar error: invalid value for enableTLS", err.Error())
+}
+
+func TestValidTenantAndNS(t *testing.T) {
+	var (
+		testTenant    = "testTenant"
+		testNamespace = "testNamespace"
+	)
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{"host": "a", tenant: testTenant, namespace: testNamespace}
+	meta, err := parsePulsarMetadata(m)
+
+	assert.Nil(t, err)
+	assert.Equal(t, testTenant, meta.Tenant)
+	assert.Equal(t, testNamespace, meta.Namespace)
 }

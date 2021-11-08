@@ -6,6 +6,8 @@
 name: Components Conformance Tests
 
 on:
+  repository_dispatch:
+    types: [conformance-test]
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
@@ -32,7 +34,7 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true'
+    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
     steps:
     - name: Install yq
       run: |
@@ -65,6 +67,7 @@ jobs:
         - state.mongodb
         - state.redis
         - state.sqlserver
+        - state.postgresql
         - state.mysql
         EOF
         )
@@ -93,21 +96,29 @@ jobs:
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.sql
+          required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
         - component: state.azure.tablestorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: pubsub.azure.eventhubs
+          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.eventhubs
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault
+        - component: secretstores.azure.keyvault.certificate
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
+        - component: secretstores.azure.keyvault.serviceprincipal
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
@@ -130,6 +141,21 @@ jobs:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
     steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      uses: actions/github-script@v1
+      with:
+        github-token: ${{secrets.DAPR_BOT_TOKEN}}
+        script: |
+          const testPayload = context.payload.client_payload;
+          if (testPayload && testPayload.command == "ok-to-test") {
+            var fs = require('fs');
+            // Set environment variables
+            fs.appendFileSync(process.env.GITHUB_ENV,
+              `CHECKOUT_REPO=${testPayload.pull_head_repo}\n`+
+              `CHECKOUT_REF=${testPayload.pull_head_ref}`);
+          }
+  
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
@@ -249,6 +275,12 @@ jobs:
       uses: helm/kind-action@v1.0.0
       if: contains(matrix.component, 'kubernetes')
 
+    - name: Start postgresql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
+      if: contains(matrix.component, 'postgresql')
+
+
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
       run: |
@@ -264,6 +296,13 @@ jobs:
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
+
+    - name: Generate Azure SQL DB name
+      run: |
+        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
+        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
+        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
+      if: contains(matrix.component, 'azure.sql')
 
     - name: Run tests
       continue-on-error: true
@@ -302,6 +341,17 @@ jobs:
       if: contains(matrix.component, 'azure.eventgrid')
       continue-on-error: true
       run: pkill ngrok; cat /tmp/ngrok.log
+
+    - name: Cleanup Azure SQL test DB instance
+      if: contains(matrix.component, 'azure.sql')
+      continue-on-error: true
+      run: |
+        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
+        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
+        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
+        # deletion may be ongoing in sequential runs.
+        sleep 1m
+        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs

@@ -6,6 +6,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,6 +28,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
 	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
@@ -55,6 +57,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
@@ -131,6 +134,16 @@ func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -149,6 +162,16 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -350,7 +373,9 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	var store secretstores.SecretStore
 	switch tc.Component {
-	case "azure.keyvault":
+	case "azure.keyvault.certificate":
+		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
+	case "azure.keyvault.serviceprincipal":
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "kubernetes":
 		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)
@@ -374,8 +399,12 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
+	case "azure.sql":
+		fallthrough
 	case "sqlserver":
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
+	case "postgresql":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "azure.tablestorage":
@@ -403,6 +432,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
 	case eventhubs:
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
+	case "azure.cosmosdb":
+		binding = b_azure_cosmosdb.NewCosmosDB(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":

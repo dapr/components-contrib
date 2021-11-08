@@ -1,10 +1,11 @@
+// nolint: godot
 // ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
-
 package mns
 
+// nolint: goimports
 import (
 	"fmt"
 
@@ -14,26 +15,26 @@ import (
 )
 
 const (
-	// for more info: https://www.alibabacloud.com/help/doc-detail/27414.htm?spm=a2c63.p38356.879954.3.61943078qdiiEF#section-ghy-14s-7xd
-	// use one-to-one mode for messaging
+	// for more info: https://www.alibabacloud.com/help/doc-detail/27414.htm?spm=a2c63.p38356.879954.3.61943078qdiiEF#section-ghy-14s-7xd.
+	// use one-to-one mode for messaging.
 	MNSModeQueue = "queue"
-	// use one-to-many mode for messaging
+	// use one-to-many mode for messaging.
 	MNSModeTopic = "topic"
 )
 
-// MNS settings
+// MNS settings.
 type Settings struct {
-	// url for mns service
+	// url for mns service.
 	URL string `mapstructure:"url"`
-	// mns access key id
+	// mns access key id.
 	AccessKeyID string `mapstructure:"accessKeyId"`
-	// mns access key secret
+	// mns access key secret.
 	AccessKeySecret string `mapstructure:"accessKeySecret"`
-	// mns token, optional
+	// mns token, optional.
 	Token string `mapstructure:"token"`
-	// timeout in seconds, default 35
+	// timeout in seconds, default 35.
 	TimeoutSecond int64 `mapstructure:"timeoutSecond" default:"35"`
-	// mns mode (queue or topic)
+	// mns mode (queue or topic).
 	MNSMode string `mapstructure:"mnsMode"`
 	// msg's content-type eg:"application/cloudevents+json; charset=utf-8", application/octet-stream
 	ContentType string `mapstructure:"contentType"`
@@ -93,6 +94,7 @@ func (s *Settings) Validate() error {
 	return nil
 }
 
+// nolint: cyclop
 func (r *RequestMetaData) Validate() error {
 	if r.QueueDelaySeconds < 0 || r.QueueDelaySeconds > 604800 {
 		return fmt.Errorf("delay seconds must be between 0 ~ 604800")

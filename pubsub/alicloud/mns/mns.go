@@ -1,7 +1,7 @@
 // ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation and Dapr Contributors.
 // Licensed under the MIT License.
-// ------------------------------------------------------------
+// ------------------------------------------------------------.
 
 package mns
 
@@ -44,7 +44,8 @@ type mns struct {
 	subscriptionContexts map[string]contextWithCancelFunc
 }
 
-// NewMNS creates a new MNS pub/sub
+// nolint: ireturn
+// NewMNS creates a new MNS pub/sub.
 func NewMNS(logger logger.Logger) pubsub.PubSub {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -56,12 +57,12 @@ func NewMNS(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-// Init creates an mns client and its queue manager and topic manager
+// Init creates an mns client and its queue manager and topic manager.
 func (m *mns) Init(md pubsub.Metadata) error {
 	var settings Settings
 	settings.Decode(md.Properties)
-	err := settings.Validate()
-	if err != nil {
+
+	if err := settings.Validate(); err != nil {
 		return err
 	}
 
@@ -88,7 +89,8 @@ func (m *mns) Init(md pubsub.Metadata) error {
 	return nil
 }
 
-// Publish
+// nolint: cyclop
+// Publish.
 func (m *mns) Publish(req *pubsub.PublishRequest) error {
 	var metaData RequestMetaData
 	metaData.Decode(req.Metadata)
@@ -135,7 +137,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 
 	switch m.settings.MNSMode {
 	case MNSModeTopic:
-		// create/fetch topic
+		// create/fetch topic.
 		err = m.topicManager.CreateTopic(
 			req.Topic,
 			metaData.TopicMaxMessageSize,
@@ -164,7 +166,7 @@ func (m *mns) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-// Subscribe
+// Subscribe.
 func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error { //nolint:cyclop
 	var metaData RequestMetaData
 	metaData.Decode(req.Metadata)
@@ -173,7 +175,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 		return err
 	}
 
-	// create/fetch queue
+	// create/fetch queue.
 	err = m.queueManager.CreateQueue(
 		metaData.QueueName,
 		metaData.QueueDelaySeconds,
@@ -191,7 +193,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 
 	switch m.settings.MNSMode {
 	case MNSModeTopic:
-		// create/fetch topic
+		// create/fetch topic.
 		err = m.topicManager.CreateTopic(
 			req.Topic,
 			metaData.TopicMaxMessageSize,
@@ -203,7 +205,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 			return fmt.Errorf("subscribing from MNS: %w", err)
 		}
 
-		// subscribe topic
+		// subscribe topic.
 		topic := ali_mns.NewMNSTopic(req.Topic, m.client)
 		sub := ali_mns.MessageSubsribeRequest{ // nolint: exhaustivestruct
 			Endpoint:            topic.GenerateQueueEndpoint(metaData.QueueName),
@@ -219,7 +221,7 @@ func (m *mns) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) err
 
 		time.Sleep(time.Duration(2) * time.Second)
 	case MNSModeQueue:
-		// do nothing here because queue is already created or fetched
+		// do nothing here because queue is already created or fetched.
 	default:
 		return fmt.Errorf("unsupported MNS mode: %v, should be queue or topic", m.settings.MNSMode)
 	}
@@ -326,12 +328,12 @@ func (m *mns) receiveMessageLoop(ctx context.Context, queue ali_mns.AliMNSQueue,
 	}
 }
 
-// Features does nothing here
+// Features does nothing here.
 func (m *mns) Features() []pubsub.Feature {
 	return nil
 }
 
-// Close unsubscribes all topics/queues and closes this service gracefully
+// Close unsubscribes all topics/queues and closes this service gracefully.
 func (m *mns) Close() error {
 	m.cancelFunc()
 

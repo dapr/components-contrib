@@ -1,3 +1,4 @@
+// nolint: goimports
 package mns
 
 import (

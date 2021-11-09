@@ -80,6 +80,8 @@ jobs:
           required-certs: AzureKeyVaultSecretStoreCert
         - component: state.sqlserver
           required-secrets: AzureSqlServerConnectionString
+        - component: bindings.azure.servicebusqueues
+          required-secrets: AzureServiceBusConnectionString
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"

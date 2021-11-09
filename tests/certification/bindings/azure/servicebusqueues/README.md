@@ -1,4 +1,4 @@
-# Azure Service Bus Queeu Input/Output Binding Certification
+# Azure Service Bus Queue Input/Output Binding Certification
 The purpose of this module is to provide tests that certify the Azure Service Bus Queue Input/Output Binding as a stable component.
 
 ## Test Plan

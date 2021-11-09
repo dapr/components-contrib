@@ -39,10 +39,7 @@ import (
 )
 
 const (
-	sidecarName   = "dapr-1"
-	applicationID = "app-1"
-	clusterName   = "servicebusqueuescertification"
-	numMessages   = 100
+	numMessages = 100
 )
 
 func TestServiceBusQueue(t *testing.T) {
@@ -120,8 +117,8 @@ func TestServiceBusQueue(t *testing.T) {
 
 	flow.New(t, "servicebusqueue certification").
 		// Run the application logic above.
-		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
-		Step(sidecar.Run(sidecarName,
+		Step(app.Run("basicApp", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("basicSidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
@@ -325,8 +322,8 @@ func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
 
 	flow.New(t, "servicebusqueue retry certification").
 		// Run the application logic above.
-		Step(app.Run(applicationID, fmt.Sprintf(":%d", appPort), application)).
-		Step(sidecar.Run(sidecarName,
+		Step(app.Run("retryApp", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("retrySidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),

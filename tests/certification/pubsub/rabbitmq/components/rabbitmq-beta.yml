@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mq-beta
+spec:
+  type: pubsub.rabbitmq
+  version: v1
+  metadata:
+  - name: consumerID
+    value: beta
+  - name: host
+    value: "amqp://test:test@localhost:5672"
+  - name: durable
+    value: true
+  - name: deletedWhenUnused
+    value: true
+  - name: requeueInFailure
+    value: true
+  - name: backOffMaxRetries
+    value: -1

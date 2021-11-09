@@ -58,8 +58,10 @@ func TestInvalidTLSInput(t *testing.T) {
 
 func TestValidTenantAndNS(t *testing.T) {
 	var (
-		testTenant    = "testTenant"
-		testNamespace = "testNamespace"
+		testTenant         = "testTenant"
+		testNamespace      = "testNamespace"
+		testTopic          = "testTopic"
+		expectFormatResult = "persistent://testTenant/testNamespace/testTopic"
 	)
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"host": "a", tenant: testTenant, namespace: testNamespace}
@@ -68,4 +70,11 @@ func TestValidTenantAndNS(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, testTenant, meta.Tenant)
 	assert.Equal(t, testNamespace, meta.Namespace)
+
+	t.Run("test format topic", func(t *testing.T) {
+		p := Pulsar{metadata: *meta}
+		res := p.formatTopic(testTopic)
+
+		assert.Equal(t, expectFormatResult, res)
+	})
 }

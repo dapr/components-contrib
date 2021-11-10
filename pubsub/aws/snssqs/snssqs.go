@@ -477,9 +477,10 @@ func (s *snsSqs) createDeadLettersQueue() (*sqsQueueInfo, error) {
 	var deadLettersQueueInfo *sqsQueueInfo
 	deadLettersQueueInfo, err := s.getOrCreateQueue(s.metadata.sqsDeadLettersQueueName)
 	if err != nil {
-		s.logger.Errorf("error retrieving SQS dead-letter queue: %w", err)
+		wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
+		s.logger.Error(wrappedErr)
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	return deadLettersQueueInfo, nil
@@ -541,27 +542,30 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	// these should be idempotent - queues should not be created if they exist.
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 	if err != nil {
-		s.logger.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
+		wrappedErr := fmt.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
+		s.logger.Error(wrappedErr)
 
-		return err
+		return wrappedErr
 	}
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID".
 	var queueInfo *sqsQueueInfo
 	queueInfo, err = s.getOrCreateQueue(s.metadata.sqsQueueName)
 	if err != nil {
-		s.logger.Errorf("error retrieving SQS queue: %w", err)
+		wrappedErr := fmt.Errorf("error retrieving SQS queue: %w", err)
+		s.logger.Error(wrappedErr)
 
-		return err
+		return wrappedErr
 	}
 
 	// only after a SQS queue and SNS topic had been setup, we restrict the SendMessage action to SNS as sole source
 	// to prevent anyone but SNS to publish message to SQS.
 	err = s.restrictQueuePublishPolicyToOnlySNS(queueInfo, topicArn)
 	if err != nil {
-		s.logger.Errorf("error setting sns-sqs subscription policy: %w", err)
+		wrappedErr := fmt.Errorf("error setting sns-sqs subscription policy: %w", err)
+		s.logger.Error(wrappedErr)
 
-		return err
+		return wrappedErr
 	}
 
 	// apply the dead letters queue attributes to the current queue.
@@ -570,18 +574,21 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 		var derr error
 		deadLettersQueueInfo, derr = s.createDeadLettersQueue()
 		if derr != nil {
-			s.logger.Errorf("error creating dead-letter queue: %w", derr)
+			wrappedErr := fmt.Errorf("error creating dead-letter queue: %w", derr)
+			s.logger.Error(wrappedErr)
 
-			return derr
+			return wrappedErr
 		}
 
 		var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
 		sqsSetQueueAttributesInput, derr = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
 		if derr != nil {
-			s.logger.Errorf("error creatubg queue attributes for dead-letter queue: %w", derr)
+			wrappedErr := fmt.Errorf("error creatubg queue attributes for dead-letter queue: %w", derr)
+			s.logger.Error(wrappedErr)
 
-			return derr
+			return wrappedErr
 		}
+
 		_, derr = s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
 		if derr != nil {
 			wrappedErr := fmt.Errorf("error updating queue attributes with dead-letter queue: %w", derr)

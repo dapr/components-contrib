@@ -46,10 +46,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[connectionString], m.ConnectionString)
 		assert.Equal(t, fakeProperties[consumerID], m.ConsumerID)
@@ -90,10 +90,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[connectionString] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 		assert.Empty(t, m.ConnectionString)
@@ -107,10 +107,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[consumerID] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 		assert.Empty(t, m.ConsumerID)
@@ -124,10 +124,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[timeoutInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 60, m.TimeoutInSec)
 		assert.Nil(t, err)
 	})
@@ -140,10 +140,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[timeoutInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -156,10 +156,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[disableEntityManagement] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, false, m.DisableEntityManagement)
 		assert.Nil(t, err)
 	})
@@ -172,10 +172,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[disableEntityManagement] = "invalid_bool"
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -188,10 +188,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[handlerTimeoutInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 60, m.HandlerTimeoutInSec)
 		assert.Nil(t, err)
 	})
@@ -204,10 +204,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[handlerTimeoutInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -220,10 +220,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[lockRenewalInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 20, m.LockRenewalInSec)
 		assert.Nil(t, err)
 	})
@@ -236,10 +236,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[lockRenewalInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -252,10 +252,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxActiveMessages] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 10000, m.MaxActiveMessages)
 		assert.Nil(t, err)
 	})
@@ -268,10 +268,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxActiveMessages] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -284,10 +284,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 2, m.MaxActiveMessagesRecoveryInSec)
 		assert.Nil(t, err)
 	})
@@ -300,10 +300,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -316,10 +316,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxReconnectionAttempts] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 30, m.MaxReconnectionAttempts)
 		assert.Nil(t, err)
 	})
@@ -332,10 +332,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxReconnectionAttempts] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -348,10 +348,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[connectionRecoveryInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Equal(t, 2, m.ConnectionRecoveryInSec)
 		assert.Nil(t, err)
 	})
@@ -364,10 +364,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[connectionRecoveryInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -380,10 +380,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxDeliveryCount] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Nil(t, m.MaxDeliveryCount)
 		assert.Nil(t, err)
 	})
@@ -396,10 +396,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxDeliveryCount] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -412,10 +412,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[defaultMessageTimeToLiveInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Nil(t, m.DefaultMessageTimeToLiveInSec)
 		assert.Nil(t, err)
 	})
@@ -428,10 +428,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[defaultMessageTimeToLiveInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -444,10 +444,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[autoDeleteOnIdleInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Nil(t, m.AutoDeleteOnIdleInSec)
 		assert.Nil(t, err)
 	})
@@ -460,10 +460,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[autoDeleteOnIdleInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -476,10 +476,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[lockDurationInSec] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Nil(t, m.LockDurationInSec)
 		assert.Nil(t, err)
 	})
@@ -492,10 +492,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[lockDurationInSec] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -508,10 +508,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxConcurrentHandlers] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Nil(t, m.MaxConcurrentHandlers)
 		assert.Nil(t, err)
 	})
@@ -524,10 +524,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[maxConcurrentHandlers] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})
@@ -540,10 +540,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[prefetchCount] = ""
 
-		// act
+		// act.
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Nil(t, m.PrefetchCount)
 		assert.Nil(t, err)
 	})
@@ -556,10 +556,10 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		}
 		fakeMetaData.Properties[prefetchCount] = invalidNumber
 
-		// act
+		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
 
-		// assert
+		// assert.
 		assert.Error(t, err)
 		assertValidErrorMessage(t, err)
 	})

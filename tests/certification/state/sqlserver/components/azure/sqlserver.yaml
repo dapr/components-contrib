@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: dapr-state-store
+spec:
+  type: state.sqlserver
+  metadata:
+  - name: connectionString
+    secretKeyRef:
+        name:  AzureSqlServerConnectionString
+        value: AzureSqlServerConnectionString
+  - name: databaseName
+    value: stablecertification
+  - name: tableName
+    value: dapr_certification_test
+  - name: keyType
+    value: string
+  - name: keyLength
+    value: 120
+  - name: schema
+    value: proto
+
+auth:
+  secretStore: envvar-secret-store

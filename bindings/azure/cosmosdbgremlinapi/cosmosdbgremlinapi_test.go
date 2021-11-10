@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package cosmosgraphdb
+package cosmosdbgremlinapi
 
 import (
 	"testing"
@@ -17,8 +17,8 @@ import (
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"Url": "a", "masterKey": "a", "username": "a"}
-	cosmosgraphdb := CosmosGraphDB{logger: logger.NewLogger("test")}
-	im, err := cosmosgraphdb.parseMetadata(m)
+	cosmosdbgremlinapi := CosmosDBGremlinAPI{logger: logger.NewLogger("test")}
+	im, err := cosmosdbgremlinapi.parseMetadata(m)
 	assert.Nil(t, err)
 	assert.Equal(t, "a", im.URL)
 	assert.Equal(t, "a", im.MasterKey)

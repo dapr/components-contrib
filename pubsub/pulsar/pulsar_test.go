@@ -58,23 +58,41 @@ func TestInvalidTLSInput(t *testing.T) {
 
 func TestValidTenantAndNS(t *testing.T) {
 	var (
-		testTenant         = "testTenant"
-		testNamespace      = "testNamespace"
-		testTopic          = "testTopic"
-		expectFormatResult = "persistent://testTenant/testNamespace/testTopic"
+		testTenant                = "testTenant"
+		testNamespace             = "testNamespace"
+		testTopic                 = "testTopic"
+		expectPersistentResult    = "persistent://testTenant/testNamespace/testTopic"
+		expectNonPersistentResult = "non-persistent://testTenant/testNamespace/testTopic"
 	)
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"host": "a", tenant: testTenant, namespace: testNamespace}
-	meta, err := parsePulsarMetadata(m)
 
-	assert.Nil(t, err)
-	assert.Equal(t, testTenant, meta.Tenant)
-	assert.Equal(t, testNamespace, meta.Namespace)
+	t.Run("test vaild tenant and namespace", func(t *testing.T) {
+		meta, err := parsePulsarMetadata(m)
 
-	t.Run("test format topic", func(t *testing.T) {
+		assert.Nil(t, err)
+		assert.Equal(t, testTenant, meta.Tenant)
+		assert.Equal(t, testNamespace, meta.Namespace)
+	})
+
+	t.Run("test persistent format topic", func(t *testing.T) {
+		meta, err := parsePulsarMetadata(m)
 		p := Pulsar{metadata: *meta}
 		res := p.formatTopic(testTopic)
 
-		assert.Equal(t, expectFormatResult, res)
+		assert.Nil(t, err)
+		assert.Equal(t, true, meta.Persistent)
+		assert.Equal(t, expectPersistentResult, res)
+	})
+
+	t.Run("test non-persistent format topic", func(t *testing.T) {
+		m.Properties[persistent] = "false"
+		meta, err := parsePulsarMetadata(m)
+		p := Pulsar{metadata: *meta}
+		res := p.formatTopic(testTopic)
+
+		assert.Nil(t, err)
+		assert.Equal(t, false, meta.Persistent)
+		assert.Equal(t, expectNonPersistentResult, res)
 	})
 }

@@ -22,11 +22,15 @@ const (
 	deliverAfter = "deliverAfter"
 	tenant       = "tenant"
 	namespace    = "namespace"
+	persistent   = "persistent"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
 	cachedNumProducer = 10
-	topicFormat       = "persistent://%s/%s/%s"
+	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic, see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details
+	topicFormat      = "%s://%s/%s/%s"
+	persistentStr    = "persistent"
+	nonPersistentStr = "non-persistent"
 )
 
 type Pulsar struct {
@@ -45,7 +49,7 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 }
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
-	m := pulsarMetadata{Tenant: defaultTenant, Namespace: defaultNamespace}
+	m := pulsarMetadata{Persistent: true, Tenant: defaultTenant, Namespace: defaultNamespace}
 	m.ConsumerID = meta.Properties["consumerID"]
 
 	if val, ok := meta.Properties[host]; ok && val != "" {
@@ -61,6 +65,13 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		m.EnableTLS = tls
 	}
 
+	if val, ok := meta.Properties[persistent]; ok && val != "" {
+		per, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for persistent")
+		}
+		m.Persistent = per
+	}
 	if val, ok := meta.Properties[tenant]; ok && val != "" {
 		m.Tenant = val
 	}
@@ -127,7 +138,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	topic := p.formatTopic(req.Topic)
 	cache, _ := p.cache.Get(topic)
 	if cache == nil {
-		p.logger.Debugf("creating producer for topic %s, full topic in pulsar is %s", req.Topic, topic)
+		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
 		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
 			Topic: topic,
 		})
@@ -186,7 +197,7 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
-		p.logger.Debugf("Could not subscribe %s, full topic in pulsar is %s", req.Topic, topic)
+		p.logger.Debugf("Could not subscribe to %s, full topic name in pulsar is %s", req.Topic, topic)
 
 		return err
 	}
@@ -257,7 +268,11 @@ func (p *Pulsar) Features() []pubsub.Feature {
 	return nil
 }
 
-// formatTopic the topic into pulsar's format with tenant and namespace.
+// formatTopic formats the topic into pulsar's structure with tenant and namespace.
 func (p *Pulsar) formatTopic(topic string) string {
-	return fmt.Sprintf(topicFormat, p.metadata.Tenant, p.metadata.Namespace, topic)
+	persist := persistentStr
+	if !p.metadata.Persistent {
+		persist = nonPersistentStr
+	}
+	return fmt.Sprintf(topicFormat, persist, p.metadata.Tenant, p.metadata.Namespace, topic)
 }

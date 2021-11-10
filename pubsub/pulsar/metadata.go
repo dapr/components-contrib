@@ -6,4 +6,5 @@ type pulsarMetadata struct {
 	EnableTLS  bool   `json:"enableTLS"`
 	Tenant     string `json:"tenant"`
 	Namespace  string `json:"namespace"`
+	Persistent bool   `json:"persistent"`
 }

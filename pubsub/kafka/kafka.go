@@ -69,6 +69,7 @@ type kafkaMetadata struct {
 	TLSClientCert        string
 	TLSClientKey         string
 	ConsumeRetryInterval time.Duration
+	Version              sarama.KafkaVersion
 }
 
 type consumer struct {
@@ -139,7 +140,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.initialOffset = meta.InitialOffset
 
 	config := sarama.NewConfig()
-	config.Version = sarama.V2_0_0_0
+	config.Version = meta.Version
 	config.Consumer.Offsets.Initial = k.initialOffset
 
 	if meta.ClientID != "" {
@@ -422,6 +423,16 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 			durationVal = time.Duration(intVal) * time.Millisecond
 		}
 		meta.ConsumeRetryInterval = durationVal
+	}
+
+	if val, ok := metadata.Properties["version"]; ok && val != "" {
+		version, err := sarama.ParseKafkaVersion(val)
+		if err != nil {
+			return nil, errors.New("kafka error: invalid kafka version")
+		}
+		meta.Version = version
+	} else {
+		meta.Version = sarama.V2_0_0_0
 	}
 
 	return &meta, nil

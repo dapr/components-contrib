@@ -61,6 +61,10 @@ github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0 h1:VBvHGLJbaY0+c66NZHdS
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0/go.mod h1:GJzjM4SR9T0KyX5gKCVyz1ytD8FeWeUPCwtFCt1AyfE=
 github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1 h1:BUYIbDf/mMZ8945v3QkG3OuqGVyS4Iek0AOLwdRAYoc=
 github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1/go.mod h1:KLF4gFr6DcKFZwSuH8w8yEK6DpFl3LP5rhdvAb7Yz5I=
+github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.3.0 h1:evZKQ+ORFMOu/AMkf95CIGFxYMOmTc8ZDNWP++bKCmE=
+github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.3.0/go.mod h1:aJ4Pej3ivJnoNJ4UPgh/snHVLSSV2Mcc62srBQZ4TWE=
+github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.1.0 h1:Xc2XhOPo5WsyBAX+EsMdg1HZQ0oDJ8Lt4jivIjv4Cak=
+github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.1.0/go.mod h1:qKJHexVLI0iqKFeV/2WnqbRBQtJTPOMeBdmHOxs+E88=
 github.com/Azure/azure-service-bus-go v0.11.1 h1:LH1gMbv8tciAH9VPTgqGKPIvc7TrpO3j/15OkL8wHU8=
 github.com/Azure/azure-service-bus-go v0.11.1/go.mod h1:9ta+jToyzWVnE1I4KbceZ/+ps+tos8Qz/v7MBgFE2Z8=
 github.com/Azure/azure-storage-blob-go v0.6.0/go.mod h1:oGfmITT1V6x//CswqY2gtAHND+xIP64/qL7a5QJix0Y=

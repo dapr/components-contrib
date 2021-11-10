@@ -12,6 +12,7 @@ require (
 	github.com/Azure/azure-sdk-for-go v57.2.0+incompatible
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.3.0
 	github.com/Azure/azure-service-bus-go v0.11.1
 	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd

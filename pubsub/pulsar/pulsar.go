@@ -27,7 +27,8 @@ const (
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
 	cachedNumProducer = 10
-	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic, see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details
+	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic,
+	// see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details.
 	topicFormat      = "%s://%s/%s/%s"
 	persistentStr    = "persistent"
 	nonPersistentStr = "non-persistent"

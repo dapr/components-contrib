@@ -85,7 +85,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
 		cred, err := c.GetTokenCredential()
-		if err != nil {
+		if err == nil {
 			creds = append(creds, cred)
 		} else {
 			errMsg += err.Error() + "\n"
@@ -95,7 +95,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	// 2. Client certificate
 	if c, e := s.GetClientCert(); e == nil {
 		cred, err := c.GetTokenCredential()
-		if err != nil {
+		if err == nil {
 			creds = append(creds, cred)
 		} else {
 			errMsg += err.Error() + "\n"
@@ -106,7 +106,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	{
 		c := s.GetMSI()
 		cred, err := c.GetTokenCredential()
-		if err != nil {
+		if err == nil {
 			creds = append(creds, cred)
 		} else {
 			errMsg += err.Error() + "\n"

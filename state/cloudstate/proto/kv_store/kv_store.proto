@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 syntax = "proto3";
 
 package cloudstate;
@@ -5,6 +10,8 @@ package cloudstate;
 import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 import "entity_key.proto";
+
+option go_package = "cloudstate/kv_store";
 
 service KeyValueStore {
     rpc GetState(GetStateEnvelope) returns (GetStateResponseEnvelope) {}

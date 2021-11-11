@@ -65,7 +65,6 @@ require (
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
@@ -136,6 +135,7 @@ require (
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
 	google.golang.org/grpc v1.36.0
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4

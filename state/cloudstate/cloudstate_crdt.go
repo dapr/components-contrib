@@ -15,11 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	any "github.com/golang/protobuf/ptypes/any"
-	empty "github.com/golang/protobuf/ptypes/empty"
 	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/grpc"
+	anypb "google.golang.org/protobuf/types/known/anypb"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/dapr/components-contrib/state"
 	pb "github.com/dapr/components-contrib/state/cloudstate/proto"
@@ -310,14 +309,14 @@ func (c *CRDT) Discover(ctx context.Context, in *pb.ProxyInfo) (*pb.EntitySpec, 
 	}, nil
 }
 
-func (c *CRDT) ReportError(ctx context.Context, in *pb.UserFunctionError) (*empty.Empty, error) {
+func (c *CRDT) ReportError(ctx context.Context, in *pb.UserFunctionError) (*emptypb.Empty, error) {
 	c.logger.Errorf("error from CloudState: %s", in.GetMessage())
 
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
-	var val *any.Any
+	var val *anypb.Any
 
 	exists := false
 
@@ -352,7 +351,7 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 				resp := kvstore_pb.GetStateResponseEnvelope{
 					Data: val,
 				}
-				a, _ := ptypes.MarshalAny(&resp)
+				a, _ := anypb.New(&resp)
 
 				srv.Send(&pb.CrdtStreamOut{
 					Message: &pb.CrdtStreamOut_Reply{
@@ -369,9 +368,9 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 					},
 				})
 			case "DeleteState":
-				val = &any.Any{}
-				e := empty.Empty{}
-				a, _ := ptypes.MarshalAny(&e)
+				val = &anypb.Any{}
+				e := emptypb.Empty{}
+				a, _ := anypb.New(&e)
 				srv.Send(&pb.CrdtStreamOut{
 					Message: &pb.CrdtStreamOut_Reply{
 						Reply: &pb.CrdtReply{
@@ -398,13 +397,13 @@ func (c *CRDT) Handle(srv pb.Crdt_HandleServer) error {
 					},
 				})
 			case "SaveState":
-				e := empty.Empty{}
-				a, _ := ptypes.MarshalAny(&e)
+				e := emptypb.Empty{}
+				a, _ := anypb.New(&e)
 
 				if m.Command.GetPayload().Value != nil {
 					vAny := m.Command.GetPayload()
 					var saveState kvstore_pb.SaveStateEnvelope
-					err := ptypes.UnmarshalAny(vAny, &saveState)
+					err := vAny.UnmarshalTo(&saveState)
 					if err != nil {
 						c.logger.Error(err)
 
@@ -603,7 +602,7 @@ func (c *CRDT) Set(req *state.SetRequest) error {
 	_, err = client.SaveState(ctx, &kvstore_pb.SaveStateEnvelope{
 		Key:  req.Key,
 		Etag: etag,
-		Value: &any.Any{
+		Value: &anypb.Any{
 			Value: bt,
 		},
 	})

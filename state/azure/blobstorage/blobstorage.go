@@ -228,7 +228,37 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
+	blobHTTPHeaders, err := createBlobHTTPHeadersFromRequest(req)
+
+	if err != nil {
+		return err
+	}
+	_, err = azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
+		Parallelism:      16,
+		Metadata:         req.Metadata,
+		AccessConditions: accessConditions,
+		BlobHTTPHeaders:  blobHTTPHeaders,
+	})
+	if err != nil {
+		r.logger.Debugf("write file %s, err %s", req.Key, err)
+
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func createBlobHTTPHeadersFromRequest(req *state.SetRequest) (azblob.BlobHTTPHeaders, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
+
+	if req.ContentType != "" {
+		blobHTTPHeaders.ContentType = req.ContentType
+	}
+
 	if val, ok := req.Metadata[contentType]; ok && val != "" {
 		blobHTTPHeaders.ContentType = val
 		delete(req.Metadata, contentType)
@@ -236,7 +266,7 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+			return azblob.BlobHTTPHeaders{}, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.ContentMD5 = sDec
 		delete(req.Metadata, contentMD5)
@@ -257,24 +287,7 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 		blobHTTPHeaders.CacheControl = val
 		delete(req.Metadata, cacheControl)
 	}
-
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
-		Parallelism:      16,
-		Metadata:         req.Metadata,
-		AccessConditions: accessConditions,
-		BlobHTTPHeaders:  blobHTTPHeaders,
-	})
-	if err != nil {
-		r.logger.Debugf("write file %s, err %s", req.Key, err)
-
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
-		return err
-	}
-
-	return nil
+	return blobHTTPHeaders, nil
 }
 
 func (r *StateStore) deleteFile(req *state.DeleteRequest) error {

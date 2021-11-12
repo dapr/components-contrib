@@ -23,10 +23,6 @@ import (
 )
 
 const (
-	correlationID = "correlationID"
-	label         = "label"
-	id            = "id"
-
 	// AzureServiceBusDefaultMessageTimeToLive defines the default time to live for queues, which is 14 days. The same way Azure Portal does.
 	AzureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
 )

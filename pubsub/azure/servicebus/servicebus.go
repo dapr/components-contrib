@@ -18,6 +18,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 
+	asbmessage "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -300,7 +301,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	msg, err := NewASBMessageFromPubsubRequest(req)
+	msg, err := asbmessage.NewASBMessageFromMessageWithMetadata(req)
 	if err != nil {
 		return err
 	}

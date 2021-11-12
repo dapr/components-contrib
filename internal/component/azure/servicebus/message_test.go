@@ -1,3 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package servicebus
 
 import (
@@ -14,7 +19,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-func TestNewASBMessageFromPubsubRequest(t *testing.T) {
+func TestNewASBMessageFromMessageWithMetadata(t *testing.T) {
 	testMessageData := []byte("test message")
 	testMessageID := "testMessageId"
 	testCorrelationID := "testCorrelationId"
@@ -101,7 +106,7 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// act.
-			msg, err := NewASBMessageFromPubsubRequest(&tc.pubsubRequest)
+			msg, err := NewASBMessageFromMessageWithMetadata(&tc.pubsubRequest)
 
 			// assert.
 			if tc.expectError {
@@ -125,7 +130,7 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 	}
 }
 
-func TestNewPubsubMessageFromAzServiceBusMessage(t *testing.T) {
+func TestNewPubsubMessageFromASBMessage(t *testing.T) {
 	testMessageData := []byte("test message")
 	testContentType := "testContentType"
 	testMessageID := "testMessageId"

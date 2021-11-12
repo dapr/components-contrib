@@ -8,6 +8,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 
+	asbmessage "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -109,7 +110,7 @@ func (s *subscription) close(ctx context.Context) {
 
 func (s *subscription) getHandlerFunc(handler pubsub.Handler, handlerTimeoutInSec int, timeoutInSec int) azservicebus.HandlerFunc {
 	return func(ctx context.Context, asbMsg *azservicebus.Message) error {
-		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, s.topic)
+		pubsubMsg, err := asbmessage.NewPubsubMessageFromASBMessage(asbMsg, s.topic)
 		if err != nil {
 			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
 		}

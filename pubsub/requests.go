@@ -25,3 +25,11 @@ type NewMessage struct {
 	Topic    string            `json:"topic"`
 	Metadata map[string]string `json:"metadata"`
 }
+
+func (req *PublishRequest) GetData() []byte {
+	return req.Data
+}
+
+func (req *PublishRequest) GetMetadata() map[string]string {
+	return req.Metadata
+}

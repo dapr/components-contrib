@@ -55,3 +55,11 @@ func (r *InvokeRequest) GetMetadataAsInt64(key string, bitSize int) (int64, erro
 
 	return 0, nil
 }
+
+func (r *InvokeRequest) GetData() []byte {
+	return r.Data
+}
+
+func (r *InvokeRequest) GetMetadata() map[string]string {
+	return r.Metadata
+}

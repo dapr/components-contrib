@@ -16,6 +16,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
+	asbmessage "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -156,21 +157,9 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 	}
 	defer client.Close(context.Background())
 
-	msg := servicebus.NewMessage(req.Data)
-	if val, ok := req.Metadata[id]; ok && val != "" {
-		msg.ID = val
-	}
-	if val, ok := req.Metadata[correlationID]; ok && val != "" {
-		msg.CorrelationID = val
-	}
-
-	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
+	msg, err := asbmessage.NewASBMessageFromMessageWithMetadata(req)
 	if err != nil {
 		return nil, err
-	}
-
-	if ok {
-		msg.TTL = &ttl
 	}
 
 	return nil, client.Send(ctx, msg)
@@ -178,9 +167,13 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 
 func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	var sbHandler servicebus.HandlerFunc = func(ctx context.Context, msg *servicebus.Message) error {
-		_, err := handler(&bindings.ReadResponse{
-			Data:     msg.Data,
-			Metadata: map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label},
+		mmd, err := asbmessage.NewMessageWithMetadataFromASBMessage(msg)
+		if err != nil {
+			return msg.Abandon(ctx)
+		}
+		_, err = handler(&bindings.ReadResponse{
+			Data:     mmd.GetData(),
+			Metadata: mmd.GetMetadata(),
 		})
 		if err == nil {
 			return msg.Complete(ctx)
@@ -221,7 +214,7 @@ func (a *AzureServiceBusQueues) attemptConnectionForever(backoff backoff.BackOff
 		client = clientAttempt
 		return nil
 	}, backoff,
-		func(err error, d time.Duration) {
+		func(err error, _ time.Duration) {
 			a.logger.Debugf("Failed to connect to Azure Service Bus Queue Binding with error: %s", err.Error())
 		},
 		func() {

@@ -229,7 +229,6 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
 	blobHTTPHeaders, err := createBlobHTTPHeadersFromRequest(req)
-
 	if err != nil {
 		return err
 	}

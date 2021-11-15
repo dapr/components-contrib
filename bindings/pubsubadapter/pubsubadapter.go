@@ -19,7 +19,7 @@ const (
 	defaultInvokeTopicMetadata  = "topic"
 )
 
-// Ensure Adapter satifies the input and output binding interfaces.
+// Ensure Adapter satisfies the input and output binding interfaces.
 var (
 	_ bindings.InputBinding  = (*Adapter)(nil)
 	_ bindings.OutputBinding = (*Adapter)(nil)
@@ -28,6 +28,7 @@ var (
 // Adapter allows any PubSub component to be used as an input
 // and output binding.
 type Adapter struct {
+	name                 string
 	broker               pubsub.PubSub
 	readTopicAttribute   string
 	readTopic            string
@@ -49,7 +50,7 @@ func WithReadTopicAttribute(readTopicAttribute string) Option {
 
 // WithInvokeTopicAttribute overrides the default invoke topic attribute
 // that determines the topic to publish to when Invoke is called and
-// the topic is not overriden in the request metadata.
+// the topic is not overridden in the request metadata.
 func WithInvokeTopicAttribute(invokeTopicAttribute string) Option {
 	return func(a *Adapter) {
 		a.invokeTopicAttribute = invokeTopicAttribute
@@ -65,9 +66,9 @@ func WithInvokeTopicMetadata(invokeTopicMetadata string) Option {
 	}
 }
 
-// New returns an input/output binding adapter for `broker`
+// New returns an input/output binding adapter for `broker`.
 func New(broker pubsub.PubSub, options ...Option) *Adapter {
-	a := Adapter{
+	a := Adapter{ //nolint:exhaustivestruct
 		broker:               broker,
 		readTopicAttribute:   defaultReadTopicAttribute,
 		invokeTopicAttribute: defaultInvokeTopicAttribute,
@@ -96,7 +97,9 @@ func (a *Adapter) Init(metadata bindings.Metadata) error {
 		return fmt.Errorf("pubsub adapter: %q attribute was missing", a.invokeTopicAttribute)
 	}
 
-	return a.broker.Init(pubsub.Metadata{
+	a.name = metadata.Name
+
+	return a.broker.Init(pubsub.Metadata{ //nolint:wrapcheck
 		Properties: metadata.Properties,
 	})
 }
@@ -104,8 +107,9 @@ func (a *Adapter) Init(metadata bindings.Metadata) error {
 // Read subscribes to the configured topic and invokes `handler`
 // when a message is received.
 func (a *Adapter) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
-	return a.broker.Subscribe(pubsub.SubscribeRequest{
-		Topic: a.invokeTopic,
+	return a.broker.Subscribe(pubsub.SubscribeRequest{ //nolint:wrapcheck
+		Topic:    a.invokeTopic,
+		Metadata: map[string]string{},
 	}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		_, err := handler(&bindings.ReadResponse{
 			Data:     msg.Data,
@@ -125,12 +129,13 @@ func (a *Adapter) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	}
 
 	err := a.broker.Publish(&pubsub.PublishRequest{
-		Data:     req.Data,
-		Topic:    topic,
-		Metadata: req.Metadata,
+		Data:       req.Data,
+		PubsubName: a.name,
+		Topic:      topic,
+		Metadata:   req.Metadata,
 	})
 
-	return nil, err
+	return nil, err //nolint:wrapcheck
 }
 
 // Operations returns "create" and "publish" as an operations
@@ -141,5 +146,5 @@ func (a *Adapter) Operations() []bindings.OperationKind {
 
 // Close closes the underlying component.
 func (a *Adapter) Close() error {
-	return a.broker.Close()
+	return a.broker.Close() //nolint:wrapcheck
 }

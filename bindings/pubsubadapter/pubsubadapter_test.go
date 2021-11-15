@@ -21,6 +21,7 @@ import (
 type mockPubSub struct {
 	pubsub.PubSub
 	metadata         pubsub.Metadata
+	initErr          error
 	publishRequest   *pubsub.PublishRequest
 	publishErr       error
 	subscribeRequest pubsub.SubscribeRequest
@@ -33,7 +34,7 @@ type mockPubSub struct {
 func (m *mockPubSub) Init(metadata pubsub.Metadata) error {
 	m.metadata = metadata
 
-	return nil
+	return m.initErr
 }
 
 func (m *mockPubSub) Publish(req *pubsub.PublishRequest) error {
@@ -58,6 +59,7 @@ func (m *mockPubSub) Close() error {
 func TestAdapter(t *testing.T) {
 	testErr := errors.New("test")
 	mock := mockPubSub{
+		initErr:      testErr,
 		publishErr:   testErr,
 		subscribeErr: testErr,
 		closeErr:     testErr,
@@ -74,12 +76,12 @@ func TestAdapter(t *testing.T) {
 
 	t.Run("init", func(t *testing.T) {
 		err := a.Init(bindings.Metadata{
-			Name:       "test",
+			Name:       "testPubSub",
 			Properties: map[string]string{},
 		})
 		require.EqualError(t, err, `pubsub adapter: "myReadTopicAttribute" attribute was missing`)
 		err = a.Init(bindings.Metadata{
-			Name: "test",
+			Name: "testPubSub",
 			Properties: map[string]string{
 				"myReadTopicAttribute": "test",
 			},
@@ -93,7 +95,14 @@ func TestAdapter(t *testing.T) {
 			"other":                  "test",
 		}
 		err = a.Init(bindings.Metadata{
-			Name:       "test",
+			Name:       "testPubSub",
+			Properties: properties,
+		})
+		assert.Same(t, testErr, err)
+
+		mock.initErr = nil
+		err = a.Init(bindings.Metadata{
+			Name:       "testPubSub",
 			Properties: properties,
 		})
 		require.NoError(t, err)
@@ -147,6 +156,7 @@ func TestAdapter(t *testing.T) {
 			Metadata: metadata,
 		})
 		require.NoError(t, err)
+		assert.Equal(t, "testPubSub", mock.publishRequest.PubsubName)
 		assert.Equal(t, "myOtherTopic", mock.publishRequest.Topic)
 		assert.Equal(t, data, mock.publishRequest.Data)
 		assert.Equal(t, metadata, mock.publishRequest.Metadata)
@@ -157,7 +167,8 @@ func TestAdapter(t *testing.T) {
 		assert.Equal(t,
 			[]bindings.OperationKind{
 				bindings.CreateOperation,
-				bindings.OperationKind("publish")},
+				bindings.OperationKind("publish"),
+			},
 			opers)
 	})
 

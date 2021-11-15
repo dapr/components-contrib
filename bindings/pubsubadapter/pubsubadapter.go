@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	defaultReadTopicAttribute   = "readTopic"
-	defaultInvokeTopicAttribute = "invokeTopic"
+	defaultReadTopicAttribute   = "topics"
+	defaultInvokeTopicAttribute = "publishTopic"
 	defaultInvokeTopicMetadata  = "topic"
 )
 

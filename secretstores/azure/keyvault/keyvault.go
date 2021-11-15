@@ -105,7 +105,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 		opts.Version = value
 	}
 
-	secretResp, err := k.vaultClient.GetSecret(context.Background(), req.Name, opts)
+	secretResp, err := k.vaultClient.GetSecret(context.TODO(), req.Name, opts)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}
@@ -139,7 +139,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 		MaxResults: maxResults,
 	})
 
-	for pager.NextPage(context.Background()) {
+	for pager.NextPage(context.TODO()) {
 		pr := pager.PageResponse()
 		for _, secret := range pr.Secrets {
 			if secret.Attributes == nil || secret.Attributes.Enabled == nil || !*secret.Attributes.Enabled {
@@ -147,7 +147,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 			}
 
 			secretName := strings.TrimPrefix(*secret.ID, secretIDPrefix)
-			secretResp, err := k.vaultClient.GetSecret(context.Background(), secretName, nil)
+			secretResp, err := k.vaultClient.GetSecret(context.TODO(), secretName, nil)
 			if err != nil {
 				return secretstores.BulkGetSecretResponse{}, err
 			}

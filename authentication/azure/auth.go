@@ -137,7 +137,7 @@ func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 // 1. Client credentials
 // 2. Client certificate
 // 3. MSI
-// This is used by the older Azure SDKs
+// This is used by the older Azure SDKs.
 func (s EnvironmentSettings) GetServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {

@@ -88,7 +88,9 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 	}
-	k.vaultClient, err = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{coreClientOpts})
+	k.vaultClient, err = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
+		ClientOptions: coreClientOpts,
+	})
 	if err != nil {
 		return err
 	}

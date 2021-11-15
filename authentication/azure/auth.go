@@ -76,7 +76,7 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 // 1. Client credentials
 // 2. Client certificate
 // 3. MSI
-// This is used by the newer ("track 2") Azure SDKs
+// This is used by the newer ("track 2") Azure SDKs.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential

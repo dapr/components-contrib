@@ -123,7 +123,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 // 1. Client credentials
 // 2. Client certificate
 // 3. MSI
-// This is used by the older Azure SDKs
+// This is used by the older Azure SDKs.
 func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 	spt, err := s.GetServicePrincipalToken()
 	if err != nil {

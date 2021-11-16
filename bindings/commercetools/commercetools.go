@@ -101,7 +101,7 @@ func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	return res, nil
 }
 
-// HandleGraphQLQuery executes the provided query against the commercetools backend.
+// handleGraphQLQuery executes the provided query against the commercetools backend.
 func handleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindings.InvokeResponse, error) {
 	ct.logger.Infof("handleGraphQLQuery")
 
@@ -171,6 +171,7 @@ func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commer
 	return &meta, nil
 }
 
+// Close the client
 func (ct *Binding) Close() error {
 	ct.client = nil
 

@@ -132,59 +132,41 @@ func handleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindin
 func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commercetoolsMetadata, error) {
 	meta := commercetoolsMetadata{}
 
-	val, ok := metadata.Properties["region"]
-	if !ok {
-		return nil, errors.New("commercetools error: missing 'region' attribute")
+	if val, ok := metadata.Properties["region"]; ok && val != "" {
+		meta.region = val
+	} else {
+		return nil, errors.New("commercetools error: missing `region` configuration")
 	}
-	if val == "" {
-		return nil, errors.New("commercetools error: 'region' attribute was empty")
-	}
-	meta.region = metadata.Properties["region"]
 
-	val, ok = metadata.Properties["provider"]
-	if !ok {
-		return nil, errors.New("commercetools error: missing 'provider' attribute")
+	if val, ok := metadata.Properties["provider"]; ok && val != "" {
+		meta.provider = val
+	} else {
+		return nil, errors.New("commercetools error: missing `provider` configuration")
 	}
-	if val == "" {
-		return nil, errors.New("commercetools error: 'provider' attribute was empty")
-	}
-	meta.provider = metadata.Properties["provider"]
 
-	val, ok = metadata.Properties["projectKey"]
-	if !ok {
-		return nil, errors.New("commercetools error: missing 'projectKey' attribute")
+	if val, ok := metadata.Properties["projectKey"]; ok && val != "" {
+		meta.projectKey = val
+	} else {
+		return nil, errors.New("commercetools error: missing `projectKey` configuration")
 	}
-	if val == "" {
-		return nil, errors.New("commercetools error: 'projectKey' attribute was empty")
-	}
-	meta.projectKey = metadata.Properties["projectKey"]
 
-	val, ok = metadata.Properties["clientID"]
-	if !ok {
-		return nil, errors.New("commercetools error: missing 'clientID' attribute")
+	if val, ok := metadata.Properties["clientID"]; ok && val != "" {
+		meta.clientID = val
+	} else {
+		return nil, errors.New("commercetools error: missing `clientID` configuration")
 	}
-	if val == "" {
-		return nil, errors.New("commercetools error: 'clientID' attribute was empty")
-	}
-	meta.clientID = metadata.Properties["clientID"]
 
-	val, ok = metadata.Properties["clientSecret"]
-	if !ok {
-		return nil, errors.New("commercetools error: missing 'clientSecret' attribute")
+	if val, ok := metadata.Properties["clientSecret"]; ok && val != "" {
+		meta.clientSecret = val
+	} else {
+		return nil, errors.New("commercetools error: missing `clientSecret` configuration")
 	}
-	if val == "" {
-		return nil, errors.New("commercetools error: 'clientSecret' attribute was empty")
-	}
-	meta.clientSecret = metadata.Properties["clientSecret"]
 
-	val, ok = metadata.Properties["scopes"]
-	if !ok {
-		return nil, errors.New("commercetools error: missing 'scopes' attribute")
+	if val, ok := metadata.Properties["scopes"]; ok && val != "" {
+		meta.scopes = val
+	} else {
+		return nil, errors.New("commercetools error: missing `scopes` configuration")
 	}
-	if val == "" {
-		return nil, errors.New("commercetools error: 'scopes' attribute was empty")
-	}
-	meta.scopes = metadata.Properties["scopes"]
 
 	return &meta, nil
 }

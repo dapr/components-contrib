@@ -10,7 +10,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -69,10 +72,58 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 	return &env, err
 }
 
+// GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
+// 1. Client credentials
+// 2. Client certificate
+// 3. MSI
+// This is used by the newer ("track 2") Azure SDKs.
+func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
+	// Create a chain
+	var creds []azcore.TokenCredential
+	errMsg := ""
+
+	// 1. Client credentials
+	if c, e := s.GetClientCredentials(); e == nil {
+		cred, err := c.GetTokenCredential()
+		if err == nil {
+			creds = append(creds, cred)
+		} else {
+			errMsg += err.Error() + "\n"
+		}
+	}
+
+	// 2. Client certificate
+	if c, e := s.GetClientCert(); e == nil {
+		cred, err := c.GetTokenCredential()
+		if err == nil {
+			creds = append(creds, cred)
+		} else {
+			errMsg += err.Error() + "\n"
+		}
+	}
+
+	// 3. MSI
+	{
+		c := s.GetMSI()
+		cred, err := c.GetTokenCredential()
+		if err == nil {
+			creds = append(creds, cred)
+		} else {
+			errMsg += err.Error() + "\n"
+		}
+	}
+
+	if len(creds) == 0 {
+		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %v", errMsg)
+	}
+	return azidentity.NewChainedTokenCredential(creds, nil)
+}
+
 // GetAuthorizer creates an Authorizer retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI.
+// 3. MSI
+// This is used by the older Azure SDKs.
 func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 	spt, err := s.GetServicePrincipalToken()
 	if err != nil {
@@ -85,7 +136,8 @@ func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
 // GetServicePrincipalToken returns a Service Principal Token retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI.
+// 3. MSI
+// This is used by the older Azure SDKs.
 func (s EnvironmentSettings) GetServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
@@ -182,6 +234,13 @@ func (c CredentialsConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken,
 	return adal.NewServicePrincipalToken(*oauthConfig, c.ClientID, c.ClientSecret, c.Resource)
 }
 
+// GetTokenCredential returns the azcore.TokenCredential object from the credentials.
+func (c CredentialsConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
+	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, &azidentity.ClientSecretCredentialOptions{
+		AuthorityHost: azidentity.AuthorityHost(c.AADEndpoint),
+	})
+}
+
 // CertConfig provides the options to get a bearer authorizer from a client certificate.
 type CertConfig struct {
 	*auth.ClientCertificateConfig
@@ -231,6 +290,39 @@ func (c CertConfig) ServicePrincipalTokenByCertBytes() (*adal.ServicePrincipalTo
 	return adal.NewServicePrincipalTokenFromCertificate(*oauthConfig, c.ClientID, certificate, rsaPrivateKey, c.Resource)
 }
 
+// GetTokenCredential returns the azcore.TokenCredential object from client certificate.
+func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
+	ccc := c.ClientCertificateConfig
+
+	// Certificate data - may be empty here
+	data := c.CertificateData
+
+	// If we have a certificate path, load it
+	if c.ClientCertificateConfig.CertificatePath != "" {
+		var errB error
+		data, errB = ioutil.ReadFile(ccc.CertificatePath)
+		if errB != nil {
+			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", ccc.CertificatePath, errB)
+		}
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("certificate is not given")
+	}
+
+	// Decode the PKCS#12 certificate
+	cert, key, err := c.decodePkcs12(data, c.CertificatePassword)
+	if err != nil || cert == nil {
+		return nil, fmt.Errorf("failed to decode pkcs12 certificate while creating spt: %v", err)
+	}
+
+	// Create the azcore.TokenCredential object
+	certs := []*x509.Certificate{cert}
+	opts := &azidentity.ClientCertificateCredentialOptions{
+		AuthorityHost: azidentity.AuthorityHost(c.AADEndpoint),
+	}
+	return azidentity.NewClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
+}
+
 func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificate, *rsa.PrivateKey, error) {
 	privateKey, certificate, err := pkcs12.Decode(pkcs, password)
 	if err != nil {
@@ -259,26 +351,35 @@ func NewMSIConfig(resource string) MSIConfig {
 }
 
 // ServicePrincipalToken gets the ServicePrincipalToken object from MSI.
-func (mc MSIConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
+func (c MSIConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
 	msiEndpoint, err := adal.GetMSIEndpoint()
 	if err != nil {
 		return nil, err
 	}
 
 	var spToken *adal.ServicePrincipalToken
-	if mc.ClientID == "" {
-		spToken, err = adal.NewServicePrincipalTokenFromMSI(msiEndpoint, mc.Resource)
+	if c.ClientID == "" {
+		spToken, err = adal.NewServicePrincipalTokenFromMSI(msiEndpoint, c.Resource)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get oauth token from MSI: %v", err)
 		}
 	} else {
-		spToken, err = adal.NewServicePrincipalTokenFromMSIWithUserAssignedID(msiEndpoint, mc.Resource, mc.ClientID)
+		spToken, err = adal.NewServicePrincipalTokenFromMSIWithUserAssignedID(msiEndpoint, c.Resource, c.ClientID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get oauth token from MSI for user assigned identity: %v", err)
 		}
 	}
 
 	return spToken, nil
+}
+
+// GetTokenCredential returns the azcore.TokenCredential object from MSI.
+func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
+	opts := &azidentity.ManagedIdentityCredentialOptions{}
+	if c.ClientID != "" {
+		opts.ID = azidentity.ClientID(c.ClientID)
+	}
+	return azidentity.NewManagedIdentityCredential(opts)
 }
 
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.

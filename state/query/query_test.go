@@ -7,7 +7,7 @@ package query
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,7 +77,7 @@ func TestQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := os.ReadFile(test.input)
+		data, err := ioutil.ReadFile(test.input)
 		assert.NoError(t, err)
 		var q Query
 		err = json.Unmarshal(data, &q)

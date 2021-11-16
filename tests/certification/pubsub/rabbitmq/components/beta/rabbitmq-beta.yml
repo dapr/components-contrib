@@ -13,7 +13,7 @@ spec:
   - name: durable
     value: true
   - name: deletedWhenUnused
-    value: true
+    value: false
   - name: requeueInFailure
     value: true
   - name: backOffMaxRetries

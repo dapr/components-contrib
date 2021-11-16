@@ -3,6 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/pubsub/rabbitmq
 go 1.17
 
 require (
+	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/dapr/components-contrib v1.5.0
 	github.com/dapr/components-contrib/tests/certification v1.5.0
 	github.com/dapr/dapr v1.5.0
@@ -26,7 +27,6 @@ require (
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fasthttp/router v1.3.8 // indirect
@@ -73,6 +73,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
+	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.28.0 // indirect
 	go.opencensus.io v0.22.5 // indirect

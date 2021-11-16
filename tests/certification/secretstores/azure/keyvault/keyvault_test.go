@@ -7,7 +7,12 @@ package keyvault_test
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -97,5 +102,93 @@ func TestKeyVault(t *testing.T) {
 				}),
 			))).
 		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
+		Run()
+
+	// This test reuses the Azure conformance test resources created using
+	// .github/infrastructure/conformance/azure/setup-azure-conf-test.sh
+	managedIdentityTest := func(ctx flow.Context) error {
+		_, err := exec.LookPath("az")
+		if err != nil {
+			t.Error("azure-cli not installed")
+		}
+		groupName, envVarFound := os.LookupEnv("AzureResourceGroupName")
+		if envVarFound == false {
+			t.Error("AzureResourceGroupName environment variable not set")
+		}
+
+		managedIdentityQuery := fmt.Sprintf("az identity show -g %s -n azure-managed-identity -otsv --query id", groupName)
+		managedIdentityID, err := exec.Command("bash", "-c", managedIdentityQuery).Output()
+		if err != nil {
+			t.Error("azure-managed-identity not found")
+		}
+
+		registryName, envVarFound := os.LookupEnv("AzureContainerRegistryName")
+		if envVarFound == false {
+			t.Error("AzureContainerRegistryName environment variable not set")
+		}
+		keyvaultName, envVarFound := os.LookupEnv("AzureKeyVaultName")
+		if envVarFound == false {
+			t.Error("AzureKeyVaultName environment variable not set")
+		}
+
+		// build and publish the image
+		buildContainerCommand := fmt.Sprintf("az acr build --image certification/keyvault:latest --registry %s --file managed-identity-app/Dockerfile ./managed-identity-app", registryName)
+		fmt.Printf("Building Container ==== : %s\n", buildContainerCommand)
+		err = exec.Command("bash", "-c", buildContainerCommand).Run()
+		if err != nil {
+			t.Error("failed to build and publish container")
+		}
+
+		// generate random string
+		rand.Seed(time.Now().UnixNano())
+		containerName := fmt.Sprintf("managedidentitytest%d", rand.Intn(10000)+1)
+
+		// run the container using Azure Container Instances with injected managed identity
+		registryPasswordSubcommand := fmt.Sprintf("az acr credential show -n %s --query passwords[0].value -otsv", registryName)
+		registryUsernameSubcommand := fmt.Sprintf("az acr credential show -n %s --query username -otsv", registryName)
+		containerCreateCommand := fmt.Sprintf("az container create -g %s -n %s --image %s.azurecr.io/certification/keyvault:latest --restart-policy never --environment-variables AzureKeyVaultName=%s --registry-password $(%s) --registry-username $(%s) --assign-identity %s", groupName, containerName, registryName, keyvaultName, registryPasswordSubcommand, registryUsernameSubcommand, managedIdentityID)
+		fmt.Printf("Running Container in Azure Container Instances ==== : %s\n", containerCreateCommand)
+		err = exec.Command("bash", "-c", containerCreateCommand).Run()
+		if err != nil {
+			t.Error(fmt.Sprintf("container %s not created: %s", containerName, err))
+		}
+
+		// read the container logs
+		logsCommand := fmt.Sprintf("az container logs -g %s -n %s", groupName, containerName)
+		fmt.Printf("Reading Container Logs ==== : %s\n", logsCommand)
+		output, err := exec.Command("bash", "-c", logsCommand).Output()
+		if err != nil {
+			t.Error(fmt.Sprintf("failed to get logs for container %s: %s", containerName, err))
+		}
+		expectedOuput := `{"secondsecret":"efgh"}`
+		outputFound := true
+		// if string contains "efgh" then the secret was successfully read
+		if !strings.Contains(string(output), expectedOuput) {
+			// in the unlikely event the operation has not completed yet we will check the logs one more time in 60 seconds
+			time.Sleep(time.Second * 60)
+			output, err = exec.Command("bash", "-c", logsCommand).Output()
+			if err != nil {
+				t.Error(fmt.Sprintf("failed to get logs for container %s: %s", containerName, err))
+			}
+			if !strings.Contains(string(output), expectedOuput) {
+				outputFound = false
+			}
+		}
+		// shut down the container
+		shutdownCommand := fmt.Sprintf("az container delete -g %s -n %s --yes", groupName, containerName)
+		fmt.Printf("Shutting Down Container ==== : %s\n", shutdownCommand)
+		err = exec.Command("bash", "-c", shutdownCommand).Run()
+		if err != nil {
+			t.Error(fmt.Sprintf("failed to shutdown container %s: %s", containerName, err))
+		}
+
+		if outputFound == false {
+			assert.Fail(t, fmt.Sprintf("failed to read secret secondsecret from KeyVault %s using managed identity %s in container %s: %s", keyvaultName, managedIdentityID, containerName, err))
+		}
+		return nil
+	}
+
+	flow.New(t, "keyvault authentication using managed identity").
+		Step("Test secret access using managed identity authentication", managedIdentityTest).
 		Run()
 }

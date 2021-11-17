@@ -171,7 +171,7 @@ func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commer
 	return &meta, nil
 }
 
-// Close the client
+// Close releases the client.
 func (ct *Binding) Close() error {
 	ct.client = nil
 

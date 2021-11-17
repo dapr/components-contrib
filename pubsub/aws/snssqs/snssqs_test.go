@@ -141,6 +141,18 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 	fixtures := []testUnitFixture{
 		{
 			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID": "consumer",
+				"Endpoint":   "endpoint",
+				"AccessKey":  "acctId",
+				"SecretKey":  "secret",
+				"awsToken":   "token",
+				"Region":     "region",
+				"fifo":       "none bool",
+			}},
+			name: "fifo not set to boolean",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
 				"consumerID":          "consumer",
 				"Endpoint":            "endpoint",
 				"AccessKey":           "acctId",
@@ -260,7 +272,59 @@ func Test_replaceNameToAWSSanitizedName(t *testing.T) {
 	s := `Some_invalid-name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid 
 		name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an
 		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^`
-	v := nameToAWSSanitizedName(s)
+	v := nameToAWSSanitizedName(s, false)
 	r.Equal(80, len(v))
 	r.Equal("Some_invalid-nameforanAWSresourceSomeinvalidnameforanAWSresourceSomeinvalidnamef", v)
+}
+
+func Test_replaceNameToAWSSanitizedFifoName_Trimmed(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `Some_invalid-name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid 
+		name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an
+		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^`
+	v := nameToAWSSanitizedName(s, true)
+	r.Equal(80, len(v))
+	r.Equal("Some_invalid-nameforanAWSresourceSomeinvalidnameforanAWSresourceSomeinvalid.fifo", v)
+}
+
+func Test_replaceNameToAWSSanitizedFifoName_NonTrimmed(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `012345678901234567890123456789012345678901234567890123456789012345678901234`
+	v := nameToAWSSanitizedName(s, true)
+	r.Equal(80, len(v))
+	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
+}
+
+func Test_replaceNameToAWSSanitizedExistingFifoName_NonTrimmed(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `012345678901234567890123456789012345678901234567890123456789012345678901234.fifo`
+	v := nameToAWSSanitizedName(s, true)
+	r.Equal(80, len(v))
+	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
+}
+
+func Test_replaceNameToAWSSanitizedExistingFifoName_NoFifoSetting(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `012345678901234567890123456789012345678901234567890123456789012345678901234.fifo`
+	v := nameToAWSSanitizedName(s, false)
+	r.Equal(79, len(v))
+	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234fifo", v)
+}
+
+func Test_replaceNameToAWSSanitizedExistingFifoName_Trimmed(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `01234567890123456789012345678901234567890123456789012345678901234567890123456789.fifo`
+	v := nameToAWSSanitizedName(s, true)
+	r.Equal(80, len(v))
+	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }

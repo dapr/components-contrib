@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ import (
 
 func newBroker() *rabbitMQInMemoryBroker {
 	return &rabbitMQInMemoryBroker{
-		buffer: make(chan amqp.Delivery),
+		buffer: make(chan amqp.Delivery, 2),
 	}
 }
 
@@ -288,9 +289,12 @@ func TestSubscribeReconnect(t *testing.T) {
 	assert.Equal(t, 2, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
 
+	// allow last reconnect completion
+	time.Sleep(time.Second)
+
 	// Check that reconnection happened
-	assert.Equal(t, 2, broker.connectCount)
-	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
+	assert.Equal(t, 3, broker.connectCount) // initial connect + 2 reconnects
+	assert.Equal(t, 4, broker.closeCount)   // two counts for each connection closure - one for connection, one for channel
 }
 
 func createAMQPMessage(body []byte) amqp.Delivery {

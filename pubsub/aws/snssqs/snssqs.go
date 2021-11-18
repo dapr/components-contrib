@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type snsSqs struct {
@@ -23,12 +25,14 @@ type snsSqs struct {
 	// key is the sanitized topic name, value is the actual topic name.
 	topicSanitized map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url.
-	queues        map[string]*sqsQueueInfo
+	queues map[string]*sqsQueueInfo
+	// sns to sqs subscriptions
+	subscriptions []*string
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
 	metadata      *snsSqsMetadata
 	logger        logger.Logger
-	subscriptions []*string
+	id            string
 }
 
 type sqsQueueInfo struct {
@@ -53,7 +57,9 @@ type snsSqsMetadata struct {
 	sqsDeadLettersQueueName string
 	// flag to SNS and SQS FIFO
 	fifo bool
-	// a namespace for SNS SQS FIFO to order messages with that group
+	// a namespace for SNS SQS FIFO to order messages within that group. limits consumer concurrency if set but guarentees that all
+	// published messages would be ordered by their arrival time to SQS.
+	// see: https://aws.amazon.com/blogs/compute/solving-complex-ordering-challenges-with-amazon-sqs-fifo-queues/
 	fifoMessageGroupID string
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10.
 	messageVisibilityTimeout int64
@@ -75,9 +81,15 @@ const (
 
 // NewSnsSqs - constructor for a new snssqs dapr component.
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
+	id, err := gonanoid.New()
+	if err != nil {
+		log.Fatalf("failed generating unique nano id: %s", err)
+	}
+
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
+		id:            id,
 	}
 }
 
@@ -139,10 +151,13 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 		}
 	}
 
-	// reattach the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength
+	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength
 	if hasFifoSuffix || isFifo {
 		delta := j + len(suffix) - maxLength
-		return string(s[:j-delta]) + suffix
+		if delta > 0 {
+			j -= delta
+		}
+		return string(s[:j]) + suffix
 	}
 
 	return string(s[:j])
@@ -405,7 +420,11 @@ func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
 	if len(s.metadata.fifoMessageGroupID) > 0 {
 		return &s.metadata.fifoMessageGroupID
 	}
-	fifoMessageGroupID := fmt.Sprintf("%s:%s", req.PubsubName, req.Topic)
+	// each daprd, of a given PubSub, of a given publisher application publishes to a message group ID of its own.
+	// for example: for a daprd serving the SNS/SQS Pubsub component we generate a unique id -> A; that component serves on behalf
+	// of a given PubSub deployment name B, and component A publishes to SNS on behalf of a dapr application named C (effectively to topic C).
+	// therefore the created message group ID for publishing messages in the aforementioned setup is "A:B:C"
+	fifoMessageGroupID := fmt.Sprintf("%s:%s:%s", s.id, req.PubsubName, req.Topic)
 	return &fifoMessageGroupID
 }
 

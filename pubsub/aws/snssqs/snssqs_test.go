@@ -309,6 +309,16 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_NonTrimmed(t *testing.T) {
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }
 
+func Test_replaceNameToAWSSanitizedExistingFifoName_NonMax(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `0123456789`
+	v := nameToAWSSanitizedName(s, true)
+	r.Equal(len(s)+len(".fifo"), len(v))
+	r.Equal("0123456789.fifo", v)
+}
+
 func Test_replaceNameToAWSSanitizedExistingFifoName_NoFifoSetting(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)

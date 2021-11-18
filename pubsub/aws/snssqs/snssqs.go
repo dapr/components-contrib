@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -83,7 +82,7 @@ const (
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	id, err := gonanoid.New()
 	if err != nil {
-		log.Fatalf("failed generating unique nano id: %s", err)
+		l.Fatalf("failed generating unique nano id: %s", err)
 	}
 
 	return &snsSqs{

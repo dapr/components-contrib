@@ -41,6 +41,13 @@ jobs:
                     event_type: "conformance-test",
                     client_payload: testPayload,
                   });
+                  // Fire repository_dispatch event to trigger certification test
+                  await github.repos.createDispatchEvent({
+                    owner: issue.owner,
+                    repo: issue.repo,
+                    event_type: "certification-test",
+                    client_payload: testPayload,
+                  });
                 }
               }
             }

@@ -103,7 +103,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-			if handled := m.evalRequest(ctx, meta, &query); handled {
+			if allow := m.evalRequest(ctx, meta, &query); !allow {
 				return
 			}
 			h(ctx)
@@ -145,6 +145,7 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 			"query":      queryArgs,
 			"headers":    headers,
 			"scheme":     string(ctx.Request.URI().Scheme()),
+			"body":       string(ctx.Request.Body()),
 		},
 	}
 

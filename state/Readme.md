@@ -4,20 +4,21 @@ State Stores provide a common way to interact with different data store implemen
 
 Currently supported state stores are:
 
-* AWS DynamoDB
 * Aerospike
+* Alibaba Cloud Tablestore
+* AWS DynamoDB
 * Azure Blob Storage
 * Azure CosmosDB
 * Azure Table Storage
 * Cassandra
 * Cloud Firestore (Datastore mode)
-* CloudState
 * Couchbase
 * Etcd
 * HashiCorp Consul
 * Hazelcast
 * Memcached
 * MongoDB
+* MySQL
 * PostgreSQL
 * Redis
 * RethinkDB

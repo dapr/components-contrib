@@ -75,7 +75,6 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
-		pattern: regexp.MustCompile("[^a-zA-Z0-9_\\-]+"),
 	}
 }
 

@@ -68,7 +68,6 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect

@@ -69,6 +69,7 @@ type kafkaMetadata struct {
 	TLSClientCert        string
 	TLSClientKey         string
 	ConsumeRetryInterval time.Duration
+	Version              sarama.KafkaVersion
 }
 
 type consumer struct {
@@ -139,7 +140,7 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 	k.initialOffset = meta.InitialOffset
 
 	config := sarama.NewConfig()
-	config.Version = sarama.V2_0_0_0
+	config.Version = meta.Version
 	config.Consumer.Offsets.Initial = k.initialOffset
 
 	if meta.ClientID != "" {
@@ -182,6 +183,9 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 
 // Publish message to Kafka cluster.
 func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
+	if k.producer == nil {
+		return errors.New("component is closed")
+	}
 	k.logger.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
 
 	msg := &sarama.ProducerMessage{
@@ -421,6 +425,16 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 		meta.ConsumeRetryInterval = durationVal
 	}
 
+	if val, ok := metadata.Properties["version"]; ok && val != "" {
+		version, err := sarama.ParseKafkaVersion(val)
+		if err != nil {
+			return nil, errors.New("kafka error: invalid kafka version")
+		}
+		meta.Version = version
+	} else {
+		meta.Version = sarama.V2_0_0_0
+	}
+
 	return &meta, nil
 }
 
@@ -481,10 +495,15 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 	return nil
 }
 
-func (k *Kafka) Close() error {
+func (k *Kafka) Close() (err error) {
 	k.closeSubscriptionResources()
 
-	return k.producer.Close()
+	if k.producer != nil {
+		err = k.producer.Close()
+		k.producer = nil
+	}
+
+	return err
 }
 
 func (k *Kafka) Features() []pubsub.Feature {

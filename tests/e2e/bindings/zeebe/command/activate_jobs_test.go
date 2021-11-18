@@ -8,12 +8,9 @@
 package command
 
 import (
-	"encoding/json"
 	"testing"
+	"time"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/entities"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/tests/e2e/bindings/zeebe"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,6 +20,7 @@ func TestActivateJobs(t *testing.T) {
 
 	id := zeebe.TestID()
 	jobType := id + "-test"
+	workerName := "test"
 
 	cmd, err := zeebe.Command()
 	assert.NoError(t, err)
@@ -35,26 +33,80 @@ func TestActivateJobs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, id, deployment.BpmnProcessId)
 
-	t.Run("activate a job", func(t *testing.T) {
-		t.Parallel()
+	t.Run("activate a job and fetch all variables", func(t *testing.T) {
+		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+			"bpmnProcessId": id,
+			"version":       1,
+			"variables": map[string]interface{}{
+				"foo": "bar",
+				"bar": "foo",
+			},
+		})
+		assert.NoError(t, err)
+		time.Sleep(5 * time.Second)
 
-		data, err := json.Marshal(map[string]interface{}{
+		jobs, err := zeebe.ActicateJob(cmd, map[string]interface{}{
 			"jobType":           jobType,
 			"maxJobsToActivate": 100,
 			"timeout":           "10m",
+			"workerName":        workerName,
+		})
+
+		assert.NoError(t, err)
+		assert.NotNil(t, jobs)
+		assert.Equal(t, 1, len(*jobs))
+
+		job := (*jobs)[0]
+		assert.NotNil(t, job.Key)
+		assert.Equal(t, jobType, job.Type)
+		assert.Equal(t, processInstance.ProcessInstanceKey, job.ProcessInstanceKey)
+		assert.Equal(t, processInstance.BpmnProcessId, job.BpmnProcessId)
+		assert.Equal(t, processInstance.ProcessDefinitionKey, job.ProcessDefinitionKey)
+		assert.NotNil(t, job.ElementInstanceKey)
+		assert.Equal(t, "Activity_test", job.ElementId)
+		assert.Equal(t, "{\"process-header-1\":\"1\",\"process-header-2\":\"2\"}", job.CustomHeaders)
+		assert.Equal(t, workerName, job.Worker)
+		assert.Equal(t, int32(1), job.Retries)
+		assert.NotNil(t, job.Deadline)
+		assert.Equal(t, "{\"bar\":\"foo\",\"foo\":\"bar\"}", job.Variables)
+	})
+
+	t.Run("activate a job and fetch only the foo variable", func(t *testing.T) {
+		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+			"bpmnProcessId": id,
+			"version":       1,
+			"variables": map[string]interface{}{
+				"foo": "bar",
+				"bar": "foo",
+			},
 		})
 		assert.NoError(t, err)
+		time.Sleep(5 * time.Second)
 
-		req := &bindings.InvokeRequest{Data: data, Operation: command.ActivateJobsOperation}
-		res, err := cmd.Invoke(req)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
+		jobs, err := zeebe.ActicateJob(cmd, map[string]interface{}{
+			"jobType":           jobType,
+			"maxJobsToActivate": 100,
+			"timeout":           "10m",
+			"workerName":        workerName,
+			"fetchVariables":    [1]string{"foo"},
+		})
 
-		jobs := &[]entities.Job{}
-		err = json.Unmarshal(res.Data, jobs)
 		assert.NoError(t, err)
-		// There is currently an issue which prevents the command to return the jobs: https://github.com/camunda-cloud/zeebe/issues/5925
-		// assert.Equal(t, 1, len(*jobs))
-		assert.Nil(t, res.Metadata)
+		assert.NotNil(t, jobs)
+		assert.Equal(t, 1, len(*jobs))
+
+		job := (*jobs)[0]
+		assert.NotNil(t, job.Key)
+		assert.Equal(t, jobType, job.Type)
+		assert.Equal(t, processInstance.ProcessInstanceKey, job.ProcessInstanceKey)
+		assert.Equal(t, processInstance.BpmnProcessId, job.BpmnProcessId)
+		assert.Equal(t, processInstance.ProcessDefinitionKey, job.ProcessDefinitionKey)
+		assert.NotNil(t, job.ElementInstanceKey)
+		assert.Equal(t, "Activity_test", job.ElementId)
+		assert.Equal(t, "{\"process-header-1\":\"1\",\"process-header-2\":\"2\"}", job.CustomHeaders)
+		assert.Equal(t, workerName, job.Worker)
+		assert.Equal(t, int32(1), job.Retries)
+		assert.NotNil(t, job.Deadline)
+		assert.Equal(t, "{\"foo\":\"bar\"}", job.Variables)
 	})
 }

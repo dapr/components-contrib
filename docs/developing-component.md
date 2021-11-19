@@ -87,7 +87,7 @@ cp ./dist/darwin_amd64/debug/daprd ~/.dapr/bin
 4. Update component-contrib go mod and ensure that component-contrib is updated to the latest version
 ```bash
 go get -u github.com/dapr/components-contrib@master
-go mod tidy
+make modtidy-all
 ```
 5. Import your component to Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L20-L115)
 6. Register your component in Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L256-L385)

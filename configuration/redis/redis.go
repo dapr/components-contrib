@@ -263,8 +263,13 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 	// enable notify-keyspace-events by redis Set command
 	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
 	p := r.client.Subscribe(ctx, redisChannel4revision)
-	for msg := range p.Channel() {
-		r.handleSubscribedChange(ctx, req, handler, msg)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-p.Channel():
+			r.handleSubscribedChange(ctx, req, handler, msg)
+		}
 	}
 }
 

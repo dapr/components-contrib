@@ -186,14 +186,27 @@ func (m *MQTT) Operations() []bindings.OperationKind {
 }
 
 func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	m.logger.Debugf("mqtt publishing topic %s with data: %v", m.metadata.topic, req.Data)
+	// MQTT client Publish() has an internal race condition in the default autoreconnect config.
+	// To mitigate sporadic failures on the Dapr side, this implementation retries 3 times at
+	// a fixed 200ms interval. This is not configurable to keep this as an implementation detail
+	// for this component, as the additional public config metadata required could be replaced
+	// by the more general Dapr APIs for resiliency moving forwards.
+	cbo := backoff.NewConstantBackOff(200 * time.Millisecond)
+	bo := backoff.WithMaxRetries(cbo, 3)
+	bo = backoff.WithContext(bo, m.ctx)
 
-	token := m.producer.Publish(m.metadata.topic, m.metadata.qos, m.metadata.retain, req.Data)
-	if !token.WaitTimeout(defaultWait) || token.Error() != nil {
-		return nil, fmt.Errorf("mqtt error from publish: %v", token.Error())
-	}
-
-	return nil, nil
+	return nil, retry.NotifyRecover(func() error {
+		m.logger.Debugf("mqtt publishing topic %s with data: %v", m.metadata.topic, req.Data)
+		token := m.producer.Publish(m.metadata.topic, m.metadata.qos, m.metadata.retain, req.Data)
+		if !token.WaitTimeout(defaultWait) || token.Error() != nil {
+			return fmt.Errorf("mqtt error from publish: %v", token.Error())
+		}
+		return nil
+	}, bo, func(err error, _ time.Duration) {
+		m.logger.Debugf("Could not publish MQTT message. Retrying...: %v", err)
+	}, func() {
+		m.logger.Debug("Successfully published MQTT message after it previously failed")
+	})
 }
 
 func (m *MQTT) handleMessage(handler func(*bindings.ReadResponse) ([]byte, error), mqttMsg mqtt.Message) error {

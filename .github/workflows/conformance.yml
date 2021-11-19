@@ -188,9 +188,9 @@ jobs:
         wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
         unzip -qq ngrok-stable-linux-amd64.zip
         ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
-        ./ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        ./ngrok http -log=stdout --log-level debug -host-header=localhost 9000 > /tmp/ngrok.log &
         sleep 10
-        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
+        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eom1 'https://.*' | sed 's/\s.*//'`
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
         echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
         cat /tmp/ngrok.log
@@ -340,7 +340,14 @@ jobs:
     - name: Stop ngrok
       if: contains(matrix.component, 'azure.eventgrid')
       continue-on-error: true
-      run: pkill ngrok; cat /tmp/ngrok.log
+      run: |
+        set +e
+        echo "GET ngrok tunnels:"
+        curl http://localhost:4040/api/tunnels
+        echo "GET ngrok http requests:"
+        curl http://localhost:4040/api/requests/http
+        pkill ngrok
+        cat /tmp/ngrok.log
 
     - name: Cleanup Azure SQL test DB instance
       if: contains(matrix.component, 'azure.sql')

@@ -143,7 +143,7 @@ func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 
 func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
-		a.worker = worker.NewWorker(a.recordProcessorFactory(handler), a.workerConfig, nil)
+		a.worker = worker.NewWorker(a.recordProcessorFactory(handler), a.workerConfig)
 		err := a.worker.Start()
 		if err != nil {
 			return err
@@ -346,8 +346,8 @@ func (p *recordProcessor) ProcessRecords(input *interfaces.ProcessRecordsInput) 
 	}
 
 	// checkpoint it after processing this batch
-	lastRecordSequenceNubmer := input.Records[len(input.Records)-1].SequenceNumber
-	input.Checkpointer.Checkpoint(lastRecordSequenceNubmer)
+	lastRecordSequenceNumber := input.Records[len(input.Records)-1].SequenceNumber
+	input.Checkpointer.Checkpoint(lastRecordSequenceNumber)
 }
 
 func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {

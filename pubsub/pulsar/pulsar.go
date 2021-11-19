@@ -58,11 +58,11 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	// DisableBatching is defaultly disable batching.
 	m.DisableBatching = true
 	if val, ok := meta.Properties[disableBatching]; ok {
-		enableBatching, err := strconv.ParseBool(val)
+		disableBatching, err := strconv.ParseBool(val)
 		if err != nil {
 			return nil, errors.New("pulsar error: invalid value for disableBatching")
 		}
-		m.DisableBatching = enableBatching
+		m.DisableBatching = disableBatching
 	}
 
 	return &m, nil

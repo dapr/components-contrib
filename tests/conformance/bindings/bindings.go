@@ -214,7 +214,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		t.Run("list", func(t *testing.T) {
 			testLogger.Info("List test running ...")
 			req := config.createInvokeRequest()
-			req.Operation = bindings.GetOperation
+			req.Operation = bindings.ListOperation
 			_, err := outputBinding.Invoke(&req)
 			assert.NoError(t, err, "expected no error invoking output binding")
 			testLogger.Info("List test done.")

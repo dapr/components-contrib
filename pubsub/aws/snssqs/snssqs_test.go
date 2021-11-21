@@ -16,7 +16,7 @@ type testUnitFixture struct {
 
 func Test_parseTopicArn(t *testing.T) {
 	t.Parallel()
-	// no further guarantees are made about this function
+	// no further guarantees are made about this function.
 	r := require.New(t)
 	r.Equal("qqnoob", parseTopicArn("arn:aws:sqs:us-east-1:000000000000:qqnoob"))
 }
@@ -260,7 +260,7 @@ func Test_parseInt64(t *testing.T) {
 	number, _ = parseInt64("-1000", "")
 	r.Equal(int64(-1000), number)
 
-	// Expecting that this function doesn't panic
+	// Expecting that this function doesn't panic.
 	_, err = parseInt64("999999999999999999999999999999999999999999999999999999999999999999999999999", "")
 	r.Error(err)
 }

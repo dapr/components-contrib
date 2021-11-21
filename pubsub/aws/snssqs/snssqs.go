@@ -12,10 +12,11 @@ import (
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
 
+	gonanoid "github.com/matoous/go-nanoid/v2"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type snsSqs struct {
@@ -25,7 +26,7 @@ type snsSqs struct {
 	topicSanitized map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url.
 	queues map[string]*sqsQueueInfo
-	// sns to sqs subscriptions
+	// sns to sqs subscriptions.
 	subscriptions []*string
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
@@ -54,9 +55,9 @@ type snsSqsMetadata struct {
 	sqsQueueName string
 	// name of the dead letter queue for this application.
 	sqsDeadLettersQueueName string
-	// flag to SNS and SQS FIFO
+	// flag to SNS and SQS FIFO.
 	fifo bool
-	// a namespace for SNS SQS FIFO to order messages within that group. limits consumer concurrency if set but guarentees that all
+	// a namespace for SNS SQS FIFO to order messages within that group. limits consumer concurrency if set but guarantees that all
 	// published messages would be ordered by their arrival time to SQS.
 	// see: https://aws.amazon.com/blogs/compute/solving-complex-ordering-challenges-with-amazon-sqs-fifo-queues/
 	fifoMessageGroupID string
@@ -125,7 +126,7 @@ func parseBool(input string, propertyName string) (bool, error) {
 func nameToAWSSanitizedName(name string, isFifo bool) string {
 	suffix := ".fifo"
 
-	// first remove suffix if exists, and user requested a FIFO name, then sanitize the passed in name
+	// first remove suffix if exists, and user requested a FIFO name, then sanitize the passed in name.
 	hasFifoSuffix := false
 	if strings.HasSuffix(name, suffix) && isFifo {
 		hasFifoSuffix = true
@@ -150,7 +151,7 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 		}
 	}
 
-	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength
+	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength.
 	if hasFifoSuffix || isFifo {
 		delta := j + len(suffix) - maxLength
 		if delta > 0 {
@@ -239,7 +240,7 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		return nil, errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
 	}
 
-	// fifo settings: enable/disable SNS and SQS FIFO
+	// fifo settings: enable/disable SNS and SQS FIFO.
 	if val, ok := props["fifo"]; ok {
 		fifo, err := parseBool(val, "fifo")
 		if err != nil {
@@ -422,7 +423,7 @@ func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
 	// each daprd, of a given PubSub, of a given publisher application publishes to a message group ID of its own.
 	// for example: for a daprd serving the SNS/SQS Pubsub component we generate a unique id -> A; that component serves on behalf
 	// of a given PubSub deployment name B, and component A publishes to SNS on behalf of a dapr application named C (effectively to topic C).
-	// therefore the created message group ID for publishing messages in the aforementioned setup is "A:B:C"
+	// therefore the created message group ID for publishing messages in the aforementioned setup is "A:B:C".
 	fifoMessageGroupID := fmt.Sprintf("%s:%s:%s", s.id, req.PubsubName, req.Topic)
 	return &fifoMessageGroupID
 }
@@ -444,7 +445,7 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 
 	_, err = s.snsClient.Publish(snsPublishInput)
 	if err != nil {
-		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %v", req.Topic, topicArn, err)
+		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %w", req.Topic, topicArn, err)
 		s.logger.Error(wrappedErr)
 
 		return wrappedErr
@@ -501,7 +502,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 			"message received greater than %v times, moving this message without further processing to dead-letters queue: %v", s.metadata.messageReceiveLimit, s.metadata.sqsDeadLettersQueueName)
 	}
 
-	// otherwise try to handle the message
+	// otherwise try to handle the message.
 	var messageBody snsMessage
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
@@ -689,7 +690,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue.
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
 		Attributes:            nil,
-		Endpoint:              &queueInfo.arn, // create SQS queue per subscription
+		Endpoint:              &queueInfo.arn, // create SQS queue per subscription.
 		Protocol:              aws.String("sqs"),
 		ReturnSubscriptionArn: nil,
 		TopicArn:              &topicArn,

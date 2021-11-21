@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
+	sts "github.com/aws/aws-sdk-go/service/sts"
 
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
@@ -26,6 +27,7 @@ type snsSqs struct {
 	queues        map[string]*sqsQueueInfo
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
+	stsClient     *sts.STS
 	metadata      *snsSqsMetadata
 	logger        logger.Logger
 	subscriptions []*string
@@ -63,6 +65,10 @@ type snsSqsMetadata struct {
 	messageWaitTimeSeconds int64
 	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10.
 	messageMaxNumber int64
+	// disable resource provisioning of SNS and SQS
+	disableEntityManagement bool
+	// aws account ID
+	accountID string
 }
 
 const (
@@ -96,6 +102,14 @@ func parseInt64(input string, propertyName string) (int64, error) {
 	}
 
 	return int64(number), nil
+}
+
+func parseBool(input string, propertyName string) (bool, error) {
+	val, err := strconv.ParseBool(input)
+	if err != nil {
+		return false, fmt.Errorf("parsing %s failed with: %w", propertyName, err)
+	}
+	return val, nil
 }
 
 // sanitize topic/queue name to conform with:
@@ -134,12 +148,12 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 	}
 
 	if val, ok := getAliasedProperty([]string{"awsAccountID", "accessKey"}, metadata); ok {
-		s.logger.Debugf("AccessKey: %s", val)
+		s.logger.Debugf("accessKey: %s", val)
 		md.AccessKey = val
 	}
 
 	if val, ok := getAliasedProperty([]string{"awsSecret", "secretKey"}, metadata); ok {
-		s.logger.Debugf("awsToken: %s", val)
+		s.logger.Debugf("secretKey: %s", val)
 		md.SecretKey = val
 	}
 
@@ -231,6 +245,14 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageMaxNumber = maxNumber
 	}
 
+	if val, ok := props["disableEntityManagement"]; ok {
+		parsed, err := parseBool(val, "disableEntityManagement")
+		if err != nil {
+			return nil, err
+		}
+		md.disableEntityManagement = parsed
+	}
+
 	return &md, nil
 }
 
@@ -251,43 +273,80 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("error creating an AWS client: %w", err)
 	}
+
+	s.stsClient = sts.New(sess)
+	callerIdOutput, err := s.stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return fmt.Errorf("error fetching sts caller ID: %w", err)
+	}
+
+	s.metadata.accountID = *callerIdOutput.Account
+
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)
 
 	return nil
 }
 
-func (s *snsSqs) createTopic(topic string) (string, string, error) {
-	sanitizedName := nameToAWSSanitizedName(topic)
+func (s *snsSqs) buildARN(serviceName, entityName string) string {
+	// arn:aws:sns:us-east-1:302212680347:aws-controltower-SecurityNotifications
+	return fmt.Sprintf("arn:aws:%s:%s:%s:%s", serviceName, s.metadata.Region, s.metadata.accountID, entityName)
+}
+
+func (s *snsSqs) createTopic(topic string) (string, error) {
 	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{
-		Name: aws.String(sanitizedName),
+		Name: aws.String(topic),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("error while creating an SNS topic: %w", err)
+		return "", fmt.Errorf("error while creating an SNS topic: %w", err)
 	}
 
-	return *(createTopicResponse.TopicArn), sanitizedName, nil
+	return *(createTopicResponse.TopicArn), nil
+}
+
+func (s *snsSqs) getTopicArn(topic string) (string, error) {
+	// arn:aws:sns:us-east-1:302212680347:aws-controltower-SecurityNotifications
+	arn := s.buildARN("sns", topic)
+	getTopicOutput, err := s.snsClient.GetTopicAttributes(&sns.GetTopicAttributesInput{TopicArn: aws.String(arn)})
+	if err != nil {
+		return "", fmt.Errorf("error: %w while getting topic: %v with arn: %v", err, topic, arn)
+	}
+
+	return *getTopicOutput.Attributes["TopicArn"], nil
 }
 
 // get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
 func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
-	topicArn, ok := s.topics[topic]
+	var (
+		err      error
+		topicArn string
+		ok       bool
+	)
 
+	topicArn, ok = s.topics[topic]
 	if ok {
 		s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)
 
 		return topicArn, nil
 	}
 
-	s.logger.Debugf("no topic ARN found for %s\n Creating topic instead.", topic)
+	sanitizedName := nameToAWSSanitizedName(topic)
+	if !s.metadata.disableEntityManagement {
+		topicArn, err = s.createTopic(sanitizedName)
+		if err != nil {
+			s.logger.Errorf("error creating new topic %s: %w", topic, err)
 
-	topicArn, sanitizedName, err := s.createTopic(topic)
-	if err != nil {
-		s.logger.Errorf("error creating new topic %s: %v", topic, err)
+			return "", err
+		}
+	} else {
+		topicArn, err = s.getTopicArn(sanitizedName)
+		if err != nil {
+			s.logger.Errorf("error fetching info for topic %s: %w", topic, err)
 
-		return "", err
+			return "", err
+		}
 	}
 
 	// record topic ARN.
@@ -320,22 +379,61 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 	}, nil
 }
 
+func (s *snsSqs) buildUrl(serviceName, entityName string) string {
+	//https://sqs.us-east-2.amazonaws.com/123456789012/MyQueue
+	return fmt.Sprintf("https://%s/%s.amazonaws.com/%s/%s", serviceName, s.metadata.Region, s.metadata.accountID, entityName)
+}
+
+func (s *snsSqs) getQueueArn(queueName string) (*sqsQueueInfo, error) {
+	// TODO: move to s.sqsClient.GetQueueUrl
+	queueUrlOutput, err := s.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.accountID)})
+	if err != nil {
+		return nil, fmt.Errorf("error: %w while getting url of queue: %s", err, queueName)
+	}
+	url := queueUrlOutput.QueueUrl
+
+	var getQueueOutput *sqs.GetQueueAttributesOutput
+	getQueueOutput, err = s.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{QueueUrl: url})
+	if err != nil {
+		return nil, fmt.Errorf("error: %w while getting information for queue: %s, with url: %s", err, queueName, *url)
+	}
+
+	return &sqsQueueInfo{arn: *getQueueOutput.Attributes["QueueArn"], url: *url}, nil
+}
+
+// TODO: deal with Subscription creation
 func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
-	queueArn, ok := s.queues[queueName]
+	var (
+		err       error
+		queueInfo *sqsQueueInfo
+		ok        bool
+	)
 
+	queueInfo, ok = s.queues[queueName]
 	if ok {
-		s.logger.Debugf("Found queue arn for %s: %s", queueName, queueArn)
+		s.logger.Debugf("Found queue arn for %s: %s", queueName, queueInfo.arn)
 
-		return queueArn, nil
+		return queueInfo, nil
 	}
 	// creating queues is idempotent, the names serve as unique keys among a given region.
 	s.logger.Debugf("No queue arn found for %s\nCreating queue", queueName)
 
-	queueInfo, err := s.createQueue(queueName)
-	if err != nil {
-		s.logger.Errorf("Error creating queue %s: %v", queueName, err)
+	sanitizedName := nameToAWSSanitizedName(queueName)
 
-		return nil, err
+	if !s.metadata.disableEntityManagement {
+		queueInfo, err = s.createQueue(sanitizedName)
+		if err != nil {
+			s.logger.Errorf("Error creating queue %s: %v", queueName, err)
+
+			return nil, err
+		}
+	} else {
+		queueInfo, err = s.getQueueArn(sanitizedName)
+		if err != nil {
+			s.logger.Errorf("error fetching info for queue %s: %w", queueName, err)
+
+			return nil, err
+		}
 	}
 
 	s.queues[queueName] = queueInfo

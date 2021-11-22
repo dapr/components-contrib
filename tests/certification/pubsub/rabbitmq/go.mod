@@ -105,6 +105,8 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
+exclude github.com/prometheus/common v0.32.1
+
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../

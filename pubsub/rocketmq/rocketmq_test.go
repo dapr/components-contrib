@@ -6,14 +6,9 @@
 package rocketmq
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"sync/atomic"
+	"github.com/stretchr/testify/assert"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -31,38 +26,52 @@ func getTestMetadata() map[string]string {
 	}
 }
 
-func TestNewRocketMQ(t *testing.T) {
-	m := pubsub.Metadata{Properties: getTestMetadata()}
-	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(m)
-	require.NoError(t, err)
-	err = r.Publish(&pubsub.PublishRequest{
-		Data:       []byte("hello rocketmq"),
-		PubsubName: "rocketmq",
-		Topic:      "dapr",
-		Metadata: map[string]string{
-			metadataRocketmqTag: "dapr",
-		},
+func TestParseRocketMQMetadata(t *testing.T) {
+	t.Run("correct metadata", func(t *testing.T) {
+		meta := getTestMetadata()
+		_,err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta})
+		assert.Nil(t, err)
 	})
-	require.NoError(t, err)
 
-	var count int32
-	handler := func(_ context.Context, msg *pubsub.NewMessage) error {
-		type TopicEvent struct {
-			Data interface{} `json:"data"`
+	t.Run("correct init", func(t *testing.T) {
+		meta := getTestMetadata()
+		r := NewRocketMQ(logger.NewLogger("test"))
+		err:= r.Init(pubsub.Metadata{Properties: meta})
+		assert.Nil(t, err)
+	})
+
+	t.Run("setup producer missing nameserver", func(t *testing.T) {
+		meta := getTestMetadata()
+		delete(meta,"nameServer")
+		r := NewRocketMQ(logger.NewLogger("test"))
+		err := r.Init(pubsub.Metadata{Properties: meta})
+		assert.Nil(t, err)
+		req := &pubsub.PublishRequest{
+			Data:       []byte("hello"),
+			PubsubName: "rocketmq",
+			Topic:      "test",
+			Metadata: map[string]string{},
 		}
-		var in TopicEvent
-		err = json.NewDecoder(bytes.NewReader(msg.Data)).Decode(&in)
-		require.NoError(t, err)
+		err = r.Publish(req)
+		assert.NotNil(t, err)
+	})
 
-		fmt.Println("recv: ", in.Data.(string))
+	t.Run("subscribe illegal type", func(t *testing.T) {
+		meta := getTestMetadata()
+		r := NewRocketMQ(logger.NewLogger("test"))
+		err := r.Init(pubsub.Metadata{Properties: meta})
+		assert.Nil(t, err)
 
-		atomic.AddInt32(&count, 1)
-
-		return nil
-	}
-	r.Subscribe(pubsub.SubscribeRequest{
-		Topic:    "dapr",
-		Metadata: map[string]string{},
-	}, handler)
+		req :=pubsub.SubscribeRequest{
+			Topic:    "test",
+			Metadata: map[string]string{
+				metadataRocketmqType:"incorrect type",
+			},
+		}
+		handler := func(ctx context.Context, msg *pubsub.NewMessage) error{
+			return nil
+		}
+		err = r.Subscribe(req,handler)
+		assert.NotNil(t, err)
+	})
 }

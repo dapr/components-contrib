@@ -65,9 +65,9 @@ type snsSqsMetadata struct {
 	messageWaitTimeSeconds int64
 	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10.
 	messageMaxNumber int64
-	// disable resource provisioning of SNS and SQS
+	// disable resource provisioning of SNS and SQS.
 	disableEntityManagement bool
-	// aws account ID
+	// aws account ID.
 	accountID string
 }
 
@@ -275,12 +275,12 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	}
 
 	s.stsClient = sts.New(sess)
-	callerIdOutput, err := s.stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	callerIDOutput, err := s.stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
 	if err != nil {
 		return fmt.Errorf("error fetching sts caller ID: %w", err)
 	}
 
-	s.metadata.accountID = *callerIdOutput.Account
+	s.metadata.accountID = *callerIDOutput.Account
 
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)
@@ -379,18 +379,12 @@ func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
 	}, nil
 }
 
-func (s *snsSqs) buildUrl(serviceName, entityName string) string {
-	//https://sqs.us-east-2.amazonaws.com/123456789012/MyQueue
-	return fmt.Sprintf("https://%s/%s.amazonaws.com/%s/%s", serviceName, s.metadata.Region, s.metadata.accountID, entityName)
-}
-
 func (s *snsSqs) getQueueArn(queueName string) (*sqsQueueInfo, error) {
-	// TODO: move to s.sqsClient.GetQueueUrl
-	queueUrlOutput, err := s.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.accountID)})
+	queueURLOutput, err := s.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.accountID)})
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting url of queue: %s", err, queueName)
 	}
-	url := queueUrlOutput.QueueUrl
+	url := queueURLOutput.QueueUrl
 
 	var getQueueOutput *sqs.GetQueueAttributesOutput
 	getQueueOutput, err = s.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{QueueUrl: url})
@@ -401,7 +395,6 @@ func (s *snsSqs) getQueueArn(queueName string) (*sqsQueueInfo, error) {
 	return &sqsQueueInfo{arn: *getQueueOutput.Attributes["QueueArn"], url: *url}, nil
 }
 
-// TODO: deal with Subscription creation
 func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 	var (
 		err       error
@@ -441,6 +434,67 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 	return queueInfo, nil
 }
 
+func (s *snsSqs) createSNSSQSSubscription(queueArn, topicArn string) (string, error) {
+	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
+		Attributes:            nil,
+		Endpoint:              aws.String(queueArn), // create SQS queue per subscription.
+		Protocol:              aws.String("sqs"),
+		ReturnSubscriptionArn: nil,
+		TopicArn:              aws.String(topicArn),
+	})
+	if err != nil {
+		wrappedErr := fmt.Errorf("error subscribing to sns topic arn: %s, to queue arn: %s %w", topicArn, queueArn, err)
+		s.logger.Error(wrappedErr)
+
+		return "", wrappedErr
+	}
+
+	return *subscribeOutput.SubscriptionArn, nil
+}
+
+func (s *snsSqs) getSNSSQSSubscriptionArn(topicArn string) (string, error) {
+	listSubscriptionsOutput, err := s.snsClient.ListSubscriptionsByTopic(&sns.ListSubscriptionsByTopicInput{TopicArn: aws.String(topicArn)})
+	if err != nil {
+		return "", fmt.Errorf("error listing subsriptions for topic arn: %v: %w", topicArn, err)
+	}
+
+	for _, subscription := range listSubscriptionsOutput.Subscriptions {
+		if *subscription.TopicArn == topicArn {
+			return *subscription.SubscriptionArn, nil
+		}
+	}
+
+	return "", fmt.Errorf("sns sqs subscription not found for topic arn")
+}
+
+func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string, error) {
+	var (
+		subscriptionArn string
+		err             error
+	)
+
+	if !s.metadata.disableEntityManagement {
+		subscriptionArn, err = s.createSNSSQSSubscription(queueArn, topicArn)
+		if err != nil {
+			s.logger.Errorf("Error creating subscription %s: %v", subscriptionArn, err)
+
+			return "", err
+		}
+	} else {
+		subscriptionArn, err = s.getSNSSQSSubscriptionArn(topicArn)
+		if err != nil {
+			s.logger.Errorf("error fetching info for topic arn %s: %w", topicArn, err)
+
+			return "", err
+		}
+	}
+
+	s.subscriptions = append(s.subscriptions, &subscriptionArn)
+	s.logger.Debugf("Subscribed to topic %s: %s", topicArn, subscriptionArn)
+
+	return subscriptionArn, nil
+}
+
 func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 	if err != nil {
@@ -454,7 +508,7 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	})
 
 	if err != nil {
-		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %v", req.Topic, topicArn, err)
+		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %w", req.Topic, topicArn, err)
 		s.logger.Error(wrappedErr)
 
 		return wrappedErr
@@ -511,7 +565,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 			"message received greater than %v times, moving this message without further processing to dead-letters queue: %v", s.metadata.messageReceiveLimit, s.metadata.sqsDeadLettersQueueName)
 	}
 
-	// otherwise try to handle the message
+	// otherwise try to handle the message.
 	var messageBody snsMessage
 	err = json.Unmarshal([]byte(*(message.Body)), &messageBody)
 
@@ -690,22 +744,12 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	}
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue.
-	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{
-		Attributes:            nil,
-		Endpoint:              &queueInfo.arn, // create SQS queue per subscription
-		Protocol:              aws.String("sqs"),
-		ReturnSubscriptionArn: nil,
-		TopicArn:              &topicArn,
-	})
-	if err != nil {
-		wrappedErr := fmt.Errorf("error subscribing to topic %s: %w", req.Topic, err)
+	if _, err := s.getOrCreateSNSSQSSubsription(queueInfo.arn, topicArn); err != nil {
+		wrappedErr := fmt.Errorf("error subscribing topic: %s, to queue: %s, with error: %w", topicArn, queueInfo.arn, err)
 		s.logger.Error(wrappedErr)
 
 		return wrappedErr
 	}
-
-	s.subscriptions = append(s.subscriptions, subscribeOutput.SubscriptionArn)
-	s.logger.Debugf("Subscribed to topic %s: %v", req.Topic, subscribeOutput)
 
 	s.consumeSubscription(queueInfo, deadLettersQueueInfo, handler)
 

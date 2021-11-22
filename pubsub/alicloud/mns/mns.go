@@ -11,8 +11,9 @@ import (
 	"strconv"
 	"time"
 
+	"encoding/json"
+
 	ali_mns "github.com/aliyun/aliyun-mns-go-sdk"
-	"gopkg.in/square/go-jose.v2/json"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"

@@ -5,10 +5,10 @@ go 1.17
 require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/cenkalti/backoff/v4 v4.1.1
-	github.com/dapr/components-contrib v1.4.0-rc2
-	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.4.4-0.20211104200044-e40edbd52063
-	github.com/dapr/go-sdk v1.2.1-0.20211017032306-de68193d5cd9
+	github.com/dapr/components-contrib v1.5.0
+	github.com/dapr/components-contrib/tests/certification v1.5.0
+	github.com/dapr/dapr v1.5.0
+	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.2.0
 	github.com/stretchr/testify v1.7.0
@@ -45,6 +45,7 @@ require (
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.5.1 // indirect
+	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 // indirect
 	github.com/hashicorp/consul/api v1.3.0 // indirect
@@ -87,7 +88,7 @@ require (
 	go.opencensus.io v0.22.5 // indirect
 	go.opentelemetry.io/otel v0.19.0 // indirect
 	go.uber.org/atomic v1.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
 	golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93 // indirect
 	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect

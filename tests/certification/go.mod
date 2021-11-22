@@ -11,6 +11,7 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
+
 )
 
 require github.com/gorilla/mux v1.8.0 // indirect
@@ -64,7 +65,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.26.0 // indirect
+	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/prometheus/statsd_exporter v0.15.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
@@ -103,6 +104,6 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-exclude github.com/prometheus/common v0.32.1
+replace github.com/prometheus/common => github.com/prometheus/common v0.26.0
 
 replace github.com/dapr/components-contrib => ../../

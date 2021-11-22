@@ -74,7 +74,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.26.0 // indirect
+	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/prometheus/statsd_exporter v0.15.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
@@ -118,7 +118,7 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-exclude github.com/prometheus/common v0.32.1
+replace github.com/prometheus/common => github.com/prometheus/common v0.26.0
 
 replace github.com/dapr/components-contrib/tests/certification => ../../
 

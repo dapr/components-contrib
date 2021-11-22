@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/eventgrid/mgmt/2020-04-01-preview/eventgrid"
+	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2021-12-01/eventgrid"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/valyala/fasthttp"
 
@@ -240,7 +240,7 @@ func (a *AzureEventGrid) createSubscription() error {
 					EndpointURL: &a.metadata.SubscriberEndpoint,
 				},
 			},
-			EventDeliverySchema: eventgrid.CloudEventSchemaV10,
+			EventDeliverySchema: eventgrid.EventDeliverySchemaCloudEventSchemaV10,
 		},
 	}
 

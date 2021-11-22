@@ -148,7 +148,6 @@ func TestGetMSI(t *testing.T) {
 func TestFallbackToMSI(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
-
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
@@ -156,7 +155,6 @@ func TestFallbackToMSI(t *testing.T) {
 			"vaultName":     "vaultName",
 		},
 	)
-
 	assert.NoError(t, err)
 
 	spt, err := settings.GetServicePrincipalToken()
@@ -168,7 +166,6 @@ func TestFallbackToMSI(t *testing.T) {
 func TestAuthorizorWithMSI(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
-
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{
@@ -189,7 +186,6 @@ func TestAuthorizorWithMSI(t *testing.T) {
 func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
-
 	settings, err := NewEnvironmentSettings(
 		"keyvault",
 		map[string]string{

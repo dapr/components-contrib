@@ -387,7 +387,7 @@ func (s *snsSqs) getQueueArn(queueName string) (*sqsQueueInfo, error) {
 	url := queueURLOutput.QueueUrl
 
 	var getQueueOutput *sqs.GetQueueAttributesOutput
-	getQueueOutput, err = s.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{QueueUrl: url})
+	getQueueOutput, err = s.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{QueueUrl: url, AttributeNames: []*string{aws.String("QueueArn")}})
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting information for queue: %s, with url: %s", err, queueName, *url)
 	}
@@ -472,6 +472,8 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 		subscriptionArn string
 		err             error
 	)
+
+	// TODO: first lookup the subscription in the subscriptions list
 
 	if !s.metadata.disableEntityManagement {
 		subscriptionArn, err = s.createSNSSQSSubscription(queueArn, topicArn)

@@ -26,4 +26,5 @@ type metadata struct {
 	PrefetchCount                   *int   `json:"prefetchCount"`
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
+	NamespaceName                   string `json:"namespaceName,omitempty"`
 }

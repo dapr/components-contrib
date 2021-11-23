@@ -18,6 +18,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -43,6 +44,7 @@ const (
 	connectionRecoveryInSec         = "connectionRecoveryInSec"
 	publishMaxRetries               = "publishMaxRetries"
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
+	namespaceName                   = "namespaceName"
 	errorMessagePrefix              = "azure service bus error:"
 
 	// Defaults.
@@ -93,8 +95,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	/* Required configuration settings - no defaults. */
 	if val, ok := meta.Properties[connectionString]; ok && val != "" {
 		m.ConnectionString = val
+
+		// The connection string and the namespace cannot both be present.
+		if namespace, present := meta.Properties[namespaceName]; present && namespace != "" {
+			return m, fmt.Errorf("%s connectionString and namespaceName cannot both be specified", errorMessagePrefix)
+		}
+	} else if val, ok := meta.Properties[namespaceName]; ok && val != "" {
+		m.NamespaceName = val
 	} else {
-		return m, fmt.Errorf("%s missing connection string", errorMessagePrefix)
+		return m, fmt.Errorf("%s missing connection string and namespace name", errorMessagePrefix)
 	}
 
 	if val, ok := meta.Properties[consumerID]; ok && val != "" {
@@ -258,12 +267,37 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 
 	userAgent := "dapr-" + logger.DaprVersion
 	a.metadata = m
-	a.namespace, err = azservicebus.NewNamespace(
-		azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
-		azservicebus.NamespaceWithUserAgent(userAgent))
+	if a.metadata.ConnectionString != "" {
+		a.namespace, err = azservicebus.NewNamespace(
+			azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
+			azservicebus.NamespaceWithUserAgent(userAgent))
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+	} else {
+		// Initialization code
+		settings, err := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
+		if err != nil {
+			return err
+		}
+
+		tokenProvider, err := settings.GetAADTokenProvider()
+		if err != nil {
+			return err
+		}
+
+		a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithTokenProvider(tokenProvider),
+			azservicebus.NamespaceWithUserAgent(userAgent))
+		if err != nil {
+			return err
+		}
+
+		// We set these separately as the ServiceBus SDK does not provide a way to pass the environment via the options
+		// pattern unless you allow it to recreate the entire environment which seems wasteful.
+		a.namespace.Name = a.metadata.NamespaceName
+		a.namespace.Environment = *settings.AzureEnvironment
+		a.namespace.Suffix = settings.AzureEnvironment.ServiceBusEndpointSuffix
 	}
 
 	a.topicManager = a.namespace.NewTopicManager()

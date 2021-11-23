@@ -8,6 +8,7 @@ package servicebusqueues
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,7 @@ import (
 	servicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/cenkalti/backoff/v4"
 
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -43,6 +45,7 @@ type AzureServiceBusQueues struct {
 
 type serviceBusQueuesMetadata struct {
 	ConnectionString string `json:"connectionString"`
+	NamespaceName    string `json:"namespaceName,omitempty"`
 	QueueName        string `json:"queueName"`
 	ttl              time.Duration
 }
@@ -61,10 +64,36 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 	userAgent := "dapr-" + logger.DaprVersion
 	a.metadata = meta
 
-	ns, err := servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
-		servicebus.NamespaceWithUserAgent(userAgent))
-	if err != nil {
-		return err
+	var ns *servicebus.Namespace
+	if a.metadata.ConnectionString != "" {
+		ns, err = servicebus.NewNamespace(servicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
+			servicebus.NamespaceWithUserAgent(userAgent))
+		if err != nil {
+			return err
+		}
+	} else {
+		// Initialization code
+		settings, sErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
+		if sErr != nil {
+			return sErr
+		}
+
+		tokenProvider, tErr := settings.GetAADTokenProvider()
+		if tErr != nil {
+			return tErr
+		}
+
+		ns, err = servicebus.NewNamespace(servicebus.NamespaceWithTokenProvider(tokenProvider),
+			servicebus.NamespaceWithUserAgent(userAgent))
+		if err != nil {
+			return err
+		}
+
+		// We set these separately as the ServiceBus SDK does not provide a way to pass the environment via the options
+		// pattern unless you allow it to recreate the entire environment which seems wasteful.
+		ns.Name = a.metadata.NamespaceName
+		ns.Environment = *settings.AzureEnvironment
+		ns.Suffix = settings.AzureEnvironment.ServiceBusEndpointSuffix
 	}
 	a.ns = ns
 
@@ -122,6 +151,10 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return nil, err
+	}
+
+	if m.ConnectionString != "" && m.NamespaceName != "" {
+		return nil, errors.New("connectionString and namespaceName are mutually exclusive")
 	}
 
 	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)

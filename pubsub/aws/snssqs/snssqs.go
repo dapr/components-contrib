@@ -24,13 +24,14 @@ type snsSqs struct {
 	// key is the sanitized topic name, value is the actual topic name.
 	topicSanitized map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url.
-	queues        map[string]*sqsQueueInfo
+	queues map[string]*sqsQueueInfo
+	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
+	subscriptions map[string]string
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
 	stsClient     *sts.STS
 	metadata      *snsSqsMetadata
 	logger        logger.Logger
-	subscriptions []*string
 }
 
 type sqsQueueInfo struct {
@@ -79,8 +80,7 @@ const (
 // NewSnsSqs - constructor for a new snssqs dapr component.
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
-		logger:        l,
-		subscriptions: []*string{},
+		logger: l,
 	}
 }
 
@@ -471,10 +471,18 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 	var (
 		subscriptionArn string
 		err             error
+		ok              bool
 	)
 
-	// TODO: first lookup the subscription in the subscriptions list
+	compositeKey := fmt.Sprintf("%s:%s", queueArn, topicArn)
+	subscriptionArn, ok = s.subscriptions[compositeKey]
+	if ok {
+		s.logger.Debugf("Found subscription of queue arn: %s to topic arn: %s: %s", queueArn, topicArn, subscriptionArn)
 
+		return subscriptionArn, nil
+	}
+
+	s.logger.Debugf("No subscription arn found of queue arn:%s to topic arn: %s\nCreating subscription", queueArn, topicArn)
 	if !s.metadata.disableEntityManagement {
 		subscriptionArn, err = s.createSNSSQSSubscription(queueArn, topicArn)
 		if err != nil {
@@ -491,7 +499,7 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 		}
 	}
 
-	s.subscriptions = append(s.subscriptions, &subscriptionArn)
+	s.subscriptions[compositeKey] = subscriptionArn
 	s.logger.Debugf("Subscribed to topic %s: %s", topicArn, subscriptionArn)
 
 	return subscriptionArn, nil

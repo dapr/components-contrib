@@ -16,11 +16,22 @@ import (
 )
 
 const (
-	host              = "host"
-	enableTLS         = "enableTLS"
-	deliverAt         = "deliverAt"
-	deliverAfter      = "deliverAfter"
+	host         = "host"
+	enableTLS    = "enableTLS"
+	deliverAt    = "deliverAt"
+	deliverAfter = "deliverAfter"
+	tenant       = "tenant"
+	namespace    = "namespace"
+	persistent   = "persistent"
+
+	defaultTenant     = "public"
+	defaultNamespace  = "default"
 	cachedNumProducer = 10
+	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic,
+	// see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details.
+	topicFormat      = "%s://%s/%s/%s"
+	persistentStr    = "persistent"
+	nonPersistentStr = "non-persistent"
 )
 
 type Pulsar struct {
@@ -39,7 +50,7 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 }
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
-	m := pulsarMetadata{}
+	m := pulsarMetadata{Persistent: true, Tenant: defaultTenant, Namespace: defaultNamespace}
 	m.ConsumerID = meta.Properties["consumerID"]
 
 	if val, ok := meta.Properties[host]; ok && val != "" {
@@ -53,6 +64,20 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			return nil, errors.New("pulsar error: invalid value for enableTLS")
 		}
 		m.EnableTLS = tls
+	}
+
+	if val, ok := meta.Properties[persistent]; ok && val != "" {
+		per, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for persistent")
+		}
+		m.Persistent = per
+	}
+	if val, ok := meta.Properties[tenant]; ok && val != "" {
+		m.Tenant = val
+	}
+	if val, ok := meta.Properties[namespace]; ok && val != "" {
+		m.Namespace = val
 	}
 
 	return &m, nil
@@ -111,17 +136,18 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 		msg      *pulsar.ProducerMessage
 		err      error
 	)
-	cache, _ := p.cache.Get(req.Topic)
+	topic := p.formatTopic(req.Topic)
+	cache, _ := p.cache.Get(topic)
 	if cache == nil {
-		p.logger.Debugf("creating producer for topic %s", req.Topic)
+		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
 		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
-			Topic: req.Topic,
+			Topic: topic,
 		})
 		if err != nil {
 			return err
 		}
 
-		p.cache.Add(req.Topic, producer)
+		p.cache.Add(topic, producer)
 	} else {
 		producer = cache.(pulsar.Producer)
 	}
@@ -162,8 +188,9 @@ func parsePublishMetadata(req *pubsub.PublishRequest) (
 func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
+	topic := p.formatTopic(req.Topic)
 	options := pulsar.ConsumerOptions{
-		Topic:            req.Topic,
+		Topic:            topic,
 		SubscriptionName: p.metadata.ConsumerID,
 		Type:             pulsar.Failover,
 		MessageChannel:   channel,
@@ -171,23 +198,23 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
-		p.logger.Debugf("Could not subscribe %s", req.Topic)
+		p.logger.Debugf("Could not subscribe to %s, full topic name in pulsar is %s", req.Topic, topic)
 
 		return err
 	}
 
-	go p.listenMessage(consumer, handler)
+	go p.listenMessage(req.Topic, consumer, handler)
 
 	return nil
 }
 
-func (p *Pulsar) listenMessage(consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessage(originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			if err := p.handleMessage(msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+			if err := p.handleMessage(originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
 				p.logger.Errorf("Error processing message and retries are exhausted: %s/%#v [key=%s]. Closing consumer.", msg.Topic(), msg.ID(), msg.Key())
 
 				return
@@ -200,10 +227,10 @@ func (p *Pulsar) listenMessage(consumer pulsar.Consumer, handler pubsub.Handler)
 	}
 }
 
-func (p *Pulsar) handleMessage(msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
+func (p *Pulsar) handleMessage(originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
 	pubsubMsg := pubsub.NewMessage{
 		Data:     msg.Payload(),
-		Topic:    msg.Topic(),
+		Topic:    originTopic,
 		Metadata: msg.Properties(),
 	}
 
@@ -240,4 +267,13 @@ func (p *Pulsar) Close() error {
 
 func (p *Pulsar) Features() []pubsub.Feature {
 	return nil
+}
+
+// formatTopic formats the topic into pulsar's structure with tenant and namespace.
+func (p *Pulsar) formatTopic(topic string) string {
+	persist := persistentStr
+	if !p.metadata.Persistent {
+		persist = nonPersistentStr
+	}
+	return fmt.Sprintf(topicFormat, persist, p.metadata.Tenant, p.metadata.Namespace, topic)
 }

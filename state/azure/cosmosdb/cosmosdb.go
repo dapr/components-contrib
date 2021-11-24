@@ -517,8 +517,7 @@ func isTooManyRequestsError(err error) bool {
 		return false
 	}
 
-	var requestError *documentdb.RequestError
-	if errors.As(err, requestError) {
+	if requestError, ok := err.(*documentdb.RequestError); ok {
 		if requestError.Code == "429" {
 			return true
 		}

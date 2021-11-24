@@ -264,11 +264,13 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 
 	s.metadata = md
 
-	// both Publish and Subscribe need reference the topic ARN
-	// track these ARNs in this map.
+	// both Publish and Subscribe need reference the topic ARN, queue ARN and subscription ARN between topic and queue
+	// track these ARNs in these maps.
 	s.topics = make(map[string]string)
 	s.topicSanitized = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
+	s.subscriptions = make(map[string]string)
+
 	sess, err := aws_auth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
 		return fmt.Errorf("error creating an AWS client: %w", err)
@@ -541,8 +543,11 @@ func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) erro
 		QueueUrl:      &queueURL,
 		ReceiptHandle: receiptHandle,
 	})
+	if err != nil {
+		return fmt.Errorf("error ack'ing (deleting) SQS message: %w", err)
+	}
 
-	return fmt.Errorf("error deleting SQS message: %w", err)
+	return nil
 }
 
 func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueueInfo *sqsQueueInfo, handler pubsub.Handler) error {
@@ -569,10 +574,13 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 			"message received greater than %v times, deleting this message without further processing", s.metadata.messageRetryLimit)
 	}
 	// ... else, there is no need to actively do something if we reached the limit defined in messageReceiveLimit as the message had
-	// already been moved to the dead-letters queue by SQS.
-	if deadLettersQueueInfo != nil && recvCountInt >= s.metadata.messageReceiveLimit {
-		s.logger.Warnf(
-			"message received greater than %v times, moving this message without further processing to dead-letters queue: %v", s.metadata.messageReceiveLimit, s.metadata.sqsDeadLettersQueueName)
+	// already been moved to the dead-letters queue by SQS. meaning, the below condition should not be reached as SQS would not send
+	// a message if we've already surpassed the s.metadata.messageReceiveLimit value.
+	if deadLettersQueueInfo != nil && recvCountInt > s.metadata.messageReceiveLimit {
+		awsErr := fmt.Errorf(
+			"message received greater than %v times, this message should have been moved without further processing to dead-letters queue: %v", s.metadata.messageReceiveLimit, s.metadata.sqsDeadLettersQueueName)
+		s.logger.Error(awsErr)
+		return awsErr
 	}
 
 	// otherwise try to handle the message.

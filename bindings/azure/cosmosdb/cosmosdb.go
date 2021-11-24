@@ -96,7 +96,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 			}
 			return backoff.Permanent(err)
 		} else if len(dbs) == 0 {
-			return fmt.Errorf("database %s for CosmosDB binding not found", m.Database)
+			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB binding not found", m.Database))
 		}
 
 		c.db = &dbs[0]
@@ -112,7 +112,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 			}
 			return backoff.Permanent(err)
 		} else if len(colls) == 0 {
-			return fmt.Errorf("collection %s for CosmosDB binding not found", m.Collection)
+			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB binding not found", m.Collection))
 		}
 
 		c.collection = &colls[0]

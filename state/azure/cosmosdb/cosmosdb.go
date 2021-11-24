@@ -154,7 +154,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 			}
 			return backoff.Permanent(err)
 		} else if len(dbs) == 0 {
-			return fmt.Errorf("database %s for CosmosDB state store not found", m.Database)
+			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB state store not found", m.Database))
 		}
 
 		c.db = &dbs[0]
@@ -170,7 +170,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 			}
 			return backoff.Permanent(err)
 		} else if len(colls) == 0 {
-			return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection)
+			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection))
 		}
 
 		c.metadata = m
@@ -212,7 +212,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 
 		return nil
 	}, bo, func(err error, d time.Duration) {
-		c.logger.Warnf("CosmosDB State Store %s init retry: %v", err)
+		c.logger.Warnf("CosmosDB state store initialization failed: %v; retrying in %s", err, d)
 	})
 	if err != nil {
 		return err

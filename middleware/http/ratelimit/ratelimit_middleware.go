@@ -30,12 +30,12 @@ const (
 	defaultMaxRequestsPerSecond = 100
 )
 
-// NewRateLimitMiddleware returns a new oAuth2 middleware.
+// NewRateLimitMiddleware returns a new ratelimit middleware.
 func NewRateLimitMiddleware(logger logger.Logger) *Middleware {
 	return &Middleware{logger: logger}
 }
 
-// Middleware is an oAuth2 authentication middleware.
+// Middleware is an ratelimit middleware.
 type Middleware struct {
 	logger logger.Logger
 }

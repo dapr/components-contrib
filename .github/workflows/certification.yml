@@ -95,37 +95,38 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./src/github.com/dapr/components-contrib
     needs: generate-matrix
+    env:
+      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
+
     steps:
+    - name: Set default payload repo and ref
+      run: |
+        echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
-      uses: actions/github-script@v1
-      with:
-        github-token: ${{secrets.DAPR_BOT_TOKEN}}
-        script: |
-          const testPayload = context.payload.client_payload;
-          if (testPayload && testPayload.command == "ok-to-test") {
-            var fs = require('fs');
-            // Set environment variables
-            fs.appendFileSync(process.env.GITHUB_ENV,
-              `CHECKOUT_REPO=${testPayload.pull_head_repo}\n`+
-              `CHECKOUT_REF=${testPayload.pull_head_ref}`);
-          }
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+        fi
 
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ./src/github.com/dapr/components-contrib
+        path: ${{ env.PROJECT_PATH }}
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
 
     - name: Setup test output
-      shell: bash
       run: |
         export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
@@ -133,7 +134,7 @@ jobs:
     - name: Configure certification test path
       run: |
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
-        export TEST_PATH="./src/github.com/dapr/components-contrib/tests/certification/${TEST_COMPONENT}"
+        export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
@@ -171,6 +172,7 @@ jobs:
         go-version: '^1.17'
 
     - name: Download Go dependencies
+      working-directory: ${{ env.TEST_PATH }}
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
@@ -210,6 +212,7 @@ jobs:
     # Delete any certs downloaded locally
     - name: Clean up certs
       if: matrix.required-certs != ''
+      working-directory: ${{ env.TEST_PATH }}
       run: |
         for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
           CERT_FILE=$(printenv $CERT_NAME)

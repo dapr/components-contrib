@@ -132,37 +132,41 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./src/github.com/dapr/components-contrib
+        working-directory: ${{ env.PROJECT_PATH }}
     needs: generate-matrix
+    env:
+      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+
     steps:
+    - name: Set default payload repo and ref
+      working-directory: ${{ github.workspace }}
+      run: |
+        echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
-      uses: actions/github-script@v1
-      with:
-        github-token: ${{secrets.DAPR_BOT_TOKEN}}
-        script: |
-          const testPayload = context.payload.client_payload;
-          if (testPayload && testPayload.command == "ok-to-test") {
-            var fs = require('fs');
-            // Set environment variables
-            fs.appendFileSync(process.env.GITHUB_ENV,
-              `CHECKOUT_REPO=${testPayload.pull_head_repo}\n`+
-              `CHECKOUT_REF=${testPayload.pull_head_ref}`);
-          }
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+        fi
   
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ./src/github.com/dapr/components-contrib
+        path: ${{ env.PROJECT_PATH }}
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
 
     - name: Setup test output
-      shell: bash
       run: |
         export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV

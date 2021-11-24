@@ -153,7 +153,7 @@ require (
 	k8s.io/client-go v0.20.0
 )
 
-require github.com/cenkalti/backoff v2.2.1+incompatible
+require github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 
 require (
 	github.com/99designs/keyring v1.1.5 // indirect

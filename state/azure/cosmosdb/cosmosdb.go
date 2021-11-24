@@ -16,7 +16,7 @@ import (
 
 	"github.com/a8m/documentdb"
 	"github.com/agrea/ptr"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 

@@ -77,6 +77,7 @@ type snsSqsMetadata struct {
 const (
 	awsSqsQueueNameKey = "dapr-queue-name"
 	awsSnsTopicNameKey = "dapr-topic-name"
+	maxAWSNameLength   = 80
 )
 
 // NewSnsSqs - constructor for a new snssqs dapr component.
@@ -134,7 +135,6 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 	}
 
 	s := []byte(name)
-	maxLength := 80
 	j := 0
 	for _, b := range s {
 		if ('a' <= b && b <= 'z') ||
@@ -145,7 +145,7 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 			s[j] = b
 			j++
 
-			if j == maxLength {
+			if j == maxAWSNameLength {
 				break
 			}
 		}
@@ -153,7 +153,7 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 
 	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength.
 	if hasFifoSuffix || isFifo {
-		delta := j + len(suffix) - maxLength
+		delta := j + len(suffix) - maxAWSNameLength
 		if delta > 0 {
 			j -= delta
 		}
@@ -464,12 +464,14 @@ func parseTopicArn(arn string) string {
 }
 
 func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) error {
-	_, err := s.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
+	if _, err := s.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
 		QueueUrl:      &queueURL,
 		ReceiptHandle: receiptHandle,
-	})
+	}); err != nil {
+		return fmt.Errorf("error ack'ing (deleting) SQS message: %w", err)
+	}
 
-	return fmt.Errorf("error deleting SQS message: %w", err)
+	return nil
 }
 
 func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueueInfo *sqsQueueInfo, handler pubsub.Handler) error {

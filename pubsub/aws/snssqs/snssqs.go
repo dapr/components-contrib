@@ -66,7 +66,7 @@ type snsSqsMetadata struct {
 }
 
 type ArnEquals struct {
-	AwsSourceArn string `json:"aws\:SourceArn"`
+	AwsSourceArn string `json:"aws:SourceArn"`
 }
 
 type Condition struct {

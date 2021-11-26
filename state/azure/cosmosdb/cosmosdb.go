@@ -57,6 +57,11 @@ type CosmosItem struct {
 	TTL          *int        `json:"ttl,omitempty"`
 }
 
+type CosmosItemAndEtag struct {
+	Item CosmosItem `json:"item"`
+	ETag string     `json:"etag"`
+}
+
 type storedProcedureDefinition struct {
 	ID   string `json:"id"`
 	Body string `json:"body"`
@@ -335,8 +340,8 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
-	upserts := []CosmosItem{}
-	deletes := []CosmosItem{}
+	upserts := []CosmosItemAndEtag{}
+	deletes := []CosmosItemAndEtag{}
 
 	partitionKey := unknownPartitionKey
 
@@ -348,20 +353,35 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			upsertOperation, err := createUpsertItem(c.contentType, req, partitionKey)
+			upsertItem, err := createUpsertItem(c.contentType, req, partitionKey)
 			if err != nil {
 				return err
 			}
-			upserts = append(upserts, upsertOperation)
+
+			etag := ""
+			if req.ETag != nil {
+				etag = *req.ETag
+			}
+			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+				etag = uuid.NewString()
+			}
+			upsertItemAndEtag := CosmosItemAndEtag{Item: upsertItem, ETag: etag}
+			upserts = append(upserts, upsertItemAndEtag)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 
-			deleteOperation := CosmosItem{
+			deleteItem := CosmosItem{
 				ID:           req.Key,
 				Value:        "", // Value does not need to be specified
 				PartitionKey: partitionKey,
 			}
-			deletes = append(deletes, deleteOperation)
+
+			etag := ""
+			if req.ETag != nil {
+				etag = *req.ETag
+			}
+			deleteItemAndEtag := CosmosItemAndEtag{Item: deleteItem, ETag: etag}
+			deletes = append(deletes, deleteItemAndEtag)
 		}
 	}
 

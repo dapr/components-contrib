@@ -24,10 +24,10 @@ function dapr_multi(upserts, deletes) {
     // create the query string used to look up deletes    
     var query = "select * from n where n.id in ";
     if (deletes.length > 0) {        
-        query += ("('" + deletes[0].id + "'");
+        query += ("('" + deletes[0].item.id + "'");
 
         for (let j = 1; j < deletes.length; j++) {            
-            query += ", '" + deletes[j].id + "'" 
+            query += ", '" + deletes.item[j].id + "'" 
         }
     }
 
@@ -46,7 +46,7 @@ function dapr_multi(upserts, deletes) {
     }
 
     function tryCreate(doc, callback) {        
-        var isAccepted = container.upsertDocument(collectionLink, doc, callback);
+        var isAccepted = container.upsertDocument(collectionLink, doc.item, { etag: doc.etag }, callback);
         
         // fail if we hit execution bounds
         if (!isAccepted) {                        
@@ -94,9 +94,11 @@ function dapr_multi(upserts, deletes) {
     }
 
     function tryDelete(documents) {
-        if (documents.length > 0) {
+        if (documents.length > 0) {        
+            var del = deletes.find(d => d.item.id === documents[0].id);
+            
             // Delete the first document in the array.
-            var isAccepted = container.deleteDocument(documents[0]._self, {}, function (err, responseOptions) {
+            var isAccepted = container.deleteDocument(documents[0]._self, { etag: del ? del.etag : undefined  }, function (err, responseOptions) {
                 if (err) throw err;
 
                 deleteCount++;

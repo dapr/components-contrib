@@ -507,6 +507,95 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		assert.False(t, state.FeatureETag.IsPresent(features))
 	}
 
+	if config.HasOperation("etag") && config.HasOperation("transaction") {
+		t.Run("etag in transaction", func(t *testing.T) {
+			transactionStore := statestore.(state.TransactionalStore)
+			testKey := "etagTransactionTest"
+			firstValue := []byte("testValue1")
+			secondValue := []byte("testValue2")
+
+			err := statestore.Delete(&state.DeleteRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+
+			// Set an object.
+			err = statestore.Set(&state.SetRequest{
+				Key:   testKey,
+				Value: firstValue,
+			})
+			assert.Nil(t, err)
+
+			// Validate the set.
+			res, err := statestore.Get(&state.GetRequest{
+				Key: testKey,
+			})
+
+			assert.Nil(t, err)
+			assertEquals(t, firstValue, res)
+			firstEtag := res.ETag
+
+			// Try and update with correct ETag, expect success.
+			err = transactionStore.Multi(&state.TransactionalStateRequest{
+				Operations: []state.TransactionalStateOperation{{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   testKey,
+						Value: secondValue,
+						ETag:  firstEtag,
+					},
+				}},
+			})
+			assert.Nil(t, err)
+
+			// Try and update with wrong ETag, expect failure.
+			err = transactionStore.Multi(&state.TransactionalStateRequest{
+				Operations: []state.TransactionalStateOperation{{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   testKey,
+						Value: secondValue,
+						ETag:  firstEtag,
+					},
+				}},
+			})
+			assert.NotNil(t, err)
+
+			// Validate the set.
+			res, err = statestore.Get(&state.GetRequest{
+				Key: testKey,
+			})
+			assert.Nil(t, err)
+			assertEquals(t, secondValue, res)
+			assert.NotEqual(t, firstEtag, res.ETag)
+			secondEtag := res.ETag
+
+			// Try and delete with wrong ETag, expect failure.
+			err = transactionStore.Multi(&state.TransactionalStateRequest{
+				Operations: []state.TransactionalStateOperation{{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key:  testKey,
+						ETag: firstEtag,
+					},
+				}},
+			})
+			assert.NotNil(t, err)
+
+			// Try and delete with correct ETag, expect success.
+			err = transactionStore.Multi(&state.TransactionalStateRequest{
+				Operations: []state.TransactionalStateOperation{{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key:  testKey,
+						ETag: secondEtag,
+					},
+				}},
+			})
+			assert.Nil(t, err)
+		})
+	}
+
 	if config.HasOperation("first-write") {
 		t.Run("first-write without etag", func(t *testing.T) {
 			testKey := "first-writeTest"

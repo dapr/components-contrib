@@ -65,25 +65,25 @@ type snsSqsMetadata struct {
 	messageMaxNumber int64
 }
 
-type ArnEquals struct {
+type arnEquals struct {
 	AwsSourceArn string `json:"aws:SourceArn"`
 }
 
-type Condition struct {
-	ArnEquals ArnEquals
+type condition struct {
+	ArnEquals arnEquals
 }
 
-type Statement struct {
+type statement struct {
 	Effect    string
 	Principal string
 	Action    string
 	Resource  string
-	Condition Condition
+	Condition condition
 }
 
 type policy struct {
 	Version   string
-	Statement []Statement
+	Statement []statement
 }
 
 const (
@@ -143,7 +143,7 @@ func nameToAWSSanitizedName(name string) string {
 	return string(s[:j])
 }
 
-func (p *policy) statementExists(other *Statement) bool {
+func (p *policy) statementExists(other *statement) bool {
 	for _, s := range p.Statement {
 		if s.Effect == other.Effect &&
 			s.Principal == other.Principal &&
@@ -156,7 +156,7 @@ func (p *policy) statementExists(other *Statement) bool {
 	return false
 }
 
-func (p *policy) addStatement(other *Statement) {
+func (p *policy) addStatement(other *statement) {
 	p.Statement = append(p.Statement, *other)
 }
 
@@ -556,13 +556,13 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo,
 		return fmt.Errorf("error getting queue attributes: %w", err)
 	}
 
-	newStatement := &Statement{
+	newStatement := &statement{
 		Effect:    "Allow",
 		Principal: `{"Service": "sns.amazonaws.com"}`,
 		Action:    "sqs:SendMessage",
 		Resource:  sqsQueueInfo.arn,
-		Condition: Condition{
-			ArnEquals: ArnEquals{
+		Condition: condition{
+			ArnEquals: arnEquals{
 				AwsSourceArn: snsARN,
 			},
 		},

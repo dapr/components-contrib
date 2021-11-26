@@ -93,6 +93,7 @@ require (
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.7 // indirect
 	github.com/miekg/dns v1.1.35 // indirect
+	github.com/mitchellh/go-ps v1.0.0
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/nacos-group/nacos-sdk-go v1.0.8
@@ -112,6 +113,7 @@ require (
 	github.com/sendgrid/rest v2.6.3+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/sergi/go-diff v1.2.0 // indirect
+	github.com/shirou/gopsutil v3.21.10+incompatible
 	github.com/streadway/amqp v1.0.0
 	github.com/stretchr/testify v1.7.0
 	github.com/supplyon/gremcos v0.1.0

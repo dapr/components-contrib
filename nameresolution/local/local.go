@@ -80,5 +80,6 @@ func (resolver *resolver) ResolveID(req nameresolution.ResolveRequest) (string, 
 			return fmt.Sprintf("127.0.0.1:%d", grpcPort), nil
 		}
 	}
+
 	return "", errors.Errorf("coud not find service %s", req.ID)
 }

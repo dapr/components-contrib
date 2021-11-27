@@ -10,11 +10,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/kit/logger"
 	ps "github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
 	process "github.com/shirou/gopsutil/process"
+
+	"github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/logger"
 )
 
 type resolver struct {

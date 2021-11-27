@@ -72,7 +72,6 @@ func (resolver *resolver) ResolveID(req nameresolution.ResolveRequest) (string, 
 			}
 
 			grpcPort, err := strconv.Atoi(grpcPortStr)
-
 			if err != nil {
 				return "", err
 			}

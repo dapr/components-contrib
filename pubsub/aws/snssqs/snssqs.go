@@ -74,6 +74,27 @@ type snsSqsMetadata struct {
 	messageMaxNumber int64
 }
 
+type arnEquals struct {
+	AwsSourceArn string `json:"aws:SourceArn"`
+}
+
+type condition struct {
+	ArnEquals arnEquals
+}
+
+type statement struct {
+	Effect    string
+	Principal string
+	Action    string
+	Resource  string
+	Condition condition
+}
+
+type policy struct {
+	Version   string
+	Statement []statement
+}
+
 const (
 	awsSqsQueueNameKey = "dapr-queue-name"
 	awsSnsTopicNameKey = "dapr-topic-name"
@@ -161,6 +182,23 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 	}
 
 	return string(s[:j])
+}
+
+func (p *policy) statementExists(other *statement) bool {
+	for _, s := range p.Statement {
+		if s.Effect == other.Effect &&
+			s.Principal == other.Principal &&
+			s.Action == other.Action &&
+			s.Resource == other.Resource &&
+			s.Condition.ArnEquals.AwsSourceArn == other.Condition.ArnEquals.AwsSourceArn {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *policy) addStatement(other *statement) {
+	p.Statement = append(p.Statement, *other)
 }
 
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
@@ -468,7 +506,7 @@ func (s *snsSqs) acknowledgeMessage(queueURL string, receiptHandle *string) erro
 		QueueUrl:      &queueURL,
 		ReceiptHandle: receiptHandle,
 	}); err != nil {
-		return fmt.Errorf("error ack'ing (deleting) SQS message: %w", err)
+		return fmt.Errorf("error deleting SQS message: %w", err)
 	}
 
 	return nil
@@ -603,22 +641,44 @@ func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 
 func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo, snsARN string) error {
 	// only permit SNS to send messages to SQS using the created subscription.
-	if _, err := s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
+	getQueueAttributesOutput, err := s.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{QueueUrl: &sqsQueueInfo.url, AttributeNames: []*string{aws.String(sqs.QueueAttributeNamePolicy)}})
+	if err != nil {
+		return fmt.Errorf("error getting queue attributes: %w", err)
+	}
+
+	newStatement := &statement{
+		Effect:    "Allow",
+		Principal: `{"Service": "sns.amazonaws.com"}`,
+		Action:    "sqs:SendMessage",
+		Resource:  sqsQueueInfo.arn,
+		Condition: condition{
+			ArnEquals: arnEquals{
+				AwsSourceArn: snsARN,
+			},
+		},
+	}
+
+	policy := &policy{Version: "2012-11-05"}
+	if policyStr, ok := getQueueAttributesOutput.Attributes[sqs.QueueAttributeNamePolicy]; ok {
+		// look for the current statement if exists, else add it and store.
+		if err = json.Unmarshal([]byte(*policyStr), policy); err != nil {
+			return fmt.Errorf("error unmarshalling sqs policy: %w", err)
+		}
+		if policy.statementExists(newStatement) {
+			// nothing to do.
+			return nil
+		}
+	}
+
+	policy.addStatement(newStatement)
+	b, uerr := json.Marshal(policy)
+	if uerr != nil {
+		return fmt.Errorf("failed serializing new sqs policy: %w", uerr)
+	}
+
+	if _, err = s.sqsClient.SetQueueAttributes(&(sqs.SetQueueAttributesInput{
 		Attributes: map[string]*string{
-			"Policy": aws.String(fmt.Sprintf(`{
-				"Version": "2012-10-17",
-				"Statement": [{
-					"Effect":"Allow",
-					"Principal":{"Service": "sns.amazonaws.com"},
-					"Action":"sqs:SendMessage",
-					"Resource":"%s",
-					"Condition": {
-						"ArnEquals":{
-						  "aws:SourceArn":"%s"
-						}
-					  }	
-				}]
-			}`, sqsQueueInfo.arn, snsARN)),
+			"Policy": aws.String(string(b)),
 		},
 		QueueUrl: &sqsQueueInfo.url,
 	})); err != nil {

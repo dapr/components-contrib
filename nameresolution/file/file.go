@@ -2,6 +2,7 @@ package file
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -16,9 +17,9 @@ import (
 )
 
 const (
-	DirName            = "name.resolver.dir"
-	defaultDaprDirName = ".dapr"
-	defaultResolverDir = "resolver"
+	dirKey           = "dir"
+	defaultDaprDir   = ".dapr"
+	defaultNamingDir = "naming"
 )
 
 type namingInfo struct {
@@ -46,15 +47,15 @@ type resolver struct {
 
 // NewResolver creates file-based name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		logger.Error("cannot determine user home directory.")
-		return nil
+	if home, err := os.UserHomeDir(); err == nil {
+		return &resolver{
+			logger: logger,
+			dir:    filepath.Join(home, defaultDaprDir, defaultNamingDir),
+		}
 	}
 
 	return &resolver{
 		logger: logger,
-		dir:    filepath.Join(home, defaultDaprDirName, defaultResolverDir),
 	}
 }
 
@@ -66,7 +67,7 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 
 	info := createNamingInfo(metadata)
 
-	fileLock := newFileLock(info.AppID)
+	fileLock := r.newFileLock(info.AppID)
 	if err := fileLock.Lock(); err != nil {
 		r.logger.Errorf("fail to lock: %s", fileLock.Path())
 		return err
@@ -79,17 +80,18 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 	}(fileLock)
 
 	f := filepath.Join(r.dir, info.AppID)
-	namingInfos, err := loadingNamingInfo(f)
+	namingInfos, err := loadNamingInfo(f)
 	if err != nil {
 		r.logger.Errorf("fail to load naming info from file: %s", f)
 		return err
 	}
 
 	index := -1
-	for i, info := range namingInfos {
-		if info.AppID == info.AppID &&
-			info.HostAddress == info.HostAddress &&
-			info.DaprPort == info.DaprPort {
+	for i, ni := range namingInfos {
+		if ni.AppID == info.AppID &&
+			ni.HostAddress == info.HostAddress &&
+			ni.DaprPort == info.DaprPort &&
+			ni.DaprHTTPPort == info.DaprHTTPPort {
 			index = i
 			break
 		}
@@ -100,7 +102,7 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 	}
 
 	namingInfos = append(namingInfos, *info)
-	content, _ := json.Marshal(namingInfos)
+	content, _ := json.MarshalIndent(namingInfos, "", "\t")
 	if err := ioutil.WriteFile(f, content, os.ModePerm); err != nil {
 		r.logger.Errorf("fail to write naming info into file: %s", f)
 		return err
@@ -109,8 +111,8 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 	return nil
 }
 
-func loadingNamingInfo(filename string) ([]namingInfo, error) {
-	if _, err := os.Stat(filename); os.IsExist(err) {
+func loadNamingInfo(filename string) ([]namingInfo, error) {
+	if _, err := os.Stat(filename); err == nil {
 		if bytes, err := ioutil.ReadFile(filename); err == nil {
 			infos := make([]namingInfo, 0)
 			if err := json.Unmarshal(bytes, &infos); err == nil {
@@ -130,13 +132,19 @@ func (r *resolver) prepareResolverDir(metadata nameresolution.Metadata) error {
 		return err
 	}
 
-	if conf, ok := configs.(map[string]string); ok {
-		if s := conf[DirName]; s != "" {
-			r.dir = s
+	if conf, ok := configs.(map[string]interface{}); ok {
+		if v := conf[dirKey]; v != nil {
+			if s, ok := v.(string); ok {
+				r.dir = s
+			}
 		}
 	}
 
-	if err = os.MkdirAll(r.dir, os.ModeDir); err != nil {
+	if r.dir == "" {
+		return errors.New("file based naming directory is not defined")
+	}
+
+	if err = os.MkdirAll(r.dir, os.ModePerm); err != nil {
 		return err
 	}
 
@@ -145,18 +153,19 @@ func (r *resolver) prepareResolverDir(metadata nameresolution.Metadata) error {
 
 // ResolveID resolves name to address via file.
 func (r *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	lock := newFileLock(req.ID)
+	lock := r.newFileLock(req.ID)
 	if err := lock.RLock(); err != nil {
 		r.logger.Errorf("fail to lock file: %s", lock.Path())
 		return "", err
 	}
 	defer func(lock *flock.Flock) {
-		err := lock.Unlock()
-		r.logger.Errorf("fail to unlock file: %s with error: %s", lock.Path(), err)
+		if err := lock.Unlock(); err != nil {
+			r.logger.Errorf("fail to unlock file: %s with error: %s", lock.Path(), err)
+		}
 	}(lock)
 
 	fn := filepath.Join(r.dir, req.ID)
-	info, err := loadingNamingInfo(fn)
+	info, err := loadNamingInfo(fn)
 	if err != nil {
 		return "", err
 	}
@@ -169,6 +178,6 @@ func (r *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	return fmt.Sprintf("%s:%s", info[index].HostAddress, info[index].DaprPort), nil
 }
 
-func newFileLock(id string) *flock.Flock {
-	return flock.New(filepath.Join(os.TempDir(), "dapr-"+id+".lock"))
+func (r *resolver) newFileLock(id string) *flock.Flock {
+	return flock.New(filepath.Join(r.dir, id+".lock"))
 }

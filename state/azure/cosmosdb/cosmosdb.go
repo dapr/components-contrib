@@ -152,6 +152,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 			if isTooManyRequestsError(err) {
 				return err
 			}
+
 			return backoff.Permanent(err)
 		} else if len(dbs) == 0 {
 			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB state store not found", m.Database))
@@ -168,6 +169,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 			if isTooManyRequestsError(err) {
 				return err
 			}
+
 			return backoff.Permanent(err)
 		} else if len(colls) == 0 {
 			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection))
@@ -183,6 +185,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 			if isTooManyRequestsError(err) {
 				return err
 			}
+
 			return backoff.Permanent(err)
 		}
 
@@ -195,6 +198,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 			}
 		}
 
+		// nolint:nestif
 		if c.sp == nil {
 			// register the stored procedure
 			createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}

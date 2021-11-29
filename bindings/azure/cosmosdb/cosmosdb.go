@@ -94,6 +94,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 			if isTooManyRequestsError(err) {
 				return err
 			}
+
 			return backoff.Permanent(err)
 		} else if len(dbs) == 0 {
 			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB binding not found", m.Database))
@@ -110,6 +111,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 			if isTooManyRequestsError(err) {
 				return err
 			}
+
 			return backoff.Permanent(err)
 		} else if len(colls) == 0 {
 			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB binding not found", m.Collection))
@@ -150,6 +152,7 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	//nolint:exhaustive
 	switch req.Operation {
 	case bindings.CreateOperation:
 		var obj interface{}

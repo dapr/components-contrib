@@ -5,7 +5,7 @@
 
 package configuration
 
-// ConfigurationItem represents a configuration item with name, content and other information.
+// Item represents a configuration item with name, content and other information.
 type Item struct {
 	Key      string            `json:"key"`
 	Value    string            `json:"value,omitempty"`

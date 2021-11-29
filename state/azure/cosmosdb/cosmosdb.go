@@ -65,10 +65,11 @@ type storedProcedureDefinition struct {
 }
 
 const (
-	storedProcedureName  = "__dapr__"
-	metadataPartitionKey = "partitionKey"
-	unknownPartitionKey  = "__UNKNOWN__"
-	metadataTTLKey       = "ttlInSeconds"
+	storedProcedureName   = "__dapr__"
+	metadataPartitionKey  = "partitionKey"
+	unknownPartitionKey   = "__UNKNOWN__"
+	metadataTTLKey        = "ttlInSeconds"
+	statusTooManyRequests = "429" // RFC 6585, 4
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
@@ -518,7 +519,7 @@ func isTooManyRequestsError(err error) bool {
 	}
 
 	if requestError, ok := err.(*documentdb.RequestError); ok {
-		if requestError.Code == "429" {
+		if requestError.Code == statusTooManyRequests {
 			return true
 		}
 	}

@@ -38,6 +38,8 @@ type cosmosDBCredentials struct {
 	PartitionKey string `json:"partitionKey"`
 }
 
+const statusTooManyRequests = "429" // RFC 6585, 4
+
 // NewCosmosDB returns a new CosmosDB instance.
 func NewCosmosDB(logger logger.Logger) *CosmosDB {
 	return &CosmosDB{logger: logger}
@@ -218,7 +220,7 @@ func isTooManyRequestsError(err error) bool {
 	}
 
 	if requestError, ok := err.(*documentdb.RequestError); ok {
-		if requestError.Code == "429" {
+		if requestError.Code == statusTooManyRequests {
 			return true
 		}
 	}

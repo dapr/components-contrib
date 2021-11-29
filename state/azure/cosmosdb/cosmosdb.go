@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a8m/documentdb"
 	"github.com/agrea/ptr"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
@@ -62,10 +64,11 @@ type storedProcedureDefinition struct {
 }
 
 const (
-	storedProcedureName  = "__dapr__"
-	metadataPartitionKey = "partitionKey"
-	unknownPartitionKey  = "__UNKNOWN__"
-	metadataTTLKey       = "ttlInSeconds"
+	storedProcedureName   = "__dapr__"
+	metadataPartitionKey  = "partitionKey"
+	unknownPartitionKey   = "__UNKNOWN__"
+	metadataTTLKey        = "ttlInSeconds"
+	statusTooManyRequests = "429" // RFC 6585, 4
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store
@@ -129,62 +132,94 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		}
 		config = documentdb.NewConfigWithServicePrincipal(spt)
 	}
-	client := documentdb.New(m.URL, config)
+	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 
-	dbs, err := client.QueryDatabases(&documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Database},
-		},
-	})
-	if err != nil {
-		return err
-	} else if len(dbs) == 0 {
-		return fmt.Errorf("database %s for CosmosDB state store not found", m.Database)
-	}
+	// Retries initializing the client if a TooManyRequests error is encountered
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 2 * time.Second
+	bo.MaxElapsedTime = 5 * time.Minute
+	err = backoff.RetryNotify(func() (err error) {
+		client := documentdb.New(m.URL, config)
 
-	c.db = &dbs[0]
-	colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Collection},
-		},
-	})
-	if err != nil {
-		return err
-	} else if len(colls) == 0 {
-		return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection)
-	}
+		dbs, err := client.QueryDatabases(&documentdb.Query{
+			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+			Parameters: []documentdb.Parameter{
+				{Name: "@id", Value: m.Database},
+			},
+		})
 
-	c.metadata = m
-	c.collection = &colls[0]
-	c.client = client
-	c.contentType = m.ContentType
-
-	sps, err := c.client.ReadStoredProcedures(c.collection.Self)
-	if err != nil {
-		return err
-	}
-
-	// get a link to the sp
-	for i := range sps {
-		if sps[i].Id == storedProcedureName {
-			c.sp = &sps[i]
-
-			break
-		}
-	}
-
-	if c.sp == nil {
-		// register the stored procedure
-		createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
-		c.sp, err = c.client.CreateStoredProcedure(c.collection.Self, createspBody)
 		if err != nil {
-			// if it already exists that is success
-			if !strings.HasPrefix(err.Error(), "Conflict") {
+			if isTooManyRequestsError(err) {
 				return err
 			}
+
+			return backoff.Permanent(err)
+		} else if len(dbs) == 0 {
+			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB state store not found", m.Database))
 		}
+
+		c.db = &dbs[0]
+		colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
+			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+			Parameters: []documentdb.Parameter{
+				{Name: "@id", Value: m.Collection},
+			},
+		})
+		if err != nil {
+			if isTooManyRequestsError(err) {
+				return err
+			}
+
+			return backoff.Permanent(err)
+		} else if len(colls) == 0 {
+			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection))
+		}
+
+		c.metadata = m
+		c.collection = &colls[0]
+		c.client = client
+		c.contentType = m.ContentType
+
+		sps, err := c.client.ReadStoredProcedures(c.collection.Self)
+		if err != nil {
+			if isTooManyRequestsError(err) {
+				return err
+			}
+
+			return backoff.Permanent(err)
+		}
+
+		// get a link to the sp
+		for i := range sps {
+			if sps[i].Id == storedProcedureName {
+				c.sp = &sps[i]
+
+				break
+			}
+		}
+
+		// nolint:nestif
+		if c.sp == nil {
+			// register the stored procedure
+			createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
+			c.sp, err = c.client.CreateStoredProcedure(c.collection.Self, createspBody)
+			if err != nil {
+				if isTooManyRequestsError(err) {
+					return err
+				}
+				// if it already exists that is success
+				if !strings.HasPrefix(err.Error(), "Conflict") {
+					return backoff.Permanent(err)
+				}
+			}
+		}
+
+		return nil
+	}, bo, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store initialization failed: %v; retrying in %s", err, d)
+	})
+	if err != nil {
+		return err
 	}
 
 	c.logger.Debug("cosmos Init done")
@@ -462,4 +497,18 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	}
 
 	return nil, nil
+}
+
+func isTooManyRequestsError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if requestError, ok := err.(*documentdb.RequestError); ok {
+		if requestError.Code == statusTooManyRequests {
+			return true
+		}
+	}
+
+	return false
 }

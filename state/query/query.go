@@ -13,7 +13,7 @@ import (
 const (
 	FILTER = "filter"
 	SORT   = "sort"
-	PAGE   = "pagination"
+	PAGE   = "page"
 	ASC    = "ASC"
 	DESC   = "DESC"
 )

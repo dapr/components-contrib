@@ -2,16 +2,16 @@ package file
 
 import (
 	"fmt"
-	nr "github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-
 	"testing"
+
+	nr "github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDefaultDir(t *testing.T) {
@@ -135,7 +135,7 @@ func TestInitAndResolveID(t *testing.T) {
 			Port: 12345,
 		}
 
-		re := regexp.MustCompile("addr-(\\d+):grpc-port-(\\d+)")
+		re := regexp.MustCompile(`addr-(\d+):grpc-port-(\d+)`)
 		for i := 0; i < 100; i++ {
 			result, err := r.ResolveID(request)
 			assert.Nil(t, err)
@@ -145,10 +145,10 @@ func TestInitAndResolveID(t *testing.T) {
 	})
 }
 
-func buildMetadata(appId string, addr string, appPort string, grpcPort string, httpPort string, baseDir string) nr.Metadata {
+func buildMetadata(appID string, addr string, appPort string, grpcPort string, httpPort string, baseDir string) nr.Metadata {
 	resolverMetadata := nr.Metadata{
 		Properties: map[string]string{
-			nr.AppID:        appId,
+			nr.AppID:        appID,
 			nr.HostAddress:  addr,
 			nr.AppPort:      appPort,
 			nr.DaprPort:     grpcPort,

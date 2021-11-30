@@ -290,6 +290,7 @@ require (
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/tetratelabs/wazero v0.0.0-20220425003459-ad61d9a6ff43
 	github.com/tidwall/match v1.0.3 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.6 // indirect

@@ -1266,6 +1266,8 @@ github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69
 github.com/supplyon/gremcos v0.1.0 h1:kZdC3P6m8dkfBO4ZLB2XmzHrPu/Z5enwgz6/x8MTIhc=
 github.com/supplyon/gremcos v0.1.0/go.mod h1:ZnXsXGVbGCYDFU5GLPX9HZLWfD+ZWkiPo30KUjNoOtw=
 github.com/testcontainers/testcontainers-go v0.9.0/go.mod h1:b22BFXhRbg4PJmeMVWh6ftqjyZHgiIl3w274e9r3C2E=
+github.com/tetratelabs/wazero v0.0.0-20220425003459-ad61d9a6ff43 h1:o/PS34ksCpw72GtxUKad1jDMPsgGn6zVRG0BFIOUrsU=
+github.com/tetratelabs/wazero v0.0.0-20220425003459-ad61d9a6ff43/go.mod h1:Y4X/zO4sC2dJjZG9GDYNRbJGogfqFYJY/BbyKlOxXGI=
 github.com/tidwall/gjson v1.2.1/go.mod h1:c/nTNbUr0E0OrXEhq1pwa8iEgc2DOt4ZZqAt1HtCkPA=
 github.com/tidwall/gjson v1.8.0 h1:Qt+orfosKn0rbNTZqHYDqBrmm3UDA4KRkv70fDzG+PQ=
 github.com/tidwall/gjson v1.8.0/go.mod h1:5/xDoumyyDNerp2U36lyolv46b3uF/9Bu6OfyQ9GImk=

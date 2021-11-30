@@ -94,6 +94,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2 // indirect
 	github.com/machinebox/graphql v0.2.2
+	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/matryer/is v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.7 // indirect

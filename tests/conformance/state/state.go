@@ -177,17 +177,15 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			query: `
 			{
-				"query": {
-					"filter": {
-						"OR": [
-							{
-								"EQ": {"value.message": "dummy"}
-							},
-							{
-								"IN": {"value.message": ["` + key + `-test", "dummy"]}
-							}
-						]
-					}
+				"filter": {
+					"OR": [
+						{
+							"EQ": {"value.message": "dummy"}
+						},
+						{
+							"IN": {"value.message": ["` + key + `-test", "dummy"]}
+						}
+					]
 				}
 			}
 			`,
@@ -249,7 +247,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			for _, scenario := range queryScenarios {
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
-				err := json.Unmarshal([]byte(scenario.query), &req)
+				err := json.Unmarshal([]byte(scenario.query), &req.Query)
 				assert.NoError(t, err)
 				resp, err := querier.Query(&req)
 				assert.NoError(t, err)

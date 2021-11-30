@@ -1,11 +1,12 @@
 package file
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
+	"math/big"
 	"os"
 	"path/filepath"
 
@@ -112,18 +113,23 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 }
 
 func loadNamingInfo(filename string) ([]namingInfo, error) {
-	if _, err := os.Stat(filename); err == nil {
-		if bytes, err := ioutil.ReadFile(filename); err == nil {
-			infos := make([]namingInfo, 0)
-			if err := json.Unmarshal(bytes, &infos); err == nil {
-				return infos, nil
-			}
-			return nil, err
-		}
+	_, err := os.Stat(filename)
+	if err != nil && os.IsNotExist(err) {
+		return make([]namingInfo, 0), nil
+	}
+
+	bytes, err := ioutil.ReadFile(filename)
+	if err != nil {
 		return nil, err
 	}
 
-	return make([]namingInfo, 0), nil
+	infos := make([]namingInfo, 0)
+	err = json.Unmarshal(bytes, &infos)
+	if err != nil {
+		return nil, err
+	}
+
+	return infos, nil
 }
 
 func (r *resolver) prepareResolverDir(metadata nameresolution.Metadata) error {
@@ -173,7 +179,8 @@ func (r *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		return "", fmt.Errorf("there's no naming info for application: %s, pls. check file: %s", req.ID, lock)
 	}
 
-	index := rand.Intn(len(info))
+	rnd, _ := rand.Int(rand.Reader, big.NewInt(int64(len(info))))
+	index := rnd.Int64()
 
 	return fmt.Sprintf("%s:%s", info[index].HostAddress, info[index].DaprPort), nil
 }

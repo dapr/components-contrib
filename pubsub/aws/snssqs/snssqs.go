@@ -12,6 +12,8 @@ import (
 	sns "github.com/aws/aws-sdk-go/service/sns"
 	sqs "github.com/aws/aws-sdk-go/service/sqs"
 
+	gonanoid "github.com/matoous/go-nanoid/v2"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -23,12 +25,14 @@ type snsSqs struct {
 	// key is the sanitized topic name, value is the actual topic name.
 	topicSanitized map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url.
-	queues        map[string]*sqsQueueInfo
+	queues map[string]*sqsQueueInfo
+	// sns to sqs subscriptions.
+	subscriptions []*string
 	snsClient     *sns.SNS
 	sqsClient     *sqs.SQS
 	metadata      *snsSqsMetadata
 	logger        logger.Logger
-	subscriptions []*string
+	id            string
 }
 
 type sqsQueueInfo struct {
@@ -37,10 +41,6 @@ type sqsQueueInfo struct {
 }
 
 type snsSqsMetadata struct {
-	// name of the queue for this application. The is provided by the runtime as "consumerID".
-	sqsQueueName string
-	// name of the dead letter queue for this application.
-	sqsDeadLettersQueueName string
 	// aws endpoint for the component to use.
 	Endpoint string
 	// access key to use for accessing sqs/sns.
@@ -51,7 +51,16 @@ type snsSqsMetadata struct {
 	SessionToken string
 	// aws region in which SNS/SQS should create resources.
 	Region string
-
+	// name of the queue for this application. The is provided by the runtime as "consumerID".
+	sqsQueueName string
+	// name of the dead letter queue for this application.
+	sqsDeadLettersQueueName string
+	// flag to SNS and SQS FIFO.
+	fifo bool
+	// a namespace for SNS SQS FIFO to order messages within that group. limits consumer concurrency if set but guarantees that all
+	// published messages would be ordered by their arrival time to SQS.
+	// see: https://aws.amazon.com/blogs/compute/solving-complex-ordering-challenges-with-amazon-sqs-fifo-queues/
+	fifoMessageGroupID string
 	// amount of time in seconds that a message is hidden from receive requests after it is sent to a subscriber. Default: 10.
 	messageVisibilityTimeout int64
 	// number of times to resend a message after processing of that message fails before removing that message from the queue. Default: 10.
@@ -89,13 +98,20 @@ type policy struct {
 const (
 	awsSqsQueueNameKey = "dapr-queue-name"
 	awsSnsTopicNameKey = "dapr-topic-name"
+	maxAWSNameLength   = 80
 )
 
 // NewSnsSqs - constructor for a new snssqs dapr component.
 func NewSnsSqs(l logger.Logger) pubsub.PubSub {
+	id, err := gonanoid.New()
+	if err != nil {
+		l.Fatalf("failed generating unique nano id: %s", err)
+	}
+
 	return &snsSqs{
 		logger:        l,
 		subscriptions: []*string{},
+		id:            id,
 	}
 }
 
@@ -119,11 +135,27 @@ func parseInt64(input string, propertyName string) (int64, error) {
 	return int64(number), nil
 }
 
+func parseBool(input string, propertyName string) (bool, error) {
+	val, err := strconv.ParseBool(input)
+	if err != nil {
+		return false, fmt.Errorf("parsing %s failed with: %w", propertyName, err)
+	}
+	return val, nil
+}
+
 // sanitize topic/queue name to conform with:
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html
-func nameToAWSSanitizedName(name string) string {
-	s := []byte(name)
+func nameToAWSSanitizedName(name string, isFifo bool) string {
+	suffix := ".fifo"
 
+	// first remove suffix if exists, and user requested a FIFO name, then sanitize the passed in name.
+	hasFifoSuffix := false
+	if strings.HasSuffix(name, suffix) && isFifo {
+		hasFifoSuffix = true
+		name = name[:len(name)-len(suffix)]
+	}
+
+	s := []byte(name)
 	j := 0
 	for _, b := range s {
 		if ('a' <= b && b <= 'z') ||
@@ -134,10 +166,19 @@ func nameToAWSSanitizedName(name string) string {
 			s[j] = b
 			j++
 
-			if j == 80 {
+			if j == maxAWSNameLength {
 				break
 			}
 		}
+	}
+
+	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength.
+	if hasFifoSuffix || isFifo {
+		delta := j + len(suffix) - maxAWSNameLength
+		if delta > 0 {
+			j -= delta
+		}
+		return string(s[:j]) + suffix
 	}
 
 	return string(s[:j])
@@ -181,7 +222,7 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.SecretKey = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"sessionToken"}, metadata); ok {
+	if val, ok := props["sessionToken"]; ok {
 		md.SessionToken = val
 	}
 
@@ -219,11 +260,11 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.messageRetryLimit = retryLimit
 	}
 
-	if val, ok := getAliasedProperty([]string{"sqsDeadLettersQueueName"}, metadata); ok {
+	if val, ok := props["sqsDeadLettersQueueName"]; ok {
 		md.sqsDeadLettersQueueName = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"messageReceiveLimit"}, metadata); ok {
+	if val, ok := props["messageReceiveLimit"]; ok {
 		messageReceiveLimit, err := parseInt64(val, "messageReceiveLimit")
 		if err != nil {
 			return nil, err
@@ -235,6 +276,23 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 	// XOR on having either a valid messageReceiveLimit and invalid sqsDeadLettersQueueName, and vice versa.
 	if (md.messageReceiveLimit > 0 || len(md.sqsDeadLettersQueueName) > 0) && !(md.messageReceiveLimit > 0 && len(md.sqsDeadLettersQueueName) > 0) {
 		return nil, errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
+	}
+
+	// fifo settings: enable/disable SNS and SQS FIFO.
+	if val, ok := props["fifo"]; ok {
+		fifo, err := parseBool(val, "fifo")
+		if err != nil {
+			return nil, err
+		}
+		md.fifo = fifo
+	} else {
+		md.fifo = false
+	}
+
+	// fifo settings: assign user provided Message Group ID
+	// for more details, see: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html
+	if val, ok := props["fifoMessageGroupID"]; ok {
+		md.fifoMessageGroupID = val
 	}
 
 	if val, ok := props["messageWaitTimeSeconds"]; !ok {
@@ -296,11 +354,18 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 }
 
 func (s *snsSqs) createTopic(topic string) (string, string, error) {
-	sanitizedName := nameToAWSSanitizedName(topic)
-	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{
+	sanitizedName := nameToAWSSanitizedName(topic, s.metadata.fifo)
+	snsCreateTopicInput := &sns.CreateTopicInput{
 		Name: aws.String(sanitizedName),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
-	})
+	}
+
+	if s.metadata.fifo {
+		attributes := map[string]*string{"FifoTopic": aws.String("true"), "ContentBasedDeduplication": aws.String("true")}
+		snsCreateTopicInput.SetAttributes(attributes)
+	}
+
+	createTopicResponse, err := s.snsClient.CreateTopic(snsCreateTopicInput)
 	if err != nil {
 		return "", "", fmt.Errorf("error while creating an SNS topic: %w", err)
 	}
@@ -336,10 +401,18 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 }
 
 func (s *snsSqs) createQueue(queueName string) (*sqsQueueInfo, error) {
-	createQueueResponse, err := s.sqsClient.CreateQueue(&sqs.CreateQueueInput{
-		QueueName: aws.String(nameToAWSSanitizedName(queueName)),
+	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.fifo)
+	sqsCreateQueueInput := &sqs.CreateQueueInput{
+		QueueName: aws.String(sanitizedName),
 		Tags:      map[string]*string{awsSqsQueueNameKey: aws.String(queueName)},
-	})
+	}
+
+	if s.metadata.fifo {
+		attributes := map[string]*string{"FifoQueue": aws.String("true"), "ContentBasedDeduplication": aws.String("true")}
+		sqsCreateQueueInput.SetAttributes(attributes)
+	}
+
+	createQueueResponse, err := s.sqsClient.CreateQueue(sqsCreateQueueInput)
 	if err != nil {
 		return nil, fmt.Errorf("error creaing an SQS queue: %w", err)
 	}
@@ -381,6 +454,18 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 	return queueInfo, nil
 }
 
+func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
+	if len(s.metadata.fifoMessageGroupID) > 0 {
+		return &s.metadata.fifoMessageGroupID
+	}
+	// each daprd, of a given PubSub, of a given publisher application publishes to a message group ID of its own.
+	// for example: for a daprd serving the SNS/SQS Pubsub component we generate a unique id -> A; that component serves on behalf
+	// of a given PubSub deployment name B, and component A publishes to SNS on behalf of a dapr application named C (effectively to topic C).
+	// therefore the created message group ID for publishing messages in the aforementioned setup is "A:B:C".
+	fifoMessageGroupID := fmt.Sprintf("%s:%s:%s", s.id, req.PubsubName, req.Topic)
+	return &fifoMessageGroupID
+}
+
 func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 	if err != nil {
@@ -388,11 +473,15 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	}
 
 	message := string(req.Data)
-	_, err = s.snsClient.Publish(&sns.PublishInput{
+	snsPublishInput := &sns.PublishInput{
 		Message:  &message,
 		TopicArn: &topicArn,
-	})
+	}
+	if s.metadata.fifo {
+		snsPublishInput.MessageGroupId = s.getMessageGroupID(req)
+	}
 
+	_, err = s.snsClient.Publish(snsPublishInput)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %w", req.Topic, topicArn, err)
 		s.logger.Error(wrappedErr)
@@ -517,9 +606,10 @@ func (s *snsSqs) createDeadLettersQueue() (*sqsQueueInfo, error) {
 	var deadLettersQueueInfo *sqsQueueInfo
 	deadLettersQueueInfo, err := s.getOrCreateQueue(s.metadata.sqsDeadLettersQueueName)
 	if err != nil {
-		s.logger.Errorf("error retrieving SQS dead-letter queue: %w", err)
+		wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
+		s.logger.Error(wrappedErr)
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	return deadLettersQueueInfo, nil
@@ -603,27 +693,30 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	// these should be idempotent - queues should not be created if they exist.
 	topicArn, err := s.getOrCreateTopic(req.Topic)
 	if err != nil {
-		s.logger.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
+		wrappedErr := fmt.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
+		s.logger.Error(wrappedErr)
 
-		return err
+		return wrappedErr
 	}
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID".
 	var queueInfo *sqsQueueInfo
 	queueInfo, err = s.getOrCreateQueue(s.metadata.sqsQueueName)
 	if err != nil {
-		s.logger.Errorf("error retrieving SQS queue: %w", err)
+		wrappedErr := fmt.Errorf("error retrieving SQS queue: %w", err)
+		s.logger.Error(wrappedErr)
 
-		return err
+		return wrappedErr
 	}
 
 	// only after a SQS queue and SNS topic had been setup, we restrict the SendMessage action to SNS as sole source
 	// to prevent anyone but SNS to publish message to SQS.
 	err = s.restrictQueuePublishPolicyToOnlySNS(queueInfo, topicArn)
 	if err != nil {
-		s.logger.Errorf("error setting sns-sqs subscription policy: %w", err)
+		wrappedErr := fmt.Errorf("error setting sns-sqs subscription policy: %w", err)
+		s.logger.Error(wrappedErr)
 
-		return err
+		return wrappedErr
 	}
 
 	// apply the dead letters queue attributes to the current queue.
@@ -632,18 +725,21 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 		var derr error
 		deadLettersQueueInfo, derr = s.createDeadLettersQueue()
 		if derr != nil {
-			s.logger.Errorf("error creating dead-letter queue: %w", derr)
+			wrappedErr := fmt.Errorf("error creating dead-letter queue: %w", derr)
+			s.logger.Error(wrappedErr)
 
-			return derr
+			return wrappedErr
 		}
 
 		var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
 		sqsSetQueueAttributesInput, derr = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
 		if derr != nil {
-			s.logger.Errorf("error creatubg queue attributes for dead-letter queue: %w", derr)
+			wrappedErr := fmt.Errorf("error creatubg queue attributes for dead-letter queue: %w", derr)
+			s.logger.Error(wrappedErr)
 
-			return derr
+			return wrappedErr
 		}
+
 		_, derr = s.sqsClient.SetQueueAttributes(sqsSetQueueAttributesInput)
 		if derr != nil {
 			wrappedErr := fmt.Errorf("error updating queue attributes with dead-letter queue: %w", derr)

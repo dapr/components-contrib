@@ -5,7 +5,7 @@
             "state": "CA"
         }
     },
-    "pagination": {
+    "page": {
         "limit": 2
     }
 }

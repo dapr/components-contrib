@@ -153,6 +153,8 @@ echo "CREDENTIALS_PATH=${CREDENTIALS_PATH}"
 ##==============================================================================
 
 # Constant environment variable names defined by tests or GitHub workflow
+ACR_VAR_NAME="AzureContainerRegistryName"
+
 COSMOS_DB_VAR_NAME="AzureCosmosDB"
 COSMOS_DB_COLLECTION_VAR_NAME="AzureCosmosDBCollection"
 COSMOS_DB_MASTER_KEY_VAR_NAME="AzureCosmosDBMasterKey"
@@ -296,6 +298,8 @@ SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "prope
 echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
 SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" --output tsv)"
 echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
+AZURE_CONTAINER_REGISTRY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.acrName.value" --output tsv)"
+echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${CONTAINER_REGISTRY_NAME}"
 
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
@@ -596,6 +600,14 @@ az keyvault secret set --name "${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}" --va
 IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME})"
 echo export ${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}"
+
+# ---------------------------------------
+# Populate Managed Identity Test settings
+# ---------------------------------------
+echo "Configuring Azure Container Registry for Managed Identity Certification tests ..."
+echo export ${ACR_VAR_NAME}=\"${AZURE_CONTAINER_REGISTRY_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${ACR_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_CONTAINER_REGISTRY_NAME}"
+
 
 # ---------------------------
 # Display completion message

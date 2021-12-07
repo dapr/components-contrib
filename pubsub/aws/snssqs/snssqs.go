@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	sns "github.com/aws/aws-sdk-go/service/sns"
-	sqs "github.com/aws/aws-sdk-go/service/sqs"
-	sts "github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sns"
+	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sts"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
@@ -80,30 +80,10 @@ type snsSqsMetadata struct {
 	accountID string
 }
 
-type arnEquals struct {
-	AwsSourceArn string `json:"aws:SourceArn"`
-}
-
-type condition struct {
-	ArnEquals arnEquals
-}
-
-type statement struct {
-	Effect    string
-	Principal string
-	Action    string
-	Resource  string
-	Condition condition
-}
-
-type policy struct {
-	Version   string
-	Statement []statement
-}
-
 const (
 	awsSqsQueueNameKey = "dapr-queue-name"
 	awsSnsTopicNameKey = "dapr-topic-name"
+	awsSqsFifoSuffix   = ".fifo"
 	maxAWSNameLength   = 80
 )
 
@@ -115,8 +95,8 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	}
 
 	return &snsSqs{
-		logger:        l,
-		id:            id,
+		logger: l,
+		id:     id,
 	}
 }
 
@@ -151,13 +131,11 @@ func parseBool(input string, propertyName string) (bool, error) {
 // sanitize topic/queue name to conform with:
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html
 func nameToAWSSanitizedName(name string, isFifo bool) string {
-	suffix := ".fifo"
-
 	// first remove suffix if exists, and user requested a FIFO name, then sanitize the passed in name.
 	hasFifoSuffix := false
-	if strings.HasSuffix(name, suffix) && isFifo {
+	if strings.HasSuffix(name, awsSqsFifoSuffix) && isFifo {
 		hasFifoSuffix = true
-		name = name[:len(name)-len(suffix)]
+		name = name[:len(name)-len(awsSqsFifoSuffix)]
 	}
 
 	s := []byte(name)
@@ -179,31 +157,14 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 
 	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength.
 	if hasFifoSuffix || isFifo {
-		delta := j + len(suffix) - maxAWSNameLength
+		delta := j + len(awsSqsFifoSuffix) - maxAWSNameLength
 		if delta > 0 {
 			j -= delta
 		}
-		return string(s[:j]) + suffix
+		return string(s[:j]) + awsSqsFifoSuffix
 	}
 
 	return string(s[:j])
-}
-
-func (p *policy) statementExists(other *statement) bool {
-	for _, s := range p.Statement {
-		if s.Effect == other.Effect &&
-			s.Principal == other.Principal &&
-			s.Action == other.Action &&
-			s.Resource == other.Resource &&
-			s.Condition.ArnEquals.AwsSourceArn == other.Condition.ArnEquals.AwsSourceArn {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *policy) addStatement(other *statement) {
-	p.Statement = append(p.Statement, *other)
 }
 
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
@@ -394,10 +355,7 @@ func (s *snsSqs) createTopic(topic string) (string, error) {
 		snsCreateTopicInput.SetAttributes(attributes)
 	}
 
-	createTopicResponse, err := s.snsClient.CreateTopic(&sns.CreateTopicInput{
-		Name: aws.String(topic),
-		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
-	})
+	createTopicResponse, err := s.snsClient.CreateTopic(snsCreateTopicInput)
 	if err != nil {
 		return "", fmt.Errorf("error while creating an SNS topic: %w", err)
 	}
@@ -552,7 +510,6 @@ func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
 	fifoMessageGroupID := fmt.Sprintf("%s:%s:%s", s.id, req.PubsubName, req.Topic)
 	return &fifoMessageGroupID
 }
-
 
 func (s *snsSqs) createSNSSQSSubscription(queueArn, topicArn string) (string, error) {
 	subscribeOutput, err := s.snsClient.Subscribe(&sns.SubscribeInput{

@@ -31,6 +31,7 @@ func (p *policy) statementExists(other *statement) bool {
 			return true
 		}
 	}
+	
 	return false
 }
 

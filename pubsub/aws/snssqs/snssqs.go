@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sns"
@@ -22,19 +23,23 @@ import (
 
 type snsSqs struct {
 	// key is the topic name, value is the ARN of the topic.
-	topics map[string]string
+	topics     map[string]string
+	topicsLock *sync.RWMutex
 	// key is the sanitized topic name, value is the actual topic name.
-	topicSanitized map[string]string
+	topicsSanitized     map[string]string
+	topicsSanitizedLock *sync.RWMutex
 	// key is the topic name, value holds the ARN of the queue and its url.
-	queues map[string]*sqsQueueInfo
+	queues     map[string]*sqsQueueInfo
+	queuesLock *sync.RWMutex
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
-	subscriptions map[string]string
-	snsClient     *sns.SNS
-	sqsClient     *sqs.SQS
-	stsClient     *sts.STS
-	metadata      *snsSqsMetadata
-	logger        logger.Logger
-	id            string
+	subscriptions     map[string]string
+	subscriptionsLock *sync.RWMutex
+	snsClient         *sns.SNS
+	sqsClient         *sqs.SQS
+	stsClient         *sts.STS
+	metadata          *snsSqsMetadata
+	logger            logger.Logger
+	id                string
 }
 
 type sqsQueueInfo struct {
@@ -315,9 +320,13 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	// both Publish and Subscribe need reference the topic ARN, queue ARN and subscription ARN between topic and queue
 	// track these ARNs in these maps.
 	s.topics = make(map[string]string)
-	s.topicSanitized = make(map[string]string)
+	s.topicsLock = &sync.RWMutex{}
+	s.topicsSanitized = make(map[string]string)
+	s.topicsSanitizedLock = &sync.RWMutex{}
 	s.queues = make(map[string]*sqsQueueInfo)
+	s.queuesLock = &sync.RWMutex{}
 	s.subscriptions = make(map[string]string)
+	s.subscriptionsLock = &sync.RWMutex{}
 
 	sess, err := aws_auth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
@@ -382,7 +391,9 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 		ok       bool
 	)
 
+	s.topicsLock.RLock()
 	topicArn, ok = s.topics[topic]
+	s.topicsLock.RUnlock()
 	if ok {
 		s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)
 
@@ -407,8 +418,12 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 	}
 
 	// record topic ARN.
+	s.topicsLock.Lock()
 	s.topics[topic] = topicArn
-	s.topicSanitized[sanitizedName] = topic
+	s.topicsLock.Unlock()
+	s.topicsSanitizedLock.Lock()
+	s.topicsSanitized[sanitizedName] = topic
+	s.topicsSanitizedLock.Unlock()
 
 	return topicArn, nil
 }
@@ -467,7 +482,9 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 		ok        bool
 	)
 
+	s.queuesLock.RLock()
 	queueInfo, ok = s.queues[queueName]
+	s.queuesLock.RUnlock()
 	if ok {
 		s.logger.Debugf("Found queue arn for %s: %s", queueName, queueInfo.arn)
 
@@ -494,7 +511,9 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 		}
 	}
 
+	s.queuesLock.Lock()
 	s.queues[queueName] = queueInfo
+	s.queuesLock.Unlock()
 
 	return queueInfo, nil
 }
@@ -552,7 +571,9 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 	)
 
 	compositeKey := fmt.Sprintf("%s:%s", queueArn, topicArn)
+	s.subscriptionsLock.RLock()
 	subscriptionArn, ok = s.subscriptions[compositeKey]
+	s.subscriptionsLock.RUnlock()
 	if ok {
 		s.logger.Debugf("Found subscription of queue arn: %s to topic arn: %s: %s", queueArn, topicArn, subscriptionArn)
 
@@ -576,7 +597,9 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 		}
 	}
 
+	s.subscriptionsLock.Lock()
 	s.subscriptions[compositeKey] = subscriptionArn
+	s.subscriptionsLock.Unlock()
 	s.logger.Debugf("Subscribed to topic %s: %s", topicArn, subscriptionArn)
 
 	return subscriptionArn, nil
@@ -670,7 +693,7 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 	}
 
 	topic := parseTopicArn(messageBody.TopicArn)
-	topic = s.topicSanitized[topic]
+	topic = s.topicsSanitized[topic]
 	err = handler(context.Background(), &pubsub.NewMessage{
 		Data:  []byte(messageBody.Message),
 		Topic: topic,

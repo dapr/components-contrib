@@ -317,6 +317,16 @@ func (w *Watcher) WaitForResult(timeout time.Duration) error {
 	return nil
 }
 
+func (w *Watcher) FailIfNotExpected(t TestingT, data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for _, item := range data {
+		val, ok := w.remaining[item]
+		assert.False(t, ok, "Encountered an unexpected item: %v", val)
+	}
+}
+
 // Result waits for up to `timeout` for all
 // expected data to be observed and returns
 // the expected and observed slices.

@@ -77,6 +77,7 @@ type snsSqsMetadata struct {
 const (
 	awsSqsQueueNameKey = "dapr-queue-name"
 	awsSnsTopicNameKey = "dapr-topic-name"
+	awsSqsFifoSuffix   = ".fifo"
 	maxAWSNameLength   = 80
 )
 
@@ -125,13 +126,11 @@ func parseBool(input string, propertyName string) (bool, error) {
 // sanitize topic/queue name to conform with:
 // https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html
 func nameToAWSSanitizedName(name string, isFifo bool) string {
-	suffix := ".fifo"
-
 	// first remove suffix if exists, and user requested a FIFO name, then sanitize the passed in name.
 	hasFifoSuffix := false
-	if strings.HasSuffix(name, suffix) && isFifo {
+	if strings.HasSuffix(name, awsSqsFifoSuffix) && isFifo {
 		hasFifoSuffix = true
-		name = name[:len(name)-len(suffix)]
+		name = name[:len(name)-len(awsSqsFifoSuffix)]
 	}
 
 	s := []byte(name)
@@ -153,11 +152,11 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 
 	// reattach/add the suffix to the sanitized name, trim more if adding the suffix would exceed the maxLength.
 	if hasFifoSuffix || isFifo {
-		delta := j + len(suffix) - maxAWSNameLength
+		delta := j + len(awsSqsFifoSuffix) - maxAWSNameLength
 		if delta > 0 {
 			j -= delta
 		}
-		return string(s[:j]) + suffix
+		return string(s[:j]) + awsSqsFifoSuffix
 	}
 
 	return string(s[:j])

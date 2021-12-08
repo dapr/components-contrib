@@ -770,7 +770,7 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo,
 
 	newStatement := &statement{
 		Effect:    "Allow",
-		Principal: `{"Service": "sns.amazonaws.com"}`,
+		Principal: principal{Service: "sns.amazonaws.com"},
 		Action:    "sqs:SendMessage",
 		Resource:  sqsQueueInfo.arn,
 		Condition: condition{
@@ -780,7 +780,7 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo,
 		},
 	}
 
-	policy := &policy{Version: "2012-11-05"}
+	policy := &policy{Version: "2012-10-17"}
 	if policyStr, ok := getQueueAttributesOutput.Attributes[sqs.QueueAttributeNamePolicy]; ok {
 		// look for the current statement if exists, else add it and store.
 		if err = json.Unmarshal([]byte(*policyStr), policy); err != nil {

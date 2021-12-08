@@ -163,23 +163,6 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 	return string(s[:j])
 }
 
-func (p *policy) statementExists(other *statement) bool {
-	for _, s := range p.Statement {
-		if s.Effect == other.Effect &&
-			s.Principal == other.Principal &&
-			s.Action == other.Action &&
-			s.Resource == other.Resource &&
-			s.Condition.ArnEquals.AwsSourceArn == other.Condition.ArnEquals.AwsSourceArn {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *policy) addStatement(other *statement) {
-	p.Statement = append(p.Statement, *other)
-}
-
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := snsSqsMetadata{}
 	props := metadata.Properties

@@ -23,23 +23,19 @@ import (
 
 type snsSqs struct {
 	// key is the topic name, value is the ARN of the topic.
-	topics     map[string]string
-	topicsLock *sync.RWMutex
+	topics sync.Map
 	// key is the sanitized topic name, value is the actual topic name.
-	topicsSanitized     map[string]string
-	topicsSanitizedLock *sync.RWMutex
+	topicsSanitized sync.Map
 	// key is the topic name, value holds the ARN of the queue and its url.
-	queues     map[string]*sqsQueueInfo
-	queuesLock *sync.RWMutex
+	queues sync.Map
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
-	subscriptions     map[string]string
-	subscriptionsLock *sync.RWMutex
-	snsClient         *sns.SNS
-	sqsClient         *sqs.SQS
-	stsClient         *sts.STS
-	metadata          *snsSqsMetadata
-	logger            logger.Logger
-	id                string
+	subscriptions sync.Map
+	snsClient     *sns.SNS
+	sqsClient     *sqs.SQS
+	stsClient     *sts.STS
+	metadata      *snsSqsMetadata
+	logger        logger.Logger
+	id            string
 }
 
 type sqsQueueInfo struct {
@@ -319,14 +315,10 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 
 	// both Publish and Subscribe need reference the topic ARN, queue ARN and subscription ARN between topic and queue
 	// track these ARNs in these maps.
-	s.topics = make(map[string]string)
-	s.topicsLock = &sync.RWMutex{}
-	s.topicsSanitized = make(map[string]string)
-	s.topicsSanitizedLock = &sync.RWMutex{}
-	s.queues = make(map[string]*sqsQueueInfo)
-	s.queuesLock = &sync.RWMutex{}
-	s.subscriptions = make(map[string]string)
-	s.subscriptionsLock = &sync.RWMutex{}
+	s.topics = sync.Map{}
+	s.topicsSanitized = sync.Map{}
+	s.queues = sync.Map{}
+	s.subscriptions = sync.Map{}
 
 	sess, err := aws_auth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
@@ -388,17 +380,15 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 	var (
 		err      error
 		topicArn string
-		ok       bool
 	)
 
-	s.topicsLock.RLock()
-	topicArn, ok = s.topics[topic]
-	s.topicsLock.RUnlock()
-	if ok {
+	if topicArnCached, ok := s.topics.Load(topic); ok {
 		s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)
 
-		return topicArn, nil
+		return topicArnCached.(string), nil
 	}
+	// creating queues is idempotent, the names serve as unique keys among a given region.
+	s.logger.Debugf("No SNS topic arn found for %s\nCreating SNS topic", topic)
 
 	sanitizedName := nameToAWSSanitizedName(topic, s.metadata.fifo)
 	if !s.metadata.disableEntityManagement {
@@ -418,12 +408,8 @@ func (s *snsSqs) getOrCreateTopic(topic string) (string, error) {
 	}
 
 	// record topic ARN.
-	s.topicsLock.Lock()
-	s.topics[topic] = topicArn
-	s.topicsLock.Unlock()
-	s.topicsSanitizedLock.Lock()
-	s.topicsSanitized[sanitizedName] = topic
-	s.topicsSanitizedLock.Unlock()
+	s.topics.Store(topic, topicArn)
+	s.topicsSanitized.Store(sanitizedName, topic)
 
 	return topicArn, nil
 }
@@ -479,19 +465,15 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 	var (
 		err       error
 		queueInfo *sqsQueueInfo
-		ok        bool
 	)
 
-	s.queuesLock.RLock()
-	queueInfo, ok = s.queues[queueName]
-	s.queuesLock.RUnlock()
-	if ok {
+	if cachedQueueInfo, ok := s.queues.Load(queueName); ok {
 		s.logger.Debugf("Found queue arn for %s: %s", queueName, queueInfo.arn)
 
-		return queueInfo, nil
+		return cachedQueueInfo.(*sqsQueueInfo), nil
 	}
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("No queue arn found for %s\nCreating queue", queueName)
+	s.logger.Debugf("No SQS queue arn found for %s\nCreating SQS queue", queueName)
 
 	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.fifo)
 
@@ -511,9 +493,8 @@ func (s *snsSqs) getOrCreateQueue(queueName string) (*sqsQueueInfo, error) {
 		}
 	}
 
-	s.queuesLock.Lock()
-	s.queues[queueName] = queueInfo
-	s.queuesLock.Unlock()
+	s.queues.Store(queueName, queueInfo)
+	s.logger.Debugf("Created SQS queue: %s: with arn: %s", queueName, queueInfo.arn)
 
 	return queueInfo, nil
 }
@@ -567,20 +548,17 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 	var (
 		subscriptionArn string
 		err             error
-		ok              bool
 	)
 
 	compositeKey := fmt.Sprintf("%s:%s", queueArn, topicArn)
-	s.subscriptionsLock.RLock()
-	subscriptionArn, ok = s.subscriptions[compositeKey]
-	s.subscriptionsLock.RUnlock()
-	if ok {
+	if cachedSubscriptionArn, ok := s.subscriptions.Load(compositeKey); ok {
 		s.logger.Debugf("Found subscription of queue arn: %s to topic arn: %s: %s", queueArn, topicArn, subscriptionArn)
 
-		return subscriptionArn, nil
+		return cachedSubscriptionArn.(string), nil
 	}
 
 	s.logger.Debugf("No subscription arn found of queue arn:%s to topic arn: %s\nCreating subscription", queueArn, topicArn)
+
 	if !s.metadata.disableEntityManagement {
 		subscriptionArn, err = s.createSNSSQSSubscription(queueArn, topicArn)
 		if err != nil {
@@ -597,9 +575,7 @@ func (s *snsSqs) getOrCreateSNSSQSSubsription(queueArn, topicArn string) (string
 		}
 	}
 
-	s.subscriptionsLock.Lock()
-	s.subscriptions[compositeKey] = subscriptionArn
-	s.subscriptionsLock.Unlock()
+	s.subscriptions.Store(compositeKey, subscriptionArn)
 	s.logger.Debugf("Subscribed to topic %s: %s", topicArn, subscriptionArn)
 
 	return subscriptionArn, nil
@@ -693,10 +669,14 @@ func (s *snsSqs) handleMessage(message *sqs.Message, queueInfo, deadLettersQueue
 	}
 
 	topic := parseTopicArn(messageBody.TopicArn)
-	topic = s.topicsSanitized[topic]
+	cachedTopic, ok := s.topicsSanitized.Load(topic)
+	if !ok {
+		return fmt.Errorf("failed loading topic: %s from internal topics cache", topic)
+	}
+
 	err = handler(context.Background(), &pubsub.NewMessage{
 		Data:  []byte(messageBody.Message),
-		Topic: topic,
+		Topic: cachedTopic.(string),
 	})
 
 	if err != nil {

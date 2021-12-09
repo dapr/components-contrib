@@ -43,7 +43,7 @@ func NewEnvironmentSettings(resourceName string, values map[string]string) (Envi
 		es.Resource = azureEnv.ResourceIdentifiers.Storage
 	case "cosmosdb":
 		// Azure Cosmos DB (data plane)
-		es.Resource = "https://" + azureEnv.CosmosDBDNSSuffix
+		es.Resource = "https://cosmos.azure.com"
 	case "servicebus":
 		es.Resource = azureEnv.ResourceIdentifiers.ServiceBus
 	default:

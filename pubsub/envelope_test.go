@@ -138,7 +138,6 @@ func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	})
 
 	t.Run("has dataschema", func(t *testing.T) {
-
 		attributes := map[string]interface{}{
 			DataSchemaField: "http://localhost:8080/data",
 		}

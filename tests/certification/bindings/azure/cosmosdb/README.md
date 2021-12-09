@@ -1,18 +1,17 @@
-# Azure KeyVault certification testing
+# Azure CosmosDB Binding certification testing
 
-This project aims to test the Azure KeyVault Secret Store component under various conditions.
+This project aims to test the Azure CosmosDB binding component under various conditions.
 
 ## Test plan
 
-### Active Directory Authentication tests
+### Authentication tests
 
-* Authenticate with Azure Active Directory using Service Principal Certificate
 * Authenticate with Azure Active Directory using Service Principal Client Secret
-* TODO: Authenticate with Azure Active Directory using Azure Managed Identity (also known as Managed Service Identity)
+* Authenticate with Master Key
 
 ### Other tests
 
-* Client reconnects (if applicable) upon network interruption: Not required as no connection is being maintained.
+* Client reconnects (if applicable) upon network interruption
 
 
 ### Running the tests

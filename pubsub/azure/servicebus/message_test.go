@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
-	azservicebus "github.com/Azure/azure-service-bus-go"
+	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -64,18 +64,16 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 				},
 			},
 			expectedAzServiceBusMessage: azservicebus.Message{
-				Data:          testMessageData,
-				ID:            testMessageID,
-				CorrelationID: testCorrelationID,
-				SessionID:     &testSessionID,
-				Label:         testLabel,
-				ReplyTo:       testReplyTo,
-				To:            testTo,
-				SystemProperties: &azservicebus.SystemProperties{
-					PartitionKey:         &testPartitionKey,
-					ScheduledEnqueueTime: &nowUtc,
-				},
-				ContentType: testContentType,
+				Body:                 testMessageData,
+				MessageID:            &testMessageID,
+				CorrelationID:        &testCorrelationID,
+				SessionID:            &testSessionID,
+				Subject:              &testLabel,
+				ReplyTo:              &testReplyTo,
+				To:                   &testTo,
+				PartitionKey:         &testPartitionKey,
+				ScheduledEnqueueTime: &nowUtc,
+				ContentType:          &testContentType,
 			},
 			expectError: false,
 		},
@@ -95,17 +93,15 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 				},
 			},
 			expectedAzServiceBusMessage: azservicebus.Message{
-				Data:          testMessageData,
-				ID:            testMessageID,
-				CorrelationID: testCorrelationID,
+				Body:          testMessageData,
+				MessageID:     &testMessageID,
+				CorrelationID: &testCorrelationID,
 				SessionID:     &testSessionID,
-				Label:         testLabel,
-				ReplyTo:       testReplyTo,
-				To:            testTo,
-				SystemProperties: &azservicebus.SystemProperties{
-					PartitionKey: &testPartitionKey,
-				},
-				ContentType: testContentType,
+				Subject:       &testLabel,
+				ReplyTo:       &testReplyTo,
+				To:            &testTo,
+				PartitionKey:  &testPartitionKey,
+				ContentType:   &testContentType,
 			},
 			expectError: true,
 		},
@@ -121,18 +117,17 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 				require.NotNil(t, err)
 			} else {
 				require.Nil(t, err)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.Data, msg.Data)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.ID, msg.ID)
+				assert.Equal(t, tc.expectedAzServiceBusMessage.Body, msg.Body)
+				assert.Equal(t, tc.expectedAzServiceBusMessage.MessageID, msg.MessageID)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.CorrelationID, msg.CorrelationID)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.SessionID, msg.SessionID)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.ContentType, msg.ContentType)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.ReplyTo, msg.ReplyTo)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.TTL, msg.TTL)
+				assert.Equal(t, tc.expectedAzServiceBusMessage.TimeToLive, msg.TimeToLive)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.To, msg.To)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.Label, msg.Label)
-				assert.NotNil(t, msg.SystemProperties)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.SystemProperties.PartitionKey, msg.SystemProperties.PartitionKey)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.SystemProperties.ScheduledEnqueueTime.Unix(), msg.SystemProperties.ScheduledEnqueueTime.Unix())
+				assert.Equal(t, tc.expectedAzServiceBusMessage.Subject, msg.Subject)
+				assert.Equal(t, tc.expectedAzServiceBusMessage.PartitionKey, msg.PartitionKey)
+				assert.Equal(t, tc.expectedAzServiceBusMessage.ScheduledEnqueueTime.Unix(), msg.ScheduledEnqueueTime.Unix())
 			}
 		})
 	}
@@ -157,31 +152,28 @@ func TestNewPubsubMessageFromAzServiceBusMessage(t *testing.T) {
 
 	testCases := []struct {
 		name                  string
-		azServiceBusMessage   azservicebus.Message
+		azServiceBusMessage   azservicebus.ReceivedMessage
 		topic                 string
 		expectedPubsubMessage pubsub.NewMessage
 		expectError           bool
 	}{
 		{
 			name: "Maps azure service bus message to pubsub message",
-			azServiceBusMessage: azservicebus.Message{
-				Data:          testMessageData,
-				ContentType:   testContentType,
-				ID:            testMessageID,
-				CorrelationID: testCorrelationID,
-				SessionID:     &testSessionID,
-				ReplyTo:       testReplyTo,
-				DeliveryCount: testDeliveryCount,
-				To:            testTo,
-				LockToken:     &testLockToken,
-				Label:         testLabel,
-				SystemProperties: &azservicebus.SystemProperties{
-					LockedUntil:          &nowUtc,
-					SequenceNumber:       &testSequenceNumber,
-					ScheduledEnqueueTime: &nowUtc,
-					PartitionKey:         &testPartitionKey,
-					EnqueuedTime:         &nowUtc,
-				},
+			azServiceBusMessage: azservicebus.ReceivedMessage{
+				ContentType:          &testContentType,
+				MessageID:            testMessageID,
+				CorrelationID:        &testCorrelationID,
+				SessionID:            &testSessionID,
+				ReplyTo:              &testReplyTo,
+				DeliveryCount:        testDeliveryCount,
+				To:                   &testTo,
+				LockToken:            testLockToken,
+				Subject:              &testLabel,
+				LockedUntil:          &nowUtc,
+				SequenceNumber:       &testSequenceNumber,
+				ScheduledEnqueueTime: &nowUtc,
+				PartitionKey:         &testPartitionKey,
+				EnqueuedTime:         &nowUtc,
 			},
 			topic: "testTopic",
 			expectedPubsubMessage: pubsub.NewMessage{

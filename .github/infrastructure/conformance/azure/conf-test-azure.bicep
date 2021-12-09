@@ -38,7 +38,7 @@ param certAuthSpId string
 param sqlServerAdminPassword string
 
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
-var acrName = '${toLower(namePrefix)}registry'
+var acrName = '${toLower(namePrefix)}conftestregistry'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'

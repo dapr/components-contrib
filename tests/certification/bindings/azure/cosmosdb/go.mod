@@ -6,7 +6,6 @@ require (
 	github.com/dapr/components-contrib v1.5.1-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.4.4-0.20211202215841-99e039a102c7
-	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0
 )
@@ -39,6 +38,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/dapr/go-sdk v1.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/fasthttp/router v1.3.8 // indirect

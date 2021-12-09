@@ -225,8 +225,8 @@ echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
     SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
-    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\".*//g')"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
     if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
         echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
         exit 1

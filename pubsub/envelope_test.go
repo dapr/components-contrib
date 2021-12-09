@@ -18,16 +18,16 @@ import (
 )
 
 func TestCreateCloudEventsEnvelope(t *testing.T) {
-	envelope := NewCloudEventsEnvelope("a", "source", "eventType", "", "",
-		"", "", nil, "", "")
+	envelope := NewCloudEventsEnvelope("a", "source", "eventType", "",
+		"", "", nil, "", "", nil)
 	assert.NotNil(t, envelope)
 }
 
 func TestEnvelopeXML(t *testing.T) {
 	t.Run("xml content", func(t *testing.T) {
 		str := `<root/>`
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "application/xml", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "application/xml", []byte(str), "", "", nil)
 		assert.Equal(t, "application/xml", envelope[DataContentTypeField])
 		assert.Equal(t, str, envelope[DataField])
 		assert.Equal(t, "1.0", envelope[SpecVersionField])
@@ -37,8 +37,8 @@ func TestEnvelopeXML(t *testing.T) {
 
 	t.Run("xml without content-type", func(t *testing.T) {
 		str := `<root/>`
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		assert.Equal(t, "text/plain", envelope[DataContentTypeField])
 		assert.Equal(t, str, envelope[DataField])
 		assert.Equal(t, "1.0", envelope[SpecVersionField])
@@ -57,8 +57,8 @@ func TestCreateFromJSON(t *testing.T) {
 			1,
 		}
 		data, _ := json.Marshal(obj1)
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "application/json", data, "1", "key=value")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "application/json", data, "1", "key=value", nil)
 		t.Logf("data: %v", envelope[DataField])
 		assert.Equal(t, "application/json", envelope[DataContentTypeField])
 		assert.Equal(t, map[string]interface{}{"Val1": "test", "Val2": float64(1)}, envelope[DataField])
@@ -67,9 +67,9 @@ func TestCreateFromJSON(t *testing.T) {
 	t.Run("has JSON string with rich contenttype", func(t *testing.T) {
 		obj1 := "message"
 		data, _ := json.Marshal(obj1)
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
 			"mypubsub", "application/JSON; charset=utf-8", data,
-			"1", "key=value")
+			"1", "key=value", nil)
 		t.Logf("data: %v", envelope[DataField])
 		assert.Equal(t, "application/JSON; charset=utf-8", envelope[DataContentTypeField])
 		assert.Equal(t, "message", envelope[DataField])
@@ -78,62 +78,171 @@ func TestCreateFromJSON(t *testing.T) {
 
 func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	t.Run("default event type", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", nil, "", "")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", nil, "", "", nil)
 		assert.Equal(t, DefaultCloudEventType, envelope[TypeField])
 	})
 
 	t.Run("non-default event type", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "e1", "", "",
-			"mypubsub", "", nil, "", "")
+		envelope := NewCloudEventsEnvelope("a", "source", "e1", "",
+			"mypubsub", "", nil, "", "", nil)
 		assert.Equal(t, "e1", envelope[TypeField])
 	})
 
 	t.Run("spec version", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", nil, "", "")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", nil, "", "", nil)
 		assert.Equal(t, CloudEventsSpecVersion, envelope[SpecVersionField])
 	})
 
 	t.Run("quoted data", func(t *testing.T) {
 		list := []string{"v1", "v2", "v3"}
 		data := strings.Join(list, ",")
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", []byte(data), "", "")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte(data), "", "", nil)
 		t.Logf("data: %v", envelope[DataField])
 		assert.Equal(t, "text/plain", envelope[DataContentTypeField])
 		assert.Equal(t, data, envelope[DataField].(string))
 	})
 
 	t.Run("has subject", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "subject1", "",
-			"mypubsub", "", []byte(""), "", "")
+		attributes := map[string]interface{}{
+			SubjectField: "subject1",
+		}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
 		t.Logf("data: %v", envelope[DataField])
-		assert.Equal(t, "subject1", envelope[SubjectField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 1, len(actual))
+		assert.Nil(t, err)
+		assert.Equal(t, "subject1", actual[SubjectField])
 	})
 
 	t.Run("no subject", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "topic",
-			"mypubsub", "", []byte(""), "", "")
+		attributes := map[string]interface{}{}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "topic",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
 		t.Logf("data: %v", envelope[DataField])
-		assert.Empty(t, envelope[SubjectField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 0, len(actual))
+		assert.Nil(t, err)
+		assert.Empty(t, actual[SubjectField])
+	})
+
+	t.Run("has dataschema", func(t *testing.T) {
+
+		attributes := map[string]interface{}{
+			DataSchemaField: "http://localhost:8080/data",
+		}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
+		t.Logf("data: %v", envelope[DataField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 1, len(actual))
+		assert.Nil(t, err)
+		assert.Equal(t, "http://localhost:8080/data", actual[DataSchemaField])
+	})
+
+	t.Run("no dataschema", func(t *testing.T) {
+		attributes := map[string]interface{}{}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "topic",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
+		t.Logf("data: %v", envelope[DataField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 0, len(actual))
+		assert.Nil(t, err)
+		assert.Empty(t, actual[DataSchemaField])
+	})
+
+	t.Run("has time", func(t *testing.T) {
+		timeAsString := time.Now().String()
+		attributes := map[string]interface{}{
+			TimeField: timeAsString,
+		}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
+		t.Logf("data: %v", envelope[DataField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 1, len(actual))
+		assert.Nil(t, err)
+		assert.Equal(t, timeAsString, actual[TimeField])
+	})
+
+	t.Run("no time", func(t *testing.T) {
+		attributes := map[string]interface{}{}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "topic",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
+		t.Logf("data: %v", envelope[DataField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 0, len(actual))
+		assert.Nil(t, err)
+		assert.Empty(t, actual[TimeField])
+	})
+
+	t.Run("has extension attributes", func(t *testing.T) {
+		attributes := map[string]interface{}{
+			"extension": "extension1",
+		}
+		attrBytes, _ := json.Marshal(attributes)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte(""), "", "", attrBytes)
+		t.Logf("data: %v", envelope[DataField])
+
+		var actual map[string]interface{}
+		err := json.Unmarshal(envelope[AttributesField].([]byte), &actual)
+
+		assert.Equal(t, 1, len(actual))
+		assert.Nil(t, err)
+		assert.Equal(t, "extension1", actual["extension"])
+	})
+
+	t.Run("no extension attributes", func(t *testing.T) {
+		envelope := NewCloudEventsEnvelope("a", "source", "", "topic",
+			"mypubsub", "", []byte(""), "", "", nil)
+		t.Logf("data: %v", envelope[DataField])
+
+		assert.Nil(t, envelope[AttributesField])
 	})
 
 	t.Run("string data content type", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", []byte("data"), "", "")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte("data"), "", "", nil)
 		assert.Equal(t, "text/plain", envelope[DataContentTypeField])
 	})
 
 	t.Run("trace id", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", []byte("data"), "1", "")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte("data"), "1", "", nil)
 		assert.Equal(t, "1", envelope[TraceIDField])
 	})
 
 	t.Run("trace state", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", []byte("data"), "1", "key=value")
+		envelope := NewCloudEventsEnvelope("a", "source", "", "",
+			"mypubsub", "", []byte("data"), "1", "key=value", nil)
 		assert.Equal(t, "key=value", envelope[TraceStateField])
 	})
 }
@@ -152,22 +261,22 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 	}`
 
 	t.Run("cloud event not expired", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		envelope[ExpirationField] = time.Now().UTC().Add(time.Hour * 24).Format(time.RFC3339)
 		assert.False(t, HasExpired(envelope))
 	})
 
 	t.Run("cloud event expired", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		envelope[ExpirationField] = time.Now().UTC().Add(time.Hour * -24).Format(time.RFC3339)
 		assert.True(t, HasExpired(envelope))
 	})
 
 	t.Run("cloud event expired but applied new TTL from metadata", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		envelope[ExpirationField] = time.Now().UTC().Add(time.Hour * -24).Format(time.RFC3339)
 		ApplyMetadata(envelope, nil, map[string]string{
 			"ttlInSeconds": "10000",
@@ -177,8 +286,8 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 	})
 
 	t.Run("cloud event TTL from metadata does not apply due to component feature", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		ApplyMetadata(envelope, []Feature{FeatureMessageTTL}, map[string]string{
 			"ttlInSeconds": "10000",
 		})
@@ -187,8 +296,8 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 	})
 
 	t.Run("cloud event with max TTL metadata", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		ApplyMetadata(envelope, nil, map[string]string{
 			"ttlInSeconds": fmt.Sprintf("%v", math.MaxInt64),
 		})
@@ -197,21 +306,21 @@ func TestCreateCloudEventsEnvelopeExpiration(t *testing.T) {
 	})
 
 	t.Run("cloud event with invalid expiration format", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		envelope[ExpirationField] = time.Now().UTC().Add(time.Hour * -24).Format(time.RFC1123)
 		assert.False(t, HasExpired(envelope))
 	})
 
 	t.Run("cloud event without expiration", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		assert.False(t, HasExpired(envelope))
 	})
 
 	t.Run("cloud event without expiration, without metadata", func(t *testing.T) {
-		envelope := NewCloudEventsEnvelope("a", "", "", "", "routed.topic",
-			"mypubsub", "", []byte(str), "", "")
+		envelope := NewCloudEventsEnvelope("a", "", "", "routed.topic",
+			"mypubsub", "", []byte(str), "", "", nil)
 		ApplyMetadata(envelope, nil, map[string]string{})
 		assert.False(t, HasExpired(envelope))
 	})
@@ -285,8 +394,8 @@ func TestNewFromExisting(t *testing.T) {
 
 func TestCreateFromBinaryPayload(t *testing.T) {
 	base64Encoding := base64.StdEncoding.EncodeToString([]byte{0x1})
-	envelope := NewCloudEventsEnvelope("", "", "", "", "", "",
-		"application/octet-stream", []byte{0x1}, "trace", "")
+	envelope := NewCloudEventsEnvelope("", "", "", "", "",
+		"application/octet-stream", []byte{0x1}, "trace", "", nil)
 	assert.Equal(t, base64Encoding, envelope[DataBase64Field])
 	assert.Nil(t, envelope[DataField])
 }

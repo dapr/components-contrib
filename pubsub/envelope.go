@@ -39,11 +39,14 @@ const (
 	SourceField                      = "source"
 	IDField                          = "id"
 	SubjectField                     = "subject"
+	DataSchemaField                  = "dataschema"
+	TimeField                        = "time"
+	AttributesField                  = "attributes"
 )
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
-func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
-	dataContentType string, data []byte, traceID string, traceState string) map[string]interface{} {
+func NewCloudEventsEnvelope(id, source, eventType, topic string, pubsubName string,
+	dataContentType string, data []byte, traceID string, traceState string, attributes []byte) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -84,13 +87,10 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		PubsubField:          pubsubName,
 		TraceIDField:         traceID,
 		TraceStateField:      traceState,
+		AttributesField:      attributes,
 	}
 
 	ce[ceDataField] = ceData
-
-	if subject != "" {
-		ce[SubjectField] = subject
-	}
 
 	return ce
 }

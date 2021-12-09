@@ -254,7 +254,7 @@ echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resourc
 az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}" -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
 echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
-sleep 5s
+sleep 5
 
 # Query the deployed resource names from the bicep deployment outputs
 echo "Querying deployed resource names ..."

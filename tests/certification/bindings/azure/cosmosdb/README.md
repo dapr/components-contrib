@@ -10,9 +10,11 @@ This project aims to test the Azure CosmosDB binding component under various con
 * Authenticate with Master Key
 
 ### Other tests
-
-* Client reconnects (if applicable) upon network interruption
-
+- TODO: Verify data sent to output binding is written to Cosmos DB
+- TODO: Expected failure for invalid partition key specified (Component Metadata Partition Key does not match Cosmos DB container)
+- TODO: Expected failure for partition key missing from document
+- TODO: Expected failure for `id` missing from document
+- TODO: Graceful handling of connection resets / interruption (client connection only, not during Invoke/Create operation itself)
 
 ### Running the tests
 

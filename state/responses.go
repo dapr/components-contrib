@@ -10,7 +10,7 @@ type GetResponse struct {
 	Data        []byte            `json:"data"`
 	ETag        *string           `json:"etag,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
-	ContentType string            `json:"contentType,omitempty"`
+	ContentType *string           `json:"contentType,omitempty"`
 }
 
 // BulkGetResponse is the response object for bulk get response.
@@ -20,7 +20,7 @@ type BulkGetResponse struct {
 	ETag        *string           `json:"etag,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
 	Error       string            `json:"error,omitempty"`
-	ContentType string            `json:"contentType,omitempty"`
+	ContentType *string           `json:"contentType,omitempty"`
 }
 
 // QueryResponse is the response object for querying state.
@@ -36,5 +36,5 @@ type QueryItem struct {
 	Data        []byte  `json:"data"`
 	ETag        *string `json:"etag,omitempty"`
 	Error       string  `json:"error,omitempty"`
-	ContentType string  `json:"contentType,omitempty"`
+	ContentType *string `json:"contentType,omitempty"`
 }

@@ -13,7 +13,7 @@ import (
 type ReadResponse struct {
 	Data        []byte            `json:"data"`
 	Metadata    map[string]string `json:"metadata"`
-	ContentType string            `json:"contentType,omitempty"`
+	ContentType *string           `json:"contentType,omitempty"`
 }
 
 // AppResponse is the object describing the response from user code after a bindings event.
@@ -29,5 +29,5 @@ type AppResponse struct {
 type InvokeResponse struct {
 	Data        []byte            `json:"data"`
 	Metadata    map[string]string `json:"metadata"`
-	ContentType string            `json:"contentType,omitempty"`
+	ContentType *string           `json:"contentType,omitempty"`
 }

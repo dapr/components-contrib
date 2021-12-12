@@ -50,7 +50,7 @@ type SetRequest struct {
 	ETag        *string           `json:"etag,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	Options     SetStateOption    `json:"options,omitempty"`
-	ContentType string            `json:"contentType,omitempty"`
+	ContentType *string           `json:"contentType,omitempty"`
 }
 
 // GetKey gets the Key on a SetRequest.

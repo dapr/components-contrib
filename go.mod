@@ -17,7 +17,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-amqp v0.13.1
-	github.com/Azure/go-autorest/autorest v0.11.21
+	github.com/Azure/go-autorest/autorest v0.11.23
 	github.com/Azure/go-autorest/autorest/adal v0.9.16
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.8
 	github.com/DATA-DOG/go-sqlmock v1.5.0
@@ -128,7 +128,7 @@ require (
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.22.5 // indirect
 	goji.io v2.0.2+incompatible // indirect
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	google.golang.org/api v0.32.0

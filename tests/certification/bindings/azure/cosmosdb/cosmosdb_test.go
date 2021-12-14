@@ -60,27 +60,28 @@ func TestKeyVault(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
-	currentGrpcPort := ports[0]
-	currentHttpPort := ports[1]
+	currentGRPCPort := ports[0]
+	currentHTTPPort := ports[1]
 
 	log := logger.NewLogger("dapr.components")
 
 	invokeCreateWithDocument := func(ctx flow.Context, document map[string]interface{}) error {
-		client, err := daprsdk.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		if err != nil {
-			panic(err)
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
 		}
 		defer client.Close()
 
-		bytesDoc, err := json.Marshal(document)
-		if err != nil {
-			return err
+		bytesDoc, marshalErr := json.Marshal(document)
+		if marshalErr != nil {
+			return marshalErr
 		}
 
 		invokeRequest := &daprsdk.InvokeBindingRequest{
 			Name:      "azure-cosmosdb-binding",
 			Operation: "create",
 			Data:      bytesDoc,
+			Metadata:  nil,
 		}
 
 		err = client.InvokeOutputBinding(ctx, invokeRequest)
@@ -89,8 +90,8 @@ func TestKeyVault(t *testing.T) {
 
 	testInvokeCreateAndVerify := func(ctx flow.Context) error {
 		document := createDocument(true, true)
-		err := invokeCreateWithDocument(ctx, document)
-		assert.NoError(t, err)
+		invokeErr := invokeCreateWithDocument(ctx, document)
+		assert.NoError(t, invokeErr)
 
 		// sleep to avoid metdata request rate limit before initializing new client
 		flow.Sleep(3 * time.Second)
@@ -104,32 +105,32 @@ func TestKeyVault(t *testing.T) {
 		config.IdentificationHydrator = nil
 		dbclient := documentdb.New(os.Getenv("AzureCosmosDBUrl"), config)
 
-		dbs, err := dbclient.QueryDatabases(&documentdb.Query{
+		dbs, queryDBErr := dbclient.QueryDatabases(&documentdb.Query{
 			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
 			Parameters: []documentdb.Parameter{
 				{Name: "@id", Value: os.Getenv("AzureCosmosDB")},
 			},
 		})
-		assert.NoError(t, err)
+		assert.NoError(t, queryDBErr)
 		db := &dbs[0]
-		colls, err := dbclient.QueryCollections(db.Self, &documentdb.Query{
+		colls, queryCollErr := dbclient.QueryCollections(db.Self, &documentdb.Query{
 			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
 			Parameters: []documentdb.Parameter{
 				{Name: "@id", Value: os.Getenv("AzureCosmosDBCollection")},
 			},
 		})
-		assert.NoError(t, err)
+		assert.NoError(t, queryCollErr)
 		collection := &colls[0]
 
 		var items []map[string]interface{}
-		_, err = dbclient.QueryDocuments(
+		_, queryErr := dbclient.QueryDocuments(
 			collection.Self,
 			documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: document["id"].(string)}),
 			&items,
-			documentdb.CallOption(documentdb.CrossPartition()),
+			documentdb.CrossPartition(),
 		)
 
-		assert.NoError(t, err)
+		assert.NoError(t, queryErr)
 
 		result := items[0]
 		// verify the item retrieved from the database matches the item we inserted
@@ -140,7 +141,7 @@ func TestKeyVault(t *testing.T) {
 			result["nestedproperty"].(map[string]interface{})["subproperty"])
 
 		// cleanup
-		_, err = dbclient.DeleteDocument(result["_self"].(string), documentdb.CallOption(documentdb.PartitionKey(result["partitionKey"].(string))))
+		_, err = dbclient.DeleteDocument(result["_self"].(string), documentdb.PartitionKey(result["partitionKey"].(string)))
 		assert.NoError(t, err)
 
 		return nil
@@ -148,20 +149,20 @@ func TestKeyVault(t *testing.T) {
 
 	testInvokeCreateWithoutPartitionKey := func(ctx flow.Context) error {
 		document := createDocument(true, false)
-		err := invokeCreateWithDocument(ctx, document)
+		invokeErr := invokeCreateWithDocument(ctx, document)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "missing partitionKey field")
+		assert.Error(t, invokeErr)
+		assert.Contains(t, invokeErr.Error(), "missing partitionKey field")
 
 		return nil
 	}
 
 	testInvokeCreateWithoutID := func(ctx flow.Context) error {
 		document := createDocument(false, true)
-		err := invokeCreateWithDocument(ctx, document)
+		invokeErr := invokeCreateWithDocument(ctx, document)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "the required properties - 'id; ' - are missing")
+		assert.Error(t, invokeErr)
+		assert.Contains(t, invokeErr.Error(), "the required properties - 'id; ' - are missing")
 
 		return nil
 	}
@@ -169,10 +170,10 @@ func TestKeyVault(t *testing.T) {
 	testInvokeCreateWithWrongPartitionKey := func(ctx flow.Context) error {
 		document := createDocument(true, false)
 		document["wrongPartitionKey"] = "somepkvalue"
-		err := invokeCreateWithDocument(ctx, document)
+		invokeErr := invokeCreateWithDocument(ctx, document)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "PartitionKey extracted from document doesn't match the one specified in the header")
+		assert.Error(t, invokeErr)
+		assert.Contains(t, invokeErr.Error(), "PartitionKey extracted from document doesn't match the one specified in the header")
 
 		return nil
 	}
@@ -181,8 +182,8 @@ func TestKeyVault(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components/serviceprincipal"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
 			runtime.WithSecretStores(
 				secretstores_loader.New("local.env", func() secretstores.SecretStore {
 					return secretstore_env.NewEnvSecretStore(log)
@@ -198,15 +199,15 @@ func TestKeyVault(t *testing.T) {
 	ports, err = dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
-	currentGrpcPort = ports[0]
-	currentHttpPort = ports[1]
+	currentGRPCPort = ports[0]
+	currentHTTPPort = ports[1]
 
 	flow.New(t, "cosmosdb binding authentication using master key").
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components/masterkey"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
 			runtime.WithSecretStores(
 				secretstores_loader.New("local.env", func() secretstores.SecretStore {
 					return secretstore_env.NewEnvSecretStore(log)
@@ -225,15 +226,15 @@ func TestKeyVault(t *testing.T) {
 	ports, err = dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
-	currentGrpcPort = ports[0]
-	currentHttpPort = ports[1]
+	currentGRPCPort = ports[0]
+	currentHTTPPort = ports[1]
 
 	flow.New(t, "cosmosdb binding with wrong partition key specified").
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components/wrongPartitionKey"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
 			runtime.WithSecretStores(
 				secretstores_loader.New("local.env", func() secretstores.SecretStore {
 					return secretstore_env.NewEnvSecretStore(log)

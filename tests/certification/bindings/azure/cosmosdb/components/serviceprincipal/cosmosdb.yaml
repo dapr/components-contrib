@@ -1,0 +1,38 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-cosmosdb-binding
+  namespace: default
+spec:
+  type: bindings.azure.cosmosdb
+  version: v1
+  metadata:
+  - name: url
+    secretKeyRef:
+        name: AzureCosmosDBUrl
+        key:  AzureCosmosDBUrl
+  - name: database
+    secretKeyRef:
+        name: AzureCosmosDB
+        key:  AzureCosmosDB
+  - name: collection
+    secretKeyRef:
+        name: AzureCosmosDBCollection
+        key:  AzureCosmosDBCollection
+  - name: partitionKey
+    value: partitionKey
+  - name: azureTenantId
+    secretKeyRef:
+        name: AzureCertificationTenantId
+        key:  AzureCertificationTenantId
+  - name: azureClientId
+    secretKeyRef:
+        name: AzureCertificationServicePrincipalClientId
+        key:  AzureCertificationServicePrincipalClientId
+  - name: azureClientSecret
+    secretKeyRef:
+        name: AzureCertificationServicePrincipalClientSecret
+        key:  AzureCertificationServicePrincipalClientSecret
+
+auth:
+  secretStore: envvar-secret-store

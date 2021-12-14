@@ -82,6 +82,8 @@ jobs:
           required-secrets: AzureSqlServerConnectionString
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
+        - component: bindings.azure.cosmosdb
+          required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"

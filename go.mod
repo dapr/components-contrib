@@ -65,6 +65,7 @@ require (
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
+	github.com/gofrs/flock v0.8.1
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/golang/snappy v0.0.3 // indirect

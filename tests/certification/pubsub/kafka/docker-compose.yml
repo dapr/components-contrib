@@ -52,6 +52,9 @@ services:
         source: ./strimzi-kafka1-config
         target: /opt/kafka/custom-config
         read_only: true
+      - type: volume
+        source: kafka2-data
+        target: /var/lib/kafka
     environment:
       KAFKA_METRICS_ENABLED: "false"
       STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
@@ -100,6 +103,9 @@ services:
         source: ./strimzi-kafka2-config
         target: /opt/kafka/custom-config
         read_only: true
+      - type: volume
+        source: kafka2-data
+        target: /var/lib/kafka
     environment:
       KAFKA_METRICS_ENABLED: "false"
       STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
@@ -148,6 +154,9 @@ services:
         source: ./strimzi-kafka3-config
         target: /opt/kafka/custom-config
         read_only: true
+      - type: volume
+        source: kafka3-data
+        target: /var/lib/kafka
     environment:
       KAFKA_METRICS_ENABLED: "false"
       STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
@@ -176,3 +185,7 @@ services:
       /bin/sh -c "sleep 20;hydra clients create --skip-tls-verify -g client_credentials --id dapr -n dapr -r token -a openid,kafka --secret dapr-test; hydra clients create --skip-tls-verify -g client_credentials --id kafka -n kafka -r token -a openid --secret dapr-test"
     environment:
       HYDRA_ADMIN_URL: https://hydra:4444  
+volumes:
+  kafka1-data: {}
+  kafka2-data: {}
+  kafka3-data: {}

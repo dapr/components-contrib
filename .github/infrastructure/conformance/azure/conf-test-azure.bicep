@@ -38,7 +38,7 @@ param certAuthSpId string
 param sqlServerAdminPassword string
 
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
-var acrName = '${toLower(namePrefix)}registry'
+var acrName = '${toLower(namePrefix)}conftestregistry'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
@@ -72,7 +72,7 @@ module cosmosDb 'conf-test-azure-cosmosdb.bicep' = {
   }
 }
 
-module eventGridTopic 'conf-test-azure-eventGrid.bicep' = {
+module eventGridTopic 'conf-test-azure-eventgrid.bicep' = {
   name: eventGridTopicName
   scope: resourceGroup(confTestRg.name)
   params: {
@@ -81,7 +81,7 @@ module eventGridTopic 'conf-test-azure-eventGrid.bicep' = {
   }
 }
 
-module eventHubsNamespace 'conf-test-azure-eventHubs.bicep' = {
+module eventHubsNamespace 'conf-test-azure-eventhubs.bicep' = {
   name: eventHubsNamespaceName
   scope: resourceGroup(confTestRg.name)
   params: {
@@ -99,7 +99,7 @@ module iotHub 'conf-test-azure-iothub.bicep' = {
   }
 }
 
-module keyVault 'conf-test-azure-keyVault.bicep' = {
+module keyVault 'conf-test-azure-keyvault.bicep' = {
   name: keyVaultName
   scope: resourceGroup(confTestRg.name)
   params: {

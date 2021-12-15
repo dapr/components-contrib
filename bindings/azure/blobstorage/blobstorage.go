@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
 
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
@@ -70,6 +71,7 @@ const (
 	metadataKeyContentDispositionBC    = "ContentDisposition"
 	metadataKeyCacheControlBC          = "CacheControl"
 	metadataKeyDeleteSnapshotOptionsBC = "DeleteSnapshotOptions"
+	endpointKey                        = "endpoint"
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -123,9 +125,12 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	}
 	a.metadata = m
 
-	credential, err := azblob.NewSharedKeyCredential(m.StorageAccount, m.StorageAccessKey)
+	if m.StorageAccessKey != "" {
+		metadata.Properties["accountKey"] = m.StorageAccessKey
+	}
+	credential, env, err := azauth.GetAzureStorageCredentials(a.logger, m.StorageAccount, metadata.Properties)
 	if err != nil {
-		return fmt.Errorf("invalid credentials with error: %w", err)
+		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
 
 	userAgent := "dapr-" + logger.DaprVersion
@@ -134,10 +139,18 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	}
 	p := azblob.NewPipeline(credential, options)
 
-	containerName := a.metadata.Container
-	URL, _ := url.Parse(
-		fmt.Sprintf("https://%s.blob.core.windows.net/%s", m.StorageAccount, containerName))
-	containerURL := azblob.NewContainerURL(*URL, p)
+	var containerURL azblob.ContainerURL
+	customEndpoint, ok := metadata.Properties[endpointKey]
+	if ok && customEndpoint != "" {
+		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.StorageAccount, m.Container))
+		if parseErr != nil {
+			return parseErr
+		}
+		containerURL = azblob.NewContainerURL(*URL, p)
+	} else {
+		URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", m.StorageAccount, env.StorageEndpointSuffix, m.Container))
+		containerURL = azblob.NewContainerURL(*URL, p)
+	}
 
 	ctx := context.Background()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, m.PublicAccessLevel)

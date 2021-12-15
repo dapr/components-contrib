@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package keyvault_test
+package cosmosdbbinding_test
 
 import (
 	"encoding/json"
@@ -56,7 +56,7 @@ func createDocument(generateID bool, includePK bool) map[string]interface{} {
 	return document
 }
 
-func TestKeyVault(t *testing.T) {
+func TestCosmosDBBinding(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 

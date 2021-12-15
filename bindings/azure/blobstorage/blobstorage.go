@@ -60,18 +60,8 @@ const (
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
-	maxResults = 5000
-
-	// TODO: remove the pascal case support when the component moves to GA
-	// See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
-	metadataKeyContentTypeBC           = "ContentType"
-	metadataKeyContentMD5BC            = "ContentMD5"
-	metadataKeyContentEncodingBC       = "ContentEncoding"
-	metadataKeyContentLanguageBC       = "ContentLanguage"
-	metadataKeyContentDispositionBC    = "ContentDisposition"
-	metadataKeyCacheControlBC          = "CacheControl"
-	metadataKeyDeleteSnapshotOptionsBC = "DeleteSnapshotOptions"
-	endpointKey                        = "endpoint"
+	maxResults  = 5000
+	endpointKey = "endpoint"
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -412,8 +402,6 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 }
 
 func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	req.Metadata = a.handleBackwardCompatibilityForMetadata(req.Metadata)
-
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return a.create(req)
@@ -454,45 +442,4 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 	}
 
 	return false
-}
-
-// TODO: remove the pascal case support when the component moves to GA
-// See: https://github.com/dapr/components-contrib/pull/999#issuecomment-876890210
-func (a *AzureBlobStorage) handleBackwardCompatibilityForMetadata(metadata map[string]string) map[string]string {
-	if val, ok := metadata[metadataKeyContentTypeBC]; ok && val != "" {
-		metadata[metadataKeyContentType] = val
-		delete(metadata, metadataKeyContentTypeBC)
-	}
-
-	if val, ok := metadata[metadataKeyContentMD5BC]; ok && val != "" {
-		metadata[metadataKeyContentMD5] = val
-		delete(metadata, metadataKeyContentMD5BC)
-	}
-
-	if val, ok := metadata[metadataKeyContentEncodingBC]; ok && val != "" {
-		metadata[metadataKeyContentEncoding] = val
-		delete(metadata, metadataKeyContentEncodingBC)
-	}
-
-	if val, ok := metadata[metadataKeyContentLanguageBC]; ok && val != "" {
-		metadata[metadataKeyContentLanguage] = val
-		delete(metadata, metadataKeyContentLanguageBC)
-	}
-
-	if val, ok := metadata[metadataKeyContentDispositionBC]; ok && val != "" {
-		metadata[metadataKeyContentDisposition] = val
-		delete(metadata, metadataKeyContentDispositionBC)
-	}
-
-	if val, ok := metadata[metadataKeyCacheControlBC]; ok && val != "" {
-		metadata[metadataKeyCacheControl] = val
-		delete(metadata, metadataKeyCacheControlBC)
-	}
-
-	if val, ok := metadata[metadataKeyDeleteSnapshotOptionsBC]; ok && val != "" {
-		metadata[metadataKeyDeleteSnapshots] = val
-		delete(metadata, metadataKeyDeleteSnapshotOptionsBC)
-	}
-
-	return metadata
 }

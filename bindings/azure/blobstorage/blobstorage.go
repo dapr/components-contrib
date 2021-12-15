@@ -178,6 +178,10 @@ func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStora
 		m.GetBlobRetryCount = defaultGetBlobRetryCount
 	}
 
+	// per the Dapr documentation "none" is a valid value
+	if m.PublicAccessLevel == "none" {
+		m.PublicAccessLevel = ""
+	}
 	if !a.isValidPublicAccessType(m.PublicAccessLevel) {
 		return nil, fmt.Errorf("invalid public access level: %s; allowed: %s",
 			m.PublicAccessLevel, azblob.PossiblePublicAccessTypeValues())
@@ -337,30 +341,36 @@ func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.Invoke
 func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	options := azblob.ListBlobsSegmentOptions{}
 
+	hasPayload := false
 	var payload listPayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, err
+	if req.Data != nil {
+		err := json.Unmarshal(req.Data, &payload)
+		if err != nil {
+			return nil, err
+		}
+		hasPayload = true
 	}
 
-	options.Details.Copy = payload.Include.Copy
-	options.Details.Metadata = payload.Include.Metadata
-	options.Details.Snapshots = payload.Include.Snapshots
-	options.Details.UncommittedBlobs = payload.Include.UncommittedBlobs
-	options.Details.Deleted = payload.Include.Deleted
+	if hasPayload {
+		options.Details.Copy = payload.Include.Copy
+		options.Details.Metadata = payload.Include.Metadata
+		options.Details.Snapshots = payload.Include.Snapshots
+		options.Details.UncommittedBlobs = payload.Include.UncommittedBlobs
+		options.Details.Deleted = payload.Include.Deleted
+	}
 
-	if payload.MaxResults != int32(0) {
+	if hasPayload && payload.MaxResults != int32(0) {
 		options.MaxResults = payload.MaxResults
 	} else {
 		options.MaxResults = maxResults
 	}
 
-	if payload.Prefix != "" {
+	if hasPayload && payload.Prefix != "" {
 		options.Prefix = payload.Prefix
 	}
 
 	var initialMarker azblob.Marker
-	if payload.Marker != "" {
+	if hasPayload && payload.Marker != "" {
 		initialMarker = azblob.Marker{Val: &payload.Marker}
 	} else {
 		initialMarker = azblob.Marker{}
@@ -371,7 +381,7 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	ctx := context.Background()
 	for currentMaker := initialMarker; currentMaker.NotDone(); {
 		var listBlob *azblob.ListBlobsFlatSegmentResponse
-		listBlob, err = a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
+		listBlob, err := a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blobs: %w", err)
 		}

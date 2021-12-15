@@ -34,7 +34,7 @@ const (
 	sidecarName = "blobstorage-sidecar"
 )
 
-func TestKeyVault(t *testing.T) {
+func TestBlobStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -43,22 +43,23 @@ func TestKeyVault(t *testing.T) {
 
 	log := logger.NewLogger("dapr.components")
 
-	invokeCreateBlob := func(ctx flow.Context) error {
+	testCreateGetListDelete := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
 		}
 		defer client.Close()
 
-		dataBytes := []byte("some example content")
+		input := "some example content"
+		dataBytes := []byte(input)
 		h := md5.New()
 		h.Write(dataBytes)
-		fmt.Println(base64.StdEncoding.EncodeToString(h.Sum(nil)))
+		md5HashBase64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
-		metadataOptions := map[string]string{
+		invokeCreateMetadata := map[string]string{
 			"blobName":           "filename.txt",
 			"contentType":        "text/plain",
-			"contentMD5":         base64.StdEncoding.EncodeToString(h.Sum(nil)),
+			"contentMD5":         md5HashBase64,
 			"contentEncoding":    "UTF-8",
 			"contentLanguage":    "en-us",
 			"contentDisposition": "attachment",
@@ -66,18 +67,65 @@ func TestKeyVault(t *testing.T) {
 			"custom":             "hello-world",
 		}
 
-		invokeRequest := &daprsdk.InvokeBindingRequest{
+		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
 			Operation: "create",
 			Data:      dataBytes,
-			Metadata:  metadataOptions,
+			Metadata:  invokeCreateMetadata,
 		}
 
-		out, invokeErr := client.InvokeBinding(ctx, invokeRequest)
-		fmt.Println(string(out.Data))
-		fmt.Println(out.Metadata)
+		_, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
 
-		return invokeErr
+		assert.NoError(t, invokeCreateErr)
+
+		invokeGetMetadata := map[string]string{
+			"blobName":        "filename.txt",
+			"includeMetadata": "true",
+		}
+
+		invokeGetRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "get",
+			Data:      nil,
+			Metadata:  invokeGetMetadata,
+		}
+
+		out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
+		assert.NoError(t, invokeGetErr)
+		assert.Equal(t, string(out.Data), input)
+		assert.Contains(t, out.Metadata, "custom")
+		assert.Equal(t, out.Metadata["custom"], "hello-world")
+
+		invokeListRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "list",
+			Data:      nil,
+			Metadata:  nil,
+		}
+
+		out, invokeErr := client.InvokeBinding(ctx, invokeListRequest)
+		assert.NoError(t, invokeErr)
+		var output []map[string]interface{}
+		err := json.Unmarshal(out.Data, &output)
+		assert.NoError(t, err)
+
+		found := false
+		for _, item := range output {
+			if item["Name"] == "filename.txt" {
+				found = true
+				properties := item["Properties"].(map[string]interface{})
+				assert.Equal(t, properties["ContentMD5"], invokeCreateMetadata["contentMD5"])
+				assert.Equal(t, properties["ContentType"], invokeCreateMetadata["contentType"])
+				assert.Equal(t, properties["CacheControl"], invokeCreateMetadata["cacheControl"])
+				assert.Equal(t, properties["ContentDisposition"], invokeCreateMetadata["contentDisposition"])
+				assert.Equal(t, properties["ContentEncoding"], invokeCreateMetadata["contentEncoding"])
+				assert.Equal(t, properties["ContentLanguage"], invokeCreateMetadata["contentLanguage"])
+				break
+			}
+		}
+		assert.True(t, found)
+
+		return nil
 	}
 
 	invokeListContents := func(ctx flow.Context) error {
@@ -100,9 +148,8 @@ func TestKeyVault(t *testing.T) {
 			Metadata:  nil,
 		}
 
-		out, invokeErr := client.InvokeBinding(ctx, invokeRequest)
-		fmt.Println(string(out.Data))
-		fmt.Println(out.Metadata)
+		_, invokeErr := client.InvokeBinding(ctx, invokeRequest)
+		assert.NoError(t, invokeErr)
 
 		return invokeErr
 	}
@@ -123,7 +170,7 @@ func TestKeyVault(t *testing.T) {
 					return blobstorage.NewAzureBlobStorage(log)
 				}),
 			))).
-		Step("Create blob", invokeCreateBlob).
+		Step("Create blob", testCreateGetListDelete).
 		Step("List contents", invokeListContents).
 		Run()
 
@@ -149,7 +196,7 @@ func TestKeyVault(t *testing.T) {
 					return blobstorage.NewAzureBlobStorage(log)
 				}),
 			))).
-		Step("Create blob", invokeCreateBlob).
+		Step("Create blob", testCreateGetListDelete).
 		Step("List contents", invokeListContents).
 		Run()
 }

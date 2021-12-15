@@ -19,6 +19,12 @@ spec:
     secretKeyRef:
         name: AzureBlobStorageContainer
         key:  AzureBlobStorageContainer
+  - name: decodeBase64
+    value: false
+  - name: getBlobRetryCount
+    value: 10
+  - name: publicAccessLevel
+    value: none
 
 auth:
   secretStore: envvar-secret-store

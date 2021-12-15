@@ -53,7 +53,7 @@ const (
 	metadataKeyContentEncoding    = "contentEncoding"
 	metadataKeyContentLanguage    = "contentLanguage"
 	metadataKeyContentDisposition = "contentDisposition"
-	meatdataKeyCacheControl       = "cacheControl"
+	metadataKeyCacheControl       = "cacheControl"
 	// Specifies the maximum number of HTTP GET requests that will be made while reading from a RetryReader. A value
 	// of zero means that no additional HTTP GET requests will be made.
 	defaultGetBlobRetryCount = 10
@@ -233,9 +233,9 @@ func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.Invoke
 		blobHTTPHeaders.ContentDisposition = val
 		delete(req.Metadata, metadataKeyContentDisposition)
 	}
-	if val, ok := req.Metadata[meatdataKeyCacheControl]; ok && val != "" {
+	if val, ok := req.Metadata[metadataKeyCacheControl]; ok && val != "" {
 		blobHTTPHeaders.CacheControl = val
-		delete(req.Metadata, meatdataKeyCacheControl)
+		delete(req.Metadata, metadataKeyCacheControl)
 	}
 
 	d, err := strconv.Unquote(string(req.Data))
@@ -485,7 +485,7 @@ func (a *AzureBlobStorage) handleBackwardCompatibilityForMetadata(metadata map[s
 	}
 
 	if val, ok := metadata[metadataKeyCacheControlBC]; ok && val != "" {
-		metadata[meatdataKeyCacheControl] = val
+		metadata[metadataKeyCacheControl] = val
 		delete(metadata, metadataKeyCacheControlBC)
 	}
 

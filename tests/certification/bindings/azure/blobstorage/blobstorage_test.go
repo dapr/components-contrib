@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,31 @@ func TestBlobStorage(t *testing.T) {
 	currentHTTPPort := ports[1]
 
 	log := logger.NewLogger("dapr.components")
+
+	testCreateBlobFromFile := func(ctx flow.Context) error {
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		dataBytes, err := os.ReadFile("dapr.svg")
+
+		assert.NoError(t, err)
+
+		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      dataBytes,
+			Metadata:  nil,
+		}
+
+		out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+		assert.NoError(t, invokeCreateErr)
+		fmt.Println(string(out.Data))
+
+		return nil
+	}
 
 	testCreateGetListDelete := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
@@ -148,8 +174,9 @@ func TestBlobStorage(t *testing.T) {
 			Metadata:  nil,
 		}
 
-		_, invokeErr := client.InvokeBinding(ctx, invokeRequest)
+		out, invokeErr := client.InvokeBinding(ctx, invokeRequest)
 		assert.NoError(t, invokeErr)
+		fmt.Println(string(out.Data))
 
 		return invokeErr
 	}
@@ -171,7 +198,6 @@ func TestBlobStorage(t *testing.T) {
 				}),
 			))).
 		Step("Create blob", testCreateGetListDelete).
-		Step("List contents", invokeListContents).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)
@@ -197,6 +223,7 @@ func TestBlobStorage(t *testing.T) {
 				}),
 			))).
 		Step("Create blob", testCreateGetListDelete).
+		Step("Create blob from file", testCreateBlobFromFile).
 		Step("List contents", invokeListContents).
 		Run()
 }

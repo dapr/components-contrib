@@ -3,7 +3,7 @@
 // Licensed under the MIT License.
 // ------------------------------------------------------------
 
-package keyvault_test
+package azureblobstoragebinding_test
 
 import (
 	"crypto/md5"

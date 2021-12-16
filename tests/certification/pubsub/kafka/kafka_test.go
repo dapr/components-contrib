@@ -69,7 +69,6 @@ var (
 
 func TestKafka(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	// log.SetOutputLevel(logger.DebugLevel)
 	component := pubsub_loader.New("kafka", func() pubsub.PubSub {
 		return pubsub_kafka.NewKafka(log)
 	})

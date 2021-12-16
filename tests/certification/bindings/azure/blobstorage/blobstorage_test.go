@@ -64,7 +64,7 @@ func TestBlobStorage(t *testing.T) {
 
 		out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
 		assert.NoError(t, invokeCreateErr)
-		fmt.Println(string(out.Data))
+		fmt.Println(out.Metadata["blobName"])
 
 		return nil
 	}

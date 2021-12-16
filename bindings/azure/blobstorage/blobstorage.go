@@ -84,7 +84,8 @@ type blobStorageMetadata struct {
 }
 
 type createResponse struct {
-	BlobURL string `json:"blobURL"`
+	BlobURL  string `json:"blobURL"`
+	BlobName string `json:"blobName"`
 }
 
 type listInclude struct {
@@ -192,12 +193,14 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 	var blobURL azblob.BlockBlobURL
+	var blobName string
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
-		blobURL = a.getBlobURL(val)
+		blobName = val
 		delete(req.Metadata, metadataKeyBlobName)
 	} else {
-		blobURL = a.getBlobURL(uuid.New().String())
+		blobName = uuid.New().String()
 	}
+	blobURL = a.getBlobURL(blobName)
 
 	if val, ok := req.Metadata[metadataKeyContentType]; ok && val != "" {
 		blobHTTPHeaders.ContentType = val
@@ -258,8 +261,13 @@ func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.Invoke
 		return nil, fmt.Errorf("error marshalling create response for azure blob: %w", err)
 	}
 
+	createResponseMetadata := map[string]string{
+		"blobName": blobName,
+	}
+
 	return &bindings.InvokeResponse{
-		Data: b,
+		Data:     b,
+		Metadata: createResponseMetadata,
 	}, nil
 }
 

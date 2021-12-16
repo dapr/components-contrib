@@ -15,7 +15,7 @@ services:
     container_name: kafka-1
     read_only: false
     entrypoint: 
-      /bin/bash -c "mkdir -p /var/opt/kafka && mkdir -p /var/lib/kafka/data && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka;su kafka -p -c '/opt/kafka/kafka_run.sh'"
+      /bin/bash -c "mkdir -p /var/opt/kafka && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka && su kafka -p -c '/opt/kafka/kafka_run.sh'"
     user: root
     depends_on:
       - zookeeper
@@ -53,8 +53,8 @@ services:
         target: /opt/kafka/custom-config
         read_only: true
       - type: volume
-        source: kafka2-data
-        target: /var/lib/kafka
+        source: kafka1-data
+        target: /var/lib/kafka/data
     environment:
       KAFKA_METRICS_ENABLED: "false"
       STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
@@ -66,7 +66,7 @@ services:
     container_name: kafka-2
     read_only: false
     entrypoint: 
-      /bin/bash -c "mkdir -p /var/opt/kafka && mkdir -p /var/lib/kafka/data && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka;su kafka -p -c '/opt/kafka/kafka_run.sh'"
+      /bin/bash -c "mkdir -p /var/opt/kafka && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka && su kafka -p -c '/opt/kafka/kafka_run.sh'"
     user: root
     depends_on:
       - zookeeper
@@ -105,7 +105,7 @@ services:
         read_only: true
       - type: volume
         source: kafka2-data
-        target: /var/lib/kafka
+        target: /var/lib/kafka/data
     environment:
       KAFKA_METRICS_ENABLED: "false"
       STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
@@ -117,7 +117,7 @@ services:
     container_name: kafka-3
     read_only: false
     entrypoint: 
-      /bin/bash -c "mkdir -p /var/opt/kafka && mkdir -p /var/lib/kafka/data && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka;su kafka -p -c '/opt/kafka/kafka_run.sh'"
+      /bin/bash -c "mkdir -p /var/opt/kafka && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka && su kafka -p -c '/opt/kafka/kafka_run.sh'"
     user: root
     depends_on:
       - zookeeper
@@ -156,7 +156,7 @@ services:
         read_only: true
       - type: volume
         source: kafka3-data
-        target: /var/lib/kafka
+        target: /var/lib/kafka/data
     environment:
       KAFKA_METRICS_ENABLED: "false"
       STRIMZI_KAFKA_GC_LOG_ENABLED: "false"

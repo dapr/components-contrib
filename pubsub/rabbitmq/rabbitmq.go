@@ -38,6 +38,8 @@ const (
 	metadataMaxLenBytes          = "maxLenBytes"
 
 	defaultReconnectWaitSeconds = 3
+	publishMaxRetries           = 3
+	publishRetryWaitSeconds     = 2
 	metadataPrefetchCount       = "prefetchCount"
 
 	argQueueMode          = "x-queue-mode"
@@ -205,18 +207,26 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
 
-	channel, connectionCount, err := r.publishSync(req)
-	if err != nil {
+	attempt := 0
+	for {
+		attempt++
+		channel, connectionCount, err := r.publishSync(req)
+		if err == nil {
+			return nil
+		}
+		if attempt >= publishMaxRetries {
+			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
+			return err
+		}
 		if mustReconnect(channel, err) {
 			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
 			time.Sleep(r.metadata.reconnectWait)
 			r.reconnect(connectionCount)
+		} else {
+			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
+			time.Sleep(publishRetryWaitSeconds * time.Second)
 		}
-
-		return err
 	}
-
-	return nil
 }
 
 func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {

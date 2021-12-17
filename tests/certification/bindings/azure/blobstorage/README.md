@@ -19,6 +19,8 @@ This project aims to test the Azure Blobstorage binding component under various 
 - TODO: Delete
   - Successful delete
   - File does not exist
+  - No "deleteSnapshots" option despite snapshots
+  - Verify snaphotOptions include/only
 - TODO: Create
   - No filename specified
   - Filename specified

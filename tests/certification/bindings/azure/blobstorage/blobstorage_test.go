@@ -44,29 +44,90 @@ func TestBlobStorage(t *testing.T) {
 
 	log := logger.NewLogger("dapr.components")
 
-	testCreateBlobFromFile := func(ctx flow.Context) error {
-		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
-		if clientErr != nil {
-			panic(clientErr)
+	getBlobRequest := func(ctx flow.Context, client daprsdk.Client, name string, includeMetadata bool) (out *daprsdk.BindingEvent, err error) {
+		fetchMetdata := fmt.Sprint(includeMetadata)
+		invokeGetMetadata := map[string]string{
+			"blobName":        name,
+			"includeMetadata": fetchMetdata,
 		}
-		defer client.Close()
 
-		dataBytes, err := os.ReadFile("dapr.svg")
-
-		assert.NoError(t, err)
-
-		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+		invokeGetRequest := &daprsdk.InvokeBindingRequest{
 			Name:      "azure-blobstorage-output",
-			Operation: "create",
-			Data:      dataBytes,
-			Metadata:  nil,
+			Operation: "get",
+			Data:      nil,
+			Metadata:  invokeGetMetadata,
 		}
 
-		out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
-		assert.NoError(t, invokeCreateErr)
-		fmt.Println(out.Metadata["blobName"])
+		out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
+		return out, invokeGetErr
+	}
 
-		return nil
+	deleteBlobRequest := func(ctx flow.Context, client daprsdk.Client, name string, deleteSnapshotsOption string) (out *daprsdk.BindingEvent, err error) {
+		invokeDeleteMetadata := map[string]string{
+			"blobName":        name,
+			"deleteSnapshots": deleteSnapshotsOption,
+		}
+
+		invokeGetRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "delete",
+			Data:      nil,
+			Metadata:  invokeDeleteMetadata,
+		}
+
+		out, invokeDeleteErr := client.InvokeBinding(ctx, invokeGetRequest)
+		return out, invokeDeleteErr
+	}
+
+	testCreateBlobFromFile := func(isBase64 bool) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+			if clientErr != nil {
+				panic(clientErr)
+			}
+			defer client.Close()
+
+			dataBytes, err := os.ReadFile("dapr.svg")
+			if isBase64 {
+				dataBytes = []byte(base64.StdEncoding.EncodeToString(dataBytes))
+			}
+
+			assert.NoError(t, err)
+
+			invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+				Name:      "azure-blobstorage-output",
+				Operation: "create",
+				Data:      dataBytes,
+				Metadata:  nil,
+			}
+
+			out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+			assert.NoError(t, invokeCreateErr)
+
+			blobName := out.Metadata["blobName"]
+
+			out, invokeGetErr := getBlobRequest(ctx, client, blobName, false)
+			assert.NoError(t, invokeGetErr)
+			responseData := out.Data
+			if isBase64 {
+				// input was automatically base64 decoded
+				// for comparison we will base64 encode the response data
+				responseData = []byte(base64.StdEncoding.EncodeToString(out.Data))
+			}
+			assert.Equal(t, responseData, dataBytes)
+			assert.Empty(t, out.Metadata)
+
+			out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
+			assert.NoError(t, invokeDeleteErr)
+			assert.Empty(t, out.Data)
+
+			// confirm the deletion
+			_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
+			assert.Error(t, invokeSecondGetErr)
+			assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+
+			return nil
+		}
 	}
 
 	testCreateGetListDelete := func(ctx flow.Context) error {
@@ -151,6 +212,15 @@ func TestBlobStorage(t *testing.T) {
 		}
 		assert.True(t, found)
 
+		out, invokeDeleteErr := deleteBlobRequest(ctx, client, "filename.txt", "")
+		assert.NoError(t, invokeDeleteErr)
+		assert.Empty(t, out.Data)
+
+		// confirm the deletion
+		_, invokeSecondGetErr := getBlobRequest(ctx, client, "filename.txt", false)
+		assert.Error(t, invokeSecondGetErr)
+		assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+
 		return nil
 	}
 
@@ -174,9 +244,8 @@ func TestBlobStorage(t *testing.T) {
 			Metadata:  nil,
 		}
 
-		out, invokeErr := client.InvokeBinding(ctx, invokeRequest)
+		_, invokeErr := client.InvokeBinding(ctx, invokeRequest)
 		assert.NoError(t, invokeErr)
-		fmt.Println(string(out.Data))
 
 		return invokeErr
 	}
@@ -223,7 +292,32 @@ func TestBlobStorage(t *testing.T) {
 				}),
 			))).
 		Step("Create blob", testCreateGetListDelete).
-		Step("Create blob from file", testCreateBlobFromFile).
+		Step("Create blob from file", testCreateBlobFromFile(false)).
 		Step("List contents", invokeListContents).
+		Run()
+
+	ports, err = dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGRPCPort = ports[0]
+	currentHTTPPort = ports[1]
+
+	flow.New(t, "decode base64 option for binary blobs").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/decodeBase64"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+			),
+			runtime.WithOutputBindings(
+				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
+					return blobstorage.NewAzureBlobStorage(log)
+				}),
+			))).
+		Step("Create blob from file", testCreateBlobFromFile(true)).
 		Run()
 }

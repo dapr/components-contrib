@@ -1,0 +1,30 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-blobstorage-output
+  namespace: default
+spec:
+  type: bindings.azure.blobstorage
+  version: v1
+  metadata:
+  - name: storageAccount
+    secretKeyRef:
+        name: AzureBlobStorageAccount
+        key:  AzureBlobStorageAccount
+  - name: storageAccessKey
+    secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key:  AzureBlobStorageAccessKey
+  - name: container
+    secretKeyRef:
+        name: AzureBlobStorageContainer
+        key:  AzureBlobStorageContainer
+  - name: decodeBase64
+    value: false
+  - name: getBlobRetryCount
+    value: 10
+  - name: publicAccessLevel
+    value: blob
+
+auth:
+  secretStore: envvar-secret-store

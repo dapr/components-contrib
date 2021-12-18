@@ -45,7 +45,7 @@ const (
 )
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
-func NewCloudEventsEnvelope(id, source, eventType, topic string, pubsubName string,
+func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
 	dataContentType string, data []byte, traceID string, traceState string, attributes []byte) map[string]interface{} {
 	// defaults
 	if id == "" {
@@ -91,6 +91,10 @@ func NewCloudEventsEnvelope(id, source, eventType, topic string, pubsubName stri
 	}
 
 	ce[ceDataField] = ceData
+
+	if subject != "" {
+		ce[SubjectField] = subject
+	}
 
 	return ce
 }

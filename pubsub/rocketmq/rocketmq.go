@@ -255,7 +255,7 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 
 			attrBytes, _ := r.json.Marshal(attributes)
 
-			data := pubsub.NewCloudEventsEnvelope(v.MsgId, v.StoreHost, r.name,
+			data := pubsub.NewCloudEventsEnvelope(v.MsgId, v.StoreHost, r.name, v.GetProperty(primitive.PropertyKeys),
 				v.Topic, r.name, r.settings.ContentType, v.Body, "", "", attrBytes)
 			dataBytes, err := r.json.Marshal(data)
 			if err != nil {

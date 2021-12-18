@@ -69,8 +69,9 @@ require (
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/mock v1.6.0
+	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.2.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c
@@ -133,10 +134,14 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.22.5 // indirect
+	go.uber.org/atomic v1.8.0 // indirect
+	go.uber.org/multierr v1.7.0 // indirect
+	go.uber.org/zap v1.18.1 // indirect
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
-	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
+	golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93
+	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect
 	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
 	google.golang.org/grpc v1.36.0

@@ -146,6 +146,7 @@ func TestRabbitMQ(t *testing.T) {
 				for _, msg := range msgs {
 					// randomize publishers
 					indx := rand.Intn(len(sidecars))
+<<<<<<< HEAD
 
 					log.Debugf("Sending: '%s' on topic '%s'", msg, topic)
 					var err error
@@ -156,6 +157,10 @@ func TestRabbitMQ(t *testing.T) {
 						log.Errorf("failed attempt to publish '%s' to topic '%s'", msg, topic)
 						time.Sleep(5 * time.Second)
 					}
+=======
+					log.Debugf("Sending: '%s' on topic '%s'", msg, topic)
+					err := sidecars[indx].client.PublishEvent(ctx, sidecars[indx].pubsub, topic, msg)
+>>>>>>> 5b85abfb8e6532dfdbee619f46d1891b2f12342b
 					require.NoError(ctx, err, "error publishing message")
 				}
 			}(topic)

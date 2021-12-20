@@ -153,6 +153,12 @@ echo "CREDENTIALS_PATH=${CREDENTIALS_PATH}"
 ##==============================================================================
 
 # Constant environment variable names defined by tests or GitHub workflow
+ACR_VAR_NAME="AzureContainerRegistryName"
+
+CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureCertificationServicePrincipalClientSecret"
+CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureCertificationServicePrincipalClientId"
+CERTIFICATION_TENANT_ID_VAR_NAME="AzureCertificationTenantId"
+
 COSMOS_DB_VAR_NAME="AzureCosmosDB"
 COSMOS_DB_COLLECTION_VAR_NAME="AzureCosmosDBCollection"
 COSMOS_DB_MASTER_KEY_VAR_NAME="AzureCosmosDBMasterKey"
@@ -219,8 +225,8 @@ echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
     SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
-    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\".*//g')"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
     if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
         echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
         exit 1
@@ -252,7 +258,7 @@ echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resourc
 az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}" -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
 echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
-sleep 5s
+sleep 5
 
 # Query the deployed resource names from the bicep deployment outputs
 echo "Querying deployed resource names ..."
@@ -296,6 +302,8 @@ SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "prope
 echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
 SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" --output tsv)"
 echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
+AZURE_CONTAINER_REGISTRY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.acrName.value" --output tsv)"
+echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${CONTAINER_REGISTRY_NAME}"
 
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
@@ -596,6 +604,33 @@ az keyvault secret set --name "${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}" --va
 IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME})"
 echo export ${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}"
+
+# -------------------------------------------------------------
+# CERTIFICATION TESTS: Populate Managed Identity Test settings
+# -------------------------------------------------------------
+echo "Configuring Azure Container Registry for Managed Identity Certification tests ..."
+echo export ${ACR_VAR_NAME}=\"${AZURE_CONTAINER_REGISTRY_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${ACR_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_CONTAINER_REGISTRY_NAME}"
+
+
+# -----------------------------------------------------------------------
+# CERTIFICATION TESTS: Create service principal and grant resource access
+# ------------------------------------------------------------------------
+CERTIFICATION_SPAUTH_SP_NAME="${PREFIX}-certification-spauth-conf-test-sp"
+{ read CERTIFICATION_SPAUTH_SP_CLIENT_ID ; read CERTIFICATION_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${CERTIFICATION_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+
+# Give the service principal used for certification test access to the relevant data plane resources
+az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resource-group "${RESOURCE_GROUP_NAME}" --role-definition-name "Cosmos DB Built-in Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_DB_NAME}" --principal-id "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}"
+
+# Now export the service principal information
+CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
+echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}=\"${CERTIFICATION_SPAUTH_SP_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_SPAUTH_SP_CLIENT_ID}"
+echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${CERTIFICATION_SPAUTH_SP_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_SPAUTH_SP_CLIENT_SECRET}"
+echo export ${CERTIFICATION_TENANT_ID_VAR_NAME}=\"${CERTIFICATION_TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_TENANT_ID}"
 
 # ---------------------------
 # Display completion message

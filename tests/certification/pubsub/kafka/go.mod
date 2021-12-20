@@ -5,9 +5,9 @@ go 1.17
 require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/cenkalti/backoff/v4 v4.1.1
-	github.com/dapr/components-contrib v1.5.0
-	github.com/dapr/components-contrib/tests/certification v0.0.0-20211129174428-3c52b736088b
-	github.com/dapr/dapr v1.4.4-0.20211129065316-1549dc79c079
+	github.com/dapr/components-contrib v1.5.1-rc.1
+	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
+	github.com/dapr/dapr v1.5.2-0.20211207220041-6296ceb58dec
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0
@@ -125,5 +125,3 @@ replace github.com/dapr/components-contrib => ../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
-
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.4.4-0.20211129065316-1549dc79c079

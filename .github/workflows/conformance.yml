@@ -69,6 +69,7 @@ jobs:
         - state.sqlserver
         - state.postgresql
         - state.mysql
+        - state.cassandra
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

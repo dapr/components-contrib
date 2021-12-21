@@ -60,6 +60,7 @@ import (
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
+	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
@@ -409,6 +410,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "azure.tablestorage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "cassandra":
+		store = s_cassandra.NewCassandraStateStore(testLogger)
 	default:
 		return nil
 	}

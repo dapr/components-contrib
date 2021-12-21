@@ -765,6 +765,10 @@ func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 }
 
 func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo, snsARN string) error {
+	// not creating any policies of disableEntityManagement is true
+	if s.metadata.disableEntityManagement {
+		return nil
+	}
 	// only permit SNS to send messages to SQS using the created subscription.
 	getQueueAttributesOutput, err := s.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{QueueUrl: &sqsQueueInfo.url, AttributeNames: []*string{aws.String(sqs.QueueAttributeNamePolicy)}})
 	if err != nil {

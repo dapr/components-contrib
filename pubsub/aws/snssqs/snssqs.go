@@ -765,7 +765,7 @@ func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 }
 
 func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo, snsARN string) error {
-	// not creating any policies of disableEntityManagement is true
+	// not creating any policies of disableEntityManagement is true.
 	if s.metadata.disableEntityManagement {
 		return nil
 	}

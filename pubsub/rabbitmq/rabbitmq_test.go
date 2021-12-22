@@ -184,8 +184,8 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 	// Check that reconnection happened
-	assert.Equal(t, 2, broker.connectCount)
-	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
+	assert.Equal(t, 3, broker.connectCount) // three counts - one initial connection plus 2 reconnect attempts
+	assert.Equal(t, 4, broker.closeCount)   // four counts - one for connection, one for channel , times 2 reconnect attempts
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)

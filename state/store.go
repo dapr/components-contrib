@@ -72,7 +72,7 @@ func (b *DefaultBulkStore) BulkDelete(req []DeleteRequest) error {
 	return nil
 }
 
-// Querier is an interface to execute queries agaist store.
+// Querier is an interface to execute queries.
 type Querier interface {
 	Query(req *QueryRequest) (*QueryResponse, error)
 }

@@ -20,8 +20,8 @@ const (
 	fanoutExchangeKind              = "fanout"
 	logMessagePrefix                = "rabbitmq pub/sub:"
 	errorMessagePrefix              = "rabbitmq pub/sub error:"
+	errorChannelNotInitialized      = "channel not initialized"
 	errorChannelConnection          = "channel/connection is not open"
-	errorUnexpectedCommand          = "unexpected command received"
 	defaultDeadLetterExchangeFormat = "dlx-%s"
 	defaultDeadLetterQueueFormat    = "dlq-%s"
 
@@ -37,7 +37,9 @@ const (
 	metadataMaxLen               = "maxLen"
 	metadataMaxLenBytes          = "maxLenBytes"
 
-	defaultReconnectWaitSeconds = 10
+	defaultReconnectWaitSeconds = 3
+	publishMaxRetries           = 3
+	publishRetryWaitSeconds     = 2
 	metadataPrefetchCount       = "prefetchCount"
 
 	argQueueMode          = "x-queue-mode"
@@ -134,24 +136,25 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (r *rabbitMQ) getChannel() (rabbitMQChannelBroker, int) {
-	r.channelMutex.RLock()
-	defer r.channelMutex.RUnlock()
-
-	return r.channel, r.connectionCount
-}
-
 func (r *rabbitMQ) reconnect(connectionCount int) error {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
+	return r.doReconnect(connectionCount)
+}
+
+// this function call should be wrapped by channelMutex.
+func (r *rabbitMQ) doReconnect(connectionCount int) error {
 	if r.stopped {
 		// Do not reconnect on stopped service.
 		return errors.New("cannot connect after component is stopped")
 	}
 
+	r.logger.Infof("%s connectionCount: current=%d reference=%d", logMessagePrefix, r.connectionCount, connectionCount)
 	if connectionCount != r.connectionCount {
 		// Reconnection request is old.
+		r.logger.Infof("%s stale reconnect attempt", logMessagePrefix)
+
 		return nil
 	}
 
@@ -169,57 +172,61 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 
 	r.connectionCount++
 
-	r.logger.Infof("%s connected", logMessagePrefix)
+	r.logger.Infof("%s connected with connectionCount=%d", logMessagePrefix, r.connectionCount)
 
 	return nil
 }
 
-func (r *rabbitMQ) getChannelOrReconnect() (rabbitMQChannelBroker, int, error) {
-	channel, connectionCount := r.getChannel()
-	if channel != nil {
-		return channel, connectionCount, nil
+func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroker, int, error) {
+	r.channelMutex.Lock()
+	defer r.channelMutex.Unlock()
+
+	if r.channel == nil {
+		return r.channel, r.connectionCount, errors.New(errorChannelNotInitialized)
 	}
 
-	r.logger.Warnf("%s reconnecting ...", logMessagePrefix)
-	err := r.reconnect(connectionCount)
-	if err != nil {
-		return nil, connectionCount, err
+	if err := r.ensureExchangeDeclared(r.channel, req.Topic); err != nil {
+		r.logger.Errorf("%s publishing to %s failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, err)
+
+		return r.channel, r.connectionCount, err
 	}
 
-	channel, connectionCount = r.getChannel()
-
-	return channel, connectionCount, nil
-}
-
-func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
-	channel, connectionCount, err := r.getChannelOrReconnect()
-	if err != nil {
-		return err
-	}
-
-	err = r.ensureExchangeDeclared(channel, req.Topic)
-	if err != nil {
-		return err
-	}
-
-	r.logger.Debugf("%s publishing message to topic '%s'", logMessagePrefix, req.Topic)
-
-	err = channel.Publish(req.Topic, "", false, false, amqp.Publishing{
+	if err := r.channel.Publish(req.Topic, "", false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
-	})
+	}); err != nil {
+		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)
 
-	if err != nil {
-		if mustReconnect(channel, err) {
-			r.logger.Warnf("%s pubsub publisher for %s is reconnecting ...", logMessagePrefix, req.Topic)
-			r.reconnect(connectionCount)
-		}
-
-		return err
+		return r.channel, r.connectionCount, err
 	}
 
-	return nil
+	return r.channel, r.connectionCount, nil
+}
+
+func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
+	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
+
+	attempt := 0
+	for {
+		attempt++
+		channel, connectionCount, err := r.publishSync(req)
+		if err == nil {
+			return nil
+		}
+		if attempt >= publishMaxRetries {
+			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
+			return err
+		}
+		if mustReconnect(channel, err) {
+			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
+			time.Sleep(r.metadata.reconnectWait)
+			r.reconnect(connectionCount)
+		} else {
+			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
+			time.Sleep(publishRetryWaitSeconds * time.Second)
+		}
+	}
 }
 
 func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -228,19 +235,32 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 	}
 
 	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
+	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
-	go r.subscribeForever(req, queueName, handler)
+	ackCh := make(chan struct{}, 1)
+	ctx, cancel := context.WithTimeout(r.ctx, time.Minute)
+	defer cancel()
 
-	return nil
+	go r.subscribeForever(req, queueName, handler, ackCh)
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("failed to subscribe to %s", queueName)
+	case <-ackCh:
+		return nil
+	}
 }
 
+// this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
 	err := r.ensureExchangeDeclared(channel, req.Topic)
 	if err != nil {
+		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, queueName, err)
+
 		return nil, err
 	}
 
-	r.logger.Debugf("%s declaring queue '%s'", logMessagePrefix, queueName)
+	r.logger.Infof("%s declaring queue '%s'", logMessagePrefix, queueName)
 	var args amqp.Table
 	if r.metadata.enableDeadLetter {
 		// declare dead letter exchange
@@ -248,6 +268,8 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
 		err = r.ensureExchangeDeclared(channel, dlxName)
 		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, dlqName, err)
+
 			return nil, err
 		}
 		var q amqp.Queue
@@ -256,56 +278,78 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqArgs[argQueueMode] = queueModeLazy
 		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
 		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, dlqName, err)
+
 			return nil, err
 		}
 		err = channel.QueueBind(q.Name, "", dlxName, false, nil)
 		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, dlqName, err)
+
 			return nil, err
 		}
-		r.logger.Debugf("declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", queueName, dlqName, dlxName)
+		r.logger.Infof("%s declared dead letter exchange for queue '%s' bind dead letter queue '%s' to dead letter exchange '%s'", logMessagePrefix, queueName, dlqName, dlxName)
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
 	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
+		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, queueName, err)
+
 		return nil, err
 	}
 
 	if r.metadata.prefetchCount > 0 {
-		r.logger.Debugf("setting prefetch count to %s", strconv.Itoa(int(r.metadata.prefetchCount)))
+		r.logger.Infof("%s setting prefetch count to %s", logMessagePrefix, strconv.Itoa(int(r.metadata.prefetchCount)))
 		err = channel.Qos(int(r.metadata.prefetchCount), 0, false)
 		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.Qos: %v", logMessagePrefix, req.Topic, queueName, err)
+
 			return nil, err
 		}
 	}
 
-	r.logger.Debugf("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
+	r.logger.Infof("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
 	err = channel.QueueBind(q.Name, "", req.Topic, false, nil)
 	if err != nil {
+		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
+
 		return nil, err
 	}
 
 	return &q, nil
 }
 
-func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler) {
+func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName string) (rabbitMQChannelBroker, int, *amqp.Queue, error) {
+	r.channelMutex.RLock()
+	defer r.channelMutex.RUnlock()
+
+	if r.channel == nil {
+		return nil, 0, nil, errors.New(errorChannelNotInitialized)
+	}
+
+	q, err := r.prepareSubscription(r.channel, req, queueName)
+
+	return r.channel, r.connectionCount, q, err
+}
+
+func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan struct{}) {
+	// one-time notification on successful subscribe
+	var subscribed bool
+
 	for {
 		var (
 			err             error
+			errFuncName     string
 			connectionCount int
 			channel         rabbitMQChannelBroker
 			q               *amqp.Queue
 			msgs            <-chan amqp.Delivery
 		)
 		for {
-			channel, connectionCount = r.getChannel()
-			if channel == nil {
-				err = errors.New("channel not initialized")
-				break
-			}
-
-			q, err = r.prepareSubscription(channel, req, queueName)
+			channel, connectionCount, q, err = r.ensureSubscription(req, queueName)
 			if err != nil {
+				errFuncName = "ensureSubscription"
 				break
 			}
 
@@ -319,24 +363,37 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 				nil,
 			)
 			if err != nil {
+				errFuncName = "channel.Consume"
 				break
+			}
+
+			if !subscribed {
+				subscribed = true
+				ackCh <- struct{}{}
+				ackCh = nil
 			}
 
 			err = r.listenMessages(channel, msgs, req.Topic, handler)
 			if err != nil {
+				errFuncName = "listenMessages"
 				break
 			}
 		}
 
 		if r.isStopped() {
+			r.logger.Infof("%s subscriber for %s is stopped", logMessagePrefix, queueName)
+
 			return
 		}
 
-		r.logger.Errorf("%s error in subscription for %s: %v", logMessagePrefix, queueName, err)
+		// print the error if the subscriber is running.
+		if err != nil {
+			r.logger.Errorf("%s error in subscriber for %s in %s: %v", logMessagePrefix, queueName, errFuncName, err)
+		}
 
 		if mustReconnect(channel, err) {
+			r.logger.Warnf("%s subscriber is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
 			time.Sleep(r.metadata.reconnectWait)
-			r.logger.Warnf("%s pubsub subscription for %s is reconnecting ...", logMessagePrefix, queueName)
 			r.reconnect(connectionCount)
 		}
 	}
@@ -397,11 +454,14 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 	return err
 }
 
+// this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange string) error {
 	if !r.containsExchange(exchange) {
 		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, fanoutExchangeKind)
 		err := channel.ExchangeDeclare(exchange, fanoutExchangeKind, true, false, false, false, nil)
 		if err != nil {
+			r.logger.Errorf("%s ensureExchangeDeclared: channel.ExchangeDeclare failed: %v", logMessagePrefix, err)
+
 			return err
 		}
 
@@ -411,37 +471,38 @@ func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchang
 	return nil
 }
 
+// this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) containsExchange(exchange string) bool {
-	r.channelMutex.RLock()
-	defer r.channelMutex.RUnlock()
-
 	_, exists := r.declaredExchanges[exchange]
 
 	return exists
 }
 
+// this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) putExchange(exchange string) {
-	r.channelMutex.Lock()
-	defer r.channelMutex.Unlock()
-
 	r.declaredExchanges[exchange] = true
 }
 
+// this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) reset() (err error) {
 	if len(r.declaredExchanges) > 0 {
 		r.declaredExchanges = make(map[string]bool)
 	}
 
 	if r.channel != nil {
-		err = r.channel.Close()
+		if err = r.channel.Close(); err != nil {
+			r.logger.Errorf("%s reset: channel.Close() failed: %v", logMessagePrefix, err)
+		}
 		r.channel = nil
 	}
 	if r.connection != nil {
-		err2 := r.connection.Close()
-		r.connection = nil
-		if err == nil {
-			err = err2
+		if err2 := r.connection.Close(); err2 != nil {
+			r.logger.Errorf("%s reset: connection.Close() failed: %v", logMessagePrefix, err2)
+			if err == nil {
+				err = err2
+			}
 		}
+		r.connection = nil
 	}
 
 	return
@@ -478,5 +539,5 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 		return false
 	}
 
-	return strings.Contains(err.Error(), errorChannelConnection) || strings.Contains(err.Error(), errorUnexpectedCommand)
+	return strings.Contains(err.Error(), errorChannelConnection)
 }

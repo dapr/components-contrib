@@ -1,0 +1,240 @@
+# ------------------------------------------------------------
+# Copyright (c) Microsoft Corporation and Dapr Contributors.
+# Licensed under the MIT License.
+# ------------------------------------------------------------
+
+name: Stable Components Certification Tests
+
+on:
+  repository_dispatch:
+    types: [certification-test]
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+jobs:
+  pre_job:
+    name: Skip Duplicate Actions
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v3.4.0
+        with:
+          cancel_others: 'true'
+          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
+  # Based on whether this is a PR or a scheduled run, we will run a different
+  # subset of the certification tests. This allows all the tests not requiring
+  # secrets to be executed on pull requests.
+  generate-matrix:
+    runs-on: ubuntu-latest
+    needs: pre_job
+    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
+    steps:
+    - name: Install yq
+      run: |
+        sudo snap install yq
+
+    - name: Specify components that can be run on every PR
+      id: pr-components
+      run: |
+        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - pubsub.kafka
+        - pubsub.rabbitmq
+        EOF
+        )
+        echo "::set-output name=pr-components::$PR_COMPONENTS"
+
+    - name: Specify components requiring cloud resources to run
+      id: cloud-components
+      run: |
+        # Skip cloud-components on PRs, requires scheduled run trigger
+        # or approver to trigger via respository-dispatch on /ok-to-test
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "::set-output name=cloud-components::[]"
+          exit
+        fi
+        # Reuse the same cloud infrastructure as conformance.yml
+        #
+        # Unfortunately, Azure secrets can't have underscores in
+        # names, while environment variables with hyphens ('-') are
+        # troublesome.
+        #
+        # We work around here by leveraging the fact that
+        # environment variable names are case sensitive, so
+        # CamelCase would still work.
+        #
+        # That is slightly better than something like
+        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
+        # and errorprone.
+        #
+        # Only list the secrets you need for the component.
+        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - component: secretstores.azure.keyvault
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName,AzureResourceGroupName
+          required-certs: AzureKeyVaultSecretStoreCert
+        - component: state.sqlserver
+          required-secrets: AzureSqlServerConnectionString
+        - component: bindings.azure.servicebusqueues
+          required-secrets: AzureServiceBusConnectionString
+        - component: bindings.azure.cosmosdb
+          required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
+        EOF
+        )
+        echo "::set-output name=cloud-components::$CRON_COMPONENTS"
+    outputs:
+      pr-components: ${{ steps.pr-components.outputs.pr-components }}
+      cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
+
+  certification:
+    name: ${{ matrix.component }} certification
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    needs: generate-matrix
+    env:
+      PROJECT_PATH: ./src/github.com/dapr/components-contrib
+
+    strategy:
+      fail-fast: false # Keep running even if one component fails
+      matrix:
+        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
+
+    steps:
+    - name: Set default payload repo and ref
+      run: |
+        echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+        fi
+
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@v2
+      with:
+        path: ${{ env.PROJECT_PATH }}
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
+
+    - name: Setup test output
+      run: |
+        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
+        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
+
+    - name: Configure certification test path
+      run: |
+        TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
+        export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
+        echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+
+    - uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      if: matrix.required-secrets != ''
+
+    - name: Setup secrets
+      uses: Azure/get-keyvault-secrets@v1
+      with:
+        # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
+        #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+        keyvault: ${{ secrets.AZURE_KEYVAULT }}
+        secrets: ${{ matrix.required-secrets }}
+      id: get-azure-secrets
+      if: matrix.required-secrets != ''
+
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Setup certs
+      if: matrix.required-certs != ''
+      working-directory: ${{ env.TEST_PATH }}
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(mktemp --suffix .pfx)
+          echo "Downloading cert $CERT_NAME into file $CERT_FILE"
+          rm $CERT_FILE && \
+            az keyvault secret download --vault-name ${{ secrets.AZURE_KEYVAULT }} --name $CERT_NAME --encoding base64 --file $CERT_FILE
+          echo 'Setting $CERT_NAME to' "$CERT_FILE"
+          echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
+        done
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '^1.17'
+
+    - name: Download Go dependencies
+      working-directory: ${{ env.TEST_PATH }}
+      run: |
+        go mod download
+        go install gotest.tools/gotestsum@latest
+
+    - name: Check that go mod tidy is up-to-date
+      working-directory: ${{ env.TEST_PATH }}
+      run: |
+        go mod tidy
+        git diff --exit-code ./go.mod
+        git diff --exit-code ./go.sum
+
+    - name: Run tests
+      continue-on-error: true
+      working-directory: ${{ env.TEST_PATH }}
+      run: |
+        echo "Running certification tests for ${{ matrix.component }} ... "
+
+        set +e
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
+          -count=1 -timeout=15m
+
+        status=$?
+        echo "Completed certification tests for ${{ matrix.component }} ... "
+        if test $status -ne 0; then
+          echo "Setting CERTIFICATION_FAILURE"
+          echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
+        fi
+        set -e
+
+        # Fail the step if we found no test to run
+        if grep -q "\[no test files\]" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json ; then
+          echo "::error:: No certification test file was found for component ${{ matrix.component }}"
+          exit -1
+        fi
+
+    # Delete any certs downloaded locally
+    - name: Clean up certs
+      if: matrix.required-certs != ''
+      working-directory: ${{ env.TEST_PATH }}
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(printenv $CERT_NAME)
+
+          echo "Cleaning up the certificate file $CERT_FILE..."
+          rm $CERT_FILE
+        done
+
+    - name: Check certification test passed
+      continue-on-error: false
+      run: |
+        echo "CERTIFICATION_FAILURE=$CERTIFICATION_FAILURE"
+        if [[ -v CERTIFICATION_FAILURE ]]; then
+          exit 1
+        fi
+
+    # Upload logs for test analytics to consume
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{ matrix.component }}_certification_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*

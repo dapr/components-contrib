@@ -30,7 +30,6 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, kv.vaultName, "foo")
 		assert.Equal(t, kv.vaultDNSSuffix, "vault.azure.net")
 		assert.NotNil(t, kv.vaultClient)
-		assert.NotNil(t, kv.vaultClient.Authorizer)
 	})
 	t.Run("Init with valid metadata and Azure environment", func(t *testing.T) {
 		m.Properties = map[string]string{
@@ -47,7 +46,6 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, kv.vaultName, "foo")
 		assert.Equal(t, kv.vaultDNSSuffix, "vault.azure.cn")
 		assert.NotNil(t, kv.vaultClient)
-		assert.NotNil(t, kv.vaultClient.Authorizer)
 	})
 	t.Run("Init with Azure environment as part of vaultName FQDN (1) - legacy", func(t *testing.T) {
 		m.Properties = map[string]string{
@@ -63,7 +61,6 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, kv.vaultName, "foo")
 		assert.Equal(t, kv.vaultDNSSuffix, "vault.azure.cn")
 		assert.NotNil(t, kv.vaultClient)
-		assert.NotNil(t, kv.vaultClient.Authorizer)
 	})
 	t.Run("Init with Azure environment as part of vaultName FQDN (2) - legacy", func(t *testing.T) {
 		m.Properties = map[string]string{
@@ -79,6 +76,5 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, kv.vaultName, "foo")
 		assert.Equal(t, kv.vaultDNSSuffix, "vault.usgovcloudapi.net")
 		assert.NotNil(t, kv.vaultClient)
-		assert.NotNil(t, kv.vaultClient.Authorizer)
 	})
 }

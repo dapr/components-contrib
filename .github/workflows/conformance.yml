@@ -34,7 +34,7 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true'
+    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
     steps:
     - name: Install yq
       run: |
@@ -132,37 +132,41 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./src/github.com/dapr/components-contrib
+        working-directory: ${{ env.PROJECT_PATH }}
     needs: generate-matrix
+    env:
+      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+
     steps:
+    - name: Set default payload repo and ref
+      working-directory: ${{ github.workspace }}
+      run: |
+        echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
-      uses: actions/github-script@v1
-      with:
-        github-token: ${{secrets.DAPR_BOT_TOKEN}}
-        script: |
-          const testPayload = context.payload.client_payload;
-          if (testPayload && testPayload.command == "ok-to-test") {
-            var fs = require('fs');
-            // Set environment variables
-            fs.appendFileSync(process.env.GITHUB_ENV,
-              `CHECKOUT_REPO=${testPayload.pull_head_repo}\n`+
-              `CHECKOUT_REF=${testPayload.pull_head_ref}`);
-          }
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+        fi
   
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ./src/github.com/dapr/components-contrib
+        path: ${{ env.PROJECT_PATH }}
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
 
     - name: Setup test output
-      shell: bash
       run: |
         export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
@@ -188,9 +192,9 @@ jobs:
         wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
         unzip -qq ngrok-stable-linux-amd64.zip
         ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
-        ./ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        ./ngrok http -log=stdout --log-level debug -host-header=localhost 9000 > /tmp/ngrok.log &
         sleep 10
-        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
+        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eom1 'https://.*' | sed 's/\s.*//'`
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
         echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
         cat /tmp/ngrok.log
@@ -290,7 +294,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.16.6'
+        go-version: '^1.17.3'
     
     - name: Download Go dependencies
       run: |
@@ -340,7 +344,14 @@ jobs:
     - name: Stop ngrok
       if: contains(matrix.component, 'azure.eventgrid')
       continue-on-error: true
-      run: pkill ngrok; cat /tmp/ngrok.log
+      run: |
+        set +e
+        echo "GET ngrok tunnels:"
+        curl http://localhost:4040/api/tunnels
+        echo "GET ngrok http requests:"
+        curl http://localhost:4040/api/requests/http
+        pkill ngrok
+        cat /tmp/ngrok.log
 
     - name: Cleanup Azure SQL test DB instance
       if: contains(matrix.component, 'azure.sql')

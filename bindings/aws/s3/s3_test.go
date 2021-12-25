@@ -18,7 +18,7 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
+			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
@@ -29,6 +29,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
+		assert.Equal(t, true, meta.ForcePathStyle)
 	})
 }
 
@@ -36,7 +37,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
+			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
@@ -47,6 +48,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
+		assert.Equal(t, true, meta.ForcePathStyle)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -65,6 +67,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "test", mergedMeta.Bucket)
 		assert.Equal(t, "endpoint", mergedMeta.Endpoint)
 		assert.Equal(t, "token", mergedMeta.SessionToken)
+		assert.Equal(t, true, meta.ForcePathStyle)
 		assert.Equal(t, true, mergedMeta.DecodeBase64)
 		assert.Equal(t, false, mergedMeta.EncodeBase64)
 	})
@@ -72,7 +75,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
+			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
@@ -83,6 +86,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
+		assert.Equal(t, true, meta.ForcePathStyle)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -98,7 +102,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has invalid merged metadata encodeBase64", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token",
+			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
@@ -109,6 +113,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
+		assert.Equal(t, true, meta.ForcePathStyle)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{

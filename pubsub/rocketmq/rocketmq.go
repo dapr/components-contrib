@@ -17,8 +17,6 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqp "github.com/apache/rocketmq-client-go/v2/producer"
-	"github.com/patrickmn/go-cache"
-
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -33,7 +31,6 @@ type rocketMQ struct {
 	lock   sync.Mutex
 	topics map[string]mqc.MessageSelector
 
-	producerPool  *cache.Cache
 	ctx           context.Context
 	cancel        context.CancelFunc
 	backOffConfig retry.Config
@@ -41,10 +38,9 @@ type rocketMQ struct {
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	return &rocketMQ{
-		name:         "rocketmq",
-		logger:       l,
-		topics:       make(map[string]mqc.MessageSelector),
-		producerPool: cache.New(5*time.Minute, 10*time.Minute),
+		name:   "rocketmq",
+		logger: l,
+		topics: make(map[string]mqc.MessageSelector),
 	}
 }
 
@@ -63,12 +59,6 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 		"backOff"); err != nil {
 		return fmt.Errorf("retry configuration error: %w", err)
 	}
-	r.producerPool.OnEvicted(func(s string, i interface{}) {
-		producer := i.(mq.Producer)
-		if producer != nil {
-			_ = producer.Shutdown()
-		}
-	})
 	return nil
 }
 
@@ -133,8 +123,11 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	msg := newRocketMQMessage(req)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.metadata.SendTimeOut))
 	defer cancel()
-	producer, err := r.getOrCreateProducer(req.Topic)
+	producer, err := r.setUpProducer()
 	if err != nil {
+		return err
+	}
+	if err := producer.Start(); err != nil {
 		return err
 	}
 	result, err := producer.SendSync(ctx, msg)
@@ -144,20 +137,6 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	}
 	r.logger.Debugf("rocketmq send result topic:%s tag:%s status:%v", req.Topic, msg.GetTags(), result.Status)
 	return nil
-}
-
-func (r *rocketMQ) getOrCreateProducer(topic string) (producer mq.Producer, err error) {
-	if p, ok := r.producerPool.Get(topic); ok {
-		producer = p.(mq.Producer)
-		return
-	}
-	r.logger.Debugf("create producer for topic:%v", topic)
-	producer, err = r.setUpProducer()
-	if err != nil {
-		return
-	}
-	err = r.producerPool.Add(topic, producer, 5*time.Minute)
-	return
 }
 
 func newRocketMQMessage(req *pubsub.PublishRequest) *primitive.Message {
@@ -302,12 +281,5 @@ func (r *rocketMQ) Close() error {
 	if r.pushConsumer != nil {
 		_ = r.pushConsumer.Shutdown()
 	}
-	for _, p := range r.producerPool.Items() {
-		if p.Object != nil {
-			producer := p.Object.(mq.Producer)
-			_ = producer.Shutdown()
-		}
-	}
-	r.producerPool.Flush()
 	return nil
 }

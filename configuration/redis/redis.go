@@ -254,6 +254,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		return nil
 	}
 	for _, k := range req.Keys {
+		k := k
 		go r.doSubscribe(ctx, req, handler, keySpacePrefix+k)
 	}
 	return nil

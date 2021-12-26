@@ -52,3 +52,7 @@ components:
       checkInOrderProcessing: false
   - component: in-memory
     allOperations: true
+  - component: aws.snssqs
+    allOperations: true
+    config:
+      checkInOrderProcessing: false

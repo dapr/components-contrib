@@ -69,6 +69,7 @@ jobs:
         - state.sqlserver
         - state.postgresql
         - state.mysql
+        - state.cassandra
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -284,6 +285,10 @@ jobs:
         docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
       if: contains(matrix.component, 'postgresql')
 
+    - name: Start cassandra
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
+      if: contains(matrix.component, 'cassandra')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')

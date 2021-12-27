@@ -42,14 +42,15 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Bucket       string `json:"bucket"`
-	DecodeBase64 bool   `json:"decodeBase64,string"`
-	EncodeBase64 bool   `json:"encodeBase64,string"`
+	Region         string `json:"region"`
+	Endpoint       string `json:"endpoint"`
+	AccessKey      string `json:"accessKey"`
+	SecretKey      string `json:"secretKey"`
+	SessionToken   string `json:"sessionToken"`
+	Bucket         string `json:"bucket"`
+	DecodeBase64   bool   `json:"decodeBase64,string"`
+	EncodeBase64   bool   `json:"encodeBase64,string"`
+	ForcePathStyle bool   `json:"forcePathStyle,string"`
 }
 
 type createResponse struct {
@@ -79,10 +80,13 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	cfg := aws.NewConfig().WithS3ForcePathStyle(m.ForcePathStyle)
+
 	s.metadata = m
-	s.s3Client = s3.New(session)
-	s.downloader = s3manager.NewDownloader(session)
-	s.uploader = s3manager.NewUploader(session)
+	s.s3Client = s3.New(session, cfg)
+	s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
+	s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
 
 	return nil
 }

@@ -60,7 +60,7 @@ func (c Compose) Down(ctx flow.Context) error {
 		"docker-compose",
 		"-p", c.project,
 		"-f", c.filename,
-		"down").CombinedOutput()
+		"down", "-v").CombinedOutput()
 	ctx.Log(string(out))
 
 	return err

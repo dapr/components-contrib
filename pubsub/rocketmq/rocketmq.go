@@ -123,14 +123,19 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	msg := newRocketMQMessage(req)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.metadata.SendTimeOut))
 	defer cancel()
-	producer, err := r.setUpProducer()
+	var (
+		producer mq.Producer
+		result   *primitive.SendResult
+		err      error
+	)
+	producer, err = r.setUpProducer()
 	if err != nil {
 		return err
 	}
-	if err := producer.Start(); err != nil {
-		return err
+	if err1 := producer.Start(); err1 != nil {
+		return err1
 	}
-	result, err := producer.SendSync(ctx, msg)
+	result, err = producer.SendSync(ctx, msg)
 	if err != nil {
 		r.logger.Errorf("error send message topic:%s : %v", req.Topic, err)
 		return ErrRocketmqPublishMsg

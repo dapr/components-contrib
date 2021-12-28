@@ -10,9 +10,11 @@ spec:
     value: localhost:19092,localhost:29092,localhost:39092
   - name: consumerGroup
     value: kafkaCertification1
-  - name: authRequired
-    value: "false"
+  - name: authType
+    value: "none"
   - name: initialOffset
     value: oldest
   - name: backOffDuration
     value: 50ms
+  - name: disableTls
+    value: true

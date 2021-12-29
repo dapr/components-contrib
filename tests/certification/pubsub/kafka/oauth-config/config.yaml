@@ -1,0 +1,22 @@
+serve:
+  admin:
+    host: 0.0.0.0
+    port: 4444
+  public:
+    host: 0.0.0.0
+    port: 4443
+  tls:
+    cert:
+      path: /config/tls/hydra.crt
+    key:
+      path: /config/tls/hydra.key
+dsn: memory
+log:
+  leak_sensitive_values: true
+  level: debug
+urls:
+  self:
+    issuer: https://hydra:4443
+strategies:
+  access_token: opaque
+

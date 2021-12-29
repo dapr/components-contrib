@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib
 go 1.16
 
 require (
-	cloud.google.com/go v0.65.0
+	cloud.google.com/go v0.81.0
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/pubsub v1.5.0
 	cloud.google.com/go/storage v1.10.0
@@ -125,14 +125,13 @@ require (
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
 	go.mongodb.org/mongo-driver v1.5.1
-	go.opencensus.io v0.22.5 // indirect
 	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+	golang.org/x/net v0.0.0-20210726213435-c6fcb2dbf985
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
-	google.golang.org/api v0.32.0
-	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
-	google.golang.org/grpc v1.36.0
+	google.golang.org/api v0.44.0
+	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
+	google.golang.org/grpc v1.38.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4
@@ -156,3 +155,5 @@ require (
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
 
 replace github.com/dapr/components-contrib => ../components-contrib
+
+replace github.com/apache/pulsar-client-go => github.com/apache/pulsar-client-go 39e13aced4cc35a63f5d6164e63c7f1638388c37

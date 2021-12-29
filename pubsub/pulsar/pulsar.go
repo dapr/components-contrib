@@ -66,8 +66,8 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		}
 		m.EnableTLS = tls
 	}
-	// DisableBatching is defaultly disable batching.
-	m.DisableBatching = true
+	// DisableBatching is defaultly batching.
+	m.DisableBatching = false
 	if val, ok := meta.Properties[disableBatching]; ok {
 		disableBatching, err := strconv.ParseBool(val)
 		if err != nil {

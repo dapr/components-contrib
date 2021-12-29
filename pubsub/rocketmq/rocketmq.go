@@ -1,6 +1,6 @@
 // ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
+// Licensed under the Apache License.
 // ------------------------------------------------------------
 
 package rocketmq
@@ -17,6 +17,7 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqp "github.com/apache/rocketmq-client-go/v2/producer"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"

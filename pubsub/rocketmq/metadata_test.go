@@ -1,6 +1,6 @@
 // ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
+// Licensed under the Apache License.
 // ------------------------------------------------------------
 
 package rocketmq

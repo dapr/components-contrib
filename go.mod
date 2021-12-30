@@ -101,7 +101,6 @@ require (
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
 	github.com/nats-io/nats.go v1.12.0
 	github.com/nats-io/stan.go v0.8.3
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/open-policy-agent/opa v0.23.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -135,7 +134,6 @@ require (
 	google.golang.org/genproto v0.0.0-20201204160425-06b3db808446
 	google.golang.org/grpc v1.36.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect
@@ -155,6 +153,12 @@ require (
 )
 
 require (
+	github.com/alibabacloud-go/darabonba-openapi v0.1.14
+	github.com/alibabacloud-go/oos-20190601 v1.0.1
+	github.com/alibabacloud-go/tea v1.1.17
+)
+
+require (
 	github.com/99designs/keyring v1.1.5 // indirect
 	github.com/AthenZ/athenz v1.10.15 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
@@ -169,8 +173,14 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/DataDog/zstd v1.4.6-0.20210211175136-c6db21d202f4 // indirect
 	github.com/OneOfOne/xxhash v1.2.7 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 // indirect
+	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
+	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
+	github.com/alibabacloud-go/openapi-util v0.0.10 // indirect
+	github.com/alibabacloud-go/tea-utils v1.4.3 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 // indirect
+	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
 	github.com/apache/pulsar-client-go/oauth2 v0.0.0-20201120111947-b8bd55bc02bd // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
@@ -260,6 +270,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/tidwall/match v1.0.3 // indirect
+	github.com/tjfoc/gmsm v1.3.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.6 // indirect
 	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/toolkits/concurrent v0.0.0-20150624120057-a4371d70e3e3 // indirect
@@ -288,7 +299,7 @@ require (
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/fatih/pool.v2 v2.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/ini.v1 v1.51.0 // indirect
+	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/jcmturner/aescts.v1 v1.0.1 // indirect
 	gopkg.in/jcmturner/dnsutils.v1 v1.0.1 // indirect
 	gopkg.in/jcmturner/rpc.v1 v1.1.0 // indirect

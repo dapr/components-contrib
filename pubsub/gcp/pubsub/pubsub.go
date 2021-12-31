@@ -144,11 +144,7 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	ctx := context.Background()
 	pubsubClient, err := g.getPubSubClient(ctx, metadata)
 	if err != nil {
-		return err
-	}
-
-	if err != nil {
-		return fmt.Errorf("%s error creating pubsub client: %s", errorMessagePrefix, err)
+		return fmt.Errorf("%s error creating pubsub client: %w", errorMessagePrefix, err)
 	}
 
 	g.client = pubsubClient

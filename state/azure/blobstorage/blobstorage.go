@@ -91,19 +91,17 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	p := azblob.NewPipeline(credential, options)
 
-	var containerURL azblob.ContainerURL
 	var URL *url.URL
 	customEndpoint, ok := metadata.Properties[endpointKey]
 	if ok && customEndpoint != "" {
 		URL, err = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
-		if err != nil {
-			return err
-		}
-		containerURL = azblob.NewContainerURL(*URL, p)
 	} else {
-		URL, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
-		containerURL = azblob.NewContainerURL(*URL, p)
+		URL, err = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
 	}
+	if err != nil {
+		return err
+	}
+	containerURL := azblob.NewContainerURL(*URL, p)
 
 	_, err = net.LookupHost(URL.Hostname())
 	if err != nil {

@@ -6,6 +6,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,15 +28,21 @@ import (
 	"github.com/dapr/kit/logger"
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
+	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
+	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_http "github.com/dapr/components-contrib/bindings/http"
+	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
+	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
+	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
@@ -47,8 +54,13 @@ import (
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
+	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
+	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
+	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
@@ -56,6 +68,7 @@ import (
 )
 
 const (
+	eventhubs    = "azure.eventhubs"
 	redis        = "redis"
 	kafka        = "kafka"
 	mqtt         = "mqtt"
@@ -69,6 +82,7 @@ type TestConfiguration struct {
 	ComponentType string          `yaml:"componentType,omitempty"`
 	Components    []TestComponent `yaml:"components,omitempty"`
 }
+
 type TestComponent struct {
 	Component     string                 `yaml:"component,omitempty"`
 	Profile       string                 `yaml:"profile,omitempty"`
@@ -77,7 +91,7 @@ type TestComponent struct {
 	Config        map[string]interface{} `yaml:"config,omitempty"`
 }
 
-// NewTestConfiguration reads the tests.yml and loads the TestConfiguration
+// NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
 func NewTestConfiguration(configFilepath string) (*TestConfiguration, error) {
 	if isYaml(configFilepath) {
 		b, err := readTestConfiguration(configFilepath)
@@ -121,6 +135,16 @@ func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -139,6 +163,16 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else {
+				jsonMap := make(map[string]interface{})
+				err := json.Unmarshal([]byte(val), &jsonMap)
+				if err == nil {
+					ParseConfigurationMap(t, jsonMap)
+					mapBytes, err := json.Marshal(jsonMap)
+					if err == nil {
+						configMap[k] = string(mapBytes)
+					}
+				}
 			}
 		case map[string]interface{}:
 			ParseConfigurationMap(t, val)
@@ -167,7 +201,7 @@ func ConvertMetadataToProperties(items []MetadataItem) (map[string]string, error
 	return properties, nil
 }
 
-// isYaml checks whether the file is yaml or not
+// isYaml checks whether the file is yaml or not.
 func isYaml(fileName string) bool {
 	extension := strings.ToLower(filepath.Ext(fileName))
 	if extension == ".yaml" || extension == ".yml" {
@@ -309,10 +343,14 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	switch tc.Component {
 	case redis:
 		pubsub = p_redis.NewRedisStreams(testLogger)
+	case eventhubs:
+		pubsub = p_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.servicebus":
 		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
 	case "natsstreaming":
 		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
+	case "jetstream":
+		pubsub = p_jetstream.NewJetStream(testLogger)
 	case kafka:
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":
@@ -323,6 +361,9 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
 	case "rabbitmq":
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
+	case "in-memory":
+		pubsub = p_inmemory.New(testLogger)
+
 	default:
 		return nil
 	}
@@ -333,7 +374,9 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	var store secretstores.SecretStore
 	switch tc.Component {
-	case "azure.keyvault":
+	case "azure.keyvault.certificate":
+		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
+	case "azure.keyvault.serviceprincipal":
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "kubernetes":
 		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)
@@ -353,10 +396,22 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
-	case "cosmosdb":
+	case "azure.cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
+	case "azure.sql":
+		fallthrough
+	case "sqlserver":
+		store = s_sqlserver.NewSQLServerStateStore(testLogger)
+	case "postgresql":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "mysql":
+		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "azure.tablestorage":
+		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "cassandra":
+		store = s_cassandra.NewCassandraStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -378,10 +433,16 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_servicebusqueues.NewAzureServiceBusQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case eventhubs:
+		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
+	case "azure.cosmosdb":
+		binding = b_azure_cosmosdb.NewCosmosDB(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
+	case "influx":
+		binding = b_influx.NewInflux(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
 	default:
@@ -401,6 +462,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case eventhubs:
+		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case mqtt:

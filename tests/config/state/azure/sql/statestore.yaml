@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.sqlserver
+  metadata:
+  - name: connectionString
+    value: ${{AzureSqlServerConnectionString}}
+  - name: databaseName
+    value: ${{AzureSqlServerDbName}}
+  - name: tableName
+    value: dapr_conf_test
+  - name: keyType
+    value: string
+  - name: keyLength
+    value: 120
+  - name: schema
+    value: proto

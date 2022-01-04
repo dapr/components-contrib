@@ -29,6 +29,7 @@ git clone https://github.com/dapr/components-contrib.git github.com/dapr/compone
 1. Create your component directory in the right component directory
 2. Copy component files from the reference component to your component directory
 3. Add go unit-test for your component
+4. Add [conformance tests](/tests/conformance/README.md) for your component.
 
 | Type | Directory | Reference | Docs |
 |------|-----------|--------------------------|------|
@@ -62,18 +63,19 @@ go mod edit -replace github.com/dapr/components-contrib=../components-contrib
 4. Register your component in dapr [main.go](https://github.com/dapr/dapr/blob/d17e9243b308e830649b0bf3af5f6e84fd543baf/cmd/daprd/main.go#L153-L226)(e.g. binding)
 5. Build debuggable dapr binary
 ```bash
+go mod tidy
 make DEBUG=1 build
 ```
 6. Replace the installed daprd with the test binary (then dapr cli will use the test binary)
 ```bash
 # Back up the current daprd
-mv /usr/local/bin/daprd /usr/local/bin/daprd.bak
+cp ~/.dapr/bin/daprd ~/.dapr/bin/daprd.bak
 cp ./dist/darwin_amd64/debug/daprd ~/.dapr/bin
 ```
 > Linux Debuggable Binary: ./dist/linux_amd64/debug/daprd
 > Windows Debuggable Binary: .\dist\windows_amd64\debug\daprd
 7. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/quickstarts/tree/master/bindings/nodeapp/)
-8. Create yaml for bindings in './components' under app’s directory (e.g. kafka example : https://github.com/dapr/quickstarts/blob/master/bindings/nodeapp/components/kafka_bindings.yaml)
+8. Create yaml for bindings in './components' under app’s directory (e.g. kafka example : https://github.com/dapr/quickstarts/blob/master/bindings/components/kafka_bindings.yaml)
 9. Run your test app using dapr cli
 10. Make sure your component is loaded successfully in daprd log
 
@@ -85,7 +87,7 @@ cp ./dist/darwin_amd64/debug/daprd ~/.dapr/bin
 4. Update component-contrib go mod and ensure that component-contrib is updated to the latest version
 ```bash
 go get -u github.com/dapr/components-contrib@master
-go mod tidy
+make modtidy-all
 ```
 5. Import your component to Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L20-L115)
 6. Register your component in Dapr [main.go](https://github.com/dapr/dapr/blob/b3e1fe848de3ea7b297c712d188136919d314887/cmd/daprd/main.go#L256-L385)

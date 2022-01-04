@@ -10,24 +10,31 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a8m/documentdb"
 	"github.com/agrea/ptr"
+	"github.com/cenkalti/backoff/v4"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
 )
 
-// StateStore is a CosmosDB state store
+// StateStore is a CosmosDB state store.
 type StateStore struct {
 	state.DefaultBulkStore
 	client      *documentdb.DocumentDB
 	collection  *documentdb.Collection
 	db          *documentdb.Database
 	sp          *documentdb.Sproc
+	metadata    metadata
 	contentType string
 
 	features []state.Feature
@@ -42,13 +49,14 @@ type metadata struct {
 	ContentType string `json:"contentType"`
 }
 
-// CosmosItem is a wrapper around a CosmosDB document
+// CosmosItem is a wrapper around a CosmosDB document.
 type CosmosItem struct {
 	documentdb.Document
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
 	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
+	TTL          *int        `json:"ttl,omitempty"`
 }
 
 type storedProcedureDefinition struct {
@@ -57,12 +65,14 @@ type storedProcedureDefinition struct {
 }
 
 const (
-	storedProcedureName  = "__dapr__"
-	metadataPartitionKey = "partitionKey"
-	unknownPartitionKey  = "__UNKNOWN__"
+	storedProcedureName   = "__dapr__"
+	metadataPartitionKey  = "partitionKey"
+	unknownPartitionKey   = "__UNKNOWN__"
+	metadataTTLKey        = "ttlInSeconds"
+	statusTooManyRequests = "429" // RFC 6585, 4
 )
 
-// NewCosmosDBStateStore returns a new CosmosDB state store
+// NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -73,7 +83,7 @@ func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
@@ -95,9 +105,6 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	if m.URL == "" {
 		return errors.New("url is required")
 	}
-	if m.MasterKey == "" {
-		return errors.New("masterKey is required")
-	}
 	if m.Database == "" {
 		return errors.New("database is required")
 	}
@@ -108,65 +115,108 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return errors.New("contentType is required")
 	}
 
-	client := documentdb.New(m.URL, &documentdb.Config{
-		MasterKey: &documentdb.Key{
+	// Create the client; first, try authenticating with a master key, if present
+	var config *documentdb.Config
+	if m.MasterKey != "" {
+		config = documentdb.NewConfig(&documentdb.Key{
 			Key: m.MasterKey,
-		},
-	})
-
-	dbs, err := client.QueryDatabases(&documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Database},
-		},
-	})
-	if err != nil {
-		return err
-	} else if len(dbs) == 0 {
-		return fmt.Errorf("database %s for CosmosDB state store not found", m.Database)
-	}
-
-	c.db = &dbs[0]
-	colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Collection},
-		},
-	})
-	if err != nil {
-		return err
-	} else if len(colls) == 0 {
-		return fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection)
-	}
-
-	c.collection = &colls[0]
-	c.client = client
-	c.contentType = m.ContentType
-
-	sps, err := c.client.ReadStoredProcedures(c.collection.Self)
-	if err != nil {
-		return err
-	}
-
-	// get a link to the sp
-	for i := range sps {
-		if sps[i].Id == storedProcedureName {
-			c.sp = &sps[i]
-
-			break
+		})
+	} else {
+		// Fallback to using Azure AD
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		if errB != nil {
+			return errB
 		}
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
+		}
+		config = documentdb.NewConfigWithServicePrincipal(spt)
 	}
+	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 
-	if c.sp == nil {
-		// register the stored procedure
-		createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
-		c.sp, err = c.client.CreateStoredProcedure(c.collection.Self, createspBody)
+	// Retries initializing the client if a TooManyRequests error is encountered
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 2 * time.Second
+	bo.MaxElapsedTime = 5 * time.Minute
+	err = backoff.RetryNotify(func() (err error) {
+		client := documentdb.New(m.URL, config)
+
+		dbs, err := client.QueryDatabases(&documentdb.Query{
+			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+			Parameters: []documentdb.Parameter{
+				{Name: "@id", Value: m.Database},
+			},
+		})
+
 		if err != nil {
-			// if it already exists that is success
-			if !strings.HasPrefix(err.Error(), "Conflict") {
+			if isTooManyRequestsError(err) {
 				return err
 			}
+			return backoff.Permanent(err)
+		} else if len(dbs) == 0 {
+			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB state store not found", m.Database))
 		}
+
+		c.db = &dbs[0]
+		colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
+			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+			Parameters: []documentdb.Parameter{
+				{Name: "@id", Value: m.Collection},
+			},
+		})
+		if err != nil {
+			if isTooManyRequestsError(err) {
+				return err
+			}
+			return backoff.Permanent(err)
+		} else if len(colls) == 0 {
+			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection))
+		}
+
+		c.metadata = m
+		c.collection = &colls[0]
+		c.client = client
+		c.contentType = m.ContentType
+
+		sps, err := c.client.ReadStoredProcedures(c.collection.Self)
+		if err != nil {
+			if isTooManyRequestsError(err) {
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+
+		// get a link to the sp
+		for i := range sps {
+			if sps[i].Id == storedProcedureName {
+				c.sp = &sps[i]
+
+				break
+			}
+		}
+
+		if c.sp == nil {
+			// register the stored procedure
+			createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
+			c.sp, err = c.client.CreateStoredProcedure(c.collection.Self, createspBody)
+			if err != nil {
+				if isTooManyRequestsError(err) {
+					return err
+				}
+				// if it already exists that is success
+				if !strings.HasPrefix(err.Error(), "Conflict") {
+					return backoff.Permanent(err)
+				}
+			}
+		}
+
+		return nil
+	}, bo, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store initialization failed: %v; retrying in %s", err, d)
+	})
+	if err != nil {
+		return err
 	}
 
 	c.logger.Debug("cosmos Init done")
@@ -174,12 +224,12 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (c *StateStore) Features() []state.Feature {
 	return c.features
 }
 
-// Get retrieves a CosmosDB item
+// Get retrieves a CosmosDB item.
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
@@ -225,7 +275,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Set saves a CosmosDB item
+// Set saves a CosmosDB item.
 func (c *StateStore) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -236,10 +286,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
+		options = append(options, documentdb.IfMatch((*req.ETag)))
+	}
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		etag := uuid.NewString()
 		options = append(options, documentdb.IfMatch((etag)))
 	}
 	if req.Options.Consistency == state.Strong {
@@ -249,8 +299,11 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	doc := createUpsertItem(c.contentType, *req, partitionKey)
-	_, err = c.client.UpsertDocument(c.collection.Self, doc, options...)
+	doc, err := createUpsertItem(c.contentType, *req, partitionKey)
+	if err != nil {
+		return err
+	}
+	_, err = c.client.UpsertDocument(c.collection.Self, &doc, options...)
 
 	if err != nil {
 		if req.ETag != nil {
@@ -263,7 +316,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -287,11 +340,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	if req.ETag != nil {
-		var etag string
-		if req.ETag != nil {
-			etag = *req.ETag
-		}
-		options = append(options, documentdb.IfMatch((etag)))
+		options = append(options, documentdb.IfMatch((*req.ETag)))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -314,7 +363,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	return err
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	upserts := []CosmosItem{}
 	deletes := []CosmosItem{}
@@ -329,7 +378,10 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			upsertOperation := createUpsertItem(c.contentType, req, partitionKey)
+			upsertOperation, err := createUpsertItem(c.contentType, req, partitionKey)
+			if err != nil {
+				return err
+			}
 			upserts = append(upserts, upsertOperation)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -359,8 +411,49 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
-func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) CosmosItem {
+func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	q := &Query{}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(c.client, c.collection)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
+}
+
+func (c *StateStore) Ping() error {
+	m := c.metadata
+
+	colls, err := c.client.QueryCollections(c.db.Self, &documentdb.Query{
+		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+		Parameters: []documentdb.Parameter{
+			{Name: "@id", Value: m.Collection},
+		},
+	})
+	if err != nil {
+		return err
+	} else if len(colls) == 0 {
+		return fmt.Errorf("collection %s for CosmosDB state store not found", m.Collection)
+	}
+
+	return nil
+}
+
+func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
 	byteArray, isBinary := req.Value.([]uint8)
+
+	ttl, err := parseTTL(req.Metadata)
+	if err != nil {
+		return CosmosItem{}, fmt.Errorf("error parsing TTL from metadata: %s", err)
+	}
+
 	if isBinary {
 		if contenttype.IsJSONContentType(contentType) {
 			var value map[string]interface{}
@@ -373,7 +466,8 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 					Value:        value,
 					PartitionKey: partitionKey,
 					IsBinary:     false,
-				}
+					TTL:          ttl,
+				}, nil
 			}
 		} else if contenttype.IsStringContentType(contentType) {
 			return CosmosItem{
@@ -381,7 +475,8 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 				Value:        string(byteArray),
 				PartitionKey: partitionKey,
 				IsBinary:     false,
-			}
+				TTL:          ttl,
+			}, nil
 		}
 	}
 
@@ -390,7 +485,8 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 		Value:        req.Value,
 		PartitionKey: partitionKey,
 		IsBinary:     isBinary,
-	}
+		TTL:          ttl,
+	}, nil
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,
@@ -401,4 +497,32 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	}
 
 	return key
+}
+
+func parseTTL(requestMetadata map[string]string) (*int, error) {
+	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		i := int(parsedVal)
+
+		return &i, nil
+	}
+
+	return nil, nil
+}
+
+func isTooManyRequestsError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if requestError, ok := err.(*documentdb.RequestError); ok {
+		if requestError.Code == statusTooManyRequests {
+			return true
+		}
+	}
+
+	return false
 }

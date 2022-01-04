@@ -5,11 +5,13 @@
 package sqlserver
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -17,13 +19,20 @@ const (
 	sampleUserTableName    = "Users"
 )
 
-type mockMigrator struct {
-}
+type mockMigrator struct{}
 
 func (m *mockMigrator) executeMigrations() (migrationResult, error) {
 	r := migrationResult{}
 
 	return r, nil
+}
+
+type mockFailingMigrator struct{}
+
+func (m *mockFailingMigrator) executeMigrations() (migrationResult, error) {
+	r := migrationResult{}
+
+	return r, errors.New("migration failed")
 }
 
 func TestValidConfiguration(t *testing.T) {
@@ -41,6 +50,7 @@ func TestValidConfiguration(t *testing.T) {
 				schema:           defaultSchema,
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -52,6 +62,19 @@ func TestValidConfiguration(t *testing.T) {
 				schema:           "mytest",
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
+			},
+		},
+		{
+			name:  "String key type",
+			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "string"},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				schema:           defaultSchema,
+				tableName:        sampleUserTableName,
+				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -63,6 +86,7 @@ func TestValidConfiguration(t *testing.T) {
 				tableName:        sampleUserTableName,
 				keyType:          UUIDKeyType,
 				keyLength:        0,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -74,6 +98,7 @@ func TestValidConfiguration(t *testing.T) {
 				tableName:        sampleUserTableName,
 				keyType:          IntegerKeyType,
 				keyLength:        0,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -85,6 +110,7 @@ func TestValidConfiguration(t *testing.T) {
 				tableName:        sampleUserTableName,
 				keyType:          StringKeyType,
 				keyLength:        100,
+				databaseName:     defaultDatabase,
 			},
 		},
 		{
@@ -99,6 +125,7 @@ func TestValidConfiguration(t *testing.T) {
 				indexedProperties: []IndexedProperty{
 					{ColumnName: "Age", Property: "age", Type: "int"},
 				},
+				databaseName: defaultDatabase,
 			},
 		},
 		{
@@ -114,6 +141,31 @@ func TestValidConfiguration(t *testing.T) {
 					{ColumnName: "Age", Property: "age", Type: "int"},
 					{ColumnName: "Name", Property: "name", Type: "nvarchar(100)"},
 				},
+				databaseName: defaultDatabase,
+			},
+		},
+		{
+			name:  "Custom database",
+			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				schema:           defaultSchema,
+				tableName:        sampleUserTableName,
+				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
+				databaseName:     "dapr_test_table",
+			},
+		},
+		{
+			name:  "No table",
+			props: map[string]string{connectionStringKey: sampleConnectionString},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				tableName:        defaultTable,
+				schema:           defaultSchema,
+				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
 			},
 		},
 	}
@@ -136,6 +188,7 @@ func TestValidConfiguration(t *testing.T) {
 			assert.Equal(t, tt.expected.schema, sqlStore.schema)
 			assert.Equal(t, tt.expected.keyType, sqlStore.keyType)
 			assert.Equal(t, tt.expected.keyLength, sqlStore.keyLength)
+			assert.Equal(t, tt.expected.databaseName, sqlStore.databaseName)
 
 			assert.Equal(t, len(tt.expected.indexedProperties), len(sqlStore.indexedProperties))
 			if len(tt.expected.indexedProperties) > 0 && len(tt.expected.indexedProperties) == len(sqlStore.indexedProperties) {
@@ -166,14 +219,14 @@ func TestInvalidConfiguration(t *testing.T) {
 			expectedErr: "missing connection string",
 		},
 		{
-			name:        "Empty table name",
-			props:       map[string]string{connectionStringKey: sampleConnectionString},
-			expectedErr: "missing table name",
-		},
-		{
 			name:        "Invalid maxKeyLength value",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "aa"},
 			expectedErr: "parsing \"aa\"",
+		},
+		{
+			name:        "Negative maxKeyLength value",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "-1"},
+			expectedErr: "invalid key length value of -1",
 		},
 		{
 			name:        "Indexes properties are not valid json",
@@ -210,7 +263,6 @@ func TestInvalidConfiguration(t *testing.T) {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"test GO DROP DATABASE dapr_test", "property": "age", "type": "INT"}]`},
 			expectedErr: "invalid indexed property column name",
 		},
-
 		{
 			name:        "Invalid index property name with ;",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "test;", "type": "INT"}]`},
@@ -231,6 +283,36 @@ func TestInvalidConfiguration(t *testing.T) {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": "INT GO DROP DATABASE dapr_test"}]`},
 			expectedErr: "invalid indexed property type",
 		},
+		{
+			name:        "Index property column cannot be empty",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"", "property": "age", "type": "INT"}]`},
+			expectedErr: "indexed property column cannot be empty",
+		},
+		{
+			name:        "Invalid property name cannot be empty",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "", "type": "INT"}]`},
+			expectedErr: "indexed property name cannot be empty",
+		},
+		{
+			name:        "Invalid property type cannot be empty",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": ""}]`},
+			expectedErr: "indexed property type cannot be empty",
+		},
+		{
+			name:        "Invalid database name with ;",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test;"},
+			expectedErr: "invalid database name",
+		},
+		{
+			name:        "Invalid database name with space",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test GO DROP DATABASE dapr_test"},
+			expectedErr: "invalid database name",
+		},
+		{
+			name:        "Invalid key type invalid",
+			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyTypeKey: "invalid"},
+			expectedErr: "invalid key type",
+		},
 	}
 
 	for _, tt := range tests {
@@ -249,4 +331,28 @@ func TestInvalidConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test that if the migration fails the error is reported.
+func TestExecuteMigrationFails(t *testing.T) {
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+	sqlStore.migratorFactory = func(s *SQLServer) migrator {
+		return &mockFailingMigrator{}
+	}
+
+	metadata := state.Metadata{
+		Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
+	}
+
+	err := sqlStore.Init(metadata)
+	assert.NotNil(t, err)
+}
+
+func TestSupportedFeatures(t *testing.T) {
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+
+	actual := sqlStore.Features()
+	assert.NotNil(t, actual)
+	assert.Equal(t, state.FeatureETag, actual[0])
+	assert.Equal(t, state.FeatureTransactional, actual[1])
 }

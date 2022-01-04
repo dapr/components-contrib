@@ -53,7 +53,7 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
 
 ################################################################################
 # Target: lint                                                                 #
@@ -64,10 +64,34 @@ lint:
 	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################
-# Target: go.mod                                                               #
+# Target: modtidy-all                                                          #
 ################################################################################
-.PHONY: go.mod
-go.mod:
+MODFILES := $(shell find . -name go.mod)
+
+define modtidy-target
+.PHONY: modtidy-$(1)
+modtidy-$(1):
+	cd $(shell dirname $(1)); go mod tidy; cd -
+endef
+
+# Generate modtidy target action for each go.mod file
+$(foreach MODFILE,$(MODFILES),$(eval $(call modtidy-target,$(MODFILE))))
+
+# Enumerate all generated modtidy targets
+# Note that the order of execution matters: root and tests/certification go.mod
+# are dependencies in each certification test. This order is preserved by the
+# tree walk when finding the go.mod files.
+TIDY_MODFILES:=$(foreach ITEM,$(MODFILES),modtidy-$(ITEM))
+
+# Define modtidy-all action trigger to run make on all generated modtidy targets
+.PHONY: modtidy-all
+modtidy-all: $(TIDY_MODFILES)
+
+################################################################################
+# Target: modtidy                                                              #
+################################################################################
+.PHONY: modtidy
+modtidy:
 	go mod tidy
 
 ################################################################################
@@ -76,10 +100,18 @@ go.mod:
 .PHONY: check-diff
 check-diff:
 	git diff --exit-code ./go.mod # check no changes
+	git diff --exit-code ./go.sum # check no changes
 
 ################################################################################
 # Target: conf-tests                                                           #
 ################################################################################
 .PHONY: conf-tests
 conf-tests:
-	@go test -v -tags=conftests -count=1 ./tests/conformance
+	CGO_ENABLED=$(CGO) go test -v -tags=conftests -count=1 ./tests/conformance
+
+################################################################################
+# Target: e2e-tests-zeebe                                                      #
+################################################################################
+.PHONY: e2e-tests-zeebe
+e2e-tests-zeebe:
+	CGO_ENABLED=$(CGO) go test -v -tags=e2etests -count=1 ./tests/e2e/bindings/zeebe/...

@@ -10,12 +10,13 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/service/sns"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
 
-// AWSSNS is an AWS SNS binding
+// AWSSNS is an AWS SNS binding.
 type AWSSNS struct {
 	client   *sns.SNS
 	topicARN string
@@ -37,12 +38,12 @@ type dataPayload struct {
 	Subject interface{} `json:"subject"`
 }
 
-// NewAWSSNS creates a new AWSSNS binding instance
+// NewAWSSNS creates a new AWSSNS binding instance.
 func NewAWSSNS(logger logger.Logger) *AWSSNS {
 	return &AWSSNS{logger: logger}
 }
 
-// Init does metadata parsing
+// Init does metadata parsing.
 func (a *AWSSNS) Init(metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {

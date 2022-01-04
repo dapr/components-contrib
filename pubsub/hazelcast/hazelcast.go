@@ -14,6 +14,7 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -31,7 +32,7 @@ type Hazelcast struct {
 	backOff backoff.BackOff
 }
 
-// NewHazelcastPubSub returns a new hazelcast pub-sub implementation
+// NewHazelcastPubSub returns a new hazelcast pub-sub implementation.
 func NewHazelcastPubSub(logger logger.Logger) pubsub.PubSub {
 	return &Hazelcast{logger: logger}
 }
@@ -151,7 +152,7 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		b = backoff.WithMaxRetries(b, uint64(l.p.metadata.backOffMaxRetries))
 	}
 
-	return pubsub.RetryNotifyRecover(func() error {
+	return retry.NotifyRecover(func() error {
 		l.p.logger.Debug("Processing Hazelcast message")
 
 		return l.pubsubHandler(l.p.ctx, &pubsubMsg)

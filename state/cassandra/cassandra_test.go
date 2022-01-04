@@ -6,10 +6,12 @@
 package cassandra
 
 import (
+	"strconv"
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
 )
 
 func TestGetCassandraMetadata(t *testing.T) {
@@ -96,5 +98,37 @@ func TestGetCassandraMetadata(t *testing.T) {
 
 		_, err := getCassandraMetadata(m)
 		assert.NotNil(t, err)
+	})
+}
+
+func TestParseTTL(t *testing.T) {
+	t.Run("TTL Not an integer", func(t *testing.T) {
+		ttlInSeconds := "not an integer"
+		ttl, err := parseTTL(map[string]string{
+			"ttlInSeconds": ttlInSeconds,
+		})
+		assert.Error(t, err)
+		assert.Nil(t, ttl)
+	})
+	t.Run("TTL specified with wrong key", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl, err := parseTTL(map[string]string{
+			"expirationTime": strconv.Itoa(ttlInSeconds),
+		})
+		assert.NoError(t, err)
+		assert.Nil(t, ttl)
+	})
+	t.Run("TTL is a number", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl, err := parseTTL(map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, *ttl, ttlInSeconds)
+	})
+	t.Run("TTL not set", func(t *testing.T) {
+		ttl, err := parseTTL(map[string]string{})
+		assert.NoError(t, err)
+		assert.Nil(t, ttl)
 	})
 }

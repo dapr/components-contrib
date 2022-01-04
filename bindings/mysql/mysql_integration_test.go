@@ -12,12 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
+	// MySQL doesn't accept RFC3339 formatted time, rejects trailing 'Z' for UTC indicator.
+	mySQLDateTimeFormat = "2006-01-02 15:04:05"
+
 	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
 		id bigint NOT NULL,
 		v1 character varying(50) NOT NULL,
@@ -84,7 +88,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke insert", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(time.RFC3339))
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat))
 			res, err := b.Invoke(req)
 			assertResponse(t, res, err)
 		}
@@ -93,7 +97,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke update", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(mySQLDateTimeFormat), i)
 			res, err := b.Invoke(req)
 			assertResponse(t, res, err)
 		}
@@ -121,7 +125,7 @@ func TestMysqlIntegration(t *testing.T) {
 		assert.True(t, ok)
 		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
 		var tt time.Time
-		tt, err = time.Parse("2006-01-02 15:04:05", ts)
+		tt, err = time.Parse("2006-01-02T15:04:05Z", ts)
 		assert.Nil(t, err)
 		t.Logf("time stamp is: %v", tt)
 	})
@@ -153,5 +157,7 @@ func TestMysqlIntegration(t *testing.T) {
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
-	assert.NotNil(t, res.Metadata)
+	if res != nil {
+		assert.NotNil(t, res.Metadata)
+	}
 }

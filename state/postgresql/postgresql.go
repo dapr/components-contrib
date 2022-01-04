@@ -12,14 +12,14 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// PostgreSQL state store
+// PostgreSQL state store.
 type PostgreSQL struct {
 	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
 }
 
-// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store
+// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
 	dba := newPostgresDBAccess(logger)
 
@@ -36,43 +36,47 @@ func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 	}
 }
 
-// Init initializes the SQL server state store
+// Init initializes the SQL server state store.
 func (p *PostgreSQL) Init(metadata state.Metadata) error {
 	return p.dbaccess.Init(metadata)
 }
 
-// Features returns the features available in this state store
+func (p *PostgreSQL) Ping() error {
+	return nil
+}
+
+// Features returns the features available in this state store.
 func (p *PostgreSQL) Features() []state.Feature {
 	return p.features
 }
 
-// Delete removes an entity from the store
+// Delete removes an entity from the store.
 func (p *PostgreSQL) Delete(req *state.DeleteRequest) error {
 	return p.dbaccess.Delete(req)
 }
 
-// BulkDelete removes multiple entries from the store
+// BulkDelete removes multiple entries from the store.
 func (p *PostgreSQL) BulkDelete(req []state.DeleteRequest) error {
 	return p.dbaccess.ExecuteMulti(nil, req)
 }
 
-// Get returns an entity from store
+// Get returns an entity from store.
 func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return p.dbaccess.Get(req)
 }
 
-// BulkGet performs a bulks get operations
+// BulkGet performs a bulks get operations.
 func (p *PostgreSQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with ExecuteMulti for performance
 	return false, nil, nil
 }
 
-// Set adds/updates an entity on store
+// Set adds/updates an entity on store.
 func (p *PostgreSQL) Set(req *state.SetRequest) error {
 	return p.dbaccess.Set(req)
 }
 
-// BulkSet adds/updates multiple entities on store
+// BulkSet adds/updates multiple entities on store.
 func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
 	return p.dbaccess.ExecuteMulti(req, nil)
 }
@@ -109,7 +113,7 @@ func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
-// Close implements io.Closer
+// Close implements io.Closer.
 func (p *PostgreSQL) Close() error {
 	if p.dbaccess != nil {
 		return p.dbaccess.Close()

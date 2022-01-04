@@ -1,0 +1,47 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: localhost:19093,localhost:29093,localhost:39093
+  - name: consumerGroup
+    value: kafkaCertification2
+  - name: authType
+    value: "oidc"
+  - name: initialOffset
+    value: oldest
+  - name: backOffDuration
+    value: 50ms
+  - name: oidcTokenEndpoint
+    value: https://localhost:4443/oauth2/token
+  - name: oidcClientID
+    value: "dapr"
+  - name: oidcClientSecret
+    value: "dapr-test"
+  - name: oidcScopes
+    value: openid,kafka
+  - name: caCert
+    value: |
+      -----BEGIN CERTIFICATE-----
+      MIIDJjCCAg6gAwIBAgIUJPqvjfNx6kMf7mE5FtW81+X8HekwDQYJKoZIhvcNAQEL
+      BQAwKzESMBAGA1UECxMJRGFwciBUZXN0MRUwEwYDVQQDEwxEYXByIFRlc3QgQ0Ew
+      HhcNMjExMjA0MTYyNzAwWhcNMjYxMjAzMTYyNzAwWjArMRIwEAYDVQQLEwlEYXBy
+      IFRlc3QxFTATBgNVBAMTDERhcHIgVGVzdCBDQTCCASIwDQYJKoZIhvcNAQEBBQAD
+      ggEPADCCAQoCggEBAMPLpsfCUdYf+7RAY7mktcj4/qJJyNroHxS8ChwSeJ0M/dLk
+      I6G4kyty3TGvzmrdxkr2DW2B+ZmrZFzSVQg+kNESMhEWLJt4MtyGMNuDZcwV5kJL
+      NPltLYmov2z8hyD2v6agZNyiWM0k2p/dl+Ikp4DJmd08PSd+nhc5Wj9X33gsEAoK
+      jKptl+XGGvSlC3tIbHmBhRsP42QlLjqk5PWxINbMDePHOiYFmau3VRrbPweKTFuF
+      bY0Y0w8t1qOFX55hU7LkMEXjLmuUfFUEZvn3NUTvH80gKDioiJTC7NBRE6sCYAlm
+      b4Vvix3p9Y/yNKbMA5J3chaZdTZfVqAXplZY3jMCAwEAAaNCMEAwDgYDVR0PAQH/
+      BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFH6X+clU0D49SZ9ezWRg
+      lsF83glvMA0GCSqGSIb3DQEBCwUAA4IBAQAjeaFNxIhWZkDYiwsVP5R2JqFifZbq
+      A/m9YJypRwA+rUeBLFGuIh4QPFf2fZlskJYmFaDB3aplQGoSIzB1HCC0OAhJM5Ec
+      z6gm+bhqDfCaWz1HfmpvvQes1l/mUzYx5GfiX202W87CMKMQ+5WSg1IsCPFwYN2w
+      nZkGKYkh9D9TzIFMfi2b1G+O+BuUUyOAXvT8zcJ17GexRHHdc1Gq+1PgDPDL1Sug
+      rLHmo+dDTZhIV5D14wvxsNHTTr5tt0aaQw3fJqo6P2HE2dBiqadSYnlwS7BQ9Jxc
+      MlmFggFubM9/QGQ/hGQYmTp+LSlM5ndaVA80o7+SOQZ2aliuH0fQN3ST
+      -----END CERTIFICATE-----

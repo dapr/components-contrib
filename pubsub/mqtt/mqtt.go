@@ -20,10 +20,11 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
-	// Keys
+	// Keys.
 	mqttURL               = "url"
 	mqttQOS               = "qos"
 	mqttRetain            = "retain"
@@ -34,10 +35,10 @@ const (
 	mqttClientKey         = "clientKey"
 	mqttBackOffMaxRetries = "backOffMaxRetries"
 
-	// errors
+	// errors.
 	errorMsgPrefix = "mqtt pub sub error:"
 
-	// Defaults
+	// Defaults.
 	defaultQOS          = 0
 	defaultRetain       = false
 	defaultWait         = 3 * time.Second
@@ -216,7 +217,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 				if m.metadata.backOffMaxRetries >= 0 {
 					b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
 				}
-				if err := pubsub.RetryNotifyRecover(func() error {
+				if err := retry.NotifyRecover(func() error {
 					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
 					if err := handler(m.ctx, &msg); err != nil {
 						return err

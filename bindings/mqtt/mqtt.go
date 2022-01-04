@@ -19,14 +19,15 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
-	// Keys
+	// Keys.
 	mqttURL               = "url"
 	mqttTopic             = "topic"
 	mqttQOS               = "qos"
@@ -38,17 +39,17 @@ const (
 	mqttClientKey         = "clientKey"
 	mqttBackOffMaxRetries = "backOffMaxRetries"
 
-	// errors
+	// errors.
 	errorMsgPrefix = "mqtt binding error:"
 
-	// Defaults
+	// Defaults.
 	defaultQOS          = 0
 	defaultRetain       = false
 	defaultWait         = 3 * time.Second
 	defaultCleanSession = true
 )
 
-// MQTT allows sending and receiving data to/from an MQTT broker
+// MQTT allows sending and receiving data to/from an MQTT broker.
 type MQTT struct {
 	producer mqtt.Client
 	consumer mqtt.Client
@@ -60,7 +61,7 @@ type MQTT struct {
 	backOff backoff.BackOff
 }
 
-// NewMQTT returns a new MQTT instance
+// NewMQTT returns a new MQTT instance.
 func NewMQTT(logger logger.Logger) *MQTT {
 	return &MQTT{logger: logger}
 }
@@ -152,7 +153,7 @@ func parseMQTTMetaData(md bindings.Metadata) (*metadata, error) {
 	return &m, nil
 }
 
-// Init does MQTT connection parsing
+// Init does MQTT connection parsing.
 func (m *MQTT) Init(metadata bindings.Metadata) error {
 	mqttMeta, err := parseMQTTMetaData(metadata)
 	if err != nil {
@@ -185,14 +186,53 @@ func (m *MQTT) Operations() []bindings.OperationKind {
 }
 
 func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	m.logger.Debugf("mqtt publishing topic %s with data: %v", m.metadata.topic, req.Data)
+	// MQTT client Publish() has an internal race condition in the default autoreconnect config.
+	// To mitigate sporadic failures on the Dapr side, this implementation retries 3 times at
+	// a fixed 200ms interval. This is not configurable to keep this as an implementation detail
+	// for this component, as the additional public config metadata required could be replaced
+	// by the more general Dapr APIs for resiliency moving forwards.
+	cbo := backoff.NewConstantBackOff(200 * time.Millisecond)
+	bo := backoff.WithMaxRetries(cbo, 3)
+	bo = backoff.WithContext(bo, m.ctx)
 
-	token := m.producer.Publish(m.metadata.topic, m.metadata.qos, m.metadata.retain, req.Data)
-	if !token.WaitTimeout(defaultWait) || token.Error() != nil {
-		return nil, fmt.Errorf("mqtt error from publish: %v", token.Error())
+	return nil, retry.NotifyRecover(func() error {
+		m.logger.Debugf("mqtt publishing topic %s with data: %v", m.metadata.topic, req.Data)
+		token := m.producer.Publish(m.metadata.topic, m.metadata.qos, m.metadata.retain, req.Data)
+		if !token.WaitTimeout(defaultWait) || token.Error() != nil {
+			return fmt.Errorf("mqtt error from publish: %v", token.Error())
+		}
+		return nil
+	}, bo, func(err error, _ time.Duration) {
+		m.logger.Debugf("Could not publish MQTT message. Retrying...: %v", err)
+	}, func() {
+		m.logger.Debug("Successfully published MQTT message after it previously failed")
+	})
+}
+
+func (m *MQTT) handleMessage(handler func(*bindings.ReadResponse) ([]byte, error), mqttMsg mqtt.Message) error {
+	msg := bindings.ReadResponse{Data: mqttMsg.Payload()}
+
+	// paho.mqtt.golang requires that handlers never block or it can deadlock on client.Disconnect.
+	// To ensure that the Dapr runtime does not hang on teardown on of the component, run the app's
+	// handling code in a goroutine so that this handler function is always cancellable on Close().
+	ch := make(chan error)
+	go func(m *bindings.ReadResponse) {
+		defer close(ch)
+		_, err := handler(m)
+		ch <- err
+	}(&msg)
+
+	select {
+	case handlerErr := <-ch:
+		if handlerErr != nil {
+			return handlerErr
+		}
+		mqttMsg.Ack()
+		return nil
+	case <-m.ctx.Done():
+		m.logger.Infof("Read context cancelled: %v", m.ctx.Err())
+		return m.ctx.Err()
 	}
-
-	return nil, nil
 }
 
 func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
@@ -216,21 +256,14 @@ func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error 
 
 	m.logger.Debugf("mqtt subscribing to topic %s", m.metadata.topic)
 	token := m.consumer.Subscribe(m.metadata.topic, m.metadata.qos, func(client mqtt.Client, mqttMsg mqtt.Message) {
-		msg := bindings.ReadResponse{Data: mqttMsg.Payload()}
-
 		b := m.backOff
 		if m.metadata.backOffMaxRetries >= 0 {
 			b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
 		}
-		if err := pubsub.RetryNotifyRecover(func() error {
+
+		if err := retry.NotifyRecover(func() error {
 			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-			if _, err := handler(&msg); err != nil {
-				return err
-			}
-
-			mqttMsg.Ack()
-
-			return nil
+			return m.handleMessage(handler, mqttMsg)
 		}, b, func(err error, d time.Duration) {
 			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
 		}, func() {
@@ -309,4 +342,16 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	opts.SetTLSConfig(m.newTLSConfig())
 
 	return opts
+}
+
+func (m *MQTT) Close() error {
+	// Cancel any read callback handlers before Disconnect to prevent deadlocks.
+	m.cancel()
+
+	if m.consumer != nil {
+		m.consumer.Disconnect(1)
+	}
+	m.producer.Disconnect(1)
+
+	return nil
 }

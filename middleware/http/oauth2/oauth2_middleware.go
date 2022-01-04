@@ -10,14 +10,15 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/dapr/components-contrib/middleware"
 	"github.com/fasthttp-contrib/sessions"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/oauth2"
+
+	"github.com/dapr/components-contrib/middleware"
 )
 
-// Metadata is the oAuth middleware config
+// Metadata is the oAuth middleware config.
 type oAuth2MiddlewareMetadata struct {
 	ClientID       string `json:"clientID"`
 	ClientSecret   string `json:"clientSecret"`
@@ -29,14 +30,13 @@ type oAuth2MiddlewareMetadata struct {
 	ForceHTTPS     string `json:"forceHTTPS"`
 }
 
-// NewOAuth2Middleware returns a new oAuth2 middleware
+// NewOAuth2Middleware returns a new oAuth2 middleware.
 func NewOAuth2Middleware() *Middleware {
 	return &Middleware{}
 }
 
-// Middleware is an oAuth2 authentication middleware
-type Middleware struct {
-}
+// Middleware is an oAuth2 authentication middleware.
+type Middleware struct{}
 
 const (
 	stateParam   = "state"
@@ -46,7 +46,7 @@ const (
 	https        = "https://"
 )
 
-// GetHandler retruns the HTTP handler provided by the middleware
+// GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {

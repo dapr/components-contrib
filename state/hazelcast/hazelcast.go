@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 	"github.com/hazelcast/hazelcast-go-client"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 	hazelcastMap     = "hazelcastMap"
 )
 
-// Hazelcast state store
+// Hazelcast state store.
 type Hazelcast struct {
 	state.DefaultBulkStore
 	hzMap  core.Map
@@ -25,7 +26,7 @@ type Hazelcast struct {
 	logger logger.Logger
 }
 
-// NewHazelcastStore returns a new hazelcast backed state store
+// NewHazelcastStore returns a new hazelcast backed state store.
 func NewHazelcastStore(logger logger.Logger) *Hazelcast {
 	s := &Hazelcast{
 		json:   jsoniter.ConfigFastest,
@@ -47,7 +48,7 @@ func validateMetadata(metadata state.Metadata) error {
 	return nil
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (store *Hazelcast) Init(metadata state.Metadata) error {
 	err := validateMetadata(metadata)
 	if err != nil {
@@ -71,12 +72,12 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (store *Hazelcast) Features() []state.Feature {
 	return nil
 }
 
-// Set stores value for a key to Hazelcast
+// Set stores value for a key to Hazelcast.
 func (store *Hazelcast) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req)
 	if err != nil {
@@ -102,7 +103,7 @@ func (store *Hazelcast) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// Get retrieves state from Hazelcast with a key
+// Get retrieves state from Hazelcast with a key.
 func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	resp, err := store.hzMap.Get(req.Key)
 	if err != nil {
@@ -123,7 +124,11 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Delete performs a delete operation
+func (store *Hazelcast) Ping() error {
+	return nil
+}
+
+// Delete performs a delete operation.
 func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {

@@ -1,6 +1,5 @@
 # Components Contrib
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/dapr/components-contrib)](https://goreportcard.com/report/github.com/dapr/components-contrib)
 [![Build Status](https://github.com/dapr/components-contrib/workflows/components-contrib/badge.svg?event=push&branch=master)](https://github.com/dapr/components-contrib/actions?workflow=components-contrib)
 [![Discord](https://img.shields.io/discord/778680217417809931)](https://discord.com/channels/778680217417809931/781589820128493598)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

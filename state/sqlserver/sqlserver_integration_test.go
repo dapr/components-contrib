@@ -28,7 +28,7 @@ import (
 const (
 	// connectionStringEnvKey defines the key containing the integration test connection string
 	// To use docker, server=localhost;user id=sa;password=Pass@Word1;port=1433;
-	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;user id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;
+	// To use Azure SQL, server=<your-db-server-name>.database.windows.net;user id=<your-db-user>;port=1433;password=<your-password>;database=dapr_test;.
 	connectionStringEnvKey        = "DAPR_TEST_SQL_CONNSTRING"
 	usersTableName                = "Users"
 	beverageTea                   = "tea"
@@ -55,25 +55,12 @@ func getMasterConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
-func getConnectionString() string {
-	if connString := getMasterConnectionString(); connString != "" {
-		if strings.Contains(connString, "database=") {
-			return connString
-		}
-
-		return connString + ";database=dapr_test;"
-	}
-
-	return ""
-}
-
 func TestIntegrationCases(t *testing.T) {
 	connectionString := getMasterConnectionString()
 	if connectionString == "" {
 		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
 	}
 
-	ensureDBIsValid(t)
 	t.Run("Single operations", testSingleOperations)
 	t.Run("Set New Record With Invalid Etag Should Fail", testSetNewRecordWithInvalidEtagShouldFail)
 	t.Run("Indexed Properties", testIndexedProperties)
@@ -100,10 +87,11 @@ func getUniqueDBSchema() string {
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
 	metadata := state.Metadata{
 		Properties: map[string]string{
-			connectionStringKey: getConnectionString(),
+			connectionStringKey: getMasterConnectionString(),
 			schemaKey:           schema,
 			tableNameKey:        usersTableName,
 			keyTypeKey:          string(kt),
+			databaseNameKey:     "dapr_test",
 		},
 	}
 
@@ -115,13 +103,12 @@ func createMetadata(schema string, kt KeyType, indexedProperties string) state.M
 }
 
 // Ensure the database is running
-// For docker, use: docker run --name sqlserver -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Pass@Word1" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04
+// For docker, use: docker run --name sqlserver -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=Pass@Word1" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2019-GA-ubuntu-16.04.
 func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 	return getTestStoreWithKeyType(t, StringKeyType, indexedProperties)
 }
 
 func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *SQLServer {
-	ensureDBIsValid(t)
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
 	store := NewSQLServerStateStore(logger.NewLogger("test"))
@@ -129,17 +116,6 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 	assert.Nil(t, err)
 
 	return store
-}
-
-func ensureDBIsValid(t *testing.T) {
-	db, err := sql.Open("sqlserver", getMasterConnectionString())
-	assert.Nil(t, err)
-	defer db.Close()
-
-	_, err = db.Exec(`
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = N'dapr_test')
-	CREATE DATABASE [dapr_test]`)
-	assert.Nil(t, err)
 }
 
 func assertUserExists(t *testing.T, store *SQLServer, key string) (user, string) {
@@ -183,7 +159,7 @@ func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader fu
 	assertReader(t, rows)
 }
 
-/* #nosec */
+/* #nosec. */
 func assertUserCountIsEqualTo(t *testing.T, store *SQLServer, expected int) {
 	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.schema, store.tableName)
 	assertDBQuery(t, store, tsql, func(t *testing.T, rows *sql.Rows) {
@@ -209,8 +185,7 @@ func (n *numbericKeyGenerator) NextKey() string {
 	return strconv.Itoa(int(val))
 }
 
-type uuidKeyGenerator struct {
-}
+type uuidKeyGenerator struct{}
 
 func (n uuidKeyGenerator) NextKey() string {
 	return uuid.New().String()
@@ -291,7 +266,7 @@ func testSetNewRecordWithInvalidEtagShouldFail(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-/* #nosec */
+/* #nosec. */
 func testIndexedProperties(t *testing.T) {
 	store := getTestStore(t, `[{ "column":"FavoriteBeverage", "property":"FavoriteBeverage", "type":"nvarchar(100)"}, { "column":"PetsCount", "property":"PetsCount", "type": "INTEGER"}]`)
 
@@ -711,7 +686,7 @@ func testBulkDelete(t *testing.T) {
 	}
 }
 
-/* #nosec */
+/* #nosec. */
 func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	const maxDiffInMs = float64(500)
 	store := getTestStore(t, "")

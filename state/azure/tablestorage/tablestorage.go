@@ -76,6 +76,8 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	client, _ := storage.NewBasicClient(meta.accountName, meta.accountKey)
 	tables := client.GetTableService()
+	userAgent := "dapr-" + logger.DaprVersion
+	client.AddToUserAgent(userAgent)
 	r.table = tables.GetTableReference(meta.tableName)
 
 	// check table exists
@@ -95,7 +97,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
@@ -107,6 +109,9 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
+		} else if isNotFoundError(err) {
+			// deleting an item that doesn't exist without specifying an ETAG is a noop
+			return nil
 		}
 	}
 
@@ -138,11 +143,6 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
 	err := r.writeRow(req)
-	if err != nil {
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-	}
 
 	return err
 }
@@ -170,13 +170,13 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	if val, ok := metadata[accountKeyKey]; ok && val != "" {
 		meta.accountKey = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing of empty %s field from metadata", accountKeyKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", accountKeyKey))
 	}
 
 	if val, ok := metadata[tableNameKey]; ok && val != "" {
 		meta.tableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing of empty %s field from metadata", tableNameKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", tableNameKey))
 	}
 
 	return &meta, nil
@@ -195,26 +195,53 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	}
 	entity.OdataEtag = etag
 
-	// InsertOrReplace does not support ETag concurrency, therefore we will try to use Update method first
-	// as it's more frequent, and then Insert
+	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence
+	// and then use Update to update the key if it exists with the specified ETag
 
-	err := entity.Update(false, nil)
+	err := entity.Insert(storage.FullMetadata, nil)
 	if err != nil {
-		if isNotFoundError(err) {
-			// When entity is not found (set state first time) create it
-			entity.OdataEtag = ""
-
-			return entity.Insert(storage.FullMetadata, nil)
+		// If Insert failed because item already exists, try to Update instead per Upsert semantics
+		if isEntityAlreadyExistsError(err) {
+			// Always Update using the etag when provided even if Concurrency != FirstWrite.
+			// Today the presence of etag takes precedence over Concurrency.
+			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
+			if etag != "" {
+				uerr := entity.Update(false, nil)
+				if uerr != nil {
+					if isNotFoundError(uerr) {
+						return state.NewETagError(state.ETagMismatch, uerr)
+					}
+					return uerr
+				}
+			} else if req.Options.Concurrency == state.FirstWrite {
+				// Otherwise, if FirstWrite was set, but no etag was provided for an Update operation
+				// explicitly flag it as an error.
+				// entity.Update itself does not flag the test case as a mismatch as it does not distinguish
+				// between nil and "" etags, the initial etag will always be "", which would match on update.
+				return state.NewETagError(state.ETagMismatch, errors.New("update with Concurrency.FirstWrite without ETag"))
+			} else {
+				// Finally, last write semantics without ETag should always perform a force update.
+				return entity.Update(true, nil)
+			}
+		} else {
+			// Any other unexpected error on Insert is propagated to the caller
+			return err
 		}
 	}
 
-	return err
+	return nil
 }
 
 func isNotFoundError(err error) bool {
 	azureError, ok := err.(storage.AzureStorageServiceError)
 
 	return ok && azureError.Code == "ResourceNotFound"
+}
+
+func isEntityAlreadyExistsError(err error) bool {
+	azureError, ok := err.(storage.AzureStorageServiceError)
+
+	return ok && azureError.Code == "EntityAlreadyExists"
 }
 
 func isTableAlreadyExistsError(err error) bool {
@@ -227,13 +254,21 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
 
-	var etag string
 	if req.ETag != nil {
-		etag = *req.ETag
-	}
-	entity.OdataEtag = etag
+		entity.OdataEtag = *req.ETag
 
+		// force=false sets the "If-Match: <ETag>" header to ensure that the delete is only performed if the
+		// entity's ETag matches the specified ETag
+		return entity.Delete(false, nil)
+	}
+
+	// force=true sets the "If-Match: *" header to ensure that we delete a matching entity
+	// regardless of the entity's ETag value
 	return entity.Delete(true, nil)
+}
+
+func (r *StateStore) Ping() error {
+	return nil
 }
 
 func getPartitionAndRowKey(key string) (string, string) {

@@ -6,6 +6,8 @@
 name: Components Conformance Tests
 
 on:
+  repository_dispatch:
+    types: [conformance-test]
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
@@ -15,11 +17,24 @@ on:
       - release-*
 
 jobs:
+  pre_job:
+    name: Skip Duplicate Actions
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v3.4.0
+        with:
+          cancel_others: 'true'
+          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the conformance tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
     runs-on: ubuntu-latest
+    needs: pre_job
+    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
     steps:
     - name: Install yq
       run: |
@@ -30,6 +45,7 @@ jobs:
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
+        - bindings.influx
         - bindings.kafka
         - bindings.redis
         - bindings.mqtt-mosquitto
@@ -44,11 +60,16 @@ jobs:
         - pubsub.mqtt-vernemq
         - pubsub.hazelcast
         - pubsub.rabbitmq
+        - pubsub.in-memory
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
         - state.mongodb
         - state.redis
+        - state.sqlserver
+        - state.postgresql
+        - state.mysql
+        - state.cassandra
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -74,21 +95,31 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: state.cosmosdb
+        - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.azure.sql
+          required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
+        - component: state.azure.tablestorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: pubsub.azure.eventhubs
+          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
+        - component: bindings.azure.eventhubs
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
         - component: bindings.azure.servicebusqueues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault
-          required-secrets: AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
+        - component: secretstores.azure.keyvault.certificate
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
           required-certs: AzureKeyVaultSecretStoreCert
+        - component: secretstores.azure.keyvault.serviceprincipal
+          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
@@ -102,25 +133,44 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./src/github.com/dapr/components-contrib
+        working-directory: ${{ env.PROJECT_PATH }}
     needs: generate-matrix
     env:
-      # Set this to your keyvault.
-      #
-      # The KeyVault policy must be granted to your Service Principal using
-      #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
-      AZURE_KEYVAULT: dapr-conf-tests
+      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
         include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+
     steps:
+    - name: Set default payload repo and ref
+      working-directory: ${{ github.workspace }}
+      run: |
+        echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
+        echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+        fi
+  
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ./src/github.com/dapr/components-contrib
+        path: ${{ env.PROJECT_PATH }}
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
+
+    - name: Setup test output
+      run: |
+        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
+        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
       with:
@@ -130,7 +180,9 @@ jobs:
     - name: Setup secrets
       uses: Azure/get-keyvault-secrets@v1
       with:
-        keyvault: ${{ env.AZURE_KEYVAULT }}
+        # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
+        #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+        keyvault: ${{ secrets.AZURE_KEYVAULT }}
         secrets: ${{ matrix.required-secrets }}
       id: get-azure-secrets
       if: matrix.required-secrets != ''
@@ -141,9 +193,9 @@ jobs:
         wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
         unzip -qq ngrok-stable-linux-amd64.zip
         ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
-        ./ngrok http -log=stdout -host-header=localhost 9000 > /tmp/ngrok.log &
+        ./ngrok http -log=stdout --log-level debug -host-header=localhost 9000 > /tmp/ngrok.log &
         sleep 10
-        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eo 'https://.*'`
+        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eom1 'https://.*' | sed 's/\s.*//'`
         echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
         echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
         cat /tmp/ngrok.log
@@ -158,7 +210,7 @@ jobs:
           CERT_FILE=$(mktemp --suffix .pfx)
           echo "Downloading cert $CERT_NAME into file $CERT_FILE"
           rm $CERT_FILE && \
-            az keyvault secret download --vault-name $AZURE_KEYVAULT --name $CERT_NAME --encoding base64 --file $CERT_FILE
+            az keyvault secret download --vault-name ${{ secrets.AZURE_KEYVAULT }} --name $CERT_NAME --encoding base64 --file $CERT_FILE
           echo 'Setting $CERT_NAME to' "$CERT_FILE"
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
@@ -175,6 +227,10 @@ jobs:
         mongodb-version: 4.2
         mongodb-replica-set: test-rs
       if: contains(matrix.component, 'mongodb')
+
+    - name: Start sqlserver
+      run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
+      if: contains(matrix.component, 'sqlserver')
 
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
@@ -208,9 +264,31 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
 
+    - name: Start influxdb
+      run: |
+        export INFLUX_TOKEN=$(openssl rand -base64 32)
+        echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
+        docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
+      if: contains(matrix.component, 'influx')
+
+    - name: Start mysql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
+      if: contains(matrix.component, 'mysql')
+
     - name: Start KinD
       uses: helm/kind-action@v1.0.0
       if: contains(matrix.component, 'kubernetes')
+
+    - name: Start postgresql
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
+      if: contains(matrix.component, 'postgresql')
+
+    - name: Start cassandra
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
+      if: contains(matrix.component, 'cassandra')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
@@ -220,10 +298,20 @@ jobs:
 
     - name: Set up Go
       uses: actions/setup-go@v2
+      with:
+        go-version: '^1.17.3'
     
     - name: Download Go dependencies
       run: |
         go mod download
+        go install gotest.tools/gotestsum@latest
+
+    - name: Generate Azure SQL DB name
+      run: |
+        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
+        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
+        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
+      if: contains(matrix.component, 'azure.sql')
 
     - name: Run tests
       continue-on-error: true
@@ -240,8 +328,10 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         set +e
-        go test -timeout=15m -v -tags=conftests -count=1 ./tests/conformance \
-          --run="Test${KIND_UPPER}Conformance/${NAME}" 2>&1 | tee output.log
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
+
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
         if test $status -ne 0; then
@@ -251,7 +341,7 @@ jobs:
         set -e
 
         # Fail the step if we found no test to run
-        if grep -q "warning: no tests to run" output.log ; then
+        if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
@@ -259,7 +349,25 @@ jobs:
     - name: Stop ngrok
       if: contains(matrix.component, 'azure.eventgrid')
       continue-on-error: true
-      run: pkill ngrok; cat /tmp/ngrok.log
+      run: |
+        set +e
+        echo "GET ngrok tunnels:"
+        curl http://localhost:4040/api/tunnels
+        echo "GET ngrok http requests:"
+        curl http://localhost:4040/api/requests/http
+        pkill ngrok
+        cat /tmp/ngrok.log
+
+    - name: Cleanup Azure SQL test DB instance
+      if: contains(matrix.component, 'azure.sql')
+      continue-on-error: true
+      run: |
+        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
+        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
+        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
+        # deletion may be ongoing in sequential runs.
+        sleep 1m
+        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs
@@ -279,3 +387,11 @@ jobs:
         if [[ -v CONFORMANCE_FAILURE ]]; then
           exit 1
         fi
+
+    # Upload logs for test analytics to consume
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{ matrix.component }}_conformance_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*

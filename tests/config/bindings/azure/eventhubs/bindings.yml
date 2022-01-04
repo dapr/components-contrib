@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-eventhubs
+  namespace: default
+spec:
+  type: bindings.azure.eventhubs
+  version: v1
+  metadata:
+  - name: connectionString
+    value: ${{AzureEventHubsBindingsConnectionString}}
+  - name: consumerGroup
+    value: ${{AzureEventHubsBindingsConsumerGroup}}
+  # Reuse the blob storage account from the storage bindings conformance test
+  - name: storageAccountName
+    value: ${{AzureBlobStorageAccount}}
+  - name: storageAccountKey
+    value: ${{AzureBlobStorageAccessKey}}
+  - name: storageContainerName
+    value: ${{AzureEventHubsBindingsContainer}}

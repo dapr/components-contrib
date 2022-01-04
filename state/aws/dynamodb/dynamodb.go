@@ -8,12 +8,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	jsoniterator "github.com/json-iterator/go"
+
 	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/state"
-	jsoniterator "github.com/json-iterator/go"
 )
 
-// StateStore is a DynamoDB state store
+// StateStore is a DynamoDB state store.
 type StateStore struct {
 	client dynamodbiface.DynamoDBAPI
 	table  string
@@ -28,12 +29,12 @@ type dynamoDBMetadata struct {
 	Table        string `json:"table"`
 }
 
-// NewDynamoDBStateStore returns a new dynamoDB state store
+// NewDynamoDBStateStore returns a new dynamoDB state store.
 func NewDynamoDBStateStore() state.Store {
 	return &StateStore{}
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (d *StateStore) Init(metadata state.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
@@ -51,12 +52,16 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+func (d *StateStore) Ping() error {
+	return nil
+}
+
+// Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
 	return nil
 }
 
-// Get retrieves a dynamoDB item
+// Get retrieves a dynamoDB item.
 func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	input := &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(req.Options.Consistency == state.Strong),
@@ -87,13 +92,13 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// BulkGet performs a bulk get operations
+// BulkGet performs a bulk get operations.
 func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with dynamodb.BatchGetItem for performance
 	return false, nil, nil
 }
 
-// Set saves a dynamoDB item
+// Set saves a dynamoDB item.
 func (d *StateStore) Set(req *state.SetRequest) error {
 	value, err := d.marshalToString(req.Value)
 	if err != nil {
@@ -119,7 +124,7 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 	return e
 }
 
-// BulkSet performs a bulk set operation
+// BulkSet performs a bulk set operation.
 func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
@@ -155,7 +160,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	return e
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (d *StateStore) Delete(req *state.DeleteRequest) error {
 	input := &dynamodb.DeleteItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -170,7 +175,7 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 	return err
 }
 
-// BulkDelete performs a bulk delete operation
+// BulkDelete performs a bulk delete operation.
 func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 

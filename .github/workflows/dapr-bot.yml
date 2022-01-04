@@ -1,0 +1,66 @@
+name: dapr-bot
+
+on:
+  issue_comment: {types: created}
+
+jobs:
+  daprbot:
+    name: bot-processor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment analyzer
+        uses: actions/github-script@v1
+        with:
+          github-token: ${{secrets.DAPR_BOT_TOKEN}}
+          script: |
+            const payload = context.payload;
+            const issue = context.issue;
+            const isFromPulls = !!payload.issue.pull_request;
+            const commentBody = payload.comment.body;
+
+            if (isFromPulls && commentBody) {
+              if (commentBody.indexOf("/ok-to-test") == 0) {
+                // Get pull request
+                const pull = await github.pulls.get({
+                  owner: issue.owner,
+                  repo: issue.repo,
+                  pull_number: issue.number
+                });
+                if (pull && pull.data) {
+                  // Get commit id and repo from pull head
+                  const testPayload = {
+                    pull_head_ref: pull.data.head.sha,
+                    pull_head_repo: pull.data.head.repo.full_name,
+                    command: "ok-to-test",
+                    issue: issue,
+                  };
+                  // Fire repository_dispatch event to trigger conformance test
+                  await github.repos.createDispatchEvent({
+                    owner: issue.owner,
+                    repo: issue.repo,
+                    event_type: "conformance-test",
+                    client_payload: testPayload,
+                  });
+                  // Fire repository_dispatch event to trigger certification test
+                  await github.repos.createDispatchEvent({
+                    owner: issue.owner,
+                    repo: issue.repo,
+                    event_type: "certification-test",
+                    client_payload: testPayload,
+                  });
+                }
+              }
+            }
+
+            if (!isFromPulls && commentBody && commentBody.indexOf("/assign") == 0) {
+              if (!issue.assignees || issue.assignees.length === 0) {
+                await github.issues.addAssignees({
+                  owner: issue.owner,
+                  repo: issue.repo,
+                  issue_number: issue.number,
+                  assignees: [context.actor],
+                })
+              }
+
+              return;
+            }

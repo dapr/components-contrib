@@ -14,10 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt"
+	"github.com/pkg/errors"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 	userKey             = "user"
 )
 
-// NewSignalR creates a new pub/sub based on Azure SignalR
+// NewSignalR creates a new pub/sub based on Azure SignalR.
 func NewSignalR(logger logger.Logger) *SignalR {
 	return &SignalR{
 		tokens:     make(map[string]signalrCachedToken),
@@ -43,20 +44,23 @@ type signalrCachedToken struct {
 	expiration time.Time
 }
 
-// SignalR is an output binding for Azure SignalR
+// SignalR is an output binding for Azure SignalR.
 type SignalR struct {
 	endpoint   string
 	accessKey  string
 	version    string
 	hub        string
+	userAgent  string
 	tokens     map[string]signalrCachedToken
 	httpClient *http.Client
 
 	logger logger.Logger
 }
 
-// Init is responsible for initializing the SignalR output based on the metadata
+// Init is responsible for initializing the SignalR output based on the metadata.
 func (s *SignalR) Init(metadata bindings.Metadata) error {
+	s.userAgent = "dapr-" + logger.DaprVersion
+
 	connectionString, ok := metadata.Properties[connectionStringKey]
 	if !ok || connectionString == "" {
 		return fmt.Errorf("missing connection string")
@@ -127,6 +131,7 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("User-Agent", s.userAgent)
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
@@ -186,6 +191,10 @@ func (s *SignalR) ensureValidToken(url string) (string, error) {
 	claims := &jwt.StandardClaims{
 		ExpiresAt: expiration.Unix(),
 		Audience:  url,
+	}
+
+	if err := claims.Valid(); err != nil {
+		return "", err
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

@@ -1,14 +1,22 @@
-# Supported operation: publish, subscribe 
+# Supported operation: publish, subscribe
 # Config map:
-## pubsubName : name of the pubsub 
+## pubsubName : name of the pubsub
 ## testTopicName: name of the test topic to use
-## publish: A map of strings that will be part of the publish metadata in the Publish call
-## subscribe: A map of strings that will be part of the subscribe metadata in the Subscribe call
+## publishMetadata: A map of strings that will be part of the publish metadata in the Publish call
+## subscribeMetadata: A map of strings that will be part of the subscribe metadata in the Subscribe call
 ## maxReadDuration: duration to wait for read to complete
 ## messageCount: no. of messages to publish
 ## checkInOrderProcessing: false disables in-order message processing checking
 componentType: pubsub
 components:
+  - component: azure.eventhubs
+    allOperations: true
+    config:
+      ## with partition key set, inorder processing is guaranteed.
+      ## https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-features#mapping-of-events-to-partitions
+      checkInOrderProcessing: true
+      publishMetadata:
+        partitionKey: abcd
   - component: azure.servicebus
     allOperations: true
     config:
@@ -20,6 +28,8 @@ components:
     config:
       checkInOrderProcessing: false
   - component: natsstreaming
+    allOperations: true
+  - component: jetstream
     allOperations: true
   - component: kafka
     allOperations: true
@@ -40,3 +50,5 @@ components:
     allOperations: true
     config:
       checkInOrderProcessing: false
+  - component: in-memory
+    allOperations: true

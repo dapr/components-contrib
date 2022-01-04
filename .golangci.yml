@@ -97,7 +97,7 @@ linters-settings:
   goimports:
     # put imports beginning with prefix after 3rd-party packages;
     # it's a comma-separated list of prefixes
-    local-prefixes:
+    local-prefixes: github.com/dapr/
   gocyclo:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
     min-complexity: 10
@@ -114,13 +114,15 @@ linters-settings:
     # minimal length of string constant, 3 by default
     min-len: 3
     # minimal occurrences count to trigger, 3 by default
-    min-occurrences: 3
+    min-occurrences: 5
   depguard:
     list-type: blacklist
     include-go-root: false
+    packages:
+      - github.com/Sirupsen/logrus
     packages-with-error-messages:
       # specify an error message to output when a blacklisted package is used
-      github.com/sirupsen/logrus: "logging is allowed only by logutils.Log"
+      github.com/Sirupsen/logrus: "must use github.com/dapr/kit/logger"
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
@@ -172,6 +174,7 @@ linters-settings:
       - hugeParam
       - ifElseChain
       - singleCaseSwitch
+      - exitAfterDefer
 
     # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint run` to see all tags and checks.
     # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
@@ -188,6 +191,12 @@ linters-settings:
       - NOTE
       - OPTIMIZE # marks code that should be optimized before merging
       - HACK # marks hack-arounds that should be removed before merging
+  godot:
+    exclude:
+      - 'nosec'
+      - '\}'
+    capital: false
+    scope: all
   dogsled:
     # checks assignments with too many blank identifiers; default is 2
     max-blank-identifiers: 2
@@ -218,15 +227,22 @@ linters:
     - dupl
     - errcheck
     - funlen
+    - gochecknoglobals
+    - gochecknoinits
     - gocyclo
     - gocognit
+    - godox
+    - interfacer
     - lll
+    - maligned
     - scopelint
     - unparam
     - wsl
     - gomnd
-    - godot
     - testpackage
     - goerr113
-    - gofumpt
+    - nestif
+    - nlreturn
+    - exhaustive
+    - noctx
     - gci

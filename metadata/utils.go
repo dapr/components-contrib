@@ -15,11 +15,17 @@ import (
 )
 
 const (
-	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds)
+	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds).
 	TTLMetadataKey = "ttlInSeconds"
 
-	// PriorityMetadataKey defines the metadata key for setting a priority
+	// RawPayloadKey defines the metadata key for forcing raw payload in pubsub.
+	RawPayloadKey = "rawPayload"
+
+	// PriorityMetadataKey defines the metadata key for setting a priority.
 	PriorityMetadataKey = "priority"
+
+	// ContentType defines the metadata key for the content type.
+	ContentType = "contentType"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
@@ -65,4 +71,26 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 	}
 
 	return 0, false, nil
+}
+
+// IsRawPayload determines if payload should be used as-is.
+func IsRawPayload(props map[string]string) (bool, error) {
+	if val, ok := props[RawPayloadKey]; ok && val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return false, errors.Wrapf(err, "%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
+		}
+
+		return boolVal, nil
+	}
+
+	return false, nil
+}
+
+func TryGetContentType(props map[string]string) (string, bool) {
+	if val, ok := props[ContentType]; ok && val != "" {
+		return val, true
+	}
+
+	return "", false
 }

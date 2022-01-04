@@ -1,9 +1,28 @@
-# Supported operations: set, get, delete, bulkset, bulkdelete, transaction
+# Supported operations: set, get, delete, bulkset, bulkdelete, transaction, etag, first-write, query
 componentType: state
 components:
   - component: redis
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: mongodb
     allOperations: true
-  - component: cosmosdb
+  - component: azure.cosmosdb
     allOperations: true
+  - component: azure.sql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
+  - component: sqlserver
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
+  - component: postgresql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
+  - component: mysql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
+  - component: azure.tablestorage
+    allOperations: false
+    operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
+  - component: cassandra
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]

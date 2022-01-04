@@ -12,15 +12,16 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/datastore"
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/api/option"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const defaultEntityKind = "DaprState"
 
-// Firestore State Store
+// Firestore State Store.
 type Firestore struct {
 	state.DefaultBulkStore
 	client     *datastore.Client
@@ -54,7 +55,7 @@ func NewFirestoreStateStore(logger logger.Logger) *Firestore {
 	return s
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (f *Firestore) Init(metadata state.Metadata) error {
 	meta, err := getFirestoreMetadata(metadata)
 	if err != nil {
@@ -78,12 +79,12 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (f *Firestore) Features() []state.Feature {
 	return nil
 }
 
-// Get retrieves state from Firestore with a key (Always strong consistency)
+// Get retrieves state from Firestore with a key (Always strong consistency).
 func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
@@ -131,9 +132,13 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 	return nil
 }
 
-// Set saves state into Firestore with retry
+// Set saves state into Firestore with retry.
 func (f *Firestore) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(f.setValue, req)
+}
+
+func (f *Firestore) Ping() error {
+	return nil
 }
 
 func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
@@ -148,7 +153,7 @@ func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
 	return nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (f *Firestore) Delete(req *state.DeleteRequest) error {
 	return state.DeleteWithOptions(f.deleteValue, req)
 }

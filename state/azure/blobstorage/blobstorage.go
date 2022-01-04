@@ -39,6 +39,7 @@ import (
 	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -46,8 +47,8 @@ import (
 const (
 	keyDelimiter       = "||"
 	accountNameKey     = "accountName"
-	accountKeyKey      = "accountKey"
 	containerNameKey   = "containerName"
+	endpointKey        = "endpoint"
 	contentType        = "ContentType"
 	contentMD5         = "ContentMD5"
 	contentEncoding    = "ContentEncoding"
@@ -56,7 +57,7 @@ const (
 	cacheControl       = "CacheControl"
 )
 
-// StateStore Type
+// StateStore Type.
 type StateStore struct {
 	state.DefaultBulkStore
 	containerURL azblob.ContainerURL
@@ -68,7 +69,6 @@ type StateStore struct {
 
 type blobStorageMetadata struct {
 	accountName   string
-	accountKey    string
 	containerName string
 }
 
@@ -79,15 +79,29 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	credential, err := azblob.NewSharedKeyCredential(meta.accountName, meta.accountKey)
+	credential, env, err := azauth.GetAzureStorageCredentials(r.logger, meta.accountName, metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
 
-	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+	userAgent := "dapr-" + logger.DaprVersion
+	options := azblob.PipelineOptions{
+		Telemetry: azblob.TelemetryOptions{Value: userAgent},
+	}
+	p := azblob.NewPipeline(credential, options)
 
-	URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", meta.accountName, meta.containerName))
-	containerURL := azblob.NewContainerURL(*URL, p)
+	var containerURL azblob.ContainerURL
+	customEndpoint, ok := metadata.Properties[endpointKey]
+	if ok && customEndpoint != "" {
+		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
+		if parseErr != nil {
+			return parseErr
+		}
+		containerURL = azblob.NewContainerURL(*URL, p)
+	} else {
+		URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
+		containerURL = azblob.NewContainerURL(*URL, p)
+	}
 
 	ctx := context.Background()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
@@ -99,19 +113,19 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 
-// Delete the state
+// Delete the state.
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
 	return r.deleteFile(req)
 }
 
-// Get the state
+// Get the state.
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	data, etag, err := r.readFile(req)
@@ -131,14 +145,24 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, err
 }
 
-// Set the state
+// Set the state.
 func (r *StateStore) Set(req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
 	return r.writeFile(req)
 }
 
-// NewAzureBlobStorageStore instance
+func (r *StateStore) Ping() error {
+	accessConditions := azblob.BlobAccessConditions{}
+
+	if _, err := r.containerURL.GetProperties(context.Background(), accessConditions.LeaseAccessConditions); err != nil {
+		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerURL.URL().Host, err)
+	}
+
+	return nil
+}
+
+// NewAzureBlobStorageStore instance.
 func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
@@ -159,16 +183,10 @@ func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, e
 		return nil, fmt.Errorf("missing or empty %s field from metadata", accountNameKey)
 	}
 
-	if val, ok := metadata[accountKeyKey]; ok && val != "" {
-		meta.accountKey = val
-	} else {
-		return nil, fmt.Errorf("missing of empty %s field from metadata", accountKeyKey)
-	}
-
 	if val, ok := metadata[containerNameKey]; ok && val != "" {
 		meta.containerName = val
 	} else {
-		return nil, fmt.Errorf("missing of empty %s field from metadata", containerNameKey)
+		return nil, fmt.Errorf("missing or empty %s field from metadata", containerNameKey)
 	}
 
 	return &meta, nil

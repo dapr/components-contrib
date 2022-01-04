@@ -14,13 +14,14 @@ import (
 	"syscall"
 	"time"
 
-	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 type kubernetesInput struct {
@@ -38,7 +39,7 @@ type EventResponse struct {
 
 var _ = bindings.InputBinding(&kubernetesInput{})
 
-// NewKubernetes returns a new Kubernetes event input binding
+// NewKubernetes returns a new Kubernetes event input binding.
 func NewKubernetes(logger logger.Logger) bindings.InputBinding {
 	return &kubernetesInput{logger: logger}
 }

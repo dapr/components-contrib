@@ -11,10 +11,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -33,9 +34,10 @@ const (
 	defaultTable             = "items"
 	defaultKeyspace          = "dapr"
 	defaultPort              = 9042
+	metadataTTLKey           = "ttlInSeconds"
 )
 
-// Cassandra is a state store implementation for Apache Cassandra
+// Cassandra is a state store implementation for Apache Cassandra.
 type Cassandra struct {
 	state.DefaultBulkStore
 	session *gocql.Session
@@ -57,7 +59,7 @@ type cassandraMetadata struct {
 	keyspace          string
 }
 
-// NewCassandraStateStore returns a new cassandra state store
+// NewCassandraStateStore returns a new cassandra state store.
 func NewCassandraStateStore(logger logger.Logger) *Cassandra {
 	s := &Cassandra{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
@@ -65,7 +67,7 @@ func NewCassandraStateStore(logger logger.Logger) *Cassandra {
 	return s
 }
 
-// Init performs metadata and connection parsing
+// Init performs metadata and connection parsing.
 func (c *Cassandra) Init(metadata state.Metadata) error {
 	meta, err := getCassandraMetadata(metadata)
 	if err != nil {
@@ -99,7 +101,7 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (c *Cassandra) Features() []state.Feature {
 	return nil
 }
@@ -219,12 +221,12 @@ func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
 	return &meta, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (c *Cassandra) Delete(req *state.DeleteRequest) error {
-	return c.session.Query("DELETE FROM ? WHERE key = ?", c.table, req.Key).Exec()
+	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).Exec()
 }
 
-// Get retrieves state from cassandra with a key
+// Get retrieves state from cassandra with a key.
 func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
@@ -244,7 +246,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		session = sess
 	}
 
-	results, err := session.Query("SELECT value FROM ? WHERE key = ?", c.table, req.Key).Iter().SliceMap()
+	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +260,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Set saves state into cassandra
+// Set saves state into cassandra.
 func (c *Cassandra) Set(req *state.SetRequest) error {
 	var bt []byte
 	b, ok := req.Value.([]byte)
@@ -286,7 +288,20 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		session = sess
 	}
 
-	return session.Query("INSERT INTO ? (key, value) VALUES (?, ?)", c.table, req.Key, bt).Exec()
+	ttl, err := parseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("error parsing TTL from Metadata: %s", err)
+	}
+
+	if ttl != nil {
+		return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?) USING TTL ?", c.table), req.Key, bt, *ttl).Exec()
+	}
+
+	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).Exec()
+}
+
+func (c *Cassandra) Ping() error {
+	return nil
 }
 
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {
@@ -298,4 +313,18 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	session.SetConsistency(consistency)
 
 	return session, nil
+}
+
+func parseTTL(requestMetadata map[string]string) (*int, error) {
+	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		parsedInt := int(parsedVal)
+
+		return &parsedInt, nil
+	}
+
+	return nil, nil
 }

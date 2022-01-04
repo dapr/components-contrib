@@ -17,13 +17,15 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 const (
-	// Keys
+	// Keys.
 	connectionString                = "connectionString"
 	consumerID                      = "consumerID"
 	maxDeliveryCount                = "maxDeliveryCount"
@@ -42,9 +44,10 @@ const (
 	connectionRecoveryInSec         = "connectionRecoveryInSec"
 	publishMaxRetries               = "publishMaxRetries"
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
+	namespaceName                   = "namespaceName"
 	errorMessagePrefix              = "azure service bus error:"
 
-	// Defaults
+	// Defaults.
 	defaultTimeoutInSec        = 60
 	defaultHandlerTimeoutInSec = 60
 	defaultLockRenewalInSec    = 20
@@ -75,7 +78,7 @@ type azureServiceBus struct {
 	cancel context.CancelFunc
 }
 
-// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation
+// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:        logger,
@@ -89,11 +92,18 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	m := metadata{}
 
-	/* Required configuration settings - no defaults */
+	/* Required configuration settings - no defaults. */
 	if val, ok := meta.Properties[connectionString]; ok && val != "" {
 		m.ConnectionString = val
+
+		// The connection string and the namespace cannot both be present.
+		if namespace, present := meta.Properties[namespaceName]; present && namespace != "" {
+			return m, fmt.Errorf("%s connectionString and namespaceName cannot both be specified", errorMessagePrefix)
+		}
+	} else if val, ok := meta.Properties[namespaceName]; ok && val != "" {
+		m.NamespaceName = val
 	} else {
-		return m, fmt.Errorf("%s missing connection string", errorMessagePrefix)
+		return m, fmt.Errorf("%s missing connection string and namespace name", errorMessagePrefix)
 	}
 
 	if val, ok := meta.Properties[consumerID]; ok && val != "" {
@@ -102,7 +112,7 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		return m, fmt.Errorf("%s missing consumerID", errorMessagePrefix)
 	}
 
-	/* Optional configuration settings - defaults will be set by the client */
+	/* Optional configuration settings - defaults will be set by the client. */
 	m.TimeoutInSec = defaultTimeoutInSec
 	if val, ok := meta.Properties[timeoutInSec]; ok && val != "" {
 		var err error
@@ -175,7 +185,7 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	/* Nullable configuration settings - defaults will be set by the server */
+	/* Nullable configuration settings - defaults will be set by the server. */
 	if val, ok := meta.Properties[maxDeliveryCount]; ok && val != "" {
 		valAsInt, err := strconv.Atoi(val)
 		if err != nil {
@@ -255,10 +265,39 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
+	userAgent := "dapr-" + logger.DaprVersion
 	a.metadata = m
-	a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString))
-	if err != nil {
-		return err
+	if a.metadata.ConnectionString != "" {
+		a.namespace, err = azservicebus.NewNamespace(
+			azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
+			azservicebus.NamespaceWithUserAgent(userAgent))
+
+		if err != nil {
+			return err
+		}
+	} else {
+		// Initialization code
+		settings, err := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
+		if err != nil {
+			return err
+		}
+
+		tokenProvider, err := settings.GetAADTokenProvider()
+		if err != nil {
+			return err
+		}
+
+		a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithTokenProvider(tokenProvider),
+			azservicebus.NamespaceWithUserAgent(userAgent))
+		if err != nil {
+			return err
+		}
+
+		// We set these separately as the ServiceBus SDK does not provide a way to pass the environment via the options
+		// pattern unless you allow it to recreate the entire environment which seems wasteful.
+		a.namespace.Name = a.metadata.NamespaceName
+		a.namespace.Environment = *settings.AzureEnvironment
+		a.namespace.Suffix = settings.AzureEnvironment.ServiceBusEndpointSuffix
 	}
 
 	a.topicManager = a.namespace.NewTopicManager()
@@ -295,10 +334,9 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	msg := azservicebus.NewMessage(req.Data)
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
-	if hasTTL {
-		msg.TTL = &ttl
+	msg, err := NewASBMessageFromPubsubRequest(req)
+	if err != nil {
+		return err
 	}
 
 	return a.doPublish(sender, msg)
@@ -310,7 +348,7 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
 	bo = backoff.WithContext(bo, a.ctx)
 
-	return pubsub.RetryNotifyRecover(func() error {
+	return retry.NotifyRecover(func() error {
 		ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 		defer cancel()
 
@@ -320,14 +358,14 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 		}
 		var ampqError *amqp.Error
 		if errors.As(err, &ampqError) && ampqError.Condition == "com.microsoft:server-busy" {
-			return ampqError // Retries
+			return ampqError // Retries.
 		}
 		var connClosedError azservicebus.ErrConnectionClosed
 		if errors.As(err, &connClosedError) {
-			return connClosedError // Retries
+			return connClosedError // Retries.
 		}
 
-		return backoff.Permanent(err) // Does not retry
+		return backoff.Permanent(err) // Does not retry.
 	}, bo, func(err error, _ time.Duration) {
 		a.logger.Debugf("Could not publish service bus message. Retrying...: %v", err)
 	}, func() {
@@ -345,13 +383,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 	}
 
 	go func() {
-		// Limit the number of attempted reconnects we make
+		// Limit the number of attempted reconnects we make.
 		reconnAttempts := make(chan struct{}, a.metadata.MaxReconnectionAttempts)
 		for i := 0; i < a.metadata.MaxReconnectionAttempts; i++ {
 			reconnAttempts <- struct{}{}
 		}
 
-		// len(reconnAttempts) should be considered stale but we can afford a little error here
+		// len(reconnAttempts) should be considered stale but we can afford a little error here.
 		readAttemptsStale := func() int { return len(reconnAttempts) }
 
 		// Periodically refill the reconnect attempts channel to avoid
@@ -376,7 +414,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 			}
 		}()
 
-		// Reconnect loop
+		// Reconnect loop.
 		for {
 			topic, err := a.namespace.NewTopic(req.Topic)
 			if err != nil {
@@ -412,9 +450,16 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.metadata.MaxActiveMessages,
 				a.metadata.MaxActiveMessagesRecoveryInSec)
 			if innerErr != nil {
-				a.logger.Error(innerErr)
+				var detachError *amqp.DetachError
+				var ampqError *amqp.Error
+				if errors.Is(innerErr, detachError) ||
+					(errors.As(innerErr, &ampqError) && ampqError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(innerErr)
+				} else {
+					a.logger.Error(innerErr)
+				}
 			}
-			cancel() // Cancel receive context
+			cancel() // Cancel receive context.
 
 			attempts := readAttemptsStale()
 			if attempts == 0 {

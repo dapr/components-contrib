@@ -13,17 +13,19 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/preview/eventgrid/mgmt/2020-04-01-preview/eventgrid"
+	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2021-12-01/eventgrid"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/valyala/fasthttp"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/valyala/fasthttp"
 )
 
-// AzureEventGrid allows sending/receiving Azure Event Grid events
+// AzureEventGrid allows sending/receiving Azure Event Grid events.
 type AzureEventGrid struct {
-	metadata *azureEventGridMetadata
-	logger   logger.Logger
+	metadata  *azureEventGridMetadata
+	logger    logger.Logger
+	userAgent string
 }
 
 type azureEventGridMetadata struct {
@@ -47,13 +49,14 @@ type azureEventGridMetadata struct {
 	TopicEndpoint string `json:"topicEndpoint"`
 }
 
-// NewAzureEventGrid returns a new Azure Event Grid instance
+// NewAzureEventGrid returns a new Azure Event Grid instance.
 func NewAzureEventGrid(logger logger.Logger) *AzureEventGrid {
 	return &AzureEventGrid{logger: logger}
 }
 
-// Init performs metadata init
+// Init performs metadata init.
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
+	a.userAgent = "dapr-" + logger.DaprVersion
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -125,6 +128,7 @@ func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	request.Header.SetMethod(fasthttp.MethodPost)
 	request.Header.Set("Content-Type", "application/cloudevents+json")
 	request.Header.Set("aeg-sas-key", a.metadata.AccessKey)
+	request.Header.Set("User-Agent", a.userAgent)
 	request.SetRequestURI(a.metadata.TopicEndpoint)
 	request.SetBody(req.Data)
 
@@ -221,6 +225,7 @@ func (a *AzureEventGrid) createSubscription() error {
 	clientCredentialsConfig := auth.NewClientCredentialsConfig(a.metadata.ClientID, a.metadata.ClientSecret, a.metadata.TenantID)
 
 	subscriptionClient := eventgrid.NewEventSubscriptionsClient(a.metadata.SubscriptionID)
+	subscriptionClient.AddToUserAgent(a.userAgent)
 	authorizer, err := clientCredentialsConfig.Authorizer()
 	if err != nil {
 		return err
@@ -235,7 +240,7 @@ func (a *AzureEventGrid) createSubscription() error {
 					EndpointURL: &a.metadata.SubscriberEndpoint,
 				},
 			},
-			EventDeliverySchema: eventgrid.CloudEventSchemaV10,
+			EventDeliverySchema: eventgrid.EventDeliverySchemaCloudEventSchemaV10,
 		},
 	}
 
@@ -247,7 +252,7 @@ func (a *AzureEventGrid) createSubscription() error {
 		return err
 	}
 
-	res := result.Future.Response()
+	res := result.FutureAPI.Response()
 
 	if res.StatusCode != fasthttp.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(res.Body)

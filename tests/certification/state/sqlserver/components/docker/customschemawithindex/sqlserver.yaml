@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: dapr-state-store
+spec:
+  type: state.sqlserver
+  metadata:
+  - name: connectionString
+    value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;Connection Timeout=30;"
+  - name: databaseName
+    value: certificationtest
+  - name: schema
+    value: customschema
+  - name: tableName
+    value: mystates
+  - name: indexedProperties
+    value: '[{"column": "transactionid", "property": "id", "type": "int"}, {"column": "customerid", "property": "customer", "type": "nvarchar(100)"}]'
+

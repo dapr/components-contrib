@@ -1,16 +1,22 @@
 package opa
 
 import (
+	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fh "github.com/valyala/fasthttp"
+
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
-func mockedRequestHandler(ctx *fh.RequestCtx) {}
+// mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
+func mockedRequestHandler(ctx *fh.RequestCtx) {
+	ctx.Response.SetStatusCode(200)
+	ctx.Response.SetBody([]byte("from mock"))
+}
 
 type RequestConfiguator func(*fh.RequestCtx)
 
@@ -20,6 +26,7 @@ func TestOpaPolicy(t *testing.T) {
 		req                RequestConfiguator
 		status             int
 		headers            *[][]string
+		body               []string
 		shouldHandlerError bool
 		shouldRegoError    bool
 	}{
@@ -193,6 +200,51 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			shouldRegoError: true,
 		},
+		"status config": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						allow = false`,
+					"defaultStatus": "500",
+				},
+			},
+			status: 500,
+		},
+		"rego priority over defaultStatus metadata": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						allow = {
+							"allow": false,
+							"status_code": 301
+						}`,
+					"defaultStatus": "500",
+				},
+			},
+			status: 301,
+		},
+		"allow on body contains allow": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = false
+						
+						allow = { "status_code": 200 } {
+							input.request.body == "allow"
+						}
+						`,
+				},
+			},
+			req: func(ctx *fh.RequestCtx) {
+				ctx.SetContentType("text/plain; charset=utf8")
+				ctx.Request.SetHost("https://my.site")
+				ctx.Request.SetBodyString("allow")
+			},
+			status: 200,
+		},
 	}
 
 	for name, test := range tests {
@@ -229,6 +281,66 @@ func TestOpaPolicy(t *testing.T) {
 					assert.Equal(t, header[1], string(reqCtx.Response.Header.Peek(header[0])))
 				}
 			}
+		})
+	}
+}
+
+func TestStatus_UnmarshalJSON(t *testing.T) {
+	type testObj struct {
+		Value Status `json:"value,omitempty"`
+	}
+	tests := map[string]struct {
+		jsonBytes   []byte
+		expectValue Status
+		expectError bool
+	}{
+		"int value": {
+			jsonBytes:   []byte(`{"value":100}`),
+			expectValue: Status(100),
+			expectError: false,
+		},
+		"string value": {
+			jsonBytes:   []byte(`{"value":"100"}`),
+			expectValue: Status(100),
+			expectError: false,
+		},
+		"empty value": {
+			jsonBytes:   []byte(`{}`),
+			expectValue: Status(0),
+			expectError: false,
+		},
+		"invalid status code value": {
+			jsonBytes:   []byte(`{"value":600}`),
+			expectError: true,
+		},
+		"invalid float value": {
+			jsonBytes:   []byte(`{"value":2.9}`),
+			expectError: true,
+		},
+		"invalid value null": {
+			jsonBytes:   []byte(`{"value":null}`),
+			expectError: true,
+		},
+		"invalid value []": {
+			jsonBytes:   []byte(`{"value":[]}`),
+			expectError: true,
+		},
+		"invalid value {}": {
+			jsonBytes:   []byte(`{"value":{}}`),
+			expectError: true,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			var obj testObj
+			err := json.Unmarshal(test.jsonBytes, &obj)
+			if test.expectError {
+				assert.NotEmpty(t, err)
+
+				return
+			}
+			assert.Nil(t, err)
+			assert.Equal(t, obj.Value, test.expectValue)
 		})
 	}
 }

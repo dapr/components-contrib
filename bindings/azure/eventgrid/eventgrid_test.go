@@ -8,8 +8,9 @@ package eventgrid
 import (
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/bindings"
 )
 
 func TestParseMetadata(t *testing.T) {

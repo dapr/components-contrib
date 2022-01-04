@@ -9,16 +9,19 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"reflect"
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -27,7 +30,7 @@ const (
 	queryOperation bindings.OperationKind = "query"
 	closeOperation bindings.OperationKind = "close"
 
-	// configurations to connect to Mysql, either a data source name represent by URL
+	// configurations to connect to Mysql, either a data source name represent by URL.
 	connectionURLKey = "url"
 
 	// To connect to MySQL running in Azure over SSL you have to download a
@@ -36,19 +39,19 @@ const (
 	// When the user provides a pem path their connection string must end with
 	// &tls=custom
 	// The connection string should be in the following format
-	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
+	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'.
 	pemPathKey = "pemPath"
 
-	// other general settings for DB connections
+	// other general settings for DB connections.
 	maxIdleConnsKey    = "maxIdleConns"
 	maxOpenConnsKey    = "maxOpenConns"
 	connMaxLifetimeKey = "connMaxLifetime"
 	connMaxIdleTimeKey = "connMaxIdleTime"
 
-	// keys from request's metadata
+	// keys from request's metadata.
 	commandSQLKey = "sql"
 
-	// keys from response's metadata
+	// keys from response's metadata.
 	respOpKey           = "operation"
 	respSQLKey          = "sql"
 	respStartTimeKey    = "start-time"
@@ -57,7 +60,7 @@ const (
 	respDurationKey     = "duration"
 )
 
-// Mysql represents MySQL output bindings
+// Mysql represents MySQL output bindings.
 type Mysql struct {
 	db     *sql.DB
 	logger logger.Logger
@@ -65,12 +68,12 @@ type Mysql struct {
 
 var _ = bindings.OutputBinding(&Mysql{})
 
-// NewMysql returns a new MySQL output binding
+// NewMysql returns a new MySQL output binding.
 func NewMysql(logger logger.Logger) *Mysql {
 	return &Mysql{logger: logger}
 }
 
-// Init initializes the MySQL binding
+// Init initializes the MySQL binding.
 func (m *Mysql) Init(metadata bindings.Metadata) error {
 	m.logger.Debug("Initializing MySql binding")
 
@@ -115,7 +118,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-// Invoke handles all invoke operations
+// Invoke handles all invoke operations.
 func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
@@ -149,14 +152,14 @@ func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	case execOperation:
 		r, err := m.exec(s)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", s, err)
+			return nil, err
 		}
 		resp.Metadata[respRowsAffectedKey] = strconv.FormatInt(r, 10)
 
 	case queryOperation:
 		d, err := m.query(s)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", s, err)
+			return nil, err
 		}
 		resp.Data = d
 
@@ -172,7 +175,7 @@ func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	return resp, nil
 }
 
-// Operations returns list of operations supported by Mysql binding
+// Operations returns list of operations supported by Mysql binding.
 func (m *Mysql) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		execOperation,
@@ -181,7 +184,7 @@ func (m *Mysql) Operations() []bindings.OperationKind {
 	}
 }
 
-// Close will close the DB
+// Close will close the DB.
 func (m *Mysql) Close() error {
 	if m.db != nil {
 		return m.db.Close()
@@ -190,12 +193,12 @@ func (m *Mysql) Close() error {
 	return nil
 }
 
-func (m *Mysql) query(s string) ([]byte, error) {
-	m.logger.Debugf("query: %s", s)
+func (m *Mysql) query(sql string) ([]byte, error) {
+	m.logger.Debugf("query: %s", sql)
 
-	rows, err := m.db.Query(s)
+	rows, err := m.db.Query(sql)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing %s", s)
+		return nil, errors.Wrapf(err, "error executing %s", sql)
 	}
 
 	defer func() {
@@ -203,9 +206,9 @@ func (m *Mysql) query(s string) ([]byte, error) {
 		_ = rows.Err()
 	}()
 
-	result, err := jsonify(rows)
+	result, err := m.jsonify(rows)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error marshalling query result for %s", s)
+		return nil, errors.Wrapf(err, "error marshalling query result for %s", sql)
 	}
 
 	return result, nil
@@ -254,7 +257,6 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 	if pemPath != "" {
 		rootCertPool := x509.NewCertPool()
 		pem, err := ioutil.ReadFile(pemPath)
-
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
 		}
@@ -278,7 +280,7 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-func jsonify(rows *sql.Rows) ([]byte, error) {
+func (m *Mysql) jsonify(rows *sql.Rows) ([]byte, error) {
 	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
 		return nil, err
@@ -286,84 +288,58 @@ func jsonify(rows *sql.Rows) ([]byte, error) {
 
 	var ret []interface{}
 	for rows.Next() {
-		scanArgs := prepareScanArgs(columnTypes)
-		err := rows.Scan(scanArgs...)
+		values := prepareValues(columnTypes)
+		err := rows.Scan(values...)
 		if err != nil {
 			return nil, err
 		}
 
-		r := convertScanArgs(columnTypes, scanArgs)
+		r := m.convert(columnTypes, values)
 		ret = append(ret, r)
 	}
 
 	return json.Marshal(ret)
 }
 
-func convertScanArgs(columnTypes []*sql.ColumnType, scanArgs []interface{}) map[string]interface{} {
+func prepareValues(columnTypes []*sql.ColumnType) []interface{} {
+	types := make([]reflect.Type, len(columnTypes))
+	for i, tp := range columnTypes {
+		types[i] = tp.ScanType()
+	}
+
+	values := make([]interface{}, len(columnTypes))
+	for i := range values {
+		values[i] = reflect.New(types[i]).Interface()
+	}
+
+	return values
+}
+
+func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []interface{}) map[string]interface{} {
 	r := map[string]interface{}{}
 
-	for i, v := range columnTypes {
-		if s, ok := (scanArgs[i]).(*sql.NullString); ok {
-			r[v.Name()] = s.String
+	for i, ct := range columnTypes {
+		value := values[i]
 
-			continue
+		switch v := values[i].(type) {
+		case driver.Valuer:
+			if vv, err := v.Value(); err == nil {
+				value = interface{}(vv)
+			} else {
+				m.logger.Warnf("error to convert value: %v", err)
+			}
+		case *sql.RawBytes:
+			// special case for sql.RawBytes, see https://github.com/go-sql-driver/mysql/blob/master/fields.go#L178
+			switch ct.DatabaseTypeName() {
+			case "VARCHAR", "CHAR":
+				value = string(*v)
+			}
 		}
 
-		if s, ok := (scanArgs[i]).(*sql.NullBool); ok {
-			r[v.Name()] = s.Bool
-
-			continue
+		if value != nil {
+			r[ct.Name()] = value
 		}
-
-		if s, ok := (scanArgs[i]).(*sql.NullInt32); ok {
-			r[v.Name()] = s.Int32
-
-			continue
-		}
-
-		if s, ok := (scanArgs[i]).(*sql.NullInt64); ok {
-			r[v.Name()] = s.Int64
-
-			continue
-		}
-
-		if s, ok := (scanArgs[i]).(*sql.NullFloat64); ok {
-			r[v.Name()] = s.Float64
-
-			continue
-		}
-
-		if s, ok := (scanArgs[i]).(*sql.NullTime); ok {
-			r[v.Name()] = s.Time
-
-			continue
-		}
-
-		// this won't happen since the default switch is sql.NullString
-		r[v.Name()] = scanArgs[i]
 	}
 
 	return r
-}
-
-func prepareScanArgs(columnTypes []*sql.ColumnType) []interface{} {
-	scanArgs := make([]interface{}, len(columnTypes))
-	for i, v := range columnTypes {
-		switch v.DatabaseTypeName() {
-		case "BOOL":
-			scanArgs[i] = new(sql.NullBool)
-		case "INT", "MEDIUMINT", "SMALLINT", "CHAR", "TINYINT":
-			scanArgs[i] = new(sql.NullInt32)
-		case "BIGINT":
-			scanArgs[i] = new(sql.NullInt64)
-		case "DOUBLE", "FLOAT", "DECIMAL":
-			scanArgs[i] = new(sql.NullFloat64)
-		case "DATE", "TIME", "YEAR":
-			scanArgs[i] = new(sql.NullTime)
-		default:
-			scanArgs[i] = new(sql.NullString)
-		}
-	}
-
-	return scanArgs
 }

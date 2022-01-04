@@ -10,22 +10,24 @@ import (
 	"fmt"
 	"time"
 
-	contrib_contenttype "github.com/dapr/components-contrib/contenttype"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
+
+	contrib_contenttype "github.com/dapr/components-contrib/contenttype"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 )
 
 const (
-	// DefaultCloudEventType is the default event type for an Dapr published event
+	// DefaultCloudEventType is the default event type for an Dapr published event.
 	DefaultCloudEventType = "com.dapr.event.sent"
-	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation
+	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation.
 	CloudEventsSpecVersion = "1.0"
-	// DefaultCloudEventSource is the default event source
+	// DefaultCloudEventSource is the default event source.
 	DefaultCloudEventSource = "Dapr"
-	// DefaultCloudEventDataContentType is the default content-type for the data attribute
+	// DefaultCloudEventDataContentType is the default content-type for the data attribute.
 	DefaultCloudEventDataContentType = "text/plain"
 	TraceIDField                     = "traceid"
+	TraceStateField                  = "tracestate"
 	TopicField                       = "topic"
 	PubsubField                      = "pubsubname"
 	ExpirationField                  = "expiration"
@@ -39,8 +41,9 @@ const (
 	SubjectField                     = "subject"
 )
 
-// NewCloudEventsEnvelope returns a map representation of a cloudevents JSON
-func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string, dataContentType string, data []byte, traceID string) map[string]interface{} {
+// NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
+func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
+	dataContentType string, data []byte, traceID string, traceState string) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -80,6 +83,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
 		TraceIDField:         traceID,
+		TraceStateField:      traceState,
 	}
 
 	ce[ceDataField] = ceData
@@ -91,8 +95,8 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	return ce
 }
 
-// FromCloudEvent returns a map representation of an existing cloudevents JSON
-func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[string]interface{}, error) {
+// FromCloudEvent returns a map representation of an existing cloudevents JSON.
+func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string, traceState string) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := jsoniter.Unmarshal(cloudEvent, &m)
 	if err != nil {
@@ -100,10 +104,42 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string) (map[strin
 	}
 
 	m[TraceIDField] = traceID
+	m[TraceStateField] = traceState
 	m[TopicField] = topic
 	m[PubsubField] = pubsub
 
+	// specify default value if it's unspecified from the original CloudEvent
+	if m[SourceField] == nil {
+		m[SourceField] = DefaultCloudEventSource
+	}
+
+	if m[TypeField] == nil {
+		m[TypeField] = DefaultCloudEventType
+	}
+
+	if m[SpecVersionField] == nil {
+		m[SpecVersionField] = CloudEventsSpecVersion
+	}
+
 	return m, nil
+}
+
+// FromRawPayload returns a CloudEvent for a raw payload on subscriber's end.
+func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
+	// Limitations of generating the CloudEvent on the subscriber side based on raw payload:
+	// - The CloudEvent ID will be random, so the same message can be redelivered as a different ID.
+	// - TraceID is not useful since it is random and not from publisher side.
+	// - Data is always returned as `data_base64` since we don't know the actual content type.
+	return map[string]interface{}{
+		IDField:              uuid.New().String(),
+		SpecVersionField:     CloudEventsSpecVersion,
+		DataContentTypeField: "application/octet-stream",
+		SourceField:          DefaultCloudEventSource,
+		TypeField:            DefaultCloudEventType,
+		TopicField:           topic,
+		PubsubField:          pubsub,
+		DataBase64Field:      base64.StdEncoding.EncodeToString(data),
+	}
 }
 
 // HasExpired determines if the current cloud event has expired.

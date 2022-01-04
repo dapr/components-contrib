@@ -7,14 +7,14 @@ package mdns
 
 import (
 	"fmt"
-	"math"
 	"testing"
 	"time"
 
-	nr "github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	nr "github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/logger"
 )
 
 func TestInit(t *testing.T) {
@@ -160,7 +160,7 @@ func TestAddressListExpire(t *testing.T) {
 	expired := base.Add(-60 * time.Second)
 	notExpired := base.Add(60 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "expired0",
 				expiresAt: expired,
@@ -187,7 +187,7 @@ func TestAddressListAddNewAddress(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(60 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -211,7 +211,7 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -229,14 +229,14 @@ func TestAddressListAddExisitingAddress(t *testing.T) {
 
 	// assert
 	require.Len(t, addressList.addresses, 2)
-	require.Greater(t, deltaSec, 0)
+	require.Greater(t, deltaSec, 0) // Ensures expiry has been extended for existing address.
 }
 
 func TestAddressListNext(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -279,7 +279,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -312,7 +312,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
 	require.Equal(t, "addr3", *addressList.next())
-	addressList.counter = math.MaxUint32
+	addressList.counter = maxInt
 	require.Equal(t, "addr0", *addressList.next())
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
@@ -321,7 +321,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 func TestAddressListNextNoAddress(t *testing.T) {
 	// arrange
 	addressList := &addressList{
-		addresses: []*address{},
+		addresses: []address{},
 	}
 
 	// act & assert
@@ -332,7 +332,7 @@ func TestAddressListNextWithAdd(t *testing.T) {
 	// arrange
 	expiry := time.Now().Add(10 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expiry,
@@ -378,7 +378,7 @@ func TestAddressListNextWithExpiration(t *testing.T) {
 	expiry := time.Now().Add(10 * time.Second)
 	expired := time.Now().Add(-60 * time.Second)
 	addressList := &addressList{
-		addresses: []*address{
+		addresses: []address{
 			{
 				ip:        "addr0",
 				expiresAt: expired,

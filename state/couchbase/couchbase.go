@@ -30,7 +30,7 @@ const (
 	numReplicasDurablePersistence = "numReplicasDurablePersistence"
 )
 
-// Couchbase is a couchbase state store
+// Couchbase is a couchbase state store.
 type Couchbase struct {
 	state.DefaultBulkStore
 	bucket                        *gocb.Bucket
@@ -43,7 +43,7 @@ type Couchbase struct {
 	logger   logger.Logger
 }
 
-// NewCouchbaseStateStore returns a new couchbase state store
+// NewCouchbaseStateStore returns a new couchbase state store.
 func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
 	s := &Couchbase{
 		json:     jsoniter.ConfigFastest,
@@ -91,7 +91,7 @@ func validateMetadata(metadata state.Metadata) error {
 	return nil
 }
 
-// Init does metadata and connection parsing
+// Init does metadata and connection parsing.
 func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	err := validateMetadata(metadata)
 	if err != nil {
@@ -130,12 +130,12 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+// Features returns the features available in this state store.
 func (cbs *Couchbase) Features() []state.Feature {
 	return cbs.features
 }
 
-// Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings
+// Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings.
 func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -179,7 +179,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 	return nil
 }
 
-// Get retrieves state from couchbase with a key
+// Get retrieves state from couchbase with a key.
 func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var data interface{}
 	cas, err := cbs.bucket.Get(req.Key, &data)
@@ -197,7 +197,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-// Delete performs a delete operation
+// Delete performs a delete operation.
 func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -228,7 +228,11 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-// converts string etag sent by the application into a gocb.Cas object, which can then be used for optimistic locking for set and delete operations
+func (cbs *Couchbase) Ping() error {
+	return nil
+}
+
+// converts string etag sent by the application into a gocb.Cas object, which can then be used for optimistic locking for set and delete operations.
 func eTagToCas(eTag string) (gocb.Cas, error) {
 	var cas gocb.Cas = 0
 	// CAS is a 64-bit integer - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html#cas-value-format

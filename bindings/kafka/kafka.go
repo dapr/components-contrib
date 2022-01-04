@@ -18,6 +18,7 @@ import (
 	"syscall"
 
 	"github.com/Shopify/sarama"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
@@ -26,7 +27,7 @@ const (
 	key = "partitionKey"
 )
 
-// Kafka allows reading/writing to a Kafka consumer group
+// Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
 	producer      sarama.SyncProducer
 	topics        []string
@@ -36,6 +37,7 @@ type Kafka struct {
 	authRequired  bool
 	saslUsername  string
 	saslPassword  string
+	initialOffset int64
 	logger        logger.Logger
 }
 
@@ -47,6 +49,7 @@ type kafkaMetadata struct {
 	AuthRequired    bool     `json:"authRequired"`
 	SaslUsername    string   `json:"saslUsername"`
 	SaslPassword    string   `json:"saslPassword"`
+	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int
 }
 
@@ -76,12 +79,12 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// NewKafka returns a new kafka binding instance
+// NewKafka returns a new kafka binding instance.
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{logger: logger}
 }
 
-// Init does metadata parsing and connection establishment
+// Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(metadata bindings.Metadata) error {
 	meta, err := k.getKafkaMetadata(metadata)
 	if err != nil {
@@ -99,6 +102,7 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	k.publishTopic = meta.PublishTopic
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
+	k.initialOffset = meta.InitialOffset
 
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
@@ -130,11 +134,17 @@ func (k *Kafka) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	return nil, nil
 }
 
-// GetKafkaMetadata returns new Kafka metadata
+// GetKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{}
 	meta.ConsumerGroup = metadata.Properties["consumerGroup"]
 	meta.PublishTopic = metadata.Properties["publishTopic"]
+
+	initialOffset, err := parseInitialOffset(metadata.Properties["initialOffset"])
+	if err != nil {
+		return nil, err
+	}
+	meta.InitialOffset = initialOffset
 
 	if val, ok := metadata.Properties["brokers"]; ok && val != "" {
 		meta.Brokers = strings.Split(val, ",")
@@ -210,6 +220,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
+	config.Consumer.Offsets.Initial = k.initialOffset
 	// ignore SASL properties if authRequired is false
 	if k.authRequired {
 		updateAuthInfo(config, k.saslUsername, k.saslPassword)
@@ -272,4 +283,27 @@ func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 		// InsecureSkipVerify: true,
 		ClientAuth: 0,
 	}
+}
+
+func (k *Kafka) Close() error {
+	if err := k.producer.Close(); err != nil {
+		k.logger.Errorf("kafka error: failed to close producer: %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func parseInitialOffset(value string) (initialOffset int64, err error) {
+	initialOffset = sarama.OffsetNewest // Default
+	if strings.EqualFold(value, "oldest") {
+		initialOffset = sarama.OffsetOldest
+	} else if strings.EqualFold(value, "newest") {
+		initialOffset = sarama.OffsetNewest
+	} else if value != "" {
+		return 0, fmt.Errorf("kafka error: invalid initialOffset: %s", value)
+	}
+
+	return initialOffset, err
 }

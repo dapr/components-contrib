@@ -78,7 +78,7 @@ func newResolver(logger logger.Logger, resolverConfig resolverConfig, client cli
 	}
 }
 
-// Init will configure component. It will also register service or validate client connection based on config
+// Init will configure component. It will also register service or validate client connection based on config.
 func (r *resolver) Init(metadata nr.Metadata) error {
 	var err error
 
@@ -105,11 +105,10 @@ func (r *resolver) Init(metadata nr.Metadata) error {
 	return nil
 }
 
-// ResolveID resolves name to address via consul
+// ResolveID resolves name to address via consul.
 func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	cfg := r.config
 	services, _, err := r.client.Health().Service(req.ID, "", true, cfg.QueryOptions)
-
 	if err != nil {
 		return "", fmt.Errorf("failed to query healthy consul services: %w", err)
 	}
@@ -148,7 +147,7 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	return addr, nil
 }
 
-// getConfig configuration from metadata, defaults are best suited for self-hosted mode
+// getConfig configuration from metadata, defaults are best suited for self-hosted mode.
 func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 	var daprPort string
 	var ok bool

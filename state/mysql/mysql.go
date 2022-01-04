@@ -7,6 +7,7 @@ package mysql
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,24 +25,24 @@ import (
 // a UUID.
 
 const (
-	// Used if the user does not configure a table name in the metadata
+	// Used if the user does not configure a table name in the metadata.
 	defaultTableName = "state"
 
-	// Used if the user does not configure a database name in the metadata
+	// Used if the user does not configure a database name in the metadata.
 	defaultSchemaName = "dapr_state_store"
 
 	// The key name in the metadata if the user wants a different table name
-	// than the defaultTableName
+	// than the defaultTableName.
 	tableNameKey = "tableName"
 
 	// The key name in the metadata if the user wants a different database name
-	// than the defaultSchemaName
+	// than the defaultSchemaName.
 	schemaNameKey = "schemaName"
 
-	// The key for the mandatory connection string of the metadata
+	// The key for the mandatory connection string of the metadata.
 	connectionStringKey = "connectionString"
 
-	// Standard error message if not connection string is provided
+	// Standard error message if not connection string is provided.
 	errMissingConnectionString = "missing connection string"
 
 	// To connect to MySQL running in Azure over SSL you have to download a
@@ -50,11 +51,11 @@ const (
 	// When the user provides a pem path their connection string must end with
 	// &tls=custom
 	// The connection string should be in the following format
-	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'
+	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'.
 	pemPathKey = "pemPath"
 )
 
-// MySQL state store
+// MySQL state store.
 type MySQL struct {
 	// Name of the table to store state. If the table does not exist it will
 	// be created.
@@ -77,7 +78,7 @@ type MySQL struct {
 	factory iMySQLFactory
 }
 
-// NewMySQLStateStore creates a new instance of MySQL state store
+// NewMySQLStateStore creates a new instance of MySQL state store.
 func NewMySQLStateStore(logger logger.Logger) *MySQL {
 	factory := newMySQLFactory(logger)
 
@@ -86,7 +87,7 @@ func NewMySQLStateStore(logger logger.Logger) *MySQL {
 	return newMySQLStateStore(logger, factory)
 }
 
-// Hidden implementation for testing
+// Hidden implementation for testing.
 func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
@@ -149,7 +150,11 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 	return m.finishInit(db, err)
 }
 
-// Features returns the features available in this state store
+func (m *MySQL) Ping() error {
+	return nil
+}
+
+// Features returns the features available in this state store.
 func (m *MySQL) Features() []state.Feature {
 	return m.features
 }
@@ -237,11 +242,12 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
-			id varchar(255) NOT NULL PRIMARY KEY,
-			value json NOT NULL,
+			id VARCHAR(255) NOT NULL PRIMARY KEY,
+			value JSON NOT NULL,
+			isbinary BOOLEAN NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			eTag varchar(36) NOT NULL
+			eTag VARCHAR(36) NOT NULL
 			);`, stateTableName)
 
 		_, err = m.db.Exec(createTable)
@@ -281,7 +287,7 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 }
 
 // Delete removes an entity from the store
-// Store Interface
+// Store Interface.
 func (m *MySQL) Delete(req *state.DeleteRequest) error {
 	return state.DeleteWithOptions(m.deleteValue, req)
 }
@@ -308,17 +314,30 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 			m.tableName), req.Key, *req.ETag)
 	}
 
-	return m.returnNDBResults(result, err, 1)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows != 1 && req.ETag != nil && *req.ETag != "" {
+		return state.NewETagError(state.ETagMismatch, nil)
+	}
+
+	return nil
 }
 
 // BulkDelete removes multiple entries from the store
-// Store Interface
+// Store Interface.
 func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 	return m.executeMulti(nil, req)
 }
 
 // Get returns an entity from store
-// Store Interface
+// Store Interface.
 func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	m.logger.Debug("Getting state value from MySql")
 
@@ -327,10 +346,11 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	var eTag, value string
+	var isBinary bool
 
 	err := m.db.QueryRow(fmt.Sprintf(
-		`SELECT value, eTag FROM %s WHERE id = ?`,
-		m.tableName), req.Key).Scan(&value, &eTag)
+		`SELECT value, eTag, isbinary FROM %s WHERE id = ?`,
+		m.tableName), req.Key).Scan(&value, &eTag, &isBinary)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -340,17 +360,34 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, err
 	}
 
-	response := &state.GetResponse{
-		ETag:     ptr.String(eTag),
-		Metadata: req.Metadata,
-		Data:     []byte(value),
+	if isBinary {
+		var s string
+		var data []byte
+
+		if err = json.Unmarshal([]byte(value), &s); err != nil {
+			return nil, err
+		}
+
+		if data, err = base64.StdEncoding.DecodeString(s); err != nil {
+			return nil, err
+		}
+
+		return &state.GetResponse{
+			Data:     data,
+			ETag:     ptr.String(eTag),
+			Metadata: req.Metadata,
+		}, nil
 	}
 
-	return response, nil
+	return &state.GetResponse{
+		Data:     []byte(value),
+		ETag:     ptr.String(eTag),
+		Metadata: req.Metadata,
+	}, nil
 }
 
 // Set adds/updates an entity on store
-// Store Interface
+// Store Interface.
 func (m *MySQL) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
 }
@@ -369,8 +406,18 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 		return fmt.Errorf("missing key in set operation")
 	}
 
+	if v, ok := req.Value.(string); ok && v == "" {
+		return fmt.Errorf("empty string is not allowed in set operation")
+	}
+
+	v := req.Value
+	byteArray, isBinary := req.Value.([]uint8)
+	if isBinary {
+		v = base64.StdEncoding.EncodeToString(byteArray)
+	}
+
 	// Convert to json string
-	bt, _ := utils.Marshal(req.Value, json.Marshal)
+	bt, _ := utils.Marshal(v, json.Marshal)
 	value := string(bt)
 
 	var result sql.Result
@@ -382,30 +429,56 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	if req.ETag == nil || *req.ETag == "" {
 		// If this is a duplicate MySQL returns that two rows affected
 		result, err = m.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s (value, id, eTag)
-			 VALUES (?, ?, ?) on duplicate key update value=?, eTag=?;`,
-			m.tableName), value, req.Key, eTag, value, eTag)
+			`INSERT INTO %s (value, id, eTag, isbinary)
+			 VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
+			m.tableName), value, req.Key, eTag, isBinary, value, eTag, isBinary)
 	} else {
 		// When an eTag is provided do an update - not insert
 		result, err = m.db.Exec(fmt.Sprintf(
-			`UPDATE %s SET value = ?, eTag = ?
+			`UPDATE %s SET value = ?, eTag = ?, isbinary = ?
 			 WHERE id = ? AND eTag = ?;`,
-			m.tableName), value, eTag, req.Key, *req.ETag)
+			m.tableName), value, eTag, isBinary, req.Key, *req.ETag)
 	}
 
-	// Have to pass 2 because if the insert has a conflict MySQL returns that
-	// two rows affected
-	return m.returnNDBResults(result, err, 2)
+	if err != nil {
+		if req.ETag != nil && *req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		err = fmt.Errorf(`rows affected error: no rows match given key '%s' and eTag '%s'`, req.Key, *req.ETag)
+		err = state.NewETagError(state.ETagMismatch, err)
+		m.logger.Error(err)
+
+		return err
+	}
+
+	if rows > 2 {
+		err = fmt.Errorf(`rows affected error: more than 2 row affected, expected 2, actual %d`, rows)
+		m.logger.Error(err)
+
+		return err
+	}
+
+	return nil
 }
 
 // BulkSet adds/updates multiple entities on store
-// Store Interface
+// Store Interface.
 func (m *MySQL) BulkSet(req []state.SetRequest) error {
 	return m.executeMulti(req, nil)
 }
 
 // Multi handles multiple transactions.
-// TransactionalStore Interface
+// TransactionalStore Interface.
 func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
@@ -442,14 +515,14 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
-// BulkGet performs a bulks get operations
+// BulkGet performs a bulks get operations.
 func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// by default, the store doesn't support bulk get
 	// return false so daprd will fallback to call get() method one by one
 	return false, nil, nil
 }
 
-// Close implements io.Closer
+// Close implements io.Closer.
 func (m *MySQL) Close() error {
 	if m.db != nil {
 		return m.db.Close()
@@ -493,42 +566,4 @@ func (m *MySQL) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequ
 	err = tx.Commit()
 
 	return err
-}
-
-// Verifies that the sql.Result affected no more than n number of rows and no
-// errors exist. If zero rows were affected something is wrong and an error
-// is returned.
-func (m *MySQL) returnNDBResults(result sql.Result, err error, n int64) error {
-	if err != nil {
-		m.logger.Debug(err)
-
-		return err
-	}
-
-	rowsAffected, resultErr := result.RowsAffected()
-
-	if resultErr != nil {
-		m.logger.Error(resultErr)
-
-		return resultErr
-	}
-
-	if rowsAffected == 0 {
-		noRowsErr := errors.New(
-			`rows affected error: no rows match given key and eTag`)
-		m.logger.Error(noRowsErr)
-
-		return noRowsErr
-	}
-
-	if rowsAffected > n {
-		tooManyRowsErr := fmt.Errorf(
-			`rows affected error: more than %d row affected, expected %d, actual %d`,
-			n, n, rowsAffected)
-		m.logger.Error(tooManyRowsErr)
-
-		return tooManyRowsErr
-	}
-
-	return nil
 }

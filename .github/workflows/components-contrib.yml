@@ -21,7 +21,7 @@ jobs:
     name: Build ${{ matrix.target_os }}_${{ matrix.target_arch }} binaries
     runs-on: ${{ matrix.os }}
     env:
-      GOVER: 1.16
+      GOVER: 1.17
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
@@ -43,24 +43,32 @@ jobs:
           - os: macOS-latest
             target_arch: arm
     steps:
+      - name: Check if need skip
+        id: skip_check
+        uses: fkirc/skip-duplicate-actions@v3.4.0
+        with:
+          cancel_others: 'true'
+          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
       - name: Set up Go ${{ env.GOVER }}
-        uses: actions/setup-go@v1
+        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
+        uses: actions/setup-go@v2
         with:
           go-version: ${{ env.GOVER }}
       - name: Check out code into the Go module directory
+        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/checkout@v2
       - name: Run golangci-lint
-        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         uses: golangci/golangci-lint-action@v2.2.1
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
-      - name: Run make go.mod check-diff
-        if: matrix.target_arch != 'arm'
-        run: make go.mod check-diff
+      - name: Run go mod tidy check diff
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
+        run: make modtidy check-diff
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
-        if: matrix.target_arch != 'arm'
+        if: matrix.target_arch != 'arm' && steps.skip_check.outputs.should_skip != 'true'
         run: make test
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'

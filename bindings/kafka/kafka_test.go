@@ -9,9 +9,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/Shopify/sarama"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -272,5 +276,18 @@ func TestParseMetadata(t *testing.T) {
 		meta, err := k.getKafkaMetadata(m)
 		assert.Error(t, errors.New("kafka error: missing SASL Password"), err)
 		assert.Nil(t, meta)
+	})
+
+	t.Run("correct metadata (initialOffset)", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{"consumerGroup": "a", "publishTopic": "a", "brokers": "a", "topics": "a", "authRequired": "false", "initialOffset": "oldest"}
+		k := Kafka{logger: logger}
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, sarama.OffsetOldest, meta.InitialOffset)
+		m.Properties["initialOffset"] = "newest"
+		meta, err = k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		assert.Equal(t, sarama.OffsetNewest, meta.InitialOffset)
 	})
 }

@@ -8,7 +8,11 @@ spec:
   metadata:
   - name: brokers
     value: localhost:9092
-  - name: consumerID
+  - name: consumerGroup
     value: pubsubgroup1
   - name: authRequired
     value: "false"
+  - name: initialOffset
+    value: oldest
+  - name: disableTls
+    value: true

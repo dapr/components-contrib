@@ -56,7 +56,7 @@ func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 	}
 }
 
-// Init parses metadata, initializes the RethinkDB client, and ensures the state table exists
+// Init parses metadata, initializes the RethinkDB client, and ensures the state table exists.
 func (s *RethinkDB) Init(metadata state.Metadata) error {
 	r.Log.Out = ioutil.Discard
 	r.SetTags("rethinkdb", "json")
@@ -123,7 +123,11 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Features returns the features available in this state store
+func (s *RethinkDB) Ping() error {
+	return nil
+}
+
+// Features returns the features available in this state store.
 func (s *RethinkDB) Features() []state.Feature {
 	return s.features
 }
@@ -138,7 +142,7 @@ func tableExists(arr []string, table string) bool {
 	return false
 }
 
-// Get retrieves a RethinkDB KV item
+// Get retrieves a RethinkDB KV item.
 func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if req == nil || req.Key == "" {
 		return nil, errors.New("invalid state request, missing key")
@@ -178,13 +182,13 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return resp, nil
 }
 
-// BulkGet performs a bulks get operations
+// BulkGet performs a bulks get operations.
 func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with bulk get for performance
 	return false, nil, nil
 }
 
-// Set saves a state KV item
+// Set saves a state KV item.
 func (s *RethinkDB) Set(req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
 		return errors.New("invalid state request, key and value required")
@@ -193,7 +197,7 @@ func (s *RethinkDB) Set(req *state.SetRequest) error {
 	return s.BulkSet([]state.SetRequest{*req})
 }
 
-// BulkSet performs a bulk save operation
+// BulkSet performs a bulk save operation.
 func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 	docs := make([]*stateRecord, len(req))
 	for i, v := range req {
@@ -248,7 +252,7 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 	return nil
 }
 
-// Delete performes a RethinkDB KV delete operation
+// Delete performes a RethinkDB KV delete operation.
 func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
 	if req == nil || req.Key == "" {
 		return errors.New("invalid request, missing key")
@@ -257,7 +261,7 @@ func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
 	return s.BulkDelete([]state.DeleteRequest{*req})
 }
 
-// BulkDelete performs a bulk delete operation
+// BulkDelete performs a bulk delete operation.
 func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 	list := make([]string, 0)
 	for _, d := range req {
@@ -273,7 +277,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-// Multi performs multiple operations
+// Multi performs multiple operations.
 func (s *RethinkDB) Multi(req state.TransactionalStateRequest) error {
 	upserts := make([]state.SetRequest, 0)
 	deletes := make([]state.DeleteRequest, 0)

@@ -9,13 +9,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/a8m/documentdb"
+	"github.com/cenkalti/backoff/v4"
+
+	"github.com/dapr/components-contrib/authentication/azure"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
 
-// CosmosDB allows performing state operations on collections
+// CosmosDB allows performing state operations on collections.
 type CosmosDB struct {
 	client       *documentdb.DocumentDB
 	collection   *documentdb.Collection
@@ -33,12 +38,14 @@ type cosmosDBCredentials struct {
 	PartitionKey string `json:"partitionKey"`
 }
 
-// NewCosmosDB returns a new CosmosDB instance
+const statusTooManyRequests = "429" // RFC 6585, 4
+
+// NewCosmosDB returns a new CosmosDB instance.
 func NewCosmosDB(logger logger.Logger) *CosmosDB {
 	return &CosmosDB{logger: logger}
 }
 
-// Init performs CosmosDB connection parsing and connecting
+// Init performs CosmosDB connection parsing and connecting.
 func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
@@ -46,39 +53,79 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	}
 
 	c.partitionKey = m.PartitionKey
-	client := documentdb.New(m.URL, &documentdb.Config{
-		MasterKey: &documentdb.Key{
+
+	// Create the client; first, try authenticating with a master key, if present
+	var config *documentdb.Config
+	if m.MasterKey != "" {
+		config = documentdb.NewConfig(&documentdb.Key{
 			Key: m.MasterKey,
-		},
-	})
+		})
+	} else {
+		// Fallback to using Azure AD
+		env, errB := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+		if errB != nil {
+			return errB
+		}
+		spt, errB := env.GetServicePrincipalToken()
+		if errB != nil {
+			return errB
+		}
+		config = documentdb.NewConfigWithServicePrincipal(spt)
+	}
+	// disable the identification hydrator (which autogenerates IDs if missing from the request)
+	// so we aren't forced to use a struct by the upstream SDK
+	// this allows us to provide the most flexibility in the request document sent to this binding
+	config.IdentificationHydrator = nil
+	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 
-	dbs, err := client.QueryDatabases(&documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Database},
-		},
+	// Retries initializing the client if a TooManyRequests error is encountered
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 2 * time.Second
+	bo.MaxElapsedTime = 5 * time.Minute
+	err = backoff.RetryNotify(func() (err error) {
+		client := documentdb.New(m.URL, config)
+
+		dbs, err := client.QueryDatabases(&documentdb.Query{
+			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+			Parameters: []documentdb.Parameter{
+				{Name: "@id", Value: m.Database},
+			},
+		})
+		if err != nil {
+			if isTooManyRequestsError(err) {
+				return err
+			}
+			return backoff.Permanent(err)
+		} else if len(dbs) == 0 {
+			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB binding not found", m.Database))
+		}
+
+		c.db = &dbs[0]
+		colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
+			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
+			Parameters: []documentdb.Parameter{
+				{Name: "@id", Value: m.Collection},
+			},
+		})
+		if err != nil {
+			if isTooManyRequestsError(err) {
+				return err
+			}
+			return backoff.Permanent(err)
+		} else if len(colls) == 0 {
+			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB binding not found", m.Collection))
+		}
+
+		c.collection = &colls[0]
+		c.client = client
+
+		return nil
+	}, bo, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB binding initialization failed: %v; retrying in %s", err, d)
 	})
 	if err != nil {
 		return err
-	} else if len(dbs) == 0 {
-		return fmt.Errorf("database %s for CosmosDB state store not found", m.Database)
 	}
-
-	c.db = &dbs[0]
-	colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Collection},
-		},
-	})
-	if err != nil {
-		return err
-	} else if len(colls) == 0 {
-		return fmt.Errorf("collection %s for CosmosDB state store not found", m.Collection)
-	}
-
-	c.collection = &colls[0]
-	c.client = client
 
 	return nil
 }
@@ -104,29 +151,34 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 }
 
 func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var obj interface{}
-	err := json.Unmarshal(req.Data, &obj)
-	if err != nil {
-		return nil, err
-	}
+	switch req.Operation {
+	case bindings.CreateOperation:
+		var obj interface{}
+		err := json.Unmarshal(req.Data, &obj)
+		if err != nil {
+			return nil, err
+		}
 
-	val, err := c.getPartitionKeyValue(c.partitionKey, obj)
-	if err != nil {
-		return nil, err
-	}
+		val, err := c.getPartitionKeyValue(c.partitionKey, obj)
+		if err != nil {
+			return nil, err
+		}
 
-	_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
-	if err != nil {
-		return nil, err
-	}
+		_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
+		if err != nil {
+			return nil, err
+		}
 
-	return nil, nil
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("operation kind %s not supported", req.Operation)
+	}
 }
 
 func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (interface{}, error) {
 	val, err := c.lookup(obj.(map[string]interface{}), strings.Split(key, "."))
 	if err != nil {
-		return nil, fmt.Errorf("missing partitionKey field %s from request body - %s", c.partitionKey, err)
+		return nil, fmt.Errorf("missing partitionKey field %s from request body - %w", c.partitionKey, err)
 	}
 
 	if val == "" {
@@ -160,4 +212,18 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 	}
 
 	return c.lookup(m, ks[1:])
+}
+
+func isTooManyRequestsError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if requestError, ok := err.(*documentdb.RequestError); ok {
+		if requestError.Code == statusTooManyRequests {
+			return true
+		}
+	}
+
+	return false
 }

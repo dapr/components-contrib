@@ -7,11 +7,13 @@ import (
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
+
+	"github.com/dapr/kit/config"
 )
 
 // The intermediateConfig is based off of the consul api types. User configurations are
 // deserialized into this type before being converted to the equivalent consul types
-// that way breaking changes in future versions of the consul api cannot break user configuration
+// that way breaking changes in future versions of the consul api cannot break user configuration.
 type intermediateConfig struct {
 	Client               *Config
 	Checks               []*AgentServiceCheck
@@ -35,9 +37,8 @@ type configSpec struct {
 }
 
 func parseConfig(rawConfig interface{}) (configSpec, error) {
-	result := configSpec{}
-	config := intermediateConfig{}
-	rawConfig, err := convertGenericConfig(rawConfig)
+	var result configSpec
+	rawConfig, err := config.Normalize(rawConfig)
 	if err != nil {
 		return result, err
 	}
@@ -50,41 +51,14 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
-	if err := decoder.Decode(&config); err != nil {
+	var configuration intermediateConfig
+	if err := decoder.Decode(&configuration); err != nil {
 		return result, fmt.Errorf("error deserializing to configSpec: %w", err)
 	}
 
-	result = mapConfig(config)
+	result = mapConfig(configuration)
 
 	return result, nil
-}
-
-// helper function for transforming interface{} into json serializable
-func convertGenericConfig(i interface{}) (interface{}, error) {
-	var err error
-	switch x := i.(type) {
-	case map[interface{}]interface{}:
-		m2 := map[string]interface{}{}
-		for k, v := range x {
-			if strKey, ok := k.(string); ok {
-				if m2[strKey], err = convertGenericConfig(v); err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, fmt.Errorf("error parsing config field: %v", k)
-			}
-		}
-
-		return m2, nil
-	case []interface{}:
-		for i, v := range x {
-			if x[i], err = convertGenericConfig(v); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return i, nil
 }
 
 func mapConfig(config intermediateConfig) configSpec {

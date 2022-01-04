@@ -18,12 +18,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
+	"golang.org/x/net/http2"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
-	jsoniter "github.com/json-iterator/go"
-	"golang.org/x/net/http2"
 )
 
 const (
@@ -35,8 +37,10 @@ const (
 	componentCaPem               string = "caPem"
 	componentSkipVerify          string = "skipVerify"
 	componentTLSServerName       string = "tlsServerName"
+	componentVaultToken          string = "vaultToken"
 	componentVaultTokenMountPath string = "vaultTokenMountPath"
 	componentVaultKVPrefix       string = "vaultKVPrefix"
+	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
@@ -60,10 +64,11 @@ func (v valueType) isMapType() bool {
 
 var ErrNotFound = errors.New("secret key or version not exist")
 
-// vaultSecretStore is a secret store implementation for HashiCorp Vault
+// vaultSecretStore is a secret store implementation for HashiCorp Vault.
 type vaultSecretStore struct {
 	client              *http.Client
 	vaultAddress        string
+	vaultToken          string
 	vaultTokenMountPath string
 	vaultKVPrefix       string
 	vaultEnginePath     string
@@ -74,7 +79,7 @@ type vaultSecretStore struct {
 	logger logger.Logger
 }
 
-// tlsConfig is TLS configuration to interact with HashiCorp Vault
+// tlsConfig is TLS configuration to interact with HashiCorp Vault.
 type tlsConfig struct {
 	vaultCAPem      string
 	vaultCACert     string
@@ -97,7 +102,7 @@ type vaultListKVResponse struct {
 	} `json:"data"`
 }
 
-// NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store
+// NewHashiCorpVaultSecretStore returns a new HashiCorp Vault secret store.
 func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &vaultSecretStore{
 		client: &http.Client{},
@@ -106,14 +111,14 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 	}
 }
 
-// Init creates a HashiCorp Vault client
+// Init creates a HashiCorp Vault client.
 func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	props := metadata.Properties
 
 	// Get Vault address
 	address := props[componentVaultAddress]
 	if address == "" {
-		v.vaultAddress = defaultVaultAddress
+		address = defaultVaultAddress
 	}
 
 	v.vaultAddress = address
@@ -134,6 +139,38 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 		}
 	}
 
+	v.vaultToken = props[componentVaultToken]
+	v.vaultTokenMountPath = props[componentVaultTokenMountPath]
+
+	// Test that at least one of them are set if not return error
+	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
+		return fmt.Errorf("token mount path and token not set")
+	}
+
+	// Test that both are not set. If so return error
+	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
+		return fmt.Errorf("token mount path and token both set")
+	}
+
+	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
+	vaultKVPrefix := props[componentVaultKVPrefix]
+	convertedVaultKVUsePrefix := true
+	if vaultKVUsePrefix != "" {
+		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
+			convertedVaultKVUsePrefix = v
+		} else if err != nil {
+			return fmt.Errorf("unable to convert Use Prefix to boolean")
+		}
+	}
+
+	if !convertedVaultKVUsePrefix {
+		vaultKVPrefix = ""
+	} else if vaultKVPrefix == "" {
+		vaultKVPrefix = defaultVaultKVPrefix
+	}
+
+	v.vaultKVPrefix = vaultKVPrefix
+
 	// Generate TLS config
 	tlsConf := metadataToTLSConfig(props)
 
@@ -143,20 +180,6 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	}
 
 	v.client = client
-
-	tokenMountPath := props[componentVaultTokenMountPath]
-	if tokenMountPath == "" {
-		return fmt.Errorf("token mount path not set")
-	}
-
-	v.vaultTokenMountPath = tokenMountPath
-
-	vaultKVPrefix := props[componentVaultKVPrefix]
-	if vaultKVPrefix == "" {
-		vaultKVPrefix = defaultVaultKVPrefix
-	}
-
-	v.vaultKVPrefix = vaultKVPrefix
 
 	return nil
 }
@@ -179,7 +202,7 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 	return &tlsConf
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, error) {
 	token, err := v.readVaultToken()
 	if err != nil {
@@ -214,8 +237,8 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 			return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
 		}
 
-		return nil, fmt.Errorf("couldn't to get successful response: %#v, %s",
-			httpresp, b.String())
+		return nil, fmt.Errorf("couldn't get successful response, status code %d, body %s",
+			httpresp.StatusCode, b.String())
 	}
 
 	var d vaultKVResponse
@@ -240,7 +263,7 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 	return &d, nil
 }
 
-// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values
+// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	// version 0 represent for latest version
 	version := "0"
@@ -259,7 +282,7 @@ func (v *vaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 	return resp, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values
+// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	version := "0"
 	if value, ok := req.Metadata[versionID]; ok {
@@ -330,8 +353,9 @@ func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
 	if httpresp.StatusCode != 200 {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
+		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
 
-		return nil, fmt.Errorf("couldn't get successful response, status code: %d, status: %s, response %s",
+		return nil, fmt.Errorf("list keys couldn't get successful response, status code: %d, status: %s, response %s",
 			httpresp.StatusCode, httpresp.Status, b.String())
 	}
 
@@ -362,6 +386,10 @@ func (v *vaultSecretStore) isSecretPath(key string) bool {
 }
 
 func (v *vaultSecretStore) readVaultToken() (string, error) {
+	if v.vaultToken != "" {
+		return v.vaultToken, nil
+	}
+
 	data, err := ioutil.ReadFile(v.vaultTokenMountPath)
 	if err != nil {
 		return "", fmt.Errorf("couldn't read vault token: %s", err)
@@ -441,7 +469,7 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 	return certPool, nil
 }
 
-// readCertificateFile reads the certificate at given path
+// readCertificateFile reads the certificate at given path.
 func readCertificateFile(certPool *x509.CertPool, path string) error {
 	// Read certificate file
 	pemFile, err := ioutil.ReadFile(path)
@@ -456,7 +484,7 @@ func readCertificateFile(certPool *x509.CertPool, path string) error {
 	return nil
 }
 
-// readCertificateFolder scans a folder for certificates
+// readCertificateFolder scans a folder for certificates.
 func readCertificateFolder(certPool *x509.CertPool, path string) error {
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 		if info.IsDir() {

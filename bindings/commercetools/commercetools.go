@@ -128,7 +128,7 @@ func handleGraphQLQuery(ctx context.Context, ct *Binding, query string) (*bindin
 	return res, nil
 }
 
-// getCommercetoolsMetadata returns new commercetools metadata.
+// getCommercetoolsMetadata returns new commercetools metadata object.
 func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commercetoolsMetadata, error) {
 	meta := commercetoolsMetadata{}
 

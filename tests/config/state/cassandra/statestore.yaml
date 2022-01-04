@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.cassandra
+  version: v1
+  metadata:
+  - name: hosts
+    value: localhost
+  - name: username
+    value: cassandra
+  - name: password
+    value: cassandra
+

@@ -46,6 +46,12 @@ func NewEnvironmentSettings(resourceName string, values map[string]string) (Envi
 		es.Resource = azureEnv.ResourceIdentifiers.CosmosDB
 	case "servicebus":
 		es.Resource = azureEnv.ResourceIdentifiers.ServiceBus
+	case "eventhubs":
+		// Azure EventHubs (data plane)
+		// For documentation https://docs.microsoft.com/en-us/azure/event-hubs/authorize-access-azure-active-directory#overview
+		// The resource name to request a token is https://eventhubs.azure.net/, and it's the same for all clouds/tenants.
+		// Kafka connection does not factor in here.
+		es.Resource = "https://eventhubs.azure.net"
 	default:
 		return es, errors.New("invalid resource name: " + resourceName)
 	}

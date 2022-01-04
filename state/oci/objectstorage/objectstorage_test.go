@@ -1,8 +1,8 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
 package objectstorage
-
-// for example in ~/dapr-dev/components-contrib
-// go test -v github.com/dapr/components-contrib/state/oci/objectstorage
-// to run the test set for OCI ObjectStorage service based StateStore.
 
 import (
 	"context"
@@ -16,34 +16,69 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var dummyOCIObjectStorageConfiguration = map[string]string{
-	"bucketName":      "myBuck",
-	"tenancyOCID":     "ocid1.tenancy.oc1..aaaaaaaag7c7sq",
-	"userOCID":        "ocid1.user.oc1..aaaaaaaaby",
-	"compartmentOCID": "ocid1.compartment.oc1..aaaaaaaq",
-	"fingerPrint":     "02:91:6c",
-	"privateKey":      "-----BEGIN RSA PRIVATE KEY-----\nMIIEogI=\n-----END RSA PRIVATE KEY-----",
-	"region":          "us-ashburn-1",
+func getDummyOCIObjectStorageConfiguration() map[string]string {
+	return map[string]string{
+		"bucketName":      "myBuck",
+		"tenancyOCID":     "ocid1.tenancy.oc1..aaaaaaaag7c7sq",
+		"userOCID":        "ocid1.user.oc1..aaaaaaaaby",
+		"compartmentOCID": "ocid1.compartment.oc1..aaaaaaaq",
+		"fingerPrint":     "02:91:6c",
+		"privateKey":      "-----BEGIN RSA PRIVATE KEY-----\nMIIEogI=\n-----END RSA PRIVATE KEY-----",
+		"region":          "us-ashburn-1",
+	}
 }
 
 func TestInit(t *testing.T) {
 	meta := state.Metadata{}
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	t.Run("Init with missing metadata", func(t *testing.T) {
-		meta.Properties = map[string]string{
-			"invalidValue": "a",
-		}
-		err := statestore.Init(meta)
-		assert.NotNil(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty bucketName field from metadata"), err, "Lacking configuration property should be spotted")
-	})
-
 	t.Run("Init with complete yet incorrect metadata", func(t *testing.T) {
-		meta.Properties = dummyOCIObjectStorageConfiguration
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		err := statestore.Init(meta)
 		assert.NotNil(t, err)
 		assert.Error(t, err, "Incorrect configuration data should result in failure to create client")
 		assert.Contains(t, err.Error(), "failed to initialize client", "Incorrect configuration data should result in failure to create client")
+	})
+	t.Run("Init with missing region", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[regionKey] = ""
+		err := statestore.Init(meta)
+		assert.NotNil(t, err)
+		assert.Equal(t, fmt.Errorf("missing or empty region field from metadata"), err, "Lacking configuration property should be spotted")
+	})
+	t.Run("Init with missing tenancyOCID", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties["tenancyOCID"] = ""
+		err := statestore.Init(meta)
+		assert.NotNil(t, err)
+		assert.Equal(t, fmt.Errorf("missing or empty tenancyOCID field from metadata"), err, "Lacking configuration property should be spotted")
+	})
+	t.Run("Init with missing userOCID", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[userKey] = ""
+		err := statestore.Init(meta)
+		assert.NotNil(t, err)
+		assert.Equal(t, fmt.Errorf("missing or empty userOCID field from metadata"), err, "Lacking configuration property should be spotted")
+	})
+	t.Run("Init with missing compartmentOCID", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[compartmentKey] = ""
+		err := statestore.Init(meta)
+		assert.NotNil(t, err)
+		assert.Equal(t, fmt.Errorf("missing or empty compartmentOCID field from metadata"), err, "Lacking configuration property should be spotted")
+	})
+	t.Run("Init with missing fingerprint", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[fingerPrintKey] = ""
+		err := statestore.Init(meta)
+		assert.NotNil(t, err)
+		assert.Equal(t, fmt.Errorf("missing or empty fingerPrint field from metadata"), err, "Lacking configuration property should be spotted")
+	})
+	t.Run("Init with missing private key", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[privateKeyKey] = ""
+		err := statestore.Init(meta)
+		assert.NotNil(t, err)
+		assert.Equal(t, fmt.Errorf("missing or empty privateKey field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 }
 
@@ -107,12 +142,10 @@ func TestGetWithMockClient(t *testing.T) {
 func TestInitWithMockClient(t *testing.T) {
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	s.client = &mockedObjectStoreClient{}
-
-	t.Run("Test Init", func(t *testing.T) {
-		getResponse, err := s.Get(&state.GetRequest{Key: "test-key"})
-		assert.Equal(t, "Hello World", string(getResponse.Data), "Value retrieved should be equal to value set")
-		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
-		assert.Nil(t, err)
+	meta := state.Metadata{}
+	t.Run("Test Init with incomplete configuration", func(t *testing.T) {
+		err := s.Init(meta)
+		assert.NotNil(t, err, "Init should complain about lacking configuration settings")
 	})
 }
 
@@ -125,6 +158,7 @@ func TestPingWithMockClient(t *testing.T) {
 		assert.Nil(t, err)
 	})
 }
+
 func TestSetWithMockClient(t *testing.T) {
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	statestore.client = &mockedObjectStoreClient{}
@@ -198,6 +232,5 @@ func TestDeleteWithMockClient(t *testing.T) {
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Asking for FirstWrite concurrency policy without ETag should fail")
-
 	})
 }

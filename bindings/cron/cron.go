@@ -20,17 +20,18 @@ import (
 type Binding struct {
 	logger   logger.Logger
 	schedule string
-	stopCh   chan bool
 	parser   cron.Parser
 }
 
-var _ = bindings.InputBinding(&Binding{})
+var (
+	_      = bindings.InputBinding(&Binding{})
+	stopCh = make(chan bool)
+)
 
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,
-		stopCh: make(chan bool),
 		parser: cron.NewParser(
 			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
@@ -72,7 +73,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 	}
 	c.Start()
 	b.logger.Debugf("next run: %v", time.Until(c.Entry(id).Next))
-	<-b.stopCh
+	<-stopCh
 	b.logger.Debugf("stopping schedule: %s", b.schedule)
 	c.Stop()
 
@@ -86,7 +87,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
 			req.Operation, bindings.DeleteOperation)
 	}
-	b.stopCh <- true
+	stopCh <- true
 
 	return &bindings.InvokeResponse{
 		Metadata: map[string]string{

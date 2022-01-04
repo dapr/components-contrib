@@ -19,13 +19,14 @@ import (
 // Binding represents Cron input binding.
 type Binding struct {
 	logger   logger.Logger
+	name     string
 	schedule string
 	parser   cron.Parser
 }
 
 var (
 	_      = bindings.InputBinding(&Binding{})
-	stopCh = make(chan bool)
+	stopCh = make(map[string]chan bool)
 )
 
 // NewCron returns a new Cron event input binding.
@@ -43,6 +44,9 @@ func NewCron(logger logger.Logger) *Binding {
 //   "15 * * * * *" - Every 15 sec
 //   "0 30 * * * *" - Every 30 min
 func (b *Binding) Init(metadata bindings.Metadata) error {
+	if _, ok := stopCh[metadata.Name]; !ok {
+		stopCh[metadata.Name] = make(chan bool)
+	}
 	s, f := metadata.Properties["schedule"]
 	if !f || s == "" {
 		return fmt.Errorf("schedule not set")
@@ -73,7 +77,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 	}
 	c.Start()
 	b.logger.Debugf("next run: %v", time.Until(c.Entry(id).Next))
-	<-stopCh
+	<-stopCh[b.name]
 	b.logger.Debugf("stopping schedule: %s", b.schedule)
 	c.Stop()
 
@@ -87,7 +91,7 @@ func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
 			req.Operation, bindings.DeleteOperation)
 	}
-	stopCh <- true
+	stopCh[b.name] <- true
 
 	return &bindings.InvokeResponse{
 		Metadata: map[string]string{

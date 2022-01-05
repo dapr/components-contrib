@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package s3
 
@@ -42,14 +50,15 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Bucket       string `json:"bucket"`
-	DecodeBase64 bool   `json:"decodeBase64,string"`
-	EncodeBase64 bool   `json:"encodeBase64,string"`
+	Region         string `json:"region"`
+	Endpoint       string `json:"endpoint"`
+	AccessKey      string `json:"accessKey"`
+	SecretKey      string `json:"secretKey"`
+	SessionToken   string `json:"sessionToken"`
+	Bucket         string `json:"bucket"`
+	DecodeBase64   bool   `json:"decodeBase64,string"`
+	EncodeBase64   bool   `json:"encodeBase64,string"`
+	ForcePathStyle bool   `json:"forcePathStyle,string"`
 }
 
 type createResponse struct {
@@ -79,10 +88,13 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	cfg := aws.NewConfig().WithS3ForcePathStyle(m.ForcePathStyle)
+
 	s.metadata = m
-	s.s3Client = s3.New(session)
-	s.downloader = s3manager.NewDownloader(session)
-	s.uploader = s3manager.NewUploader(session)
+	s.s3Client = s3.New(session, cfg)
+	s.downloader = s3manager.NewDownloaderWithClient(s.s3Client)
+	s.uploader = s3manager.NewUploaderWithClient(s.s3Client)
 
 	return nil
 }

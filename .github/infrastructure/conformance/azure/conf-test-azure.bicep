@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+// ------------------------------------------------------------------------
+// Copyright 2021 The Dapr Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//     http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ------------------------------------------------------------------------
 
 targetScope = 'subscription'
 
@@ -38,7 +46,7 @@ param certAuthSpId string
 param sqlServerAdminPassword string
 
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
-var acrName = '${toLower(namePrefix)}registry'
+var acrName = '${toLower(namePrefix)}conftestregistry'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
@@ -72,7 +80,7 @@ module cosmosDb 'conf-test-azure-cosmosdb.bicep' = {
   }
 }
 
-module eventGridTopic 'conf-test-azure-eventGrid.bicep' = {
+module eventGridTopic 'conf-test-azure-eventgrid.bicep' = {
   name: eventGridTopicName
   scope: resourceGroup(confTestRg.name)
   params: {
@@ -81,7 +89,7 @@ module eventGridTopic 'conf-test-azure-eventGrid.bicep' = {
   }
 }
 
-module eventHubsNamespace 'conf-test-azure-eventHubs.bicep' = {
+module eventHubsNamespace 'conf-test-azure-eventhubs.bicep' = {
   name: eventHubsNamespaceName
   scope: resourceGroup(confTestRg.name)
   params: {
@@ -99,7 +107,7 @@ module iotHub 'conf-test-azure-iothub.bicep' = {
   }
 }
 
-module keyVault 'conf-test-azure-keyVault.bicep' = {
+module keyVault 'conf-test-azure-keyvault.bicep' = {
   name: keyVaultName
   scope: resourceGroup(confTestRg.name)
   params: {

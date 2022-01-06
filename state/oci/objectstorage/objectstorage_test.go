@@ -17,7 +17,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -116,9 +118,12 @@ func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname stri
 	if objectname == "unknownKey" {
 		return nil, nil, nil, nil
 	}
+	if objectname == "test-expired-ttl-key" {
+		metadata[expiryTimeMetaLabel] = string(time.Now().UTC().Add(time.Second * -10).Format(isoDateTimeFormat))
+	}
+
 	if objectname == "test-app/test-key" {
 		contentString = "Hello Continent"
-
 	}
 
 	return []byte(contentString), &etagString, metadata, nil
@@ -177,6 +182,12 @@ func TestGetWithMockClient(t *testing.T) {
 		assert.Nil(t, getResponse.Data, "No value should be retrieved for an unknown key")
 		assert.Nil(t, err, "404", "Not finding an object because of unknown key should not result in an error")
 	})
+	t.Run("Test expired element (because of TTL) ", func(t *testing.T) {
+		getResponse, err := s.Get(&state.GetRequest{Key: "test-expired-ttl-key"})
+		assert.Nil(t, getResponse.Data, "No value should be retrieved for an expired state element")
+		assert.Nil(t, err, "Not returning an object because of expiration should not result in an error")
+	})
+
 }
 
 func TestInitWithMockClient(t *testing.T) {
@@ -214,6 +225,18 @@ func TestSetWithMockClient(t *testing.T) {
 		err := statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper key should be errorfree")
 		assert.True(t, mockClient.putIsCalled, "function put should be invoked on the mockClient")
+	})
+	t.Run("Regular Set Operation with TTL", func(t *testing.T) {
+		testKey := "test-key"
+		err := statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
+			"ttlInSeconds": "5",
+		})})
+		assert.Nil(t, err, "Setting a value with a proper key and a correct TTL value should be errorfree")
+
+		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
+			"ttlInSeconds": "XXX",
+		})})
+		assert.NotNil(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
 	})
 	t.Run("Testing Set & Concurrency (ETags)", func(t *testing.T) {
 		testKey := "etag-test-key"
@@ -290,5 +313,37 @@ func TestGetFilename(t *testing.T) {
 	t.Run("Normal (not-composite) key", func(t *testing.T) {
 		filename := getFileName("app-id-key")
 		assert.Equal(t, "app-id-key", filename)
+	})
+}
+
+func TestParseTTL(t *testing.T) {
+	t.Run("TTL Not an integer", func(t *testing.T) {
+		ttlInSeconds := "not an integer"
+		ttl, err := parseTTL(map[string]string{
+			"ttlInSeconds": ttlInSeconds,
+		})
+		assert.Error(t, err)
+		assert.Nil(t, ttl)
+	})
+	t.Run("TTL specified with wrong key", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl, err := parseTTL(map[string]string{
+			"expirationTime": strconv.Itoa(ttlInSeconds),
+		})
+		assert.NoError(t, err)
+		assert.Nil(t, ttl)
+	})
+	t.Run("TTL is a number", func(t *testing.T) {
+		ttlInSeconds := 12345
+		ttl, err := parseTTL(map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, *ttl, ttlInSeconds)
+	})
+	t.Run("TTL not set", func(t *testing.T) {
+		ttl, err := parseTTL(map[string]string{})
+		assert.NoError(t, err)
+		assert.Nil(t, ttl)
 	})
 }

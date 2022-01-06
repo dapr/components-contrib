@@ -20,7 +20,9 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -32,14 +34,18 @@ import (
 )
 
 const (
-	keyDelimiter   = "||"
-	tenancyKey     = "tenancyOCID"
-	compartmentKey = "compartmentOCID"
-	regionKey      = "region"
-	fingerPrintKey = "fingerPrint"
-	privateKeyKey  = "privateKey"
-	userKey        = "userOCID"
-	bucketNameKey  = "bucketName"
+	keyDelimiter            = "||"
+	tenancyKey              = "tenancyOCID"
+	compartmentKey          = "compartmentOCID"
+	regionKey               = "region"
+	fingerPrintKey          = "fingerPrint"
+	privateKeyKey           = "privateKey"
+	userKey                 = "userOCID"
+	bucketNameKey           = "bucketName"
+	metadataTTLKey          = "ttlInSeconds"
+	daprStateStoreMetaLabel = "dapr-state-store"
+	expiryTimeMetaLabel     = "expiry-time-from-ttl"
+	isoDateTimeFormat       = "2006-01-02T15:04:05"
 )
 
 type StateStore struct {
@@ -199,7 +205,16 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 		r.logger.Debugf("when FirstWrite is to be enforced, a value must be provided for the ETag")
 		return fmt.Errorf("when FirstWrite is to be enforced, a value must be provided for the ETag")
 	}
+	metadata := (map[string]string{"category": daprStateStoreMetaLabel})
 
+	ttl, ttlerr := parseTTL(req.Metadata)
+	if ttlerr != nil {
+		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+	}
+	if ttl != nil {
+		metadata[expiryTimeMetaLabel] = string(time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat))
+		r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+	}
 	r.logger.Debugf("Save state in OCI Object Storage Bucket under key %s ", req.Key)
 	objectName := getFileName(req.Key)
 	content := r.marshal(req)
@@ -209,7 +224,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
 	}
-	err := r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), nil, etag, r.logger)
+	err := r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), metadata, etag, r.logger)
 	if err != nil {
 		r.logger.Debugf("error in writing object to OCI object storage  %s, err %s", req.Key, err)
 		return fmt.Errorf("failed to write object to OCI Object storage : %w", err)
@@ -223,10 +238,20 @@ func (r *StateStore) readDocument(req *state.GetRequest) ([]byte, *string, error
 	}
 	objectName := getFileName(req.Key)
 	ctx := context.Background()
-	content, etag, _, err := r.client.getObject(ctx, objectName, r.logger)
+	content, etag, meta, err := r.client.getObject(ctx, objectName, r.logger)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
 		return nil, nil, fmt.Errorf("failed to read object from OCI Object storage : %w", err)
+	}
+	if expiryTimeString, ok := meta[expiryTimeMetaLabel]; ok {
+		expirationTime, err := time.Parse(isoDateTimeFormat, expiryTimeString)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get object from OCI because of invalid formatted value %s in meta property %s  : %w", expiryTimeString, expiryTimeMetaLabel, err)
+		}
+		if time.Now().UTC().After(expirationTime) {
+			r.logger.Debug("failed to get object from OCI because it has expired; expiry time set to %s", expiryTimeString)
+			return nil, nil, nil
+		}
 	}
 	return content, etag, nil
 }
@@ -281,6 +306,20 @@ func getFileName(key string) string {
 	}
 
 	return path.Join(pr[0], pr[1])
+}
+
+func parseTTL(requestMetadata map[string]string) (*int, error) {
+	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		parsedInt := int(parsedVal)
+
+		return &parsedInt, nil
+	}
+
+	return nil, nil
 }
 
 /**************** functions with OCI ObjectStorage Service interaction.   */

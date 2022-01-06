@@ -119,7 +119,7 @@ func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname stri
 		return nil, nil, nil, nil
 	}
 	if objectname == "test-expired-ttl-key" {
-		metadata[expiryTimeMetaLabel] = string(time.Now().UTC().Add(time.Second * -10).Format(isoDateTimeFormat))
+		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * -10).Format(isoDateTimeFormat)
 	}
 
 	if objectname == "test-app/test-key" {

@@ -231,8 +231,18 @@ func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 		Value: sarama.ByteEncoder(req.Data),
 	}
 
-	if val, ok := req.Metadata[key]; ok && val != "" {
-		msg.Key = sarama.StringEncoder(val)
+	for name, value := range req.Metadata {
+		if name == key {
+			msg.Key = sarama.StringEncoder(value)
+		} else {
+			if msg.Headers == nil {
+				msg.Headers = make([]sarama.RecordHeader, 0, len(req.Metadata))
+			}
+			msg.Headers = append(msg.Headers, sarama.RecordHeader{
+				Key:   []byte(name),
+				Value: []byte(value),
+			})
+		}
 	}
 
 	partition, offset, err := k.producer.SendMessage(msg)

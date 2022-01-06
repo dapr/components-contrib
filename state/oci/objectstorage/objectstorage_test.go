@@ -187,7 +187,6 @@ func TestGetWithMockClient(t *testing.T) {
 		assert.Nil(t, getResponse.Data, "No value should be retrieved for an expired state element")
 		assert.Nil(t, err, "Not returning an object because of expiration should not result in an error")
 	})
-
 }
 
 func TestInitWithMockClient(t *testing.T) {

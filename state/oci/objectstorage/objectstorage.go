@@ -212,7 +212,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 		return fmt.Errorf("error in parsing TTL %w", ttlerr)
 	}
 	if ttl != nil {
-		metadata[expiryTimeMetaLabel] = string(time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat))
+		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
 		r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
 	}
 	r.logger.Debugf("Save state in OCI Object Storage Bucket under key %s ", req.Key)
@@ -312,7 +312,7 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
 		parsedVal, err := strconv.ParseInt(val, 10, 0)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in parsing ttl metadata : %w", err)
 		}
 		parsedInt := int(parsedVal)
 

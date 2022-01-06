@@ -107,8 +107,8 @@ modtidy:
 ################################################################################
 .PHONY: check-diff
 check-diff:
-	git diff --exit-code ./go.mod # check no changes
-	git diff --exit-code ./go.sum # check no changes
+	git diff --exit-code -- '*go.mod' # check no changes
+	git diff --exit-code -- '*go.sum' # check no changes
 
 ################################################################################
 # Target: conf-tests                                                           #

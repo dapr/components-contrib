@@ -226,6 +226,10 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 }
 
 func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+	if len(k.topics) == 0 {
+		return errors.New("kafka error: no topics configured")
+	}
+
 	config := sarama.NewConfig()
 	config.Version = sarama.V1_0_0_0
 	config.Consumer.Offsets.Initial = k.initialOffset

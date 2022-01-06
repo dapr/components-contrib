@@ -17,6 +17,7 @@ components:
     config:
       output:
         blobName: $((uuid))
+      outputData: '{"maxResults": 10, "include": {"metadata": true, "snapshots": false}}'
   - component: azure.cosmosdb
     operations: ["create", "operations"]
     config:

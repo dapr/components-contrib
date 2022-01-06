@@ -1,7 +1,16 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package objectstorage
 
 import (
@@ -91,15 +100,28 @@ func TestFeatures(t *testing.T) {
 }
 
 type mockedObjectStoreClient struct {
-	objectStoreClient
+	ociObjectStorageClient
+	getIsCalled        bool
+	putIsCalled        bool
+	deleteIsCalled     bool
+	pingBucketIsCalled bool
 }
 
-func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname string, logger logger.Logger) ([]byte, *string, error) {
-	etag := "etag"
-	return []byte("Hello World"), &etag, nil
+func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error) {
+	c.getIsCalled = true
+	etagString := "etag"
+	contentString := "Hello World"
+	metadata = map[string]string{}
+
+	if objectname == "unknownKey" {
+		return nil, nil, nil, nil
+	}
+
+	return []byte(contentString), &etagString, metadata, nil
 }
 
 func (c *mockedObjectStoreClient) deleteObject(ctx context.Context, objectname string, etag *string) (err error) {
+	c.deleteIsCalled = true
 	if objectname == "unknownKey" {
 		return fmt.Errorf("failed to delete object that does not exist - HTTP status code 404")
 	}
@@ -110,6 +132,7 @@ func (c *mockedObjectStoreClient) deleteObject(ctx context.Context, objectname s
 }
 
 func (c *mockedObjectStoreClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string, logger logger.Logger) error {
+	c.putIsCalled = true
 	if etag != nil && *etag == "notTheCorrectETag" {
 		return fmt.Errorf("failed to delete object because of incorrect etag-value ")
 	}
@@ -124,18 +147,26 @@ func (c *mockedObjectStoreClient) initStorageBucket(logger logger.Logger) error 
 }
 
 func (c *mockedObjectStoreClient) pingBucket(logger logger.Logger) error {
+	c.pingBucketIsCalled = true
 	return nil
 }
 
 func TestGetWithMockClient(t *testing.T) {
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	s.client = &mockedObjectStoreClient{}
+	mockClient := &mockedObjectStoreClient{}
+	s.client = mockClient
 
-	t.Run("Test contents of Features", func(t *testing.T) {
+	t.Run("Test regular Get", func(t *testing.T) {
 		getResponse, err := s.Get(&state.GetRequest{Key: "test-key"})
+		assert.True(t, mockClient.getIsCalled, "function Get should be invoked on the mockClient")
 		assert.Equal(t, "Hello World", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
 		assert.Nil(t, err)
+	})
+	t.Run("Test Get with an unknown key", func(t *testing.T) {
+		getResponse, err := s.Get(&state.GetRequest{Key: "unknownKey"})
+		assert.Nil(t, getResponse.Data, "No value should be retrieved for an unknown key")
+		assert.Nil(t, err, "404", "Not finding an object because of unknown key should not result in an error")
 	})
 }
 
@@ -151,17 +182,20 @@ func TestInitWithMockClient(t *testing.T) {
 
 func TestPingWithMockClient(t *testing.T) {
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	s.client = &mockedObjectStoreClient{}
+	mockClient := &mockedObjectStoreClient{}
+	s.client = mockClient
 
 	t.Run("Test Ping", func(t *testing.T) {
 		err := s.Ping()
 		assert.Nil(t, err)
+		assert.True(t, mockClient.pingBucketIsCalled, "function pingBucket should be invoked on the mockClient")
 	})
 }
 
 func TestSetWithMockClient(t *testing.T) {
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	statestore.client = &mockedObjectStoreClient{}
+	mockClient := &mockedObjectStoreClient{}
+	statestore.client = mockClient
 	t.Run("Set without a key", func(t *testing.T) {
 		err := statestore.Set(&state.SetRequest{Value: []byte("test-value")})
 		assert.Equal(t, err, fmt.Errorf("key for value to set was missing from request"), "Lacking Key results in error")
@@ -170,6 +204,7 @@ func TestSetWithMockClient(t *testing.T) {
 		testKey := "test-key"
 		err := statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper key should be errorfree")
+		assert.True(t, mockClient.putIsCalled, "function put should be invoked on the mockClient")
 	})
 	t.Run("Testing Set & Concurrency (ETags)", func(t *testing.T) {
 		testKey := "etag-test-key"
@@ -200,7 +235,8 @@ func TestSetWithMockClient(t *testing.T) {
 
 func TestDeleteWithMockClient(t *testing.T) {
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	s.client = &mockedObjectStoreClient{}
+	mockClient := &mockedObjectStoreClient{}
+	s.client = mockClient
 	t.Run("Delete without a key", func(t *testing.T) {
 		err := s.Delete(&state.DeleteRequest{})
 		assert.Equal(t, err, fmt.Errorf("key for value to delete was missing from request"), "Lacking Key results in error")
@@ -213,6 +249,7 @@ func TestDeleteWithMockClient(t *testing.T) {
 		testKey := "test-key"
 		err := s.Delete(&state.DeleteRequest{Key: testKey})
 		assert.Nil(t, err, "Deleting an existing value with a proper key should be errorfree")
+		assert.True(t, mockClient.deleteIsCalled, "function delete should be invoked on the mockClient")
 	})
 	t.Run("Testing Delete & Concurrency (ETags)", func(t *testing.T) {
 		testKey := "etag-test-delete-key"

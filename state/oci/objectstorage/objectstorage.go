@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package objectstorage
 
@@ -55,7 +63,7 @@ type Metadata struct {
 }
 
 type objectStoreClient interface {
-	getObject(ctx context.Context, objectname string, logger logger.Logger) ([]byte, *string, error)
+	getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error)
 	deleteObject(ctx context.Context, objectname string, etag *string) (err error)
 	putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string, logger logger.Logger) error
 	initStorageBucket(logger logger.Logger) error
@@ -214,7 +222,7 @@ func (r *StateStore) readDocument(req *state.GetRequest) ([]byte, *string, error
 	}
 	objectName := getFileName(req.Key)
 	ctx := context.Background()
-	content, etag, err := r.client.getObject(ctx, objectName, r.logger)
+	content, etag, _, err := r.client.getObject(ctx, objectName, r.logger)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
 		return nil, nil, fmt.Errorf("failed to read object from OCI Object storage : %w", err)
@@ -326,7 +334,7 @@ func createBucket(ctx context.Context, client objectstorage.ObjectStorageClient,
 
 // *****  the functions that interact with OCI Object Storage AND constitute the objectStoreClient interface.
 
-func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string, logger logger.Logger) ([]byte, *string, error) {
+func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error) {
 	logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.bucketName)
 	request := objectstorage.GetObjectRequest{
 		NamespaceName: &c.objectStorageMetadata.namespace,
@@ -337,16 +345,13 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 	if err != nil {
 		logger.Debugf("Issue in OCI ObjectStorage with retrieving object %s, error:  %s", objectname, err)
 		if response.RawResponse.StatusCode == 404 {
-			return nil, nil, nil
+			return nil, nil, nil, nil
 		}
-		return nil, nil, fmt.Errorf("failed to retrieve object : %w", err)
-	}
-	if response.ETag != nil {
-		logger.Debugf("OCI ObjectStorage StateStore metadata:  ETag %s", *response.ETag)
+		return nil, nil, nil, fmt.Errorf("failed to retrieve object : %w", err)
 	}
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(response.Content)
-	return buf.Bytes(), response.ETag, nil
+	return buf.Bytes(), response.ETag, response.OpcMeta, nil
 }
 
 func (c *ociObjectStorageClient) deleteObject(ctx context.Context, objectname string, etag *string) (err error) {

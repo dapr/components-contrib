@@ -6,7 +6,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/dapr/components-contrib v1.5.1-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.5.2-0.20211207220041-6296ceb58dec
+	github.com/dapr/dapr v1.5.2-0.20220103230632-1c47694f2214
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/streadway/amqp v1.0.0
@@ -35,7 +35,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/cel-go v0.7.3 // indirect
+	github.com/google/cel-go v0.9.0 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
@@ -80,14 +80,14 @@ require (
 	go.opentelemetry.io/otel v0.19.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
+	golang.org/x/net v0.0.0-20210825183410-e898025ed96a // indirect
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c // indirect
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac // indirect
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
 	google.golang.org/appengine v1.6.6 // indirect
-	google.golang.org/genproto v0.0.0-20210524171403-669157292da3 // indirect
+	google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2 // indirect
 	google.golang.org/grpc v1.40.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -112,5 +112,3 @@ replace github.com/dapr/components-contrib => ../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
-
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.4.4-0.20211129065316-1549dc79c079

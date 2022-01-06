@@ -34,6 +34,9 @@ const (
 
 	// ContentType defines the metadata key for the content type.
 	ContentType = "contentType"
+
+	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
+	QueryIndexName = "queryIndexName"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
@@ -97,6 +100,14 @@ func IsRawPayload(props map[string]string) (bool, error) {
 
 func TryGetContentType(props map[string]string) (string, bool) {
 	if val, ok := props[ContentType]; ok && val != "" {
+		return val, true
+	}
+
+	return "", false
+}
+
+func TryGetQueryIndexName(props map[string]string) (string, bool) {
+	if val, ok := props[QueryIndexName]; ok && val != "" {
 		return val, true
 	}
 

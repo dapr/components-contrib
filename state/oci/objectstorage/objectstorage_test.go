@@ -236,6 +236,11 @@ func TestSetWithMockClient(t *testing.T) {
 			"ttlInSeconds": "XXX",
 		})})
 		assert.NotNil(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
+
+		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
+			"ttlInSeconds": "1",
+		})})
+		assert.Nil(t, err, "Setting a value with a proper key and a correct TTL value should be errorfree")
 	})
 	t.Run("Testing Set & Concurrency (ETags)", func(t *testing.T) {
 		testKey := "etag-test-key"

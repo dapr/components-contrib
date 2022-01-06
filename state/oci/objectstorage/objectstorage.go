@@ -212,8 +212,12 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 		return fmt.Errorf("error in parsing TTL %w", ttlerr)
 	}
 	if ttl != nil {
-		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
-		r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+		if *ttl == -1 {
+			r.logger.Debugf("TTL is set to -1; this means: never expire. ")
+		} else {
+			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
+			r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+		}
 	}
 	r.logger.Debugf("Save state in OCI Object Storage Bucket under key %s ", req.Key)
 	objectName := getFileName(req.Key)

@@ -207,18 +207,11 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	}
 	metadata := (map[string]string{"category": daprStateStoreMetaLabel})
 
-	ttl, ttlerr := parseTTL(req.Metadata)
-	if ttlerr != nil {
-		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+	err := convertTTLtoExpiryTime(req, r.logger, metadata)
+	if err != nil {
+		return fmt.Errorf("failed to process ttl meta data: %w", err)
 	}
-	if ttl != nil {
-		if *ttl == -1 {
-			r.logger.Debugf("TTL is set to -1; this means: never expire. ")
-		} else {
-			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
-			r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
-		}
-	}
+
 	r.logger.Debugf("Save state in OCI Object Storage Bucket under key %s ", req.Key)
 	objectName := getFileName(req.Key)
 	content := r.marshal(req)
@@ -228,10 +221,26 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
 	}
-	err := r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), metadata, etag, r.logger)
+	err = r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), metadata, etag, r.logger)
 	if err != nil {
 		r.logger.Debugf("error in writing object to OCI object storage  %s, err %s", req.Key, err)
 		return fmt.Errorf("failed to write object to OCI Object storage : %w", err)
+	}
+	return nil
+}
+
+func convertTTLtoExpiryTime(req *state.SetRequest, logger logger.Logger, metadata map[string]string) error {
+	ttl, ttlerr := parseTTL(req.Metadata)
+	if ttlerr != nil {
+		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+	}
+	if ttl != nil {
+		if *ttl == -1 {
+			logger.Debugf("TTL is set to -1; this means: never expire. ")
+		} else {
+			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
+			logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+		}
 	}
 	return nil
 }

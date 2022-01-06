@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"path"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
@@ -279,7 +280,7 @@ func getFileName(key string) string {
 		return pr[0]
 	}
 
-	return pr[1]
+	return path.Join(pr[0], pr[1])
 }
 
 /**************** functions with OCI ObjectStorage Service interaction.   */

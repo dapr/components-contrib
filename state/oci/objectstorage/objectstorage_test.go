@@ -116,6 +116,10 @@ func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname stri
 	if objectname == "unknownKey" {
 		return nil, nil, nil, nil
 	}
+	if objectname == "test-app/test-key" {
+		contentString = "Hello Continent"
+
+	}
 
 	return []byte(contentString), &etagString, metadata, nil
 }
@@ -161,6 +165,11 @@ func TestGetWithMockClient(t *testing.T) {
 		assert.True(t, mockClient.getIsCalled, "function Get should be invoked on the mockClient")
 		assert.Equal(t, "Hello World", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
+		assert.Nil(t, err)
+	})
+	t.Run("Test Get with composite key", func(t *testing.T) {
+		getResponse, err := s.Get(&state.GetRequest{Key: "test-app||test-key"})
+		assert.Equal(t, "Hello Continent", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.Nil(t, err)
 	})
 	t.Run("Test Get with an unknown key", func(t *testing.T) {
@@ -269,5 +278,17 @@ func TestDeleteWithMockClient(t *testing.T) {
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Asking for FirstWrite concurrency policy without ETag should fail")
+	})
+}
+
+func TestGetFilename(t *testing.T) {
+	t.Run("Valid composite key", func(t *testing.T) {
+		filename := getFileName("app-id||key")
+		assert.Equal(t, "app-id/key", filename)
+	})
+
+	t.Run("Normal (not-composite) key", func(t *testing.T) {
+		filename := getFileName("app-id-key")
+		assert.Equal(t, "app-id-key", filename)
 	})
 }

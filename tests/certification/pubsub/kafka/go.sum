@@ -269,8 +269,8 @@ github.com/cyphar/filepath-securejoin v0.2.2/go.mod h1:FpkQEhXnPnOthhzymB7CGsFk2
 github.com/dancannon/gorethink v4.0.0+incompatible/go.mod h1:BLvkat9KmZc1efyYwhz3WnybhRZtgF1K929FD8z1avU=
 github.com/danieljoos/wincred v1.0.2/go.mod h1:SnuYRW9lp1oJrZX/dXJqr0cPK5gYXqx3EJbmjhLdK9U=
 github.com/dapr/dapr v1.4.3/go.mod h1:jqB+3LI4HTXmhG8GnJDL3YSzAurBWLm2ag0xu3RHWcs=
-github.com/dapr/dapr v1.5.2-0.20220103230632-1c47694f2214 h1:2CvxnJrodtU4BmuGgp8ZkOMbPGO80xU0XTlN2h9WUsQ=
-github.com/dapr/dapr v1.5.2-0.20220103230632-1c47694f2214/go.mod h1:cuvtYpsv0nVUoVSw12LdY52X1P1g3NCv5bWNFfXk0OQ=
+github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba h1:yoKAPYyEamc1aJz1uTxwQl0YA6VT6zVN1zKRTXVEqls=
+github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba/go.mod h1:jcHdOs8YRA6ZYv7QoV98RqEN9fp6uhb7MFb0JedKenk=
 github.com/dapr/go-sdk v1.3.0 h1:s8+/xPyXkwWiHoLJ1JLpAmYALoGChmcLXVHs2Qvjkos=
 github.com/dapr/go-sdk v1.3.0/go.mod h1:EwumX9/p4DLhcujRPTC3bRCs2oVO/Xsl9EEknuPT+BA=
 github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233 h1:M0dWIG8kUxEFU57IqTWeqptNqlBsfosFgsA5Ov7rJ8g=
@@ -730,8 +730,9 @@ github.com/klauspost/compress v1.10.7/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYs
 github.com/klauspost/compress v1.10.8/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/compress v1.11.7/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/compress v1.11.12/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
-github.com/klauspost/compress v1.12.2 h1:2KCfW3I9M7nSc5wOqXAlW2v2U6v+w6cbjvbfp+OykW8=
 github.com/klauspost/compress v1.12.2/go.mod h1:8dP1Hq4DHOhN9w426knH3Rhby4rFm6D8eO+e+Dq5Gzg=
+github.com/klauspost/compress v1.13.4 h1:0zhec2I8zGnjWcKyLl6i3gPqKANCCn5e9xmviEEeX6s=
+github.com/klauspost/compress v1.13.4/go.mod h1:8dP1Hq4DHOhN9w426knH3Rhby4rFm6D8eO+e+Dq5Gzg=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.2/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.3/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
@@ -1114,8 +1115,9 @@ github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtX
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.21.0/go.mod h1:jjraHZVbKOXftJfsOYoAjaeygpj5hr8ermTRJNroD7A=
-github.com/valyala/fasthttp v1.28.0 h1:ruVmTmZaBR5i67NqnjvvH5gEv0zwHfWtbjoyW98iho4=
 github.com/valyala/fasthttp v1.28.0/go.mod h1:cmWIqlu99AO/RKcp1HWaViTqc57FswJOfYYdPJBl8BA=
+github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 h1:UKbv1Y0TRLKcgacl2+v4xPt3iJLhjP0RCGwMOkUW1ko=
+github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4/go.mod h1:2rsYD01CKFrjjsvFxx75KlEUNpWNBY9JWD3K/7o2Cus=
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/valyala/fasttemplate v1.1.0/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/valyala/fasttemplate v1.2.1/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=

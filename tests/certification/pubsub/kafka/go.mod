@@ -7,7 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/dapr/components-contrib v1.5.1-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.5.2-0.20220103230632-1c47694f2214
+	github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0
@@ -60,7 +60,7 @@ require (
 	github.com/imdario/mergo v0.3.10 // indirect
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
-	github.com/klauspost/compress v1.12.2 // indirect
+	github.com/klauspost/compress v1.13.4 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/miekg/dns v1.1.35 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
@@ -84,7 +84,7 @@ require (
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.28.0 // indirect
+	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel v0.19.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect

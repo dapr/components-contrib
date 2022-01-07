@@ -27,18 +27,20 @@ import (
 // Binding represents Cron input binding.
 type Binding struct {
 	logger   logger.Logger
+	name     string
 	schedule string
-	stopCh   chan bool
 	parser   cron.Parser
 }
 
-var _ = bindings.InputBinding(&Binding{})
+var (
+	_      = bindings.InputBinding(&Binding{})
+	stopCh = make(map[string]chan bool)
+)
 
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,
-		stopCh: make(chan bool),
 		parser: cron.NewParser(
 			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
@@ -50,6 +52,10 @@ func NewCron(logger logger.Logger) *Binding {
 //   "15 * * * * *" - Every 15 sec
 //   "0 30 * * * *" - Every 30 min
 func (b *Binding) Init(metadata bindings.Metadata) error {
+	if _, ok := stopCh[metadata.Name]; !ok {
+		stopCh[metadata.Name] = make(chan bool)
+	}
+	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]
 	if !f || s == "" {
 		return fmt.Errorf("schedule not set")
@@ -67,7 +73,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
 	c := cron.New(cron.WithParser(b.parser))
 	id, err := c.AddFunc(b.schedule, func() {
-		b.logger.Debugf("schedule fired: %v", time.Now())
+		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
 		handler(&bindings.ReadResponse{
 			Metadata: map[string]string{
 				"timeZone":    c.Location().String(),
@@ -76,12 +82,12 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 		})
 	})
 	if err != nil {
-		return errors.Wrapf(err, "error scheduling %s", b.schedule)
+		return errors.Wrapf(err, "name: %s, error scheduling %s", b.name, b.schedule)
 	}
 	c.Start()
-	b.logger.Debugf("next run: %v", time.Until(c.Entry(id).Next))
-	<-b.stopCh
-	b.logger.Debugf("stopping schedule: %s", b.schedule)
+	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
+	<-stopCh[b.name]
+	b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
 	c.Stop()
 
 	return nil
@@ -89,12 +95,12 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 
 // Invoke exposes way to stop previously started cron.
 func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	b.logger.Debugf("operation: %v", req.Operation)
+	b.logger.Debugf("name: %s, operation: %v", b.name, req.Operation)
 	if req.Operation != bindings.DeleteOperation {
 		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
 			req.Operation, bindings.DeleteOperation)
 	}
-	b.stopCh <- true
+	stopCh[b.name] <- true
 
 	return &bindings.InvokeResponse{
 		Metadata: map[string]string{

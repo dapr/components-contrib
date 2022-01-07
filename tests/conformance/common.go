@@ -46,6 +46,7 @@ import (
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
@@ -371,7 +372,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
 		pubsub = p_inmemory.New(testLogger)
-
+	case "aws.snssqs":
+		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	default:
 		return nil
 	}

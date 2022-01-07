@@ -216,6 +216,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 		token := m.consumer.SubscribeMultiple(
 			m.topics,
 			func(client mqtt.Client, mqttMsg mqtt.Message) {
+				mqttMsg.AutoAckOff()
 				msg := pubsub.NewMessage{
 					Topic: mqttMsg.Topic(),
 					Data:  mqttMsg.Payload(),

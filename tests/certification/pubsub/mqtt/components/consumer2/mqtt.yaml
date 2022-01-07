@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.mqtt
+  version: v1
+  metadata:
+  - name: url
+    value: "tcp://localhost:1884"
+  - name: consumerID
+    value: "testConsumer2"
+  - name: retain
+    value: false
+  - name: qos
+    value: 2
+  - name: cleanSession
+    value: false
+  - name: backOffMaxRetries
+    value: 5

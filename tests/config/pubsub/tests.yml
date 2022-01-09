@@ -12,6 +12,8 @@ components:
   - component: azure.eventhubs
     allOperations: true
     config:
+      pubsubName: azure-eventhubs
+      testTopicName: dapr2-conf-test-eventhubs-pubsub-topic
       ## with partition key set, inorder processing is guaranteed.
       ## https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-features#mapping-of-events-to-partitions
       checkInOrderProcessing: true
@@ -52,3 +54,7 @@ components:
       checkInOrderProcessing: false
   - component: in-memory
     allOperations: true
+  - component: aws.snssqs
+    allOperations: true
+    config:
+      checkInOrderProcessing: false

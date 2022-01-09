@@ -54,6 +54,7 @@ jobs:
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - pubsub.kafka
         - pubsub.rabbitmq
+        - pubsub.mqtt
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -190,7 +191,7 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy
+        go mod tidy -compat=1.17
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 

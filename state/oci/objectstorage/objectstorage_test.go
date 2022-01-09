@@ -42,7 +42,6 @@ func getDummyOCIObjectStorageConfiguration() map[string]string {
 func TestInit(t *testing.T) {
 	meta := state.Metadata{}
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	//t.Skip("skip init")
 	t.Parallel()
 	t.Run("Init with beautifully complete yet incorrect metadata", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()

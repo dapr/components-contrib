@@ -27,6 +27,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/oracle/oci-go-sdk/v54/common"
+	"github.com/oracle/oci-go-sdk/v54/common/auth"
 	"github.com/oracle/oci-go-sdk/v54/objectstorage"
 
 	"github.com/dapr/components-contrib/state"
@@ -34,18 +35,19 @@ import (
 )
 
 const (
-	keyDelimiter            = "||"
-	tenancyKey              = "tenancyOCID"
-	compartmentKey          = "compartmentOCID"
-	regionKey               = "region"
-	fingerPrintKey          = "fingerPrint"
-	privateKeyKey           = "privateKey"
-	userKey                 = "userOCID"
-	bucketNameKey           = "bucketName"
-	metadataTTLKey          = "ttlInSeconds"
-	daprStateStoreMetaLabel = "dapr-state-store"
-	expiryTimeMetaLabel     = "expiry-time-from-ttl"
-	isoDateTimeFormat       = "2006-01-02T15:04:05"
+	keyDelimiter                       = "||"
+	instancePrincipalAuthenticationKey = "instancePrincipalAuthentication"
+	tenancyKey                         = "tenancyOCID"
+	compartmentKey                     = "compartmentOCID"
+	regionKey                          = "region"
+	fingerPrintKey                     = "fingerPrint"
+	privateKeyKey                      = "privateKey"
+	userKey                            = "userOCID"
+	bucketNameKey                      = "bucketName"
+	metadataTTLKey                     = "ttlInSeconds"
+	daprStateStoreMetaLabel            = "dapr-state-store"
+	expiryTimeMetaLabel                = "expiry-time-from-ttl"
+	isoDateTimeFormat                  = "2006-01-02T15:04:05"
 )
 
 type StateStore struct {
@@ -58,14 +60,16 @@ type StateStore struct {
 }
 
 type Metadata struct {
-	userOCID               string
-	bucketName             string
-	region                 string
-	tenancyOCID            string
-	fingerPrint            string
-	privateKey             string
-	compartmentOCID        string
-	namespace              string
+	userOCID                        string
+	bucketName                      string
+	region                          string
+	tenancyOCID                     string
+	fingerPrint                     string
+	privateKey                      string
+	compartmentOCID                 string
+	namespace                       string
+	instancePrincipalAuthentication bool
+
 	OCIObjectStorageClient *objectstorage.ObjectStorageClient
 }
 
@@ -164,34 +168,46 @@ func NewOCIObjectStorageStore(logger logger.Logger) *StateStore {
 
 func getObjectStorageMetadata(metadata map[string]string) (*Metadata, error) {
 	meta := Metadata{}
-	var err error
-	if meta.bucketName, err = getValue(metadata, bucketNameKey); err != nil {
+
+	instancePrincipalAuthenticationString, _ := getValue(metadata, instancePrincipalAuthenticationKey, false)
+	if instancePrincipalAuthenticationString == "" {
+		instancePrincipalAuthenticationString = "false"
+	}
+	instancePrincipalAuthentication, err := strconv.ParseBool(instancePrincipalAuthenticationString)
+	if err != nil {
+		return nil, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", instancePrincipalAuthenticationString, instancePrincipalAuthenticationKey)
+	}
+	meta.instancePrincipalAuthentication = instancePrincipalAuthentication
+	if meta.bucketName, err = getValue(metadata, bucketNameKey, true); err != nil {
 		return nil, err
 	}
-	if meta.region, err = getValue(metadata, regionKey); err != nil {
+	if meta.region, err = getValue(metadata, regionKey, !instancePrincipalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.compartmentOCID, err = getValue(metadata, compartmentKey); err != nil {
+	if meta.compartmentOCID, err = getValue(metadata, compartmentKey, true); err != nil {
 		return nil, err
 	}
-	if meta.userOCID, err = getValue(metadata, userKey); err != nil {
+	if meta.userOCID, err = getValue(metadata, userKey, !instancePrincipalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey); err != nil {
+	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, !instancePrincipalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.privateKey, err = getValue(metadata, privateKeyKey); err != nil {
+	if meta.privateKey, err = getValue(metadata, privateKeyKey, !instancePrincipalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.tenancyOCID, err = getValue(metadata, tenancyKey); err != nil {
+	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, !instancePrincipalAuthentication); err != nil {
 		return nil, err
 	}
 	return &meta, nil
 }
 
-func getValue(metadata map[string]string, key string) (string, error) {
+func getValue(metadata map[string]string, key string, valueRequired bool) (value string, err error) {
 	if val, ok := metadata[key]; ok && val != "" {
 		return val, nil
+	}
+	if !valueRequired {
+		return "", nil
 	}
 	return "", fmt.Errorf("missing or empty %s field from metadata", key)
 }
@@ -449,7 +465,17 @@ func (c *ociObjectStorageClient) initStorageBucket(logger logger.Logger) error {
 }
 
 func (c *ociObjectStorageClient) initOCIObjectStorageClient(logger logger.Logger) (*objectstorage.ObjectStorageClient, error) {
-	configurationProvider := common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+	var configurationProvider common.ConfigurationProvider
+	if c.objectStorageMetadata.instancePrincipalAuthentication {
+		var err error
+		configurationProvider, err = auth.InstancePrincipalConfigurationProvider()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get oci configurationprovider based on instance principal authentication : %w", err)
+		}
+	} else {
+		configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+	}
+
 	objectStorageClient, cerr := objectstorage.NewObjectStorageClientWithConfigurationProvider(configurationProvider)
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to create ObjectStorageClient : %w", cerr)

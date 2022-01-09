@@ -30,19 +30,21 @@ import (
 func getDummyOCIObjectStorageConfiguration() map[string]string {
 	return map[string]string{
 		"bucketName":      "myBuck",
-		"tenancyOCID":     "ocid1.tenancy.oc1..aaaaaaaag7c7sq",
-		"userOCID":        "ocid1.user.oc1..aaaaaaaaby",
-		"compartmentOCID": "ocid1.compartment.oc1..aaaaaaaq",
-		"fingerPrint":     "02:91:6c",
-		"privateKey":      "-----BEGIN RSA PRIVATE KEY-----\nMIIEogI=\n-----END RSA PRIVATE KEY-----",
-		"region":          "us-ashburn-1",
+		"tenancyOCID":     "xxxocid1.tenancy.oc1..aaaaaaaag7c7sq",
+		"userOCID":        "xxxxocid1.user.oc1..aaaaaaaaby",
+		"compartmentOCID": "xxxocid1.compartment.oc1..aaaaaaaq",
+		"fingerPrint":     "xxx02:91:6c",
+		"privateKey":      "xxx-----BEGIN RSA PRIVATE KEY-----\nMIIEogI=\n-----END RSA PRIVATE KEY-----",
+		"region":          "xxxus-ashburn-1",
 	}
 }
 
 func TestInit(t *testing.T) {
 	meta := state.Metadata{}
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
-	t.Run("Init with complete yet incorrect metadata", func(t *testing.T) {
+	//t.Skip("skip init")
+	t.Parallel()
+	t.Run("Init with beautifully complete yet incorrect metadata", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		err := statestore.Init(meta)
 		assert.NotNil(t, err)
@@ -91,9 +93,32 @@ func TestInit(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty privateKey field from metadata"), err, "Lacking configuration property should be spotted")
 	})
+	t.Run("Init with incorrect value for instancePrincipalAuthentication", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[instancePrincipalAuthenticationKey] = "ZQWE"
+		err := statestore.Init(meta)
+		assert.NotNil(t, err, "if instancePrincipalAuthentication is defined, it should be true or false; if not: error should be raised ")
+	})
+	t.Run("Init with missing fingerprint with instancePrincipalAuthentication", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[fingerPrintKey] = ""
+		meta.Properties[instancePrincipalAuthenticationKey] = "true"
+		err := statestore.Init(meta)
+		if err != nil {
+			assert.Contains(t, err.Error(), "failed to initialize client", "unit tests not run on OCI will not be able to correctly create an OCI client based on instance principal authentication")
+		}
+	})
+	t.Run("Init with missing fingerprint with instancePrincipalAuthentication set to false", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[fingerPrintKey] = ""
+		meta.Properties[instancePrincipalAuthenticationKey] = "false"
+		err := statestore.Init(meta)
+		assert.NotNil(t, err, "if instancePrincipalAuthentication is false, then fingerprint is required and an error should be raised when it is missing")
+	})
 }
 
 func TestFeatures(t *testing.T) {
+	t.Parallel()
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	t.Run("Test contents of Features", func(t *testing.T) {
 		features := s.Features()
@@ -164,7 +189,7 @@ func TestGetWithMockClient(t *testing.T) {
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
-
+	t.Parallel()
 	t.Run("Test regular Get", func(t *testing.T) {
 		getResponse, err := s.Get(&state.GetRequest{Key: "test-key"})
 		assert.True(t, mockClient.getIsCalled, "function Get should be invoked on the mockClient")
@@ -190,6 +215,7 @@ func TestGetWithMockClient(t *testing.T) {
 }
 
 func TestInitWithMockClient(t *testing.T) {
+	t.Parallel()
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	s.client = &mockedObjectStoreClient{}
 	meta := state.Metadata{}
@@ -200,6 +226,7 @@ func TestInitWithMockClient(t *testing.T) {
 }
 
 func TestPingWithMockClient(t *testing.T) {
+	t.Parallel()
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
@@ -212,6 +239,7 @@ func TestPingWithMockClient(t *testing.T) {
 }
 
 func TestSetWithMockClient(t *testing.T) {
+	t.Parallel()
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	mockClient := &mockedObjectStoreClient{}
 	statestore.client = mockClient
@@ -270,6 +298,7 @@ func TestSetWithMockClient(t *testing.T) {
 }
 
 func TestDeleteWithMockClient(t *testing.T) {
+	t.Parallel()
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
@@ -308,7 +337,29 @@ func TestDeleteWithMockClient(t *testing.T) {
 	})
 }
 
+func TestGetValue(t *testing.T) {
+	meta := map[string]string{
+		"testKey": "theValue",
+	}
+	t.Parallel()
+	t.Run("Existing value", func(t *testing.T) {
+		value, _ := getValue(meta, "testKey", true)
+		assert.Equal(t, "theValue", value)
+	})
+	t.Run("Non-existing, required value", func(t *testing.T) {
+		value, err := getValue(meta, "noKey", true)
+		assert.NotNil(t, err, "Missing required value should result in error")
+		assert.Equal(t, "", value, "Empty string should be returned for non-existing value")
+	})
+	t.Run("Non-existing, optional value", func(t *testing.T) {
+		value, err := getValue(meta, "noKey", false)
+		assert.Nil(t, err, "Missing optional value should not result in error")
+		assert.Equal(t, "", value, "Empty string should be returned for non-existing value")
+	})
+}
+
 func TestGetFilename(t *testing.T) {
+	t.Parallel()
 	t.Run("Valid composite key", func(t *testing.T) {
 		filename := getFileName("app-id||key")
 		assert.Equal(t, "app-id/key", filename)
@@ -321,6 +372,7 @@ func TestGetFilename(t *testing.T) {
 }
 
 func TestParseTTL(t *testing.T) {
+	t.Parallel()
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := parseTTL(map[string]string{

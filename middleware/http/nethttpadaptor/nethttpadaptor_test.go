@@ -370,7 +370,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 		evaluate            func(t *testing.T, res *http.Response)
 	}{
 		{
-			"200 statusCode is handled",
+			"200 status code is handled",
 			func() fasthttp.RequestHandler {
 				return func(ctx *fasthttp.RequestCtx) {
 					ctx.SetStatusCode(200)
@@ -384,7 +384,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			},
 		},
 		{
-			"500 StatusCode is handled",
+			"500 status code is handled",
 			func() fasthttp.RequestHandler {
 				return func(ctx *fasthttp.RequestCtx) {
 					ctx.SetStatusCode(500)
@@ -398,7 +398,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			},
 		},
 		{
-			"400 StatusCode is handled",
+			"400 status code is handled",
 			func() fasthttp.RequestHandler {
 				return func(ctx *fasthttp.RequestCtx) {
 					ctx.SetStatusCode(400)

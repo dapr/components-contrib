@@ -159,7 +159,6 @@ func TestGetObjectStorageMetadata(t *testing.T) {
 		_, err := getObjectStorageMetadata(properties)
 		assert.NotNil(t, err, "Error expected with incomplete property set")
 	})
-
 }
 
 type mockedObjectStoreClient struct {

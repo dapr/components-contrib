@@ -20,7 +20,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -173,65 +175,6 @@ func NewOCIObjectStorageStore(logger logger.Logger) *StateStore {
 
 /************** private helper functions. */
 
-func getObjectStorageMetadata(metadata map[string]string) (*Metadata, error) {
-	meta := Metadata{}
-
-	instancePrincipalAuthenticationString, _ := getValue(metadata, instancePrincipalAuthenticationKey, false)
-	if instancePrincipalAuthenticationString == "" {
-		instancePrincipalAuthenticationString = "false"
-	}
-	instancePrincipalAuthentication, err := strconv.ParseBool(instancePrincipalAuthenticationString)
-	if err != nil {
-		return nil, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", instancePrincipalAuthenticationString, instancePrincipalAuthenticationKey)
-	}
-	meta.instancePrincipalAuthentication = instancePrincipalAuthentication
-
-	configFileAuthenticationString, _ := getValue(metadata, configFileAuthenticationKey, false)
-	if configFileAuthenticationString == "" {
-		configFileAuthenticationString = "false"
-	}
-	configFileAuthentication, err := strconv.ParseBool(configFileAuthenticationString)
-	if err != nil {
-		return nil, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", configFileAuthenticationString, configFileAuthenticationKey)
-	}
-	meta.configFileAuthentication = configFileAuthentication
-
-	meta.configFilePath, _ = getValue(metadata, configFilePathKey, false)
-	if meta.configFilePath, _ = getValue(metadata, configFilePathKey, false); meta.configFilePath != "" {
-		if _, err := os.Stat(meta.configFilePath); err != nil {
-			if os.IsNotExist(err) {
-				return nil, fmt.Errorf("oci configuration file %s does not exist %w", meta.configFilePath, err)
-			}
-			return nil, fmt.Errorf("error  %w with reading oci configuration file %s", err, meta.configFilePath)
-		}
-	}
-	meta.configFileProfile, _ = getValue(metadata, configFileProfileKey, false)
-
-	externalAuthentication := instancePrincipalAuthentication || configFileAuthentication
-	if meta.bucketName, err = getValue(metadata, bucketNameKey, true); err != nil {
-		return nil, err
-	}
-	if meta.region, err = getValue(metadata, regionKey, !externalAuthentication); err != nil {
-		return nil, err
-	}
-	if meta.compartmentOCID, err = getValue(metadata, compartmentKey, true); err != nil {
-		return nil, err
-	}
-	if meta.userOCID, err = getValue(metadata, userKey, !externalAuthentication); err != nil {
-		return nil, err
-	}
-	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, !externalAuthentication); err != nil {
-		return nil, err
-	}
-	if meta.privateKey, err = getValue(metadata, privateKeyKey, !externalAuthentication); err != nil {
-		return nil, err
-	}
-	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, !externalAuthentication); err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
 func getValue(metadata map[string]string, key string, valueRequired bool) (value string, err error) {
 	if val, ok := metadata[key]; ok && val != "" {
 		return val, nil
@@ -240,6 +183,86 @@ func getValue(metadata map[string]string, key string, valueRequired bool) (value
 		return "", nil
 	}
 	return "", fmt.Errorf("missing or empty %s field from metadata", key)
+}
+
+func getOptionalBooleanValue(metadata map[string]string, key string) (value bool, err error) {
+	stringValue, _ := getValue(metadata, key, false)
+	if stringValue == "" {
+		stringValue = "false"
+	}
+	value, err = strconv.ParseBool(stringValue)
+	if err != nil {
+		return false, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", stringValue, key)
+	}
+	return value, nil
+}
+
+func getConfigFilePath(meta map[string]string) (value string, err error) {
+	value, _ = getValue(meta, configFilePathKey, false)
+	if strings.HasPrefix(value, "~/") {
+		usr, _ := user.Current()
+		dir := usr.HomeDir
+		value = filepath.Join(dir, value[2:])
+	}
+	if value != "" {
+		if _, err = os.Stat(value); err != nil {
+			if os.IsNotExist(err) {
+				return "", fmt.Errorf("oci configuration file %s does not exist %w", value, err)
+			}
+			return "", fmt.Errorf("error %w with reading oci configuration file %s", err, value)
+		}
+	}
+	return value, nil
+}
+
+func getObjectStorageMetadata(metadata map[string]string) (*Metadata, error) {
+	meta := Metadata{}
+	var err error
+	if meta.instancePrincipalAuthentication, err = getOptionalBooleanValue(metadata, instancePrincipalAuthenticationKey); err != nil {
+		return nil, err
+	}
+	if meta.configFileAuthentication, err = getOptionalBooleanValue(metadata, configFileAuthenticationKey); err != nil {
+		return nil, err
+	}
+	if meta.configFileAuthentication {
+		if meta.configFilePath, err = getConfigFilePath(metadata); err != nil {
+			return nil, err
+		}
+		meta.configFileProfile, _ = getValue(metadata, configFileProfileKey, false)
+	}
+	if meta.bucketName, err = getValue(metadata, bucketNameKey, true); err != nil {
+		return nil, err
+	}
+	if meta.compartmentOCID, err = getValue(metadata, compartmentKey, true); err != nil {
+		return nil, err
+	}
+	externalAuthentication := meta.instancePrincipalAuthentication || meta.configFileAuthentication
+	if !externalAuthentication {
+		err = getIdentityAuthenticationDetails(metadata, &meta)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &meta, nil
+}
+
+func getIdentityAuthenticationDetails(metadata map[string]string, meta *Metadata) (err error) {
+	if meta.region, err = getValue(metadata, regionKey, true); err != nil {
+		return err
+	}
+	if meta.userOCID, err = getValue(metadata, userKey, true); err != nil {
+		return err
+	}
+	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, true); err != nil {
+		return err
+	}
+	if meta.privateKey, err = getValue(metadata, privateKeyKey, true); err != nil {
+		return err
+	}
+	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, true); err != nil {
+		return err
+	}
+	return nil
 }
 
 // functions that bridge from the Dapr State API to the OCI ObjectStorage Client.

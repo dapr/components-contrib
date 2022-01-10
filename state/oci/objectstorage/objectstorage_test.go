@@ -145,6 +145,23 @@ func TestFeatures(t *testing.T) {
 	})
 }
 
+func TestGetObjectStorageMetadata(t *testing.T) {
+	t.Parallel()
+	t.Run("Test getObjectStorageMetadata with full properties map", func(t *testing.T) {
+		meta, err := getObjectStorageMetadata(getDummyOCIObjectStorageConfiguration())
+		assert.Nil(t, err, "No error expected in clean property set")
+		assert.Equal(t, getDummyOCIObjectStorageConfiguration()["region"], meta.region, "Region in object storage metadata should match region in properties")
+	})
+	t.Run("Test getObjectStorageMetadata with incomplete property set", func(t *testing.T) {
+		properties := map[string]string{
+			"region": "xxxus-ashburn-1",
+		}
+		_, err := getObjectStorageMetadata(properties)
+		assert.NotNil(t, err, "Error expected with incomplete property set")
+	})
+
+}
+
 type mockedObjectStoreClient struct {
 	ociObjectStorageClient
 	getIsCalled        bool

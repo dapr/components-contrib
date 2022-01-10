@@ -112,7 +112,7 @@ func TestInit(t *testing.T) {
 		meta.Properties[fingerPrintKey] = ""
 		meta.Properties[instancePrincipalAuthenticationKey] = "false"
 		err := statestore.Init(meta)
-		assert.NotNil(t, err, "if instancePrincipalAuthentication is false, then fingerprint is required and an error should be raised when it is missing")
+		assert.NotNil(t, err, "if instancePrincipalAuthentication is false, then fingerPrint is required and an error should be raised when it is missing")
 	})
 }
 

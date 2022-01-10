@@ -55,29 +55,30 @@ jobs:
         - bindings.http
         - bindings.influx
         - bindings.kafka
-        - bindings.redis
-        - bindings.mqtt-mosquitto
         - bindings.mqtt-emqx
+        - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
-        - pubsub.redis
-        - pubsub.natsstreaming
-        - pubsub.kafka
-        - pubsub.pulsar
-        - pubsub.mqtt-mosquitto
-        - pubsub.mqtt-emqx
-        - pubsub.mqtt-vernemq
+        - bindings.redis
+        - pubsub.aws.snssqs
         - pubsub.hazelcast
-        - pubsub.rabbitmq
         - pubsub.in-memory
+        - pubsub.kafka
+        - pubsub.mqtt-emqx
+        - pubsub.mqtt-mosquitto
+        - pubsub.mqtt-vernemq
+        - pubsub.natsstreaming
+        - pubsub.pulsar
+        - pubsub.rabbitmq
+        - pubsub.redis
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
+        - state.cassandra
         - state.mongodb
+        - state.mysql
+        - state.postgresql
         - state.redis
         - state.sqlserver
-        - state.postgresql
-        - state.mysql
-        - state.cassandra
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -271,6 +272,10 @@ jobs:
     - name: Start rabbitmq
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
+
+    - name: Start aws snssqs
+      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
+      if: contains(matrix.component, 'aws.snssqs')
 
     - name: Start influxdb
       run: |

@@ -1,0 +1,10 @@
+version: '2'
+services:
+  snssqs:
+    image: localstack/localstack:0.13.3
+    container_name: snssqs
+    environment:
+      SERVICES: "sns,sqs,sts"
+      DEBUG: 1
+    ports:
+      - 4566:4566

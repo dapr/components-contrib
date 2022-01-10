@@ -107,12 +107,32 @@ func TestInit(t *testing.T) {
 			assert.Contains(t, err.Error(), "failed to initialize client", "unit tests not run on OCI will not be able to correctly create an OCI client based on instance principal authentication")
 		}
 	})
-	t.Run("Init with missing fingerprint with instancePrincipalAuthentication set to false", func(t *testing.T) {
+	t.Run("Init with configFileAuthentication and incorrect configFilePath", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[configFileAuthenticationKey] = "true"
+		meta.Properties[configFilePathKey] = "file_does_not_exist"
+		err := statestore.Init(meta)
+		assert.NotNil(t, err, "if configFileAuthentication is true and configFilePath does not indicate an existing file, then an error should be produced")
+		if err != nil {
+			assert.Contains(t, err.Error(), "does not exist", "if configFileAuthentication is true and configFilePath does not indicate an existing file, then an error should be produced that indicates this")
+		}
+	})
+	t.Run("Init with missing fingerprint with false instancePrincipalAuthentication and false configFileAuthentication", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[fingerPrintKey] = ""
 		meta.Properties[instancePrincipalAuthenticationKey] = "false"
 		err := statestore.Init(meta)
-		assert.NotNil(t, err, "if instancePrincipalAuthentication is false, then fingerprint is required and an error should be raised when it is missing")
+		assert.NotNil(t, err, "if instancePrincipalAuthentication and configFileAuthentication are both false, then fingerprint is required and an error should be raised when it is missing")
+	})
+	t.Run("Init with missing fingerprint with configFileAuthentication", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[fingerPrintKey] = ""
+		meta.Properties[instancePrincipalAuthenticationKey] = "false"
+		meta.Properties[configFileAuthenticationKey] = "true"
+		err := statestore.Init(meta)
+		if err != nil {
+			assert.Contains(t, err.Error(), "failed to initialize client", "if configFileAuthentication is true, then fingerprint is not required and error should be raised for failed to initialize client, not for missing fingerprint")
+		}
 	})
 }
 

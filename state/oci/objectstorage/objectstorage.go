@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -37,6 +38,9 @@ import (
 const (
 	keyDelimiter                       = "||"
 	instancePrincipalAuthenticationKey = "instancePrincipalAuthentication"
+	configFileAuthenticationKey        = "configFileAuthentication"
+	configFilePathKey                  = "configFilePath"
+	configFileProfileKey               = "configFileProfile"
 	tenancyKey                         = "tenancyOCID"
 	compartmentKey                     = "compartmentOCID"
 	regionKey                          = "region"
@@ -68,7 +72,10 @@ type Metadata struct {
 	privateKey                      string
 	compartmentOCID                 string
 	namespace                       string
+	configFilePath                  string
+	configFileProfile               string
 	instancePrincipalAuthentication bool
+	configFileAuthentication        bool
 
 	OCIObjectStorageClient *objectstorage.ObjectStorageClient
 }
@@ -178,25 +185,48 @@ func getObjectStorageMetadata(metadata map[string]string) (*Metadata, error) {
 		return nil, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", instancePrincipalAuthenticationString, instancePrincipalAuthenticationKey)
 	}
 	meta.instancePrincipalAuthentication = instancePrincipalAuthentication
+
+	configFileAuthenticationString, _ := getValue(metadata, configFileAuthenticationKey, false)
+	if configFileAuthenticationString == "" {
+		configFileAuthenticationString = "false"
+	}
+	configFileAuthentication, err := strconv.ParseBool(configFileAuthenticationString)
+	if err != nil {
+		return nil, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", configFileAuthenticationString, configFileAuthenticationKey)
+	}
+	meta.configFileAuthentication = configFileAuthentication
+
+	meta.configFilePath, _ = getValue(metadata, configFilePathKey, false)
+	if meta.configFilePath, _ = getValue(metadata, configFilePathKey, false); meta.configFilePath != "" {
+		if _, err := os.Stat(meta.configFilePath); err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("oci configuration file %s does not exist %w", meta.configFilePath, err)
+			}
+			return nil, fmt.Errorf("error  %w with reading oci configuration file %s", err, meta.configFilePath)
+		}
+	}
+	meta.configFileProfile, _ = getValue(metadata, configFileProfileKey, false)
+
+	externalAuthentication := instancePrincipalAuthentication || configFileAuthentication
 	if meta.bucketName, err = getValue(metadata, bucketNameKey, true); err != nil {
 		return nil, err
 	}
-	if meta.region, err = getValue(metadata, regionKey, !instancePrincipalAuthentication); err != nil {
+	if meta.region, err = getValue(metadata, regionKey, !externalAuthentication); err != nil {
 		return nil, err
 	}
 	if meta.compartmentOCID, err = getValue(metadata, compartmentKey, true); err != nil {
 		return nil, err
 	}
-	if meta.userOCID, err = getValue(metadata, userKey, !instancePrincipalAuthentication); err != nil {
+	if meta.userOCID, err = getValue(metadata, userKey, !externalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, !instancePrincipalAuthentication); err != nil {
+	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, !externalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.privateKey, err = getValue(metadata, privateKeyKey, !instancePrincipalAuthentication); err != nil {
+	if meta.privateKey, err = getValue(metadata, privateKeyKey, !externalAuthentication); err != nil {
 		return nil, err
 	}
-	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, !instancePrincipalAuthentication); err != nil {
+	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, !externalAuthentication); err != nil {
 		return nil, err
 	}
 	return &meta, nil
@@ -467,13 +497,20 @@ func (c *ociObjectStorageClient) initStorageBucket(logger logger.Logger) error {
 func (c *ociObjectStorageClient) initOCIObjectStorageClient(logger logger.Logger) (*objectstorage.ObjectStorageClient, error) {
 	var configurationProvider common.ConfigurationProvider
 	if c.objectStorageMetadata.instancePrincipalAuthentication {
+		logger.Debugf("instance principal authentication is used. ")
 		var err error
 		configurationProvider, err = auth.InstancePrincipalConfigurationProvider()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get oci configurationprovider based on instance principal authentication : %w", err)
 		}
 	} else {
-		configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+		if c.objectStorageMetadata.configFileAuthentication {
+			logger.Debugf("configuration file based authentication is used with configuration file path %s and configuration profile %s. ", c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
+			configurationProvider = common.CustomProfileConfigProvider(c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
+		} else {
+			logger.Debugf("identity authentication is used with configuration provided through Dapr component configuration ")
+			configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+		}
 	}
 
 	objectStorageClient, cerr := objectstorage.NewObjectStorageClientWithConfigurationProvider(configurationProvider)

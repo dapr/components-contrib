@@ -79,6 +79,76 @@ func TestBlobStorage(t *testing.T) {
 		return out, invokeDeleteErr
 	}
 
+	testFileNameConflict := func(ctx flow.Context) error {
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		input := "some example content"
+		dataBytes := []byte(input)
+
+		invokeCreateMetadata := map[string]string{
+			"contentType": "text/plain",
+		}
+
+		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      dataBytes,
+			Metadata:  invokeCreateMetadata,
+		}
+
+		out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+		assert.NoError(t, invokeCreateErr)
+
+		blobName := out.Metadata["blobName"]
+		res, _ := getBlobRequest(ctx, client, blobName, false)
+		oldString := string(res.Data)
+
+		input2 := "some other example content"
+		dataBytes2 := []byte(input2)
+
+		invokeCreateMetadata2 := map[string]string{
+			"blobName":    blobName,
+			"contentType": "text/plain",
+		}
+
+		invokeCreateRequest2 := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      dataBytes2,
+			Metadata:  invokeCreateMetadata2,
+		}
+		_, invokeCreateErr2 := client.InvokeBinding(ctx, invokeCreateRequest2)
+
+		assert.NoError(t, invokeCreateErr2)
+
+		res2, _ := getBlobRequest(ctx, client, blobName, false)
+		newString := string(res2.Data)
+
+		assert.NotEqual(t, oldString, newString)
+		assert.Equal(t, newString, input2)
+
+		// cleanup
+		out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
+		assert.NoError(t, invokeDeleteErr)
+		assert.Empty(t, out.Data)
+
+		// confirm the deletion
+		_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
+		assert.Error(t, invokeSecondGetErr)
+		assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+
+		// deleting the key again should fail
+		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, blobName, "")
+		assert.Error(t, invokeDeleteErr2)
+		assert.Contains(t, invokeDeleteErr2.Error(), "ServiceCode=BlobNotFound")
+
+		return nil
+	}
+
 	testCreateBlobFromFile := func(isBase64 bool) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {
 			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
@@ -294,6 +364,7 @@ func TestBlobStorage(t *testing.T) {
 		Step("Create blob", testCreateGetListDelete).
 		Step("Create blob from file", testCreateBlobFromFile(false)).
 		Step("List contents", invokeListContents).
+		Step("Create blob with conflicting filename", testFileNameConflict).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)

@@ -10,24 +10,30 @@ This project aims to test the Azure Blobstorage binding component under various 
 * Authenticate with Storage Account Key
 
 ### Other tests
-- TODO: Get
-  - Successful Get
-  - Item does not exist
+
+- Successful delete
+- Delete File does not exist
+- Successful Get
+- Item does not exist
+- No filename specified
+- Filename specified
+- MD5 Hash Provided
+- File already exists (overwrites content)
+
+
 - TODO: List
   - List
   - Various options...
 - TODO: Delete
-  - Successful delete
-  - File does not exist
   - No "deleteSnapshots" option despite snapshots
   - Verify snaphotOptions include/only
 - TODO: Create
-  - No filename specified
-  - Filename specified
-  - MD5 Hash Provided
   - Incorrect MD5 Hash Provided
   - Incorrect Content Type provided
-  - File already exists
+  - name: getBlobRetryCount
+    value: <integer>
+  - name: publicAccessLevel
+    value: <publicAccessLevel>
 
 ### Running the tests
 

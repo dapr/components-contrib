@@ -154,7 +154,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("error creating an AWS client: %w", err)
 	}
-
+        // AWS sns,sqs,sts client.
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)
 	s.stsClient = sts.New(sess)

@@ -154,7 +154,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("error creating an AWS client: %w", err)
 	}
-        // AWS sns,sqs,sts client.
+	// AWS sns,sqs,sts client.
 	s.snsClient = sns.New(sess)
 	s.sqsClient = sqs.New(sess)
 	s.stsClient = sts.New(sess)
@@ -816,8 +816,8 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 
 	message := string(req.Data)
 	snsPublishInput := &sns.PublishInput{
-		Message:  &message,
-		TopicArn: &topicArn,
+		Message:  aws.String(message),
+		TopicArn: aws.String(topicArn),
 	}
 	if s.metadata.fifo {
 		snsPublishInput.MessageGroupId = s.getMessageGroupID(req)

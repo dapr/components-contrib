@@ -97,9 +97,11 @@ func maskLeft(s string) string {
 
 func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
 	md := &snsSqsMetadata{}
-	props := metadata.Properties
+	if err := md.setCredsAndQueueNameConfig(metadata); err != nil {
+		return nil, err
+	}
 
-	md.setCredsAndQueueNameConfig(metadata)
+	props := metadata.Properties
 
 	if err := md.setMessageVisibilityTimeout(props); err != nil {
 		return nil, err
@@ -109,7 +111,11 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		return nil, err
 	}
 
-	if err := md.setDeleteAndDLQConfig(props); err != nil {
+	if err := md.setDeadlettersQueueConfig(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setDisableDeleteOnRetryLimit(props); err != nil {
 		return nil, err
 	}
 
@@ -264,7 +270,7 @@ func (md *snsSqsMetadata) setFifoConfig(props map[string]string) error {
 	return nil
 }
 
-func (md *snsSqsMetadata) setDeleteAndDLQConfig(props map[string]string) error {
+func (md *snsSqsMetadata) setDeadlettersQueueConfig(props map[string]string) error {
 	if val, ok := props["sqsDeadLettersQueueName"]; ok {
 		md.sqsDeadLettersQueueName = val
 	}
@@ -283,6 +289,10 @@ func (md *snsSqsMetadata) setDeleteAndDLQConfig(props map[string]string) error {
 		return errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
 	}
 
+	return nil
+}
+
+func (md *snsSqsMetadata) setDisableDeleteOnRetryLimit(props map[string]string) error {
 	if val, ok := props["disableDeleteOnRetryLimit"]; ok {
 		disableDeleteOnRetryLimit, err := parseBool(val, "disableDeleteOnRetryLimit")
 		if err != nil {

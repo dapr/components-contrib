@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/gofrs/flock"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/gofrs/flock"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/config"
@@ -129,12 +130,12 @@ func (r *resolver) watchNamingInfos() error {
 					}
 				}
 
-			case err, ok := <-watcher.Errors:
+			case err2, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
 
-				r.logger.Warnf("file watcher for naming info encounter error: %s", err)
+				r.logger.Warnf("file watcher for naming info encounter error: %s", err2)
 			}
 		}
 	}()

@@ -87,29 +87,80 @@ func parseFloat64(input string, propertyName string) (float64, error) {
 	return val, nil
 }
 
-//nolint:cyclop
-func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
-	md := snsSqsMetadata{}
-	props := metadata.Properties
-	md.sqsQueueName = metadata.Properties["consumerID"]
-	s.logger.Debugf("Setting queue name to %s", md.sqsQueueName)
+func maskLeft(s string) string {
+	rs := []rune(s)
+	for i := 0; i < len(rs)-4; i++ {
+		rs[i] = 'X'
+	}
+	return string(rs)
+}
 
+func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, error) {
+	md := &snsSqsMetadata{}
+	props := metadata.Properties
+
+	md.setCredsAndQueueNameConfig(metadata)
+
+	if err := md.setMessageVisibilityTimeout(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setMessageRetryLimit(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setDeleteAndDLQConfig(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setFifoConfig(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setMessageWaitTimeSeconds(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setMessageMaxNumber(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setDisableEntityManagement(props); err != nil {
+		return nil, err
+	}
+
+	if err := md.setAssetsManagementTimeoutSeconds(props); err != nil {
+		return nil, err
+	}
+
+	s.logger.Debug(md.hideDebugPrintedCredentials())
+
+	return md, nil
+}
+
+func (md *snsSqsMetadata) hideDebugPrintedCredentials() string {
+	mdCopy := *md
+	mdCopy.AccessKey = maskLeft(md.AccessKey)
+	mdCopy.SecretKey = maskLeft(md.SecretKey)
+	mdCopy.SessionToken = maskLeft(md.SessionToken)
+
+	return fmt.Sprintf("%#v\n", mdCopy)
+}
+
+func (md *snsSqsMetadata) setCredsAndQueueNameConfig(metadata pubsub.Metadata) error {
 	if val, ok := getAliasedProperty([]string{"Endpoint", "endpoint"}, metadata); ok {
-		s.logger.Debugf("endpoint: %s", val)
 		md.Endpoint = val
 	}
 
 	if val, ok := getAliasedProperty([]string{"awsAccountID", "accessKey"}, metadata); ok {
-		s.logger.Debugf("accessKey: %s", val)
 		md.AccessKey = val
 	}
 
 	if val, ok := getAliasedProperty([]string{"awsSecret", "secretKey"}, metadata); ok {
-		s.logger.Debugf("secretKey: %s", val)
 		md.SecretKey = val
 	}
 
-	if val, ok := props["sessionToken"]; ok {
+	if val, ok := metadata.Properties["sessionToken"]; ok {
 		md.SessionToken = val
 	}
 
@@ -117,75 +168,87 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.Region = val
 	}
 
-	if val, ok := props["messageVisibilityTimeout"]; !ok {
-		md.messageVisibilityTimeout = 10
+	if val, ok := metadata.Properties["consumerID"]; ok {
+		md.sqsQueueName = val
 	} else {
-		timeout, err := parseInt64(val, "messageVisibilityTimeout")
-		if err != nil {
-			return nil, err
-		}
-
-		if timeout < 1 {
-			return nil, errors.New("messageVisibilityTimeout must be greater than 0")
-		}
-
-		md.messageVisibilityTimeout = timeout
+		return errors.New("consumerID must be set")
 	}
 
-	if val, ok := props["messageRetryLimit"]; !ok {
-		md.messageRetryLimit = 10
+	return nil
+}
+
+func (md *snsSqsMetadata) setAssetsManagementTimeoutSeconds(props map[string]string) error {
+	if val, ok := props["assetsManagementTimeoutSeconds"]; ok {
+		parsed, err := parseFloat64(val, "assetsManagementTimeoutSeconds")
+		if err != nil {
+			return err
+		}
+		md.assetsManagementTimeoutSeconds = parsed
 	} else {
-		retryLimit, err := parseInt64(val, "messageRetryLimit")
+		md.assetsManagementTimeoutSeconds = assetsManagementDefaultTimeoutSeconds
+	}
+
+	return nil
+}
+
+func (md *snsSqsMetadata) setDisableEntityManagement(props map[string]string) error {
+	if val, ok := props["disableEntityManagement"]; ok {
+		parsed, err := parseBool(val, "disableEntityManagement")
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		if retryLimit < 2 {
-			return nil, errors.New("messageRetryLimit must be greater than 1")
-		}
-
-		md.messageRetryLimit = retryLimit
+		md.disableEntityManagement = parsed
 	}
 
-	if val, ok := props["sqsDeadLettersQueueName"]; ok {
-		md.sqsDeadLettersQueueName = val
-	}
+	return nil
+}
 
-	if val, ok := props["messageReceiveLimit"]; ok {
-		messageReceiveLimit, err := parseInt64(val, "messageReceiveLimit")
-		if err != nil {
-			return nil, err
-		}
-		// assign: used provided configuration
-		md.messageReceiveLimit = messageReceiveLimit
-	}
-
-	// XOR on having either a valid messageReceiveLimit and invalid sqsDeadLettersQueueName, and vice versa.
-	if (md.messageReceiveLimit > 0 || len(md.sqsDeadLettersQueueName) > 0) && !(md.messageReceiveLimit > 0 && len(md.sqsDeadLettersQueueName) > 0) {
-		return nil, errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
-	}
-
-	if val, ok := props["disableDeleteOnRetryLimit"]; ok {
-		disableDeleteOnRetryLimit, err := parseBool(val, "disableDeleteOnRetryLimit")
-		if err != nil {
-			return nil, err
-		}
-
-		if len(md.sqsDeadLettersQueueName) > 0 && disableDeleteOnRetryLimit {
-			return nil, errors.New("configuration conflict: 'disableDeleteOnRetryLimit' cannot be set to 'true' when 'sqsDeadLettersQueueName' is set to a value. either remove this configuration or set 'disableDeleteOnRetryLimit' to 'false'")
-		}
-
-		md.disableDeleteOnRetryLimit = disableDeleteOnRetryLimit
+func (md *snsSqsMetadata) setMessageMaxNumber(props map[string]string) error {
+	if val, ok := props["messageMaxNumber"]; !ok {
+		md.messageMaxNumber = 10
 	} else {
-		// default when not configured.
-		md.disableDeleteOnRetryLimit = false
+		maxNumber, err := parseInt64(val, "messageMaxNumber")
+		if err != nil {
+			return err
+		}
+
+		if maxNumber < 1 {
+			return errors.New("messageMaxNumber must be greater than 0")
+		} else if maxNumber > 10 {
+			return errors.New("messageMaxNumber must be less than or equal to 10")
+		}
+
+		md.messageMaxNumber = maxNumber
 	}
 
+	return nil
+}
+
+func (md *snsSqsMetadata) setMessageWaitTimeSeconds(props map[string]string) error {
+	if val, ok := props["messageWaitTimeSeconds"]; !ok {
+		md.messageWaitTimeSeconds = 1
+	} else {
+		waitTime, err := parseInt64(val, "messageWaitTimeSeconds")
+		if err != nil {
+			return err
+		}
+
+		if waitTime < 1 {
+			return errors.New("messageWaitTimeSeconds must be greater than 0")
+		}
+
+		md.messageWaitTimeSeconds = waitTime
+	}
+
+	return nil
+}
+
+func (md *snsSqsMetadata) setFifoConfig(props map[string]string) error {
 	// fifo settings: enable/disable SNS and SQS FIFO.
 	if val, ok := props["fifo"]; ok {
 		fifo, err := parseBool(val, "fifo")
 		if err != nil {
-			return nil, err
+			return err
 		}
 		md.fifo = fifo
 	} else {
@@ -198,55 +261,81 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		md.fifoMessageGroupID = val
 	}
 
-	if val, ok := props["messageWaitTimeSeconds"]; !ok {
-		md.messageWaitTimeSeconds = 1
+	return nil
+}
+
+func (md *snsSqsMetadata) setDeleteAndDLQConfig(props map[string]string) error {
+	if val, ok := props["sqsDeadLettersQueueName"]; ok {
+		md.sqsDeadLettersQueueName = val
+	}
+
+	if val, ok := props["messageReceiveLimit"]; ok {
+		messageReceiveLimit, err := parseInt64(val, "messageReceiveLimit")
+		if err != nil {
+			return err
+		}
+		// assign: used provided configuration
+		md.messageReceiveLimit = messageReceiveLimit
+	}
+
+	// XOR on having either a valid messageReceiveLimit and invalid sqsDeadLettersQueueName, and vice versa.
+	if (md.messageReceiveLimit > 0 || len(md.sqsDeadLettersQueueName) > 0) && !(md.messageReceiveLimit > 0 && len(md.sqsDeadLettersQueueName) > 0) {
+		return errors.New("to use SQS dead letters queue, messageReceiveLimit and sqsDeadLettersQueueName must both be set to a value")
+	}
+
+	if val, ok := props["disableDeleteOnRetryLimit"]; ok {
+		disableDeleteOnRetryLimit, err := parseBool(val, "disableDeleteOnRetryLimit")
+		if err != nil {
+			return err
+		}
+
+		if len(md.sqsDeadLettersQueueName) > 0 && disableDeleteOnRetryLimit {
+			return errors.New("configuration conflict: 'disableDeleteOnRetryLimit' cannot be set to 'true' when 'sqsDeadLettersQueueName' is set to a value. either remove this configuration or set 'disableDeleteOnRetryLimit' to 'false'")
+		}
+
+		md.disableDeleteOnRetryLimit = disableDeleteOnRetryLimit
 	} else {
-		waitTime, err := parseInt64(val, "messageWaitTimeSeconds")
-		if err != nil {
-			return nil, err
-		}
-
-		if waitTime < 1 {
-			return nil, errors.New("messageWaitTimeSeconds must be greater than 0")
-		}
-
-		md.messageWaitTimeSeconds = waitTime
+		// default when not configured.
+		md.disableDeleteOnRetryLimit = false
 	}
 
-	if val, ok := props["messageMaxNumber"]; !ok {
-		md.messageMaxNumber = 10
+	return nil
+}
+
+func (md *snsSqsMetadata) setMessageRetryLimit(props map[string]string) error {
+	if val, ok := props["messageRetryLimit"]; !ok {
+		md.messageRetryLimit = 10
 	} else {
-		maxNumber, err := parseInt64(val, "messageMaxNumber")
+		retryLimit, err := parseInt64(val, "messageRetryLimit")
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		if maxNumber < 1 {
-			return nil, errors.New("messageMaxNumber must be greater than 0")
-		} else if maxNumber > 10 {
-			return nil, errors.New("messageMaxNumber must be less than or equal to 10")
+		if retryLimit < 2 {
+			return errors.New("messageRetryLimit must be greater than 1")
 		}
 
-		md.messageMaxNumber = maxNumber
+		md.messageRetryLimit = retryLimit
 	}
 
-	if val, ok := props["disableEntityManagement"]; ok {
-		parsed, err := parseBool(val, "disableEntityManagement")
-		if err != nil {
-			return nil, err
-		}
-		md.disableEntityManagement = parsed
-	}
+	return nil
+}
 
-	if val, ok := props["assetsManagementTimeoutSeconds"]; ok {
-		parsed, err := parseFloat64(val, "assetsManagementTimeoutSeconds")
-		if err != nil {
-			return nil, err
-		}
-		md.assetsManagementTimeoutSeconds = parsed
+func (md *snsSqsMetadata) setMessageVisibilityTimeout(props map[string]string) error {
+	if val, ok := props["messageVisibilityTimeout"]; !ok {
+		md.messageVisibilityTimeout = 10
 	} else {
-		md.assetsManagementTimeoutSeconds = assetsManagementDefaultTimeoutSeconds
+		timeout, err := parseInt64(val, "messageVisibilityTimeout")
+		if err != nil {
+			return err
+		}
+
+		if timeout < 1 {
+			return errors.New("messageVisibilityTimeout must be greater than 0")
+		}
+
+		md.messageVisibilityTimeout = timeout
 	}
 
-	return &md, nil
+	return nil
 }

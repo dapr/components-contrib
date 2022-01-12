@@ -122,8 +122,8 @@ func (r *resolver) watchNamingInfos() error {
 				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
 					r.logger.Infof("naming info file %s changed, will update", event.Name)
 					id := path.Base(event.Name)
-					infos, err := r.loadNamingInfo(id)
-					if err != nil {
+					infos, err2 := r.loadNamingInfo(id)
+					if err2 != nil {
 						r.logger.Warnf("failed to reload naming info for app: %s", id)
 					} else {
 						r.namingInfos[id] = infos

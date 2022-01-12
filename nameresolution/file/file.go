@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
+	"github.com/gofrs/flock"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path"
 	"path/filepath"
-
-	"github.com/gofrs/flock"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/config"
@@ -42,16 +43,18 @@ func createNamingInfo(metadata nameresolution.Metadata) *namingInfo {
 }
 
 type resolver struct {
-	logger logger.Logger
-	dir    string
+	logger      logger.Logger
+	dir         string
+	namingInfos map[string][]*namingInfo
 }
 
 // NewResolver creates file-based name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	if home, err := os.UserHomeDir(); err == nil {
 		return &resolver{
-			logger: logger,
-			dir:    filepath.Join(home, defaultDaprDir, defaultNamingDir),
+			logger:      logger,
+			dir:         filepath.Join(home, defaultDaprDir, defaultNamingDir),
+			namingInfos: make(map[string][]*namingInfo),
 		}
 	}
 
@@ -87,6 +90,67 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 		return err
 	}
 
+	namingInfos = r.removeExistingInfoIfNecessary(namingInfos, info)
+	namingInfos = append(namingInfos, info)
+	content, _ := json.MarshalIndent(namingInfos, "", "\t")
+	if err := ioutil.WriteFile(f, content, os.ModePerm); err != nil {
+		r.logger.Errorf("fail to write naming info into file: %s", f)
+		return err
+	}
+
+	r.namingInfos[info.AppID] = namingInfos
+
+	return r.watchNamingInfos()
+}
+
+func (r *resolver) watchNamingInfos() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		r.logger.Warnf("file watcher failed to setup, the naming info may not keep to update")
+		return err
+	}
+
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+
+				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
+					r.logger.Infof("naming info file %s changed, will update", event.Name)
+					id := path.Base(event.Name)
+					infos, err := r.loadNamingInfo(id)
+					if err != nil {
+						r.logger.Warnf("failed to reload naming info for app: %s", id)
+					} else {
+						r.namingInfos[id] = infos
+					}
+				}
+
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+
+				r.logger.Warnf("file watcher for naming info encounter error: %s", err)
+			}
+		}
+	}()
+
+	err = watcher.Add(r.dir)
+	if err != nil {
+		r.logger.Warnf("fail to add %s to naming info watch list", r.dir)
+		_ = watcher.Close()
+
+		return err
+	}
+
+	return nil
+}
+
+func (r *resolver) removeExistingInfoIfNecessary(namingInfos []*namingInfo, info *namingInfo) []*namingInfo {
 	index := -1
 	for i, ni := range namingInfos {
 		if ni.AppID == info.AppID &&
@@ -102,28 +166,36 @@ func (r *resolver) Init(metadata nameresolution.Metadata) error {
 		namingInfos = append(namingInfos[:index], namingInfos[index+1:]...)
 	}
 
-	namingInfos = append(namingInfos, *info)
-	content, _ := json.MarshalIndent(namingInfos, "", "\t")
-	if err := ioutil.WriteFile(f, content, os.ModePerm); err != nil {
-		r.logger.Errorf("fail to write naming info into file: %s", f)
-		return err
-	}
-
-	return nil
+	return namingInfos
 }
 
-func loadNamingInfo(filename string) ([]namingInfo, error) {
-	_, err := os.Stat(filename)
+func (r *resolver) loadNamingInfo(appID string) ([]*namingInfo, error) {
+	lock := r.newFileLock(appID)
+	if err := lock.RLock(); err != nil {
+		r.logger.Errorf("fail to lock file: %s", lock.Path())
+		return nil, err
+	}
+	defer func(lock *flock.Flock) {
+		if err := lock.Unlock(); err != nil {
+			r.logger.Errorf("fail to unlock file: %s with error: %s", lock.Path(), err)
+		}
+	}(lock)
+
+	return loadNamingInfo(filepath.Join(r.dir, appID))
+}
+
+func loadNamingInfo(fn string) ([]*namingInfo, error) {
+	_, err := os.Stat(fn)
 	if err != nil && os.IsNotExist(err) {
-		return make([]namingInfo, 0), nil
+		return make([]*namingInfo, 0), nil
 	}
 
-	bytes, err := ioutil.ReadFile(filename)
+	bytes, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return nil, err
 	}
 
-	infos := make([]namingInfo, 0)
+	infos := make([]*namingInfo, 0)
 	err = json.Unmarshal(bytes, &infos)
 	if err != nil {
 		return nil, err
@@ -159,24 +231,17 @@ func (r *resolver) prepareResolverDir(metadata nameresolution.Metadata) error {
 
 // ResolveID resolves name to address via file.
 func (r *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
-	lock := r.newFileLock(req.ID)
-	if err := lock.RLock(); err != nil {
-		r.logger.Errorf("fail to lock file: %s", lock.Path())
-		return "", err
-	}
-	defer func(lock *flock.Flock) {
-		if err := lock.Unlock(); err != nil {
-			r.logger.Errorf("fail to unlock file: %s with error: %s", lock.Path(), err)
+	info := r.namingInfos[req.ID]
+	if info == nil {
+		var err error
+		info, err = r.loadNamingInfo(req.ID)
+		if err != nil {
+			return "", err
 		}
-	}(lock)
-
-	fn := filepath.Join(r.dir, req.ID)
-	info, err := loadNamingInfo(fn)
-	if err != nil {
-		return "", err
 	}
+
 	if len(info) == 0 {
-		return "", fmt.Errorf("there's no naming info for application: %s, pls. check file: %s", req.ID, lock)
+		return "", fmt.Errorf("there's no naming info for application: %s, pls. check dir: %s", req.ID, r.dir)
 	}
 
 	rnd, _ := rand.Int(rand.Reader, big.NewInt(int64(len(info))))

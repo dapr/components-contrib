@@ -303,6 +303,8 @@ require (
 	stathat.com/c/consistent v1.0.0 // indirect
 )
 
+require github.com/fsnotify/fsnotify v1.5.1
+
 require github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

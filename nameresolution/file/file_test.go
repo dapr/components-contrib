@@ -80,7 +80,7 @@ func TestInitAndResolveID(t *testing.T) {
 		infos, err := loadNamingInfo(filepath.Join(baseDir, "helloapp"))
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(infos))
-		assert.Equal(t, namingInfo{
+		assert.Equal(t, &namingInfo{
 			AppID:        "helloapp",
 			HostAddress:  "192.168.1.127",
 			AppPort:      "3000",

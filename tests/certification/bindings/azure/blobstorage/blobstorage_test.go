@@ -35,6 +35,73 @@ const (
 	sidecarName = "blobstorage-sidecar"
 )
 
+func getBlobRequest(ctx flow.Context, client daprsdk.Client, name string, includeMetadata bool) (out *daprsdk.BindingEvent, err error) {
+	fetchMetdata := fmt.Sprint(includeMetadata)
+	invokeGetMetadata := map[string]string{
+		"blobName":        name,
+		"includeMetadata": fetchMetdata,
+	}
+
+	invokeGetRequest := &daprsdk.InvokeBindingRequest{
+		Name:      "azure-blobstorage-output",
+		Operation: "get",
+		Data:      nil,
+		Metadata:  invokeGetMetadata,
+	}
+
+	out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
+	return out, invokeGetErr
+}
+
+func listBlobRequest(ctx flow.Context, client daprsdk.Client, prefix string, marker string, maxResults int, includeMetadata bool, includeSnapshots bool, includeUncommittedBlobs bool, includeCopy bool, includeDeleted bool) (out *daprsdk.BindingEvent, err error) {
+	requestOptions := make(map[string]interface{})
+
+	requestOptions["prefix"] = prefix
+	requestOptions["marker"] = marker
+	if maxResults > -1 {
+		requestOptions["maxResults"] = maxResults
+	}
+	includeOptions := make(map[string]interface{})
+	includeOptions["snapshots"] = includeSnapshots
+	includeOptions["uncommittedBlobs"] = includeUncommittedBlobs
+	includeOptions["copy"] = includeCopy
+	includeOptions["deleted"] = includeDeleted
+	includeOptions["metadata"] = includeMetadata
+	requestOptions["include"] = includeOptions
+
+	optionsBytes, marshalErr := json.Marshal(requestOptions)
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
+
+	invokeRequest := &daprsdk.InvokeBindingRequest{
+		Name:      "azure-blobstorage-output",
+		Operation: "list",
+		Data:      optionsBytes,
+		Metadata:  nil,
+	}
+
+	out, invokeErr := client.InvokeBinding(ctx, invokeRequest)
+	return out, invokeErr
+}
+
+func deleteBlobRequest(ctx flow.Context, client daprsdk.Client, name string, deleteSnapshotsOption string) (out *daprsdk.BindingEvent, err error) {
+	invokeDeleteMetadata := map[string]string{
+		"blobName":        name,
+		"deleteSnapshots": deleteSnapshotsOption,
+	}
+
+	invokeGetRequest := &daprsdk.InvokeBindingRequest{
+		Name:      "azure-blobstorage-output",
+		Operation: "delete",
+		Data:      nil,
+		Metadata:  invokeDeleteMetadata,
+	}
+
+	out, invokeDeleteErr := client.InvokeBinding(ctx, invokeGetRequest)
+	return out, invokeDeleteErr
+}
+
 func TestBlobStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
@@ -43,41 +110,6 @@ func TestBlobStorage(t *testing.T) {
 	currentHTTPPort := ports[1]
 
 	log := logger.NewLogger("dapr.components")
-
-	getBlobRequest := func(ctx flow.Context, client daprsdk.Client, name string, includeMetadata bool) (out *daprsdk.BindingEvent, err error) {
-		fetchMetdata := fmt.Sprint(includeMetadata)
-		invokeGetMetadata := map[string]string{
-			"blobName":        name,
-			"includeMetadata": fetchMetdata,
-		}
-
-		invokeGetRequest := &daprsdk.InvokeBindingRequest{
-			Name:      "azure-blobstorage-output",
-			Operation: "get",
-			Data:      nil,
-			Metadata:  invokeGetMetadata,
-		}
-
-		out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
-		return out, invokeGetErr
-	}
-
-	deleteBlobRequest := func(ctx flow.Context, client daprsdk.Client, name string, deleteSnapshotsOption string) (out *daprsdk.BindingEvent, err error) {
-		invokeDeleteMetadata := map[string]string{
-			"blobName":        name,
-			"deleteSnapshots": deleteSnapshotsOption,
-		}
-
-		invokeGetRequest := &daprsdk.InvokeBindingRequest{
-			Name:      "azure-blobstorage-output",
-			Operation: "delete",
-			Data:      nil,
-			Metadata:  invokeDeleteMetadata,
-		}
-
-		out, invokeDeleteErr := client.InvokeBinding(ctx, invokeGetRequest)
-		return out, invokeDeleteErr
-	}
 
 	testFileNameConflict := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
@@ -253,14 +285,7 @@ func TestBlobStorage(t *testing.T) {
 		assert.Contains(t, out.Metadata, "custom")
 		assert.Equal(t, out.Metadata["custom"], "hello-world")
 
-		invokeListRequest := &daprsdk.InvokeBindingRequest{
-			Name:      "azure-blobstorage-output",
-			Operation: "list",
-			Data:      nil,
-			Metadata:  nil,
-		}
-
-		out, invokeErr := client.InvokeBinding(ctx, invokeListRequest)
+		out, invokeErr := listBlobRequest(ctx, client, "", "", -1, true, false, false, false, false)
 		assert.NoError(t, invokeErr)
 		var output []map[string]interface{}
 		err := json.Unmarshal(out.Data, &output)
@@ -270,6 +295,7 @@ func TestBlobStorage(t *testing.T) {
 		for _, item := range output {
 			if item["Name"] == "filename.txt" {
 				found = true
+				log.Errorf("found item: %v", item)
 				properties := item["Properties"].(map[string]interface{})
 				assert.Equal(t, properties["ContentMD5"], invokeCreateMetadata["contentMD5"])
 				assert.Equal(t, properties["ContentType"], invokeCreateMetadata["contentType"])
@@ -277,6 +303,7 @@ func TestBlobStorage(t *testing.T) {
 				assert.Equal(t, properties["ContentDisposition"], invokeCreateMetadata["contentDisposition"])
 				assert.Equal(t, properties["ContentEncoding"], invokeCreateMetadata["contentEncoding"])
 				assert.Equal(t, properties["ContentLanguage"], invokeCreateMetadata["contentLanguage"])
+				assert.Equal(t, item["Metadata"].(map[string]interface{})["custom"], invokeCreateMetadata["custom"])
 				break
 			}
 		}
@@ -294,30 +321,120 @@ func TestBlobStorage(t *testing.T) {
 		return nil
 	}
 
-	invokeListContents := func(ctx flow.Context) error {
+	testListContents := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
 		}
 		defer client.Close()
 
-		requestOptions := make(map[string]interface{})
-		optionsBytes, marshalErr := json.Marshal(requestOptions)
-		if marshalErr != nil {
-			return marshalErr
-		}
-
-		invokeRequest := &daprsdk.InvokeBindingRequest{
-			Name:      "azure-blobstorage-output",
-			Operation: "list",
-			Data:      optionsBytes,
-			Metadata:  nil,
-		}
-
-		_, invokeErr := client.InvokeBinding(ctx, invokeRequest)
+		_, invokeErr := listBlobRequest(ctx, client, "", "", 0, false, false, false, false, false)
 		assert.NoError(t, invokeErr)
 
 		return invokeErr
+	}
+
+	testListContentsWithPrefixAndMarker := func(ctx flow.Context) error {
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		// create a blob with a prefix of "prefixA"
+		invokeCreateMetadata1 := map[string]string{
+			"blobName": "prefixA/filename.txt",
+		}
+
+		invokeCreateRequest1 := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      []byte("some example content"),
+			Metadata:  invokeCreateMetadata1,
+		}
+
+		_, invokeCreateErr1 := client.InvokeBinding(ctx, invokeCreateRequest1)
+		assert.NoError(t, invokeCreateErr1)
+
+		// create another blob with a prefix of "prefixA"
+		invokeCreateMetadata2 := map[string]string{
+			"blobName": "prefixAfilename.txt",
+		}
+
+		invokeCreateRequest2 := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      []byte("some example content"),
+			Metadata:  invokeCreateMetadata2,
+		}
+
+		_, invokeCreateErr2 := client.InvokeBinding(ctx, invokeCreateRequest2)
+		assert.NoError(t, invokeCreateErr2)
+
+		// create a blob with a prefix of "prefixB"
+		invokeCreateMetadata3 := map[string]string{
+			"blobName": "prefixB/filename.txt",
+		}
+
+		invokeCreateRequest3 := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      []byte("some example content"),
+			Metadata:  invokeCreateMetadata3,
+		}
+
+		_, invokeCreateErr3 := client.InvokeBinding(ctx, invokeCreateRequest3)
+		assert.NoError(t, invokeCreateErr3)
+
+		// list the contents of the container
+		out, listErr := listBlobRequest(ctx, client, "prefixA", "", 1, false, false, false, false, false)
+		assert.NoError(t, listErr)
+
+		var output []map[string]interface{}
+		err := json.Unmarshal(out.Data, &output)
+		assert.NoError(t, err)
+
+		assert.Equal(t, len(output), 1)
+		assert.Equal(t, output[0]["Name"], "prefixA/filename.txt")
+
+		log.Error(output)
+		nextMarker := out.Metadata["marker"]
+		fmt.Println("nextMarker: ", nextMarker)
+
+		// list the contents of the container with a marker
+		out2, listErr2 := listBlobRequest(ctx, client, "prefixA", nextMarker, 1, false, false, false, false, false)
+		assert.NoError(t, listErr2)
+
+		var output2 []map[string]interface{}
+		err2 := json.Unmarshal(out2.Data, &output2)
+		assert.NoError(t, err2)
+
+		assert.Equal(t, len(output2), 1)
+		assert.Equal(t, output2[0]["Name"], "prefixAfilename.txt")
+
+		// cleanup
+		_, invokeDeleteErr1 := deleteBlobRequest(ctx, client, "prefixA/filename.txt", "")
+		assert.NoError(t, invokeDeleteErr1)
+		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "prefixAfilename.txt", "")
+		assert.NoError(t, invokeDeleteErr2)
+		_, invokeDeleteErr3 := deleteBlobRequest(ctx, client, "prefixB/filename.txt", "")
+		assert.NoError(t, invokeDeleteErr3)
+
+		// list deleted items with prefix
+		out3, listErr3 := listBlobRequest(ctx, client, "prefixA", "", 2, false, false, false, false, true)
+		assert.NoError(t, listErr3)
+
+		// assert.Equal(t, out3.Metadata["number"], "2")
+
+		// THIS SHOUD INCLUDE THE ITEMS THAT WERE DELETED
+
+		var output3 []map[string]interface{}
+		err3 := json.Unmarshal(out3.Data, &output3)
+		assert.NoError(t, err3)
+
+		assert.Equal(t, len(output3), 2)
+
+		return nil
 	}
 
 	flow.New(t, "blobstorage binding authentication using service principal").
@@ -363,8 +480,9 @@ func TestBlobStorage(t *testing.T) {
 			))).
 		Step("Create blob", testCreateGetListDelete).
 		Step("Create blob from file", testCreateBlobFromFile(false)).
-		Step("List contents", invokeListContents).
+		Step("List contents", testListContents).
 		Step("Create blob with conflicting filename", testFileNameConflict).
+		Step("List contents with prefix", testListContentsWithPrefixAndMarker).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)

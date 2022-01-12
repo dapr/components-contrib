@@ -19,11 +19,23 @@ This project aims to test the Azure Blobstorage binding component under various 
 - Filename specified
 - MD5 Hash Provided
 - File already exists (overwrites content)
+- List include custom metadata
 
 
 - TODO: List
   - List
   - Various options...
+      "maxResults": 10,
+    "prefix": "file",
+    "marker": "2!108!MDAwMDM1IWZpbGUtMDgtMDctMjAyMS0wOS0zOC01NS03NzgtMjEudHh0ITAwMDAyOCE5OTk5LTEyLTMxVDIzOjU5OjU5Ljk5OTk5OTlaIQ--",
+    "include": {
+      "snapshots": false,
+      "metadata": true,
+      "uncommittedBlobs": false,
+      "copy": false,
+      "deleted": false
+    }
+  }
 - TODO: Delete
   - No "deleteSnapshots" option despite snapshots
   - Verify snaphotOptions include/only

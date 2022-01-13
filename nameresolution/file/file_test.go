@@ -2,12 +2,13 @@ package file
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -63,7 +64,6 @@ func TestPrepareResolverDir(t *testing.T) {
 }
 
 func TestInitAndResolveID(t *testing.T) {
-
 	t.Run("one app instance", func(t *testing.T) {
 		r := NewResolver(logger.NewLogger("test"))
 		baseDir := filepath.Join(os.TempDir(), "dapr", "naming")

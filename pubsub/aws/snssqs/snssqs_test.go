@@ -31,7 +31,8 @@ func Test_parseTopicArn(t *testing.T) {
 	t.Parallel()
 	// no further guarantees are made about this function.
 	r := require.New(t)
-	r.Equal("qqnoob", parseTopicArn("arn:aws:sqs:us-east-1:000000000000:qqnoob"))
+	tSnsMessage := &snsMessage{TopicArn: "arn:aws:sqs:us-east-1:000000000000:qqnoob"}
+	r.Equal("qqnoob", tSnsMessage.parseTopicArn())
 }
 
 // Verify that all metadata ends up in the correct spot.
@@ -103,6 +104,9 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal(int64(10), md.messageRetryLimit)
 	r.Equal(int64(1), md.messageWaitTimeSeconds)
 	r.Equal(int64(10), md.messageMaxNumber)
+	r.Equal(false, md.disableEntityManagement)
+	r.Equal(float64(5), md.assetsManagementTimeoutSeconds)
+	r.Equal(false, md.disableDeleteOnRetryLimit)
 }
 
 func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
@@ -190,6 +194,20 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 		},
 		{
 			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":                "consumer",
+				"Endpoint":                  "endpoint",
+				"AccessKey":                 "acctId",
+				"SecretKey":                 "secret",
+				"awsToken":                  "token",
+				"Region":                    "region",
+				"sqsDeadLettersQueueName":   "my-queue",
+				"messageReceiveLimit":       "9",
+				"disableDeleteOnRetryLimit": "true",
+			}},
+			name: "deadletters message queue with disableDeleteOnRetryLimit",
+		},
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
 				"consumerID":       "consumer",
 				"Endpoint":         "endpoint",
 				"AccessKey":        "acctId",
@@ -247,6 +265,20 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"messageRetryLimit": "-100",
 			}},
 			name: "invalid message retry limit",
+		},
+		// disableEntityManagement
+		{
+			metadata: pubsub.Metadata{Properties: map[string]string{
+				"consumerID":              "consumer",
+				"Endpoint":                "endpoint",
+				"AccessKey":               "acctId",
+				"SecretKey":               "secret",
+				"awsToken":                "token",
+				"Region":                  "region",
+				"messageRetryLimit":       "10",
+				"disableEntityManagement": "y",
+			}},
+			name: "invalid message disableEntityManagement",
 		},
 	}
 

@@ -2,14 +2,12 @@ package file
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -65,11 +63,12 @@ func TestPrepareResolverDir(t *testing.T) {
 }
 
 func TestInitAndResolveID(t *testing.T) {
-	r := NewResolver(logger.NewLogger("test"))
-	baseDir := filepath.Join(os.TempDir(), "dapr", "naming")
-	t.Logf("base directory is: %s", baseDir)
 
 	t.Run("one app instance", func(t *testing.T) {
+		r := NewResolver(logger.NewLogger("test"))
+		baseDir := filepath.Join(os.TempDir(), "dapr", "naming")
+		t.Logf("base directory is: %s", baseDir)
+
 		defer func() {
 			_ = os.RemoveAll(baseDir)
 		}()
@@ -98,27 +97,29 @@ func TestInitAndResolveID(t *testing.T) {
 	})
 
 	t.Run("many app instances", func(t *testing.T) {
+		baseDir := filepath.Join(os.TempDir(), "dapr", "naming")
+		t.Logf("base directory is: %s", baseDir)
+
 		defer func() {
 			_ = os.RemoveAll(baseDir)
 		}()
 
-		wg := sync.WaitGroup{}
-		wg.Add(100)
+		resolvers := make([]nr.Resolver, 100)
 		for i := 0; i < 100; i++ {
-			go func(i int) {
-				resolverMetadata := buildMetadata("helloapp",
-					fmt.Sprintf("addr-%d", i),
-					fmt.Sprintf("app-port-%d", i),
-					fmt.Sprintf("grpc-port-%d", i),
-					fmt.Sprintf("http-port-%d", i),
-					baseDir)
-				err := r.Init(resolverMetadata)
-				assert.Nil(t, err)
-				wg.Done()
-			}(i)
+			resolvers[i] = NewResolver(logger.NewLogger("test"))
 		}
 
-		wg.Wait()
+		for i := 0; i < 100; i++ {
+			resolverMetadata := buildMetadata("helloapp",
+				fmt.Sprintf("addr-%d", i),
+				fmt.Sprintf("app-port-%d", i),
+				fmt.Sprintf("grpc-port-%d", i),
+				fmt.Sprintf("http-port-%d", i),
+				baseDir)
+			err := resolvers[i].Init(resolverMetadata)
+			assert.Nil(t, err)
+		}
+
 		infos, err := loadNamingInfo(filepath.Join(baseDir, "helloapp"))
 		assert.Nil(t, err)
 		assert.Equal(t, 100, len(infos))
@@ -138,7 +139,7 @@ func TestInitAndResolveID(t *testing.T) {
 
 		re := regexp.MustCompile(`addr-(\d+):grpc-port-(\d+)`)
 		for i := 0; i < 100; i++ {
-			result, err := r.ResolveID(request)
+			result, err := resolvers[i].ResolveID(request)
 			assert.Nil(t, err)
 			ret := re.FindStringSubmatch(result)
 			assert.Equal(t, ret[1], ret[2])

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gofrs/flock"
@@ -47,6 +48,7 @@ type resolver struct {
 	logger      logger.Logger
 	dir         string
 	namingInfos map[string][]*namingInfo
+	lock        sync.Mutex
 }
 
 // NewResolver creates file-based name resolver.
@@ -127,7 +129,9 @@ func (r *resolver) watchNamingInfos() error {
 					if err2 != nil {
 						r.logger.Warnf("failed to reload naming info for app: %s", id)
 					} else {
+						r.lock.Lock()
 						r.namingInfos[id] = infos
+						r.lock.Unlock()
 					}
 				}
 
@@ -233,6 +237,8 @@ func (r *resolver) prepareResolverDir(metadata nameresolution.Metadata) error {
 
 // ResolveID resolves name to address via file.
 func (r *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	info := r.namingInfos[req.ID]
 	if info == nil {
 		var err error

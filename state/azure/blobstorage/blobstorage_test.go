@@ -46,6 +46,16 @@ func TestInit(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
 	})
+
+	t.Run("Init with invalid account name", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"accountName":   "invalid-account",
+			"accountKey":    "e+Dnvl8EOxYxV94nurVaRQ==",
+			"containerName": "dapr",
+		}
+		err := s.Init(m)
+		assert.NotNil(t, err)
+	})
 }
 
 func TestGetBlobStorageMetaData(t *testing.T) {

@@ -9,30 +9,33 @@ This project aims to test the Azure Blobstorage binding component under various 
 * Authenticate with Azure Active Directory using Service Principal Client Secret
 * Authenticate with Storage Account Key
 
-### Operations tests
+### Functional tests
 
-- Successful delete
-- Delete File does not exist
-- Successful Get
-- Item does not exist
-- No filename specified
-- Filename specified
-- Correct MD5 Hash Provided
-- Create request with Invalid MD5 hash specified
-- File already exists (overwrites content)
-- List include custom metadata
-- List include soft-deleted blobs
-- List include snapshots
-- List specify max results and use marker to retrieve more results
-- List user prefix filtering
-- Creating public blobs works
+- Delete request:
+  - Successful deletion
+  - File does not exist
+  - Snapshots only
+  - Base blob with its snapshots
 
-- TODO: Delete
-  - No "deleteSnapshots" option despite snapshots
-  - Verify snaphotOptions include/only
+- Get request:
+  - Successful Get Request
+  - Item does not exist
 
-  - name: getBlobRetryCount
-    value: <integer>
+- Create request:
+  - No filename specified
+  - Filename specified
+  - Correct MD5 Hash Provided
+  - Incorrect MD5 hash specified
+  - Existing file name specified (overwrites content)
+  - Creating a public blob (depending on container setting)
+  - Verifies automatic base64 decode option
+
+- List request:
+  - include custom metadata
+  - include soft-deleted blobs
+  - include snapshots
+  - specify max results and use marker to retrieve more results
+  - filter results by specifying a prefix
 
 ### Running the tests
 

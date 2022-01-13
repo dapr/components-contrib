@@ -3,6 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/bindings/azure/blo
 go 1.17
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.2.0
 	github.com/dapr/components-contrib v1.5.1-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba
@@ -20,7 +21,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.20.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.2.0 // indirect
 	github.com/Azure/azure-storage-blob-go v0.10.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.23 // indirect

@@ -6,7 +6,7 @@
 package azureblobstoragebinding_test
 
 import (
-	"crypto/md5"
+	"crypto/md5" // nolint:gosec
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -39,7 +39,7 @@ const (
 	sidecarName = "blobstorage-sidecar"
 )
 
-// getBlobRequest is used to make a common binding request for the get operation
+// getBlobRequest is used to make a common binding request for the get operation.
 func getBlobRequest(ctx flow.Context, client daprsdk.Client, name string, includeMetadata bool) (out *daprsdk.BindingEvent, err error) {
 	fetchMetdata := fmt.Sprint(includeMetadata)
 	invokeGetMetadata := map[string]string{
@@ -55,10 +55,13 @@ func getBlobRequest(ctx flow.Context, client daprsdk.Client, name string, includ
 	}
 
 	out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
-	return out, invokeGetErr
+	if invokeGetErr != nil {
+		return nil, fmt.Errorf("%w", invokeGetErr)
+	}
+	return out, nil
 }
 
-// listBlobRequest is used to make a common binding request for the list operation
+// listBlobRequest is used to make a common binding request for the list operation.
 func listBlobRequest(ctx flow.Context, client daprsdk.Client, prefix string, marker string, maxResults int, includeMetadata bool, includeSnapshots bool, includeUncommittedBlobs bool, includeCopy bool, includeDeleted bool) (out *daprsdk.BindingEvent, err error) {
 	requestOptions := make(map[string]interface{})
 
@@ -77,7 +80,7 @@ func listBlobRequest(ctx flow.Context, client daprsdk.Client, prefix string, mar
 
 	optionsBytes, marshalErr := json.Marshal(requestOptions)
 	if marshalErr != nil {
-		return nil, marshalErr
+		return nil, fmt.Errorf("%w", marshalErr)
 	}
 
 	invokeRequest := &daprsdk.InvokeBindingRequest{
@@ -88,10 +91,13 @@ func listBlobRequest(ctx flow.Context, client daprsdk.Client, prefix string, mar
 	}
 
 	out, invokeErr := client.InvokeBinding(ctx, invokeRequest)
-	return out, invokeErr
+	if invokeErr != nil {
+		return nil, fmt.Errorf("%w", invokeErr)
+	}
+	return out, nil
 }
 
-// deleteBlobRequest is used to make a common binding request for the delete operation
+// deleteBlobRequest is used to make a common binding request for the delete operation.
 func deleteBlobRequest(ctx flow.Context, client daprsdk.Client, name string, deleteSnapshotsOption string) (out *daprsdk.BindingEvent, err error) {
 	invokeDeleteMetadata := map[string]string{
 		"blobName":        name,
@@ -106,7 +112,10 @@ func deleteBlobRequest(ctx flow.Context, client daprsdk.Client, name string, del
 	}
 
 	out, invokeDeleteErr := client.InvokeBinding(ctx, invokeGetRequest)
-	return out, invokeDeleteErr
+	if invokeDeleteErr != nil {
+		return nil, fmt.Errorf("%w", invokeDeleteErr)
+	}
+	return out, nil
 }
 
 func TestBlobStorage(t *testing.T) {
@@ -119,7 +128,7 @@ func TestBlobStorage(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 
 	testCreateBlobWithFileNameConflict := func(ctx flow.Context) error {
-		// verifies that overwriting a blob with the same name will not cause a conflict
+		// verifies that overwriting a blob with the same name will not cause a conflict.
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -171,17 +180,17 @@ func TestBlobStorage(t *testing.T) {
 		assert.NotEqual(t, oldString, newString)
 		assert.Equal(t, newString, input2)
 
-		// cleanup
+		// cleanup.
 		out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
 		assert.NoError(t, invokeDeleteErr)
 		assert.Empty(t, out.Data)
 
-		// confirm the deletion
+		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 		assert.Error(t, invokeSecondGetErr)
 		assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
 
-		// deleting the key again should fail
+		// deleting the key again should fail.
 		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, blobName, "")
 		assert.Error(t, invokeDeleteErr2)
 		assert.Contains(t, invokeDeleteErr2.Error(), "ServiceCode=BlobNotFound")
@@ -190,7 +199,7 @@ func TestBlobStorage(t *testing.T) {
 	}
 
 	testCreateBlobInvalidContentHash := func(ctx flow.Context) error {
-		// verifies that the content hash is validated
+		// verifies that the content hash is validated.
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -200,7 +209,7 @@ func TestBlobStorage(t *testing.T) {
 		input := "some example content"
 		dataBytes := []byte(input)
 		wrongBytesForContentHash := []byte("wrong content to hash")
-		h := md5.New()
+		h := md5.New() // nolint:gosec
 		h.Write(wrongBytesForContentHash)
 		md5HashBase64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
@@ -223,7 +232,7 @@ func TestBlobStorage(t *testing.T) {
 	}
 
 	testCreateBlobFromFile := func(isBase64 bool) func(ctx flow.Context) error {
-		// uploads a blob from a file and optionally verifies the automatic base64 decoding option
+		// uploads a blob from a file and optionally verifies the automatic base64 decoding option.
 		return func(ctx flow.Context) error {
 			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 			if clientErr != nil {
@@ -231,12 +240,12 @@ func TestBlobStorage(t *testing.T) {
 			}
 			defer client.Close()
 
-			dataBytes, err := os.ReadFile("dapr.svg")
+			dataBytes, dataErr := os.ReadFile("dapr.svg")
 			if isBase64 {
 				dataBytes = []byte(base64.StdEncoding.EncodeToString(dataBytes))
 			}
 
-			assert.NoError(t, err)
+			assert.NoError(t, dataErr)
 
 			invokeCreateRequest := &daprsdk.InvokeBindingRequest{
 				Name:      "azure-blobstorage-output",
@@ -254,8 +263,8 @@ func TestBlobStorage(t *testing.T) {
 			assert.NoError(t, invokeGetErr)
 			responseData := out.Data
 			if isBase64 {
-				// input was automatically base64 decoded
-				// for comparison we will base64 encode the response data
+				// input was automatically base64 decoded.
+				// for comparison we will base64 encode the response data.
 				responseData = []byte(base64.StdEncoding.EncodeToString(out.Data))
 			}
 			assert.Equal(t, responseData, dataBytes)
@@ -265,7 +274,7 @@ func TestBlobStorage(t *testing.T) {
 			assert.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
-			// confirm the deletion
+			// confirm the deletion.
 			_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 			assert.Error(t, invokeSecondGetErr)
 			assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
@@ -276,7 +285,7 @@ func TestBlobStorage(t *testing.T) {
 
 	testCreatePublicBlob := func(shoudBePublic bool, containerName string) func(ctx flow.Context) error {
 		// creates a blob and verifies whether it is public or not,
-		//   this depends on how the binding and the backing blob container are configured
+		//   this depends on how the binding and the backing blob container are configured.
 		return func(ctx flow.Context) error {
 			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 			if clientErr != nil {
@@ -301,11 +310,12 @@ func TestBlobStorage(t *testing.T) {
 				containerName = os.Getenv("AzureBlobStorageContainer")
 			}
 
-			// verify the blob is public via http request
+			// verify the blob is public via http request.
 			url := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccountName, containerName, blobName)
-			resp, err := http.Get(url)
-			assert.NoError(t, err)
+			resp, httpErr := http.Get(url) // nolint:gosec
+			assert.NoError(t, httpErr)
 			body, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
 
 			if shoudBePublic {
 				assert.Less(t, resp.StatusCode, 400)
@@ -314,7 +324,7 @@ func TestBlobStorage(t *testing.T) {
 				assert.Greater(t, resp.StatusCode, 399)
 			}
 
-			// cleanup
+			// cleanup.
 			_, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
 			assert.NoError(t, invokeDeleteErr)
 
@@ -323,7 +333,7 @@ func TestBlobStorage(t *testing.T) {
 	}
 
 	testCreateGetListDelete := func(ctx flow.Context) error {
-		// basic test of create, get, list, delete operations
+		// basic test of create, get, list, delete operations.
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -332,7 +342,7 @@ func TestBlobStorage(t *testing.T) {
 
 		input := "some example content"
 		dataBytes := []byte(input)
-		h := md5.New()
+		h := md5.New() // nolint:gosec
 		h.Write(dataBytes)
 		md5HashBase64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
@@ -379,14 +389,15 @@ func TestBlobStorage(t *testing.T) {
 		out, invokeErr := listBlobRequest(ctx, client, "", "", -1, true, false, false, false, false)
 		assert.NoError(t, invokeErr)
 		var output []map[string]interface{}
-		err := json.Unmarshal(out.Data, &output)
-		assert.NoError(t, err)
+		unmarshalErr := json.Unmarshal(out.Data, &output)
+		assert.NoError(t, unmarshalErr)
 
 		found := false
 		for _, item := range output {
 			if item["Name"] == "filename.txt" {
 				found = true
-				properties := item["Properties"].(map[string]interface{})
+				properties, ok := item["Properties"].(map[string]interface{})
+				assert.True(t, ok)
 				assert.Equal(t, properties["ContentMD5"], invokeCreateMetadata["contentMD5"])
 				assert.Equal(t, properties["ContentType"], invokeCreateMetadata["contentType"])
 				assert.Equal(t, properties["CacheControl"], invokeCreateMetadata["cacheControl"])
@@ -403,7 +414,7 @@ func TestBlobStorage(t *testing.T) {
 		assert.NoError(t, invokeDeleteErr)
 		assert.Empty(t, out.Data)
 
-		// confirm the deletion
+		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, "filename.txt", false)
 		assert.Error(t, invokeSecondGetErr)
 		assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
@@ -412,7 +423,7 @@ func TestBlobStorage(t *testing.T) {
 	}
 
 	testListContents := func(ctx flow.Context) error {
-		// simply runs the list contents operation
+		// simply runs the list contents operation.
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -431,7 +442,7 @@ func TestBlobStorage(t *testing.T) {
 		// - marker specified to start the list from a specific blob name
 		// - maxResults specified to limit the number of results returned
 		// - includeMetadata specified to include the custom metadata in the list
-		// - includeDeleted specified to include the deleted blobs in the list
+		// - includeDeleted specified to include the deleted blobs in the list.
 
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
@@ -439,7 +450,7 @@ func TestBlobStorage(t *testing.T) {
 		}
 		defer client.Close()
 
-		// create a blob with a prefix of "prefixA"
+		// create a blob with a prefix of "prefixA".
 		invokeCreateMetadata1 := map[string]string{
 			"blobName": "prefixA/filename.txt",
 		}
@@ -454,7 +465,7 @@ func TestBlobStorage(t *testing.T) {
 		_, invokeCreateErr1 := client.InvokeBinding(ctx, invokeCreateRequest1)
 		assert.NoError(t, invokeCreateErr1)
 
-		// create another blob with a prefix of "prefixA"
+		// create another blob with a prefix of "prefixA".
 		invokeCreateMetadata2 := map[string]string{
 			"blobName": "prefixAfilename.txt",
 		}
@@ -469,7 +480,7 @@ func TestBlobStorage(t *testing.T) {
 		_, invokeCreateErr2 := client.InvokeBinding(ctx, invokeCreateRequest2)
 		assert.NoError(t, invokeCreateErr2)
 
-		// create a blob with a prefix of "prefixB"
+		// create a blob with a prefix of "prefixB".
 		invokeCreateMetadata3 := map[string]string{
 			"blobName": "prefixB/filename.txt",
 		}
@@ -484,20 +495,20 @@ func TestBlobStorage(t *testing.T) {
 		_, invokeCreateErr3 := client.InvokeBinding(ctx, invokeCreateRequest3)
 		assert.NoError(t, invokeCreateErr3)
 
-		// list the contents of the container
+		// list the contents of the container.
 		out, listErr := listBlobRequest(ctx, client, "prefixA", "", 1, false, false, false, false, false)
 		assert.NoError(t, listErr)
 
 		var output []map[string]interface{}
-		err := json.Unmarshal(out.Data, &output)
-		assert.NoError(t, err)
+		unmarshalErr := json.Unmarshal(out.Data, &output)
+		assert.NoError(t, unmarshalErr)
 
 		assert.Equal(t, len(output), 1)
 		assert.Equal(t, output[0]["Name"], "prefixA/filename.txt")
 
 		nextMarker := out.Metadata["marker"]
 
-		// list the contents of the container with a marker
+		// list the contents of the container with a marker.
 		out2, listErr2 := listBlobRequest(ctx, client, "prefixA", nextMarker, 1, false, false, false, false, false)
 		assert.NoError(t, listErr2)
 
@@ -508,7 +519,7 @@ func TestBlobStorage(t *testing.T) {
 		assert.Equal(t, len(output2), 1)
 		assert.Equal(t, output2[0]["Name"], "prefixAfilename.txt")
 
-		// cleanup
+		// cleanup.
 		_, invokeDeleteErr1 := deleteBlobRequest(ctx, client, "prefixA/filename.txt", "")
 		assert.NoError(t, invokeDeleteErr1)
 		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "prefixAfilename.txt", "")
@@ -516,11 +527,11 @@ func TestBlobStorage(t *testing.T) {
 		_, invokeDeleteErr3 := deleteBlobRequest(ctx, client, "prefixB/filename.txt", "")
 		assert.NoError(t, invokeDeleteErr3)
 
-		// list deleted items with prefix
+		// list deleted items with prefix.
 		out3, listErr3 := listBlobRequest(ctx, client, "prefixA", "", -1, false, false, false, false, true)
 		assert.NoError(t, listErr3)
 
-		// this will only return the deleted items if soft delete policy is enabled for the blob service
+		// this will only return the deleted items if soft delete policy is enabled for the blob service.
 		assert.Equal(t, out3.Metadata["number"], "2")
 		var output3 []map[string]interface{}
 		err3 := json.Unmarshal(out3.Data, &output3)
@@ -531,8 +542,8 @@ func TestBlobStorage(t *testing.T) {
 	}
 
 	testSnapshotDeleteAndList := func(ctx flow.Context) error {
-		// verifies the list operation can list snapshots
-		// verifies the delete operation can delete snapshots
+		// verifies the list operation can list snapshots.
+		// verifies the delete operation can delete snapshots.
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -544,34 +555,39 @@ func TestBlobStorage(t *testing.T) {
 		containerClient := service.NewContainerClient(os.Getenv("AzureBlobStorageContainer"))
 
 		blobClient := containerClient.NewBlockBlobClient("snapshotthis.txt")
-		_, err := blobClient.UploadBufferToBlockBlob(ctx, []byte("some example content"), azblob.HighLevelUploadToBlockBlobOption{})
-		assert.NoError(t, err)
-		_, createSnapshotErr := blobClient.CreateSnapshot(ctx, &azblob.CreateBlobSnapshotOptions{})
+		uploadResp, uploadErr := blobClient.UploadBufferToBlockBlob(
+			ctx, []byte("some example content"),
+			azblob.HighLevelUploadToBlockBlobOption{}) // nolint: exhaustivestruct
+		assert.NoError(t, uploadErr)
+		uploadResp.Body.Close()
+		_, createSnapshotErr := blobClient.CreateSnapshot(
+			ctx, &azblob.CreateBlobSnapshotOptions{}) // nolint: exhaustivestruct
 		assert.NoError(t, createSnapshotErr)
 
-		// list the contents of the container including snapshots for the specific blob only
+		// list the contents of the container including snapshots for the specific blob only.
 		out, listErr := listBlobRequest(ctx, client, "snapshotthis.txt", "", -1, false, true, false, false, false)
 		assert.NoError(t, listErr)
 		assert.Equal(t, out.Metadata["number"], "2")
 
-		// delete snapshots
+		// delete snapshots.
 		_, invokeDeleteErr := deleteBlobRequest(ctx, client, "snapshotthis.txt", "only")
 		assert.NoError(t, invokeDeleteErr)
 
-		// verify snapshot is deleted
+		// verify snapshot is deleted.
 		out2, listErr2 := listBlobRequest(ctx, client, "snapshotthis.txt", "", -1, false, true, false, false, false)
 		assert.NoError(t, listErr2)
 		assert.Equal(t, out2.Metadata["number"], "1")
 
-		// create another snapshot
-		_, createSnapshotErr2 := blobClient.CreateSnapshot(ctx, &azblob.CreateBlobSnapshotOptions{})
+		// create another snapshot.
+		_, createSnapshotErr2 := blobClient.CreateSnapshot(
+			ctx, &azblob.CreateBlobSnapshotOptions{}) // nolint: exhaustivestruct
 		assert.NoError(t, createSnapshotErr2)
 
-		// delete base blob and snapshots all at once
+		// delete base blob and snapshots all at once.
 		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "snapshotthis.txt", "include")
 		assert.NoError(t, invokeDeleteErr2)
 
-		// verify base blob and snapshots are deleted
+		// verify base blob and snapshots are deleted.
 		out3, listErr3 := listBlobRequest(ctx, client, "snapshotthis.txt", "", -1, false, true, false, false, false)
 		assert.NoError(t, listErr3)
 		assert.Equal(t, out3.Metadata["number"], "0")

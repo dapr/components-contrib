@@ -123,7 +123,7 @@ func (r *resolver) watchNamingInfos() error {
 
 				if (event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create) &&
 					!strings.HasSuffix(event.Name, ".lock") {
-					r.logger.Infof("naming info file %s changed, will update", event.Name)
+					r.logger.Debugf("naming info file %s changed, will update", event.Name)
 					id := filepath.Base(event.Name)
 					infos, err2 := r.loadNamingInfo(id)
 					if err2 != nil {

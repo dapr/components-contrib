@@ -13,7 +13,7 @@ components:
       output:
         key: $((uuid))
   - component: azure.blobstorage
-    operations: ["create", "operations", "get"]
+    operations: ["create", "operations", "get", "list"]
     config:
       output:
         blobName: $((uuid))

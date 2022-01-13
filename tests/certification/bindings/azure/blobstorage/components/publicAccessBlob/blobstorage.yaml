@@ -16,9 +16,7 @@ spec:
         name: AzureBlobStorageAccessKey
         key:  AzureBlobStorageAccessKey
   - name: container
-    secretKeyRef:
-        name: AzureBlobStorageContainer
-        key:  AzureBlobStorageContainer
+    value: publiccontainer
   - name: decodeBase64
     value: false
   - name: getBlobRetryCount

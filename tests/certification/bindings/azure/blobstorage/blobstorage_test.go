@@ -10,7 +10,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,12 +65,12 @@ func listBlobRequest(ctx flow.Context, client daprsdk.Client, prefix string, mar
 		requestOptions["maxResults"] = maxResults
 	}
 	includeOptions := make(map[string]interface{})
-	includeOptions["snapshots"] = includeSnapshots
-	includeOptions["uncommittedBlobs"] = includeUncommittedBlobs
-	includeOptions["copy"] = includeCopy
-	includeOptions["deleted"] = includeDeleted
-	includeOptions["metadata"] = includeMetadata
-	requestOptions["include"] = includeOptions
+	includeOptions["Snapshots"] = includeSnapshots
+	includeOptions["UncommittedBlobs"] = includeUncommittedBlobs
+	includeOptions["Copy"] = includeCopy
+	includeOptions["Deleted"] = includeDeleted
+	includeOptions["Metadata"] = includeMetadata
+	requestOptions["Include"] = includeOptions
 
 	optionsBytes, marshalErr := json.Marshal(requestOptions)
 	if marshalErr != nil {
@@ -111,7 +114,7 @@ func TestBlobStorage(t *testing.T) {
 
 	log := logger.NewLogger("dapr.components")
 
-	testFileNameConflict := func(ctx flow.Context) error {
+	testCreateBlobWithFileNameConflict := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -181,6 +184,38 @@ func TestBlobStorage(t *testing.T) {
 		return nil
 	}
 
+	testCreateBlobInvalidContentHash := func(ctx flow.Context) error {
+		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+		if clientErr != nil {
+			panic(clientErr)
+		}
+		defer client.Close()
+
+		input := "some example content"
+		dataBytes := []byte(input)
+		wrongBytesForContentHash := []byte("wrong content to hash")
+		h := md5.New()
+		h.Write(wrongBytesForContentHash)
+		md5HashBase64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+		invokeCreateMetadata := map[string]string{
+			"contentMD5": md5HashBase64,
+		}
+
+		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      dataBytes,
+			Metadata:  invokeCreateMetadata,
+		}
+
+		_, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+		assert.Error(t, invokeCreateErr)
+		assert.Contains(t, invokeCreateErr.Error(), "ServiceCode=Md5Mismatch")
+
+		return nil
+	}
+
 	testCreateBlobFromFile := func(isBase64 bool) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {
 			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
@@ -227,6 +262,52 @@ func TestBlobStorage(t *testing.T) {
 			_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 			assert.Error(t, invokeSecondGetErr)
 			assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+
+			return nil
+		}
+	}
+
+	testCreatePublicBlob := func(shoudBePublic bool, containerName string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+			if clientErr != nil {
+				panic(clientErr)
+			}
+			defer client.Close()
+
+			inputBytes := []byte("this is a public blob")
+			invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+				Name:      "azure-blobstorage-output",
+				Operation: "create",
+				Data:      inputBytes,
+				Metadata:  map[string]string{},
+			}
+
+			out, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
+			assert.NoError(t, invokeCreateErr)
+
+			blobName := out.Metadata["blobName"]
+			storageAccountName := os.Getenv("AzureBlobStorageAccount")
+			if containerName == "" {
+				containerName = os.Getenv("AzureBlobStorageContainer")
+			}
+
+			// verify the blob is public via http request
+			url := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccountName, containerName, blobName)
+			resp, err := http.Get(url)
+			assert.NoError(t, err)
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if shoudBePublic {
+				assert.Less(t, resp.StatusCode, 400)
+				assert.Equal(t, inputBytes, body)
+			} else {
+				assert.Greater(t, resp.StatusCode, 399)
+			}
+
+			// cleanup
+			_, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
+			assert.NoError(t, invokeDeleteErr)
 
 			return nil
 		}
@@ -334,7 +415,7 @@ func TestBlobStorage(t *testing.T) {
 		return invokeErr
 	}
 
-	testListContentsWithPrefixAndMarker := func(ctx flow.Context) error {
+	testListContentsWithOptions := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
@@ -421,18 +502,55 @@ func TestBlobStorage(t *testing.T) {
 		assert.NoError(t, invokeDeleteErr3)
 
 		// list deleted items with prefix
-		out3, listErr3 := listBlobRequest(ctx, client, "prefixA", "", 2, false, false, false, false, true)
+		out3, listErr3 := listBlobRequest(ctx, client, "prefixA", "", -1, false, false, false, false, true)
 		assert.NoError(t, listErr3)
 
-		// assert.Equal(t, out3.Metadata["number"], "2")
-
-		// THIS SHOUD INCLUDE THE ITEMS THAT WERE DELETED
-
+		// this will only return the deleted items if soft delete policy is enabled for the blob service
+		assert.Equal(t, out3.Metadata["number"], "2")
 		var output3 []map[string]interface{}
 		err3 := json.Unmarshal(out3.Data, &output3)
 		assert.NoError(t, err3)
-
 		assert.Equal(t, len(output3), 2)
+
+		// include snapshots
+
+		out4, listErr4 := listBlobRequest(ctx, client, "prefixA", "", -1, false, true, false, false, true)
+		assert.NoError(t, listErr4)
+		snapshotCountBefore, _ := strconv.Atoi(out4.Metadata["number"])
+
+		// overwriting the deleted blob should create a snapshot of the soft deleted blob
+		// create a blob with a prefix of "prefixA"
+		invokeCreateMetadata4 := map[string]string{
+			"blobName": "prefixA/filename.txt",
+		}
+
+		invokeCreateRequest4 := &daprsdk.InvokeBindingRequest{
+			Name:      "azure-blobstorage-output",
+			Operation: "create",
+			Data:      []byte("some overwritten content"),
+			Metadata:  invokeCreateMetadata4,
+		}
+
+		_, invokeCreateErr4 := client.InvokeBinding(ctx, invokeCreateRequest4)
+		assert.NoError(t, invokeCreateErr4)
+
+		out5, listErr5 := listBlobRequest(ctx, client, "prefixA", "", -1, false, true, false, false, true)
+		assert.NoError(t, listErr5)
+
+		// this will only return the deleted items if soft delete policy is enabled for the blob service
+		snapshotCountAfter, _ := strconv.Atoi(out5.Metadata["number"])
+		assert.Greater(t, snapshotCountAfter, snapshotCountBefore)
+		var output5 []map[string]interface{}
+		err5 := json.Unmarshal(out5.Data, &output5)
+		assert.NoError(t, err5)
+		assert.Greater(t, len(output5), 2)
+		assert.Greater(t, len(output5), snapshotCountBefore)
+
+		// cleanup
+		_, invokeDeleteErr4 := deleteBlobRequest(ctx, client, "prefixA/filename.txt", "")
+		assert.NoError(t, invokeDeleteErr4)
+
+		// no need to test the other operations here as they
 
 		return nil
 	}
@@ -481,8 +599,10 @@ func TestBlobStorage(t *testing.T) {
 		Step("Create blob", testCreateGetListDelete).
 		Step("Create blob from file", testCreateBlobFromFile(false)).
 		Step("List contents", testListContents).
-		Step("Create blob with conflicting filename", testFileNameConflict).
-		Step("List contents with prefix", testListContentsWithPrefixAndMarker).
+		Step("Create blob with conflicting filename", testCreateBlobWithFileNameConflict).
+		Step("List contents with prefix", testListContentsWithOptions).
+		Step("Creating a public blob does not work", testCreatePublicBlob(false, "")).
+		Step("Create blob with invalid content hash", testCreateBlobInvalidContentHash).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)
@@ -508,5 +628,55 @@ func TestBlobStorage(t *testing.T) {
 				}),
 			))).
 		Step("Create blob from file", testCreateBlobFromFile(true)).
+		Run()
+
+	ports, err = dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGRPCPort = ports[0]
+	currentHTTPPort = ports[1]
+
+	flow.New(t, "blobstorage binding authentication using access key").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/publicAccessBlob"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+			),
+			runtime.WithOutputBindings(
+				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
+					return blobstorage.NewAzureBlobStorage(log)
+				}),
+			))).
+		Step("Creating a public blob works", testCreatePublicBlob(true, "publiccontainer")).
+		Run()
+
+	ports, err = dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGRPCPort = ports[0]
+	currentHTTPPort = ports[1]
+
+	flow.New(t, "blobstorage binding authentication using access key").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/publicAccessContainer"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+			),
+			runtime.WithOutputBindings(
+				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
+					return blobstorage.NewAzureBlobStorage(log)
+				}),
+			))).
+		Step("Creating a public blob works", testCreatePublicBlob(true, "alsopubliccontainer")).
 		Run()
 }

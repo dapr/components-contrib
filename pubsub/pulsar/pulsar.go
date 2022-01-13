@@ -108,8 +108,9 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-	var pulsarURL string = m.Host
-	if !strings.HasPrefix(m.Host, "http") {
+	pulsarURL := m.Host
+	if !strings.HasPrefix(m.Host, "http://") &&
+		!strings.HasPrefix(m.Host, "https://") {
 		pulsarURL = fmt.Sprintf("%s%s", pulsarPrefix, m.Host)
 	}
 	options := pulsar.ClientOptions{

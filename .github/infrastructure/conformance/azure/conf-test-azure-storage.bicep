@@ -24,3 +24,14 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-02-01' = {
   location: rgLocation
   tags: confTestTags
 }
+
+resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2021-02-01' = {
+  parent: storageAccount
+  name: 'default'
+  properties: {
+    deleteRetentionPolicy: {
+      enabled: true
+      days: 1
+    }
+  }
+}

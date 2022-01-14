@@ -3,9 +3,9 @@ module servicebusqueue_test
 go 1.17
 
 require (
-	github.com/dapr/components-contrib v1.5.0
+	github.com/dapr/components-contrib v1.6.0-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba
+	github.com/dapr/dapr v1.6.0-rc.1
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0
@@ -45,7 +45,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/devigned/tab v0.1.1 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
+	github.com/evanphx/json-patch v4.9.0+incompatible // indirect
 	github.com/fasthttp/router v1.3.8 // indirect
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-kit/log v0.1.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -108,6 +110,7 @@ require (
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.1.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2 // indirect
 	google.golang.org/grpc v1.40.0 // indirect
@@ -119,7 +122,9 @@ require (
 	k8s.io/apiextensions-apiserver v0.20.0 // indirect
 	k8s.io/apimachinery v0.20.0 // indirect
 	k8s.io/client-go v0.20.0 // indirect
+	k8s.io/component-base v0.20.0 // indirect
 	k8s.io/klog/v2 v2.4.0 // indirect
+	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd // indirect
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 	sigs.k8s.io/controller-runtime v0.7.0 // indirect

@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-blobstorage-output
+  namespace: default
+spec:
+  type: bindings.azure.blobstorage
+  version: v1
+  metadata:
+  - name: storageAccount
+    secretKeyRef:
+        name: AzureBlobStorageAccount
+        key:  AzureBlobStorageAccount
+  - name: container
+    secretKeyRef:
+        name: AzureBlobStorageContainer
+        key:  AzureBlobStorageContainer
+  - name: azureTenantId
+    secretKeyRef:
+        name: AzureCertificationTenantId
+        key:  AzureCertificationTenantId
+  - name: azureClientId
+    secretKeyRef:
+        name: AzureCertificationServicePrincipalClientId
+        key:  AzureCertificationServicePrincipalClientId
+  - name: azureClientSecret
+    secretKeyRef:
+        name: AzureCertificationServicePrincipalClientSecret
+        key:  AzureCertificationServicePrincipalClientSecret
+
+auth:
+  secretStore: envvar-secret-store

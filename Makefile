@@ -1,6 +1,14 @@
 # ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation and Dapr Contributors.
-# Licensed under the MIT License.
+# Copyright 2021 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ------------------------------------------------------------
 
 ################################################################################
@@ -74,7 +82,7 @@ MODFILES := $(shell find . -name go.mod)
 define modtidy-target
 .PHONY: modtidy-$(1)
 modtidy-$(1):
-	cd $(shell dirname $(1)); go mod tidy; cd -
+	cd $(shell dirname $(1)); go mod tidy -compat=1.17; cd -
 endef
 
 # Generate modtidy target action for each go.mod file
@@ -102,8 +110,8 @@ modtidy:
 ################################################################################
 .PHONY: check-diff
 check-diff:
-	git diff --exit-code ./go.mod # check no changes
-	git diff --exit-code ./go.sum # check no changes
+	git diff --exit-code -- '*go.mod' # check no changes
+	git diff --exit-code -- '*go.sum' # check no changes
 
 ################################################################################
 # Target: conf-tests                                                           #

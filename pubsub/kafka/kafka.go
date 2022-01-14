@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package kafka
 
@@ -33,6 +41,10 @@ const (
 	clientCert           = "clientCert"
 	clientKey            = "clientKey"
 	consumeRetryInterval = "consumeRetryInterval"
+	passwordAuthType     = "password"
+	oidcAuthType         = "oidc"
+	mtlsAuthType         = "mtls"
+	noAuthType           = "none"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group.
@@ -41,7 +53,7 @@ type Kafka struct {
 	consumerGroup string
 	brokers       []string
 	logger        logger.Logger
-	authRequired  bool
+	authType      string
 	saslUsername  string
 	saslPassword  string
 	initialOffset int64
@@ -59,11 +71,16 @@ type kafkaMetadata struct {
 	Brokers              []string
 	ConsumerGroup        string
 	ClientID             string
-	AuthRequired         bool
+	AuthType             string
 	SaslUsername         string
 	SaslPassword         string
 	InitialOffset        int64
 	MaxMessageBytes      int
+	OidcTokenEndpoint    string
+	OidcClientID         string
+	OidcClientSecret     string
+	OidcScopes           []string
+	TLSDisable           bool
 	TLSSkipVerify        bool
 	TLSCaCert            string
 	TLSClientCert        string
@@ -129,15 +146,20 @@ func NewKafka(l logger.Logger) pubsub.PubSub {
 
 // Init does metadata parsing and connection establishment.
 func (k *Kafka) Init(metadata pubsub.Metadata) error {
-	meta, err := k.getKafkaMetadata(metadata)
+	upgradedMetadata, err := k.upgradeMetadata(metadata)
+	if err != nil {
+		return err
+	}
+
+	meta, err := k.getKafkaMetadata(upgradedMetadata)
 	if err != nil {
 		return err
 	}
 
 	k.brokers = meta.Brokers
 	k.consumerGroup = meta.ConsumerGroup
-	k.authRequired = meta.AuthRequired
 	k.initialOffset = meta.InitialOffset
+	k.authType = meta.AuthType
 
 	config := sarama.NewConfig()
 	config.Version = meta.Version
@@ -147,17 +169,33 @@ func (k *Kafka) Init(metadata pubsub.Metadata) error {
 		config.ClientID = meta.ClientID
 	}
 
-	if k.authRequired {
-		k.saslUsername = meta.SaslUsername
-		k.saslPassword = meta.SaslPassword
-		updateAuthInfo(config, k.saslUsername, k.saslPassword)
-	}
 	err = updateTLSConfig(config, meta)
 	if err != nil {
 		return err
 	}
 
+	switch k.authType {
+	case oidcAuthType:
+		k.logger.Info("Configuring SASL OAuth2/OIDC authentication")
+		err = updateOidcAuthInfo(config, meta)
+		if err != nil {
+			return err
+		}
+	case passwordAuthType:
+		k.logger.Info("Configuring SASL Password authentication")
+		k.saslUsername = meta.SaslUsername
+		k.saslPassword = meta.SaslPassword
+		updatePasswordAuthInfo(config, k.saslUsername, k.saslPassword)
+	case mtlsAuthType:
+		k.logger.Info("Configuring mTLS authentcation")
+		err = updateMTLSAuthInfo(config, meta)
+		if err != nil {
+			return err
+		}
+	}
+
 	k.config = config
+	sarama.Logger = SaramaLogBridge{daprLogger: k.logger}
 
 	k.producer, err = getSyncProducer(*k.config, k.brokers, meta.MaxMessageBytes)
 	if err != nil {
@@ -193,8 +231,18 @@ func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 		Value: sarama.ByteEncoder(req.Data),
 	}
 
-	if val, ok := req.Metadata[key]; ok && val != "" {
-		msg.Key = sarama.StringEncoder(val)
+	for name, value := range req.Metadata {
+		if name == key {
+			msg.Key = sarama.StringEncoder(value)
+		} else {
+			if msg.Headers == nil {
+				msg.Headers = make([]sarama.RecordHeader, 0, len(req.Metadata))
+			}
+			msg.Headers = append(msg.Headers, sarama.RecordHeader{
+				Key:   []byte(name),
+				Value: []byte(value),
+			})
+		}
 	}
 
 	partition, offset, err := k.producer.SendMessage(msg)
@@ -308,6 +356,36 @@ func (k *Kafka) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) e
 	return nil
 }
 
+// upgradeMetadata updates metadata properties based on deprecated usage.
+func (k *Kafka) upgradeMetadata(metadata pubsub.Metadata) (pubsub.Metadata, error) {
+	authTypeVal, authTypePres := metadata.Properties["authType"]
+	authReqVal, authReqPres := metadata.Properties["authRequired"]
+	saslPassVal, saslPassPres := metadata.Properties["saslPassword"]
+
+	// If authType is not set, derive it from authRequired.
+	if (!authTypePres || authTypeVal == "") && authReqPres && authReqVal != "" {
+		k.logger.Warn("AuthRequired is deprecated, use AuthType instead.")
+		validAuthRequired, err := strconv.ParseBool(authReqVal)
+		if err == nil {
+			if validAuthRequired {
+				// If legacy authRequired was used, either SASL username or mtls is the method.
+				if saslPassPres && saslPassVal != "" {
+					// User has specified saslPassword, so intend for password auth.
+					metadata.Properties["authType"] = passwordAuthType
+				} else {
+					metadata.Properties["authType"] = mtlsAuthType
+				}
+			} else {
+				metadata.Properties["authType"] = noAuthType
+			}
+		} else {
+			return metadata, errors.New("kafka error: invalid value for 'authRequired' attribute")
+		}
+	}
+
+	return metadata, nil
+}
+
 // getKafkaMetadata returns new Kafka metadata.
 func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, error) {
 	meta := kafkaMetadata{
@@ -344,65 +422,107 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 
 	k.logger.Debugf("Found brokers: %v", meta.Brokers)
 
-	val, ok := metadata.Properties["authRequired"]
+	val, ok := metadata.Properties["authType"]
 	if !ok {
-		return nil, errors.New("kafka error: missing 'authRequired' attribute")
+		return nil, errors.New("kafka error: missing 'authType' attribute")
 	}
 	if val == "" {
-		return nil, errors.New("kafka error: 'authRequired' attribute was empty")
+		return nil, errors.New("kafka error: 'authType' attribute was empty")
 	}
-	validAuthRequired, err := strconv.ParseBool(val)
-	if err != nil {
-		return nil, errors.New("kafka error: invalid value for 'authRequired' attribute")
-	}
-	meta.AuthRequired = validAuthRequired
 
-	// ignore SASL properties if authRequired is false
-	if meta.AuthRequired {
-		if val, ok := metadata.Properties["saslUsername"]; ok && val != "" {
+	switch strings.ToLower(val) {
+	case passwordAuthType:
+		meta.AuthType = val
+		if val, ok = metadata.Properties["saslUsername"]; ok && val != "" {
 			meta.SaslUsername = val
 		} else {
-			return nil, errors.New("kafka error: missing SASL Username")
+			return nil, errors.New("kafka error: missing SASL Username for authType 'password'")
 		}
 
-		if val, ok := metadata.Properties["saslPassword"]; ok && val != "" {
+		if val, ok = metadata.Properties["saslPassword"]; ok && val != "" {
 			meta.SaslPassword = val
 		} else {
-			return nil, errors.New("kafka error: missing SASL Password")
+			return nil, errors.New("kafka error: missing SASL Password for authType 'password'")
 		}
+
+		k.logger.Debug("Configuring SASL password authentication.")
+	case oidcAuthType:
+		meta.AuthType = val
+		if val, ok = metadata.Properties["oidcTokenEndpoint"]; ok && val != "" {
+			meta.OidcTokenEndpoint = val
+		} else {
+			return nil, errors.New("kafka error: missing OIDC Token Endpoint for authType 'oidc'")
+		}
+		if val, ok = metadata.Properties["oidcClientID"]; ok && val != "" {
+			meta.OidcClientID = val
+		} else {
+			return nil, errors.New("kafka error: missing OIDC Client ID for authType 'oidc'")
+		}
+		if val, ok = metadata.Properties["oidcClientSecret"]; ok && val != "" {
+			meta.OidcClientSecret = val
+		} else {
+			return nil, errors.New("kafka error: missing OIDC Client Secret for authType 'oidc'")
+		}
+		if val, ok = metadata.Properties["oidcScopes"]; ok && val != "" {
+			meta.OidcScopes = strings.Split(val, ",")
+		} else {
+			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
+			meta.OidcScopes = []string{"openid"}
+		}
+		k.logger.Debug("Configuring SASL token authentication via OIDC.")
+	case mtlsAuthType:
+		meta.AuthType = val
+		if val, ok = metadata.Properties[clientCert]; ok && val != "" {
+			if !isValidPEM(val) {
+				return nil, errors.New("kafka error: invalid client certificate")
+			}
+			meta.TLSClientCert = val
+		}
+		if val, ok = metadata.Properties[clientKey]; ok && val != "" {
+			if !isValidPEM(val) {
+				return nil, errors.New("kafka error: invalid client key")
+			}
+			meta.TLSClientKey = val
+		}
+		// clientKey and clientCert need to be all specified or all not specified.
+		if (meta.TLSClientKey == "") != (meta.TLSClientCert == "") {
+			return nil, errors.New("kafka error: clientKey or clientCert is missing")
+		}
+		k.logger.Debug("Configuring mTLS authentication.")
+	case noAuthType:
+		meta.AuthType = val
+		k.logger.Debug("No authentication configured.")
+	default:
+		return nil, errors.New("kafka error: invalid value for 'authType' attribute")
 	}
 
 	if val, ok := metadata.Properties["maxMessageBytes"]; ok && val != "" {
 		maxBytes, err := strconv.Atoi(val)
 		if err != nil {
-			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %s", err)
+			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %w", err)
 		}
 
 		meta.MaxMessageBytes = maxBytes
 	}
 
-	if val, ok := metadata.Properties[clientCert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return nil, errors.New("kafka error: invalid client certificate")
-		}
-		meta.TLSClientCert = val
-	}
-	if val, ok := metadata.Properties[clientKey]; ok && val != "" {
-		if !isValidPEM(val) {
-			return nil, errors.New("kafka error: invalid client key")
-		}
-		meta.TLSClientKey = val
-	}
-	// clientKey and clientCert need to be all specified or all not specified.
-	if (meta.TLSClientKey == "") != (meta.TLSClientCert == "") {
-		return nil, errors.New("kafka error: clientKey or clientCert is missing")
-	}
 	if val, ok := metadata.Properties[caCert]; ok && val != "" {
 		if !isValidPEM(val) {
 			return nil, errors.New("kafka error: invalid ca certificate")
 		}
 		meta.TLSCaCert = val
 	}
+
+	if val, ok := metadata.Properties["disableTls"]; ok && val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka: invalid value for 'tlsDisable' attribute: %w", err)
+		}
+		meta.TLSDisable = boolVal
+		if meta.TLSDisable {
+			k.logger.Info("kafka: TLS connectivity to broker disabled")
+		}
+	}
+
 	if val, ok := metadata.Properties[skipVerify]; ok && val != "" {
 		boolVal, err := strconv.ParseBool(val)
 		if err != nil {
@@ -413,6 +533,7 @@ func (k *Kafka) getKafkaMetadata(metadata pubsub.Metadata) (*kafkaMetadata, erro
 			k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
 		}
 	}
+
 	if val, ok := metadata.Properties[consumeRetryInterval]; ok && val != "" {
 		durationVal, err := time.ParseDuration(val)
 		if err != nil {
@@ -463,27 +584,37 @@ func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 	return producer, nil
 }
 
-func updateAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
+func updatePasswordAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
 	config.Net.SASL.Enable = true
 	config.Net.SASL.User = saslUsername
 	config.Net.SASL.Password = saslPassword
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 }
 
+func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
+	if metadata.TLSDisable {
+		return fmt.Errorf("kafka: cannot configure mTLS authentication when TLSDisable is 'true'")
+	}
+	cert, err := tls.X509KeyPair([]byte(metadata.TLSClientCert), []byte(metadata.TLSClientKey))
+	if err != nil {
+		return fmt.Errorf("unable to load client certificate and key pair. Err: %w", err)
+	}
+	config.Net.TLS.Config.Certificates = []tls.Certificate{cert}
+	return nil
+}
+
 func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
-	if !metadata.TLSSkipVerify && metadata.TLSCaCert == "" && metadata.TLSClientCert == "" {
+	if metadata.TLSDisable {
+		config.Net.TLS.Enable = false
 		return nil
 	}
 	config.Net.TLS.Enable = true
-	// nolint: gosec
-	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify}
-	if metadata.TLSClientCert != "" && metadata.TLSClientKey != "" {
-		cert, err := tls.X509KeyPair([]byte(metadata.TLSClientCert), []byte(metadata.TLSClientKey))
-		if err != nil {
-			return fmt.Errorf("unable to load client certificate and key pair. Err: %w", err)
-		}
-		config.Net.TLS.Config.Certificates = []tls.Certificate{cert}
+
+	if !metadata.TLSSkipVerify && metadata.TLSCaCert == "" {
+		return nil
 	}
+	// nolint: gosec
+	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify, MinVersion: tls.VersionTLS12}
 	if metadata.TLSCaCert != "" {
 		caCertPool := x509.NewCertPool()
 		if ok := caCertPool.AppendCertsFromPEM([]byte(metadata.TLSCaCert)); !ok {
@@ -491,6 +622,25 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 		}
 		config.Net.TLS.Config.RootCAs = caCertPool
 	}
+
+	return nil
+}
+
+func updateOidcAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
+	tokenProvider := newOAuthTokenSource(metadata.OidcTokenEndpoint, metadata.OidcClientID, metadata.OidcClientSecret, metadata.OidcScopes)
+
+	if metadata.TLSCaCert != "" {
+		err := tokenProvider.addCa(metadata.TLSCaCert)
+		if err != nil {
+			return fmt.Errorf("kafka: error setting oauth client trusted CA: %w", err)
+		}
+	}
+
+	tokenProvider.skipCaVerify = metadata.TLSSkipVerify
+
+	config.Net.SASL.Enable = true
+	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	config.Net.SASL.TokenProvider = &tokenProvider
 
 	return nil
 }

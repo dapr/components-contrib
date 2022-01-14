@@ -1,3 +1,16 @@
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package nethttpadaptor
 
 import (
@@ -357,7 +370,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 		evaluate            func(t *testing.T, res *http.Response)
 	}{
 		{
-			"StatusCode is handled",
+			"200 status code is handled",
 			func() fasthttp.RequestHandler {
 				return func(ctx *fasthttp.RequestCtx) {
 					ctx.SetStatusCode(200)
@@ -368,6 +381,34 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			},
 			func(t *testing.T, res *http.Response) {
 				assert.Equal(t, 200, res.StatusCode)
+			},
+		},
+		{
+			"500 status code is handled",
+			func() fasthttp.RequestHandler {
+				return func(ctx *fasthttp.RequestCtx) {
+					ctx.SetStatusCode(500)
+				}
+			},
+			func() *http.Request {
+				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+			},
+			func(t *testing.T, res *http.Response) {
+				assert.Equal(t, 500, res.StatusCode)
+			},
+		},
+		{
+			"400 status code is handled",
+			func() fasthttp.RequestHandler {
+				return func(ctx *fasthttp.RequestCtx) {
+					ctx.SetStatusCode(400)
+				}
+			},
+			func() *http.Request {
+				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+			},
+			func(t *testing.T, res *http.Response) {
+				assert.Equal(t, 400, res.StatusCode)
 			},
 		},
 		{

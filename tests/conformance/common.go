@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package conformance
 
@@ -38,6 +46,7 @@ import (
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
@@ -55,6 +64,7 @@ import (
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
+	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
@@ -362,7 +372,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
 		pubsub = p_inmemory.New(testLogger)
-
+	case "aws.snssqs":
+		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	default:
 		return nil
 	}
@@ -409,6 +420,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "azure.tablestorage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "cassandra":
+		store = s_cassandra.NewCassandraStateStore(testLogger)
 	default:
 		return nil
 	}

@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package cassandra
 
@@ -223,7 +231,7 @@ func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
 
 // Delete performs a delete operation.
 func (c *Cassandra) Delete(req *state.DeleteRequest) error {
-	return c.session.Query("DELETE FROM ? WHERE key = ?", c.table, req.Key).Exec()
+	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).Exec()
 }
 
 // Get retrieves state from cassandra with a key.
@@ -246,7 +254,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		session = sess
 	}
 
-	results, err := session.Query("SELECT value FROM ? WHERE key = ?", c.table, req.Key).Iter().SliceMap()
+	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -294,10 +302,10 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 	}
 
 	if ttl != nil {
-		return session.Query("INSERT INTO ? (key, value) VALUES (?, ?) USING TTL ?", c.table, req.Key, bt, *ttl).Exec()
+		return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?) USING TTL ?", c.table), req.Key, bt, *ttl).Exec()
 	}
 
-	return session.Query("INSERT INTO ? (key, value) VALUES (?, ?)", c.table, req.Key, bt).Exec()
+	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).Exec()
 }
 
 func (c *Cassandra) Ping() error {

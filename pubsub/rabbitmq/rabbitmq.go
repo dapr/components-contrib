@@ -1,3 +1,16 @@
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rabbitmq
 
 import (
@@ -9,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/streadway/amqp"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -39,6 +51,8 @@ const (
 	metadataMaxLenBytes          = "maxLenBytes"
 
 	defaultReconnectWaitSeconds = 3
+	publishMaxRetries           = 3
+	publishRetryWaitSeconds     = 2
 	metadataPrefetchCount       = "prefetchCount"
 
 	argQueueMode          = "x-queue-mode"
@@ -206,18 +220,26 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
 
-	channel, connectionCount, err := r.publishSync(req)
-	if err != nil {
+	attempt := 0
+	for {
+		attempt++
+		channel, connectionCount, err := r.publishSync(req)
+		if err == nil {
+			return nil
+		}
+		if attempt >= publishMaxRetries {
+			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
+			return err
+		}
 		if mustReconnect(channel, err) {
 			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
 			time.Sleep(r.metadata.reconnectWait)
 			r.reconnect(connectionCount)
+		} else {
+			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
+			time.Sleep(publishRetryWaitSeconds * time.Second)
 		}
-
-		return err
 	}
-
-	return nil
 }
 
 func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -228,25 +250,18 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
 	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
-	// By the time Subscribe exits, the subscription should be active.
-	err := retry.NotifyRecover(func() error {
-		if _, _, _, err := r.ensureSubscription(req, queueName); err != nil {
-			r.logger.Warnf("failed attempt to subscribe to %s: %v", queueName, err)
-			return err
-		}
+	ackCh := make(chan struct{}, 1)
+	ctx, cancel := context.WithTimeout(r.ctx, time.Minute)
+	defer cancel()
+
+	go r.subscribeForever(req, queueName, handler, ackCh)
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("failed to subscribe to %s", queueName)
+	case <-ackCh:
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(r.metadata.reconnectWait), 4), func(err error, d time.Duration) {
-		r.logger.Infof("failed to subscribe to %s. Retrying...", queueName)
-	}, func() {
-		r.logger.Infof("successfully subscribed to %s after initial error(s)", queueName)
-	})
-	if err != nil {
-		return err
 	}
-
-	go r.subscribeForever(req, queueName, handler)
-
-	return nil
 }
 
 // this function call should be wrapped by channelMutex.
@@ -331,7 +346,10 @@ func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName str
 	return r.channel, r.connectionCount, q, err
 }
 
-func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler) {
+func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan struct{}) {
+	// one-time notification on successful subscribe
+	var subscribed bool
+
 	for {
 		var (
 			err             error
@@ -360,6 +378,12 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 			if err != nil {
 				errFuncName = "channel.Consume"
 				break
+			}
+
+			if !subscribed {
+				subscribed = true
+				ackCh <- struct{}{}
+				ackCh = nil
 			}
 
 			err = r.listenMessages(channel, msgs, req.Topic, handler)

@@ -1,6 +1,14 @@
 # ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation and Dapr Contributors.
-# Licensed under the MIT License.
+# Copyright 2021 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ------------------------------------------------------------
 
 name: Components Conformance Tests
@@ -47,28 +55,30 @@ jobs:
         - bindings.http
         - bindings.influx
         - bindings.kafka
-        - bindings.redis
-        - bindings.mqtt-mosquitto
         - bindings.mqtt-emqx
+        - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
-        - pubsub.redis
-        - pubsub.natsstreaming
-        - pubsub.kafka
-        - pubsub.pulsar
-        - pubsub.mqtt-mosquitto
-        - pubsub.mqtt-emqx
-        - pubsub.mqtt-vernemq
+        - bindings.redis
+        - pubsub.aws.snssqs
         - pubsub.hazelcast
-        - pubsub.rabbitmq
         - pubsub.in-memory
+        - pubsub.kafka
+        - pubsub.mqtt-emqx
+        - pubsub.mqtt-mosquitto
+        - pubsub.mqtt-vernemq
+        - pubsub.natsstreaming
+        - pubsub.pulsar
+        - pubsub.rabbitmq
+        - pubsub.redis
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
+        - state.cassandra
         - state.mongodb
+        - state.mysql
+        - state.postgresql
         - state.redis
         - state.sqlserver
-        - state.postgresql
-        - state.mysql
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -263,6 +273,10 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
 
+    - name: Start aws snssqs
+      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
+      if: contains(matrix.component, 'aws.snssqs')
+
     - name: Start influxdb
       run: |
         export INFLUX_TOKEN=$(openssl rand -base64 32)
@@ -284,6 +298,10 @@ jobs:
         docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
       if: contains(matrix.component, 'postgresql')
 
+    - name: Start cassandra
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
+      if: contains(matrix.component, 'cassandra')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')

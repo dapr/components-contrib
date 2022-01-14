@@ -1,3 +1,16 @@
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rabbitmq
 
 import (
@@ -184,8 +197,8 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 	// Check that reconnection happened
-	assert.Equal(t, 2, broker.connectCount)
-	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
+	assert.Equal(t, 3, broker.connectCount) // three counts - one initial connection plus 2 reconnect attempts
+	assert.Equal(t, 4, broker.closeCount)   // four counts - one for connection, one for channel , times 2 reconnect attempts
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)

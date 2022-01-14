@@ -104,12 +104,12 @@ func TestInitAndResolveID(t *testing.T) {
 			_ = os.RemoveAll(baseDir)
 		}()
 
-		resolvers := make([]nr.Resolver, 100)
-		for i := 0; i < 100; i++ {
+		resolvers := make([]nr.Resolver, 50)
+		for i := 0; i < 50; i++ {
 			resolvers[i] = NewResolver(logger.NewLogger("test"))
 		}
 
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 50; i++ {
 			resolverMetadata := buildMetadata("helloapp",
 				fmt.Sprintf("addr-%d", i),
 				fmt.Sprintf("app-port-%d", i),
@@ -122,9 +122,9 @@ func TestInitAndResolveID(t *testing.T) {
 
 		infos, err := loadNamingInfo(filepath.Join(baseDir, "helloapp"))
 		assert.Nil(t, err)
-		assert.Equal(t, 100, len(infos))
+		assert.Equal(t, 50, len(infos))
 
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 50; i++ {
 			info := infos[i]
 			suffix := info.HostAddress[strings.LastIndex(info.HostAddress, "-")+1:]
 			assert.Equal(t, "app-port-"+suffix, info.AppPort)
@@ -138,7 +138,7 @@ func TestInitAndResolveID(t *testing.T) {
 		}
 
 		re := regexp.MustCompile(`addr-(\d+):grpc-port-(\d+)`)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 50; i++ {
 			result, err := resolvers[i].ResolveID(request)
 			assert.Nil(t, err)
 			ret := re.FindStringSubmatch(result)

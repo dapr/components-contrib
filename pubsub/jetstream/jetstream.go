@@ -51,7 +51,7 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 	var opts []nats.Option
 	opts = append(opts, nats.Name(js.meta.name))
 
-	// Set nats.UserJWT options when jwt and seed key is provided
+	// Set nats.UserJWT options when jwt and seed key is provided.
 	if js.meta.jwt != "" && js.meta.seedKey != "" {
 		opts = append(opts, nats.UserJWT(func() (string, error) {
 			return js.meta.jwt, nil
@@ -177,7 +177,7 @@ func (js *jetstreamPubSub) Close() error {
 	return js.nc.Drain()
 }
 
-// Handle nats signature request for challenge response authentication
+// Handle nats signature request for challenge response authentication.
 func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 	kp, err := nkeys.FromSeed([]byte(seedKey))
 	if err != nil {

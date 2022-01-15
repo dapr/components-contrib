@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/dapr/components-contrib v1.5.0-rc.1.0.20220105071850-a013b58d6cee
-	github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba
+	github.com/dapr/components-contrib v1.6.0-rc.1
+	github.com/dapr/dapr v1.6.0-rc.2
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/go-cmp v0.5.6

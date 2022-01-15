@@ -76,6 +76,9 @@ func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http
 		c.Response.Header.VisitAll(func(k []byte, v []byte) {
 			w.Header().Add(string(k), string(v))
 		})
+		status := c.Response.StatusCode()
+		w.WriteHeader(status)
+
 		c.Response.BodyWriteTo(w)
 	})
 }

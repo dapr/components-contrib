@@ -97,12 +97,12 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/net v0.0.0-20210825183410-e898025ed96a // indirect
-	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c // indirect
+	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914 // indirect
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac // indirect
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
-	google.golang.org/appengine v1.6.6 // indirect
+	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2 // indirect
 	google.golang.org/grpc v1.40.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect

@@ -494,7 +494,7 @@ func setTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 	defer db.Close()
 
 	// expirationTime should be set (to a date in the future).
-	_, _, _, expirationTime, _, _ := getMoreRowData(t, key)
+	_, _, expirationTime := getTimesForRow(t, key)
 
 	assert.NotNil(t, expirationTime)
 	assert.True(t, expirationTime.Valid, "Expiration Time should have a value after set with TTL value")
@@ -776,7 +776,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	return returnValue, insertdate, updatedate
 }
 
-func getMoreRowData(t *testing.T, key string) (returnValue string, insertdate sql.NullString, updatedate sql.NullString, expirationtime sql.NullString, binaryYN sql.NullString, etag sql.NullString) {
+func getTimesForRow(t *testing.T, key string) (insertdate sql.NullString, updatedate sql.NullString, expirationtime sql.NullString) {
 	connectionString := getConnectionString()
 	if getWalletLocation() != "" {
 		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
@@ -784,10 +784,10 @@ func getMoreRowData(t *testing.T, key string) (returnValue string, insertdate sq
 	db, err := sql.Open("oracle", connectionString)
 	assert.Nil(t, err)
 	defer db.Close()
-	err = db.QueryRow(fmt.Sprintf("SELECT value, creation_time, update_time, expiration_time, binary_yn, etag FROM %s WHERE key = :key", tableName), key).Scan(&returnValue, &insertdate, &updatedate, &expirationtime, &binaryYN, &etag)
+	err = db.QueryRow(fmt.Sprintf("SELECT creation_time, update_time, expiration_time FROM %s WHERE key = :key", tableName), key).Scan(&insertdate, &updatedate, &expirationtime)
 	assert.Nil(t, err)
 
-	return returnValue, insertdate, updatedate, expirationtime, binaryYN, etag
+	return insertdate, updatedate, expirationtime
 }
 
 func randomKey() string {

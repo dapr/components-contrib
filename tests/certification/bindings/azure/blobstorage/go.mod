@@ -1,36 +1,33 @@
-module servicebusqueue_test
+module github.com/dapr/components-contrib/tests/certification/bindings/azure/blobstorage
 
 go 1.17
 
 require (
-	github.com/dapr/components-contrib v1.5.0
-	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.2.0
+	github.com/dapr/components-contrib v1.5.1-rc.1
+	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.5.2-0.20220106203753-0e6bcbabc8ba
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0
-	go.uber.org/multierr v1.7.0
 )
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0 // indirect
 	contrib.go.opencensus.io/exporter/zipkin v0.1.1 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
-	github.com/Azure/azure-amqp-common-go/v3 v3.2.0 // indirect
-	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
+	github.com/Azure/azure-amqp-common-go/v3 v3.1.0 // indirect
+	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.20.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1 // indirect
-	github.com/Azure/azure-service-bus-go v0.11.1 // indirect
 	github.com/Azure/azure-storage-blob-go v0.10.0 // indirect
-	github.com/Azure/go-amqp v0.13.13 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.23 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.16 // indirect
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.8 // indirect
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.2 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
@@ -43,7 +40,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/devigned/tab v0.1.1 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/fasthttp/router v1.3.8 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -55,11 +51,9 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/cel-go v0.9.0 // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gnostic v0.5.1 // indirect
-	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 // indirect
 	github.com/hashicorp/consul/api v1.3.0 // indirect
@@ -73,7 +67,7 @@ require (
 	github.com/imdario/mergo v0.3.10 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/klauspost/compress v1.13.4 // indirect
-	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
+	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/miekg/dns v1.1.35 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
@@ -95,7 +89,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
-	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
 	go.opencensus.io v0.23.0 // indirect
@@ -121,12 +114,11 @@ require (
 	k8s.io/client-go v0.20.0 // indirect
 	k8s.io/klog/v2 v2.4.0 // indirect
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect
-	nhooyr.io/websocket v1.8.7 // indirect
 	sigs.k8s.io/controller-runtime v0.7.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.0.2 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-replace github.com/dapr/components-contrib => ../../../../..
+replace github.com/dapr/components-contrib/tests/certification => ../../../
 
-replace github.com/dapr/components-contrib/tests/certification => ../../..
+replace github.com/dapr/components-contrib => ../../../../../

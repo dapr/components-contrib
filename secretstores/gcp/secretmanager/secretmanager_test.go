@@ -41,8 +41,8 @@ func TestInit(t *testing.T) {
 		}
 
 		err := sm.Init(m)
-		// Even if we pass wrong credentials `client.NewClient` dont throw an error
-		assert.Nil(t, err)
+		assert.NotNil(t, err)
+		assert.Equal(t, err, fmt.Errorf("failed to setup secretmanager client: google: could not parse key: private key should be a PEM or plain PKCS1 or PKCS8; parse error: asn1: syntax error: truncated tag or length"))
 	})
 
 	t.Run("Init with missing `type` metadata", func(t *testing.T) {

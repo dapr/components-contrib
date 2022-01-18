@@ -160,7 +160,7 @@ require (
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 )
 
-require github.com/sijms/go-ora/v2 v2.2.19
+require github.com/sijms/go-ora/v2 v2.2.20
 
 require (
 	github.com/99designs/keyring v1.1.5 // indirect

@@ -482,7 +482,7 @@ func (s *snsSqs) resetMessageVisibilityTimeout(queueURL string, receiptHandle *s
 	changeMessageVisibilityInput := &sqs.ChangeMessageVisibilityInput{
 		QueueUrl:          aws.String(queueURL),
 		ReceiptHandle:     receiptHandle,
-		VisibilityTimeout: aws.Int64(s.metadata.messageVisibilityTimeout),
+		VisibilityTimeout: aws.Int64(0),
 	}
 	if _, err := s.sqsClient.ChangeMessageVisibilityWithContext(ctx, changeMessageVisibilityInput); err != nil {
 		return fmt.Errorf("error changing message visibility timeout: %w", err)
@@ -635,20 +635,7 @@ func (s *snsSqs) consumeSubscription(queueInfo, deadLettersQueueInfo *sqsQueueIn
 	}()
 }
 
-func (s *snsSqs) createDeadLettersQueue() (*sqsQueueInfo, error) {
-	var deadLettersQueueInfo *sqsQueueInfo
-	deadLettersQueueInfo, err := s.getOrCreateQueue(s.metadata.sqsDeadLettersQueueName)
-	if err != nil {
-		wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
-		s.logger.Error(wrappedErr)
-
-		return nil, wrappedErr
-	}
-
-	return deadLettersQueueInfo, nil
-}
-
-func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
+func (s *snsSqs) createDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
 	policy := map[string]string{
 		"deadLetterTargetArn": deadLettersQueueInfo.arn,
 		"maxReceiveCount":     strconv.FormatInt(s.metadata.messageReceiveLimit, 10),
@@ -670,6 +657,34 @@ func (s *snsSqs) createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueu
 	}
 
 	return sqsSetQueueAttributesInput, nil
+}
+
+func (s *snsSqs) setDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo *sqsQueueInfo) error {
+	if s.metadata.disableEntityManagement {
+		return nil
+	}
+
+	var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
+	sqsSetQueueAttributesInput, derr := s.createDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo)
+	if derr != nil {
+		wrappedErr := fmt.Errorf("error creating queue attributes for dead-letter queue: %w", derr)
+		s.logger.Error(wrappedErr)
+
+		return wrappedErr
+	}
+
+	ctx, cancelFn := context.WithTimeout(s.ctx, s.opsTimeout)
+	defer cancelFn()
+
+	_, derr = s.sqsClient.SetQueueAttributesWithContext(ctx, sqsSetQueueAttributesInput)
+	if derr != nil {
+		wrappedErr := fmt.Errorf("error updating queue attributes with dead-letter queue: %w", derr)
+		s.logger.Error(wrappedErr)
+
+		return wrappedErr
+	}
+
+	return nil
 }
 
 func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(sqsQueueInfo *sqsQueueInfo, snsARN string) error {
@@ -764,31 +779,19 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 
 	// apply the dead letters queue attributes to the current queue.
 	var deadLettersQueueInfo *sqsQueueInfo
+	var derr error
+
 	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
-		var derr error
-		deadLettersQueueInfo, derr = s.createDeadLettersQueue()
+		deadLettersQueueInfo, derr = s.getOrCreateQueue(s.metadata.sqsDeadLettersQueueName)
 		if derr != nil {
-			wrappedErr := fmt.Errorf("error creating dead-letter queue: %w", derr)
+			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
 			s.logger.Error(wrappedErr)
 
 			return wrappedErr
 		}
 
-		var sqsSetQueueAttributesInput *sqs.SetQueueAttributesInput
-		sqsSetQueueAttributesInput, derr = s.createQueueAttributesWithDeadLetters(queueInfo, deadLettersQueueInfo)
-		if derr != nil {
-			wrappedErr := fmt.Errorf("error creating queue attributes for dead-letter queue: %w", derr)
-			s.logger.Error(wrappedErr)
-
-			return wrappedErr
-		}
-
-		ctx, cancelFn := context.WithTimeout(s.ctx, s.opsTimeout)
-		defer cancelFn()
-
-		_, derr = s.sqsClient.SetQueueAttributesWithContext(ctx, sqsSetQueueAttributesInput)
-		if derr != nil {
-			wrappedErr := fmt.Errorf("error updating queue attributes with dead-letter queue: %w", derr)
+		if err := s.setDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo); err != nil {
+			wrappedErr := fmt.Errorf("error creating dead-letter queue: %w", err)
 			s.logger.Error(wrappedErr)
 
 			return wrappedErr

@@ -33,6 +33,16 @@ const (
 	respOperatorKey = "operation"
 )
 
+var (
+	ErrInvalidRequestData      = errors.New("Influx Error: Cannot convert request data")
+	ErrCannotWriteRecord       = errors.New("Influx Error: Cannot write point")
+	ErrInvalidRequestOperation = errors.Errorf("invalid operation type. Expected %s or %s", queryOperation, bindings.CreateOperation)
+	ErrMetadataMissing         = errors.New("metadata required")
+	ErrMetadataRawNotFound     = errors.Errorf("required metadata not set: %s", rawQueryKey)
+)
+
+var _ bindings.OutputBinding = &Influx{}
+
 // Influx allows writing to InfluxDB.
 type Influx struct {
 	metadata *influxMetadata
@@ -114,7 +124,7 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		var jsonPoint map[string]interface{}
 		err := json.Unmarshal(req.Data, &jsonPoint)
 		if err != nil {
-			return nil, errors.New("Influx Error: Cannot convert request data")
+			return nil, ErrInvalidRequestData
 		}
 
 		line := fmt.Sprintf("%s,%s %s", jsonPoint["measurement"], jsonPoint["tags"], jsonPoint["values"])
@@ -122,18 +132,18 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		// write the point
 		err = i.writeAPI.WriteRecord(context.Background(), line)
 		if err != nil {
-			return nil, errors.New("Influx Error: Cannot write point")
+			return nil, ErrCannotWriteRecord
 		}
 		return nil, nil
 	case queryOperation:
 		if req.Metadata == nil {
-			return nil, errors.Errorf("metadata required")
+			return nil, ErrMetadataMissing
 		}
 		i.logger.Debugf("operation: %v", req.Operation)
 
 		s, ok := req.Metadata[rawQueryKey]
 		if !ok || s == "" {
-			return nil, errors.Errorf("required metadata not set: %s", rawQueryKey)
+			return nil, ErrMetadataRawNotFound
 		}
 
 		res, err := i.queryAPI.QueryRaw(context.Background(), s, influxdb2.DefaultDialect())
@@ -151,8 +161,7 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		return resp, nil
 	default:
 		i.logger.Warnf("unsupported operation invoked")
-		return nil, errors.Errorf("invalid operation type: %s. Expected %s or %s",
-			req.Operation, queryOperation, bindings.CreateOperation)
+		return nil, ErrInvalidRequestOperation
 	}
 }
 

@@ -158,9 +158,8 @@ require (
 	github.com/alibabacloud-go/tea v1.1.17
 	github.com/dgrijalva/jwt-go v3.2.1-0.20210802184156-9742bd7fca1c+incompatible // indirect
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
+	github.com/sijms/go-ora/v2 v2.2.20
 )
-
-require github.com/sijms/go-ora/v2 v2.2.20
 
 require (
 	github.com/99designs/keyring v1.1.5 // indirect

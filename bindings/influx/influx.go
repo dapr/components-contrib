@@ -139,7 +139,6 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		if req.Metadata == nil {
 			return nil, ErrMetadataMissing
 		}
-		i.logger.Debugf("operation: %v", req.Operation)
 
 		s, ok := req.Metadata[rawQueryKey]
 		if !ok || s == "" {

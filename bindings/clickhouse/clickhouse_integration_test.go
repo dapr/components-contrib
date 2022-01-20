@@ -137,7 +137,7 @@ func TestClickHouseIntegration(t *testing.T) {
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
-		// verify number, boolean and string
+		// verify result.
 		assert.Contains(t, string(res.Data), "\"country_code\":\"CN\"")
 		assert.Contains(t, string(res.Data), "\"os_id\":11")
 		assert.Contains(t, string(res.Data), "\"categories\":[1,2,3]")
@@ -147,10 +147,8 @@ func TestClickHouseIntegration(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, 5, len(result))
 
-		// verify timestamp
 		cc, ok := result[0].(map[string]interface{})["country_code"].(string)
 		assert.True(t, ok)
-		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
 		assert.Equal(t, cc, "CN")
 	})
 

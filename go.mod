@@ -61,7 +61,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-errors/errors v1.4.0 // indirect
 	github.com/go-logr/logr v0.3.0 // indirect
-	github.com/go-ole/go-ole v1.2.5 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-redis/redis/v8 v8.8.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
@@ -158,6 +158,11 @@ require (
 	github.com/alibabacloud-go/tea v1.1.17
 	github.com/dgrijalva/jwt-go v3.2.1-0.20210802184156-9742bd7fca1c+incompatible // indirect
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
+)
+
+require (
+	github.com/mitchellh/go-ps v1.0.0
+	github.com/shirou/gopsutil v3.21.11+incompatible
 )
 
 require (
@@ -281,6 +286,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	github.com/yashtewari/glob-intersection v0.0.0-20180916065949-5c77d914dd0b // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opentelemetry.io/otel v0.19.0 // indirect
 	go.opentelemetry.io/otel/metric v0.19.0 // indirect
 	go.opentelemetry.io/otel/trace v0.19.0 // indirect

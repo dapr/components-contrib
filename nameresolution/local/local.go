@@ -54,6 +54,7 @@ func (resolver *resolver) scheduleCacheRefresh() {
 		resolver.refreshCache()
 	}
 }
+
 func (resolver *resolver) refreshCache() {
 	resolver.processCacheLock.Lock()
 	defer resolver.processCacheLock.Unlock()
@@ -138,13 +139,11 @@ func (resolver *resolver) ResolveID(req nameresolution.ResolveRequest) (string, 
 	}
 
 	procDetails, err := process.NewProcess(procInfo.processID)
-
 	if err != nil {
 		return "", errors.Errorf("coud not find service %s", req.ID)
 	}
 
 	name, err := procDetails.Name()
-
 	if err != nil {
 		return "", errors.Errorf("coud not find service %s", req.ID)
 	}

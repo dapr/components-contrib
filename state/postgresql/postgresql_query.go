@@ -161,6 +161,10 @@ func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, st
 		ret = append(ret, result)
 	}
 
+	if err = rows.Err(); err != nil {
+		return nil, "", err
+	}
+
 	var token string
 	if q.limit != 0 {
 		var skip int64

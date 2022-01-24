@@ -7,7 +7,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"github.com/vmihailenco/msgpack/v5"
 	"io/ioutil"
 	"reflect"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go"
 	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (

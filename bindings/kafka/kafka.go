@@ -47,6 +47,7 @@ type Kafka struct {
 	saslPassword  string
 	initialOffset int64
 	logger        logger.Logger
+	Version       sarama.KafkaVersion
 }
 
 type kafkaMetadata struct {
@@ -59,6 +60,7 @@ type kafkaMetadata struct {
 	SaslPassword    string   `json:"saslPassword"`
 	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int
+	Version         sarama.KafkaVersion `json:"version"`
 }
 
 type consumer struct {
@@ -111,6 +113,7 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
 	k.initialOffset = meta.InitialOffset
+	k.Version = meta.Version
 
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
@@ -198,6 +201,17 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 		meta.MaxMessageBytes = maxBytes
 	}
 
+	if val, ok := metadata.Properties["version"]; ok && val != "" {
+		version, err := sarama.ParseKafkaVersion(val)
+
+		if err != nil {
+			return nil, errors.New("kafka error: invalid kafka version")
+		}
+		meta.Version = version
+	} else {
+		meta.Version = sarama.V1_0_0_0
+	}
+
 	return &meta, nil
 }
 
@@ -206,7 +220,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
-	config.Version = sarama.V1_0_0_0
+	config.Version = meta.Version
 
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
@@ -232,7 +246,7 @@ func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error
 	}
 
 	config := sarama.NewConfig()
-	config.Version = sarama.V1_0_0_0
+	config.Version = k.Version
 	config.Consumer.Offsets.Initial = k.initialOffset
 	// ignore SASL properties if authRequired is false
 	if k.authRequired {

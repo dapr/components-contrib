@@ -25,6 +25,9 @@ type Store interface {
 
 	// Subscribe configuration by update event.
 	Subscribe(ctx context.Context, req *SubscribeRequest, handler UpdateHandler) error
+
+	// Unsubscribe configuration with keys
+	Unsubscribe(ctx context.Context, req *UnSubscribeRequest) error
 }
 
 // UpdateHandler is the handler used to send event to daprd.

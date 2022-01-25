@@ -6,8 +6,8 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dapr/components-contrib v1.6.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.6.0-rc.3
-	github.com/dapr/go-sdk v1.3.0
+	github.com/dapr/dapr v1.6.0
+	github.com/dapr/go-sdk v1.3.1
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/eclipse/paho.mqtt.golang v1.3.5
 	github.com/stretchr/testify v1.7.0

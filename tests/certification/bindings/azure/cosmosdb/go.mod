@@ -6,8 +6,8 @@ require (
 	github.com/a8m/documentdb v1.3.1-0.20211026005403-13c3593b3c3a
 	github.com/dapr/components-contrib v1.6.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.6.0-rc.3
-	github.com/dapr/go-sdk v1.3.0
+	github.com/dapr/dapr v1.6.0
+	github.com/dapr/go-sdk v1.3.1
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.7.0

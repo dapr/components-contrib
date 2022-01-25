@@ -166,7 +166,13 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		success := true
 		for _, msg := range msgs {
-			cloudEventsMap := pubsub.NewCloudEventsEnvelope(msg.MsgId, msg.StoreHost, r.name, msg.GetProperty(primitive.PropertyKeys), msg.Topic, r.name, r.metadata.ContentType, msg.Body, "", "")
+			attributes := map[string]interface{}{
+				pubsub.SubjectField: msg.GetProperty(primitive.PropertyKeys),
+			}
+			attrBytes, _ := json.Marshal(attributes)
+			cloudEventsMap := pubsub.NewCloudEventsEnvelope(msg.MsgId, msg.StoreHost, r.name,
+				msg.GetProperty(primitive.PropertyKeys), msg.Topic, r.name, r.metadata.ContentType, msg.Body, "", "",
+				attrBytes)
 			dataBytes, err := json.Marshal(cloudEventsMap)
 			if err != nil {
 				r.logger.Warn("rocketmq fail to marshal cloudEventsMap message, topic:%s cloudEventsMap-length:%d err:%newMessage ", msg.Topic, len(msg.Body), err)

@@ -60,7 +60,7 @@ type kafkaMetadata struct {
 	SaslPassword    string   `json:"saslPassword"`
 	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int
-	Version         sarama.KafkaVersion `json:"version"`
+	Version         sarama.KafkaVersion
 }
 
 type consumer struct {
@@ -203,9 +203,8 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 
 	if val, ok := metadata.Properties["version"]; ok && val != "" {
 		version, err := sarama.ParseKafkaVersion(val)
-
 		if err != nil {
-			return nil, errors.New("kafka error: invalid kafka version")
+			return nil, fmt.Errorf("kafka error: invalid 'version' attribute: %w", err)
 		}
 		meta.Version = version
 	} else {

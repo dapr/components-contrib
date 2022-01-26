@@ -16,6 +16,7 @@ package bearer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	oidc "github.com/coreos/go-oidc"
@@ -26,8 +27,10 @@ import (
 )
 
 type bearerMiddlewareMetadata struct {
-	IssuerURL string `json:"issuerURL"`
-	ClientID  string `json:"clientID"`
+	IssuerURL          string `json:"issuerURL"`
+	ClientID           string `json:"clientID"`
+	WhiteList          string `json:"whiteList"`
+	WhiteListMatchType string `json:"whiteListMatchType"`
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware.
@@ -38,11 +41,17 @@ func NewBearerMiddleware(logger logger.Logger) *Middleware {
 // Middleware is an oAuth2 authentication middleware.
 type Middleware struct {
 	logger logger.Logger
+	w      WhiteListMatcher
 }
 
 const (
 	bearerPrefix       = "bearer "
 	bearerPrefixLength = len(bearerPrefix)
+	defaultWhiteList   = "/v1.0/healthz,/v1.0/healthz/outbound"
+	whitelistSeparator = ","
+
+	matchTypeExact = "exact"
+	matchTypeRegex = "regex"
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
@@ -50,6 +59,10 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
+	}
+	m.w, err = NewMatcher(meta.WhiteListMatchType, meta.WhiteList)
+	if err != nil {
+		return nil, fmt.Errorf("bearer middleware err: %w", err)
 	}
 
 	provider, err := oidc.NewProvider(context.Background(), meta.IssuerURL)
@@ -63,6 +76,12 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
+			// bypass white list
+			if m.w.Match(string(ctx.Path())) {
+				h(ctx)
+
+				return
+			}
 			authHeader := string(ctx.Request.Header.Peek(fasthttp.HeaderAuthorization))
 			if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
@@ -88,7 +107,10 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*bearerMid
 		return nil, err
 	}
 
-	var middlewareMetadata bearerMiddlewareMetadata
+	middlewareMetadata := bearerMiddlewareMetadata{
+		WhiteList:          defaultWhiteList,
+		WhiteListMatchType: matchTypeExact,
+	}
 	err = json.Unmarshal(b, &middlewareMetadata)
 	if err != nil {
 		return nil, err

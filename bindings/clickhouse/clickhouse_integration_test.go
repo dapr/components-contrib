@@ -15,15 +15,15 @@ package clickhouse
 
 import (
 	"encoding/json"
-	"github.com/vmihailenco/msgpack/v5"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (

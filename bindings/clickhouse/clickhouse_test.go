@@ -19,11 +19,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestQuery(t *testing.T) {

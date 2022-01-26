@@ -132,8 +132,11 @@ func (js *jetstreamPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 			js.l.Debugf("Processing JetStream message %s/%d", m.Subject,
 				jsm.Sequence)
 			opErr := handler(js.ctx, &pubsub.NewMessage{
-				Topic: m.Subject,
+				Topic: req.Topic,
 				Data:  m.Data,
+				Metadata: map[string]string{
+					"Topic": m.Subject,
+				},
 			})
 			if opErr != nil {
 				return opErr

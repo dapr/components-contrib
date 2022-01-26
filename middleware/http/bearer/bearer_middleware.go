@@ -29,8 +29,8 @@ import (
 type bearerMiddlewareMetadata struct {
 	IssuerURL          string `json:"issuerURL"`
 	ClientID           string `json:"clientID"`
-	WhiteList          string `json:"whiteList"`
-	WhiteListMatchType string `json:"whiteListMatchType"`
+	Allowlist          string `json:"allowlist"`
+	AllowlistMatchType string `json:"allowlistMatchType"`
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware.
@@ -40,15 +40,15 @@ func NewBearerMiddleware(logger logger.Logger) *Middleware {
 
 // Middleware is an oAuth2 authentication middleware.
 type Middleware struct {
-	logger logger.Logger
-	w      WhiteListMatcher
+	logger  logger.Logger
+	matcher AllowlistMatcher
 }
 
 const (
 	bearerPrefix       = "bearer "
 	bearerPrefixLength = len(bearerPrefix)
-	defaultWhiteList   = "/v1.0/healthz,/v1.0/healthz/outbound"
-	whitelistSeparator = ","
+	defaultAllowlist   = "/v1.0/healthz,/v1.0/healthz/outbound"
+	allowlistSeparator = ","
 
 	matchTypeExact = "exact"
 	matchTypeRegex = "regex"
@@ -60,9 +60,9 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	if err != nil {
 		return nil, err
 	}
-	m.w, err = NewMatcher(meta.WhiteListMatchType, meta.WhiteList)
+	m.matcher, err = NewMatcher(meta.AllowlistMatchType, meta.Allowlist)
 	if err != nil {
-		return nil, fmt.Errorf("bearer middleware err: %w", err)
+		return nil, fmt.Errorf("bearer middleware err: %matcher", err)
 	}
 
 	provider, err := oidc.NewProvider(context.Background(), meta.IssuerURL)
@@ -77,7 +77,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
 			// bypass white list
-			if m.w.Match(string(ctx.Path())) {
+			if m.matcher.Match(string(ctx.Path())) {
 				h(ctx)
 
 				return
@@ -108,8 +108,8 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*bearerMid
 	}
 
 	middlewareMetadata := bearerMiddlewareMetadata{
-		WhiteList:          defaultWhiteList,
-		WhiteListMatchType: matchTypeExact,
+		Allowlist:          defaultAllowlist,
+		AllowlistMatchType: matchTypeExact,
 	}
 	err = json.Unmarshal(b, &middlewareMetadata)
 	if err != nil {

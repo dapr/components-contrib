@@ -21,16 +21,16 @@ import (
 )
 
 var (
-	_ WhiteListMatcher = (*exactMatcher)(nil)
+	_ AllowlistMatcher = (*exactMatcher)(nil)
 
 	ErrUnimplemented = errors.New("unimplemented match type")
 )
 
-type WhiteListMatcher interface {
+type AllowlistMatcher interface {
 	Match(path string) bool
 }
 
-func NewMatcher(matchType string, match string) (WhiteListMatcher, error) {
+func NewMatcher(matchType string, match string) (AllowlistMatcher, error) {
 	switch matchType {
 	case "":
 		fallthrough
@@ -52,7 +52,7 @@ func newExactMatcher(match string) (m *exactMatcher) {
 	if len(match) == 0 {
 		return
 	}
-	m.Path = strings.Split(match, whitelistSeparator)
+	m.Path = strings.Split(match, allowlistSeparator)
 	return
 }
 
@@ -81,12 +81,12 @@ func newRegexMatcher(match string) (m *regexMatcher, err error) {
 	if len(match) == 0 {
 		return
 	}
-	paths := strings.Split(match, whitelistSeparator)
+	paths := strings.Split(match, allowlistSeparator)
 	m.Path = make([]*regexp.Regexp, 0, len(paths))
 	for _, path := range paths {
 		reg, err := regexp.Compile(path)
 		if err != nil {
-			return nil, fmt.Errorf("compile regex err: %w", err)
+			return nil, fmt.Errorf("compile regex err: %matcher", err)
 		}
 		m.Path = append(m.Path, reg)
 	}

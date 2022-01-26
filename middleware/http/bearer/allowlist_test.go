@@ -25,31 +25,31 @@ func TestMatcher(t *testing.T) {
 	tests := []struct {
 		label        string
 		matcherType  string
-		whitelist    string
+		allowlist    string
 		path         string
 		expectBypass bool
 		expectErr    bool
 	}{
 		{
-			label:        "normal exact case in whitelist",
+			label:        "normal exact case in allowlist",
 			matcherType:  matchTypeExact,
-			whitelist:    defaultWhiteList,
+			allowlist:    defaultAllowlist,
 			path:         healthz,
 			expectBypass: true,
 			expectErr:    false,
 		},
 		{
-			label:        "normal exact case multi path in whitelist",
+			label:        "normal exact case multi path in allowlist",
 			matcherType:  matchTypeExact,
-			whitelist:    defaultWhiteList + whitelistSeparator + "/another",
+			allowlist:    defaultAllowlist + allowlistSeparator + "/another",
 			path:         "/another",
 			expectBypass: true,
 			expectErr:    false,
 		},
 		{
-			label:        "normal exact case not in whitelist",
+			label:        "normal exact case not in allowlist",
 			matcherType:  matchTypeExact,
-			whitelist:    defaultWhiteList,
+			allowlist:    defaultAllowlist,
 			path:         "/notbypass",
 			expectBypass: false,
 			expectErr:    false,
@@ -57,15 +57,15 @@ func TestMatcher(t *testing.T) {
 		{
 			label:        "invalid white list type",
 			matcherType:  "invalid",
-			whitelist:    defaultWhiteList,
+			allowlist:    defaultAllowlist,
 			path:         "/notbypass",
 			expectBypass: false,
 			expectErr:    true,
 		},
 		{
-			label:        "normal exact case no whitelist",
+			label:        "normal exact case no allowlist",
 			matcherType:  matchTypeExact,
-			whitelist:    "",
+			allowlist:    "",
 			path:         healthz,
 			expectBypass: false,
 			expectErr:    false,
@@ -73,22 +73,22 @@ func TestMatcher(t *testing.T) {
 		{
 			label:       "invalid regex case",
 			matcherType: matchTypeRegex,
-			whitelist:   string([]byte{255}),
+			allowlist:   string([]byte{255}),
 			path:        healthz,
 			expectErr:   true,
 		},
 		{
 			label:        "normal regex case end with '/healthz'",
 			matcherType:  matchTypeRegex,
-			whitelist:    "/healthz$",
+			allowlist:    "/healthz$",
 			path:         healthz,
 			expectBypass: true,
 			expectErr:    false,
 		},
 		{
-			label:        "normal exact case no whitelist",
+			label:        "normal exact case no allowlist",
 			matcherType:  matchTypeRegex,
-			whitelist:    "",
+			allowlist:    "",
 			path:         healthz,
 			expectBypass: false,
 			expectErr:    false,
@@ -97,7 +97,7 @@ func TestMatcher(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.label, func(t *testing.T) {
-			matcher, err := NewMatcher(test.matcherType, test.whitelist)
+			matcher, err := NewMatcher(test.matcherType, test.allowlist)
 			if test.expectErr {
 				assert.NotNil(t, err)
 				return

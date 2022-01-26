@@ -33,6 +33,11 @@ type SubscribeRequest struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
+// UnSubscribeRequest is the object describing a request to unsubscribe configuration.
+type UnSubscribeRequest struct {
+	Keys []string `json:"keys"`
+}
+
 // UpdateEvent is the object describing a configuration update event.
 type UpdateEvent struct {
 	Items []*Item `json:"items"`

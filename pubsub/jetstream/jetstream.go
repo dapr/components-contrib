@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nkeys"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -49,6 +50,15 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 
 	var opts []nats.Option
 	opts = append(opts, nats.Name(js.meta.name))
+
+	// Set nats.UserJWT options when jwt and seed key is provided.
+	if js.meta.jwt != "" && js.meta.seedKey != "" {
+		opts = append(opts, nats.UserJWT(func() (string, error) {
+			return js.meta.jwt, nil
+		}, func(nonce []byte) ([]byte, error) {
+			return sigHandler(js.meta.seedKey, nonce)
+		}))
+	}
 
 	js.nc, err = nats.Connect(js.meta.natsURL, opts...)
 	if err != nil {
@@ -165,4 +175,17 @@ func (js *jetstreamPubSub) Close() error {
 	js.ctxCancel()
 
 	return js.nc.Drain()
+}
+
+// Handle nats signature request for challenge response authentication.
+func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
+	kp, err := nkeys.FromSeed([]byte(seedKey))
+	if err != nil {
+		return nil, err
+	}
+	// Wipe our key on exit.
+	defer kp.Wipe()
+
+	sig, _ := kp.Sign(nonce)
+	return sig, nil
 }

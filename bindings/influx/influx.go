@@ -18,12 +18,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
+
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/influxdata/influxdb-client-go/api"
 	"github.com/pkg/errors"
-
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
 )
 
 const queryOperation bindings.OperationKind = "query"

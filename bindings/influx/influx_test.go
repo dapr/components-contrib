@@ -18,8 +18,8 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
-
 	"github.com/dapr/kit/logger"
+
 	"github.com/golang/mock/gomock"
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/stretchr/testify/assert"

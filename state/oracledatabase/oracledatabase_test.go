@@ -28,9 +28,15 @@ const (
 // Fake implementation of interface oracledatabase.dbaccess.
 type fakeDBaccess struct {
 	logger       logger.Logger
+	pingExecuted bool
 	initExecuted bool
 	setExecuted  bool
 	getExecuted  bool
+}
+
+func (m *fakeDBaccess) Ping() error {
+	m.pingExecuted = true
+	return nil
 }
 
 func (m *fakeDBaccess) Init(metadata state.Metadata) error {
@@ -66,7 +72,8 @@ func (m *fakeDBaccess) Close() error {
 // Proves that the Init method runs the init method.
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
-	_, fake := createOracleDatabaseWithFake(t)
+	ods, fake := createOracleDatabaseWithFake(t)
+	ods.Ping()
 	assert.True(t, fake.initExecuted)
 }
 
@@ -176,8 +183,15 @@ func createDeleteRequest() state.DeleteRequest {
 func createOracleDatabaseWithFake(t *testing.T) (*OracleDatabase, *fakeDBaccess) {
 	ods := createOracleDatabase(t)
 	fake := ods.dbaccess.(*fakeDBaccess)
-
 	return ods, fake
+}
+
+// Proves that the Ping method runs the ping method.
+func TestPingRunsDBAccessPing(t *testing.T) {
+	t.Parallel()
+	odb, fake := createOracleDatabaseWithFake(t)
+	odb.Ping()
+	assert.True(t, fake.pingExecuted)
 }
 
 func createOracleDatabase(t *testing.T) *OracleDatabase {

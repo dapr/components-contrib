@@ -50,7 +50,7 @@ func (o *OracleDatabase) Init(metadata state.Metadata) error {
 }
 
 func (o *OracleDatabase) Ping() error {
-	return nil
+	return o.dbaccess.Ping()
 }
 
 // Features returns the features available in this state store.

@@ -57,6 +57,10 @@ func newOracleDatabaseAccess(logger logger.Logger) *oracleDatabaseAccess {
 	}
 }
 
+func (o *oracleDatabaseAccess) Ping() error {
+	return o.db.Ping()
+}
+
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 	o.logger.Debug("Initializing OracleDatabase state store")

@@ -10,6 +10,7 @@ Currently supported secret stores are:
 * AWS Secret manager
 * GCP Cloud KMS
 * GCP Secret Manager
+* AlibabaCloud OOS Parameter Store
 
 ## Implementing a new Secret Store
 

@@ -20,9 +20,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -200,9 +198,7 @@ func getOptionalBooleanValue(metadata map[string]string, key string) (value bool
 func getConfigFilePath(meta map[string]string) (value string, err error) {
 	value, _ = getValue(meta, configFilePathKey, false)
 	if strings.HasPrefix(value, "~/") {
-		usr, _ := user.Current()
-		dir := usr.HomeDir
-		value = filepath.Join(dir, value[2:])
+		return "", fmt.Errorf("%s is set to %s which starts with ~/; this is not supported - please provide absolute path to configuration file", configFilePathKey, value)
 	}
 	if value != "" {
 		if _, err = os.Stat(value); err != nil {

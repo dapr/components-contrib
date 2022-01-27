@@ -117,6 +117,16 @@ func TestInit(t *testing.T) {
 			assert.Contains(t, err.Error(), "does not exist", "if configFileAuthentication is true and configFilePath does not indicate an existing file, then an error should be produced that indicates this")
 		}
 	})
+	t.Run("Init with configFileAuthentication and configFilePath starting with ~/", func(t *testing.T) {
+		meta.Properties = getDummyOCIObjectStorageConfiguration()
+		meta.Properties[configFileAuthenticationKey] = "true"
+		meta.Properties[configFilePathKey] = "~/some-file"
+		err := statestore.Init(meta)
+		assert.NotNil(t, err, "if configFileAuthentication is true and configFilePath contains a value that starts with ~/ , then an error should be produced")
+		if err != nil {
+			assert.Contains(t, err.Error(), "~", "if configFileAuthentication is true and configFilePath starts with ~/, then an error should be produced that indicates this")
+		}
+	})
 	t.Run("Init with missing fingerprint with false instancePrincipalAuthentication and false configFileAuthentication", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[fingerPrintKey] = ""

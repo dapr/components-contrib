@@ -1,0 +1,18 @@
+version: "3.5"
+services:
+  nats:
+    image: nats
+    command: "--config /config/server.conf"
+    volumes:
+      - ./nsc:/nsc
+      - ./:/config
+      - ./jwt:/jwt
+
+  dev:
+    image: golang:1.17.6
+    network_mode:
+      service:nats
+    volumes:
+      - ../../../../:/go/src/github.com/dapr/components-contrib:cached
+    depends_on:
+      - nats

@@ -30,27 +30,27 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 	}{
 		{
 			input: "../../tests/state/query/q1.json",
-			query: "SELECT key, value::text value, xmin as etag FROM state LIMIT 2",
+			query: "SELECT key, value, xmin as etag FROM state LIMIT 2",
 		},
 		{
 			input: "../../tests/state/query/q2.json",
-			query: "SELECT key, value::text value, xmin as etag FROM state WHERE state=$1 LIMIT 2",
+			query: "SELECT key, value, xmin as etag FROM state WHERE state=$1 LIMIT 2",
 		},
 		{
 			input: "../../tests/state/query/q3.json",
-			query: "SELECT key, value::text value, xmin as etag FROM state WHERE (person->>'org'=$1 AND (state=$2 OR state=$3)) ORDER BY state DESC, person->>'name'",
+			query: "SELECT key, value, xmin as etag FROM state WHERE (person->>'org'=$1 AND (state=$2 OR state=$3)) ORDER BY state DESC, person->>'name'",
 		},
 		{
 			input: "../../tests/state/query/q4.json",
-			query: "SELECT key, value::text value, xmin as etag FROM state WHERE (person->>'org'=$1 OR (person->>'org'=$2 AND (state=$3 OR state=$4))) ORDER BY state DESC, person->>'name' LIMIT 2",
+			query: "SELECT key, value, xmin as etag FROM state WHERE (person->>'org'=$1 OR (person->>'org'=$2 AND (state=$3 OR state=$4))) ORDER BY state DESC, person->>'name' LIMIT 2",
 		},
 		{
 			input: "../../tests/state/query/q5.json",
-			query: "SELECT key, value::text value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 AND (value->'person'->>'name'=$2 OR (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
+			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 AND (value->'person'->>'name'=$2 OR (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
 		},
 		{
 			input: "../../tests/state/query/q6.json",
-			query: "SELECT key, value::text value, xmin as etag FROM state WHERE value->>'state'=$1 LIMIT 2 OFFSET 2",
+			query: "SELECT key, value, xmin as etag FROM state WHERE value->>'state'=$1 LIMIT 2 OFFSET 2",
 		},
 	}
 	for _, test := range tests {

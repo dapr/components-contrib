@@ -100,7 +100,7 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 }
 
 func (q *Query) Finalize(filters string, qq *query.Query) error {
-	q.query = fmt.Sprintf("SELECT key, value::text value, xmin as etag FROM %s", tableName)
+	q.query = fmt.Sprintf("SELECT key, value, xmin as etag FROM %s", tableName)
 
 	if filters != "" {
 		q.query += fmt.Sprintf(" WHERE %s", filters)
@@ -148,7 +148,7 @@ func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, st
 	for rows.Next() {
 		var (
 			key  string
-			data string
+			data []byte
 			etag int
 		)
 		if err = rows.Scan(&key, &data, &etag); err != nil {
@@ -156,7 +156,7 @@ func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, st
 		}
 		result := state.QueryItem{
 			Key:  key,
-			Data: []byte(data),
+			Data: data,
 			ETag: ptr.String(strconv.Itoa(etag)),
 		}
 		ret = append(ret, result)

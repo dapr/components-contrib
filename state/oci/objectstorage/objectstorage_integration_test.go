@@ -118,6 +118,7 @@ func testGet(t *testing.T, ociProperties map[string]string) {
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
 			"ttlInSeconds": "100",
 		})})
+		assert.Nil(t, err)
 		getResponse, err := statestore.Get(&state.GetRequest{Key: testKey})
 		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal to value set despite TTL setting")
@@ -140,6 +141,7 @@ func testGet(t *testing.T, ociProperties map[string]string) {
 		err = statestore.Set(&state.SetRequest{Key: "ttl-test-key", Value: []byte("test-value"), Metadata: (map[string]string{
 			"ttlInSeconds": "1",
 		})})
+		assert.Nil(t, err)
 		time.Sleep(time.Second * 2)
 		getResponse, err := statestore.Get(&state.GetRequest{Key: "ttl-test-key"})
 		assert.Equal(t, &state.GetResponse{}, getResponse, "Response must be empty")

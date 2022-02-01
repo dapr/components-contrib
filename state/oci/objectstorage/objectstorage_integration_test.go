@@ -96,7 +96,9 @@ func testGet(t *testing.T, ociProperties map[string]string) {
 		err := statestore.Init(meta)
 		assert.Nil(t, err)
 		err = statestore.Set(&state.SetRequest{Key: "test-key", Value: []byte("test-value")})
+		assert.Nil(t, err)
 		getResponse, err := statestore.Get(&state.GetRequest{Key: "test-key"})
+		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
 	})
@@ -104,7 +106,9 @@ func testGet(t *testing.T, ociProperties map[string]string) {
 		err := statestore.Init(meta)
 		assert.Nil(t, err)
 		err = statestore.Set(&state.SetRequest{Key: "test-app||test-key", Value: []byte("test-value")})
+		assert.Nil(t, err)
 		getResponse, err := statestore.Get(&state.GetRequest{Key: "test-app||test-key"})
+		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal to value set")
 	})
 	t.Run("Get an unexpired state element with TTL set", func(t *testing.T) {
@@ -115,6 +119,7 @@ func testGet(t *testing.T, ociProperties map[string]string) {
 			"ttlInSeconds": "100",
 		})})
 		getResponse, err := statestore.Get(&state.GetRequest{Key: testKey})
+		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal to value set despite TTL setting")
 	})
 	t.Run("Get a state element with TTL set to -1 (not expire)", func(t *testing.T) {
@@ -124,7 +129,9 @@ func testGet(t *testing.T, ociProperties map[string]string) {
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
 			"ttlInSeconds": "-1",
 		})})
+		assert.Nil(t, err)
 		getResponse, err := statestore.Get(&state.GetRequest{Key: testKey})
+		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal (TTL setting of -1 means never expire)")
 	})
 	t.Run("Get an expired (TTL in the past) state element", func(t *testing.T) {
@@ -151,13 +158,14 @@ func testSet(t *testing.T, ociProperties map[string]string) {
 		assert.Equal(t, err, fmt.Errorf("key for value to set was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Regular Set Operation", func(t *testing.T) {
-		testKey := "test-key"
+		testKey := "local-test-key"
 		err := statestore.Init(meta)
 		assert.Nil(t, err)
 
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper key should be errorfree")
 		getResponse, err := statestore.Get(&state.GetRequest{Key: testKey})
+		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
 	})
@@ -169,6 +177,7 @@ func testSet(t *testing.T, ociProperties map[string]string) {
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper composite key should be errorfree")
 		getResponse, err := statestore.Get(&state.GetRequest{Key: testKey})
+		assert.Nil(t, err)
 		assert.Equal(t, "test-value", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
 	})
@@ -191,7 +200,7 @@ func testSet(t *testing.T, ociProperties map[string]string) {
 
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper key should be errorfree")
-		getResponse, err := statestore.Get(&state.GetRequest{Key: testKey})
+		getResponse, _ := statestore.Get(&state.GetRequest{Key: testKey})
 		etag := getResponse.ETag
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: etag, Options: state.SetStateOption{
 			Concurrency: state.FirstWrite,
@@ -204,7 +213,7 @@ func testSet(t *testing.T, ociProperties map[string]string) {
 		assert.NotNil(t, err, "Updating value with the old etag should be refused")
 
 		// retrieve the latest etag - assigned by the previous set operation.
-		getResponse, err = statestore.Get(&state.GetRequest{Key: testKey})
+		getResponse, _ = statestore.Get(&state.GetRequest{Key: testKey})
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
 		etag = getResponse.ETag
 		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("more-overwritten-value"), ETag: etag, Options: state.SetStateOption{
@@ -256,10 +265,10 @@ func testDelete(t *testing.T, ociProperties map[string]string) {
 		// create document.
 		err = s.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper key should be errorfree")
-		getResponse, err := s.Get(&state.GetRequest{Key: testKey})
+		getResponse, _ := s.Get(&state.GetRequest{Key: testKey})
 		etag := getResponse.ETag
 
-		incorrectETag := "notTheCorrectETag"
+		incorrectETag := "someRandomETag"
 		err = s.Delete(&state.DeleteRequest{Key: testKey, ETag: &incorrectETag, Options: state.DeleteStateOption{
 			Concurrency: state.FirstWrite,
 		}})

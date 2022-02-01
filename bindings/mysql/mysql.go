@@ -339,7 +339,7 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []interface{}) map
 		case *sql.RawBytes:
 			// special case for sql.RawBytes, see https://github.com/go-sql-driver/mysql/blob/master/fields.go#L178
 			switch ct.DatabaseTypeName() {
-			case "VARCHAR", "CHAR":
+			case "VARCHAR", "CHAR", "TEXT":
 				value = string(*v)
 			}
 		}

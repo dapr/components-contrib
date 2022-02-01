@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -52,10 +53,11 @@ const (
 
 // ConfigurationStore is a Redis configuration store.
 type ConfigurationStore struct {
-	client   redis.UniversalClient
-	json     jsoniter.API
-	metadata metadata
-	replicas int
+	client               redis.UniversalClient
+	json                 jsoniter.API
+	metadata             metadata
+	replicas             int
+	subscribeStopChanMap sync.Map
 
 	logger logger.Logger
 }
@@ -258,21 +260,59 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) error {
 	if len(req.Keys) == 0 {
-		go r.doSubscribe(ctx, req, handler, keySpaceAny)
+		// subscribe all keys
+		stop := make(chan struct{})
+		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpaceAny); ok {
+			// already exist subscription
+			close(oldStopChan.(chan struct{}))
+		}
+		r.subscribeStopChanMap.Store(keySpaceAny, stop)
+		go r.doSubscribe(ctx, req, handler, keySpaceAny, stop)
 		return nil
 	}
 	for _, k := range req.Keys {
-		go r.doSubscribe(ctx, req, handler, keySpacePrefix+k)
+		// subscribe single key
+		stop := make(chan struct{})
+		keySpacePrefixAndKey := keySpacePrefix + k
+		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpacePrefixAndKey); ok {
+			// already exist subscription
+			close(oldStopChan.(chan struct{}))
+		}
+		r.subscribeStopChanMap.Store(keySpacePrefixAndKey, stop)
+		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, stop)
 	}
 	return nil
 }
 
-func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string) {
+func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnSubscribeRequest) error {
+	if len(req.Keys) == 0 {
+		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpaceAny); ok {
+			// already exist subscription
+			r.subscribeStopChanMap.Delete(keySpaceAny)
+			close(oldStopChan.(chan struct{}))
+		}
+		return nil
+	}
+	for _, k := range req.Keys {
+		// subscribe single key
+		keySpacePrefixAndKey := keySpacePrefix + k
+		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpacePrefixAndKey); ok {
+			// already exist subscription
+			r.subscribeStopChanMap.Delete(keySpacePrefixAndKey)
+			close(oldStopChan.(chan struct{}))
+		}
+	}
+	return nil
+}
+
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, stop chan struct{}) {
 	// enable notify-keyspace-events by redis Set command
 	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
 	p := r.client.Subscribe(ctx, redisChannel4revision)
 	for {
 		select {
+		case <-stop:
+			return
 		case <-ctx.Done():
 			return
 		case msg := <-p.Channel():

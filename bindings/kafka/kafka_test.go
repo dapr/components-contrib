@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package kafka
 
@@ -23,7 +31,7 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("correct metadata (authRequired false)", func(t *testing.T) {
 		m := bindings.Metadata{}
-		m.Properties = map[string]string{"consumerGroup": "a", "publishTopic": "a", "brokers": "a", "topics": "a", "authRequired": "false"}
+		m.Properties = map[string]string{"consumerGroup": "a", "publishTopic": "a", "brokers": "a", "topics": "a", "authRequired": "false", "version": "1.1.0"}
 		k := Kafka{logger: logger}
 		meta, err := k.getKafkaMetadata(m)
 		assert.Nil(t, err)
@@ -32,6 +40,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
 		assert.False(t, meta.AuthRequired)
+		assert.Equal(t, "1.1.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (authRequired FALSE)", func(t *testing.T) {
@@ -44,6 +53,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.ConsumerGroup)
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
+		assert.Equal(t, "1.0.0", meta.Version.String())
 		assert.False(t, meta.AuthRequired)
 	})
 
@@ -57,6 +67,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.ConsumerGroup)
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
+		assert.Equal(t, "1.0.0", meta.Version.String())
 		assert.False(t, meta.AuthRequired)
 	})
 
@@ -70,6 +81,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.ConsumerGroup)
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
+		assert.Equal(t, "1.0.0", meta.Version.String())
 		assert.False(t, meta.AuthRequired)
 	})
 
@@ -83,6 +95,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.ConsumerGroup)
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
+		assert.Equal(t, "1.0.0", meta.Version.String())
 		assert.False(t, meta.AuthRequired)
 	})
 
@@ -96,6 +109,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.ConsumerGroup)
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
+		assert.Equal(t, "1.0.0", meta.Version.String())
 		assert.False(t, meta.AuthRequired)
 	})
 
@@ -109,6 +123,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.ConsumerGroup)
 		assert.Equal(t, "a", meta.PublishTopic)
 		assert.Equal(t, "a", meta.Topics[0])
+		assert.Equal(t, "1.0.0", meta.Version.String())
 		assert.False(t, meta.AuthRequired)
 	})
 
@@ -125,6 +140,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.True(t, meta.AuthRequired)
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (authRequired TRUE)", func(t *testing.T) {
@@ -140,6 +156,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.True(t, meta.AuthRequired)
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (authRequired True)", func(t *testing.T) {
@@ -155,6 +172,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.True(t, meta.AuthRequired)
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (authRequired T)", func(t *testing.T) {
@@ -170,6 +188,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.True(t, meta.AuthRequired)
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (authRequired t)", func(t *testing.T) {
@@ -200,6 +219,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.True(t, meta.AuthRequired)
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (maxMessageBytes 2048)", func(t *testing.T) {
@@ -216,6 +236,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
 		assert.Equal(t, 2048, meta.MaxMessageBytes)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("correct metadata (no maxMessageBytes)", func(t *testing.T) {
@@ -232,6 +253,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "foo", meta.SaslUsername)
 		assert.Equal(t, "bar", meta.SaslPassword)
 		assert.Equal(t, 0, meta.MaxMessageBytes)
+		assert.Equal(t, "1.0.0", meta.Version.String())
 	})
 
 	t.Run("missing authRequired", func(t *testing.T) {

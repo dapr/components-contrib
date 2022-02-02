@@ -1,0 +1,27 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: aws-snssqs
+  namespace: default
+spec:
+  type: pubsub.aws.snssqs
+  version: v1
+  metadata:
+    - name: endpoint
+      value: "http://localhost:4566"
+    - name: accessKey
+      value: "my-access"
+    - name: secretKey
+      value: "my-secret"
+    - name: region
+      value: "us-east-1"
+    - name: consumerID
+      value: "testQueue"
+    - name: messageVisibilityTimeout
+      value: 10
+    - name: messageRetryLimit
+      value: 10
+    - name: messageWaitTimeSeconds
+      value: 1
+    - name: messageMaxNumber
+      value: 10

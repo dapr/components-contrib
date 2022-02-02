@@ -27,7 +27,7 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
-		m.Properties = map[string]string{"region": "a", "provider": "a", "projectKey": "a", "clientID": "a", "clientSecret": "a", "scopes": "a"}
+		m.Properties = map[string]string{"region": "a", "provider": "a", "projectKey": "a", "clientID": "a", "clientSecret": "a", "scopes": "b"}
 		k := Binding{logger: logger}
 		meta, err := k.getCommercetoolsMetadata(m)
 		assert.Nil(t, err)
@@ -36,6 +36,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "a", meta.projectKey)
 		assert.Equal(t, "a", meta.clientID)
 		assert.Equal(t, "a", meta.clientSecret)
-		assert.Equal(t, "a", meta.scopes)
+		assert.Equal(t, "b", meta.scopes)
 	})
 }

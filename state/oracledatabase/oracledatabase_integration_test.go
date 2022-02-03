@@ -97,6 +97,9 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	t.Run("Set with TTL updates the expiration field", func(t *testing.T) {
 		setTTLUpdatesExpiry(t, ods)
 	})
+	t.Run("Set with TTL followed by set without TTL resets the expiration field", func(t *testing.T) {
+		setNoTTLUpdatesExpiry(t, ods)
+	})
 	t.Run("Expired item cannot be read", func(t *testing.T) {
 		t.Parallel()
 		expiredStateCannotBeRead(t, ods)
@@ -118,6 +121,7 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		//	t.Parallel()
 		testBulkSetAndBulkDelete(t, ods)
 	})
+
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
 		//	t.Parallel()
 		updateAndDeleteWithEtagSucceeds(t, ods)
@@ -133,9 +137,13 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		newItemWithEtagFails(t, ods)
 	})
 
-	t.Run("Delete with invalid etag fails", func(t *testing.T) {
+	t.Run("Delete with invalid etag fails when first write is enforced", func(t *testing.T) {
 		t.Parallel()
 		deleteWithInvalidEtagFails(t, ods)
+	})
+	t.Run("Update and Delete with invalid etag and no first write policy enforced succeeds", func(t *testing.T) {
+		t.Parallel()
+		updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t, ods)
 	})
 
 	t.Run("Delete item with no key fails", func(t *testing.T) {
@@ -153,12 +161,10 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	})
 
 	t.Run("Multi with delete only", func(t *testing.T) {
-		t.Parallel()
 		multiWithDeleteOnly(t, ods)
 	})
 
 	t.Run("Multi with set only", func(t *testing.T) {
-		t.Parallel()
 		multiWithSetOnly(t, ods)
 	})
 }
@@ -324,7 +330,7 @@ func multiWithDeleteAndSet(t *testing.T, ods *OracleDatabase) {
 func deleteWithInvalidEtagFails(t *testing.T, ods *OracleDatabase) {
 	// Create new item.
 	key := randomKey()
-	value := &fakeItem{Color: "mauve"}
+	value := &fakeItem{Color: "mauvebrown"}
 	setItem(t, ods, key, value, nil)
 
 	etag := "1234"
@@ -337,7 +343,7 @@ func deleteWithInvalidEtagFails(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 	err := ods.Delete(deleteReq)
-	assert.NotNil(t, err)
+	assert.NotNil(t, err, "Deleting an item with the wrong etag while enforcing FirstWrite policy should fail")
 }
 
 func deleteWithNoKeyFails(t *testing.T, ods *OracleDatabase) {
@@ -406,7 +412,16 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods *OracleDatabase) {
 
 	// Change the value and compare.
 	value.Color = "purple"
-	setItem(t, ods, key, value, getResponse.ETag)
+	setReq := &state.SetRequest{
+		Key:   key,
+		ETag:  getResponse.ETag,
+		Value: value,
+		Options: state.SetStateOption{
+			Concurrency: state.FirstWrite,
+		},
+	}
+	err := ods.Set(setReq)
+	assert.Nil(t, err, "Setting the item should be successful")
 	updateResponse, updatedItem := getItem(t, ods, key)
 	assert.Equal(t, value, updatedItem)
 
@@ -414,7 +429,54 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods *OracleDatabase) {
 	assert.NotEqual(t, getResponse.ETag, updateResponse.ETag)
 
 	// Delete.
-	deleteItem(t, ods, key, updateResponse.ETag)
+	deleteReq := &state.DeleteRequest{
+		Key:  key,
+		ETag: updateResponse.ETag,
+		Options: state.DeleteStateOption{
+			Concurrency: state.FirstWrite,
+		},
+	}
+	err = ods.Delete(deleteReq)
+	assert.Nil(t, err, "Deleting an item with the right etag while enforcing FirstWrite policy should succeed")
+
+	// Item is not in the data store.
+	assert.False(t, storeItemExists(t, key))
+}
+
+func updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t *testing.T, ods *OracleDatabase) {
+	// Create and retrieve new item.
+	key := randomKey()
+	value := &fakeItem{Color: "hazel"}
+	setItem(t, ods, key, value, nil)
+	getResponse, _ := getItem(t, ods, key)
+	assert.NotNil(t, getResponse.ETag)
+
+	// Change the value and compare.
+	value.Color = "purple"
+	someInvalidEtag := "1234581736145"
+	setReq := &state.SetRequest{
+		Key:   key,
+		ETag:  &someInvalidEtag,
+		Value: value,
+		Options: state.SetStateOption{
+			Concurrency: state.LastWrite,
+		},
+	}
+	err := ods.Set(setReq)
+	assert.Nil(t, err, "Setting the item should be successful")
+	_, updatedItem := getItem(t, ods, key)
+	assert.Equal(t, value, updatedItem)
+
+	// Delete.
+	deleteReq := &state.DeleteRequest{
+		Key:  key,
+		ETag: &someInvalidEtag,
+		Options: state.DeleteStateOption{
+			Concurrency: state.LastWrite,
+		},
+	}
+	err = ods.Delete(deleteReq)
+	assert.Nil(t, err, "Deleting an item with the wrong etag but not enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
 	assert.False(t, storeItemExists(t, key))
@@ -498,6 +560,40 @@ func setTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 
 	assert.NotNil(t, expirationTime)
 	assert.True(t, expirationTime.Valid, "Expiration Time should have a value after set with TTL value")
+	deleteItem(t, ods, key, nil)
+}
+
+// setNoTTLUpdatesExpiry proves that the expirydate is reset when a state element with expiration time (TTL) loses TTL upon second set without TTL.
+func setNoTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
+	key := randomKey()
+	value := &fakeItem{Color: "darkorange"}
+	setOptions := state.SetStateOption{}
+	setReq := &state.SetRequest{
+		Key:     key,
+		ETag:    nil,
+		Value:   value,
+		Options: setOptions,
+		Metadata: map[string]string{
+			"ttlInSeconds": "1000",
+		},
+	}
+	err := ods.Set(setReq)
+	assert.Nil(t, err)
+	delete(setReq.Metadata, "ttlInSeconds")
+	err = ods.Set(setReq)
+	assert.Nil(t, err)
+	connectionString := getConnectionString()
+	if getWalletLocation() != "" {
+		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
+	}
+	db, err := sql.Open("oracle", connectionString)
+	assert.Nil(t, err)
+	defer db.Close()
+
+	// expirationTime should not be set.
+	_, _, expirationTime := getTimesForRow(t, key)
+
+	assert.True(t, !expirationTime.Valid, "Expiration Time should not have a value after first being set with TTL value and then being set without TTL value")
 	deleteItem(t, ods, key, nil)
 }
 
@@ -716,7 +812,7 @@ func setItem(t *testing.T, ods *OracleDatabase, key string, value interface{}, e
 	err := ods.Set(setReq)
 	assert.Nil(t, err)
 	itemExists := storeItemExists(t, key)
-	assert.True(t, itemExists)
+	assert.True(t, itemExists, "Item should exist after set has been executed ")
 }
 
 func getItem(t *testing.T, ods *OracleDatabase, key string) (*state.GetResponse, *fakeItem) {
@@ -743,7 +839,7 @@ func deleteItem(t *testing.T, ods *OracleDatabase, key string, etag *string) {
 
 	deleteErr := ods.Delete(deleteReq)
 	assert.Nil(t, deleteErr)
-	assert.False(t, storeItemExists(t, key))
+	assert.False(t, storeItemExists(t, key), "item should no longer exist after delete has been performed")
 }
 
 func storeItemExists(t *testing.T, key string) bool {

@@ -171,10 +171,11 @@ func (o *oracleDatabaseAccess) setValue(req *state.SetRequest) error {
 		tx = o.tx
 	}
 	etag := uuid.New().String()
-	// QUESTION: only check for etag if FirstWrite specified - or always when etag is supplied??
+	// Only check for etag if FirstWrite specified - as per Discord message thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735.
 	if req.Options.Concurrency != state.FirstWrite {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 		// Other parameters use sql.DB parameter substitution.
+		// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.
 		mergeStatement := fmt.Sprintf(
 			`MERGE INTO %s t using (select :key key, :value value, :binary_yn binary_yn, :etag etag , :ttl_in_seconds ttl_in_seconds from dual) new_state_to_store
 			ON (t.key = new_state_to_store.key )
@@ -183,8 +184,7 @@ func (o *oracleDatabaseAccess) setValue(req *state.SetRequest) error {
 			tableName)
 		result, err = tx.Exec(mergeStatement, req.Key, value, binaryYN, etag, ttlSeconds)
 	} else {
-		// when first write must be enforced with an etag provided do an update - no insert.
-		// , expiration_time = case when :ttl_in_seconds >0 then systimestamp + numtodsinterval(:ttl_in_seconds, 'SECOND').
+		// when first write policy is indicated, an existing record has to be updated - one that has the etag provided.
 		updateStatement := fmt.Sprintf(
 			`UPDATE %s SET value = :value, binary_yn = :binary_yn, etag = :new_etag
 			 WHERE key = :key AND etag = :etag`,

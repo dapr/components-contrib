@@ -338,7 +338,7 @@ func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName str
 	defer r.channelMutex.RUnlock()
 
 	if r.channel == nil {
-		return nil, 0, nil, errors.New(errorChannelNotInitialized)
+		return nil, r.connectionCount, nil, errors.New(errorChannelNotInitialized)
 	}
 
 	q, err := r.prepareSubscription(r.channel, req, queueName)

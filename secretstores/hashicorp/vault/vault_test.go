@@ -106,6 +106,24 @@ func TestVaultTLSConfig(t *testing.T) {
 	})
 }
 
+func TestVaultEnginePath(t *testing.T) {
+	t.Run("without engine path config", func(t *testing.T) {
+		v := vaultSecretStore{}
+
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", "skipVerify": "true"}})
+		assert.Nil(t, err)
+		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
+	})
+
+	t.Run("with engine path config", func(t *testing.T) {
+		v := vaultSecretStore{}
+
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", "skipVerify": "true", vaultEnginePath: "kv"}})
+		assert.Nil(t, err)
+		assert.Equal(t, v.vaultEnginePath, "kv")
+	})
+}
+
 func TestVaultTokenPrefix(t *testing.T) {
 	t.Run("default value of vaultKVUsePrefix is true to emulate previous behaviour", func(t *testing.T) {
 		properties := map[string]string{
@@ -296,6 +314,90 @@ func TestDefaultVaultAddress(t *testing.T) {
 		_ = target.Init(m)
 
 		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
+	})
+}
+
+func TestVaultValueType(t *testing.T) {
+	t.Run("valid vault value type map", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+			vaultValueType:      "map",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.True(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("valid vault value type text", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+			vaultValueType:      "text",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.False(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("empty vault value type", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.True(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("invalid vault value type", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+			vaultValueType:      "incorrect",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Error(t, err, "vault init error, invalid value type incorrect, accepted values are map or text")
 	})
 }
 

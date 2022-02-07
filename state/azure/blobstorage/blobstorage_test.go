@@ -89,3 +89,41 @@ func TestFileName(t *testing.T) {
 		assert.Equal(t, "key", key)
 	})
 }
+
+func TestBlobHTTPHeaderGeneration(t *testing.T) {
+	s := NewAzureBlobStorageStore(logger.NewLogger("logger"))
+	t.Run("Content type is set from request, forward compatibility", func(t *testing.T) {
+		contentType := "application/json"
+		req := &state.SetRequest{
+			ContentType: &contentType,
+		}
+
+		blobHeaders, err := s.createBlobHTTPHeadersFromRequest(req)
+		assert.Nil(t, err)
+		assert.Equal(t, "application/json", blobHeaders.ContentType)
+	})
+	t.Run("Content type and metadata provided (conflict), content type chosen", func(t *testing.T) {
+		contentType := "application/json"
+		req := &state.SetRequest{
+			ContentType: &contentType,
+			Metadata: map[string]string{
+				contentType: "text/plain",
+			},
+		}
+
+		blobHeaders, err := s.createBlobHTTPHeadersFromRequest(req)
+		assert.Nil(t, err)
+		assert.Equal(t, "application/json", blobHeaders.ContentType)
+	})
+	t.Run("ContentType not provided, metadata provided set backward compatibility", func(t *testing.T) {
+		req := &state.SetRequest{
+			Metadata: map[string]string{
+				contentType: "text/plain",
+			},
+		}
+
+		blobHeaders, err := s.createBlobHTTPHeadersFromRequest(req)
+		assert.Nil(t, err)
+		assert.Equal(t, "text/plain", blobHeaders.ContentType)
+	})
+}

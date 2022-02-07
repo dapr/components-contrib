@@ -23,6 +23,7 @@ import (
 	"github.com/agrea/ptr"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 
@@ -287,6 +288,28 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 	err = tx.Commit()
 
 	return err
+}
+
+// Query executes a query against store.
+func (p *postgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	p.logger.Debug("Getting query value from PostgreSQL")
+	q := &Query{
+		query:  "",
+		params: []interface{}{},
+	}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(p.logger, p.db)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
 }
 
 // Close implements io.Close.

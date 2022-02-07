@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package kafka
 
@@ -223,8 +231,18 @@ func (k *Kafka) Publish(req *pubsub.PublishRequest) error {
 		Value: sarama.ByteEncoder(req.Data),
 	}
 
-	if val, ok := req.Metadata[key]; ok && val != "" {
-		msg.Key = sarama.StringEncoder(val)
+	for name, value := range req.Metadata {
+		if name == key {
+			msg.Key = sarama.StringEncoder(value)
+		} else {
+			if msg.Headers == nil {
+				msg.Headers = make([]sarama.RecordHeader, 0, len(req.Metadata))
+			}
+			msg.Headers = append(msg.Headers, sarama.RecordHeader{
+				Key:   []byte(name),
+				Value: []byte(value),
+			})
+		}
 	}
 
 	partition, offset, err := k.producer.SendMessage(msg)

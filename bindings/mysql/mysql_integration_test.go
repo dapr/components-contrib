@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package mysql
 
@@ -26,9 +34,10 @@ const (
 		id bigint NOT NULL,
 		v1 character varying(50) NOT NULL,
 		b  BOOLEAN,
-		ts TIMESTAMP)`
+		ts TIMESTAMP,
+		data LONGTEXT)`
 	testDropTable = `DROP TABLE foo`
-	testInsert    = "INSERT INTO foo (id, v1, b, ts) VALUES (%d, 'test-%d', %t, '%v')"
+	testInsert    = "INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')"
 	testDelete    = "DELETE FROM foo"
 	testUpdate    = "UPDATE foo SET ts = '%v' WHERE id = %d"
 	testSelect    = "SELECT * FROM foo WHERE id < 3"
@@ -88,7 +97,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke insert", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat))
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat), "{\"key\":\"val\"}")
 			res, err := b.Invoke(req)
 			assertResponse(t, res, err)
 		}
@@ -114,6 +123,7 @@ func TestMysqlIntegration(t *testing.T) {
 		assert.Contains(t, string(res.Data), "\"id\":1")
 		assert.Contains(t, string(res.Data), "\"b\":1")
 		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")
+		assert.Contains(t, string(res.Data), "\"data\":\"{\\\"key\\\":\\\"val\\\"}\"")
 
 		result := make([]interface{}, 0)
 		err = json.Unmarshal(res.Data, &result)

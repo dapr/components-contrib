@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package vault
 
@@ -95,6 +103,24 @@ func TestVaultTLSConfig(t *testing.T) {
 		assert.Equal(t, properties["caCert"], tlsConfig.vaultCACert)
 		assert.Equal(t, skipVerify, tlsConfig.vaultSkipVerify)
 		assert.Equal(t, properties["tlsServerName"], tlsConfig.vaultServerName)
+	})
+}
+
+func TestVaultEnginePath(t *testing.T) {
+	t.Run("without engine path config", func(t *testing.T) {
+		v := vaultSecretStore{}
+
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", "skipVerify": "true"}})
+		assert.Nil(t, err)
+		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
+	})
+
+	t.Run("with engine path config", func(t *testing.T) {
+		v := vaultSecretStore{}
+
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", "skipVerify": "true", vaultEnginePath: "kv"}})
+		assert.Nil(t, err)
+		assert.Equal(t, v.vaultEnginePath, "kv")
 	})
 }
 
@@ -288,6 +314,90 @@ func TestDefaultVaultAddress(t *testing.T) {
 		_ = target.Init(m)
 
 		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
+	})
+}
+
+func TestVaultValueType(t *testing.T) {
+	t.Run("valid vault value type map", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+			vaultValueType:      "map",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.True(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("valid vault value type text", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+			vaultValueType:      "text",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.False(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("empty vault value type", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Nil(t, err)
+		assert.True(t, target.vaultValueType.isMapType())
+	})
+
+	t.Run("invalid vault value type", func(t *testing.T) {
+		properties := map[string]string{
+			componentVaultToken: expectedTok,
+			componentSkipVerify: "true",
+			vaultValueType:      "incorrect",
+		}
+
+		m := secretstores.Metadata{
+			Properties: properties,
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		err := target.Init(m)
+		assert.Error(t, err, "vault init error, invalid value type incorrect, accepted values are map or text")
 	})
 }
 

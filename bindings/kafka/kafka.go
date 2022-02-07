@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package kafka
 
@@ -39,6 +47,7 @@ type Kafka struct {
 	saslPassword  string
 	initialOffset int64
 	logger        logger.Logger
+	Version       sarama.KafkaVersion
 }
 
 type kafkaMetadata struct {
@@ -51,6 +60,7 @@ type kafkaMetadata struct {
 	SaslPassword    string   `json:"saslPassword"`
 	InitialOffset   int64    `json:"initialOffset"`
 	MaxMessageBytes int
+	Version         sarama.KafkaVersion
 }
 
 type consumer struct {
@@ -103,6 +113,7 @@ func (k *Kafka) Init(metadata bindings.Metadata) error {
 	k.consumerGroup = meta.ConsumerGroup
 	k.authRequired = meta.AuthRequired
 	k.initialOffset = meta.InitialOffset
+	k.Version = meta.Version
 
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
@@ -190,6 +201,16 @@ func (k *Kafka) getKafkaMetadata(metadata bindings.Metadata) (*kafkaMetadata, er
 		meta.MaxMessageBytes = maxBytes
 	}
 
+	if val, ok := metadata.Properties["version"]; ok && val != "" {
+		version, err := sarama.ParseKafkaVersion(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: invalid 'version' attribute: %w", err)
+		}
+		meta.Version = version
+	} else {
+		meta.Version = sarama.V1_0_0_0
+	}
+
 	return &meta, nil
 }
 
@@ -198,7 +219,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
-	config.Version = sarama.V1_0_0_0
+	config.Version = meta.Version
 
 	// ignore SASL properties if authRequired is false
 	if meta.AuthRequired {
@@ -218,8 +239,13 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 }
 
 func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+	if len(k.topics) == 0 {
+		k.logger.Warnf("kafka binding: no topic defined, input bindings will not be started")
+		return nil
+	}
+
 	config := sarama.NewConfig()
-	config.Version = sarama.V1_0_0_0
+	config.Version = k.Version
 	config.Consumer.Offsets.Initial = k.initialOffset
 	// ignore SASL properties if authRequired is false
 	if k.authRequired {

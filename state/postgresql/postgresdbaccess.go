@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package postgresql
 
@@ -15,6 +23,7 @@ import (
 	"github.com/agrea/ptr"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 
@@ -279,6 +288,28 @@ func (p *postgresDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state
 	err = tx.Commit()
 
 	return err
+}
+
+// Query executes a query against store.
+func (p *postgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	p.logger.Debug("Getting query value from PostgreSQL")
+	q := &Query{
+		query:  "",
+		params: []interface{}{},
+	}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(p.logger, p.db)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
 }
 
 // Close implements io.Close.

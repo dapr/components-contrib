@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation and Dapr Contributors.
-# Licensed under the MIT License.
+# Copyright 2021 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ------------------------------------------------------------
 
 set -e
@@ -303,7 +311,7 @@ echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
 SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" --output tsv)"
 echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
 AZURE_CONTAINER_REGISTRY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.acrName.value" --output tsv)"
-echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${CONTAINER_REGISTRY_NAME}"
+echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${AZURE_CONTAINER_REGISTRY_NAME}"
 
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
@@ -371,8 +379,16 @@ tee "${TEARDOWN_SCRIPT_NAME}" > /dev/null \
 << EOF
 #!/usr/bin/env bash
 # ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation and Dapr Contributors.
-# Licensed under the MIT License.
+# Copyright 2021 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ------------------------------------------------------------
 set +e
 echo "Deleting deployment ${DEPLOY_NAME} ..."
@@ -403,8 +419,16 @@ tee "${ENV_CONFIG_FILENAME}" > /dev/null \
 << 'EOF'
 #!/usr/bin/env bash
 # ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation and Dapr Contributors.
-# Licensed under the MIT License.
+# Copyright 2021 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ------------------------------------------------------------
 
 if [[ -n ${NGROK_ENDPOINT} ]]; then
@@ -622,6 +646,7 @@ CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFIC
 
 # Give the service principal used for certification test access to the relevant data plane resources
 az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resource-group "${RESOURCE_GROUP_NAME}" --role-definition-name "Cosmos DB Built-in Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_DB_NAME}" --principal-id "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}/blobServices/default/containers/${STORAGE_CONTAINER_NAME}"
 
 # Now export the service principal information
 CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"

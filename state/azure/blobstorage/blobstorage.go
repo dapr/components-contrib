@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 /*
 Azure Blob Storage state store.
@@ -32,6 +40,7 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -90,17 +99,21 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	p := azblob.NewPipeline(credential, options)
 
-	var containerURL azblob.ContainerURL
+	var URL *url.URL
 	customEndpoint, ok := metadata.Properties[endpointKey]
 	if ok && customEndpoint != "" {
-		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
-		if parseErr != nil {
-			return parseErr
-		}
-		containerURL = azblob.NewContainerURL(*URL, p)
+		URL, err = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
 	} else {
-		URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
-		containerURL = azblob.NewContainerURL(*URL, p)
+		URL, err = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
+	}
+	if err != nil {
+		return err
+	}
+	containerURL := azblob.NewContainerURL(*URL, p)
+
+	_, err = net.LookupHost(URL.Hostname())
+	if err != nil {
+		return err
 	}
 
 	ctx := context.Background()
@@ -128,7 +141,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 // Get the state.
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
-	data, etag, err := r.readFile(req)
+	data, etag, contentType, err := r.readFile(req)
 	if err != nil {
 		r.logger.Debugf("error %s", err)
 
@@ -140,8 +153,9 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
-		Data: data,
-		ETag: ptr.String(etag),
+		Data:        data,
+		ETag:        ptr.String(etag),
+		ContentType: contentType,
 	}, err
 }
 
@@ -192,14 +206,14 @@ func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, e
 	return &meta, nil
 }
 
-func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
+func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, *string, error) {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
 	resp, err := blobURL.Download(context.Background(), 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
 
-		return nil, "", err
+		return nil, "", nil, err
 	}
 
 	bodyStream := resp.Body(azblob.RetryReaderOptions{})
@@ -209,10 +223,11 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, error) {
 	if err != nil {
 		r.logger.Debugf("read file %s, err %s", req.Key, err)
 
-		return nil, "", err
+		return nil, "", nil, err
 	}
 
-	return data.Bytes(), string(resp.ETag()), nil
+	contentType := resp.ContentType()
+	return data.Bytes(), string(resp.ETag()), &contentType, nil
 }
 
 func (r *StateStore) writeFile(req *state.SetRequest) error {
@@ -228,15 +243,47 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
+	blobHTTPHeaders, err := r.createBlobHTTPHeadersFromRequest(req)
+	if err != nil {
+		return err
+	}
+	_, err = azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
+		Parallelism:      16,
+		Metadata:         req.Metadata,
+		AccessConditions: accessConditions,
+		BlobHTTPHeaders:  blobHTTPHeaders,
+	})
+	if err != nil {
+		r.logger.Debugf("write file %s, err %s", req.Key, err)
+
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func (r *StateStore) createBlobHTTPHeadersFromRequest(req *state.SetRequest) (azblob.BlobHTTPHeaders, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 	if val, ok := req.Metadata[contentType]; ok && val != "" {
 		blobHTTPHeaders.ContentType = val
 		delete(req.Metadata, contentType)
 	}
+
+	if req.ContentType != nil {
+		if blobHTTPHeaders.ContentType != "" {
+			r.logger.Warnf("ContentType received from request Metadata %s, as well as ContentType property %s, choosing value from contentType property", blobHTTPHeaders.ContentType, *req.ContentType)
+		}
+		blobHTTPHeaders.ContentType = *req.ContentType
+	}
+
 	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+			return azblob.BlobHTTPHeaders{}, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.ContentMD5 = sDec
 		delete(req.Metadata, contentMD5)
@@ -257,28 +304,11 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 		blobHTTPHeaders.CacheControl = val
 		delete(req.Metadata, cacheControl)
 	}
-
-	_, err := azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
-		Parallelism:      16,
-		Metadata:         req.Metadata,
-		AccessConditions: accessConditions,
-		BlobHTTPHeaders:  blobHTTPHeaders,
-	})
-	if err != nil {
-		r.logger.Debugf("write file %s, err %s", req.Key, err)
-
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
-		return err
-	}
-
-	return nil
+	return blobHTTPHeaders, nil
 }
 
 func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
-	blobURL := r.containerURL.NewBlockBlobURL(getFileName((req.Key)))
+	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 	accessConditions := azblob.BlobAccessConditions{}
 
 	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {

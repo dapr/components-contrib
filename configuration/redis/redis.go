@@ -260,13 +260,13 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	subscribeId, _ := uuid.GenerateUUID()
+	subscribeID, _ := uuid.GenerateUUID()
 	if len(req.Keys) == 0 {
 		// subscribe all keys
 		stop := make(chan struct{})
-		r.subscribeStopChanMap.Store(subscribeId, stop)
-		go r.doSubscribe(ctx, req, handler, keySpaceAny, subscribeId, stop)
-		return subscribeId, nil
+		r.subscribeStopChanMap.Store(subscribeID, stop)
+		go r.doSubscribe(ctx, req, handler, keySpaceAny, subscribeID, stop)
+		return subscribeID, nil
 	}
 	for _, k := range req.Keys {
 		// subscribe single key
@@ -276,16 +276,16 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 			// already exist subscription
 			close(oldStopChan.(chan struct{}))
 		}
-		r.subscribeStopChanMap.Store(subscribeId, stop)
-		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, subscribeId, stop)
+		r.subscribeStopChanMap.Store(subscribeID, stop)
+		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, subscribeID, stop)
 	}
-	return subscribeId, nil
+	return subscribeID, nil
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnSubscribeRequest) error {
-	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.Id); ok {
+	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
 		// already exist subscription
-		r.subscribeStopChanMap.Delete(req.Id)
+		r.subscribeStopChanMap.Delete(req.ID)
 		close(oldStopChan.(chan struct{}))
 	}
 	return nil
@@ -331,7 +331,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 
 	e := &configuration.UpdateEvent{
 		Items: getResponse.Items,
-		Id:    id,
+		ID:    id,
 	}
 	err = handler(ctx, e)
 	if err != nil {

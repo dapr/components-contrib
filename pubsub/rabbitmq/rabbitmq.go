@@ -460,7 +460,7 @@ func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amq
 			case d := <-msgs:
 				wg.Add(1)
 				go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) {
-					if e := r.handleMessage(channel, d, topic, handler); e != nil {
+					if e := r.handleMessage(channel, d, topic, handler); e != nil && mustReconnect(channel, []error{e}) {
 						ec.Append(e, stopCh)
 					}
 					wg.Done()
@@ -494,13 +494,13 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 			requeue := r.metadata.requeueInFailure && !d.Redelivered
 
 			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
-			if err = d.Nack(false, requeue); err != nil {
-				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
+			if err2 := d.Nack(false, requeue); err2 != nil {
+				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err2)
 			}
 		} else {
 			r.logger.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
-			if err = d.Ack(false); err != nil {
-				r.logger.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
+			if err2 := d.Ack(false); err2 != nil {
+				r.logger.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err2)
 			}
 		}
 	}

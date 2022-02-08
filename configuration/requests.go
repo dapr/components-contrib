@@ -33,8 +33,8 @@ type SubscribeRequest struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
-// UnSubscribeRequest is the object describing a request to unsubscribe configuration.
-type UnSubscribeRequest struct {
+// UnsubscribeRequest is the object describing a request to unsubscribe configuration.
+type UnsubscribeRequest struct {
 	ID string `json:"id"`
 }
 

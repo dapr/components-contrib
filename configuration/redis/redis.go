@@ -282,7 +282,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	return subscribeID, nil
 }
 
-func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnSubscribeRequest) error {
+func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
 		// already exist subscription
 		r.subscribeStopChanMap.Delete(req.ID)

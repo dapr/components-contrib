@@ -35,10 +35,11 @@ type SubscribeRequest struct {
 
 // UnSubscribeRequest is the object describing a request to unsubscribe configuration.
 type UnSubscribeRequest struct {
-	Keys []string `json:"keys"`
+	Id string `json:"id"`
 }
 
 // UpdateEvent is the object describing a configuration update event.
 type UpdateEvent struct {
+	Id    string  `json:"id"`
 	Items []*Item `json:"items"`
 }

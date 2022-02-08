@@ -160,7 +160,10 @@ require (
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 )
 
-require github.com/nats-io/nkeys v0.3.0
+require (
+	github.com/hashicorp/go-uuid v1.0.1
+	github.com/nats-io/nkeys v0.3.0
+)
 
 require (
 	github.com/99designs/keyring v1.1.5 // indirect
@@ -228,7 +231,6 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.0 // indirect
-	github.com/hashicorp/go-uuid v1.0.1 // indirect
 	github.com/hashicorp/serf v0.8.2 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.5.0 // indirect

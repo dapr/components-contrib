@@ -26,6 +26,25 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	testMetadataHostValue       = "anyhost"
+	testMetadataConsumerIDValue = "consumer"
+)
+
+type FakeAcknowledger struct {
+}
+
+func (a FakeAcknowledger) Ack(tag uint64, multiple bool) error {
+	return nil
+}
+
+func (a FakeAcknowledger) Nack(tag uint64, multiple bool, requeue bool) error {
+	return nil
+}
+func (a FakeAcknowledger) Reject(tag uint64, requeue bool) error {
+	return nil
+}
+
 func newBroker() *rabbitMQInMemoryBroker {
 	return &rabbitMQInMemoryBroker{
 		buffer: make(chan amqp.Delivery, 2),
@@ -58,7 +77,7 @@ func TestNoConsumer(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey: "anyhost",
+			metadataHostKey: testMetadataHostValue,
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -73,8 +92,8 @@ func TestConcurrencyMode(t *testing.T) {
 		pubsubRabbitMQ := newRabbitMQTest(broker)
 		metadata := pubsub.Metadata{
 			Properties: map[string]string{
-				metadataHostKey:       "anyhost",
-				metadataConsumerIDKey: "consumer",
+				metadataHostKey:       testMetadataHostValue,
+				metadataConsumerIDKey: testMetadataConsumerIDValue,
 				pubsub.ConcurrencyKey: string(pubsub.Parallel),
 			},
 		}
@@ -88,8 +107,8 @@ func TestConcurrencyMode(t *testing.T) {
 		pubsubRabbitMQ := newRabbitMQTest(broker)
 		metadata := pubsub.Metadata{
 			Properties: map[string]string{
-				metadataHostKey:       "anyhost",
-				metadataConsumerIDKey: "consumer",
+				metadataHostKey:       testMetadataHostValue,
+				metadataConsumerIDKey: testMetadataConsumerIDValue,
 				pubsub.ConcurrencyKey: string(pubsub.Single),
 			},
 		}
@@ -103,8 +122,8 @@ func TestConcurrencyMode(t *testing.T) {
 		pubsubRabbitMQ := newRabbitMQTest(broker)
 		metadata := pubsub.Metadata{
 			Properties: map[string]string{
-				metadataHostKey:       "anyhost",
-				metadataConsumerIDKey: "consumer",
+				metadataHostKey:       testMetadataHostValue,
+				metadataConsumerIDKey: testMetadataConsumerIDValue,
 			},
 		}
 		err := pubsubRabbitMQ.Init(metadata)
@@ -118,8 +137,8 @@ func TestPublishAndSubscribe(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
-			metadataConsumerIDKey: "consumer",
+			metadataHostKey:       testMetadataHostValue,
+			metadataConsumerIDKey: testMetadataConsumerIDValue,
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -161,8 +180,8 @@ func TestPublishReconnect(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
-			metadataConsumerIDKey: "consumer",
+			metadataHostKey:       testMetadataHostValue,
+			metadataConsumerIDKey: testMetadataConsumerIDValue,
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -212,8 +231,8 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
-			metadataConsumerIDKey: "consumer",
+			metadataHostKey:       testMetadataHostValue,
+			metadataConsumerIDKey: testMetadataConsumerIDValue,
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -258,13 +277,17 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 }
 
 func TestSubscribeReconnect(t *testing.T) {
+	t.Run("single", testSingleModeSubscribeReconnect)
+	t.Run("parallel", testParallelModeSubscribeReconnect)
+}
+
+func testSingleModeSubscribeReconnect(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey:              "anyhost",
-			metadataConsumerIDKey:        "consumer",
-			metadataAutoAckKey:           "true",
+			metadataHostKey:              testMetadataHostValue,
+			metadataConsumerIDKey:        testMetadataConsumerIDValue,
 			metadataReconnectWaitSeconds: "0",
 			pubsub.ConcurrencyKey:        string(pubsub.Single),
 		},
@@ -310,8 +333,66 @@ func TestSubscribeReconnect(t *testing.T) {
 	assert.Equal(t, 4, broker.closeCount)   // two counts for each connection closure - one for connection, one for channel
 }
 
+func testParallelModeSubscribeReconnect(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{
+		Properties: map[string]string{
+			metadataHostKey:              testMetadataHostValue,
+			metadataConsumerIDKey:        testMetadataConsumerIDValue,
+			metadataReconnectWaitSeconds: "0",
+			pubsub.ConcurrencyKey:        string(pubsub.Parallel),
+		},
+	}
+	err := pubsubRabbitMQ.Init(metadata)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, broker.connectCount)
+	assert.Equal(t, 0, broker.closeCount)
+
+	topic := "thetopic"
+
+	messageCount := 0
+	lastMessage := ""
+	processed := make(chan bool)
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		messageCount++
+		lastMessage = string(msg.Data)
+		processed <- true
+
+		return errors.New(errorChannelConnection)
+	}
+
+	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	assert.Nil(t, err)
+
+	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	assert.Nil(t, err)
+	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	assert.Nil(t, err)
+	<-processed
+	<-processed
+	assert.Equal(t, 2, messageCount)
+	assert.Equal(t, "hello world", lastMessage)
+
+	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 3, messageCount)
+	assert.Equal(t, "foo bar", lastMessage)
+
+	// allow last reconnect completion
+	time.Sleep(time.Second)
+
+	// Check that reconnection happened
+	assert.Equal(t, 3, broker.connectCount) // initial connect + 2 reconnects
+	assert.Equal(t, 4, broker.closeCount)   // two counts for each connection closure - one for connection, one for channel
+}
+
 func createAMQPMessage(body []byte) amqp.Delivery {
-	return amqp.Delivery{Body: body}
+	return amqp.Delivery{
+		Body:         body,
+		Acknowledger: FakeAcknowledger{},
+	}
 }
 
 type rabbitMQInMemoryBroker struct {

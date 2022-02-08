@@ -98,6 +98,27 @@ type rabbitMQConnectionBroker interface {
 	Close() error
 }
 
+type ErrorCollection struct {
+	errors []error
+	mux    sync.Mutex
+}
+
+func (c *ErrorCollection) Append(e error, stopCh chan struct{}) {
+	c.mux.Lock()
+	if len(c.errors) == 0 {
+		stopCh <- struct{}{}
+		close(stopCh)
+	}
+	c.errors = append(c.errors, e)
+	c.mux.Unlock()
+}
+
+func (c *ErrorCollection) GetErrors() []error {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	return c.errors
+}
+
 // NewRabbitMQ creates a new RabbitMQ pub/sub.
 func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	return &rabbitMQ{
@@ -231,7 +252,7 @@ func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
 			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
 			return err
 		}
-		if mustReconnect(channel, err) {
+		if mustReconnect(channel, []error{err}) {
 			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
 			time.Sleep(r.metadata.reconnectWait)
 			r.reconnect(connectionCount)
@@ -352,7 +373,7 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 
 	for {
 		var (
-			err             error
+			errs            []error
 			errFuncName     string
 			connectionCount int
 			channel         rabbitMQChannelBroker
@@ -360,8 +381,10 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 			msgs            <-chan amqp.Delivery
 		)
 		for {
+			var err error
 			channel, connectionCount, q, err = r.ensureSubscription(req, queueName)
 			if err != nil {
+				errs = append(errs, err)
 				errFuncName = "ensureSubscription"
 				break
 			}
@@ -376,6 +399,7 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 				nil,
 			)
 			if err != nil {
+				errs = append(errs, err)
 				errFuncName = "channel.Consume"
 				break
 			}
@@ -386,8 +410,8 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 				ackCh = nil
 			}
 
-			err = r.listenMessages(channel, msgs, req.Topic, handler)
-			if err != nil {
+			errs = r.listenMessages(channel, msgs, req.Topic, handler)
+			if len(errs) != 0 {
 				errFuncName = "listenMessages"
 				break
 			}
@@ -399,12 +423,14 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 			return
 		}
 
-		// print the error if the subscriber is running.
-		if err != nil {
-			r.logger.Errorf("%s error in subscriber for %s in %s: %v", logMessagePrefix, queueName, errFuncName, err)
+		// print errors if the subscriber is running.
+		if len(errs) != 0 {
+			for i := range errs {
+				r.logger.Errorf("%s error in subscriber for %s in %s: %v", logMessagePrefix, queueName, errFuncName, errs[i])
+			}
 		}
 
-		if mustReconnect(channel, err) {
+		if mustReconnect(channel, errs) {
 			r.logger.Warnf("%s subscriber is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
 			time.Sleep(r.metadata.reconnectWait)
 			r.reconnect(connectionCount)
@@ -412,19 +438,34 @@ func (r *rabbitMQ) subscribeForever(req pubsub.SubscribeRequest, queueName strin
 	}
 }
 
-func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler pubsub.Handler) error {
-	var err error
-	for d := range msgs {
-		switch r.metadata.concurrency {
-		case pubsub.Single:
-			err = r.handleMessage(channel, d, topic, handler)
-		case pubsub.Parallel:
-			go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) {
-				err = r.handleMessage(channel, d, topic, handler)
-			}(channel, d, topic, handler)
+func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amqp.Delivery, topic string, handler pubsub.Handler) []error {
+	switch r.metadata.concurrency {
+	case pubsub.Single:
+		for d := range msgs {
+			if e := r.handleMessage(channel, d, topic, handler); e != nil {
+				if mustReconnect(channel, []error{e}) {
+					return []error{e}
+				}
+			}
 		}
-		if (err != nil) && mustReconnect(channel, err) {
-			return err
+	case pubsub.Parallel:
+		ec := ErrorCollection{errors: []error{}}
+		stopCh := make(chan struct{})
+		var wg sync.WaitGroup
+		for {
+			select {
+			case <-stopCh:
+				wg.Wait()
+				return ec.GetErrors()
+			case d := <-msgs:
+				wg.Add(1)
+				go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) {
+					if e := r.handleMessage(channel, d, topic, handler); e != nil {
+						ec.Append(e, stopCh)
+					}
+					wg.Done()
+				}(channel, d, topic, handler)
+			}
 		}
 	}
 
@@ -543,14 +584,20 @@ func (r *rabbitMQ) Features() []pubsub.Feature {
 	return nil
 }
 
-func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
+func mustReconnect(channel rabbitMQChannelBroker, errs []error) bool {
 	if channel == nil {
 		return true
 	}
 
-	if err == nil {
+	if len(errs) == 0 {
 		return false
 	}
 
-	return strings.Contains(err.Error(), errorChannelConnection)
+	for _, err := range errs {
+		if strings.Contains(err.Error(), errorChannelConnection) {
+			return true
+		}
+	}
+
+	return false
 }

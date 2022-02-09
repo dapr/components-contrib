@@ -16,6 +16,8 @@ package dynamodb
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -118,13 +120,33 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 		return fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
 	}
 
-	item := map[string]*dynamodb.AttributeValue{
-		"key": {
-			S: aws.String(req.Key),
-		},
-		"value": {
-			S: aws.String(value),
-		},
+	ttl, err := d.parseTTL(req)
+	if err != nil {
+		return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %s", err)
+	}
+
+	var item map[string]*dynamodb.AttributeValue
+	if ttl != nil {
+		item = map[string]*dynamodb.AttributeValue{
+			"key": {
+				S: aws.String(req.Key),
+			},
+			"value": {
+				S: aws.String(value),
+			},
+			"expireAt": {
+				N: aws.String(strconv.FormatInt(int64(*ttl), 10)),
+			},
+		}
+	} else {
+		item = map[string]*dynamodb.AttributeValue{
+			"key": {
+				S: aws.String(req.Key),
+			},
+			"value": {
+				S: aws.String(value),
+			},
+		}
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -146,17 +168,38 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 		if err != nil {
 			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
 		}
+		ttl, err := d.parseTTL(&r)
+		if err != nil {
+			return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %s", err)
+		}
+
+		var item map[string]*dynamodb.AttributeValue
+		if ttl != nil {
+			item = map[string]*dynamodb.AttributeValue{
+				"key": {
+					S: aws.String(r.Key),
+				},
+				"value": {
+					S: aws.String(value),
+				},
+				"expireAt": {
+					N: aws.String(strconv.FormatInt(int64(*ttl), 10)),
+				},
+			}
+		} else {
+			item = map[string]*dynamodb.AttributeValue{
+				"key": {
+					S: aws.String(r.Key),
+				},
+				"value": {
+					S: aws.String(value),
+				},
+			}
+		}
 
 		writeRequest := &dynamodb.WriteRequest{
 			PutRequest: &dynamodb.PutRequest{
-				Item: map[string]*dynamodb.AttributeValue{
-					"key": {
-						S: aws.String(r.Key),
-					},
-					"value": {
-						S: aws.String(value),
-					},
-				},
+				Item: item,
 			},
 		}
 
@@ -249,4 +292,25 @@ func (d *StateStore) marshalToString(v interface{}) (string, error) {
 	}
 
 	return jsoniterator.ConfigFastest.MarshalToString(v)
+}
+
+//Parse and process ttlInSeconds
+func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
+	if val, ok := req.Metadata["ttlInSeconds"]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		parsedInt := int64(parsedVal)
+		//To follow the spec
+		if parsedInt == -1 {
+			return nil, nil
+		}
+		//DynmoDB expects a epoch timestamp in seconds
+		experationTime := time.Now().Unix() + parsedInt
+
+		return &experationTime, nil
+	}
+
+	return nil, nil
 }

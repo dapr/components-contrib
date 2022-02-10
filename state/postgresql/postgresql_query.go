@@ -184,8 +184,8 @@ func (q *Query) addParamValueAndReturnPosition(value interface{}) int {
 }
 
 func translateFieldToFilter(key string) string {
-	// remove preceding dot
-	key = strings.TrimPrefix(key, ".")
+	// add preceding "value"
+	key = "value" + key
 
 	fieldParts := strings.Split(key, ".")
 	filterField := fieldParts[0]

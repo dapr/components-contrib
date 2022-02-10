@@ -28,7 +28,6 @@ jobs:
       - name: code checkout
         uses: actions/checkout@v2
       - name: fossa check
-        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
         uses: fossas/fossa-action@v1
         with:
           api-key: ${{secrets.fossaApiKey}}

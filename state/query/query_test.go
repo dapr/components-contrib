@@ -41,7 +41,7 @@ func TestQuery(t *testing.T) {
 				Filters: nil,
 				Sort:    nil,
 				Page:    Pagination{Limit: 2, Token: ""},
-				Filter:  &EQ{Key: "state", Val: "CA"},
+				Filter:  &EQ{Key: ".state", Val: "CA"},
 			},
 		},
 		{
@@ -49,14 +49,14 @@ func TestQuery(t *testing.T) {
 			query: Query{
 				Filters: nil,
 				Sort: []Sorting{
-					{Key: "state", Order: "DESC"},
-					{Key: "person.name", Order: ""},
+					{Key: ".state", Order: "DESC"},
+					{Key: ".person.name", Order: ""},
 				},
 				Page: Pagination{Limit: 0, Token: ""},
 				Filter: &AND{
 					Filters: []Filter{
-						&EQ{Key: "person.org", Val: "A"},
-						&IN{Key: "state", Vals: []interface{}{"CA", "WA"}},
+						&EQ{Key: ".person.org", Val: "A"},
+						&IN{Key: ".state", Vals: []interface{}{"CA", "WA"}},
 					},
 				},
 			},
@@ -66,17 +66,17 @@ func TestQuery(t *testing.T) {
 			query: Query{
 				Filters: nil,
 				Sort: []Sorting{
-					{Key: "state", Order: "DESC"},
-					{Key: "person.name", Order: ""},
+					{Key: ".state", Order: "DESC"},
+					{Key: ".person.name", Order: ""},
 				},
 				Page: Pagination{Limit: 2, Token: ""},
 				Filter: &OR{
 					Filters: []Filter{
-						&EQ{Key: "person.org", Val: "A"},
+						&EQ{Key: ".person.org", Val: "A"},
 						&AND{
 							Filters: []Filter{
-								&EQ{Key: "person.org", Val: "B"},
-								&IN{Key: "state", Vals: []interface{}{"CA", "WA"}},
+								&EQ{Key: ".person.org", Val: "B"},
+								&IN{Key: ".state", Vals: []interface{}{"CA", "WA"}},
 							},
 						},
 					},

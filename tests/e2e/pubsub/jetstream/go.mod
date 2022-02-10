@@ -2,11 +2,13 @@ module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 
 go 1.17
 
-require github.com/dapr/components-contrib v1.5.1
+require (
+	github.com/dapr/components-contrib v1.5.1
+	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
+)
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
-	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect

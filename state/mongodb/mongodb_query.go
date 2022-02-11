@@ -37,7 +37,7 @@ type Query struct {
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	// { <key>: <val> }
-	return fmt.Sprintf(`{ "value%s": %q }`, f.Key, f.Val), nil
+	return fmt.Sprintf(`{ "value.%s": %q }`, f.Key, f.Val), nil
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
@@ -45,7 +45,7 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	if len(f.Vals) == 0 {
 		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
 	}
-	str := fmt.Sprintf(`{ "value%s": { "$in": [ %q`, f.Key, f.Vals[0])
+	str := fmt.Sprintf(`{ "value.%s": { "$in": [ %q`, f.Key, f.Vals[0])
 	for _, v := range f.Vals[1:] {
 		str += fmt.Sprintf(", %q", v)
 	}
@@ -117,7 +117,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 			if s.Order == query.DESC {
 				order = -1
 			}
-			sort = append(sort, bson.E{Key: "value" + s.Key, Value: order})
+			sort = append(sort, bson.E{Key: "value." + s.Key, Value: order})
 		}
 		q.opts.SetSort(sort)
 	}

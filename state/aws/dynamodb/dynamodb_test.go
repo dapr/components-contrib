@@ -35,6 +35,12 @@ type mockedDynamoDB struct {
 	dynamodbiface.DynamoDBAPI
 }
 
+type DynmoDBItem struct {
+	Key               string `json:"key"`
+	Value             string `json:"value"`
+	TestAttributeName int64  `json:"testAttributeName"`
+}
+
 func (m *mockedDynamoDB) GetItem(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
 	return m.GetItemFn(input)
 }
@@ -290,15 +296,13 @@ func TestSet(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
-					assert.Equal(t, map[string]*dynamodb.AttributeValue{
-						"key": {
-							S: aws.String("key"),
-						},
-						"value": {
-							S: aws.String(`{"Value":"value"}`),
-						},
-					}, input.Item)
-					assert.Equal(t, len(input.Item), 2)
+					assert.Equal(t, len(input.Item), 3)
+					result := DynmoDBItem{}
+					dynamodbattribute.UnmarshalMap(input.Item, &result)
+					assert.Equal(t, result.Key, "someKey")
+					assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
+					assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
+					assert.Less(t, result.TestAttributeName, time.Now().Unix())
 
 					return &dynamodb.PutItemOutput{
 						Attributes: map[string]*dynamodb.AttributeValue{
@@ -309,11 +313,12 @@ func TestSet(t *testing.T) {
 					}, nil
 				},
 			},
+			ttlAttributeName: "testAttributeName",
 		}
 		req := &state.SetRequest{
-			Key: "key",
+			Key: "someKey",
 			Value: value{
-				Value: "value",
+				Value: "someValue",
 			},
 			Metadata: map[string]string{
 				"ttlInSeconds": "-1",
@@ -323,11 +328,6 @@ func TestSet(t *testing.T) {
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
-		type DynmoDBItem struct {
-			Key               string `json:"key"`
-			Value             string `json:"value"`
-			TestAttributeName int64  `json:"testAttributeName"`
-		}
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
@@ -537,6 +537,9 @@ func TestBulkSet(t *testing.T) {
 									"value": {
 										S: aws.String(`{"Value":"value1"}`),
 									},
+									"testAttributeName": {
+										N: aws.String(strconv.FormatInt(time.Now().Unix()-1, 10)),
+									},
 								},
 							},
 						},
@@ -560,7 +563,8 @@ func TestBulkSet(t *testing.T) {
 					}, nil
 				},
 			},
-			table: tableName,
+			table:            tableName,
+			ttlAttributeName: "testAttributeName",
 		}
 		req := []state.SetRequest{
 			{

@@ -307,7 +307,7 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 			return nil, nil
 		}
 		// DynamoDB expects an epoch timestamp in seconds
-		experationTime := time.Now().Unix() + parsedInt
+		expirationTime := time.Now().Unix() + parsedInt
 
 		return &experationTime, nil
 	}

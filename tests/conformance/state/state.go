@@ -435,33 +435,45 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("transaction-order", func(t *testing.T) {
+			firstKey := "key1"
+			firstValue := "value1"
+			secondKey := "key2"
+			secondValue := "value2"
+
 			operations := []state.TransactionalStateOperation{
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
-						Key:   "key1",
-						Value: "value1",
+						Key:   firstKey,
+						Value: firstValue,
 					},
 				},
 				{
 					Operation: state.Delete,
 					Request: state.DeleteRequest{
-						Key: "key1",
+						Key: firstKey,
 					},
 				},
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
-						Key:   "key2",
-						Value: "value2",
+						Key:   secondKey,
+						Value: secondValue,
 					},
 				},
+			}
+
+			expected := map[string][]byte{
+				firstKey:  []byte(nil),
+				secondKey: []byte(fmt.Sprintf("\"%s\"", secondValue)),
 			}
 
 			transactionStore := statestore.(state.TransactionalStore)
 
 			numRuns := 2
-			for n := 0; n < numRuns; n++ {
+			for i := 0; i < numRuns; i++ {
+				t.Logf("Iteration: %d\n", i+1)
+
 				err := transactionStore.Multi(&state.TransactionalStateRequest{
 					Operations: operations,
 					// For CosmosDB
@@ -471,26 +483,17 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				})
 				assert.Nil(t, err)
 
-				// validate values
-				res, err := statestore.Get(&state.GetRequest{
-					Key: "key1",
-					// For CosmosDB
-					Metadata: map[string]string{
-						"partitionKey": "myPartition",
-					},
-				})
-				assert.Nil(t, err)
-				assert.Empty(t, res)
-
-				res, err = statestore.Get(&state.GetRequest{
-					Key: "key2",
-					// For CosmosDB
-					Metadata: map[string]string{
-						"partitionKey": "myPartition",
-					},
-				})
-				assert.Nil(t, err)
-				assert.Equal(t, "\"value2\"", string(res.Data))
+				for k, v := range expected {
+					res, err := statestore.Get(&state.GetRequest{
+						Key: k,
+						// For CosmosDB
+						Metadata: map[string]string{
+							"partitionKey": "myPartition",
+						},
+					})
+					assert.Nil(t, err)
+					assert.Equal(t, v, res.Data)
+				}
 			}
 		})
 	} else {

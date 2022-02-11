@@ -459,35 +459,39 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			transactionStore := statestore.(state.TransactionalStore)
-			err := transactionStore.Multi(&state.TransactionalStateRequest{
-				Operations: operations,
-				// For CosmosDB
-				Metadata: map[string]string{
-					"partitionKey": "myPartition",
-				},
-			})
-			assert.Nil(t, err)
 
-			// validate values
-			res, err := statestore.Get(&state.GetRequest{
-				Key: "key1",
-				// For CosmosDB
-				Metadata: map[string]string{
-					"partitionKey": "myPartition",
-				},
-			})
-			assert.Nil(t, err)
-			assert.Empty(t, res)
+			numRuns := 2
+			for n := 0; n < numRuns; n++ {
+				err := transactionStore.Multi(&state.TransactionalStateRequest{
+					Operations: operations,
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
 
-			res, err = statestore.Get(&state.GetRequest{
-				Key: "key2",
-				// For CosmosDB
-				Metadata: map[string]string{
-					"partitionKey": "myPartition",
-				},
-			})
-			assert.Nil(t, err)
-			assert.Equal(t, "\"value2\"", string(res.Data))
+				// validate values
+				res, err := statestore.Get(&state.GetRequest{
+					Key: "key1",
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
+				assert.Empty(t, res)
+
+				res, err = statestore.Get(&state.GetRequest{
+					Key: "key2",
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
+				assert.Equal(t, "\"value2\"", string(res.Data))
+			}
 		})
 	} else {
 		// Check if transactional feature is NOT listed

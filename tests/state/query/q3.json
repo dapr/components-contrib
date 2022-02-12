@@ -3,23 +3,23 @@
         "AND": [
             {
                 "EQ": {
-                    ".person.org": "A"
+                    "person.org": "A"
                 }
             },
             {
                 "IN": {
-                    ".state":["CA", "WA"]
+                    "state":["CA", "WA"]
                 }
             }
         ]
     },
     "sort": [
         {
-            "key": ".state",
+            "key": "state",
             "order": "DESC"
         },
         {
-            "key": ".person.name"
+            "key": "person.name"
         }
     ]
 }

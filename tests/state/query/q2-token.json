@@ -2,7 +2,7 @@
 {
     "filter": {
         "EQ": {
-            "value.state": "CA"
+            "state": "CA"
         }
     },
     "page": {

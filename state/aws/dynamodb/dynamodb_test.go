@@ -56,11 +56,12 @@ func TestInit(t *testing.T) {
 	s := NewDynamoDBStateStore()
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"AccessKey":    "a",
-			"Region":       "eu-west-1",
-			"SecretKey":    "a",
-			"SessionToken": "a",
-			"Table":        "a",
+			"AccessKey":        "a",
+			"Region":           "eu-west-1",
+			"SecretKey":        "a",
+			"SessionToken":     "a",
+			"Table":            "a",
+			"TtlAttributeName": "a",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)
@@ -258,21 +259,75 @@ func TestSet(t *testing.T) {
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
 		type DynmoDBItem struct {
-			Key      string `json:"key"`
-			Value    string `json:"value"`
-			ExpireAt int64  `json:"expireAt"`
+			Key               string `json:"key"`
+			Value             string `json:"value"`
+			TestAttributeName int64  `json:"testAttributeName"`
 		}
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
-
 					assert.Equal(t, len(input.Item), 3)
 					result := DynmoDBItem{}
-					err = dynamodbattribute.UnmarshalMap(input.Item, &result)
+					dynamodbattribute.UnmarshalMap(input.Item, &result)
 					assert.Equal(t, result.Key, "someKey")
 					assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
-					assert.Greater(t, result.ExpireAt, time.Now().Unix()+180-1)
-					assert.Less(t, result.ExpireAt, time.Now().Unix()+180+1)
+					assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
+					assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+			ttlAttributeName: "testAttributeName",
+		}
+		req := &state.SetRequest{
+			Key: "someKey",
+			Value: value{
+				Value: "someValue",
+			},
+			Metadata: map[string]string{
+				"ttlInSeconds": "180",
+			},
+		}
+		err := ss.Set(req)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Un-successfully set item", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					return nil, fmt.Errorf("unable to put item")
+				},
+			},
+		}
+		req := &state.SetRequest{
+			Key: "key",
+			Value: value{
+				Value: "value",
+			},
+		}
+		err := ss.Set(req)
+		assert.NotNil(t, err)
+	})
+	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, map[string]*dynamodb.AttributeValue{
+						"key": {
+							S: aws.String("someKey"),
+						},
+						"value": {
+							S: aws.String(`{"Value":"someValue"}`),
+						},
+					}, input.Item)
+					assert.Equal(t, len(input.Item), 2)
 
 					return &dynamodb.PutItemOutput{
 						Attributes: map[string]*dynamodb.AttributeValue{
@@ -296,6 +351,7 @@ func TestSet(t *testing.T) {
 		err := ss.Set(req)
 		assert.Nil(t, err)
 	})
+
 	t.Run("Un-successfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
@@ -313,7 +369,7 @@ func TestSet(t *testing.T) {
 		err := ss.Set(req)
 		assert.NotNil(t, err)
 	})
-	t.Run("Un-successfully set item with ttl (invalid value)", func(t *testing.T) {
+	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
@@ -338,6 +394,7 @@ func TestSet(t *testing.T) {
 					}, nil
 				},
 			},
+			ttlAttributeName: "testAttributeName",
 		}
 		req := &state.SetRequest{
 			Key: "somekey",
@@ -484,7 +541,7 @@ func TestBulkSet(t *testing.T) {
 			client: &mockedDynamoDB{
 				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
 					expected := map[string][]*dynamodb.WriteRequest{}
-					// This might fail occasionally
+					// This might fail occasionally due to timestamp precision
 					timestamp := time.Now().Unix() + 90
 					expected[tableName] = []*dynamodb.WriteRequest{
 						{
@@ -496,7 +553,7 @@ func TestBulkSet(t *testing.T) {
 									"value": {
 										S: aws.String(`{"Value":"value1"}`),
 									},
-									"expireAt": {
+									"testAttributeName": {
 										N: aws.String(strconv.FormatInt(timestamp, 10)),
 									},
 								},
@@ -522,7 +579,8 @@ func TestBulkSet(t *testing.T) {
 					}, nil
 				},
 			},
-			table: tableName,
+			table:            tableName,
+			ttlAttributeName: "testAttributeName",
 		}
 		req := []state.SetRequest{
 			{

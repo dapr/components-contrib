@@ -31,17 +31,19 @@ import (
 
 // StateStore is a DynamoDB state store.
 type StateStore struct {
-	client dynamodbiface.DynamoDBAPI
-	table  string
+	client           dynamodbiface.DynamoDBAPI
+	table            string
+	ttlAttributeName string
 }
 
 type dynamoDBMetadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Table        string `json:"table"`
+	Region           string `json:"region"`
+	Endpoint         string `json:"endpoint"`
+	AccessKey        string `json:"accessKey"`
+	SecretKey        string `json:"secretKey"`
+	SessionToken     string `json:"sessionToken"`
+	Table            string `json:"table"`
+	TTLAttributeName string `json:"ttlAttributeName"`
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
@@ -63,6 +65,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 
 	d.client = client
 	d.table = meta.Table
+	d.ttlAttributeName = meta.TTLAttributeName
 
 	return nil
 }
@@ -134,8 +137,8 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 			"value": {
 				S: aws.String(value),
 			},
-			"expireAt": {
-				N: aws.String(strconv.FormatInt(int64(*ttl), 10)),
+			d.ttlAttributeName: {
+				N: aws.String(strconv.FormatInt(*ttl, 10)),
 			},
 		}
 	} else {
@@ -164,6 +167,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
 	for _, r := range req {
+		r := r // avoid G601
 		value, err := d.marshalToString(r.Value)
 		if err != nil {
 			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
@@ -182,8 +186,8 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 				"value": {
 					S: aws.String(value),
 				},
-				"expireAt": {
-					N: aws.String(strconv.FormatInt(int64(*ttl), 10)),
+				d.ttlAttributeName: {
+					N: aws.String(strconv.FormatInt(*ttl, 10)),
 				},
 			}
 		} else {
@@ -294,22 +298,24 @@ func (d *StateStore) marshalToString(v interface{}) (string, error) {
 	return jsoniterator.ConfigFastest.MarshalToString(v)
 }
 
-//Parse and process ttlInSeconds
+// Parse and process ttlInSeconds
 func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
-	if val, ok := req.Metadata["ttlInSeconds"]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		parsedInt := int64(parsedVal)
-		//To follow the spec
-		if parsedInt == -1 {
-			return nil, nil
-		}
-		// DynamoDB expects an epoch timestamp in seconds
-		expirationTime := time.Now().Unix() + parsedInt
+	// Only attempt to parse the value when TTL has been specified in component metadata
+	if d.ttlAttributeName != "" {
+		if val, ok := req.Metadata["ttlInSeconds"]; ok && val != "" {
+			parsedVal, err := strconv.ParseInt(val, 10, 0)
+			if err != nil {
+				return nil, err
+			}
+			// To follow the spec
+			if parsedVal == -1 {
+				return nil, nil
+			}
+			// DynamoDB expects an epoch timestamp in seconds
+			expirationTime := time.Now().Unix() + parsedVal
 
-		return &expirationTime, nil
+			return &expirationTime, nil
+		}
 	}
 
 	return nil, nil

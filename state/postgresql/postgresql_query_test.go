@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mongodb
+package postgresql
 
 import (
 	"encoding/json"
@@ -23,26 +23,34 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 )
 
-func TestMongoQuery(t *testing.T) {
+func TestPostgresqlQueryBuildQuery(t *testing.T) {
 	tests := []struct {
 		input string
 		query string
 	}{
 		{
 			input: "../../tests/state/query/q1.json",
-			query: ``,
+			query: "SELECT key, value, xmin as etag FROM state LIMIT 2",
 		},
 		{
 			input: "../../tests/state/query/q2.json",
-			query: `{ "value.state": "CA" }`,
+			query: "SELECT key, value, xmin as etag FROM state WHERE value->>'state'=$1 LIMIT 2",
+		},
+		{
+			input: "../../tests/state/query/q2-token.json",
+			query: "SELECT key, value, xmin as etag FROM state WHERE value->>'state'=$1 LIMIT 2 OFFSET 2",
 		},
 		{
 			input: "../../tests/state/query/q3.json",
-			query: `{ "$and": [ { "value.person.org": "A" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] }`,
+			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 AND (value->>'state'=$2 OR value->>'state'=$3)) ORDER BY value->>'state' DESC, value->'person'->>'name'",
 		},
 		{
 			input: "../../tests/state/query/q4.json",
-			query: `{ "$or": [ { "value.person.org": "A" }, { "$and": [ { "value.person.org": "B" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] } ] }`,
+			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 OR (value->'person'->>'org'=$2 AND (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
+		},
+		{
+			input: "../../tests/state/query/q5.json",
+			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 AND (value->'person'->>'name'=$2 OR (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
 		},
 	}
 	for _, test := range tests {

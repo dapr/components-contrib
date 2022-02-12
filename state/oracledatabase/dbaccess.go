@@ -11,19 +11,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package postgresql
+package oracledatabase
 
 import (
 	"github.com/dapr/components-contrib/state"
 )
 
-// dbAccess is a private interface which enables unit testing of PostgreSQL.
+// dbAccess is a private interface which enables unit testing of Oracle Database.
 type dbAccess interface {
 	Init(metadata state.Metadata) error
+	Ping() error
 	Set(req *state.SetRequest) error
 	Get(req *state.GetRequest) (*state.GetResponse, error)
 	Delete(req *state.DeleteRequest) error
 	ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error
-	Query(req *state.QueryRequest) (*state.QueryResponse, error)
-	Close() error // io.Closer
+	Close() error // io.Closer.
 }

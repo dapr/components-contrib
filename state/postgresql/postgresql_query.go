@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -10,47 +10,45 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package mongodb
+package postgresql
 
 import (
-	"context"
-	"encoding/json"
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/agrea/ptr"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
+	"github.com/dapr/kit/logger"
 )
 
 type Query struct {
 	query  string
-	filter interface{}
-	opts   *options.FindOptions
+	params []interface{}
+	limit  int
+	skip   *int64
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
-	// { <key>: <val> }
-	return fmt.Sprintf(`{ "value.%s": %q }`, f.Key, f.Val), nil
+	return q.whereFieldEqual(f.Key, f.Val), nil
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
-	// { $in: [ <val1>, <val2>, ... , <valN> ] }
 	if len(f.Vals) == 0 {
 		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
 	}
-	str := fmt.Sprintf(`{ "value.%s": { "$in": [ %q`, f.Key, f.Vals[0])
-	for _, v := range f.Vals[1:] {
-		str += fmt.Sprintf(", %q", v)
-	}
-	str += " ] } }"
 
+	str := "("
+	str += q.whereFieldEqual(f.Key, f.Vals[0])
+
+	for _, v := range f.Vals[1:] {
+		str += " OR "
+		str += q.whereFieldEqual(f.Key, v)
+	}
+	str += ")"
 	return str, nil
 }
 
@@ -60,6 +58,7 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		str string
 		err error
 	)
+
 	for _, fil := range filters {
 		switch f := fil.(type) {
 		case *query.EQ:
@@ -87,98 +86,127 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		}
 	}
 
-	return fmt.Sprintf(`{ "%s": [ %s ] }`, op, strings.Join(arr, ", ")), nil
+	sep := fmt.Sprintf(" %s ", op)
+
+	return fmt.Sprintf("(%s)", strings.Join(arr, sep)), nil
 }
 
 func (q *Query) VisitAND(f *query.AND) (string, error) {
-	// { $and: [ { <expression1> }, { <expression2> } , ... , { <expressionN> } ] }
-	return q.visitFilters("$and", f.Filters)
+	return q.visitFilters("AND", f.Filters)
 }
 
 func (q *Query) VisitOR(f *query.OR) (string, error) {
-	// { $or: [ { <expression1> }, { <expression2> } , ... , { <expressionN> } ] }
-	return q.visitFilters("$or", f.Filters)
+	return q.visitFilters("OR", f.Filters)
 }
 
 func (q *Query) Finalize(filters string, qq *query.Query) error {
-	q.query = filters
-	if len(filters) == 0 {
-		q.filter = bson.D{}
-	} else if err := bson.UnmarshalExtJSON([]byte(filters), false, &q.filter); err != nil {
-		return err
-	}
-	q.opts = options.Find()
+	q.query = fmt.Sprintf("SELECT key, value, xmin as etag FROM %s", tableName)
 
-	// sorting
+	if filters != "" {
+		q.query += fmt.Sprintf(" WHERE %s", filters)
+	}
+
 	if len(qq.Sort) > 0 {
-		sort := bson.D{}
-		for _, s := range qq.Sort {
-			order := 1 // ascending
-			if s.Order == query.DESC {
-				order = -1
+		q.query += " ORDER BY "
+
+		for sortIndex, sortItem := range qq.Sort {
+			if sortIndex > 0 {
+				q.query += ", "
 			}
-			sort = append(sort, bson.E{Key: "value." + s.Key, Value: order})
+			q.query += translateFieldToFilter(sortItem.Key)
+			if sortItem.Order != "" {
+				q.query += fmt.Sprintf(" %s", sortItem.Order)
+			}
 		}
-		q.opts.SetSort(sort)
 	}
-	// pagination
+
 	if qq.Page.Limit > 0 {
-		q.opts.SetLimit(int64(qq.Page.Limit))
+		q.query += fmt.Sprintf(" LIMIT %d", qq.Page.Limit)
+		q.limit = qq.Page.Limit
 	}
+
 	if len(qq.Page.Token) != 0 {
 		skip, err := strconv.ParseInt(qq.Page.Token, 10, 64)
 		if err != nil {
 			return err
 		}
-		q.opts.SetSkip(skip)
+		q.query += fmt.Sprintf(" OFFSET %d", skip)
+		q.skip = &skip
 	}
 
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]state.QueryItem, string, error) {
-	cur, err := collection.Find(ctx, q.filter, []*options.FindOptions{q.opts}...)
+func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, string, error) {
+	rows, err := db.Query(q.query, q.params...)
 	if err != nil {
 		return nil, "", err
 	}
-	defer cur.Close(ctx)
+	defer rows.Close()
+
 	ret := []state.QueryItem{}
-	for cur.Next(ctx) {
-		var item Item
-		if err = cur.Decode(&item); err != nil {
+	for rows.Next() {
+		var (
+			key  string
+			data []byte
+			etag int
+		)
+		if err = rows.Scan(&key, &data, &etag); err != nil {
 			return nil, "", err
 		}
 		result := state.QueryItem{
-			Key:  item.Key,
-			ETag: &item.Etag,
-		}
-
-		switch obj := item.Value.(type) {
-		case string:
-			result.Data = []byte(obj)
-		case primitive.D:
-			if result.Data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
-				result.Error = err.Error()
-			}
-		default:
-			if result.Data, err = json.Marshal(item.Value); err != nil {
-				result.Error = err.Error()
-			}
+			Key:  key,
+			Data: data,
+			ETag: ptr.String(strconv.Itoa(etag)),
 		}
 		ret = append(ret, result)
 	}
-	if err = cur.Err(); err != nil {
+
+	if err = rows.Err(); err != nil {
 		return nil, "", err
 	}
-	// set next query token only if limit is specified
+
 	var token string
-	if q.opts.Limit != nil && *q.opts.Limit != 0 {
+	if q.limit != 0 {
 		var skip int64
-		if q.opts.Skip != nil {
-			skip = *q.opts.Skip
+		if q.skip != nil {
+			skip = *q.skip
 		}
 		token = strconv.FormatInt(skip+int64(len(ret)), 10)
 	}
 
 	return ret, token, nil
+}
+
+func (q *Query) addParamValueAndReturnPosition(value interface{}) int {
+	q.params = append(q.params, fmt.Sprintf("%v", value))
+	return len(q.params)
+}
+
+func translateFieldToFilter(key string) string {
+	// add preceding "value"
+	key = "value." + key
+
+	fieldParts := strings.Split(key, ".")
+	filterField := fieldParts[0]
+	fieldParts = fieldParts[1:]
+
+	for fieldIndex, fieldPart := range fieldParts {
+		filterField += "->"
+
+		if fieldIndex+1 == len(fieldParts) {
+			filterField += ">"
+		}
+
+		filterField += fmt.Sprintf("'%s'", fieldPart)
+	}
+
+	return filterField
+}
+
+func (q *Query) whereFieldEqual(key string, value interface{}) string {
+	position := q.addParamValueAndReturnPosition(value)
+	filterField := translateFieldToFilter(key)
+	query := fmt.Sprintf("%s=$%v", filterField, position)
+	return query
 }

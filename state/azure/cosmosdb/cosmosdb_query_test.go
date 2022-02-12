@@ -72,7 +72,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		{
 			input: "../../../tests/state/query/q2.json",
 			query: documentdb.Query{
-				Query: "SELECT * FROM c WHERE c.state = @__param__0__",
+				Query: "SELECT * FROM c WHERE c['value'].state = @__param__0__",
 				Parameters: []documentdb.Parameter{
 					{
 						Name:  "@__param__0__",
@@ -84,7 +84,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		{
 			input: "../../../tests/state/query/q3.json",
 			query: documentdb.Query{
-				Query: "SELECT * FROM c WHERE c.person.org = @__param__0__ AND c.state IN (@__param__1__, @__param__2__) ORDER BY c.state DESC, c.person.name ASC",
+				Query: "SELECT * FROM c WHERE c['value'].person.org = @__param__0__ AND c['value'].state IN (@__param__1__, @__param__2__) ORDER BY c['value'].state DESC, c['value'].person.name ASC",
 				Parameters: []documentdb.Parameter{
 					{
 						Name:  "@__param__0__",
@@ -104,7 +104,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		{
 			input: "../../../tests/state/query/q4.json",
 			query: documentdb.Query{
-				Query: "SELECT * FROM c WHERE c.person.org = @__param__0__ OR (c.person.org = @__param__1__ AND c.state IN (@__param__2__, @__param__3__)) ORDER BY c.state DESC, c.person.name ASC",
+				Query: "SELECT * FROM c WHERE c['value'].person.org = @__param__0__ OR (c['value'].person.org = @__param__1__ AND c['value'].state IN (@__param__2__, @__param__3__)) ORDER BY c['value'].state DESC, c['value'].person.name ASC",
 				Parameters: []documentdb.Parameter{
 					{
 						Name:  "@__param__0__",

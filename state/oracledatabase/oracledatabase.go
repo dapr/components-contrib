@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package postgresql
+package oracledatabase
 
 import (
 	"fmt"
@@ -20,24 +20,24 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// PostgreSQL state store.
-type PostgreSQL struct {
+// Oracle Database state store.
+type OracleDatabase struct {
 	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
 }
 
-// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
-func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
-	dba := newPostgresDBAccess(logger)
+// NewOracleDatabaseStateStore creates a new instance of OracleDatabase state store.
+func NewOracleDatabaseStateStore(logger logger.Logger) *OracleDatabase {
+	dba := newOracleDatabaseAccess(logger)
 
-	return newPostgreSQLStateStore(logger, dba)
+	return newOracleDatabaseStateStore(logger, dba)
 }
 
-// newPostgreSQLStateStore creates a newPostgreSQLStateStore instance of a PostgreSQL state store.
+// newOracleDatabaseStateStore creates a newOracleDatabaseStateStore instance of an OracleDatabase state store.
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
-func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
-	return &PostgreSQL{
+func newOracleDatabaseStateStore(logger logger.Logger, dba dbAccess) *OracleDatabase {
+	return &OracleDatabase{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
 		dbaccess: dba,
@@ -45,52 +45,52 @@ func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 }
 
 // Init initializes the SQL server state store.
-func (p *PostgreSQL) Init(metadata state.Metadata) error {
-	return p.dbaccess.Init(metadata)
+func (o *OracleDatabase) Init(metadata state.Metadata) error {
+	return o.dbaccess.Init(metadata)
 }
 
-func (p *PostgreSQL) Ping() error {
-	return nil
+func (o *OracleDatabase) Ping() error {
+	return o.dbaccess.Ping()
 }
 
 // Features returns the features available in this state store.
-func (p *PostgreSQL) Features() []state.Feature {
-	return p.features
+func (o *OracleDatabase) Features() []state.Feature {
+	return o.features
 }
 
 // Delete removes an entity from the store.
-func (p *PostgreSQL) Delete(req *state.DeleteRequest) error {
-	return p.dbaccess.Delete(req)
+func (o *OracleDatabase) Delete(req *state.DeleteRequest) error {
+	return o.dbaccess.Delete(req)
 }
 
 // BulkDelete removes multiple entries from the store.
-func (p *PostgreSQL) BulkDelete(req []state.DeleteRequest) error {
-	return p.dbaccess.ExecuteMulti(nil, req)
+func (o *OracleDatabase) BulkDelete(req []state.DeleteRequest) error {
+	return o.dbaccess.ExecuteMulti(nil, req)
 }
 
 // Get returns an entity from store.
-func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return p.dbaccess.Get(req)
+func (o *OracleDatabase) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	return o.dbaccess.Get(req)
 }
 
 // BulkGet performs a bulks get operations.
-func (p *PostgreSQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance
+func (o *OracleDatabase) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	// TODO: replace with ExecuteMulti for performance.
 	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
-func (p *PostgreSQL) Set(req *state.SetRequest) error {
-	return p.dbaccess.Set(req)
+func (o *OracleDatabase) Set(req *state.SetRequest) error {
+	return o.dbaccess.Set(req)
 }
 
 // BulkSet adds/updates multiple entities on store.
-func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
-	return p.dbaccess.ExecuteMulti(req, nil)
+func (o *OracleDatabase) BulkSet(req []state.SetRequest) error {
+	return o.dbaccess.ExecuteMulti(req, nil)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
-func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
+func (o *OracleDatabase) Multi(request *state.TransactionalStateRequest) error {
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
 	for _, req := range request.Operations {
@@ -115,21 +115,16 @@ func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
 	}
 
 	if len(sets) > 0 || len(deletes) > 0 {
-		return p.dbaccess.ExecuteMulti(sets, deletes)
+		return o.dbaccess.ExecuteMulti(sets, deletes)
 	}
 
 	return nil
 }
 
-// Query executes a query against store.
-func (p *PostgreSQL) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
-	return p.dbaccess.Query(req)
-}
-
 // Close implements io.Closer.
-func (p *PostgreSQL) Close() error {
-	if p.dbaccess != nil {
-		return p.dbaccess.Close()
+func (o *OracleDatabase) Close() error {
+	if o.dbaccess != nil {
+		return o.dbaccess.Close()
 	}
 
 	return nil

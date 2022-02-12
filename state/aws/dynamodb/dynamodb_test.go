@@ -298,7 +298,7 @@ func TestSet(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("Un-successfully set item", func(t *testing.T) {
+	t.Run("Unsuccessfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
@@ -352,7 +352,7 @@ func TestSet(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("Un-successfully set item", func(t *testing.T) {
+	t.Run("Unsuccessfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
@@ -602,7 +602,7 @@ func TestBulkSet(t *testing.T) {
 		err := ss.BulkSet(req)
 		assert.Nil(t, err)
 	})
-	t.Run("Un-successfully set items", func(t *testing.T) {
+	t.Run("Unsuccessfully set items", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -646,7 +646,7 @@ func TestDelete(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("Un-successfully delete item", func(t *testing.T) {
+	t.Run("Unsuccessfully delete item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				DeleteItemFn: func(input *dynamodb.DeleteItemInput) (output *dynamodb.DeleteItemOutput, err error) {
@@ -709,7 +709,7 @@ func TestBulkDelete(t *testing.T) {
 		err := ss.BulkDelete(req)
 		assert.Nil(t, err)
 	})
-	t.Run("Un-successfully delete items", func(t *testing.T) {
+	t.Run("Unsuccessfully delete items", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {

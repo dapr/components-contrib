@@ -160,7 +160,10 @@ require (
 	github.com/alibabacloud-go/tea v1.1.17
 	github.com/dgrijalva/jwt-go v3.2.1-0.20210802184156-9742bd7fca1c+incompatible // indirect
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
+	github.com/sijms/go-ora/v2 v2.2.22
 )
+
+require github.com/nats-io/nkeys v0.3.0
 
 require (
 	github.com/99designs/keyring v1.1.5 // indirect
@@ -253,7 +256,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
-	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect

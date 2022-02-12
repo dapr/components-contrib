@@ -19,10 +19,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/dapr/components-contrib/state"
 	"github.com/nats-io/nats-server/v2/server"
 	natsserver "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
+
+	"github.com/dapr/components-contrib/state"
 )
 
 type tLogger interface {
@@ -46,12 +47,10 @@ func runDefaultServer() *server.Server {
 	return runServerOnPort(nats.DefaultPort)
 }
 
-// NewDefaultConnection
 func newDefaultConnection(t tLogger) *nats.Conn {
 	return newConnection(t, nats.DefaultPort)
 }
 
-// NewConnection forms connection on a given port.
 func newConnection(t tLogger, port int) *nats.Conn {
 	url := fmt.Sprintf("nats://127.0.0.1:%d", port)
 	nc, err := nats.Connect(url)

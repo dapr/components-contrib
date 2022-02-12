@@ -17,16 +17,17 @@ import (
 	"fmt"
 	"strings"
 
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	jsoniter "github.com/json-iterator/go"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 )
 
-// StateStore is a nats jetstream KV state store
+// StateStore is a nats jetstream KV state store.
 type StateStore struct {
 	state.DefaultBulkStore
 	nc     *nats.Conn
@@ -167,7 +168,7 @@ func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 	return sig, nil
 }
 
-// Escape dapr keys, because || is forbidden
+// Escape dapr keys, because || is forbidden.
 func escape(key string) string {
 	return strings.ReplaceAll(key, "||", ".")
 }

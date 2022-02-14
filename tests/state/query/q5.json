@@ -3,19 +3,19 @@
         "AND": [
             {
                 "EQ": {
-                    ".person.org": "A"
+                    "person.org": "A"
                 }
             },
             {
                 "OR": [
                     {
                         "EQ": {
-                            ".person.name": "B"
+                            "person.name": "B"
                         }
                     },
                     {
                         "IN": {
-                            ".state": ["CA", "WA"]
+                            "state": ["CA", "WA"]
                         }
                     }
                 ]
@@ -24,11 +24,11 @@
     },
     "sort": [
         {
-            "key": ".state",
+            "key": "state",
             "order": "DESC"
         },
         {
-            "key": ".person.name"
+            "key": "person.name"
         }
     ],
     "page": {

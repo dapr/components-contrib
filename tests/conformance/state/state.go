@@ -188,10 +188,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				"filter": {
 					"OR": [
 						{
-							"EQ": {".message": "dummy"}
+							"EQ": {"message": "dummy"}
 						},
 						{
-							"IN": {".message": ["` + key + `-test", "dummy"]}
+							"IN": {"message": ["` + key + `-test", "dummy"]}
 						}
 					]
 				}

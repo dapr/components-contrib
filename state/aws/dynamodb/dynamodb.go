@@ -105,9 +105,21 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, err
 	}
 
+	var ttl int64
+	if result.Item[d.ttlAttributeName] != nil {
+		if err = dynamodbattribute.Unmarshal(result.Item[d.ttlAttributeName], &ttl); err != nil {
+			return nil, err
+		}
+		if ttl <= time.Now().Unix() {
+			// Item has expired but DynamoDB didn't delete it yet
+			return &state.GetResponse{}, nil
+		}
+	}
+
 	return &state.GetResponse{
 		Data: []byte(output),
 	}, nil
+
 }
 
 // BulkGet performs a bulk get operations.

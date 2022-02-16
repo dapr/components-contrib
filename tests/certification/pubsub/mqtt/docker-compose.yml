@@ -1,0 +1,8 @@
+version: '2'
+services:
+  emqx:
+    image: emqx/emqx:4.2.7
+    hostname: emqx
+    container_name: emqx
+    ports:
+      - "1884:1883"

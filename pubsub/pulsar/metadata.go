@@ -21,4 +21,5 @@ type pulsarMetadata struct {
 	Tenant          string `json:"tenant"`
 	Namespace       string `json:"namespace"`
 	Persistent      bool   `json:"persistent"`
+	Token           string `json:"token"`
 }

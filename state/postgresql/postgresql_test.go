@@ -59,6 +59,10 @@ func (m *fakeDBaccess) ExecuteMulti(sets []state.SetRequest, deletes []state.Del
 	return nil
 }
 
+func (m *fakeDBaccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	return nil, nil
+}
+
 func (m *fakeDBaccess) Close() error {
 	return nil
 }

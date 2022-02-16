@@ -121,6 +121,11 @@ func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
 	return nil
 }
 
+// Query executes a query against store.
+func (p *PostgreSQL) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	return p.dbaccess.Query(req)
+}
+
 // Close implements io.Closer.
 func (p *PostgreSQL) Close() error {
 	if p.dbaccess != nil {

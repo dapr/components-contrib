@@ -1,0 +1,12 @@
+
+{
+    "filter": {
+        "EQ": {
+            "state": "CA"
+        }
+    },
+    "page": {
+        "limit": 2,
+        "token": "2"
+    }
+}

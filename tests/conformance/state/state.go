@@ -188,10 +188,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				"filter": {
 					"OR": [
 						{
-							"EQ": {"value.message": "dummy"}
+							"EQ": {"message": "dummy"}
 						},
 						{
-							"IN": {"value.message": ["` + key + `-test", "dummy"]}
+							"IN": {"message": ["` + key + `-test", "dummy"]}
 						}
 					]
 				}
@@ -261,8 +261,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				assert.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
 				for i := range scenario.results {
+					var expected, actual interface{}
+					err = json.Unmarshal(scenario.results[i].Data, &expected)
+					assert.NoError(t, err)
+					err = json.Unmarshal(resp.Results[i].Data, &actual)
+					assert.NoError(t, err)
 					assert.Equal(t, scenario.results[i].Key, resp.Results[i].Key)
-					assert.Equal(t, string(scenario.results[i].Data), string(resp.Results[i].Data))
+					assert.Equal(t, expected, actual)
 				}
 			}
 		})

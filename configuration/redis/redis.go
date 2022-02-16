@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/hashicorp/go-uuid"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/configuration"
@@ -260,7 +260,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	subscribeID, _ := uuid.GenerateUUID()
+	subscribeID := uuid.New().String()
 	if len(req.Keys) == 0 {
 		// subscribe all keys
 		stop := make(chan struct{})

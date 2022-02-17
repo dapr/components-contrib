@@ -32,7 +32,6 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0
 	github.com/andybalholm/brotli v1.0.1 // indirect
-	github.com/apache/pulsar-client-go v0.6.1-0.20211027182823-171ef578e91a
 	github.com/apache/rocketmq-client-go/v2 v2.1.0
 	github.com/apache/thrift v0.14.0 // indirect
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
@@ -80,7 +79,7 @@ require (
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
-	github.com/jackc/pgx/v4 v4.6.0
+	github.com/jackc/pgx/v4 v4.15.0
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jonboulle/clockwork v0.2.0 // indirect
 	github.com/json-iterator/go v1.1.11
@@ -187,6 +186,7 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
+	github.com/apache/pulsar-client-go v0.7.0
 	github.com/apache/pulsar-client-go/oauth2 v0.0.0-20201120111947-b8bd55bc02bd // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
@@ -210,7 +210,7 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
-	github.com/gofrs/uuid v3.2.0+incompatible // indirect
+	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -232,13 +232,13 @@ require (
 	github.com/hashicorp/go-uuid v1.0.1 // indirect
 	github.com/hashicorp/serf v0.8.2 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.5.0 // indirect
+	github.com/jackc/pgconn v1.11.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.0.1 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20200307190119-3430c5407db8 // indirect
-	github.com/jackc/pgtype v1.3.0 // indirect
-	github.com/jackc/puddle v1.1.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.2.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
+	github.com/jackc/pgtype v1.10.0 // indirect
+	github.com/jackc/puddle v1.2.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
@@ -246,7 +246,6 @@ require (
 	github.com/klauspost/compress v1.13.4 // indirect
 	github.com/lestrrat/go-file-rotatelogs v0.0.0-20180223000712-d3151e2a480f // indirect
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
-	github.com/lib/pq v1.9.0 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect

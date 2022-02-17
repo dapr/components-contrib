@@ -32,7 +32,6 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0
 	github.com/andybalholm/brotli v1.0.1 // indirect
-	github.com/apache/pulsar-client-go v0.6.1-0.20211027182823-171ef578e91a
 	github.com/apache/rocketmq-client-go/v2 v2.1.0
 	github.com/apache/thrift v0.14.0 // indirect
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
@@ -187,6 +186,7 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
+	github.com/apache/pulsar-client-go v0.7.0
 	github.com/apache/pulsar-client-go/oauth2 v0.0.0-20201120111947-b8bd55bc02bd // indirect
 	github.com/apache/rocketmq-client-go v1.2.5 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect

@@ -433,6 +433,69 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 		})
+
+		t.Run("transaction-order", func(t *testing.T) {
+			firstKey := "key1"
+			firstValue := "value1"
+			secondKey := "key2"
+			secondValue := "value2"
+
+			operations := []state.TransactionalStateOperation{
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   firstKey,
+						Value: firstValue,
+					},
+				},
+				{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key: firstKey,
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   secondKey,
+						Value: secondValue,
+					},
+				},
+			}
+
+			expected := map[string][]byte{
+				firstKey:  []byte(nil),
+				secondKey: []byte(fmt.Sprintf("\"%s\"", secondValue)),
+			}
+
+			transactionStore := statestore.(state.TransactionalStore)
+
+			numRuns := 2
+			for i := 0; i < numRuns; i++ {
+				t.Logf("Iteration: %d\n", i+1)
+
+				err := transactionStore.Multi(&state.TransactionalStateRequest{
+					Operations: operations,
+					// For CosmosDB
+					Metadata: map[string]string{
+						"partitionKey": "myPartition",
+					},
+				})
+				assert.Nil(t, err)
+
+				for k, v := range expected {
+					res, err := statestore.Get(&state.GetRequest{
+						Key: k,
+						// For CosmosDB
+						Metadata: map[string]string{
+							"partitionKey": "myPartition",
+						},
+					})
+					assert.Nil(t, err)
+					assert.Equal(t, v, res.Data)
+				}
+			}
+		})
 	} else {
 		// Check if transactional feature is NOT listed
 		features := statestore.Features()

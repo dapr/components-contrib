@@ -25,4 +25,4 @@ require (
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac // indirect
 )
 
-replace github.com/dapr/components-contrib => /go/src/github.com/dapr/components-contrib
+replace github.com/dapr/components-contrib => ../../../../

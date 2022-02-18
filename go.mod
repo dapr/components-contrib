@@ -133,11 +133,9 @@ require (
 	google.golang.org/genproto v0.0.0-20210707164411-8c882eb9abba
 	google.golang.org/grpc v1.39.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
-	gopkg.in/couchbase/gocb.v1 v1.6.4
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect
 	gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4 // indirect
-	gopkg.in/couchbaselabs/jsonx.v1 v1.0.0 // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/gorethink/gorethink.v4 v4.1.0 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
@@ -161,6 +159,10 @@ require (
 )
 
 require github.com/nats-io/nkeys v0.3.0
+
+require gopkg.in/couchbase/gocb.v1 v1.6.4
+
+require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
 
 require (
 	github.com/99designs/keyring v1.1.5 // indirect

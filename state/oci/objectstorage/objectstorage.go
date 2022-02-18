@@ -1,7 +1,15 @@
-// ------------------------------------------------------------
-// Copyright (c) Microsoft Corporation and Dapr Contributors.
-// Licensed under the MIT License.
-// ------------------------------------------------------------
+/*
+Copyright 2021 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package objectstorage
 
@@ -11,11 +19,16 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
+	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/oracle/oci-go-sdk/v54/common"
+	"github.com/oracle/oci-go-sdk/v54/common/auth"
 	"github.com/oracle/oci-go-sdk/v54/objectstorage"
 
 	"github.com/dapr/components-contrib/state"
@@ -23,14 +36,22 @@ import (
 )
 
 const (
-	keyDelimiter   = "||"
-	tenancyKey     = "tenancyOCID"
-	compartmentKey = "compartmentOCID"
-	regionKey      = "region"
-	fingerPrintKey = "fingerPrint"
-	privateKeyKey  = "privateKey"
-	userKey        = "userOCID"
-	bucketNameKey  = "bucketName"
+	keyDelimiter                       = "||"
+	instancePrincipalAuthenticationKey = "instancePrincipalAuthentication"
+	configFileAuthenticationKey        = "configFileAuthentication"
+	configFilePathKey                  = "configFilePath"
+	configFileProfileKey               = "configFileProfile"
+	tenancyKey                         = "tenancyOCID"
+	compartmentKey                     = "compartmentOCID"
+	regionKey                          = "region"
+	fingerPrintKey                     = "fingerPrint"
+	privateKeyKey                      = "privateKey"
+	userKey                            = "userOCID"
+	bucketNameKey                      = "bucketName"
+	metadataTTLKey                     = "ttlInSeconds"
+	daprStateStoreMetaLabel            = "dapr-state-store"
+	expiryTimeMetaLabel                = "expiry-time-from-ttl"
+	isoDateTimeFormat                  = "2006-01-02T15:04:05"
 )
 
 type StateStore struct {
@@ -43,19 +64,24 @@ type StateStore struct {
 }
 
 type Metadata struct {
-	userOCID               string
-	bucketName             string
-	region                 string
-	tenancyOCID            string
-	fingerPrint            string
-	privateKey             string
-	compartmentOCID        string
-	namespace              string
+	userOCID                        string
+	bucketName                      string
+	region                          string
+	tenancyOCID                     string
+	fingerPrint                     string
+	privateKey                      string
+	compartmentOCID                 string
+	namespace                       string
+	configFilePath                  string
+	configFileProfile               string
+	instancePrincipalAuthentication bool
+	configFileAuthentication        bool
+
 	OCIObjectStorageClient *objectstorage.ObjectStorageClient
 }
 
 type objectStoreClient interface {
-	getObject(ctx context.Context, objectname string, logger logger.Logger) ([]byte, *string, error)
+	getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error)
 	deleteObject(ctx context.Context, objectname string, etag *string) (err error)
 	putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string, logger logger.Logger) error
 	initStorageBucket(logger logger.Logger) error
@@ -147,38 +173,92 @@ func NewOCIObjectStorageStore(logger logger.Logger) *StateStore {
 
 /************** private helper functions. */
 
+func getValue(metadata map[string]string, key string, valueRequired bool) (value string, err error) {
+	if val, ok := metadata[key]; ok && val != "" {
+		return val, nil
+	}
+	if !valueRequired {
+		return "", nil
+	}
+	return "", fmt.Errorf("missing or empty %s field from metadata", key)
+}
+
+func getOptionalBooleanValue(metadata map[string]string, key string) (value bool, err error) {
+	stringValue, _ := getValue(metadata, key, false)
+	if stringValue == "" {
+		stringValue = "false"
+	}
+	value, err = strconv.ParseBool(stringValue)
+	if err != nil {
+		return false, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", stringValue, key)
+	}
+	return value, nil
+}
+
+func getConfigFilePath(meta map[string]string) (value string, err error) {
+	value, _ = getValue(meta, configFilePathKey, false)
+	if strings.HasPrefix(value, "~/") {
+		return "", fmt.Errorf("%s is set to %s which starts with ~/; this is not supported - please provide absolute path to configuration file", configFilePathKey, value)
+	}
+	if value != "" {
+		if _, err = os.Stat(value); err != nil {
+			if os.IsNotExist(err) {
+				return "", fmt.Errorf("oci configuration file %s does not exist %w", value, err)
+			}
+			return "", fmt.Errorf("error %w with reading oci configuration file %s", err, value)
+		}
+	}
+	return value, nil
+}
+
 func getObjectStorageMetadata(metadata map[string]string) (*Metadata, error) {
 	meta := Metadata{}
 	var err error
-	if meta.bucketName, err = getValue(metadata, bucketNameKey); err != nil {
+	if meta.instancePrincipalAuthentication, err = getOptionalBooleanValue(metadata, instancePrincipalAuthenticationKey); err != nil {
 		return nil, err
 	}
-	if meta.region, err = getValue(metadata, regionKey); err != nil {
+	if meta.configFileAuthentication, err = getOptionalBooleanValue(metadata, configFileAuthenticationKey); err != nil {
 		return nil, err
 	}
-	if meta.compartmentOCID, err = getValue(metadata, compartmentKey); err != nil {
+	if meta.configFileAuthentication {
+		if meta.configFilePath, err = getConfigFilePath(metadata); err != nil {
+			return nil, err
+		}
+		meta.configFileProfile, _ = getValue(metadata, configFileProfileKey, false)
+	}
+	if meta.bucketName, err = getValue(metadata, bucketNameKey, true); err != nil {
 		return nil, err
 	}
-	if meta.userOCID, err = getValue(metadata, userKey); err != nil {
+	if meta.compartmentOCID, err = getValue(metadata, compartmentKey, true); err != nil {
 		return nil, err
 	}
-	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey); err != nil {
-		return nil, err
-	}
-	if meta.privateKey, err = getValue(metadata, privateKeyKey); err != nil {
-		return nil, err
-	}
-	if meta.tenancyOCID, err = getValue(metadata, tenancyKey); err != nil {
-		return nil, err
+	externalAuthentication := meta.instancePrincipalAuthentication || meta.configFileAuthentication
+	if !externalAuthentication {
+		err = getIdentityAuthenticationDetails(metadata, &meta)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &meta, nil
 }
 
-func getValue(metadata map[string]string, key string) (string, error) {
-	if val, ok := metadata[key]; ok && val != "" {
-		return val, nil
+func getIdentityAuthenticationDetails(metadata map[string]string, meta *Metadata) (err error) {
+	if meta.region, err = getValue(metadata, regionKey, true); err != nil {
+		return err
 	}
-	return "", fmt.Errorf("missing or empty %s field from metadata", key)
+	if meta.userOCID, err = getValue(metadata, userKey, true); err != nil {
+		return err
+	}
+	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, true); err != nil {
+		return err
+	}
+	if meta.privateKey, err = getValue(metadata, privateKeyKey, true); err != nil {
+		return err
+	}
+	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, true); err != nil {
+		return err
+	}
+	return nil
 }
 
 // functions that bridge from the Dapr State API to the OCI ObjectStorage Client.
@@ -190,6 +270,12 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 		r.logger.Debugf("when FirstWrite is to be enforced, a value must be provided for the ETag")
 		return fmt.Errorf("when FirstWrite is to be enforced, a value must be provided for the ETag")
 	}
+	metadata := (map[string]string{"category": daprStateStoreMetaLabel})
+
+	err := convertTTLtoExpiryTime(req, r.logger, metadata)
+	if err != nil {
+		return fmt.Errorf("failed to process ttl meta data: %w", err)
+	}
 
 	r.logger.Debugf("Save state in OCI Object Storage Bucket under key %s ", req.Key)
 	objectName := getFileName(req.Key)
@@ -200,10 +286,26 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
 	}
-	err := r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), nil, etag, r.logger)
+	err = r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), metadata, etag, r.logger)
 	if err != nil {
 		r.logger.Debugf("error in writing object to OCI object storage  %s, err %s", req.Key, err)
 		return fmt.Errorf("failed to write object to OCI Object storage : %w", err)
+	}
+	return nil
+}
+
+func convertTTLtoExpiryTime(req *state.SetRequest, logger logger.Logger, metadata map[string]string) error {
+	ttl, ttlerr := parseTTL(req.Metadata)
+	if ttlerr != nil {
+		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+	}
+	if ttl != nil {
+		if *ttl == -1 {
+			logger.Debugf("TTL is set to -1; this means: never expire. ")
+		} else {
+			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
+			logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+		}
 	}
 	return nil
 }
@@ -214,10 +316,20 @@ func (r *StateStore) readDocument(req *state.GetRequest) ([]byte, *string, error
 	}
 	objectName := getFileName(req.Key)
 	ctx := context.Background()
-	content, etag, err := r.client.getObject(ctx, objectName, r.logger)
+	content, etag, meta, err := r.client.getObject(ctx, objectName, r.logger)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
 		return nil, nil, fmt.Errorf("failed to read object from OCI Object storage : %w", err)
+	}
+	if expiryTimeString, ok := meta[expiryTimeMetaLabel]; ok {
+		expirationTime, err := time.Parse(isoDateTimeFormat, expiryTimeString)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get object from OCI because of invalid formatted value %s in meta property %s  : %w", expiryTimeString, expiryTimeMetaLabel, err)
+		}
+		if time.Now().UTC().After(expirationTime) {
+			r.logger.Debug("failed to get object from OCI because it has expired; expiry time set to %s", expiryTimeString)
+			return nil, nil, nil
+		}
 	}
 	return content, etag, nil
 }
@@ -271,7 +383,21 @@ func getFileName(key string) string {
 		return pr[0]
 	}
 
-	return pr[1]
+	return path.Join(pr[0], pr[1])
+}
+
+func parseTTL(requestMetadata map[string]string) (*int, error) {
+	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
+		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("error in parsing ttl metadata : %w", err)
+		}
+		parsedInt := int(parsedVal)
+
+		return &parsedInt, nil
+	}
+
+	return nil, nil
 }
 
 /**************** functions with OCI ObjectStorage Service interaction.   */
@@ -326,7 +452,7 @@ func createBucket(ctx context.Context, client objectstorage.ObjectStorageClient,
 
 // *****  the functions that interact with OCI Object Storage AND constitute the objectStoreClient interface.
 
-func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string, logger logger.Logger) ([]byte, *string, error) {
+func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error) {
 	logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.bucketName)
 	request := objectstorage.GetObjectRequest{
 		NamespaceName: &c.objectStorageMetadata.namespace,
@@ -337,16 +463,13 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 	if err != nil {
 		logger.Debugf("Issue in OCI ObjectStorage with retrieving object %s, error:  %s", objectname, err)
 		if response.RawResponse.StatusCode == 404 {
-			return nil, nil, nil
+			return nil, nil, nil, nil
 		}
-		return nil, nil, fmt.Errorf("failed to retrieve object : %w", err)
-	}
-	if response.ETag != nil {
-		logger.Debugf("OCI ObjectStorage StateStore metadata:  ETag %s", *response.ETag)
+		return nil, nil, nil, fmt.Errorf("failed to retrieve object : %w", err)
 	}
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(response.Content)
-	return buf.Bytes(), response.ETag, nil
+	return buf.Bytes(), response.ETag, response.OpcMeta, nil
 }
 
 func (c *ociObjectStorageClient) deleteObject(ctx context.Context, objectname string, etag *string) (err error) {
@@ -391,7 +514,24 @@ func (c *ociObjectStorageClient) initStorageBucket(logger logger.Logger) error {
 }
 
 func (c *ociObjectStorageClient) initOCIObjectStorageClient(logger logger.Logger) (*objectstorage.ObjectStorageClient, error) {
-	configurationProvider := common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+	var configurationProvider common.ConfigurationProvider
+	if c.objectStorageMetadata.instancePrincipalAuthentication {
+		logger.Debugf("instance principal authentication is used. ")
+		var err error
+		configurationProvider, err = auth.InstancePrincipalConfigurationProvider()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get oci configurationprovider based on instance principal authentication : %w", err)
+		}
+	} else {
+		if c.objectStorageMetadata.configFileAuthentication {
+			logger.Debugf("configuration file based authentication is used with configuration file path %s and configuration profile %s. ", c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
+			configurationProvider = common.CustomProfileConfigProvider(c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
+		} else {
+			logger.Debugf("identity authentication is used with configuration provided through Dapr component configuration ")
+			configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+		}
+	}
+
 	objectStorageClient, cerr := objectstorage.NewObjectStorageClientWithConfigurationProvider(configurationProvider)
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to create ObjectStorageClient : %w", cerr)

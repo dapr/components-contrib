@@ -36,11 +36,12 @@ const (
 		b  BOOLEAN,
 		ts TIMESTAMP,
 		data LONGTEXT)`
-	testDropTable = `DROP TABLE foo`
-	testInsert    = "INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')"
-	testDelete    = "DELETE FROM foo"
-	testUpdate    = "UPDATE foo SET ts = '%v' WHERE id = %d"
-	testSelect    = "SELECT * FROM foo WHERE id < 3"
+	testDropTable         = `DROP TABLE foo`
+	testInsert            = "INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')"
+	testDelete            = "DELETE FROM foo"
+	testUpdate            = "UPDATE foo SET ts = '%v' WHERE id = %d"
+	testSelect            = "SELECT * FROM foo WHERE id < 3"
+	testSelectJSONExtract = "SELECT JSON_EXTRACT(data, '$.key') AS `key` FROM foo WHERE id < 3"
 )
 
 func TestOperations(t *testing.T) {
@@ -138,6 +139,22 @@ func TestMysqlIntegration(t *testing.T) {
 		tt, err = time.Parse("2006-01-02T15:04:05Z", ts)
 		assert.Nil(t, err)
 		t.Logf("time stamp is: %v", tt)
+	})
+
+	t.Run("Invoke select JSON_EXTRACT", func(t *testing.T) {
+		req.Operation = queryOperation
+		req.Metadata[commandSQLKey] = testSelectJSONExtract
+		res, err := b.Invoke(req)
+		assertResponse(t, res, err)
+		t.Logf("received result: %s", res.Data)
+
+		// verify json extract number
+		assert.Contains(t, string(res.Data), "{\"key\":\"\\\"val\\\"\"}")
+
+		result := make([]interface{}, 0)
+		err = json.Unmarshal(res.Data, &result)
+		assert.Nil(t, err)
+		assert.Equal(t, 3, len(result))
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {

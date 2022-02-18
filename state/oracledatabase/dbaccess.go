@@ -11,15 +11,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pulsar
+package oracledatabase
 
-type pulsarMetadata struct {
-	Host            string `json:"host"`
-	ConsumerID      string `json:"consumerID"`
-	EnableTLS       bool   `json:"enableTLS"`
-	DisableBatching bool   `json:"disableBatching"`
-	Tenant          string `json:"tenant"`
-	Namespace       string `json:"namespace"`
-	Persistent      bool   `json:"persistent"`
-	Token           string `json:"token"`
+import (
+	"github.com/dapr/components-contrib/state"
+)
+
+// dbAccess is a private interface which enables unit testing of Oracle Database.
+type dbAccess interface {
+	Init(metadata state.Metadata) error
+	Ping() error
+	Set(req *state.SetRequest) error
+	Get(req *state.GetRequest) (*state.GetResponse, error)
+	Delete(req *state.DeleteRequest) error
+	ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error
+	Close() error // io.Closer.
 }

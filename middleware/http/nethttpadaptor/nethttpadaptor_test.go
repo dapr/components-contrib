@@ -445,10 +445,10 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			"Duplicate headers are handled",
 			func() fasthttp.RequestHandler {
 				return func(ctx *fasthttp.RequestCtx) {
-					ctx.Response.Header.Add("Transfer-Encoding", "chunked")
-					ctx.Response.Header.Add("Transfer-Encoding", "compress")
-					ctx.Response.Header.Add("Transfer-Encoding", "deflate")
-					ctx.Response.Header.Add("Transfer-Encoding", "gzip")
+					ctx.Response.Header.Add("X-Transfer-Encoding", "chunked")
+					ctx.Response.Header.Add("X-Transfer-Encoding", "compress")
+					ctx.Response.Header.Add("X-Transfer-Encoding", "deflate")
+					ctx.Response.Header.Add("X-Transfer-Encoding", "gzip")
 				}
 			},
 			func() *http.Request {
@@ -457,7 +457,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 			func(t *testing.T, res *http.Response) {
 				encodings := res.TransferEncoding // TODO: How to set this property?
 				if encodings == nil {
-					encodings = res.Header["Transfer-Encoding"]
+					encodings = res.Header["X-Transfer-Encoding"]
 				}
 				var chunked, compress, deflate, gzip bool
 				for _, encoding := range encodings {

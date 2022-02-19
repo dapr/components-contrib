@@ -14,10 +14,13 @@ package dynamodb
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/stretchr/testify/assert"
 
@@ -30,6 +33,12 @@ type mockedDynamoDB struct {
 	DeleteItemFn     func(input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error)
 	BatchWriteItemFn func(input *dynamodb.BatchWriteItemInput) (*dynamodb.BatchWriteItemOutput, error)
 	dynamodbiface.DynamoDBAPI
+}
+
+type DynmoDBItem struct {
+	Key               string `json:"key"`
+	Value             string `json:"value"`
+	TestAttributeName int64  `json:"testAttributeName"`
 }
 
 func (m *mockedDynamoDB) GetItem(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
@@ -53,11 +62,12 @@ func TestInit(t *testing.T) {
 	s := NewDynamoDBStateStore()
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"AccessKey":    "a",
-			"Region":       "eu-west-1",
-			"SecretKey":    "a",
-			"SessionToken": "a",
-			"Table":        "a",
+			"AccessKey":        "a",
+			"Region":           "eu-west-1",
+			"SecretKey":        "a",
+			"SessionToken":     "a",
+			"Table":            "a",
+			"TtlAttributeName": "a",
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)
@@ -90,10 +100,10 @@ func TestGet(t *testing.T) {
 					return &dynamodb.GetItemOutput{
 						Item: map[string]*dynamodb.AttributeValue{
 							"key": {
-								S: aws.String("key"),
+								S: aws.String("someKey"),
 							},
 							"value": {
-								S: aws.String("value"),
+								S: aws.String("some value"),
 							},
 						},
 					}, nil
@@ -101,7 +111,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		req := &state.GetRequest{
-			Key:      "key",
+			Key:      "someKey",
 			Metadata: nil,
 			Options: state.GetStateOption{
 				Consistency: "strong",
@@ -109,7 +119,72 @@ func TestGet(t *testing.T) {
 		}
 		out, err := ss.Get(req)
 		assert.Nil(t, err)
-		assert.Equal(t, []byte("value"), out.Data)
+		assert.Equal(t, []byte("some value"), out.Data)
+
+	})
+	t.Run("Successfully retrieve item (with unexpired ttl)", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+					return &dynamodb.GetItemOutput{
+						Item: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("someKey"),
+							},
+							"value": {
+								S: aws.String("some value"),
+							},
+							"testAttributeName": {
+								N: aws.String("4074862051"),
+							},
+						},
+					}, nil
+				},
+			},
+			ttlAttributeName: "testAttributeName",
+		}
+		req := &state.GetRequest{
+			Key:      "someKey",
+			Metadata: nil,
+			Options: state.GetStateOption{
+				Consistency: "strong",
+			},
+		}
+		out, err := ss.Get(req)
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("some value"), out.Data)
+	})
+	t.Run("Successfully retrieve item (with expired ttl)", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+					return &dynamodb.GetItemOutput{
+						Item: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("someKey"),
+							},
+							"value": {
+								S: aws.String("some value"),
+							},
+							"testAttributeName": {
+								N: aws.String("35489251"),
+							},
+						},
+					}, nil
+				},
+			},
+			ttlAttributeName: "testAttributeName",
+		}
+		req := &state.GetRequest{
+			Key:      "someKey",
+			Metadata: nil,
+			Options: state.GetStateOption{
+				Consistency: "strong",
+			},
+		}
+		out, err := ss.Get(req)
+		assert.Nil(t, err)
+		assert.Nil(t, out.Data)
 	})
 	t.Run("Unsuccessfully get item", func(t *testing.T) {
 		ss := StateStore{
@@ -195,6 +270,7 @@ func TestSet(t *testing.T) {
 							S: aws.String(`{"Value":"value"}`),
 						},
 					}, input.Item)
+					assert.Equal(t, len(input.Item), 2)
 
 					return &dynamodb.PutItemOutput{
 						Attributes: map[string]*dynamodb.AttributeValue{
@@ -215,7 +291,79 @@ func TestSet(t *testing.T) {
 		err := ss.Set(req)
 		assert.Nil(t, err)
 	})
-	t.Run("Un-successfully set item", func(t *testing.T) {
+
+	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, len(input.Item), 3)
+					result := DynmoDBItem{}
+					dynamodbattribute.UnmarshalMap(input.Item, &result)
+					assert.Equal(t, result.Key, "someKey")
+					assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
+					assert.Greater(t, result.TestAttributeName, time.Now().Unix()-2)
+					assert.Less(t, result.TestAttributeName, time.Now().Unix())
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+			ttlAttributeName: "testAttributeName",
+		}
+		req := &state.SetRequest{
+			Key: "someKey",
+			Value: value{
+				Value: "someValue",
+			},
+			Metadata: map[string]string{
+				"ttlInSeconds": "-1",
+			},
+		}
+		err := ss.Set(req)
+		assert.Nil(t, err)
+	})
+	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, len(input.Item), 3)
+					result := DynmoDBItem{}
+					dynamodbattribute.UnmarshalMap(input.Item, &result)
+					assert.Equal(t, result.Key, "someKey")
+					assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
+					assert.Greater(t, result.TestAttributeName, time.Now().Unix()+180-1)
+					assert.Less(t, result.TestAttributeName, time.Now().Unix()+180+1)
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+			ttlAttributeName: "testAttributeName",
+		}
+		req := &state.SetRequest{
+			Key: "someKey",
+			Value: value{
+				Value: "someValue",
+			},
+			Metadata: map[string]string{
+				"ttlInSeconds": "180",
+			},
+		}
+		err := ss.Set(req)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Unsuccessfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
@@ -231,6 +379,82 @@ func TestSet(t *testing.T) {
 		}
 		err := ss.Set(req)
 		assert.NotNil(t, err)
+	})
+	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, map[string]*dynamodb.AttributeValue{
+						"key": {
+							S: aws.String("someKey"),
+						},
+						"value": {
+							S: aws.String(`{"Value":"someValue"}`),
+						},
+					}, input.Item)
+					assert.Equal(t, len(input.Item), 2)
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+		}
+		req := &state.SetRequest{
+			Key: "someKey",
+			Value: value{
+				Value: "someValue",
+			},
+			Metadata: map[string]string{
+				"ttlInSeconds": "180",
+			},
+		}
+		err := ss.Set(req)
+		assert.Nil(t, err)
+	})
+	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, map[string]*dynamodb.AttributeValue{
+						"key": {
+							S: aws.String("somekey"),
+						},
+						"value": {
+							S: aws.String(`{"Value":"somevalue"}`),
+						},
+						"ttlInSeconds": {
+							N: aws.String("180"),
+						},
+					}, input.Item)
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+			ttlAttributeName: "testAttributeName",
+		}
+		req := &state.SetRequest{
+			Key: "somekey",
+			Value: value{
+				Value: "somevalue",
+			},
+			Metadata: map[string]string{
+				"ttlInSeconds": "invalidvalue",
+			},
+		}
+		err := ss.Set(req)
+		assert.NotNil(t, err)
+		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
 }
 
@@ -297,7 +521,139 @@ func TestBulkSet(t *testing.T) {
 		err := ss.BulkSet(req)
 		assert.Nil(t, err)
 	})
-	t.Run("Un-successfully set items", func(t *testing.T) {
+	t.Run("Successfully set items with ttl = -1", func(t *testing.T) {
+		tableName := "table_name"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+					expected := map[string][]*dynamodb.WriteRequest{}
+					expected[tableName] = []*dynamodb.WriteRequest{
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key1"),
+									},
+									"value": {
+										S: aws.String(`{"Value":"value1"}`),
+									},
+									"testAttributeName": {
+										N: aws.String(strconv.FormatInt(time.Now().Unix()-1, 10)),
+									},
+								},
+							},
+						},
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key2"),
+									},
+									"value": {
+										S: aws.String(`{"Value":"value2"}`),
+									},
+								},
+							},
+						},
+					}
+					assert.Equal(t, expected, input.RequestItems)
+
+					return &dynamodb.BatchWriteItemOutput{
+						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
+					}, nil
+				},
+			},
+			table:            tableName,
+			ttlAttributeName: "testAttributeName",
+		}
+		req := []state.SetRequest{
+			{
+				Key: "key1",
+				Value: value{
+					Value: "value1",
+				},
+				Metadata: map[string]string{
+					"ttlInSeconds": "-1",
+				},
+			},
+			{
+				Key: "key2",
+				Value: value{
+					Value: "value2",
+				},
+			},
+		}
+		err := ss.BulkSet(req)
+		assert.Nil(t, err)
+	})
+	t.Run("Successfully set items with ttl", func(t *testing.T) {
+		tableName := "table_name"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+					expected := map[string][]*dynamodb.WriteRequest{}
+					// This might fail occasionally due to timestamp precision
+					timestamp := time.Now().Unix() + 90
+					expected[tableName] = []*dynamodb.WriteRequest{
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key1"),
+									},
+									"value": {
+										S: aws.String(`{"Value":"value1"}`),
+									},
+									"testAttributeName": {
+										N: aws.String(strconv.FormatInt(timestamp, 10)),
+									},
+								},
+							},
+						},
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String("key2"),
+									},
+									"value": {
+										S: aws.String(`{"Value":"value2"}`),
+									},
+								},
+							},
+						},
+					}
+					assert.Equal(t, expected, input.RequestItems)
+
+					return &dynamodb.BatchWriteItemOutput{
+						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
+					}, nil
+				},
+			},
+			table:            tableName,
+			ttlAttributeName: "testAttributeName",
+		}
+		req := []state.SetRequest{
+			{
+				Key: "key1",
+				Value: value{
+					Value: "value1",
+				},
+				Metadata: map[string]string{
+					"ttlInSeconds": "90",
+				},
+			},
+			{
+				Key: "key2",
+				Value: value{
+					Value: "value2",
+				},
+			},
+		}
+		err := ss.BulkSet(req)
+		assert.Nil(t, err)
+	})
+	t.Run("Unsuccessfully set items", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -341,7 +697,7 @@ func TestDelete(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("Un-successfully delete item", func(t *testing.T) {
+	t.Run("Unsuccessfully delete item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				DeleteItemFn: func(input *dynamodb.DeleteItemInput) (output *dynamodb.DeleteItemOutput, err error) {
@@ -404,7 +760,7 @@ func TestBulkDelete(t *testing.T) {
 		err := ss.BulkDelete(req)
 		assert.Nil(t, err)
 	})
-	t.Run("Un-successfully delete items", func(t *testing.T) {
+	t.Run("Unsuccessfully delete items", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {

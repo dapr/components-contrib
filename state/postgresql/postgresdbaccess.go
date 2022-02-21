@@ -131,12 +131,13 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW();`,
 			tableName), req.Key, value, isBinary)
 	} else {
-		// Convert req.ETag to integer for postgres compatibility
-		var etag int
-		etag, err = strconv.Atoi(*req.ETag)
+		// Convert req.ETag to uint32 for postgres XID compatibility
+		var etag64 uint64
+		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
+		etag := uint32(etag64)
 
 		// When an etag is provided do an update - no insert
 		result, err = p.db.Exec(fmt.Sprintf(
@@ -229,11 +230,13 @@ func (p *postgresDBAccess) deleteValue(req *state.DeleteRequest) error {
 	if req.ETag == nil {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
 	} else {
-		// Convert req.ETag to integer for postgres compatibility
-		etag, conversionError := strconv.Atoi(*req.ETag)
-		if conversionError != nil {
+		// Convert req.ETag to uint32 for postgres XID compatibility
+		var etag64 uint64
+		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
+		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
+		etag := uint32(etag64)
 
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
 	}

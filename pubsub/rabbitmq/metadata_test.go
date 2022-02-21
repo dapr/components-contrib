@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/streadway/amqp"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -63,6 +65,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, uint8(0), m.prefetchCount)
 		assert.Equal(t, int64(0), m.maxLen)
 		assert.Equal(t, int64(0), m.maxLenBytes)
+		assert.Equal(t, fanoutExchangeKind, m.exchangeKind)
 	})
 
 	t.Run("host is not given", func(t *testing.T) {
@@ -274,4 +277,40 @@ func TestCreateMetadata(t *testing.T) {
 			assert.Equal(t, tt.expected, m.enableDeadLetter)
 		})
 	}
+	validExchangeKind := []string{amqp.ExchangeDirect, amqp.ExchangeTopic, amqp.ExchangeFanout, amqp.ExchangeHeaders}
+
+	for _, exchangeKind := range validExchangeKind {
+		t.Run(fmt.Sprintf("exchangeKind value=%s", exchangeKind), func(t *testing.T) {
+			fakeProperties := getFakeProperties()
+
+			fakeMetaData := pubsub.Metadata{
+				Properties: fakeProperties,
+			}
+			fakeMetaData.Properties[metadataExchangeKind] = exchangeKind
+
+			// act
+			m, err := createMetadata(fakeMetaData)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+			assert.Equal(t, exchangeKind, m.exchangeKind)
+		})
+	}
+
+	t.Run("exchangeKind is invalid", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[metadataExchangeKind] = "invalid"
+
+		// act
+		_, err := createMetadata(fakeMetaData)
+
+		// assert
+		assert.Error(t, err)
+	})
 }

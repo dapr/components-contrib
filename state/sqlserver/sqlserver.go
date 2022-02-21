@@ -347,7 +347,7 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
 
-	// The order of unique key requests does not matter in an atomic transaction.
+	// The order of unique key operations does not matter in an atomic transaction.
 	// Only the latest operation for any unique key is selected for execution.
 	// The other operations are redundant, and hence ignored.
 	for i := len(request.Operations) - 1; i >= 0; i-- {

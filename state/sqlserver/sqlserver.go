@@ -342,10 +342,24 @@ func (s *SQLServer) Features() []state.Feature {
 }
 
 // Multi performs multiple updates on a Sql server store.
+// From the transaction request, only the most recent operation per key is applied.
+// Other operations are redundant, and therefore safe to remove. For example,
+//
+// Input transaction:
+//	upsert k1 v1 // redundant
+//	delete k1
+//	delete k2 // redundant
+// 	upsert k2 v2
+// Output transaction:
+//	delete k1
+// 	upsert k2 v2
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
+	keyMap := make(map[string]struct{})
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
-	for _, req := range request.Operations {
+
+	for i := len(request.Operations) - 1; i >= 0; i-- {
+		req := request.Operations[i]
 		switch req.Operation {
 		case state.Upsert:
 			setReq, err := s.getSets(req)
@@ -353,7 +367,11 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			sets = append(sets, setReq)
+			_, ok := keyMap[setReq.Key]
+			if !ok {
+				sets = append(sets, setReq)
+				keyMap[setReq.Key] = struct{}{}
+			}
 
 		case state.Delete:
 			delReq, err := s.getDeletes(req)
@@ -361,7 +379,11 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			deletes = append(deletes, delReq)
+			_, ok := keyMap[delReq.Key]
+			if !ok {
+				deletes = append(deletes, delReq)
+				keyMap[delReq.Key] = struct{}{}
+			}
 
 		default:
 			return fmt.Errorf("unsupported operation: %s", req.Operation)

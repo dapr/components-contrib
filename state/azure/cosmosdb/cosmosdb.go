@@ -376,11 +376,23 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	upserts := []CosmosItem{}
 	deletes := []CosmosItem{}
 
+	keyMap := make(map[string]struct{})
+
 	partitionKey := unknownPartitionKey
 
-	for _, o := range request.Operations {
+	// The order of unique key operations does not matter in an atomic transaction.
+	// Only the latest operation for any unique key is selected for execution.
+	// The other operations are redundant, and hence ignored.
+	for i := len(request.Operations) - 1; i >= 0; i-- {
+		o := request.Operations[i]
 		t := o.Request.(state.KeyInt)
 		key := t.GetKey()
+
+		_, ok := keyMap[key]
+		if ok {
+			continue
+		}
+		keyMap[key] = struct{}{}
 
 		partitionKey = populatePartitionMetadata(key, request.Metadata)
 		if o.Operation == state.Upsert {

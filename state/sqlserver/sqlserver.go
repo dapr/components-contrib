@@ -342,22 +342,14 @@ func (s *SQLServer) Features() []state.Feature {
 }
 
 // Multi performs multiple updates on a Sql server store.
-// From the transaction request, only the most recent operation per key is applied.
-// Other operations are redundant, and therefore safe to remove. For example,
-//
-// Input transaction:
-//	upsert k1 v1 // redundant
-//	delete k1
-//	delete k2 // redundant
-// 	upsert k2 v2
-// Output transaction:
-//	delete k1
-// 	upsert k2 v2
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 	keyMap := make(map[string]struct{})
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
 
+	// The order of unique key requests does not matter in an atomic transaction.
+	// Only the latest operation for any unique key is selected for execution.
+	// The other operations are redundant, and hence ignored.
 	for i := len(request.Operations) - 1; i >= 0; i-- {
 		req := request.Operations[i]
 		switch req.Operation {

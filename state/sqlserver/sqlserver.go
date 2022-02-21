@@ -432,8 +432,9 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 	}
 
 	if len(deletes) > 0 {
-		err = s.executeBulkDelete(tx, deletes)
-		if err != nil {
+		switch err = s.executeBulkDelete(tx, deletes); err.(type) {
+		case nil, *state.BulkDeleteRowMismatchError:
+		default:
 			tx.Rollback()
 
 			return err
@@ -545,7 +546,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 	}
 
 	if int(rows) != len(req) {
-		err = fmt.Errorf("delete affected only %d rows, expected %d", rows, len(req))
+		err = state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
 
 		return err
 	}

@@ -388,8 +388,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		t := o.Request.(state.KeyInt)
 		key := t.GetKey()
 
-		_, ok := keyMap[key]
-		if ok {
+		if _, ok := keyMap[key]; ok {
 			continue
 		}
 		keyMap[key] = struct{}{}

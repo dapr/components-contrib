@@ -780,6 +780,30 @@ func TestInvalidMultiSetRequest(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestInvalidMultiSetRequestNoKey(t *testing.T) {
+	// Arrange
+	t.Parallel()
+	m, _ := mockDatabase(t)
+	var ops []state.TransactionalStateOperation
+
+	ops = append(ops, state.TransactionalStateOperation{
+		Operation: state.Upsert,
+		Request: state.SetRequest{
+			// empty key is not valid for Upsert operation
+			Key:   "",
+			Value: "value1",
+		},
+	})
+
+	// Act
+	err := m.mySQL.Multi(&state.TransactionalStateRequest{
+		Operations: ops,
+	})
+
+	// Assert
+	assert.NotNil(t, err)
+}
+
 func TestValidMultiDeleteRequest(t *testing.T) {
 	// Arrange
 	t.Parallel()
@@ -823,6 +847,70 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 
 	// Assert
 	assert.NotNil(t, err)
+}
+
+func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
+	// Arrange
+	t.Parallel()
+	m, _ := mockDatabase(t)
+	var ops []state.TransactionalStateOperation
+
+	ops = append(ops, state.TransactionalStateOperation{
+		Operation: state.Delete,
+		Request: state.DeleteRequest{
+			// empty key is not valid for Delete operation
+			Key: "",
+		},
+	})
+
+	// Act
+	err := m.mySQL.Multi(&state.TransactionalStateRequest{
+		Operations: ops,
+	})
+
+	// Assert
+	assert.NotNil(t, err)
+}
+
+func TestMultiOperationOrder(t *testing.T) {
+	// Arrange
+	t.Parallel()
+	m, _ := mockDatabase(t)
+	var ops []state.TransactionalStateOperation
+
+	// In a transaction with multiple operations,
+	// the order of operations must be respected.
+	ops = append(ops,
+		state.TransactionalStateOperation{
+			Operation: state.Upsert,
+			Request:   state.SetRequest{Key: "k1", Value: "v1"},
+		},
+		state.TransactionalStateOperation{
+			Operation: state.Delete,
+			Request:   state.DeleteRequest{Key: "k1"},
+		},
+		state.TransactionalStateOperation{
+			Operation: state.Upsert,
+			Request:   state.SetRequest{Key: "k2", Value: "v2"},
+		},
+	)
+
+	// expected to run the delete operation first, followed by the upsert operation
+	m.mock1.ExpectBegin()
+	m.mock1.ExpectExec("DELETE FROM").WithArgs("k1").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectCommit()
+
+	// Act
+	err := m.mySQL.Multi(&state.TransactionalStateRequest{
+		Operations: ops,
+	})
+
+	// Assert
+	assert.Nil(t, err)
+
+	err = m.mock1.ExpectationsWereMet()
+	assert.Nil(t, err)
 }
 
 func createSetRequest() state.SetRequest {

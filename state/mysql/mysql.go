@@ -491,24 +491,36 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
 
-	for _, req := range request.Operations {
+	keyMap := make(map[string]struct{})
+
+	// The order of unique key operations does not matter in an atomic transaction.
+	// Only the latest operation for any unique key is selected for execution.
+	// The other operations are redundant, and hence ignored.
+	for i := len(request.Operations) - 1; i >= 0; i-- {
+		req := request.Operations[i]
 		switch req.Operation {
 		case state.Upsert:
-			setReq, ok := req.Request.(state.SetRequest)
+			setReq, err := m.getSets(req)
+			if err != nil {
+				return err
+			}
 
-			if ok {
+			_, ok := keyMap[setReq.Key]
+			if !ok {
 				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
+				keyMap[setReq.Key] = struct{}{}
 			}
 
 		case state.Delete:
-			delReq, ok := req.Request.(state.DeleteRequest)
+			delReq, err := m.getDeletes(req)
+			if err != nil {
+				return err
+			}
 
-			if ok {
+			_, ok := keyMap[delReq.Key]
+			if !ok {
 				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
+				keyMap[delReq.Key] = struct{}{}
 			}
 
 		default:
@@ -521,6 +533,34 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 	}
 
 	return nil
+}
+
+// Returns the set requests.
+func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
+	setReq, ok := req.Request.(state.SetRequest)
+	if !ok {
+		return setReq, fmt.Errorf("expecting set request")
+	}
+
+	if setReq.Key == "" {
+		return setReq, fmt.Errorf("missing key in upsert operation")
+	}
+
+	return setReq, nil
+}
+
+// Returns the delete requests.
+func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
+	delReq, ok := req.Request.(state.DeleteRequest)
+	if !ok {
+		return delReq, fmt.Errorf("expecting delete request")
+	}
+
+	if delReq.Key == "" {
+		return delReq, fmt.Errorf("missing key in upsert operation")
+	}
+
+	return delReq, nil
 }
 
 // BulkGet performs a bulks get operations.

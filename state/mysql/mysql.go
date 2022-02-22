@@ -505,8 +505,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			_, ok := keyMap[setReq.Key]
-			if !ok {
+			if _, ok := keyMap[setReq.Key]; !ok {
 				sets = append(sets, setReq)
 				keyMap[setReq.Key] = struct{}{}
 			}
@@ -517,8 +516,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			_, ok := keyMap[delReq.Key]
-			if !ok {
+			if _, ok := keyMap[delReq.Key]; !ok {
 				deletes = append(deletes, delReq)
 				keyMap[delReq.Key] = struct{}{}
 			}

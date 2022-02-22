@@ -343,9 +343,15 @@ func (s *SQLServer) Features() []state.Feature {
 
 // Multi performs multiple updates on a Sql server store.
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
+	keyMap := make(map[string]struct{})
 	var sets []state.SetRequest
 	var deletes []state.DeleteRequest
-	for _, req := range request.Operations {
+
+	// The order of unique key operations does not matter in an atomic transaction.
+	// Only the latest operation for any unique key is selected for execution.
+	// The other operations are redundant, and hence ignored.
+	for i := len(request.Operations) - 1; i >= 0; i-- {
+		req := request.Operations[i]
 		switch req.Operation {
 		case state.Upsert:
 			setReq, err := s.getSets(req)
@@ -353,7 +359,11 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			sets = append(sets, setReq)
+			_, ok := keyMap[setReq.Key]
+			if !ok {
+				sets = append(sets, setReq)
+				keyMap[setReq.Key] = struct{}{}
+			}
 
 		case state.Delete:
 			delReq, err := s.getDeletes(req)
@@ -361,7 +371,11 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			deletes = append(deletes, delReq)
+			_, ok := keyMap[delReq.Key]
+			if !ok {
+				deletes = append(deletes, delReq)
+				keyMap[delReq.Key] = struct{}{}
+			}
 
 		default:
 			return fmt.Errorf("unsupported operation: %s", req.Operation)
@@ -410,8 +424,9 @@ func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.Delete
 	}
 
 	if len(deletes) > 0 {
-		err = s.executeBulkDelete(tx, deletes)
-		if err != nil {
+		switch err = s.executeBulkDelete(tx, deletes); err.(type) {
+		case nil, *state.BulkDeleteRowMismatchError:
+		default:
 			tx.Rollback()
 
 			return err
@@ -523,7 +538,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 	}
 
 	if int(rows) != len(req) {
-		err = fmt.Errorf("delete affected only %d rows, expected %d", rows, len(req))
+		err = state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
 
 		return err
 	}

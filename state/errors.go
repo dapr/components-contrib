@@ -62,3 +62,21 @@ func NewETagError(kind ETagErrorKind, err error) *ETagError {
 		kind: kind,
 	}
 }
+
+// BulkDeleteRowMismatchError represents mismatch in rowcount while deleting rows.
+type BulkDeleteRowMismatchError struct {
+	expected uint64
+	affected uint64
+}
+
+func (e *BulkDeleteRowMismatchError) Error() string {
+	return fmt.Sprintf("delete affected only %d rows, expected %d", e.affected, e.expected)
+}
+
+// BulkDeleteRowMismatchError returns a BulkDeleteRowMismatchError.
+func NewBulkDeleteRowMismatchError(expected, affected uint64) *BulkDeleteRowMismatchError {
+	return &BulkDeleteRowMismatchError{
+		expected: expected,
+		affected: affected,
+	}
+}

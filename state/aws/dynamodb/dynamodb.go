@@ -111,7 +111,7 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 			return nil, err
 		}
 		if ttl <= time.Now().Unix() {
-			// Item has expired but DynamoDB didn't delete it yet
+			// Item has expired but DynamoDB didn't delete it yet.
 			return &state.GetResponse{}, nil
 		}
 	}
@@ -178,7 +178,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
 	for _, r := range req {
-		r := r // avoid G601
+		r := r // avoid G601.
 		value, err := d.marshalToString(r.Value)
 		if err != nil {
 			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
@@ -309,16 +309,16 @@ func (d *StateStore) marshalToString(v interface{}) (string, error) {
 	return jsoniterator.ConfigFastest.MarshalToString(v)
 }
 
-// Parse and process ttlInSeconds
+// Parse and process ttlInSeconds.
 func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
-	// Only attempt to parse the value when TTL has been specified in component metadata
+	// Only attempt to parse the value when TTL has been specified in component metadata.
 	if d.ttlAttributeName != "" {
 		if val, ok := req.Metadata["ttlInSeconds"]; ok && val != "" {
 			parsedVal, err := strconv.ParseInt(val, 10, 0)
 			if err != nil {
 				return nil, err
 			}
-			// DynamoDB expects an epoch timestamp in seconds
+			// DynamoDB expects an epoch timestamp in seconds.
 			expirationTime := time.Now().Unix() + parsedVal
 
 			return &expirationTime, nil

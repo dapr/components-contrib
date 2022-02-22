@@ -591,7 +591,7 @@ func TestBulkSet(t *testing.T) {
 			client: &mockedDynamoDB{
 				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
 					expected := map[string][]*dynamodb.WriteRequest{}
-					// This might fail occasionally due to timestamp precision
+					// This might fail occasionally due to timestamp precision.
 					timestamp := time.Now().Unix() + 90
 					expected[tableName] = []*dynamodb.WriteRequest{
 						{

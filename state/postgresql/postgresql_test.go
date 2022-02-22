@@ -27,10 +27,11 @@ const (
 
 // Fake implementation of interface postgressql.dbaccess.
 type fakeDBaccess struct {
-	logger       logger.Logger
-	initExecuted bool
-	setExecuted  bool
-	getExecuted  bool
+	logger         logger.Logger
+	initExecuted   bool
+	setExecuted    bool
+	getExecuted    bool
+	deleteExecuted bool
 }
 
 func (m *fakeDBaccess) Init(metadata state.Metadata) error {
@@ -52,10 +53,20 @@ func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
+	m.deleteExecuted = true
+
 	return nil
 }
 
 func (m *fakeDBaccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+	for _, delete := range deletes {
+		m.Delete(&delete)
+	}
+
+	for _, set := range sets {
+		m.Set(&set)
+	}
+
 	return nil
 }
 
@@ -132,6 +143,22 @@ func TestInvalidMultiSetRequest(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestInvalidMultiSetRequestNoKey(t *testing.T) {
+	t.Parallel()
+	var operations []state.TransactionalStateOperation
+
+	operations = append(operations, state.TransactionalStateOperation{
+		Operation: state.Upsert,
+		Request:   state.SetRequest{Value: "value1"}, // Set request without key is not valid for Upsert operation
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
+	assert.NotNil(t, err)
+}
+
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
 	var operations []state.TransactionalStateOperation
@@ -162,6 +189,49 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 		Operations: operations,
 	})
 	assert.NotNil(t, err)
+}
+
+func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
+	t.Parallel()
+	var operations []state.TransactionalStateOperation
+
+	operations = append(operations, state.TransactionalStateOperation{
+		Operation: state.Delete,
+		Request:   state.DeleteRequest{}, // Delete request without key is not valid for Delete operation
+	})
+
+	pgs := createPostgreSQL(t)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
+	assert.NotNil(t, err)
+}
+
+func TestMultiOperationOrder(t *testing.T) {
+	t.Parallel()
+	var operations []state.TransactionalStateOperation
+
+	operations = append(operations,
+		state.TransactionalStateOperation{
+			Operation: state.Upsert,
+			Request:   state.SetRequest{Key: "key1", Value: "value1"},
+		},
+		state.TransactionalStateOperation{
+			Operation: state.Delete,
+			Request:   state.DeleteRequest{Key: "key1"},
+		},
+	)
+
+	pgs, fakeDb := createPostgreSQLWithFake(t)
+	err := pgs.Multi(&state.TransactionalStateRequest{
+		Operations: operations,
+	})
+	assert.Nil(t, err)
+
+	// because delete operation comes after upsert for key1,
+	// only delete should be executed.
+	assert.False(t, fakeDb.setExecuted)
+	assert.True(t, fakeDb.deleteExecuted)
 }
 
 func createSetRequest() state.SetRequest {

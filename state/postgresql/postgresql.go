@@ -93,20 +93,35 @@ func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
 func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
-	for _, req := range request.Operations {
+
+	keyMap := make(map[string]struct{})
+
+	// The order of unique key operations does not matter in an atomic transaction.
+	// Only the latest operation for any unique key is selected for execution.
+	// The other operations are redundant, and hence ignored.
+	for i := len(request.Operations) - 1; i >= 0; i-- {
+		req := request.Operations[i]
 		switch req.Operation {
 		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
+			setReq, err := p.getSets(req)
+			if err != nil {
+				return err
+			}
+
+			if _, ok := keyMap[setReq.Key]; !ok {
 				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
+				keyMap[setReq.Key] = struct{}{}
 			}
 
 		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
+			delReq, err := p.getDeletes(req)
+			if err != nil {
+				return err
+			}
+
+			if _, ok := keyMap[delReq.Key]; !ok {
 				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
+				keyMap[delReq.Key] = struct{}{}
 			}
 
 		default:
@@ -119,6 +134,34 @@ func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
 	}
 
 	return nil
+}
+
+// Returns the set requests.
+func (p *PostgreSQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
+	setReq, ok := req.Request.(state.SetRequest)
+	if !ok {
+		return setReq, fmt.Errorf("expecting set request")
+	}
+
+	if setReq.Key == "" {
+		return setReq, fmt.Errorf("missing key in upsert operation")
+	}
+
+	return setReq, nil
+}
+
+// Returns the delete requests.
+func (p *PostgreSQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
+	delReq, ok := req.Request.(state.DeleteRequest)
+	if !ok {
+		return delReq, fmt.Errorf("expecting delete request")
+	}
+
+	if delReq.Key == "" {
+		return delReq, fmt.Errorf("missing key in upsert operation")
+	}
+
+	return delReq, nil
 }
 
 // Query executes a query against store.

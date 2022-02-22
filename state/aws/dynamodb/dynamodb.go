@@ -119,7 +119,6 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return &state.GetResponse{
 		Data: []byte(output),
 	}, nil
-
 }
 
 // BulkGet performs a bulk get operations.

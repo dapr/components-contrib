@@ -120,7 +120,6 @@ func TestGet(t *testing.T) {
 		out, err := ss.Get(req)
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
-
 	})
 	t.Run("Successfully retrieve item (with unexpired ttl)", func(t *testing.T) {
 		ss := StateStore{

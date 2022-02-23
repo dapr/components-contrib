@@ -1882,6 +1882,7 @@ gopkg.in/couchbase/gocbcore.v7 v7.1.18/go.mod h1:48d2Be0MxRtsyuvn+mWzqmoGUG9uA00
 gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4/go.mod h1:ZjII0iKx4Veo6N6da+pEZu/ptNyKLg9QTVt7fFmR6sw=
 gopkg.in/couchbaselabs/gojcbmock.v1 v1.0.4/go.mod h1:jl/gd/aQ2S8whKVSTnsPs6n7BPeaAuw9UglBD/OF7eo=
 gopkg.in/couchbaselabs/jsonx.v1 v1.0.0/go.mod h1:oR201IRovxvLW/eISevH12/+MiKHtNQAKfcX8iWZvJY=
+gopkg.in/couchbaselabs/jsonx.v1 v1.0.1/go.mod h1:oR201IRovxvLW/eISevH12/+MiKHtNQAKfcX8iWZvJY=
 gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
 gopkg.in/fatih/pool.v2 v2.0.0/go.mod h1:8xVGeu1/2jr2wm5V9SPuMht2H5AEmf5aFMGSQixtjTY=
 gopkg.in/fsnotify.v1 v1.4.7/go.mod h1:Tz8NjZHkW78fSQdbUxIjBTcgA1z1m8ZHf0WmKUhAMys=

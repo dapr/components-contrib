@@ -37,6 +37,7 @@ type metadata struct {
 	concurrency      pubsub.ConcurrencyMode
 	maxLen           int64
 	maxLenBytes      int64
+	exchangeKind     string
 }
 
 // createMetadata creates a new instance from the pubsub metadata.
@@ -46,6 +47,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		deleteWhenUnused: true,
 		autoAck:          false,
 		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
+		exchangeKind:     fanoutExchangeKind,
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataHostKey]; found && val != "" {
@@ -121,6 +123,14 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataExchangeKind]; found && val != "" {
+		if exchangeKindValid(val) {
+			result.exchangeKind = val
+		} else {
+			return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, val)
+		}
+	}
+
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)
 	if err != nil {
 		return &result, err
@@ -142,4 +152,8 @@ func (m *metadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
 	}
 
 	return origin
+}
+
+func exchangeKindValid(kind string) bool {
+	return kind == amqp.ExchangeFanout || kind == amqp.ExchangeTopic || kind == amqp.ExchangeDirect || kind == amqp.ExchangeHeaders
 }

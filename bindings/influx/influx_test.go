@@ -97,7 +97,6 @@ func TestInflux_Invoke_BindingCreateOperation(t *testing.T) {
 		assert.Equal(t, test.want.resp, resp)
 		assert.Equal(t, test.want.err, err)
 	}
-
 }
 
 func TestInflux_Invoke_BindingInvalidOperation(t *testing.T) {
@@ -120,7 +119,6 @@ func TestInflux_Invoke_BindingInvalidOperation(t *testing.T) {
 		assert.Equal(t, test.want.resp, resp)
 		assert.Equal(t, test.want.err, err)
 	}
-
 }
 
 func TestInflux_Invoke_BindingQueryOperation(t *testing.T) {

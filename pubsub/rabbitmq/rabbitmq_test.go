@@ -31,8 +31,7 @@ const (
 	testMetadataConsumerIDValue = "consumer"
 )
 
-type FakeAcknowledger struct {
-}
+type FakeAcknowledger struct{}
 
 func (a FakeAcknowledger) Ack(tag uint64, multiple bool) error {
 	return nil
@@ -41,6 +40,7 @@ func (a FakeAcknowledger) Ack(tag uint64, multiple bool) error {
 func (a FakeAcknowledger) Nack(tag uint64, multiple bool, requeue bool) error {
 	return nil
 }
+
 func (a FakeAcknowledger) Reject(tag uint64, requeue bool) error {
 	return nil
 }

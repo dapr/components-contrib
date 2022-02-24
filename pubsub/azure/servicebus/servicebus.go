@@ -70,6 +70,20 @@ const (
 	defaultPublishInitialRetryInternalInMs = 500
 )
 
+var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
+	"com.microsoft:server-busy'":             {},
+	amqp.ErrorResourceLimitExceeded:          {},
+	amqp.ErrorResourceLocked:                 {},
+	amqp.ErrorTransferLimitExceeded:          {},
+	amqp.ErrorInternalError:                  {},
+	amqp.ErrorIllegalState:                   {},
+	"com.microsoft:message-lock-lost":        {},
+	"com.microsoft:session-cannot-be-locked": {},
+	"com.microsoft:timeout":                  {},
+	"com.microsoft:session-lock-lost":        {},
+	"com.microsoft:store-lock-lost":          {},
+}
+
 type handle = struct{}
 
 type azureServiceBus struct {
@@ -363,20 +377,6 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 		err := sender.Send(ctx, msg)
 		if err == nil {
 			return nil
-		}
-
-		retriableSendingErrors := map[amqp.ErrorCondition]struct{}{
-			"com.microsoft:server-busy'":             {},
-			amqp.ErrorResourceLimitExceeded:          {},
-			amqp.ErrorResourceLocked:                 {},
-			amqp.ErrorTransferLimitExceeded:          {},
-			amqp.ErrorInternalError:                  {},
-			amqp.ErrorIllegalState:                   {},
-			"com.microsoft:message-lock-lost":        {},
-			"com.microsoft:session-cannot-be-locked": {},
-			"com.microsoft:timeout":                  {},
-			"com.microsoft:session-lock-lost":        {},
-			"com.microsoft:store-lock-lost":          {},
 		}
 
 		var amqpError *amqp.Error

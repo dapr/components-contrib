@@ -364,9 +364,26 @@ func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebu
 		if err == nil {
 			return nil
 		}
-		var ampqError *amqp.Error
-		if errors.As(err, &ampqError) && ampqError.Condition == "com.microsoft:server-busy" {
-			return ampqError // Retries.
+
+		retriableSendingErrors := map[amqp.ErrorCondition]struct{}{
+			"com.microsoft:server-busy'":             {},
+			amqp.ErrorResourceLimitExceeded:          {},
+			amqp.ErrorResourceLocked:                 {},
+			amqp.ErrorTransferLimitExceeded:          {},
+			amqp.ErrorInternalError:                  {},
+			amqp.ErrorIllegalState:                   {},
+			"com.microsoft:message-lock-lost":        {},
+			"com.microsoft:session-cannot-be-locked": {},
+			"com.microsoft:timeout":                  {},
+			"com.microsoft:session-lock-lost":        {},
+			"com.microsoft:store-lock-lost":          {},
+		}
+
+		var amqpError *amqp.Error
+		if errors.As(err, &amqpError) {
+			if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
+				return amqpError // Retries.
+			}
 		}
 		var connClosedError azservicebus.ErrConnectionClosed
 		if errors.As(err, &connClosedError) {
@@ -459,9 +476,9 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.metadata.MaxActiveMessagesRecoveryInSec)
 			if innerErr != nil {
 				var detachError *amqp.DetachError
-				var ampqError *amqp.Error
+				var amqpError *amqp.Error
 				if errors.Is(innerErr, detachError) ||
-					(errors.As(innerErr, &ampqError) && ampqError.Condition == amqp.ErrorDetachForced) {
+					(errors.As(innerErr, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
 					a.logger.Debug(innerErr)
 				} else {
 					a.logger.Error(innerErr)

@@ -20,9 +20,14 @@ function dapr_multi_v2(operations) {
     }
 
     var context = getContext();
-    var container = context.getCollection();
+    var collection = context.getCollection();
+    var collectionLink = collection.getSelfLink();
     var response = context.getResponse();
-    var collectionLink = container.getSelfLink();
+
+    // Upserts do not reflect until the transaction is committed,
+    // as a result of which SELECT will not return the new values.
+    // We need to store document URLs (_self) in order to do deletions.
+    var documentMap = {}
 
     var operationCount = 0;
     if (operations.length > 0) {
@@ -35,41 +40,79 @@ function dapr_multi_v2(operations) {
                 tryCreate(operation["item"], callback);
                 break;
             case "delete":
-                tryDelete(operation["item"], callback);
+                tryQueryAndDelete(operation["item"], callback);
                 break;
             default:
                 throw new Error("operation type not supported - should be 'upsert' or 'delete'");
         }
     }
 
-    function tryCreate(doc, callback) {        
-        var isAccepted = container.upsertDocument(collectionLink, doc, callback);
-        
-        // fail if we hit execution bounds
-        if (!isAccepted) {                        
+    function tryCreate(doc, callback) {
+        var isAccepted = collection.upsertDocument(collectionLink, doc, callback);
+
+        // Fail if we hit execution bounds.
+        if (!isAccepted) {
             throw new Error("upsertDocument() not accepted, please retry");
         }
     }
 
-    function tryDelete(doc, callback) {
-        // Delete the first document in the array.
-        var isAccepted = container.deleteDocument(doc, {}, callback);
+    function tryQueryAndDelete(doc, callback) {
+        // Check the cache first. We expect to find the document if it was upserted.
+        var documentLink = documentMap[doc["id"]];
+        if (documentLink) {
+            tryDelete(documentLink, callback);
+            return;
+        }
+
+        // Not found in cache, query for it.
+        var query = "select n._self from n where n.id='" + doc["id"] + "'";
+        console.log("query: " + query)
+
+        var requestOptions = {};
+        var isAccepted = collection.queryDocuments(collectionLink, query, requestOptions, function (err, retrievedDocs, _responseOptions) {
+            if (err) throw err;
+
+            if (retrievedDocs == null || retrievedDocs.length == 0) {
+                // Nothing to delete.
+                response.setBody(JSON.stringify("success"));
+                throw new Error("nothing to delete, " + query);
+            } else {
+                tryDelete(retrievedDocs[0]._self, callback);
+            }
+        });
 
         // fail if we hit execution bounds
         if (!isAccepted) {
+            throw new Error("queryDocuments() not accepted, please retry");
+        }
+    }
+
+    function tryDelete(documentLink, callback) {
+        // Delete the first document in the array.
+        var requestOptions = {};
+        var isAccepted = collection.deleteDocument(documentLink, requestOptions, (err, _responseOptions) => {
+            callback(err, null, _responseOptions);
+        });
+
+        // Fail if we hit execution bounds.
+        if (!isAccepted) {
             throw new Error("deleteDocument() not accepted, please retry");
         }
-    } 
+    }
 
-    function callback(err, _doc, _options) {        
+    function callback(err, doc, _options) {
         if (err) throw err;
+
+        // Document references are stored for all upserts.
+        // This can be used for further deletes in this transaction.
+        if (doc && doc._self) documentMap[doc.id] = doc._self;
 
         operationCount++;
 
         if (operationCount >= operations.length) {
-            // operations are done
+            // Operations are done.
             response.setBody(JSON.stringify("success"));
-        } else {            
+        } else {
             tryExecute(operations[operationCount], callback);
         }
     }

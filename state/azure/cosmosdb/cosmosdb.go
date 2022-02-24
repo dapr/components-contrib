@@ -86,7 +86,7 @@ type storedProcedureDefinition struct {
 }
 
 const (
-	storedProcedureName   = "__dapr__"
+	storedProcedureName   = "__dapr_v2__"
 	metadataPartitionKey  = "partitionKey"
 	unknownPartitionKey   = "__UNKNOWN__"
 	metadataTTLKey        = "ttlInSeconds"

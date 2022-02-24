@@ -64,6 +64,7 @@ const (
 	upsertOperationType cosmosOperationType = "upsert"
 )
 
+// CosmosOperation is a wrapper around a CosmosDB operation.
 type CosmosOperation struct {
 	Item CosmosItem          `json:"item"`
 	Type cosmosOperationType `json:"type"`

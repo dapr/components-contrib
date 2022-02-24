@@ -57,6 +57,18 @@ type metadata struct {
 	ContentType string `json:"contentType"`
 }
 
+type cosmosOperationType string
+
+const (
+	deleteOperationType cosmosOperationType = "delete"
+	upsertOperationType cosmosOperationType = "upsert"
+)
+
+type CosmosOperation struct {
+	Item CosmosItem          `json:"item"`
+	Type cosmosOperationType `json:"type"`
+}
+
 // CosmosItem is a wrapper around a CosmosDB document.
 type CosmosItem struct {
 	documentdb.Document
@@ -373,54 +385,49 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
-	upserts := []CosmosItem{}
-	deletes := []CosmosItem{}
-
-	keyMap := make(map[string]struct{})
+	operations := []CosmosOperation{}
 
 	partitionKey := unknownPartitionKey
 
-	// The order of unique key operations does not matter in an atomic transaction.
-	// Only the latest operation for any unique key is selected for execution.
-	// The other operations are redundant, and hence ignored.
-	for i := len(request.Operations) - 1; i >= 0; i-- {
-		o := request.Operations[i]
+	for _, o := range request.Operations {
 		t := o.Request.(state.KeyInt)
 		key := t.GetKey()
-
-		if _, ok := keyMap[key]; ok {
-			continue
-		}
-		keyMap[key] = struct{}{}
 
 		partitionKey = populatePartitionMetadata(key, request.Metadata)
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 
-			upsertOperation, err := createUpsertItem(c.contentType, req, partitionKey)
+			item, err := createUpsertItem(c.contentType, req, partitionKey)
 			if err != nil {
 				return err
 			}
-			upserts = append(upserts, upsertOperation)
+			upsertOperation := CosmosOperation{
+				Item: item,
+				Type: upsertOperationType,
+			}
+			operations = append(operations, upsertOperation)
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 
-			deleteOperation := CosmosItem{
-				ID:           req.Key,
-				Value:        "", // Value does not need to be specified
-				PartitionKey: partitionKey,
+			deleteOperation := CosmosOperation{
+				Item: CosmosItem{
+					ID:           req.Key,
+					Value:        "", // Value does not need to be specified
+					PartitionKey: partitionKey,
+				},
+				Type: deleteOperationType,
 			}
-			deletes = append(deletes, deleteOperation)
+			operations = append(operations, deleteOperation)
 		}
 	}
 
-	c.logger.Debugf("#upserts=%d,#deletes=%d, partitionkey=%s", len(upserts), len(deletes), partitionKey)
+	c.logger.Debugf("#operations=%d,partitionkey=%s", len(operations), partitionKey)
 
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 	var retString string
 
 	// The stored procedure throws if it failed, which sets err to non-nil.  It doesn't return anything else.
-	err := c.client.ExecuteStoredProcedure(c.sp.Self, [...]interface{}{upserts, deletes}, &retString, options...)
+	err := c.client.ExecuteStoredProcedure(c.sp.Self, [...]interface{}{operations}, &retString, options...)
 	if err != nil {
 		c.logger.Debugf("error=%e", err)
 

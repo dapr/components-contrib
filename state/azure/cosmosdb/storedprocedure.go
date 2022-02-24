@@ -75,7 +75,6 @@ function dapr_multi_v2(operations) {
             if (retrievedDocs == null || retrievedDocs.length == 0) {
                 // Nothing to delete.
                 response.setBody(JSON.stringify("success"));
-                throw new Error("nothing to delete, " + query);
             } else {
                 tryDelete(retrievedDocs[0]._self, callback);
             }

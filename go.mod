@@ -84,7 +84,6 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/kataras/go-errors v0.0.3 // indirect
 	github.com/kataras/go-serializer v0.0.4 // indirect
-	github.com/keighl/postmark v0.0.0-20190821160221-28358b1a94e3
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/matryer/is v1.4.0 // indirect
@@ -123,7 +122,6 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.23.0 // indirect
-	goji.io v2.0.2+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
@@ -155,7 +153,10 @@ require (
 	github.com/sijms/go-ora/v2 v2.2.22
 )
 
-require github.com/nats-io/nkeys v0.3.0
+require (
+	github.com/mrz1836/postmark v1.2.9
+	github.com/nats-io/nkeys v0.3.0
+)
 
 require gopkg.in/couchbase/gocb.v1 v1.6.4
 

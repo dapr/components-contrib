@@ -171,7 +171,7 @@ func TestExecuteMultiCannotBeginTransaction(t *testing.T) {
 	m.mock1.ExpectBegin().WillReturnError(fmt.Errorf("beginError"))
 
 	// Act
-	err := m.mySQL.executeMulti(nil, nil)
+	err := m.mySQL.Multi(nil)
 
 	// Assert
 	assert.NotNil(t, err, "no error returned")
@@ -222,15 +222,27 @@ func TestExecuteMultiCommitSetsAndDeletes(t *testing.T) {
 	defer m.mySQL.Close()
 
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
-	sets := []state.SetRequest{createSetRequest()}
-	deletes := []state.DeleteRequest{createDeleteRequest()}
+	setOperation := state.TransactionalStateOperation{
+		Request:   createSetRequest(),
+		Operation: state.Upsert,
+	}
+
+	deleteOperation := state.TransactionalStateOperation{
+		Request:   createDeleteRequest(),
+		Operation: state.Delete,
+	}
+
+	request := state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{setOperation, deleteOperation},
+		Metadata:   map[string]string{},
+	}
 
 	// Act
-	err := m.mySQL.executeMulti(sets, deletes)
+	err := m.mySQL.Multi(&request)
 
 	// Assert
 	assert.Nil(t, err, "error returned")

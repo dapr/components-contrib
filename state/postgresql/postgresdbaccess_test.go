@@ -17,9 +17,10 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
 )
 
 type mocks struct {

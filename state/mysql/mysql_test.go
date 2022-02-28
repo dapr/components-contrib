@@ -697,11 +697,15 @@ func TestBulkGetReturnsNil(t *testing.T) {
 	assert.False(t, supported, `returned supported`)
 }
 
-func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
+func TestMultiWithNoRequestsDoesNothing(t *testing.T) {
 	// Arrange
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	var ops []state.TransactionalStateOperation
+
+	// no operations expected
+	m.mock1.ExpectBegin()
+	m.mock1.ExpectCommit()
 
 	// Act
 	err := m.mySQL.Multi(&state.TransactionalStateRequest{
@@ -907,8 +911,9 @@ func TestMultiOperationOrder(t *testing.T) {
 		},
 	)
 
-	// expected to run the delete operation first, followed by the upsert operation
+	// expected to run the operations in sequence
 	m.mock1.ExpectBegin()
+	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("DELETE FROM").WithArgs("k1").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()

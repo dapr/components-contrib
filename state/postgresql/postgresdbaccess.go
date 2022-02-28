@@ -307,6 +307,9 @@ func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 
 func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
 	p.logger.Debug("Executing PostgreSQL transaction")
+
+	var err error
+
 	tx, err := p.db.Begin()
 	if err != nil {
 		return err

@@ -308,8 +308,6 @@ func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
 	p.logger.Debug("Executing PostgreSQL transaction")
 
-	var err error
-
 	tx, err := p.db.Begin()
 	if err != nil {
 		return err
@@ -318,7 +316,9 @@ func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 	for _, o := range request.Operations {
 		switch o.Operation {
 		case state.Upsert:
-			setReq, err := getSet(o)
+			var setReq state.SetRequest
+
+			setReq, err = getSet(o)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -331,7 +331,9 @@ func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 			}
 
 		case state.Delete:
-			delReq, err := getDelete(o)
+			var delReq state.DeleteRequest
+
+			delReq, err = getDelete(o)
 			if err != nil {
 				tx.Rollback()
 				return err

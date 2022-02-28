@@ -60,7 +60,6 @@ func TestGetSetValid(t *testing.T) {
 	set, err := getSet(operation)
 	assert.Nil(t, err)
 	assert.Equal(t, "key1", set.Key)
-
 }
 
 func TestGetDeleteWithWrongType(t *testing.T) {
@@ -108,7 +107,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	var operations []state.TransactionalStateOperation
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -116,7 +115,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestInvalidMultiAction(t *testing.T) {
+func TestInvalidMultiInvalidAction(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
@@ -132,7 +131,7 @@ func TestInvalidMultiAction(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -157,7 +156,7 @@ func TestValidSetRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -181,7 +180,7 @@ func TestInvalidMultiSetRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -205,7 +204,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -230,7 +229,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -254,7 +253,7 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -278,7 +277,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -310,9 +309,118 @@ func TestMultiOperationOrder(t *testing.T) {
 	)
 
 	// Act
-	err := m.pgDba.executeMultiOnDb(m.db, &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(&state.TransactionalStateRequest{
 		Operations: operations,
 	})
+
+	// Assert
+	assert.Nil(t, err)
+}
+
+func TestInvalidBulkSetNoKey(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.mock.ExpectBegin()
+	m.mock.ExpectRollback()
+
+	var sets []state.SetRequest
+
+	sets = append(sets, state.SetRequest{ // Set request without key is not valid for Set operation
+		Value: "value1",
+	})
+
+	// Act
+	err := m.pgDba.BulkSet(sets)
+
+	// Assert
+	assert.NotNil(t, err)
+}
+
+func TestInvalidBulkSetEmptyValue(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.mock.ExpectBegin()
+	m.mock.ExpectRollback()
+
+	var sets []state.SetRequest
+
+	sets = append(sets, state.SetRequest{ // Set request without value is not valid for Set operation
+		Key:   "key1",
+		Value: "",
+	})
+
+	// Act
+	err := m.pgDba.BulkSet(sets)
+
+	// Assert
+	assert.NotNil(t, err)
+}
+
+func TestValidBulkSet(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.mock.ExpectBegin()
+	m.mock.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(1, 1))
+	m.mock.ExpectCommit()
+
+	var sets []state.SetRequest
+
+	sets = append(sets, state.SetRequest{
+		Key:   "key1",
+		Value: "value1",
+	})
+
+	// Act
+	err := m.pgDba.BulkSet(sets)
+
+	// Assert
+	assert.Nil(t, err)
+}
+
+func TestInvalidBulkDeleteNoKey(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.mock.ExpectBegin()
+	m.mock.ExpectRollback()
+
+	var deletes []state.DeleteRequest
+
+	deletes = append(deletes, state.DeleteRequest{ // Delete request without key is not valid for Delete operation
+		Key: "",
+	})
+
+	// Act
+	err := m.pgDba.BulkDelete(deletes)
+
+	// Assert
+	assert.NotNil(t, err)
+}
+
+func TestValidBulkDelete(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.mock.ExpectBegin()
+	m.mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(1, 1))
+	m.mock.ExpectCommit()
+
+	var deletes []state.DeleteRequest
+
+	deletes = append(deletes, state.DeleteRequest{
+		Key: "key1",
+	})
+
+	// Act
+	err := m.pgDba.BulkDelete(deletes)
 
 	// Assert
 	assert.Nil(t, err)

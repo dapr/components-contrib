@@ -306,12 +306,8 @@ func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 }
 
 func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
-	return p.executeMultiOnDb(p.db, request)
-}
-
-func (p *postgresDBAccess) executeMultiOnDb(db *sql.DB, request *state.TransactionalStateRequest) error {
 	p.logger.Debug("Executing PostgreSQL transaction")
-	tx, err := db.Begin()
+	tx, err := p.db.Begin()
 	if err != nil {
 		return err
 	}

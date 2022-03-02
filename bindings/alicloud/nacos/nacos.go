@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nacos-group/nacos-sdk-go/clients"
-	"github.com/nacos-group/nacos-sdk-go/clients/config_client"
-	"github.com/nacos-group/nacos-sdk-go/common/constant"
-	"github.com/nacos-group/nacos-sdk-go/vo"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
+	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -100,6 +100,10 @@ func (n *Nacos) Init(metadata bindings.Metadata) error {
 }
 
 func (n *Nacos) createConfigClient() error {
+	logRollingConfig := constant.ClientLogRollingConfig{
+		MaxSize: n.settings.MaxAge,
+	}
+
 	nacosConfig := map[string]interface{}{}
 	nacosConfig["clientConfig"] = constant.ClientConfig{ //nolint:exhaustivestruct
 		TimeoutMs:            uint64(n.settings.Timeout),
@@ -116,8 +120,7 @@ func (n *Nacos) createConfigClient() error {
 		Username:             n.settings.Username,
 		Password:             n.settings.Password,
 		LogDir:               n.settings.LogDir,
-		RotateTime:           n.settings.RotateTime,
-		MaxAge:               int64(n.settings.MaxAge),
+		LogRollingConfig:     &logRollingConfig,
 		LogLevel:             n.settings.LogLevel,
 	}
 
@@ -181,7 +184,6 @@ func (n *Nacos) fetchAndNotify(config configParam) {
 		DataId:   config.dataID,
 		Group:    config.group,
 		Content:  "",
-		DatumId:  "",
 		OnChange: nil,
 	})
 	if err != nil {
@@ -196,7 +198,6 @@ func (n *Nacos) addListener(config configParam) {
 		DataId:   config.dataID,
 		Group:    config.group,
 		Content:  "",
-		DatumId:  "",
 		OnChange: n.listener,
 	})
 	if err != nil {
@@ -220,7 +221,6 @@ func (n *Nacos) publish(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		DataId:   nacosConfigParam.dataID,
 		Group:    nacosConfigParam.group,
 		Content:  string(req.Data),
-		DatumId:  "",
 		OnChange: nil,
 	}); err != nil {
 		return nil, fmt.Errorf("publish failed. %w", err)
@@ -239,7 +239,6 @@ func (n *Nacos) fetch(req *bindings.InvokeRequest) (*bindings.InvokeResponse, er
 		DataId:   nacosConfigParam.dataID,
 		Group:    nacosConfigParam.group,
 		Content:  "",
-		DatumId:  "",
 		OnChange: nil,
 	})
 	if err != nil {

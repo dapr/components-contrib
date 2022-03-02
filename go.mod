@@ -92,7 +92,6 @@ require (
 	github.com/miekg/dns v1.1.35 // indirect
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moul/http2curl v1.0.0 // indirect
-	github.com/nacos-group/nacos-sdk-go v1.0.8
 	github.com/nats-io/nats-server/v2 v2.7.2
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
 	github.com/nats-io/nats.go v1.13.1-0.20220121202836-972a071d373d
@@ -165,6 +164,7 @@ require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 )

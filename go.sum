@@ -984,6 +984,10 @@ github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRW
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/nacos-group/nacos-sdk-go v1.0.8 h1:8pEm05Cdav9sQgJSv5kyvlgfz0SzFUUGI3pWX6SiSnM=
 github.com/nacos-group/nacos-sdk-go v1.0.8/go.mod h1:hlAPn3UdzlxIlSILAyOXKxjFSvDJ9oLzTJ9hLAK1KzA=
+github.com/nacos-group/nacos-sdk-go v1.1.0 h1:6ESrAegx2pqp3Vi8mqDi7s2Vq+I+u0oYLn646K4wx6o=
+github.com/nacos-group/nacos-sdk-go v1.1.0/go.mod h1:Y/9Dj0Bl04hWUO1DaL4+r+fLzv5nl9kn58Vt1OGvWdw=
+github.com/nacos-group/nacos-sdk-go/v2 v2.0.1 h1:jEZjqdCDSt6ZFtl628UUwON21GxwJ+lEN/PDamQOzgU=
+github.com/nacos-group/nacos-sdk-go/v2 v2.0.1/go.mod h1:SlhyCAv961LcZ198XpKfPEQqlJWt2HkL1fDLas0uy/w=
 github.com/nats-io/jwt v0.3.0/go.mod h1:fRYCDE99xlTsqUzISS1Bi75UBJ6ljOJQOAAu5VglpSg=
 github.com/nats-io/jwt v0.3.2/go.mod h1:/euKqTS1ZD+zzjYrY7pseZrTtWQSjujC7xjPc8wL6eU=
 github.com/nats-io/jwt v1.1.0/go.mod h1:n3cvmLfBfnpV4JJRN7lRYCyZnw48ksGsbThGXEk4w9M=

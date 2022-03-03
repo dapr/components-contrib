@@ -106,13 +106,15 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	var ttl int64
-	if result.Item[d.ttlAttributeName] != nil {
-		if err = dynamodbattribute.Unmarshal(result.Item[d.ttlAttributeName], &ttl); err != nil {
-			return nil, err
-		}
-		if ttl <= time.Now().Unix() {
-			// Item has expired but DynamoDB didn't delete it yet.
-			return &state.GetResponse{}, nil
+	if d.ttlAttributeName != "" {
+		if val, ok := result.Item[d.ttlAttributeName]; ok {
+			if err = dynamodbattribute.Unmarshal(val, &ttl); err != nil {
+				return nil, err
+			}
+			if ttl <= time.Now().Unix() {
+				// Item has expired but DynamoDB didn't delete it yet.
+				return &state.GetResponse{}, nil
+			}
 		}
 	}
 

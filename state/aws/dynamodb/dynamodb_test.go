@@ -35,7 +35,7 @@ type mockedDynamoDB struct {
 	dynamodbiface.DynamoDBAPI
 }
 
-type DynmoDBItem struct {
+type DynamoDBItem struct {
 	Key               string `json:"key"`
 	Value             string `json:"value"`
 	TestAttributeName int64  `json:"testAttributeName"`
@@ -296,7 +296,7 @@ func TestSet(t *testing.T) {
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, len(input.Item), 3)
-					result := DynmoDBItem{}
+					result := DynamoDBItem{}
 					dynamodbattribute.UnmarshalMap(input.Item, &result)
 					assert.Equal(t, result.Key, "someKey")
 					assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")
@@ -331,7 +331,7 @@ func TestSet(t *testing.T) {
 			client: &mockedDynamoDB{
 				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, len(input.Item), 3)
-					result := DynmoDBItem{}
+					result := DynamoDBItem{}
 					dynamodbattribute.UnmarshalMap(input.Item, &result)
 					assert.Equal(t, result.Key, "someKey")
 					assert.Equal(t, result.Value, "{\"Value\":\"someValue\"}")

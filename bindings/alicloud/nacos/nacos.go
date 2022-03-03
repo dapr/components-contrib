@@ -101,7 +101,8 @@ func (n *Nacos) Init(metadata bindings.Metadata) error {
 
 func (n *Nacos) createConfigClient() error {
 	logRollingConfig := constant.ClientLogRollingConfig{
-		MaxSize: n.settings.MaxAge,
+		MaxSize: n.settings.MaxSize,
+		MaxAge:  n.settings.MaxAge,
 	}
 
 	nacosConfig := map[string]interface{}{}

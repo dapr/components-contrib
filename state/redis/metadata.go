@@ -19,4 +19,5 @@ type metadata struct {
 	maxRetries      int
 	maxRetryBackoff time.Duration
 	ttlInSeconds    *int
+	queryIndexes    string
 }

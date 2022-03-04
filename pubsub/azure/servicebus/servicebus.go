@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -362,6 +363,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
+	a.logger.Infof("Creating message with body: %s", string(req.Data))
 	msg, err := NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
@@ -543,12 +545,12 @@ func (a *azureServiceBus) shouldCreateTopic(topic string) (bool, error) {
 	if a.adminClient == nil {
 		return false, fmt.Errorf("%s init() has not been called", errorMessagePrefix)
 	}
-	resp, err := a.adminClient.GetTopic(ctx, topic, &admin.GetTopicOptions{})
+	_, err := a.adminClient.GetTopic(ctx, topic, &admin.GetTopicOptions{})
 	if err != nil {
-		return false, fmt.Errorf("%s could not get topic %s, %s", errorMessagePrefix, topic, err)
-	}
-	if resp.RawResponse.StatusCode == 404 {
-		return true, nil
+		if strings.Contains(err.Error(), "entity does not exist") {
+			return true, nil
+		}
+		return false, fmt.Errorf("%s could not get topic %s, %s", errorMessagePrefix, topic, err.Error())
 	}
 
 	return false, nil
@@ -568,12 +570,13 @@ func (a *azureServiceBus) createTopic(topic string) error {
 func (a *azureServiceBus) shouldCreateSubscription(mgr *admin.Client, topic, subscription string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
-	resp, err := mgr.GetSubscription(ctx, topic, subscription, &admin.GetSubscriptionOptions{})
+	_, err := mgr.GetSubscription(ctx, topic, subscription, &admin.GetSubscriptionOptions{})
 	if err != nil {
+		a.logger.Infof("Could not get subscription - %s", err.Error())
+		if strings.Contains(err.Error(), "was not found") {
+			return true, nil
+		}
 		return false, fmt.Errorf("%s could not get subscription %s, %s", errorMessagePrefix, subscription, err)
-	}
-	if resp.RawResponse.StatusCode == 404 {
-		return true, nil
 	}
 
 	return false, nil

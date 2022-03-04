@@ -243,9 +243,18 @@ func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byt
 				receiver.AbandonMessage(a.ctx, msg, nil)
 			}
 
+			metadata := make(map[string]string)
+			metadata[id] = msg.MessageID
+			if msg.CorrelationID != nil {
+				metadata[correlationID] = *msg.CorrelationID
+			}
+			if msg.Subject != nil {
+				metadata[label] = *msg.Subject
+			}
+
 			_, err = handler(&bindings.ReadResponse{
 				Data:     body,
-				Metadata: map[string]string{id: msg.MessageID, correlationID: *msg.CorrelationID, label: *msg.Subject},
+				Metadata: metadata,
 			})
 			if err == nil {
 				return receiver.CompleteMessage(a.ctx, msg)

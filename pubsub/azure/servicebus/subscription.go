@@ -100,6 +100,7 @@ func (s *subscription) ReceiveAndBlock(ctx context.Context, handler pubsub.Handl
 				s.logger.Errorf("Error reading from topic %s. %s", s.topic, err.Error())
 			}
 			for _, msg := range msgs {
+				s.logger.Infof("Prefetch received msg: %s", msg.MessageID)
 				s.prefetchChan <- msg
 			}
 		}
@@ -239,6 +240,10 @@ func (s *subscription) tryRenewLocks() {
 func (s *subscription) receiveMessage(ctx context.Context, handler func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) error) error {
 	s.logger.Debugf("Waiting to receive message on topic %s", s.topic)
 	msg := <-s.prefetchChan
+
+	s.logger.Infof("Process received message: %s", msg.MessageID)
+	body, _ := msg.Body()
+	s.logger.Infof("Message body: %s", string(body))
 
 	err := handler(ctx, msg)
 	if err != nil {

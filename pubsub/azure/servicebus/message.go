@@ -98,19 +98,19 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic 
 	if asbMsg.SessionID != nil {
 		addToMetadata(pubsubMsg, SessionIDMetadataKey, *asbMsg.SessionID)
 	}
-	if *asbMsg.CorrelationID != "" {
+	if asbMsg.CorrelationID != nil && *asbMsg.CorrelationID != "" {
 		addToMetadata(pubsubMsg, CorrelationIDMetadataKey, *asbMsg.CorrelationID)
 	}
-	if *asbMsg.Subject != "" {
+	if asbMsg.Subject != nil && *asbMsg.Subject != "" {
 		addToMetadata(pubsubMsg, LabelMetadataKey, *asbMsg.Subject)
 	}
-	if *asbMsg.ReplyTo != "" {
+	if asbMsg.ReplyTo != nil && *asbMsg.ReplyTo != "" {
 		addToMetadata(pubsubMsg, ReplyToMetadataKey, *asbMsg.ReplyTo)
 	}
-	if *asbMsg.To != "" {
+	if asbMsg.To != nil && *asbMsg.To != "" {
 		addToMetadata(pubsubMsg, ToMetadataKey, *asbMsg.To)
 	}
-	if *asbMsg.ContentType != "" {
+	if asbMsg.ContentType != nil && *asbMsg.ContentType != "" {
 		addToMetadata(pubsubMsg, ContentTypeMetadataKey, *asbMsg.ContentType)
 	}
 	if asbMsg.LockToken != [16]byte{} {

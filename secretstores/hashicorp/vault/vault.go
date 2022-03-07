@@ -149,15 +149,9 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 	v.vaultToken = props[componentVaultToken]
 	v.vaultTokenMountPath = props[componentVaultTokenMountPath]
-
-	// Test that at least one of them are set if not return error
-	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
-		return fmt.Errorf("token mount path and token not set")
-	}
-
-	// Test that both are not set. If so return error
-	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
-		return fmt.Errorf("token mount path and token both set")
+	err := v.initVaultToken()
+	if err != nil {
+		return err
 	}
 
 	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
@@ -212,11 +206,6 @@ func metadataToTLSConfig(props map[string]string) *tlsConfig {
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, error) {
-	token, err := v.readVaultToken()
-	if err != nil {
-		return nil, err
-	}
-
 	// Create get secret url
 	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
 
@@ -225,7 +214,7 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 		return nil, fmt.Errorf("couldn't generate request: %s", err)
 	}
 	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, token)
+	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
 	// Set X-Vault-Request header
 	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
 
@@ -330,10 +319,6 @@ func (v *vaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) 
 // listKeysUnderPath get all the keys recursively under a given path.(returned keys including path as prefix)
 // path should not has `/` prefix.
 func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
-	token, err := v.readVaultToken()
-	if err != nil {
-		return nil, err
-	}
 	var vaultSecretsPathAddr string
 
 	// Create list secrets url
@@ -348,7 +333,7 @@ func (v *vaultSecretStore) listKeysUnderPath(path string) ([]string, error) {
 		return nil, fmt.Errorf("couldn't generate request: %s", err)
 	}
 	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, token)
+	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
 	// Set X-Vault-Request header
 	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
 	httpresp, err := v.client.Do(httpReq)
@@ -393,17 +378,29 @@ func (v *vaultSecretStore) isSecretPath(key string) bool {
 	return !strings.HasSuffix(key, "/")
 }
 
-func (v *vaultSecretStore) readVaultToken() (string, error) {
+// initVaultToken reads the vault token from the file if token is defined by mount path.
+func (v *vaultSecretStore) initVaultToken() error {
+	// Test that at least one of them are set if not return error
+	if v.vaultToken == "" && v.vaultTokenMountPath == "" {
+		return fmt.Errorf("token mount path and token not set")
+	}
+
+	// Test that both are not set. If so return error
+	if v.vaultToken != "" && v.vaultTokenMountPath != "" {
+		return fmt.Errorf("token mount path and token both set")
+	}
+
 	if v.vaultToken != "" {
-		return v.vaultToken, nil
+		return nil
 	}
 
 	data, err := ioutil.ReadFile(v.vaultTokenMountPath)
 	if err != nil {
-		return "", fmt.Errorf("couldn't read vault token: %s", err)
+		return fmt.Errorf("couldn't read vault token from mount path %s err: %s", v.vaultTokenMountPath, err)
 	}
+	v.vaultToken = string(bytes.TrimSpace(data))
 
-	return string(bytes.TrimSpace(data)), nil
+	return nil
 }
 
 func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {

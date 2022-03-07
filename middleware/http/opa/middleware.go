@@ -129,10 +129,11 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 	allowedHeaders := strings.Split(meta.IncludedHeaders, ",")
 	ctx.Request.Header.VisitAll(func(key, value []byte) {
 		for _, allowedHeader := range allowedHeaders {
+			scrubbedHeader := strings.ReplaceAll(allowedHeader, " ", "")
 			buf := []byte("")
-			result := fasthttp.AppendNormalizedHeaderKeyBytes(buf, []byte(allowedHeader))
+			result := fasthttp.AppendNormalizedHeaderKeyBytes(buf, []byte(scrubbedHeader))
 			normalizedHeader := result[0:]
-			if bytes.Equal(key, normalizedHeader) {
+			if bytes.Equal(key, []byte(normalizedHeader)) {
 				headers[string(key)] = string(value)
 			}
 		}

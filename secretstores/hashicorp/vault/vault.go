@@ -149,9 +149,9 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 	v.vaultToken = props[componentVaultToken]
 	v.vaultTokenMountPath = props[componentVaultTokenMountPath]
-	err := v.initVaultToken()
-	if err != nil {
-		return err
+	initErr := v.initVaultToken()
+	if initErr != nil {
+		return initErr
 	}
 
 	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
@@ -178,7 +178,7 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 	client, err := v.createHTTPClient(tlsConf)
 	if err != nil {
-		return fmt.Errorf("couldn't create client using config: %s", err)
+		return fmt.Errorf("couldn't create client using config: %w", err)
 	}
 
 	v.client = client
@@ -211,7 +211,7 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 
 	httpReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, vaultSecretPathAddr, nil)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't generate request: %s", err)
+		return nil, fmt.Errorf("couldn't generate request: %w", err)
 	}
 	// Set vault token.
 	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
@@ -220,7 +220,7 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 
 	httpresp, err := v.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get secret: %s", err)
+		return nil, fmt.Errorf("couldn't get secret: %w", err)
 	}
 
 	defer httpresp.Body.Close()

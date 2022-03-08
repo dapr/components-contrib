@@ -51,10 +51,11 @@ jobs:
     - name: Specify components that can be run on every PR
       id: pr-components
       run: |
-        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        PR_COMPONENTS=$(yq -I0 -o=json eval - << EOF
         - pubsub.kafka
         - pubsub.rabbitmq
         - pubsub.mqtt
+        - state.redis
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

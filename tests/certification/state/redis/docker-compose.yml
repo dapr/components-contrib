@@ -1,0 +1,36 @@
+version: "3"
+
+services:
+  redis-master:
+    image: redislabs/rejson:latest
+    container_name: master
+    ports:
+      - 6379:6379
+    networks:
+      - redis-replication
+
+  redis-slave1:
+    image: redislabs/rejson:latest
+    container_name: slave1
+    ports:
+      - 6380:6379
+    command: redis-server --slaveof master 6379 --loadmodule /usr/lib/redis/modules/rejson.so --loadmodule /usr/lib/redis/modules/redisearch.so
+    depends_on:
+      - redis-master
+    networks:
+      - redis-replication
+
+  redis-slave2:
+    image: redislabs/rejson:latest
+    container_name: slave2
+    ports:
+      - 6381:6379
+    command: redis-server --slaveof master 6379 --loadmodule /usr/lib/redis/modules/rejson.so --loadmodule /usr/lib/redis/modules/redisearch.so
+    depends_on:
+      - redis-master
+    networks:
+      - redis-replication
+
+networks:
+  redis-replication:
+    driver: bridge

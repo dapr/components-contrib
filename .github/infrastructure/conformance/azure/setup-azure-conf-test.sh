@@ -663,8 +663,12 @@ CERTIFICATION_SPAUTH_SP_NAME="${PREFIX}-certification-spauth-conf-test-sp"
 CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].objectId" --output tsv)"
 
 # Give the service principal used for certification test access to the relevant data plane resources
+# Cosmos DB
 az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resource-group "${RESOURCE_GROUP_NAME}" --role-definition-name "Cosmos DB Built-in Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_DB_NAME}" --principal-id "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}"
+# Storage
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}/blobServices/default/containers/${STORAGE_CONTAINER_NAME}"
+# Event Hubs
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/{$EVENT_HUBS_NAMESPACE}/eventhubs/*"
 
 # Now export the service principal information
 CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"

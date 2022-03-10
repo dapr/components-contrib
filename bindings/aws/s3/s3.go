@@ -59,6 +59,7 @@ type s3Metadata struct {
 	DecodeBase64   bool   `json:"decodeBase64,string"`
 	EncodeBase64   bool   `json:"encodeBase64,string"`
 	ForcePathStyle bool   `json:"forcePathStyle,string"`
+	DisableSSL     bool   `json:"disableSSL,string"`
 }
 
 type createResponse struct {
@@ -89,7 +90,7 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
-	cfg := aws.NewConfig().WithS3ForcePathStyle(m.ForcePathStyle)
+	cfg := aws.NewConfig().WithS3ForcePathStyle(m.ForcePathStyle).WithDisableSSL(m.DisableSSL)
 
 	s.metadata = m
 	s.s3Client = s3.New(session, cfg)

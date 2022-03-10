@@ -254,6 +254,8 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 
 		if err == nil {
 			m.Ack()
+		} else {
+			m.Nack()
 		}
 	})
 

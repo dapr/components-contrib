@@ -46,7 +46,7 @@ param certAuthSpId string
 param sqlServerAdminPassword string
 
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
-var acrName = '${toLower(namePrefix)}conftestregistry'
+// var acrName = '${toLower(namePrefix)}conftestregistry'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
@@ -62,14 +62,15 @@ resource confTestRg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: confTestTags
 }
 
-module acr 'conf-test-azure-container-registry.bicep' = {
-  name: acrName
-  scope: resourceGroup(confTestRg.name)
-  params: {
-    confTestTags: confTestTags
-    acrName: acrName
-  }
-}
+// Azure Container Registry is not currently used, but may be required again in the future
+// module acr 'conf-test-azure-container-registry.bicep' = {
+//   name: acrName
+//   scope: resourceGroup(confTestRg.name)
+//   params: {
+//     confTestTags: confTestTags
+//     acrName: acrName
+//   }
+// }
 
 module cosmosDb 'conf-test-azure-cosmosdb.bicep' = {
   name: cosmosDbName
@@ -148,7 +149,7 @@ module storage 'conf-test-azure-storage.bicep' = {
 }
 
 output confTestRgName string = confTestRg.name
-output acrName string = acr.name
+// output acrName string = acr.name
 output cosmosDbName string = cosmosDb.name
 output cosmosDbSqlName string = cosmosDb.outputs.cosmosDbSqlName
 output cosmosDbSqlContainerName string = cosmosDb.outputs.cosmosDbSqlContainerName

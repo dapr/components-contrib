@@ -184,9 +184,13 @@ EVENT_GRID_TOPIC_ENDPOINT_VAR_NAME="AzureEventGridTopicEndpoint"
 EVENT_HUBS_BINDINGS_CONNECTION_STRING_VAR_NAME="AzureEventHubsBindingsConnectionString"
 EVENT_HUBS_BINDINGS_CONSUMER_GROUP_VAR_NAME="AzureEventHubsBindingsConsumerGroup"
 EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME="AzureEventHubsBindingsContainer"
+EVENT_HUBS_BINDINGS_NAMESPACE_VAR_NAME="AzureEventHubsBindingsNamespace"
+EVENT_HUBS_BINDINGS_HUB_VAR_NAME="AzureEventHubsBindingsHub"
 EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubConnectionString"
 EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureEventHubsPubsubConsumerGroup"
 EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME="AzureEventHubsPubsubContainer"
+EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME="AzureEventHubsPubsubNamespace"
+EVENT_HUBS_PUBSUB_HUB_VAR_NAME="AzureEventHubsPubsubHub"
 
 IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
 IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
@@ -310,8 +314,9 @@ SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "prope
 echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
 SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" --output tsv)"
 echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
-AZURE_CONTAINER_REGISTRY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.acrName.value" --output tsv)"
-echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${AZURE_CONTAINER_REGISTRY_NAME}"
+# Azure Container Registry is not currently needed
+# AZURE_CONTAINER_REGISTRY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.acrName.value" --output tsv)"
+# echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${AZURE_CONTAINER_REGISTRY_NAME}"
 
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
@@ -591,6 +596,12 @@ EVENT_HUBS_BINDINGS_CONNECTION_STRING="$(az eventhubs eventhub authorization-rul
 echo export ${EVENT_HUBS_BINDINGS_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_BINDINGS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_BINDINGS_CONNECTION_STRING}"
 
+echo export ${EVENT_HUBS_BINDINGS_NAMESPACE_VAR_NAME}=\"${EVENT_HUBS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_BINDINGS_NAMESPACE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_NAMESPACE}"
+
+echo export ${EVENT_HUBS_BINDINGS_HUB_VAR_NAME}=\"${EVENT_HUB_BINDINGS_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_BINDINGS_HUB_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUB_BINDINGS_NAME}"
+
 echo export ${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_VAR_NAME}=\"${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_BINDINGS_CONSUMER_GROUP_NAME}"
 
@@ -601,6 +612,12 @@ az keyvault secret set --name "${EVENT_HUBS_BINDINGS_CONTAINER_VAR_NAME}" --vaul
 EVENT_HUBS_PUBSUB_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${EVENT_HUB_PUBSUB_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${EVENT_HUB_PUBSUB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
 echo export ${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONNECTION_STRING}"
+
+echo export ${EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME}=\"${EVENT_HUBS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_NAMESPACE}"
+
+echo export ${EVENT_HUBS_PUBSUB_HUB_VAR_NAME}=\"${EVENT_HUB_PUBSUB_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_PUBSUB_HUB_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUB_PUBSUB_NAME}"
 
 echo export ${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
@@ -631,10 +648,11 @@ az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vaul
 
 # -------------------------------------------------------------
 # CERTIFICATION TESTS: Populate Managed Identity Test settings
+# Currently not used, but may be required again in the future
 # -------------------------------------------------------------
-echo "Configuring Azure Container Registry for Managed Identity Certification tests ..."
-echo export ${ACR_VAR_NAME}=\"${AZURE_CONTAINER_REGISTRY_NAME}\" >> "${ENV_CONFIG_FILENAME}"
-az keyvault secret set --name "${ACR_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_CONTAINER_REGISTRY_NAME}"
+# echo "Configuring Azure Container Registry for Managed Identity Certification tests ..."
+# echo export ${ACR_VAR_NAME}=\"${AZURE_CONTAINER_REGISTRY_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+# az keyvault secret set --name "${ACR_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_CONTAINER_REGISTRY_NAME}"
 
 
 # -----------------------------------------------------------------------

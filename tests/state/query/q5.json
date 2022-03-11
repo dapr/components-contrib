@@ -1,0 +1,37 @@
+{
+    "filter": {
+        "AND": [
+            {
+                "EQ": {
+                    "person.org": "A"
+                }
+            },
+            {
+                "OR": [
+                    {
+                        "EQ": {
+                            "person.name": "B"
+                        }
+                    },
+                    {
+                        "IN": {
+                            "state": ["CA", "WA"]
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "sort": [
+        {
+            "key": "state",
+            "order": "DESC"
+        },
+        {
+            "key": "person.name"
+        }
+    ],
+    "page": {
+        "limit": 2
+    }
+}

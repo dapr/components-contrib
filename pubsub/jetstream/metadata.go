@@ -23,6 +23,8 @@ import (
 
 type metadata struct {
 	natsURL string
+	jwt     string
+	seedKey string
 
 	name           string
 	durableName    string
@@ -40,6 +42,17 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.natsURL = v
 	} else {
 		return metadata{}, fmt.Errorf("missing nats URL")
+	}
+
+	m.jwt = psm.Properties["jwt"]
+	m.seedKey = psm.Properties["seedKey"]
+
+	if m.jwt != "" && m.seedKey == "" {
+		return metadata{}, fmt.Errorf("missing seed key")
+	}
+
+	if m.jwt == "" && m.seedKey != "" {
+		return metadata{}, fmt.Errorf("missing jwt")
 	}
 
 	if m.name = psm.Properties["name"]; m.name == "" {

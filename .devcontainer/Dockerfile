@@ -11,6 +11,6 @@
 # limitations under the License.
 # ------------------------------------------------------------
 
-FROM daprio/dapr-dev:0.1.6
+FROM daprio/dapr-dev:0.1.6a
 
 VOLUME [ "/go/src/github.com/dapr/dapr" ]

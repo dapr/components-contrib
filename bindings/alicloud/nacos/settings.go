@@ -40,8 +40,8 @@ type Settings struct {
 	Username             string        `mapstructure:"username"`
 	Password             string        `mapstructure:"password"`
 	LogDir               string        `mapstructure:"logDir"`
-	RotateTime           string        `mapstructure:"rotateTime"`
 	MaxAge               int           `mapstructure:"maxAge"`
+	MaxSize              int           `mapstructure:"maxSize"`
 	LogLevel             string        `mapstructure:"logLevel"`
 	Config               string        `mapstructure:"config"`
 	Watches              string        `mapstructure:"watches"`

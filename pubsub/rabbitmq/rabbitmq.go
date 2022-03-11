@@ -49,6 +49,7 @@ const (
 	metadataEnableDeadLetter     = "enableDeadLetter"
 	metadataMaxLen               = "maxLen"
 	metadataMaxLenBytes          = "maxLenBytes"
+	metadataExchangeKind         = "exchangeKind"
 
 	defaultReconnectWaitSeconds = 3
 	publishMaxRetries           = 3
@@ -60,6 +61,7 @@ const (
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
 	queueModeLazy         = "lazy"
+	reqMetadataRoutingKey = "routingKey"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -198,13 +200,17 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 		return r.channel, r.connectionCount, errors.New(errorChannelNotInitialized)
 	}
 
-	if err := r.ensureExchangeDeclared(r.channel, req.Topic); err != nil {
+	if err := r.ensureExchangeDeclared(r.channel, req.Topic, r.metadata.exchangeKind); err != nil {
 		r.logger.Errorf("%s publishing to %s failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, err)
 
 		return r.channel, r.connectionCount, err
 	}
+	routingKey := ""
+	if val, ok := req.Metadata[reqMetadataRoutingKey]; ok && val != "" {
+		routingKey = val
+	}
 
-	if err := r.channel.Publish(req.Topic, "", false, false, amqp.Publishing{
+	if err := r.channel.Publish(req.Topic, routingKey, false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
@@ -266,7 +272,7 @@ func (r *rabbitMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler
 
 // this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
-	err := r.ensureExchangeDeclared(channel, req.Topic)
+	err := r.ensureExchangeDeclared(channel, req.Topic, r.metadata.exchangeKind)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, queueName, err)
 
@@ -279,7 +285,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		// declare dead letter exchange
 		dlxName := fmt.Sprintf(defaultDeadLetterExchangeFormat, queueName)
 		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
-		err = r.ensureExchangeDeclared(channel, dlxName)
+		err = r.ensureExchangeDeclared(channel, dlxName, fanoutExchangeKind)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, dlqName, err)
 
@@ -322,8 +328,12 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 	}
 
-	r.logger.Infof("%s binding queue '%s' to exchange '%s'", logMessagePrefix, q.Name, req.Topic)
-	err = channel.QueueBind(q.Name, "", req.Topic, false, nil)
+	routingKey := ""
+	if val, ok := req.Metadata[reqMetadataRoutingKey]; ok && val != "" {
+		routingKey = val
+	}
+	r.logger.Infof("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
+	err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
 
@@ -338,7 +348,7 @@ func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName str
 	defer r.channelMutex.RUnlock()
 
 	if r.channel == nil {
-		return nil, 0, nil, errors.New(errorChannelNotInitialized)
+		return nil, r.connectionCount, nil, errors.New(errorChannelNotInitialized)
 	}
 
 	q, err := r.prepareSubscription(r.channel, req, queueName)
@@ -468,10 +478,10 @@ func (r *rabbitMQ) handleMessage(channel rabbitMQChannelBroker, d amqp.Delivery,
 }
 
 // this function call should be wrapped by channelMutex.
-func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange string) error {
+func (r *rabbitMQ) ensureExchangeDeclared(channel rabbitMQChannelBroker, exchange, exchangeKind string) error {
 	if !r.containsExchange(exchange) {
-		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, fanoutExchangeKind)
-		err := channel.ExchangeDeclare(exchange, fanoutExchangeKind, true, false, false, false, nil)
+		r.logger.Debugf("%s declaring exchange '%s' of kind '%s'", logMessagePrefix, exchange, exchangeKind)
+		err := channel.ExchangeDeclare(exchange, exchangeKind, true, false, false, false, nil)
 		if err != nil {
 			r.logger.Errorf("%s ensureExchangeDeclared: channel.ExchangeDeclare failed: %v", logMessagePrefix, err)
 

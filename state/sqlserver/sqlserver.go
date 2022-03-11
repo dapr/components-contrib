@@ -343,36 +343,46 @@ func (s *SQLServer) Features() []state.Feature {
 
 // Multi performs multiple updates on a Sql server store.
 func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
-	var sets []state.SetRequest
-	var deletes []state.DeleteRequest
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+
 	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
 			setReq, err := s.getSets(req)
 			if err != nil {
+				tx.Rollback()
 				return err
 			}
 
-			sets = append(sets, setReq)
+			err = s.executeSet(tx, &setReq)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 
 		case state.Delete:
 			delReq, err := s.getDeletes(req)
 			if err != nil {
+				tx.Rollback()
 				return err
 			}
 
-			deletes = append(deletes, delReq)
+			err = s.executeDelete(tx, &delReq)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 
 		default:
+			tx.Rollback()
 			return fmt.Errorf("unsupported operation: %s", req.Operation)
 		}
 	}
 
-	if len(sets) > 0 || len(deletes) > 0 {
-		return s.executeMulti(sets, deletes)
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 // Returns the set requests.
@@ -403,37 +413,12 @@ func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.Del
 	return delReq, nil
 }
 
-func (s *SQLServer) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-
-	if len(deletes) > 0 {
-		err = s.executeBulkDelete(tx, deletes)
-		if err != nil {
-			tx.Rollback()
-
-			return err
-		}
-	}
-
-	if len(sets) > 0 {
-		for i := range sets {
-			err = s.executeSet(tx, &sets[i])
-			if err != nil {
-				tx.Rollback()
-
-				return err
-			}
-		}
-	}
-
-	return tx.Commit()
-}
-
 // Delete removes an entity from the store.
 func (s *SQLServer) Delete(req *state.DeleteRequest) error {
+	return s.executeDelete(s.db, req)
+}
+
+func (s *SQLServer) executeDelete(db dbExecutor, req *state.DeleteRequest) error {
 	var err error
 	var res sql.Result
 	if req.ETag != nil {
@@ -443,9 +428,9 @@ func (s *SQLServer) Delete(req *state.DeleteRequest) error {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		res, err = s.db.Exec(s.deleteWithETagCommand, sql.Named(keyColumnName, req.Key), sql.Named(rowVersionColumnName, b))
+		res, err = db.Exec(s.deleteWithETagCommand, sql.Named(keyColumnName, req.Key), sql.Named(rowVersionColumnName, b))
 	} else {
-		res, err = s.db.Exec(s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
+		res, err = db.Exec(s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
 	}
 
 	// err represents errors thrown by the stored procedure or the database itself
@@ -523,7 +508,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 	}
 
 	if int(rows) != len(req) {
-		err = fmt.Errorf("delete affected only %d rows, expected %d", rows, len(req))
+		err = state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
 
 		return err
 	}

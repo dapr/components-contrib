@@ -1,6 +1,3 @@
-//go:build integration_test
-// +build integration_test
-
 /*
 Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,8 +38,16 @@ const (
 	storageAccountNameEnvKey     = "AzureBlobStorageAccount"
 	storageAccountKeyEnvKey      = "AzureBlobStorageAccessKey"
 	azureCredentialsEnvKey       = "AZURE_CREDENTIALS"
+	testStorageContainerName     = "iothub-bindings-integration-test"
 
-	testStorageContainerName = "iothub-bindings-integration-test"
+	// use for AAD integration test
+	azureServicePrincipalClientIdEnvKey     = "AzureCertificationServicePrincipalClientId"
+	azureServicePrincipalClientSecretEnvKey = "AzureCertificationServicePrincipalClientSecret"
+	azureTenantIdEnvKey                     = "AzureCertificationTenantId"
+	azureBlobStorageAccountEnvKey           = "AzureBlobStorageAccount"
+	eventHubsBindingsContainerEnvKey        = "AzureEventHubsBindingsContainer"
+	eventHubBindingsHubEnvKey               = "AzureEventHubsBindingsHub"
+	eventHubBindingsNamespaceEnvKey         = "AzureEventHubsBindingsNamespace"
 )
 
 func createIotHubBindingsMetadata() bindings.Metadata {
@@ -57,6 +62,41 @@ func createIotHubBindingsMetadata() bindings.Metadata {
 	}
 
 	return metadata
+}
+
+func createEventHubsBindingsAADMetadata() bindings.Metadata {
+	metadata := bindings.Metadata{
+		Properties: map[string]string{
+			consumerGroup:        os.Getenv(iotHubConsumerGroupEnvKey),
+			storageAccountName:   os.Getenv(azureBlobStorageAccountEnvKey),
+			storageContainerName: os.Getenv(eventHubsBindingsContainerEnvKey),
+			"eventHub":           os.Getenv(eventHubBindingsHubEnvKey),
+			"eventHubNamespace":  os.Getenv(eventHubBindingsNamespaceEnvKey),
+			"azureTenantId":      os.Getenv(azureTenantIdEnvKey),
+			"azureClientId":      os.Getenv(azureServicePrincipalClientIdEnvKey),
+			"azureClientSecret":  os.Getenv(azureServicePrincipalClientSecretEnvKey),
+		},
+	}
+
+	return metadata
+}
+
+func testEventHubsBindingsAADAuthentication(t *testing.T) {
+	logger := logger.NewLogger("bindings.azure.eventhubs.integration.test")
+	metadata := createEventHubsBindingsAADMetadata()
+	eventHubsBindings := NewAzureEventHubs(logger)
+
+	err := eventHubsBindings.Init(metadata)
+	assert.NoError(t, err)
+
+	req := &bindings.InvokeRequest{
+		Data: []byte("testdata"),
+	}
+	_, err = eventHubsBindings.Invoke(req)
+	assert.NoError(t, err)
+
+	//	err = eventHubsBindings.Stop()
+	// assert.NoError(t, err)
 }
 
 func testReadIotHubEvents(t *testing.T) {
@@ -110,9 +150,11 @@ func testReadIotHubEvents(t *testing.T) {
 
 func TestIntegrationCases(t *testing.T) {
 	connectionString := os.Getenv(iotHubConnectionStringEnvKey)
-	if connectionString == "" {
-		t.Skipf("EventHubs bindings integration to IoT Hub tests skipped. To enable them, define the endpoint connection string using environment variable '%s')", iotHubConnectionStringEnvKey)
+	if connectionString != "" {
+		// t.Run("Read IoT Hub events", testReadIotHubEvents)
 	}
-
-	t.Run("Read IoT Hub events", testReadIotHubEvents)
+	serviceprincipal := os.Getenv(azureServicePrincipalClientIdEnvKey)
+	if serviceprincipal != "" {
+		t.Run("Event Hubs Binding AAD authentication", testEventHubsBindingsAADAuthentication)
+	}
 }

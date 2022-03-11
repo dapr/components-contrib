@@ -207,6 +207,7 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 		}
 		a.tokenProvider = tokenProvider
 
+		fmt.Printf("STUFF: %s and %s", a.metadata.eventHubNamespaceName, a.metadata.eventHubName)
 		a.hub, err = eventhub.NewHub(a.metadata.eventHubNamespaceName, hubName, a.tokenProvider, eventhub.HubWithUserAgent(a.userAgent))
 		if err != nil {
 			return fmt.Errorf("unable to connect to azure event hubs: %v", err)

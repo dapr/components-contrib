@@ -21,8 +21,11 @@ import (
 type dbAccess interface {
 	Init(metadata state.Metadata) error
 	Set(req *state.SetRequest) error
+	BulkSet(req []state.SetRequest) error
 	Get(req *state.GetRequest) (*state.GetResponse, error)
 	Delete(req *state.DeleteRequest) error
-	ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error
+	BulkDelete(req []state.DeleteRequest) error
+	ExecuteMulti(req *state.TransactionalStateRequest) error
+	Query(req *state.QueryRequest) (*state.QueryResponse, error)
 	Close() error // io.Closer
 }

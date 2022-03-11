@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/configuration"
@@ -52,10 +54,11 @@ const (
 
 // ConfigurationStore is a Redis configuration store.
 type ConfigurationStore struct {
-	client   redis.UniversalClient
-	json     jsoniter.API
-	metadata metadata
-	replicas int
+	client               redis.UniversalClient
+	json                 jsoniter.API
+	metadata             metadata
+	replicas             int
+	subscribeStopChanMap sync.Map
 
 	logger logger.Logger
 }
@@ -256,32 +259,55 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	}, nil
 }
 
-func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) error {
+func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+	subscribeID := uuid.New().String()
 	if len(req.Keys) == 0 {
-		go r.doSubscribe(ctx, req, handler, keySpaceAny)
-		return nil
+		// subscribe all keys
+		stop := make(chan struct{})
+		r.subscribeStopChanMap.Store(subscribeID, stop)
+		go r.doSubscribe(ctx, req, handler, keySpaceAny, subscribeID, stop)
+		return subscribeID, nil
 	}
 	for _, k := range req.Keys {
-		go r.doSubscribe(ctx, req, handler, keySpacePrefix+k)
+		// subscribe single key
+		stop := make(chan struct{})
+		keySpacePrefixAndKey := keySpacePrefix + k
+		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpacePrefixAndKey); ok {
+			// already exist subscription
+			close(oldStopChan.(chan struct{}))
+		}
+		r.subscribeStopChanMap.Store(subscribeID, stop)
+		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, subscribeID, stop)
+	}
+	return subscribeID, nil
+}
+
+func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
+	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
+		// already exist subscription
+		r.subscribeStopChanMap.Delete(req.ID)
+		close(oldStopChan.(chan struct{}))
 	}
 	return nil
 }
 
-func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string) {
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, id string, stop chan struct{}) {
 	// enable notify-keyspace-events by redis Set command
 	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
 	p := r.client.Subscribe(ctx, redisChannel4revision)
 	for {
 		select {
+		case <-stop:
+			return
 		case <-ctx.Done():
 			return
 		case msg := <-p.Channel():
-			r.handleSubscribedChange(ctx, req, handler, msg)
+			r.handleSubscribedChange(ctx, req, handler, msg, id)
 		}
 	}
 }
 
-func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message) {
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message, id string) {
 	defer func() {
 		if err := recover(); err != nil {
 			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
@@ -305,6 +331,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 
 	e := &configuration.UpdateEvent{
 		Items: getResponse.Items,
+		ID:    id,
 	}
 	err = handler(ctx, e)
 	if err != nil {

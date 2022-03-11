@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/keighl/postmark"
+	"github.com/mrz1836/postmark"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -149,7 +149,7 @@ func (p *Postmark) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 
 	// Email body is held in req.Data, after we tidy it up a bit
 	emailBody, _ := strconv.Unquote(string(req.Data))
-	email.HtmlBody = emailBody
+	email.HTMLBody = emailBody
 
 	// Send the email
 	client := postmark.NewClient(p.metadata.ServerToken, p.metadata.AccountToken)

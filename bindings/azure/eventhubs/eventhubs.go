@@ -152,12 +152,9 @@ func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 	return &AzureEventHubs{logger: logger}
 }
 
-func validateAndGetHubName(connectionString string) (string, error) {
-	parsed, err := conn.ParsedConnectionFromStr(connectionString)
-	if err != nil {
-		return "", err
-	}
-	return parsed.HubName, nil
+func validate(connectionString string) error {
+	_, err := conn.ParsedConnectionFromStr(connectionString)
+	return err
 }
 
 // Init performs metadata init.
@@ -172,7 +169,7 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	a.metadata = m
 	if a.metadata.connectionString != "" {
 		// Validate connectionString.
-		_, validateErr := validateAndGetHubName(a.metadata.connectionString)
+		validateErr := validate(a.metadata.connectionString)
 		if validateErr != nil {
 			return errors.New(invalidConnectionStringErrorMsg)
 		}

@@ -53,7 +53,7 @@ const (
 	hubNamespaceName = "eventHubNamespace"
 
 	// errors.
-	hubManagerCreationErrorMsg          = "error: creating eventHub manager client"
+	hubConnectionInitErrorMsg           = "error: creating eventHub hub client"
 	invalidConnectionStringErrorMsg     = "error: connectionString is invalid"
 	missingHubNamespaceErrorMsg         = "error: connectionString or eventHubNamespace is required"
 	missingHubNameErrorMsg              = "error: connectionString or eventHub is required"
@@ -203,14 +203,13 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 		a.eventHubSettings = settings
 		tokenProvider, err := a.eventHubSettings.GetAADTokenProvider()
 		if err != nil {
-			return fmt.Errorf("%s %s", hubManagerCreationErrorMsg, err)
+			return fmt.Errorf("%s %s", hubConnectionInitErrorMsg, err)
 		}
 		a.tokenProvider = tokenProvider
 
-		fmt.Printf("STUFF: %s and %s", a.metadata.eventHubNamespaceName, a.metadata.eventHubName)
-		a.hub, err = eventhub.NewHub(a.metadata.eventHubNamespaceName, hubName, a.tokenProvider, eventhub.HubWithUserAgent(a.userAgent))
+		a.hub, err = eventhub.NewHub(a.metadata.eventHubNamespaceName, a.metadata.eventHubName, a.tokenProvider, eventhub.HubWithUserAgent(a.userAgent))
 		if err != nil {
-			return fmt.Errorf("unable to connect to azure event hubs: %v", err)
+			return fmt.Errorf("unable to connect to azure event hubs: %w", err)
 		}
 	}
 
@@ -400,7 +399,6 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 			return err
 		}
 	} else {
-
 		// AAD connection.
 		processor, err = eph.New(context.Background(), a.metadata.eventHubNamespaceName, a.metadata.eventHubName, a.tokenProvider, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
 		if err != nil {

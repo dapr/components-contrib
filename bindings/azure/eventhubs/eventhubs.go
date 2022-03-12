@@ -172,13 +172,13 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	a.metadata = m
 	if a.metadata.connectionString != "" {
 		// Validate connectionString.
-		_, err := validateAndGetHubName(a.metadata.connectionString)
-		if err != nil {
+		_, validateErr := validateAndGetHubName(a.metadata.connectionString)
+		if validateErr != nil {
 			return errors.New(invalidConnectionStringErrorMsg)
 		}
 
 		var hub *eventhub.Hub
-		// Create partitioned sender if the partitionID is configured
+		// Create partitioned sender if the partitionID is configured.
 		if a.metadata.partitioned() {
 			hub, err = eventhub.NewHubFromConnectionString(a.metadata.connectionString,
 				eventhub.HubWithPartitionedSender(a.metadata.partitionID),
@@ -191,7 +191,7 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 		}
 
 		if err != nil {
-			return fmt.Errorf("unable to connect to azure event hubs: %v", err)
+			return fmt.Errorf("unable to connect to azure event hubs: %w", err)
 		}
 		a.hub = hub
 	} else {
@@ -201,9 +201,9 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 			return sErr
 		}
 		a.eventHubSettings = settings
-		tokenProvider, err := a.eventHubSettings.GetAADTokenProvider()
-		if err != nil {
-			return fmt.Errorf("%s %s", hubConnectionInitErrorMsg, err)
+		tokenProvider, tokenErr := a.eventHubSettings.GetAADTokenProvider()
+		if tokenErr != nil {
+			return fmt.Errorf("%s %w", hubConnectionInitErrorMsg, err)
 		}
 		a.tokenProvider = tokenProvider
 
@@ -213,13 +213,13 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 		}
 	}
 
-	// connect to the storage account
+	// connect to the storage account.
 	if m.storageAccountKey != "" {
 		metadata.Properties["accountKey"] = m.storageAccountKey
 	}
 	a.storageCredential, a.azureEnvironment, err = azauth.GetAzureStorageCredentials(a.logger, m.storageAccountName, metadata.Properties)
 	if err != nil {
-		return fmt.Errorf("invalid credentials with error: %s", err.Error())
+		return fmt.Errorf("invalid credentials with error: %w", err)
 	}
 
 	return nil
@@ -240,10 +240,8 @@ func parseMetadata(meta bindings.Metadata) (*azureEventHubsMetadata, error) {
 
 	if val, ok := meta.Properties[storageAccountKey]; ok && val != "" {
 		m.storageAccountKey = val
-	} else {
-		if m.connectionString != "" {
-			return m, errors.New(missingStorageAccountKeyErrorMsg)
-		}
+	} else if m.connectionString != "" {
+		return m, errors.New(missingStorageAccountKeyErrorMsg)
 	}
 
 	if val, ok := meta.Properties[storageContainerName]; ok && val != "" {
@@ -268,18 +266,14 @@ func parseMetadata(meta bindings.Metadata) (*azureEventHubsMetadata, error) {
 
 	if val, ok := meta.Properties[hubName]; ok {
 		m.eventHubName = val
-	} else {
-		if m.connectionString == "" {
-			return m, errors.New(missingHubNameErrorMsg)
-		}
+	} else if m.connectionString == "" {
+		return m, errors.New(missingHubNameErrorMsg)
 	}
 
 	if val, ok := meta.Properties[hubNamespaceName]; ok {
 		m.eventHubNamespaceName = val
-	} else {
-		if m.connectionString == "" {
-			return m, errors.New(missingHubNamespaceErrorMsg)
-		}
+	} else if m.connectionString == "" {
+		return m, errors.New(missingHubNamespaceErrorMsg)
 	}
 
 	return m, nil
@@ -295,7 +289,7 @@ func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		Data: req.Data,
 	}
 
-	// Send partitionKey in event
+	// Send partitionKey in event.
 	if a.metadata.partitionKey != "" {
 		event.PartitionKey = &a.metadata.partitionKey
 	} else {
@@ -325,7 +319,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 		}
 	}
 
-	// close Event Hubs when application exits
+	// close Event Hubs when application exits.
 	exitChan := make(chan os.Signal, 1)
 	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
 	<-exitChan
@@ -393,7 +387,6 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 
 	var processor *eph.EventProcessorHost
 	if a.metadata.connectionString != "" {
-
 		processor, err = eph.NewFromConnectionString(context.Background(), a.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
 		if err != nil {
 			return err
@@ -405,7 +398,6 @@ func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadRespo
 			return err
 		}
 		a.logger.Debugf("processor initialized via AAD for eventHubName %s", a.metadata.eventHubName)
-
 	}
 
 	_, err = processor.RegisterHandler(context.Background(),

@@ -15,7 +15,7 @@ package clickhouse
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/vmihailenco/msgpack/v5"
 	"os"
 	"testing"
 	"time"
@@ -27,18 +27,19 @@ import (
 )
 
 const (
-	myDateTimeFormat = "2006-01-02 15:04:05"
-
-	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
-		id bigint NOT NULL,
-		v1 character  NOT NULL,
-		ts TIMESTAMP
+	testCreateTable = `CREATE TABLE IF NOT EXISTS example (
+			country_code FixedString(2),
+			os_id        UInt8,
+			browser_id   UInt8,
+			categories   Array(Int16),
+			action_day   Date,
+			action_time  DateTime
 		) engine=Memory`
-	testDropTable = `DROP TABLE foo`
-	testInsert    = "INSERT INTO foo (id, v1, ts) VALUES (%d, 'test-%d', %q)"
-	testDelete    = "DELETE FROM foo"
-	testUpdate    = "UPDATE foo SET ts = %q WHERE id = %d"
-	testSelect    = "SELECT * FROM foo WHERE id < 3"
+	testDropTable = `DROP TABLE example`
+	testInsert    = "INSERT INTO example (country_code, os_id, browser_id, categories, action_day, action_time) VALUES (?, ?, ?, ?, ?, ?)"
+	testDelete    = "ALTER TABLE example DELETE WHERE os_id = ?"
+	testUpdate    = "ALTER TABLE example UPDATE country_code = ? WHERE os_id = ?"
+	testSelect    = "SELECT * FROM example WHERE os_id < 15"
 )
 
 func TestOperations(t *testing.T) {
@@ -48,10 +49,13 @@ func TestOperations(t *testing.T) {
 		b := NewClickhouse(nil)
 		assert.NotNil(t, b)
 		l := b.Operations()
-		assert.Equal(t, 3, len(l))
+		assert.Equal(t, 6, len(l))
 		assert.Contains(t, l, execOperation)
 		assert.Contains(t, l, closeOperation)
 		assert.Contains(t, l, queryOperation)
+		assert.Contains(t, l, insertOperation)
+		assert.Contains(t, l, updateOperation)
+		assert.Contains(t, l, deleteOperation)
 	})
 }
 
@@ -84,26 +88,43 @@ func TestClickHouseIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
-		req.Operation = execOperation
+		req.Operation = deleteOperation
 		req.Metadata[commandSQLKey] = testDelete
+		data := []interface{}{uint8(18)}
+		b, err := msgpack.Marshal(&data)
+		if err != nil {
+			panic(err)
+		}
+		req.Data = b
 		res, err := ck.Invoke(req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke insert", func(t *testing.T) {
-		req.Operation = execOperation
+		req.Operation = insertOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(myDateTimeFormat))
-			fmt.Println(req.Metadata[commandSQLKey])
+			req.Metadata[commandSQLKey] = testInsert
+			data := []interface{}{"RU", uint8(10 + i), uint8(100 + i), []int16{1, 2, 3}, time.Now(), time.Now()}
+			b, err := msgpack.Marshal(data)
+			if err != nil {
+				panic(err)
+			}
+			req.Data = b
 			res, err := ck.Invoke(req)
 			assertResponse(t, res, err)
 		}
 	})
 
 	t.Run("Invoke update", func(t *testing.T) {
-		req.Operation = execOperation
+		req.Operation = updateOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(myDateTimeFormat), i)
+			req.Metadata[commandSQLKey] = testUpdate
+			data := []interface{}{"CN", uint8(10 + i)}
+			b, err := msgpack.Marshal(data)
+			if err != nil {
+				panic(err)
+			}
+			req.Data = b
 			res, err := ck.Invoke(req)
 			assertResponse(t, res, err)
 		}
@@ -117,29 +138,31 @@ func TestClickHouseIntegration(t *testing.T) {
 		t.Logf("received result: %s", res.Data)
 
 		// verify number, boolean and string
-		assert.Contains(t, string(res.Data), "\"id\":1")
-		assert.Contains(t, string(res.Data), "\"b\":1")
-		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")
+		assert.Contains(t, string(res.Data), "\"country_code\":\"CN\"")
+		assert.Contains(t, string(res.Data), "\"os_id\":11")
+		assert.Contains(t, string(res.Data), "\"categories\":[1,2,3]")
 
 		result := make([]interface{}, 0)
 		err = json.Unmarshal(res.Data, &result)
 		assert.Nil(t, err)
-		assert.Equal(t, 3, len(result))
+		assert.Equal(t, 5, len(result))
 
 		// verify timestamp
-		ts, ok := result[0].(map[string]interface{})["ts"].(string)
+		cc, ok := result[0].(map[string]interface{})["country_code"].(string)
 		assert.True(t, ok)
 		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
-		var tt time.Time
-		tt, err = time.Parse("2006-01-02T15:04:05Z", ts)
-		assert.Nil(t, err)
-		t.Logf("time stamp is: %v", tt)
+		assert.Equal(t, cc, "CN")
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
-		req.Operation = execOperation
+		req.Operation = deleteOperation
 		req.Metadata[commandSQLKey] = testDelete
-		req.Data = nil
+		data := []interface{}{uint8(10)}
+		b, err := msgpack.Marshal(data)
+		if err != nil {
+			panic(err)
+		}
+		req.Data = b
 		res, err := ck.Invoke(req)
 		assertResponse(t, res, err)
 	})

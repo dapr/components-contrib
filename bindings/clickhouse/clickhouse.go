@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"github.com/vmihailenco/msgpack/v5"
 	"io/ioutil"
 	"reflect"
 	"strconv"
@@ -21,9 +22,12 @@ import (
 
 const (
 	// list of operations.
-	execOperation  bindings.OperationKind = "exec"
-	queryOperation bindings.OperationKind = "query"
-	closeOperation bindings.OperationKind = "close"
+	execOperation   bindings.OperationKind = "exec"
+	insertOperation bindings.OperationKind = "insert"
+	updateOperation bindings.OperationKind = "update"
+	deleteOperation bindings.OperationKind = "delete"
+	queryOperation  bindings.OperationKind = "query"
+	closeOperation  bindings.OperationKind = "close"
 
 	connectionURLKey = "url"
 
@@ -56,6 +60,7 @@ var (
 	ErrMetadataURLKeyMissing = errors.New("missing Click  connection DSN url")
 	ErrRequestRequired       = errors.New("invoke request required")
 	ErrMetadataRequired      = errors.New("metadata required")
+	ErrDataRequired          = errors.New("data required")
 	ErrInvalidOperation      = errors.Errorf("invalid operation type Expected %s, %s, or %s", execOperation, queryOperation, closeOperation)
 	ErrCommandSQLKeyRequired = errors.Errorf("required metadata not set: %s", commandSQLKey)
 )
@@ -72,8 +77,6 @@ func NewClickhouse(logger logger.Logger) *Clickhouse {
 }
 
 func (c *Clickhouse) Init(metadata bindings.Metadata) error {
-	c.logger.Debugf("Initializing Clickhouse Binding")
-
 	p := metadata.Properties
 	url, ok := p[connectionURLKey]
 	if !ok || url == "" {
@@ -134,13 +137,23 @@ func (c *Clickhouse) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		},
 	}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation {
 	case execOperation:
-		err := c.exec(s)
-		if err != nil {
+		if err := c.exec(s); err != nil {
 			return nil, err
 		}
 
+	case insertOperation, updateOperation, deleteOperation:
+		if req.Data == nil {
+			return nil, ErrDataRequired
+		}
+		var vals []interface{}
+		if err := msgpack.Unmarshal(req.Data, &vals); err != nil {
+			return nil, err
+		}
+		if err := c.execByTransaction(s, vals...); err != nil {
+			return nil, err
+		}
 	case queryOperation:
 		d, err := c.query(s)
 		if err != nil {
@@ -161,7 +174,7 @@ func (c *Clickhouse) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 }
 
 func (c Clickhouse) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{execOperation, queryOperation, closeOperation}
+	return []bindings.OperationKind{execOperation, queryOperation, closeOperation, insertOperation, updateOperation, deleteOperation}
 }
 
 func (c *Clickhouse) Close() error {
@@ -172,8 +185,6 @@ func (c *Clickhouse) Close() error {
 }
 
 func (c *Clickhouse) query(sql string) ([]byte, error) {
-	c.logger.Debugf("query: %s", sql)
-
 	rows, err := c.db.Query(sql)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing %s", sql)
@@ -195,22 +206,29 @@ func (c *Clickhouse) query(sql string) ([]byte, error) {
 func (c *Clickhouse) exec(sql string) error {
 	c.logger.Debugf("exec: %s", sql)
 
+	if _, err := c.db.Exec(sql); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Clickhouse) execByTransaction(sql string, values ...interface{}) error {
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
 	}
 	stmt, err := tx.Prepare(sql)
 	if err != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return rollbackErr
+		}
 		return err
 	}
 	defer stmt.Close()
-	if _, err := stmt.Exec(); err != nil {
+	if _, err := stmt.Exec(values...); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	return nil
+	return tx.Commit()
 }
 
 func (c *Clickhouse) jsonify(rows *sql.Rows) ([]byte, error) {
@@ -298,7 +316,6 @@ func propertyToInt(props map[string]string, key string, setter func(int)) error 
 			return errors.Wrapf(err, "error converitng %s:%s to int", key, v)
 		}
 	}
-
 	return nil
 }
 
@@ -310,7 +327,6 @@ func propertyToDuration(props map[string]string, key string, setter func(time.Du
 			return errors.Wrapf(err, "error converitng %s:%s to time duration", key, v)
 		}
 	}
-
 	return nil
 }
 
@@ -324,6 +340,5 @@ func prepareValues(columnTypes []*sql.ColumnType) []interface{} {
 	for i := range values {
 		values[i] = reflect.New(types[i]).Interface()
 	}
-
 	return values
 }

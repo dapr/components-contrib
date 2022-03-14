@@ -341,7 +341,28 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 // BulkDelete removes multiple entries from the store
 // Store Interface.
 func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
-	return m.executeMulti(nil, req)
+	m.logger.Debug("Executing BulkDelete request")
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	if len(req) > 0 {
+		for _, d := range req {
+			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
+			err = m.Delete(&da)
+			if err != nil {
+				tx.Rollback()
+
+				return err
+			}
+		}
+	}
+
+	err = tx.Commit()
+
+	return err
 }
 
 // Get returns an entity from store
@@ -482,33 +503,66 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 // BulkSet adds/updates multiple entities on store
 // Store Interface.
 func (m *MySQL) BulkSet(req []state.SetRequest) error {
-	return m.executeMulti(req, nil)
+	m.logger.Debug("Executing BulkSet request")
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	if len(req) > 0 {
+		for _, s := range req {
+			sa := s // Fix for goSec G601: Implicit memory aliasing in for loop.
+			err = m.Set(&sa)
+			if err != nil {
+				tx.Rollback()
+
+				return err
+			}
+		}
+	}
+
+	err = tx.Commit()
+
+	return err
 }
 
 // Multi handles multiple transactions.
 // TransactionalStore Interface.
 func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
-	var sets []state.SetRequest
-	var deletes []state.DeleteRequest
+	m.logger.Debug("Executing Multi request")
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
 
 	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
-			setReq, ok := req.Request.(state.SetRequest)
+			setReq, err := m.getSets(req)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 
-			if ok {
-				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
+			err = m.Set(&setReq)
+			if err != nil {
+				tx.Rollback()
+				return err
 			}
 
 		case state.Delete:
-			delReq, ok := req.Request.(state.DeleteRequest)
+			delReq, err := m.getDeletes(req)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 
-			if ok {
-				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
+			err = m.Delete(&delReq)
+			if err != nil {
+				tx.Rollback()
+				return err
 			}
 
 		default:
@@ -516,11 +570,35 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 		}
 	}
 
-	if len(sets) > 0 || len(deletes) > 0 {
-		return m.executeMulti(sets, deletes)
+	return tx.Commit()
+}
+
+// Returns the set requests.
+func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
+	setReq, ok := req.Request.(state.SetRequest)
+	if !ok {
+		return setReq, fmt.Errorf("expecting set request")
 	}
 
-	return nil
+	if setReq.Key == "" {
+		return setReq, fmt.Errorf("missing key in upsert operation")
+	}
+
+	return setReq, nil
+}
+
+// Returns the delete requests.
+func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
+	delReq, ok := req.Request.(state.DeleteRequest)
+	if !ok {
+		return delReq, fmt.Errorf("expecting delete request")
+	}
+
+	if delReq.Key == "" {
+		return delReq, fmt.Errorf("missing key in upsert operation")
+	}
+
+	return delReq, nil
 }
 
 // BulkGet performs a bulks get operations.
@@ -537,41 +615,4 @@ func (m *MySQL) Close() error {
 	}
 
 	return nil
-}
-
-func (m *MySQL) executeMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
-	m.logger.Debug("Executing multiple MySql operations")
-
-	tx, err := m.db.Begin()
-	if err != nil {
-		return err
-	}
-
-	if len(deletes) > 0 {
-		for _, d := range deletes {
-			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Delete(&da)
-			if err != nil {
-				tx.Rollback()
-
-				return err
-			}
-		}
-	}
-
-	if len(sets) > 0 {
-		for _, s := range sets {
-			sa := s // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Set(&sa)
-			if err != nil {
-				tx.Rollback()
-
-				return err
-			}
-		}
-	}
-
-	err = tx.Commit()
-
-	return err
 }

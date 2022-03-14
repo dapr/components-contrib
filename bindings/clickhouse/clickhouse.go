@@ -170,7 +170,6 @@ func (c *Clickhouse) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 
 	return resp, nil
-
 }
 
 func (c Clickhouse) Operations() []bindings.OperationKind {

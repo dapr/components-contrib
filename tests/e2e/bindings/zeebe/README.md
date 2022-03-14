@@ -6,7 +6,7 @@ In Visual Studio Code run Remote-Containers: **Open Folder in Container...** fro
 
 ```bash
 cd tests/e2e/bindings/zeebe/
-docker compose up -d
+docker-compose up -d
 docker exec -w /go/src/github.com/dapr/components-contrib -it zeebe-dapr-1 make e2e-tests-zeebe
 ```
 

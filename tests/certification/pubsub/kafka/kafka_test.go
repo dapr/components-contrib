@@ -203,6 +203,10 @@ func TestKafka(t *testing.T) {
 							m.Add(msg) // Success
 						}
 						counter++
+					} else {
+						for _, m := range messages {
+							m.Remove(msg) // Remove from Tracking
+						}
 					}
 				}
 			}

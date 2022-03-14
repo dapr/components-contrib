@@ -377,6 +377,8 @@ type AgentServiceCheck struct {
 }
 
 type QueryOptions struct {
+	Namespace         string
+	Partition         string
 	Datacenter        string
 	WaitHash          string
 	Token             string

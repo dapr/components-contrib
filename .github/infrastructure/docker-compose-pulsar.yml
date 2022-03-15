@@ -1,7 +1,7 @@
 version: '2'
 services:
   standalone:
-    image: apachepulsar/pulsar
+    image: apachepulsar/pulsar:2.8.2
     ports:
       - "6650:6650"
       - "8080:8080"

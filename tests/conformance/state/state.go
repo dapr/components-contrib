@@ -23,6 +23,10 @@ type ValueType struct {
 	Message string `json:"message"`
 }
 
+type IntValueType struct {
+	Message int32 `json:"message"`
+}
+
 type scenario struct {
 	key              string
 	value            interface{}
@@ -84,6 +88,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			key:   fmt.Sprintf("%s-struct", key),
 			value: ValueType{Message: fmt.Sprintf("%s-test", key)},
+		},
+		{
+			key:         fmt.Sprintf("%s-struct-with-int", key),
+			value:       IntValueType{Message: 42},
+			contentType: contenttype.JSONContentType,
 		},
 		{
 			key:         fmt.Sprintf("%s-to-be-deleted", key),
@@ -633,6 +642,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 func assertEquals(t *testing.T, value interface{}, res *state.GetResponse) {
 	switch v := value.(type) {
+	case IntValueType:
+		// Custom type requires case mapping
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
 	case ValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(res.Data, &v); err != nil {

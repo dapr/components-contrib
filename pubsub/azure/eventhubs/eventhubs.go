@@ -145,17 +145,17 @@ type AzureEventHubs struct {
 }
 
 type azureEventHubsMetadata struct {
-	ConnectionString        string `json:"connectionString,omitempty"`
-	EventHubNamespace       string `json:"eventHubNamespace,omitempty"`
-	ConsumerGroup           string `json:"consumerID"`
-	StorageAccountName      string `json:"storageAccountName,omitempty"`
-	StorageAccountKey       string `json:"storageAccountKey,omitempty"`
-	StorageContainerName    string `json:"storageContainerName,omitempty"`
-	EnableEnitityManagement bool   `json:"enableEntityManagement,omitempty,string"`
-	MessageRetentionInDays  int32  `json:"messageRetentionInDays,omitempty,string"`
-	PartitionCount          int32  `json:"partitionCount,omitempty,string"`
-	SubscriptionID          string `json:"subscriptionID,omitempty"`
-	ResourceGroupName       string `json:"resourceGroupName,omitempty"`
+	ConnectionString       string `json:"connectionString,omitempty"`
+	EventHubNamespace      string `json:"eventHubNamespace,omitempty"`
+	ConsumerGroup          string `json:"consumerID"`
+	StorageAccountName     string `json:"storageAccountName,omitempty"`
+	StorageAccountKey      string `json:"storageAccountKey,omitempty"`
+	StorageContainerName   string `json:"storageContainerName,omitempty"`
+	EnableEntityManagement bool   `json:"enableEntityManagement,omitempty,string"`
+	MessageRetentionInDays int32  `json:"messageRetentionInDays,omitempty,string"`
+	PartitionCount         int32  `json:"partitionCount,omitempty,string"`
+	SubscriptionID         string `json:"subscriptionID,omitempty"`
+	ResourceGroupName      string `json:"resourceGroupName,omitempty"`
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -309,7 +309,7 @@ func (aeh *AzureEventHubs) createHubEntity(hubName string) error {
 }
 
 func (aeh *AzureEventHubs) ensurePublisherClient(hubName string) error {
-	if aeh.metadata.EnableEnitityManagement {
+	if aeh.metadata.EnableEntityManagement {
 		if err := aeh.ensureEventHub(hubName); err != nil {
 			return err
 		}
@@ -448,9 +448,9 @@ func (aeh *AzureEventHubs) getStoragePrefixString(topic string) string {
 
 // Init connects to Azure Event Hubs.
 func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
-	m, err := parseEventHubsMetadata(metadata)
-	if err != nil {
-		return err
+	m, parseErr := parseEventHubsMetadata(metadata)
+	if parseErr != nil {
+		return parseErr
 	}
 
 	aeh.metadata = m
@@ -459,8 +459,8 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 
 	if aeh.metadata.ConnectionString != "" {
 		// Validate connectionString.
-		hubName, err := validateAndGetHubName(aeh.metadata.ConnectionString)
-		if err != nil {
+		hubName, validateErr := validateAndGetHubName(aeh.metadata.ConnectionString)
+		if validateErr != nil {
 			return errors.New(invalidConnectionStringErrorMsg)
 		}
 		if hubName != "" {
@@ -469,7 +469,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 			aeh.logger.Infof("hubName not given in connectionString. connection established on first publish/subscribe")
 			aeh.logger.Debugf("req.Topic field in incoming requests honored")
 		}
-		if aeh.metadata.EnableEnitityManagement {
+		if aeh.metadata.EnableEntityManagement {
 			// See https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-management-libraries
 			return errors.New(entityManagementConnectionStrMsg)
 		}
@@ -488,14 +488,14 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		aeh.logger.Info("connecting to Azure EventHubs via AAD. connection established on first publish/subscribe")
 		aeh.logger.Debugf("req.Topic field in incoming requests honored")
 
-		if aeh.metadata.EnableEnitityManagement {
+		if aeh.metadata.EnableEntityManagement {
 			if err := aeh.validateEnitityManagementMetadata(); err != nil {
 				return err
 			}
 
 			// Create hubManager for eventHub management with AAD.
-			if err := aeh.createHubManager(); err != nil {
-				return err
+			if managerCreateErr := aeh.createHubManager(); managerCreateErr != nil {
+				return managerCreateErr
 			}
 
 			// Get Azure Management plane settings for creating consumer groups using event hubs management client.
@@ -511,9 +511,10 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 	if m.StorageAccountKey != "" {
 		metadata.Properties["accountKey"] = m.StorageAccountKey
 	}
-	aeh.storageCredential, aeh.azureEnvironment, err = azauth.GetAzureStorageCredentials(aeh.logger, m.StorageAccountName, metadata.Properties)
-	if err != nil {
-		return fmt.Errorf("invalid storage credentials with error: %w", err)
+	var storageCredsErr error
+	aeh.storageCredential, aeh.azureEnvironment, storageCredsErr = azauth.GetAzureStorageCredentials(aeh.logger, m.StorageAccountName, metadata.Properties)
+	if storageCredsErr != nil {
+		return fmt.Errorf("invalid storage credentials with error: %w", storageCredsErr)
 	}
 
 	aeh.ctx, aeh.cancel = context.WithCancel(context.Background())
@@ -555,7 +556,7 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 	if err != nil {
 		return fmt.Errorf("error : error on subscribe %s", err)
 	}
-	if aeh.metadata.EnableEnitityManagement {
+	if aeh.metadata.EnableEntityManagement {
 		if err = aeh.ensureSubscription(req.Topic); err != nil {
 			return err
 		}

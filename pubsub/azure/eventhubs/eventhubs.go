@@ -49,7 +49,7 @@ const (
 	invalidConnectionStringErrorMsg          = "error: connectionString is invalid"
 	missingConnectionStringNamespaceErrorMsg = "error: connectionString or eventHubNamespace is required"
 	missingStorageAccountNameErrorMsg        = "error: storageAccountName is a required attribute for subscribe"
-	missingStorageAccountKeyErrorMsg         = "error: storageAccountKey is a required attribute for subscribe"
+	missingStorageAccountKeyErrorMsg         = "error: storageAccountKey is required for subscribe when connectionString is provided"
 	missingStorageContainerNameErrorMsg      = "error: storageContainerName is a required attribute for subscribe"
 	missingConsumerIDErrorMsg                = "error: missing consumerID attribute for subscribe"
 	bothConnectionStringNamespaceErrorMsg    = "error: both connectionString and eventHubNamespace are given, only one should be given"
@@ -140,6 +140,8 @@ type AzureEventHubs struct {
 	managementSettings azauth.EnvironmentSettings
 	cgClient           *mgmt.ConsumerGroupsClient
 	tokenProvider      *aad.TokenProvider
+	storageCredential  azblob.Credential
+	azureEnvironment   *azure.Environment
 }
 
 type azureEventHubsMetadata struct {
@@ -425,7 +427,7 @@ func (aeh *AzureEventHubs) validateSubscriptionAttributes() error {
 		return errors.New(missingStorageAccountNameErrorMsg)
 	}
 
-	if m.StorageAccountKey == "" {
+	if m.StorageAccountKey == "" && m.ConnectionString != "" {
 		return errors.New(missingStorageAccountKeyErrorMsg)
 	}
 
@@ -505,6 +507,15 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		}
 	}
 
+	// connect to the storage account.
+	if m.StorageAccountKey != "" {
+		metadata.Properties["accountKey"] = m.StorageAccountKey
+	}
+	aeh.storageCredential, aeh.azureEnvironment, err = azauth.GetAzureStorageCredentials(aeh.logger, m.StorageAccountName, metadata.Properties)
+	if err != nil {
+		return fmt.Errorf("invalid storage credentials with error: %w", err)
+	}
+
 	aeh.ctx, aeh.cancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no backOff properties are set.
@@ -549,15 +560,11 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 			return err
 		}
 	}
-	cred, err := azblob.NewSharedKeyCredential(aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
-	if err != nil {
-		return err
-	}
 
 	// Set topic name, consumerID prefix for partition checkpoint lease blob path.
 	// This is needed to support multiple consumers for the topic using the same storage container.
 	leaserPrefixOpt := storage.WithPrefixInBlobPath(aeh.getStoragePrefixString(req.Topic))
-	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, aeh.metadata.StorageAccountName, aeh.metadata.StorageContainerName, azure.PublicCloud, leaserPrefixOpt)
+	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(aeh.storageCredential, aeh.metadata.StorageAccountName, aeh.metadata.StorageContainerName, azure.PublicCloud, leaserPrefixOpt)
 	if err != nil {
 		return err
 	}

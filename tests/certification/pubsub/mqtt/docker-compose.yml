@@ -6,3 +6,7 @@ services:
     container_name: emqx
     ports:
       - "1884:1883"
+    environment:
+    -  "EMQX_ZONE__EXTERNAL__RETRY_INTERVAL=30s"
+    -  "EMQX_ZONE__EXTERNAL__MAX_INFLIGHT=128"
+    -  "EMQX_ZONE__EXTERNAL__MAX_MQUEUE_LEN=0"

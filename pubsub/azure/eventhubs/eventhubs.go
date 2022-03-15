@@ -565,7 +565,7 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 	// Set topic name, consumerID prefix for partition checkpoint lease blob path.
 	// This is needed to support multiple consumers for the topic using the same storage container.
 	leaserPrefixOpt := storage.WithPrefixInBlobPath(aeh.getStoragePrefixString(req.Topic))
-	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(aeh.storageCredential, aeh.metadata.StorageAccountName, aeh.metadata.StorageContainerName, azure.PublicCloud, leaserPrefixOpt)
+	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(aeh.storageCredential, aeh.metadata.StorageAccountName, aeh.metadata.StorageContainerName, *aeh.azureEnvironment, leaserPrefixOpt)
 	if err != nil {
 		return err
 	}

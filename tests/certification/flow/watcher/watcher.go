@@ -125,6 +125,20 @@ func (w *Watcher) Add(data ...interface{}) {
 	w.expected = append(w.expected, data...)
 }
 
+// Remove is called if the network operation fails
+// and removes `data` from the `remaining` map added
+// during `Prepare`. This is so that if the `Publish` '
+// operation fails, `data` added for tracking could be
+// removed afterwards.
+func (w *Watcher) Remove(data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for _, item := range data {
+		delete(w.remaining, item)
+	}
+}
+
 // Expect adds data to both the `remaining` map
 // add the expected slice in a single call.
 // Use this only when a test scenario can prepare

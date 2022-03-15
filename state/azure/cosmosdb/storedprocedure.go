@@ -13,85 +13,70 @@ limitations under the License.
 
 package cosmosdb
 
-const spDefinition string = `// upserts - an array of objects to upsert
-// deletes - an array of objects to delete
+const spDefinition string = `// operations - an array of objects to upsert or delete
+function dapr_multi_v2(operations) {
+    if (typeof operations === "string") {
+        throw new Error("arg is a string, expected array of objects");
+    }
 
-function dapr_multi(upserts, deletes) {
     var context = getContext();
-    var container = context.getCollection();
+    var collection = context.getCollection();
+    var collectionLink = collection.getSelfLink();
     var response = context.getResponse();
-    
-    if (typeof upserts === "string") {
-        throw new Error("first arg is a string, expected array of objects");
+
+    // Upserts do not reflect until the transaction is committed,
+    // as a result of which SELECT will not return the new values.
+    // We need to store document URLs (_self) in order to do deletions.
+    var documentMap = {}
+
+    var operationCount = 0;
+    if (operations.length > 0) {
+        tryExecute(operations[operationCount], callback);
     }
 
-    if (typeof deletes === "string") {
-        throw new Error("second arg is a string, expected array of objects");
-    }
-
-    // create the query string used to look up deletes    
-    var query = "select * from n where n.id in ";
-    if (deletes.length > 0) {        
-        query += ("('" + deletes[0].id + "'");
-
-        for (let j = 1; j < deletes.length; j++) {            
-            query += ", '" + deletes[j].id + "'" 
+    function tryExecute(operation, callback) {
+        switch (operation["type"]) {
+            case "upsert":
+                tryCreate(operation["item"], callback);
+                break;
+            case "delete":
+                tryQueryAndDelete(operation["item"], callback);
+                break;
+            default:
+                throw new Error("operation type not supported - should be 'upsert' or 'delete'");
         }
     }
 
-    query += ')'
-    console.log("query" + query)
-    var upsertCount = 0;
-    var deleteCount = 0;
-      
-    var collectionLink = container.getSelfLink();
+    function tryCreate(doc, callback) {
+        var isAccepted = collection.upsertDocument(collectionLink, doc, callback);
 
-    // do the upserts first    
-    if (upserts.length != 0) {
-        tryCreate(upserts[upsertCount], callback);
-    } else {
-        tryQueryAndDelete();
-    }
-
-    function tryCreate(doc, callback) {        
-        var isAccepted = container.upsertDocument(collectionLink, doc, callback);
-        
-        // fail if we hit execution bounds
-        if (!isAccepted) {                        
+        // Fail if we hit execution bounds.
+        if (!isAccepted) {
             throw new Error("upsertDocument() not accepted, please retry");
         }
     }
 
-    function callback(err, doc, options) {        
-        if (err) throw err;
-
-        upsertCount++;
-
-        if (upsertCount >= upserts.length) {
-            
-            // upserts are done, start the deletes, if any
-            if (deletes.length > 0) {
-                tryQueryAndDelete()
-            }
-        } else {            
-            tryCreate(upserts[upsertCount], callback);
+    function tryQueryAndDelete(doc, callback) {
+        // Check the cache first. We expect to find the document if it was upserted.
+        var documentLink = documentMap[doc["id"]];
+        if (documentLink) {
+            tryDelete(documentLink, callback);
+            return;
         }
-    }
 
-    function tryQueryAndDelete() {    
-		var requestOptions = {};            
-        var isAccepted = container.queryDocuments(collectionLink, query, requestOptions, function (err, retrievedDocs, responseOptions) {
-            if (err) {
-                throw err;
-            }
+        // Not found in cache, query for it.
+        var query = "select n._self from n where n.id='" + doc["id"] + "'";
+        console.log("query: " + query)
 
-            if (retrievedDocs == null) {                
+        var requestOptions = {};
+        var isAccepted = collection.queryDocuments(collectionLink, query, requestOptions, function (err, retrievedDocs, _responseOptions) {
+            if (err) throw err;
+
+            if (retrievedDocs == null || retrievedDocs.length == 0) {
+                // Nothing to delete.
                 response.setBody(JSON.stringify("success"));
-            } else if (retrievedDocs.length > 0) {                
-                tryDelete(retrievedDocs);			
-            } else {                
-                // done with all deletes                
-                response.setBody(JSON.stringify("success"));
+            } else {
+                tryDelete(retrievedDocs[0]._self, callback);
             }
         });
 
@@ -101,25 +86,33 @@ function dapr_multi(upserts, deletes) {
         }
     }
 
-    function tryDelete(documents) {
-        if (documents.length > 0) {
-            // Delete the first document in the array.
-            var isAccepted = container.deleteDocument(documents[0]._self, {}, function (err, responseOptions) {
-                if (err) throw err;
+    function tryDelete(documentLink, callback) {
+        // Delete the first document in the array.
+        var requestOptions = {};
+        var isAccepted = collection.deleteDocument(documentLink, requestOptions, (err, _responseOptions) => {
+            callback(err, null, _responseOptions);
+        });
 
-                deleteCount++;
-                documents.shift();
-                // Delete the next document in the array.
-                tryDelete(documents);
-            });
+        // Fail if we hit execution bounds.
+        if (!isAccepted) {
+            throw new Error("deleteDocument() not accepted, please retry");
+        }
+    }
 
-            // fail if we hit execution bounds
-            if (!isAccepted) {
-                throw new Error("deleteDocument() not accepted, please retry");
-            }
+    function callback(err, doc, _options) {
+        if (err) throw err;
+
+        // Document references are stored for all upserts.
+        // This can be used for further deletes in this transaction.
+        if (doc && doc._self) documentMap[doc.id] = doc._self;
+
+        operationCount++;
+
+        if (operationCount >= operations.length) {
+            // Operations are done.
+            response.setBody(JSON.stringify("success"));
         } else {
-            // If the document array is empty, query for more documents.
-            tryQueryAndDelete();
+            tryExecute(operations[operationCount], callback);
         }
     }
 }`

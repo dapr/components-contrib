@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/v3/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -312,12 +313,17 @@ func contains(arr []string, str string) bool {
 // RegisterEventProcessor - receive eventhub messages by eventprocessor
 // host by balancing partitions.
 func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
-	cred, err := azblob.NewSharedKeyCredential(a.metadata.storageAccountName, a.metadata.storageAccountKey)
+	value := map[string]string{"accountKey": a.metadata.storageAccountKey}
+	cred, env, err := azauth.GetAzureStorageCredentials(a.logger, a.metadata.storageAccountName, value)
 	if err != nil {
-		return err
+		a.logger.Warnf("RegisterEventProcessor use AAD for checkpointing storage failed: %s", err.Error())
+		cred, err = azblob.NewSharedKeyCredential(a.metadata.storageAccountName, a.metadata.storageAccountKey)
+		if err != nil {
+			return err
+		}
+		env = &azure.PublicCloud
 	}
-
-	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, a.metadata.storageAccountName, a.metadata.storageContainerName, azure.PublicCloud)
+	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, a.metadata.storageAccountName, a.metadata.storageContainerName, *env)
 	if err != nil {
 		return err
 	}

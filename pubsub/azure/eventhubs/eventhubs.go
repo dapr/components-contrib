@@ -549,15 +549,21 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 			return err
 		}
 	}
-	cred, err := azblob.NewSharedKeyCredential(aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
+	req.Metadata["accountKey"] = aeh.metadata.StorageAccountKey
+	cred, env, err := azauth.GetAzureStorageCredentials(aeh.logger, aeh.metadata.StorageAccountName, req.Metadata)
 	if err != nil {
-		return err
+		aeh.logger.Warnf("Subscribe use AAD for checkpointing storage failed: %s", err.Error())
+		cred, err = azblob.NewSharedKeyCredential(aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
+		if err != nil {
+			return err
+		}
+		env = &azure.PublicCloud
 	}
 
 	// Set topic name, consumerID prefix for partition checkpoint lease blob path.
 	// This is needed to support multiple consumers for the topic using the same storage container.
 	leaserPrefixOpt := storage.WithPrefixInBlobPath(aeh.getStoragePrefixString(req.Topic))
-	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, aeh.metadata.StorageAccountName, aeh.metadata.StorageContainerName, azure.PublicCloud, leaserPrefixOpt)
+	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, aeh.metadata.StorageAccountName, aeh.metadata.StorageContainerName, *env, leaserPrefixOpt)
 	if err != nil {
 		return err
 	}

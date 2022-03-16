@@ -289,6 +289,45 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	}
 
+	if config.HasOperation("get") && config.HasOperation("set") {
+		t.Run("read, write, read output match", func(t *testing.T) {
+			for _, scenario := range scenarios {
+				if !scenario.bulkOnly && !scenario.transactionOnly {
+					t.Logf("Retrieving value for %s", scenario.key)
+					req := &state.GetRequest{
+						Key: scenario.key,
+					}
+					if len(scenario.contentType) != 0 {
+						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+					}
+					res, err := statestore.Get(req)
+					assert.Nil(t, err)
+					assertEquals(t, scenario.value, res)
+					t.Logf("Rewriting retrieved value for %s", scenario.key)
+					setReq := &state.SetRequest{
+						Key:   scenario.key,
+						Value: res,
+					}
+					if len(scenario.contentType) != 0 {
+						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+					}
+					err2 := statestore.Set(setReq)
+					assert.Nil(t, err2)
+					t.Logf("Retrieving rewritten value for key %s", scenario.key)
+					req2 := &state.GetRequest{
+						Key: scenario.key,
+					}
+					if len(scenario.contentType) != 0 {
+						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+					}
+					res2, err := statestore.Get(req2)
+					assert.Nil(t, err)
+					assertEquals(t, res, res2)
+				}
+			}
+		})
+	}
+
 	if config.HasOperation("delete") {
 		t.Run("delete", func(t *testing.T) {
 			for _, scenario := range scenarios {

@@ -37,7 +37,12 @@ type Query struct {
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	// { <key>: <val> }
-	return fmt.Sprintf(`{ "value.%s": %q }`, f.Key, f.Val), nil
+	switch v := f.Val.(type) {
+	case string:
+		return fmt.Sprintf(`{ "value.%s": %q }`, f.Key, v), nil
+	default:
+		return fmt.Sprintf(`{ "value.%s": %v }`, f.Key, v), nil
+	}
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
@@ -45,9 +50,18 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	if len(f.Vals) == 0 {
 		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
 	}
-	str := fmt.Sprintf(`{ "value.%s": { "$in": [ %q`, f.Key, f.Vals[0])
-	for _, v := range f.Vals[1:] {
-		str += fmt.Sprintf(", %q", v)
+	str := fmt.Sprintf(`{ "value.%s": { "$in": [ `, f.Key)
+
+	for i := 0; i < len(f.Vals); i++ {
+		if i > 0 {
+			str += ", "
+		}
+		switch v := f.Vals[i].(type) {
+		case string:
+			str += fmt.Sprintf("%q", v)
+		default:
+			str += fmt.Sprintf("%v", v)
+		}
 	}
 	str += " ] } }"
 

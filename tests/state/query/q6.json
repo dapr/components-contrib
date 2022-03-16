@@ -1,0 +1,37 @@
+{
+    "filter": {
+        "OR": [
+            {
+                "EQ": {
+                    "person.id": 123
+                }
+            },
+            {
+                "AND": [
+                    {
+                        "EQ": {
+                            "person.org": "B"
+                        }
+                    },
+                    {
+                        "IN": {
+                            "person.id": [567, 890]
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "sort": [
+        {
+            "key": "state",
+            "order": "DESC"
+        },
+        {
+            "key": "person.name"
+        }
+    ],
+    "page": {
+        "limit": 2
+    }
+}

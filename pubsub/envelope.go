@@ -65,7 +65,6 @@ func unmarshalPrecise(data []byte, v interface{}) error {
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
 	dataContentType string, data []byte, traceID string, traceState string) map[string]interface{} {
-
 	// defaults
 	if id == "" {
 		id = uuid.New().String()

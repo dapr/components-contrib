@@ -118,3 +118,5 @@ replace github.com/dapr/components-contrib => ../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
+
+replace github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 => github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.3

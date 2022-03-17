@@ -122,9 +122,52 @@ func (a *addressList) next() *string {
 	return &addr.ip
 }
 
+type WaiterPool struct {
+	First   *sync.Once
+	Waiters []Waiter
+}
+
+func NewWaiterPool(w Waiter) *WaiterPool {
+	return &WaiterPool{
+		First:   new(sync.Once),
+		Waiters: []Waiter{w},
+	}
+}
+
+func (p *WaiterPool) Add(w Waiter) {
+	p.Waiters = append(p.Waiters, w)
+}
+
+func (p *WaiterPool) Remove(w Waiter) {
+	for i, waiter := range p.Waiters {
+		if waiter == w {
+			p.Waiters = append(p.Waiters[:i], p.Waiters[i+1:]...)
+			break
+		}
+	}
+}
+
+type Waiter struct {
+	AddrChan chan string
+	ErrChan  chan error
+}
+
+func (w *Waiter) Close() {
+	close(w.AddrChan)
+	close(w.ErrChan)
+}
+
+func NewWaiter() Waiter {
+	return Waiter{
+		AddrChan: make(chan string),
+		ErrChan:  make(chan error),
+	}
+}
+
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	r := &resolver{
+		waiters:          make(map[string]*WaiterPool),
 		appAddressesIPv4: make(map[string]*addressList),
 		appAddressesIPv6: make(map[string]*addressList),
 		refreshChan:      make(chan string),
@@ -155,6 +198,8 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 type resolver struct {
+	waiters          map[string]*WaiterPool
+	waitersMu        sync.RWMutex
 	ipv4Mu           sync.RWMutex
 	appAddressesIPv4 map[string]*addressList
 	ipv6Mu           sync.RWMutex
@@ -258,58 +303,130 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	// cache miss, fallback to browsing the network for addresses.
 	m.logger.Debugf("no mDNS address found in cache, browsing network for app id %s", req.ID)
 
-	// get the first address we receive...
-	addr, err := m.browseFirstOnly(context.Background(), req.ID)
-	if err == nil {
-		// ...and trigger a background refresh for any additional addresses.
-		m.refreshChan <- req.ID
-	}
+	// create a new waiter which will wait for an address or error.
+	waiter := NewWaiter()
+	defer waiter.Close()
 
-	return addr, err
+	// Add the waiter to the pool of waiters for this app id.
+	m.waitersMu.Lock()
+	appIDWaiters, exists := m.waiters[req.ID]
+	if !exists {
+		appIDWaiters = NewWaiterPool(waiter)
+		m.waiters[req.ID] = appIDWaiters
+	} else {
+		appIDWaiters.Add(waiter)
+	}
+	m.waitersMu.Unlock()
+
+	// Only one waiter per pool will perform the first browse for the
+	// requested app id. The rest will wait on the address or error to
+	// be broadcast. This waiter will also be responsible for triggering
+	// the background refresh for additional addresses that may exist.
+	var backgroundRefreshOnce func()
+	ctx, cancel := context.WithTimeout(context.Background(), firstOnlyTimeout)
+	defer cancel()
+	appIDWaiters.First.Do(func() {
+		m.browseFirstOnly(ctx, req.ID)
+
+		backgroundRefreshOnce = func() {
+			m.refreshChan <- req.ID
+		}
+	})
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case addr := <-waiter.AddrChan:
+		if backgroundRefreshOnce != nil {
+			// If this waiter was the first then it will trigger the background refresh.
+			backgroundRefreshOnce()
+		}
+		return addr, nil
+	case err := <-waiter.ErrChan:
+		return "", err
+	}
 }
 
 // browseFirstOnly will perform a mDNS network browse for an address
 // matching the provided app id. It will return the first address it
 // receives and stop browsing for any more.
-func (m *resolver) browseFirstOnly(ctx context.Context, appID string) (string, error) {
-	var addr string
+func (m *resolver) browseFirstOnly(ctx context.Context, appID string) {
+	go func() {
+		var addr string
 
-	ctx, cancel := context.WithTimeout(ctx, firstOnlyTimeout)
-	defer cancel()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-	// onFirst will be invoked on the first address received.
-	// Due to the asynchronous nature of cancel() there
-	// is no guarantee that this will ONLY be invoked on the
-	// first address. Ensure that multiple invocations of this
-	// function are safe.
-	onFirst := func(ip string) {
-		addr = ip
-		cancel() // cancel to stop browsing.
+		// onFirst will be invoked on the first address received.
+		// Due to the asynchronous nature of cancel() there
+		// is no guarantee that this will ONLY be invoked on the
+		// first address. Ensure that multiple invocations of this
+		// function are safe.
+		onFirst := func(ip string) {
+			addr = ip
+			cancel() // cancel to stop browsing.
+		}
+
+		m.logger.Debugf("Browsing for first mDNS address for app id %s", appID)
+
+		err := m.browse(ctx, appID, onFirst)
+		if err != nil {
+			m.sendErrToWaiters(appID, err)
+			return
+		}
+
+		// wait for the context to be canceled or time out.
+		<-ctx.Done()
+
+		if errors.Is(ctx.Err(), context.Canceled) {
+			// expect this when we've found an address and canceled the browse.
+			m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
+		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			// expect this when we've been unable to find the first address before the timeout.
+			m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
+		}
+
+		if addr == "" {
+			m.sendErrToWaiters(appID, fmt.Errorf("couldn't find service: %s", appID))
+			return
+		}
+
+		m.sendAddrToWaiters(appID, addr)
+	}()
+}
+
+func (m *resolver) sendErrToWaiters(reqID string, err error) {
+	m.waitersMu.RLock()
+	defer m.waitersMu.RUnlock()
+	pool, ok := m.waiters[reqID]
+	if !ok {
+		// We would always expect atleast 1 waiter for this reqID.
+		m.logger.Warnf("no waiters found for app id %s", reqID)
+		return
 	}
-
-	m.logger.Debugf("Browsing for first mDNS address for app id %s", appID)
-
-	err := m.browse(ctx, appID, onFirst)
-	if err != nil {
-		return "", err
+	for _, waiter := range pool.Waiters {
+		w := waiter
+		go func() {
+			w.ErrChan <- err
+		}()
 	}
+}
 
-	// wait for the context to be canceled or time out.
-	<-ctx.Done()
-
-	if errors.Is(ctx.Err(), context.Canceled) {
-		// expect this when we've found an address and canceled the browse.
-		m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
-	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		// expect this when we've been unable to find the first address before the timeout.
-		m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
+func (m *resolver) sendAddrToWaiters(reqID string, addr string) {
+	m.waitersMu.RLock()
+	defer m.waitersMu.RUnlock()
+	pool, ok := m.waiters[reqID]
+	if !ok {
+		// We would always expect atleast 1 waiter for this reqID.
+		m.logger.Warnf("no waiters found for app id %s", reqID)
+		return
 	}
-
-	if addr == "" {
-		return "", fmt.Errorf("couldn't find service: %s", appID)
+	for _, waiter := range pool.Waiters {
+		w := waiter
+		go func() {
+			w.AddrChan <- addr
+		}()
 	}
-
-	return addr, nil
 }
 
 // refreshApp will perform a mDNS network browse for a provided

@@ -15,6 +15,7 @@ package mdns
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -160,6 +161,86 @@ func TestResolverMultipleInstances(t *testing.T) {
 	// 45 allows some variation in distribution.
 	require.Greater(t, instanceACount, 45)
 	require.Greater(t, instanceBCount, 45)
+}
+
+func TestResolverConcurrency(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+
+	// register instance A
+	appAID := "A"
+	appAName := "testAppA"
+	appAAddress := "127.0.0.1"
+	appAPort := "1234"
+	appAPQDN := fmt.Sprintf("%s:%s", appAAddress, appAPort)
+
+	appA := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    appAName,
+		nr.MDNSInstanceAddress: appAAddress,
+		nr.MDNSInstancePort:    appAPort,
+		nr.MDNSInstanceID:      appAID,
+	}}
+	err1 := resolver.Init(appA)
+	require.NoError(t, err1)
+
+	// register instance B
+	appBID := "B"
+	appBName := "testAppB"
+	appBAddress := "127.0.0.1"
+	appBPort := "5678"
+	appBBPQDN := fmt.Sprintf("%s:%s", appBAddress, appBPort)
+
+	appB := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    appBName,
+		nr.MDNSInstanceAddress: appBAddress,
+		nr.MDNSInstancePort:    appBPort,
+		nr.MDNSInstanceID:      appBID,
+	}}
+	err2 := resolver.Init(appB)
+	require.NoError(t, err2)
+
+	// act...
+	wg := sync.WaitGroup{}
+	fastest := time.Second * 5
+	slowest := time.Second * 1
+	for i := 0; i < 1000; i++ {
+		idx := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			var request = nr.ResolveRequest{}
+			if idx%2 == 0 {
+				request = nr.ResolveRequest{ID: "testAppA"}
+			} else {
+				request = nr.ResolveRequest{ID: "testAppB"}
+			}
+
+			start := time.Now()
+			pt, err := resolver.ResolveID(request)
+			elapsed := time.Since(start)
+
+			if elapsed < fastest {
+				fastest = elapsed
+			}
+			if elapsed > slowest {
+				slowest = elapsed
+			}
+
+			// assert
+			require.NoError(t, err)
+			if idx%2 == 0 {
+				assert.Equal(t, appAPQDN, pt)
+			} else {
+				assert.Equal(t, appBBPQDN, pt)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Less(t, fastest, 1*time.Second)
+	assert.Less(t, slowest, 4*time.Second)
 }
 
 func TestAddressListExpire(t *testing.T) {

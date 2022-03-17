@@ -314,9 +314,8 @@ SQL_SERVER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "prope
 echo "INFO: SQL_SERVER_NAME=${SQL_SERVER_NAME}"
 SQL_SERVER_ADMIN_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.sqlServerAdminName.value" --output tsv)"
 echo "INFO: SQL_SERVER_ADMIN_NAME=${SQL_SERVER_ADMIN_NAME}"
-# Azure Container Registry is not currently needed
-# AZURE_CONTAINER_REGISTRY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.acrName.value" --output tsv)"
-# echo "INFO: AZURE_CONTAINER_REGISTRY_NAME=${AZURE_CONTAINER_REGISTRY_NAME}"
+# Azure Container Registry is not currently needed.
+# If needed again, look at https://github.com/dapr/components-contrib/tree/a8133088467fc29e1929a5dab396b11cf123a38b/.github/infrastructure
 
 # Give the service principal used by the SDK write access to the entire resource group
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}"
@@ -645,15 +644,6 @@ az keyvault secret set --name "${IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME}" --va
 IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME="$(basename ${IOT_HUB_PUBSUB_CONSUMER_GROUP_FULLNAME})"
 echo export ${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}=\"${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${IOT_HUB_PUBSUB_CONSUMER_GROUP_NAME}"
-
-# -------------------------------------------------------------
-# CERTIFICATION TESTS: Populate Managed Identity Test settings
-# Currently not used, but may be required again in the future
-# -------------------------------------------------------------
-# echo "Configuring Azure Container Registry for Managed Identity Certification tests ..."
-# echo export ${ACR_VAR_NAME}=\"${AZURE_CONTAINER_REGISTRY_NAME}\" >> "${ENV_CONFIG_FILENAME}"
-# az keyvault secret set --name "${ACR_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_CONTAINER_REGISTRY_NAME}"
-
 
 # -----------------------------------------------------------------------
 # CERTIFICATION TESTS: Create service principal and grant resource access

@@ -141,7 +141,10 @@ func TestResolverMultipleInstances(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr1)
 
-	// delay long enough for the background address cache to populate.
+	// we want the resolution to be served from the cache so that it can
+	// be load balanced rather than received by a subscription. Therefore,
+	// we must sleep here long enough to allow the first browser to populate
+	// the cache.
 	time.Sleep(1 * time.Second)
 
 	// assert that when we resolve the test app id n times, we see only
@@ -199,48 +202,59 @@ func TestResolverConcurrency(t *testing.T) {
 	err2 := resolver.Init(appB)
 	require.NoError(t, err2)
 
+	// register instance C
+	appCID := "C"
+	appCName := "testAppC"
+	appCAddress := "127.0.0.1"
+	appCPort := "3456"
+	appCBPQDN := fmt.Sprintf("%s:%s", appCAddress, appCPort)
+
+	appC := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    appCName,
+		nr.MDNSInstanceAddress: appCAddress,
+		nr.MDNSInstancePort:    appCPort,
+		nr.MDNSInstanceID:      appCID,
+	}}
+	err3 := resolver.Init(appC)
+	require.NoError(t, err3)
+
 	// act...
 	wg := sync.WaitGroup{}
-	fastest := time.Second * 5
-	slowest := time.Second * 1
 	for i := 0; i < 1000; i++ {
 		idx := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			var request = nr.ResolveRequest{}
-			if idx%2 == 0 {
-				request = nr.ResolveRequest{ID: "testAppA"}
+			var appID string
+			r := idx % 3
+			if r == 0 {
+				appID = "testAppA"
+			} else if r == 1 {
+				appID = "testAppB"
 			} else {
-				request = nr.ResolveRequest{ID: "testAppB"}
+				appID = "testAppC"
 			}
+			request := nr.ResolveRequest{ID: appID}
 
 			start := time.Now()
 			pt, err := resolver.ResolveID(request)
 			elapsed := time.Since(start)
-
-			if elapsed < fastest {
-				fastest = elapsed
-			}
-			if elapsed > slowest {
-				slowest = elapsed
-			}
-
 			// assert
 			require.NoError(t, err)
-			if idx%2 == 0 {
+			if r == 0 {
 				assert.Equal(t, appAPQDN, pt)
-			} else {
+			} else if r == 1 {
 				assert.Equal(t, appBBPQDN, pt)
+			} else if r == 2 {
+				assert.Equal(t, appCBPQDN, pt)
 			}
+
+			assert.Less(t, elapsed, time.Duration(1*time.Second))
 		}()
 	}
 
 	wg.Wait()
-
-	assert.Less(t, fastest, 1*time.Second)
-	assert.Less(t, slowest, 4*time.Second)
 }
 
 func TestAddressListExpire(t *testing.T) {

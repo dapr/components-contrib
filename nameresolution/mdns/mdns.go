@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	// firstOnlyTimeout is the timeout used when
+	// browseOneTimeout is the timeout used when
 	// browsing for the first response to a single app id.
-	firstOnlyTimeout = time.Second * 1
+	browseOneTimeout = time.Second * 3
 	// refreshTimeout is the timeout used when
 	// browsing for any responses to a single app id.
 	refreshTimeout = time.Second * 3
@@ -122,59 +122,73 @@ func (a *addressList) next() *string {
 	return &addr.ip
 }
 
-type WaiterPool struct {
-	First   *sync.Once
-	Waiters []Waiter
+// SubscriberPool is used to manager
+// a pool of subscribers for a given app id.
+// First belongs to the first subscriber as
+// it is there responsibility to fetch the
+// address associated with the app id.
+type SubscriberPool struct {
+	Once        *sync.Once
+	Subscribers []Subscriber
 }
 
-func NewWaiterPool(w Waiter) *WaiterPool {
-	return &WaiterPool{
-		First:   new(sync.Once),
-		Waiters: []Waiter{w},
+func NewSubscriberPool(w Subscriber) *SubscriberPool {
+	return &SubscriberPool{
+		Once:        new(sync.Once),
+		Subscribers: []Subscriber{w},
 	}
 }
 
-func (p *WaiterPool) Add(w Waiter) {
-	id := len(p.Waiters)
-	w.ID = id
-	p.Waiters = append(p.Waiters, w)
+func (p *SubscriberPool) Add(sub Subscriber) {
+	id := len(p.Subscribers)
+	sub.ID = id
+	p.Subscribers = append(p.Subscribers, sub)
 }
 
-func (p *WaiterPool) Remove(w Waiter) {
-	for i, waiter := range p.Waiters {
-		if waiter.ID == w.ID {
-			p.Waiters = append(p.Waiters[:i], p.Waiters[i+1:]...)
+func (p *SubscriberPool) Remove(sub Subscriber) {
+	for i, subscriber := range p.Subscribers {
+		if subscriber.ID == sub.ID {
+			p.Subscribers = append(p.Subscribers[:i], p.Subscribers[i+1:]...)
 			break
 		}
 	}
 }
 
-type Waiter struct {
+type Subscriber struct {
 	ID       int
 	AddrChan chan string
 	ErrChan  chan error
 }
 
-func (w *Waiter) Close() {
-	close(w.AddrChan)
-	close(w.ErrChan)
+func (s *Subscriber) Close() {
+	close(s.AddrChan)
+	close(s.ErrChan)
 }
 
-func NewWaiter() Waiter {
-	return Waiter{
-		AddrChan: make(chan string),
-		ErrChan:  make(chan error),
+func NewSubscriber() Subscriber {
+	return Subscriber{
+		AddrChan: make(chan string, 1),
+		ErrChan:  make(chan error, 1),
 	}
 }
 
 // NewResolver creates the instance of mDNS name resolver.
 func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	r := &resolver{
-		waiters:          make(map[string]*WaiterPool),
+		subs:             make(map[string]*SubscriberPool),
 		appAddressesIPv4: make(map[string]*addressList),
 		appAddressesIPv6: make(map[string]*addressList),
-		refreshChan:      make(chan string),
-		logger:           logger,
+		// an app id for every app that is resolved can be pushed
+		// onto this channel. We don't want to block the sender as
+		// they are resolving the app id as part of the service invocation.
+		// Instead we use a buffered channel to balance the load whilst
+		// the background refreshes are being performed. Once this buffer
+		// becomes full, the sender will block and service invocation
+		// will be delayed. We don't expect a single app to resolve
+		// too many other app IDs so we set this to a sensible value
+		// to avoid over allocating the buffer.
+		refreshChan: make(chan string, 36),
+		logger:      logger,
 	}
 
 	// refresh app addresses on demand.
@@ -201,8 +215,8 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 type resolver struct {
-	waiters          map[string]*WaiterPool
-	waitersMu        sync.RWMutex
+	subs             map[string]*SubscriberPool
+	subMu            sync.RWMutex
 	ipv4Mu           sync.RWMutex
 	appAddressesIPv4 map[string]*addressList
 	ipv6Mu           sync.RWMutex
@@ -278,7 +292,7 @@ func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, p
 		}
 		started <- true
 
-		// Wait until it gets SIGTERM event.
+		// wait until it gets SIGTERM event.
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 		<-sig
@@ -306,59 +320,80 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	// cache miss, fallback to browsing the network for addresses.
 	m.logger.Debugf("no mDNS address found in cache, browsing network for app id %s", req.ID)
 
-	// create a new waiter which will wait for an address or error.
-	waiter := NewWaiter()
-	defer waiter.Close()
+	// create a new sub which will wait for an address or error.
+	sub := NewSubscriber()
 
-	// Add the waiter to the pool of waiters for this app id.
-	m.waitersMu.Lock()
-	appIDWaiters, exists := m.waiters[req.ID]
+	// add the sub to the pool of subs for this app id.
+	m.subMu.Lock()
+	appIDSubs, exists := m.subs[req.ID]
 	if !exists {
-		appIDWaiters = NewWaiterPool(waiter)
-		m.waiters[req.ID] = appIDWaiters
+		// WARN: this must set the value of the
+		// appIDSubs variable so that the defer
+		// does not invoke Remove(sub) on a nil
+		// receiver on line 334.
+		appIDSubs = NewSubscriberPool(sub)
+		m.subs[req.ID] = appIDSubs
 	} else {
-		appIDWaiters.Add(waiter)
+		appIDSubs.Add(sub)
 	}
-	m.waitersMu.Unlock()
+	m.subMu.Unlock()
 	defer func() {
-		m.waitersMu.Lock()
-		appIDWaiters.Remove(waiter)
-		m.waitersMu.Unlock()
+		m.subMu.Lock()
+		appIDSubs.Remove(sub)
+		m.subMu.Unlock()
 	}()
 
-	// Only one waiter per pool will perform the first browse for the
-	// requested app id. The rest will wait on the address or error to
-	// be broadcast. This waiter will also be responsible for triggering
-	// the background refresh for additional addresses that may exist.
-	var backgroundRefreshOnce func()
-	ctx, cancel := context.WithTimeout(context.Background(), firstOnlyTimeout)
+	// only one subscriber per pool will perform the first browse for the
+	// requested app id. The rest will susbcribe for an address or error.
+	var once *sync.Once
+	var done chan bool
+	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
 	defer cancel()
-	appIDWaiters.First.Do(func() {
-		m.browseFirstOnly(ctx, req.ID)
+	appIDSubs.Once.Do(func() {
+		done = make(chan bool, 1)
+		m.browseOne(ctx, req.ID, done)
 
-		backgroundRefreshOnce = func() {
-			m.refreshChan <- req.ID
-		}
+		once = new(sync.Once)
 	})
 
+	// there is a window of time where we may not have subscribed
+	// to the appID yet but the first browser has already published
+	// the address and updated the cache. We should recheck the cache
+	// now that we are subscribed to ensure we get the address regardless.
+	// There should be no possibility that the first browser will update
+	// the cache before it's own execution context has reach this check so
+	// it can't short-circuit the subscription.
+	if addr := m.nextIPv4Address(req.ID); addr != nil {
+		return *addr, nil
+	}
+	if addr := m.nextIPv6Address(req.ID); addr != nil {
+		return *addr, nil
+	}
+
 	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case addr := <-waiter.AddrChan:
-		if backgroundRefreshOnce != nil {
-			// If this waiter was the first then it will trigger the background refresh.
-			backgroundRefreshOnce()
+	case addr := <-sub.AddrChan:
+		// only 1 subscriber should have set the once var so
+		// this block should only get invoked once too.
+		if once != nil {
+			once.Do(func() {
+				// trigger the background refresh for additional addresses.
+				m.refreshChan <- req.ID
+
+				// Block on done signal
+				<-done
+			})
 		}
 		return addr, nil
-	case err := <-waiter.ErrChan:
+	case err := <-sub.ErrChan:
 		return "", err
 	}
 }
 
-// browseFirstOnly will perform a mDNS network browse for an address
+// browseOne will perform a mDNS network browse for an address
 // matching the provided app id. It will return the first address it
 // receives and stop browsing for any more.
-func (m *resolver) browseFirstOnly(ctx context.Context, appID string) {
+// This must be called in a sync.Once block to avoid concurrency issues.
+func (m *resolver) browseOne(ctx context.Context, appID string, done chan bool) {
 	go func() {
 		var addr string
 
@@ -379,7 +414,7 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) {
 
 		err := m.browse(ctx, appID, onFirst)
 		if err != nil {
-			m.sendErrToWaiters(appID, err)
+			m.pubErrToSubs(appID, err)
 			return
 		}
 
@@ -394,46 +429,49 @@ func (m *resolver) browseFirstOnly(ctx context.Context, appID string) {
 			m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
 		}
 
+		// if onFirst has been invoked then we should have an address.
 		if addr == "" {
-			m.sendErrToWaiters(appID, fmt.Errorf("couldn't find service: %s", appID))
+			m.pubErrToSubs(appID, fmt.Errorf("couldn't find service: %s", appID))
+
+			done <- true // signal that all subscribers have been notified.
 			return
 		}
 
-		m.sendAddrToWaiters(appID, addr)
+		m.pubAddrToSubs(appID, addr)
+
+		done <- true // signal that all subscribers have been notified.
 	}()
 }
 
-func (m *resolver) sendErrToWaiters(reqID string, err error) {
-	m.waitersMu.RLock()
-	defer m.waitersMu.RUnlock()
-	pool, ok := m.waiters[reqID]
+func (m *resolver) pubErrToSubs(reqID string, err error) {
+	m.subMu.RLock()
+	defer m.subMu.RUnlock()
+	pool, ok := m.subs[reqID]
 	if !ok {
-		// We would always expect atleast 1 waiter for this reqID.
-		m.logger.Warnf("no waiters found for app id %s", reqID)
+		// we would always expect atleast 1 subscriber for this reqID.
+		m.logger.Warnf("no subscribers found for app id %s", reqID)
 		return
 	}
-	for _, waiter := range pool.Waiters {
-		w := waiter
-		go func() {
-			w.ErrChan <- err
-		}()
+	for _, subscriber := range pool.Subscribers {
+		// ErrChan is a buffered channel so this is non blocking.
+		subscriber.ErrChan <- err
+		subscriber.Close()
 	}
 }
 
-func (m *resolver) sendAddrToWaiters(reqID string, addr string) {
-	m.waitersMu.RLock()
-	defer m.waitersMu.RUnlock()
-	pool, ok := m.waiters[reqID]
+func (m *resolver) pubAddrToSubs(reqID string, addr string) {
+	m.subMu.RLock()
+	defer m.subMu.RUnlock()
+	pool, ok := m.subs[reqID]
 	if !ok {
-		// We would always expect atleast 1 waiter for this reqID.
-		m.logger.Warnf("no waiters found for app id %s", reqID)
+		// we would always expect atleast 1 subscriber for this reqID.
+		m.logger.Warnf("no subscribers found for app id %s", reqID)
 		return
 	}
-	for _, waiter := range pool.Waiters {
-		w := waiter
-		go func() {
-			w.AddrChan <- addr
-		}()
+	for _, subscriber := range pool.Subscribers {
+		// AddrChan is a buffered channel so this is non blocking.
+		subscriber.AddrChan <- addr
+		subscriber.Close()
 	}
 }
 
@@ -527,7 +565,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 					m.logger.Debugf("mDNS browse for app id %s timed out.", appID)
 				}
 
-				return
+				return // stop listening for results.
 			case entry := <-results:
 				if entry == nil {
 					break
@@ -554,7 +592,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 					var addr string
 					port := entry.Port
 
-					// TODO: We currently only use the first IPv4 and IPv6 address.
+					// TODO: we currently only use the first IPv4 and IPv6 address.
 					// We should understand the cases in which additional addresses
 					// are returned and whether we need to support them.
 					if hasIPv4Address {

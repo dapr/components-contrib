@@ -69,7 +69,7 @@ func TestCreateFromJSON(t *testing.T) {
 			"mypubsub", "application/json", data, "1", "key=value")
 		t.Logf("data: %v", envelope[DataField])
 		assert.Equal(t, "application/json", envelope[DataContentTypeField])
-		assert.Equal(t, map[string]interface{}{"Val1": "test", "Val2": float64(1)}, envelope[DataField])
+		assert.Equal(t, map[string]interface{}{"Val1": "test", "Val2": json.Number("1")}, envelope[DataField])
 	})
 
 	t.Run("has JSON string with rich contenttype", func(t *testing.T) {

@@ -135,12 +135,14 @@ func NewWaiterPool(w Waiter) *WaiterPool {
 }
 
 func (p *WaiterPool) Add(w Waiter) {
+	id := len(p.Waiters)
+	w.ID = id
 	p.Waiters = append(p.Waiters, w)
 }
 
 func (p *WaiterPool) Remove(w Waiter) {
 	for i, waiter := range p.Waiters {
-		if waiter == w {
+		if waiter.ID == w.ID {
 			p.Waiters = append(p.Waiters[:i], p.Waiters[i+1:]...)
 			break
 		}
@@ -148,6 +150,7 @@ func (p *WaiterPool) Remove(w Waiter) {
 }
 
 type Waiter struct {
+	ID       int
 	AddrChan chan string
 	ErrChan  chan error
 }
@@ -317,6 +320,11 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		appIDWaiters.Add(waiter)
 	}
 	m.waitersMu.Unlock()
+	defer func() {
+		m.waitersMu.Lock()
+		appIDWaiters.Remove(waiter)
+		m.waitersMu.Unlock()
+	}()
 
 	// Only one waiter per pool will perform the first browse for the
 	// requested app id. The rest will wait on the address or error to

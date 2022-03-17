@@ -331,7 +331,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		// WARN: this must set the value of the
 		// appIDSubs variable so that the defer
 		// does not invoke Remove(sub) on a nil
-		// receiver on line 334.
+		// receiver on line 343.
 		appIDSubs = NewSubscriberPool(sub)
 		m.subs[req.ID] = appIDSubs
 	} else {

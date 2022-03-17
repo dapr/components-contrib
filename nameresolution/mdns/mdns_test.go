@@ -166,6 +166,19 @@ func TestResolverMultipleInstances(t *testing.T) {
 	require.Greater(t, instanceBCount, 45)
 }
 
+func TestResolverNotFound(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+
+	// act
+	request := nr.ResolveRequest{ID: "testAppIDNotFound"}
+	pt, err := resolver.ResolveID(request)
+
+	// assert
+	require.Errorf(t, err, "couldn't find service")
+	assert.Equal(t, "", pt)
+}
+
 func TestResolverConcurrency(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
@@ -251,6 +264,44 @@ func TestResolverConcurrency(t *testing.T) {
 			}
 
 			assert.Less(t, elapsed, time.Duration(1*time.Second))
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestResolverConcurrencyNotFound(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+
+	// act...
+	wg := sync.WaitGroup{}
+	for i := 0; i < 1000; i++ {
+		idx := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			var appID string
+			r := idx % 3
+			if r == 0 {
+				appID = "testAppA"
+			} else if r == 1 {
+				appID = "testAppB"
+			} else {
+				appID = "testAppC"
+			}
+			request := nr.ResolveRequest{ID: appID}
+
+			// act
+			start := time.Now()
+			pt, err := resolver.ResolveID(request)
+			elapsed := time.Since(start)
+
+			// assert
+			require.Errorf(t, err, "couldn't find service")
+			assert.Equal(t, "", pt)
+			assert.Less(t, elapsed, time.Duration(2*time.Second)) // browse timeout is 1 second, so we expect an error shortly after.
 		}()
 	}
 

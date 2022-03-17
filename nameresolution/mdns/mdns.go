@@ -33,7 +33,7 @@ import (
 const (
 	// browseOneTimeout is the timeout used when
 	// browsing for the first response to a single app id.
-	browseOneTimeout = time.Second * 3
+	browseOneTimeout = time.Second * 1
 	// refreshTimeout is the timeout used when
 	// browsing for any responses to a single app id.
 	refreshTimeout = time.Second * 3
@@ -122,11 +122,12 @@ func (a *addressList) next() *string {
 	return &addr.ip
 }
 
-// SubscriberPool is used to manager
+// SubscriberPool is used to manage
 // a pool of subscribers for a given app id.
-// First belongs to the first subscriber as
-// it is there responsibility to fetch the
-// address associated with the app id.
+// 'Once' belongs to the first subscriber as
+// it is their responsibility to fetch the
+// address associated with the app id and
+// publish it to the other subscribers.
 type SubscriberPool struct {
 	Once        *sync.Once
 	Subscribers []Subscriber
@@ -353,6 +354,7 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		done = make(chan bool, 1)
 		m.browseOne(ctx, req.ID, done)
 
+		// once will only be set for the first browser.
 		once = new(sync.Once)
 	})
 
@@ -379,12 +381,20 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// trigger the background refresh for additional addresses.
 				m.refreshChan <- req.ID
 
-				// Block on done signal
+				// block on the done channel as this signals that we have
+				// published the address to all other subscribers first.
 				<-done
 			})
 		}
 		return addr, nil
 	case err := <-sub.ErrChan:
+		if once != nil {
+			once.Do(func() {
+				// block on the done channel as this signals that we have
+				// published the error to all other subscribers first.
+				<-done
+			})
+		}
 		return "", err
 	}
 }

@@ -425,6 +425,7 @@ func (m *resolver) browseOne(ctx context.Context, appID string, done chan bool) 
 		err := m.browse(ctx, appID, onFirst)
 		if err != nil {
 			m.pubErrToSubs(appID, err)
+			done <- true // signal that all subscribers have been notified.
 			return
 		}
 

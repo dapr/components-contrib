@@ -34,7 +34,7 @@ const (
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute.
 	DefaultCloudEventDataContentType = "text/plain"
-	TraceIDField                     = "traceid"
+	TraceParentField                 = "traceparent"
 	TraceStateField                  = "tracestate"
 	TopicField                       = "topic"
 	PubsubField                      = "pubsubname"
@@ -51,7 +51,7 @@ const (
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
-	dataContentType string, data []byte, traceID string, traceState string) map[string]interface{} {
+	dataContentType string, data []byte, traceParent string, traceState string) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -90,7 +90,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TypeField:            eventType,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
-		TraceIDField:         traceID,
+		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
 	}
 
@@ -104,14 +104,14 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON.
-func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string, traceState string) (map[string]interface{}, error) {
+func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := jsoniter.Unmarshal(cloudEvent, &m)
 	if err != nil {
 		return m, err
 	}
 
-	m[TraceIDField] = traceID
+	m[TraceParentField] = traceParent
 	m[TraceStateField] = traceState
 	m[TopicField] = topic
 	m[PubsubField] = pubsub

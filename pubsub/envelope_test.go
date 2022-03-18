@@ -306,7 +306,6 @@ func TestNewFromRawPayload(t *testing.T) {
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "mytopic", n[TopicField])
 		assert.Equal(t, "mypubsub", n[PubsubField])
-		assert.Nil(t, n["traceparent"])
 		assert.Nil(t, n[TraceParentField])
 		assert.Nil(t, n[DataField])
 		assert.Equal(t, "aGVsbG8gd29ybGQ=", n[DataBase64Field])

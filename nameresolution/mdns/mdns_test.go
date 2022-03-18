@@ -334,7 +334,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 
 	// act...
 	wg := sync.WaitGroup{}
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 1000; i++ {
 		idx := i
 		wg.Add(1)
 		go func() {

@@ -420,7 +420,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
 	defer cancel()
 	appIDSubs.Once.Do(func() {
-		published = make(chan struct{}, 1)
+		published = make(chan struct{})
 		m.browseOne(ctx, req.ID, published)
 
 		// once will only be set for the first browser.
@@ -456,7 +456,9 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// published the address to all other subscribers first.
 				<-published
 
-				// clear the subscribers
+				// published is an unbuffered channel so we know all subscribers
+				// have received either the address or error by the time we get
+				// here. We now delete the subscribers.
 				m.subMu.Lock()
 				delete(m.subs, req.ID)
 				m.subMu.Unlock()
@@ -470,7 +472,9 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// published the error to all other subscribers first.
 				<-published
 
-				// clear the subscribers
+				// published is an unbuffered channel so we know all subscribers
+				// have received either the address or error by the time we get
+				// here. We now delete the subscribers.
 				m.subMu.Lock()
 				delete(m.subs, req.ID)
 				m.subMu.Unlock()

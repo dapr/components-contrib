@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -144,17 +145,8 @@ func NewSubscriberPool(w Subscriber) *SubscriberPool {
 }
 
 func (p *SubscriberPool) Add(sub Subscriber) {
-	sub.ID = p.Count + 1 // This is only called via the subMu doesn't need to be atomic.
+	sub.ID = atomic.AddInt64(&p.Count, 1)
 	p.Subscribers = append(p.Subscribers, sub)
-}
-
-func (p *SubscriberPool) Remove(sub Subscriber) {
-	for i, subscriber := range p.Subscribers {
-		if subscriber.ID == sub.ID {
-			p.Subscribers = append(p.Subscribers[:i], p.Subscribers[i+1:]...)
-			break
-		}
-	}
 }
 
 type Subscriber struct {
@@ -423,11 +415,6 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		appIDSubs.Add(sub)
 	}
 	m.subMu.Unlock()
-	defer func() {
-		m.subMu.Lock()
-		appIDSubs.Remove(sub)
-		m.subMu.Unlock()
-	}()
 
 	// only one subscriber per pool will perform the first browse for the
 	// requested app id. The rest will subscribe for an address or error.
@@ -472,9 +459,10 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// published the address to all other subscribers first.
 				<-published
 
-				// we cannot guarentee all subscribers have received the error
-				// event though we have published. Therefore, those subscribers
-				// will timeout and return an error.
+				// clear the subscribers
+				m.subMu.Lock()
+				delete(m.subs, req.ID)
+				m.subMu.Unlock()
 			})
 		}
 		return addr, nil
@@ -485,9 +473,10 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// published the error to all other subscribers first.
 				<-published
 
-				// we cannot guarentee all subscribers have received the error
-				// event though we have published. Therefore, those subscribers
-				// will timeout and read the value from the cache.
+				// clear the subscribers
+				m.subMu.Lock()
+				delete(m.subs, req.ID)
+				m.subMu.Unlock()
 			})
 		}
 		return "", err

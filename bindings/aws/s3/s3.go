@@ -99,6 +99,7 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	if m.InsecureSSL {
 		customTransport := http.DefaultTransport.(*http.Transport).Clone()
 		customTransport.TLSClientConfig = &tls.Config{
+			//nolint:gosec
 			InsecureSkipVerify: true,
 		}
 		client := &http.Client{

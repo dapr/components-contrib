@@ -72,6 +72,22 @@ func TestCreateFromJSON(t *testing.T) {
 		assert.Equal(t, map[string]interface{}{"Val1": "test", "Val2": json.Number("1")}, envelope[DataField])
 	})
 
+	t.Run("has JSON object with large number", func(t *testing.T) {
+		obj1 := struct {
+			Val1 string
+			Val2 int
+		}{
+			"test",
+			637831415180045507,
+		}
+		data, _ := json.Marshal(obj1)
+		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
+			"mypubsub", "application/json", data, "1", "key=value")
+		t.Logf("data: %v", envelope[DataField])
+		assert.Equal(t, "application/json", envelope[DataContentTypeField])
+		assert.Equal(t, map[string]interface{}{"Val1": "test", "Val2": json.Number("637831415180045507")}, envelope[DataField])
+	})
+
 	t.Run("has JSON string with rich contenttype", func(t *testing.T) {
 		obj1 := "message"
 		data, _ := json.Marshal(obj1)

@@ -26,7 +26,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func TestInit(t *testing.T) {
+const (
+	localhost = "127.0.0.1"
+)
+
+func TestInitMetadata(t *testing.T) {
 	tests := []struct {
 		missingProp string
 		props       map[string]string
@@ -34,7 +38,7 @@ func TestInit(t *testing.T) {
 		{
 			"name",
 			map[string]string{
-				nr.MDNSInstanceAddress: "127.0.0.1",
+				nr.MDNSInstanceAddress: localhost,
 				nr.MDNSInstancePort:    "30003",
 			},
 		},
@@ -49,14 +53,14 @@ func TestInit(t *testing.T) {
 			"port",
 			map[string]string{
 				nr.MDNSInstanceName:    "testAppID",
-				nr.MDNSInstanceAddress: "127.0.0.1",
+				nr.MDNSInstanceAddress: localhost,
 			},
 		},
 		{
 			"port",
 			map[string]string{
 				nr.MDNSInstanceName:    "testAppID",
-				nr.MDNSInstanceAddress: "127.0.0.1",
+				nr.MDNSInstanceAddress: localhost,
 				nr.MDNSInstancePort:    "abcd",
 			},
 		},
@@ -64,6 +68,7 @@ func TestInit(t *testing.T) {
 
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
 
 	for _, tt := range tests {
 		t.Run(tt.missingProp+" is missing", func(t *testing.T) {
@@ -76,12 +81,51 @@ func TestInit(t *testing.T) {
 	}
 }
 
+func TestInitRegister(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
+	md := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    "testAppID",
+		nr.MDNSInstanceAddress: localhost,
+		nr.MDNSInstancePort:    "1234",
+	}}
+
+	// act
+	err := resolver.Init(md)
+	require.NoError(t, err)
+}
+
+func TestInitRegisterDuplicate(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
+	md := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    "testAppID",
+		nr.MDNSInstanceAddress: localhost,
+		nr.MDNSInstancePort:    "1234",
+	}}
+	md2 := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    "testAppID",
+		nr.MDNSInstanceAddress: localhost,
+		nr.MDNSInstancePort:    "1234",
+	}}
+
+	// act
+	err := resolver.Init(md)
+	require.NoError(t, err)
+	err = resolver.Init(md2)
+	expectedError := "app id testAppID already registered for port 1234"
+	require.EqualErrorf(t, err, expectedError, "Error should be: %v, got %v", expectedError, err)
+}
+
 func TestResolver(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
 	md := nr.Metadata{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: "127.0.0.1",
+		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
 	}}
 
@@ -97,14 +141,42 @@ func TestResolver(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:1234", pt)
 }
 
-func TestResolverMultipleInstances(t *testing.T) {
-	// arrange...
+func TestResolverClose(t *testing.T) {
+	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
+	md := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    "testAppID",
+		nr.MDNSInstanceAddress: localhost,
+		nr.MDNSInstancePort:    "1234",
+	}}
+
+	// act
+	err := resolver.Init(md)
+	require.NoError(t, err)
+
+	request := nr.ResolveRequest{ID: "testAppID"}
+	pt, err := resolver.ResolveID(request)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:1234", pt)
+
+	// act again
+	err = resolver.Close()
+
+	// assert
+	require.NoError(t, err)
+}
+
+func TestResolverMultipleInstances(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
 
 	// register instance A
 	instanceAID := "A"
 	instanceAName := "testAppID"
-	instanceAAddress := "127.0.0.1"
+	instanceAAddress := localhost
 	instanceAPort := "1234"
 	instanceAPQDN := fmt.Sprintf("%s:%s", instanceAAddress, instanceAPort)
 
@@ -120,7 +192,7 @@ func TestResolverMultipleInstances(t *testing.T) {
 	// register instance B
 	instanceBID := "B"
 	instanceBName := "testAppID"
-	instanceBAddress := "127.0.0.1"
+	instanceBAddress := localhost
 	instanceBPort := "5678"
 	instanceBPQDN := fmt.Sprintf("%s:%s", instanceBAddress, instanceBPort)
 
@@ -169,24 +241,53 @@ func TestResolverMultipleInstances(t *testing.T) {
 func TestResolverNotFound(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
 
 	// act
 	request := nr.ResolveRequest{ID: "testAppIDNotFound"}
 	pt, err := resolver.ResolveID(request)
 
 	// assert
-	require.Errorf(t, err, "couldn't find service")
+	expectedError := "couldn't find service: testAppIDNotFound"
+	require.EqualErrorf(t, err, expectedError, "Error should be: %v, got %v", expectedError, err)
 	assert.Equal(t, "", pt)
 }
 
+// TestResolverConcurrency is used to run concurrent tests in
+// series as they rely on a shared mDNS server on the host
+// machine.
 func TestResolverConcurrency(t *testing.T) {
+	tt := []struct {
+		name string
+		test func(t *testing.T)
+	}{
+		{
+			name: "ResolverConcurrencyNotFound",
+			test: ResolverConcurrencyNotFound,
+		},
+		{
+			name: "ResolverConcurrencyFound",
+			test: ResolverConcurrencyFound,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, tc.test)
+	}
+}
+
+// WARN: This is deliberately not a test function.
+// This test case must be run in serial and is executed
+// by the TestResolverConcurrency test function.
+func ResolverConcurrencyFound(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
 
 	// register instance A
 	appAID := "A"
 	appAName := "testAppA"
-	appAAddress := "127.0.0.1"
+	appAAddress := localhost
 	appAPort := "1234"
 	appAPQDN := fmt.Sprintf("%s:%s", appAAddress, appAPort)
 
@@ -202,7 +303,7 @@ func TestResolverConcurrency(t *testing.T) {
 	// register instance B
 	appBID := "B"
 	appBName := "testAppB"
-	appBAddress := "127.0.0.1"
+	appBAddress := localhost
 	appBPort := "5678"
 	appBBPQDN := fmt.Sprintf("%s:%s", appBAddress, appBPort)
 
@@ -218,7 +319,7 @@ func TestResolverConcurrency(t *testing.T) {
 	// register instance C
 	appCID := "C"
 	appCName := "testAppC"
-	appCAddress := "127.0.0.1"
+	appCAddress := localhost
 	appCPort := "3456"
 	appCBPQDN := fmt.Sprintf("%s:%s", appCAddress, appCPort)
 
@@ -263,16 +364,20 @@ func TestResolverConcurrency(t *testing.T) {
 				assert.Equal(t, appCBPQDN, pt)
 			}
 
-			assert.Less(t, elapsed, time.Duration(1*time.Second))
+			assert.Less(t, elapsed, 1*time.Second)
 		}()
 	}
 
 	wg.Wait()
 }
 
-func TestResolverConcurrencyNotFound(t *testing.T) {
+// WARN: This is deliberately not a test function.
+// This test case must be run in serial and is executed
+// by the TestResolverConcurrency test function.
+func ResolverConcurrencyNotFound(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
 
 	// act...
 	wg := sync.WaitGroup{}
@@ -299,9 +404,10 @@ func TestResolverConcurrencyNotFound(t *testing.T) {
 			elapsed := time.Since(start)
 
 			// assert
-			require.Errorf(t, err, "couldn't find service")
+			expectedError := "couldn't find service: " + appID
+			require.EqualErrorf(t, err, expectedError, "Error should be: %v, got %v", expectedError, err)
 			assert.Equal(t, "", pt)
-			assert.Less(t, elapsed, time.Duration(2*time.Second)) // browse timeout is 1 second, so we expect an error shortly after.
+			assert.Less(t, elapsed, 2*time.Second) // browse timeout is 1 second, so we expect an error shortly after.
 		}()
 	}
 

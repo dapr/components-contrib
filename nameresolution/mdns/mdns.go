@@ -128,6 +128,8 @@ func (a *addressList) next() *string {
 // it is their responsibility to fetch the
 // address associated with the app id and
 // publish it to the other subscribers.
+// WARN: pools are not thread safe and intended
+// to be accessed only when using subMu lock.
 type SubscriberPool struct {
 	Once        *sync.Once
 	Subscribers []Subscriber
@@ -168,14 +170,15 @@ func (s *Subscriber) Close() {
 
 func NewSubscriber() Subscriber {
 	return Subscriber{
+		// ID is assigned by the pool.
 		AddrChan: make(chan string, 1),
 		ErrChan:  make(chan error, 1),
 	}
 }
 
 // NewResolver creates the instance of mDNS name resolver.
-func NewResolver(logger logger.Logger) nameresolution.Resolver {
-	r := &resolver{
+func NewResolver(logger logger.Logger) *Resolver {
+	r := &Resolver{
 		subs:             make(map[string]*SubscriberPool),
 		appAddressesIPv4: make(map[string]*addressList),
 		appAddressesIPv6: make(map[string]*addressList),
@@ -189,14 +192,27 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 		// too many other app IDs so we set this to a sensible value
 		// to avoid over allocating the buffer.
 		refreshChan: make(chan string, 36),
-		logger:      logger,
+		// registrations channel to signal the resolver to
+		// stop serving queries for registered app ids.
+		registrations: make(map[string]chan struct{}),
+		// shutdownRefresh channel to signal to stop on-demand refreshes.
+		shutdownRefresh: make(chan struct{}, 1),
+		// shutdownRefreshPeriodic channel to signal to stop periodic refreshes.
+		shutdownRefreshPeridoic: make(chan struct{}, 1),
+		logger:                  logger,
 	}
 
 	// refresh app addresses on demand.
 	go func() {
-		for appID := range r.refreshChan {
-			if err := r.refreshApp(context.Background(), appID); err != nil {
-				r.logger.Warnf(err.Error())
+		for {
+			select {
+			case appID := <-r.refreshChan:
+				if err := r.refreshApp(context.Background(), appID); err != nil {
+					r.logger.Warnf(err.Error())
+				}
+			case <-r.shutdownRefresh:
+				r.logger.Debug("stopping on demand cache refreshes.")
+				return
 			}
 		}
 	}()
@@ -204,10 +220,14 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	// refresh all app addresses periodically.
 	go func() {
 		for {
-			time.Sleep(refreshInterval)
-
-			if err := r.refreshAllApps(context.Background()); err != nil {
-				r.logger.Warnf(err.Error())
+			select {
+			case <-time.After(refreshInterval):
+				if err := r.refreshAllApps(context.Background()); err != nil {
+					r.logger.Warnf(err.Error())
+				}
+			case <-r.shutdownRefreshPeridoic:
+				r.logger.Debug("stopping periodic cache refreshes.")
+				return
 			}
 		}
 	}()
@@ -215,19 +235,37 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	return r
 }
 
-type resolver struct {
-	subs             map[string]*SubscriberPool
-	subMu            sync.RWMutex
+type Resolver struct {
+	// subscribers are used when multiple callers
+	// request the same app ID before it is cached.
+	// Only 1 will fetch the address, the rest will
+	// subscribe for the address or an error.
+	subs  map[string]*SubscriberPool
+	subMu sync.RWMutex
+	// IPv4 cache is used to store IPv4 addresses.
 	ipv4Mu           sync.RWMutex
 	appAddressesIPv4 map[string]*addressList
+	// IPv6 cache is used to store IPv6 addresses.
 	ipv6Mu           sync.RWMutex
 	appAddressesIPv6 map[string]*addressList
-	refreshChan      chan string
-	logger           logger.Logger
+	// refreshChan is used to trigger background refreshes
+	// of app IDs in case there are more than 1 server
+	// hosting that app id.
+	refreshChan chan string
+	// registrations are the app ids that have been
+	// registered with this resolver. A single resolver
+	// may serve multiple app ids - although this is
+	// expected to be 1 when initialized by the dapr runtime.
+	registrationMu sync.RWMutex
+	registrations  map[string]chan struct{}
+	// shutdown refreshes.
+	shutdownRefresh         chan struct{}
+	shutdownRefreshPeridoic chan struct{}
+	logger                  logger.Logger
 }
 
 // Init registers service for mDNS.
-func (m *resolver) Init(metadata nameresolution.Metadata) error {
+func (m *Resolver) Init(metadata nameresolution.Metadata) error {
 	var appID string
 	var hostAddress string
 	var ok bool
@@ -257,16 +295,48 @@ func (m *resolver) Init(metadata nameresolution.Metadata) error {
 	}
 
 	err = m.registerMDNS(instanceID, appID, []string{hostAddress}, int(port))
-	if err == nil {
-		m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
+	if err != nil {
+		return err
 	}
 
-	return err
+	m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
+	return nil
 }
 
-func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, port int) error {
+// Close is not formally part of the name resolution interface as proposed
+// in https://github.com/dapr/components-contrib/issues/1472 but this is
+// used in the tests to clean up the mDNS registration.
+func (m *Resolver) Close() error {
+	// stop all app ids currently being served from this resolver.
+	m.registrationMu.Lock()
+	defer m.registrationMu.Unlock()
+	for _, doneChan := range m.registrations {
+		doneChan <- struct{}{}
+		close(doneChan)
+	}
+
+	// stop all refresh loops
+	m.shutdownRefresh <- struct{}{}
+	m.shutdownRefreshPeridoic <- struct{}{}
+
+	return nil
+}
+
+func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, port int) error {
 	started := make(chan bool, 1)
 	var err error
+
+	// Register the app id with the resolver.
+	done := make(chan struct{})
+	key := fmt.Sprintf("%s:%d", appID, port) // WARN: we do not support unique ips.
+	m.registrationMu.Lock()
+	_, exists := m.registrations[key]
+	if exists {
+		m.registrationMu.Unlock()
+		return fmt.Errorf("app id %s already registered for port %d", appID, port)
+	}
+	m.registrations[key] = done
+	m.registrationMu.Unlock()
 
 	go func() {
 		var server *zeroconf.Server
@@ -293,11 +363,18 @@ func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, p
 		}
 		started <- true
 
-		// wait until it gets SIGTERM event.
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-		<-sig
 
+		// wait until either a SIGTERM or done is received.
+		select {
+		case <-sig:
+			m.logger.Debugf("received SIGTERM signal, shutting down...")
+		case <-done:
+			m.logger.Debugf("received done signal , shutting down...")
+		}
+
+		m.logger.Info("stopping mDNS server for app id: ", appID)
 		server.Shutdown()
 	}()
 
@@ -307,7 +384,7 @@ func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, p
 }
 
 // ResolveID resolves name to address via mDNS.
-func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
 	// check for cached IPv4 addresses for this app id first.
 	if addr := m.nextIPv4Address(req.ID); addr != nil {
 		return *addr, nil
@@ -345,13 +422,13 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	}()
 
 	// only one subscriber per pool will perform the first browse for the
-	// requested app id. The rest will susbcribe for an address or error.
+	// requested app id. The rest will subscribe for an address or error.
 	var once *sync.Once
-	var done chan bool
+	var done chan struct{}
 	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
 	defer cancel()
 	appIDSubs.Once.Do(func() {
-		done = make(chan bool, 1)
+		done = make(chan struct{}, 1)
 		m.browseOne(ctx, req.ID, done)
 
 		// once will only be set for the first browser.
@@ -403,11 +480,11 @@ func (m *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 // matching the provided app id. It will return the first address it
 // receives and stop browsing for any more.
 // This must be called in a sync.Once block to avoid concurrency issues.
-func (m *resolver) browseOne(ctx context.Context, appID string, done chan bool) {
+func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct{}) {
 	go func() {
 		var addr string
 
-		ctx, cancel := context.WithCancel(ctx)
+		cctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		// onFirst will be invoked on the first address received.
@@ -422,20 +499,20 @@ func (m *resolver) browseOne(ctx context.Context, appID string, done chan bool) 
 
 		m.logger.Debugf("Browsing for first mDNS address for app id %s", appID)
 
-		err := m.browse(ctx, appID, onFirst)
+		err := m.browse(cctx, appID, onFirst)
 		if err != nil {
 			m.pubErrToSubs(appID, err)
-			done <- true // signal that all subscribers have been notified.
+			done <- struct{}{} // signal that all subscribers have been notified.
 			return
 		}
 
 		// wait for the context to be canceled or time out.
-		<-ctx.Done()
+		<-cctx.Done()
 
-		if errors.Is(ctx.Err(), context.Canceled) {
+		if errors.Is(cctx.Err(), context.Canceled) {
 			// expect this when we've found an address and canceled the browse.
 			m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
-		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		} else if errors.Is(cctx.Err(), context.DeadlineExceeded) {
 			// expect this when we've been unable to find the first address before the timeout.
 			m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
 		}
@@ -444,17 +521,17 @@ func (m *resolver) browseOne(ctx context.Context, appID string, done chan bool) 
 		if addr == "" {
 			m.pubErrToSubs(appID, fmt.Errorf("couldn't find service: %s", appID))
 
-			done <- true // signal that all subscribers have been notified.
+			done <- struct{}{} // signal that all subscribers have been notified.
 			return
 		}
 
 		m.pubAddrToSubs(appID, addr)
 
-		done <- true // signal that all subscribers have been notified.
+		done <- struct{}{} // signal that all subscribers have been notified.
 	}()
 }
 
-func (m *resolver) pubErrToSubs(reqID string, err error) {
+func (m *Resolver) pubErrToSubs(reqID string, err error) {
 	m.subMu.RLock()
 	defer m.subMu.RUnlock()
 	pool, ok := m.subs[reqID]
@@ -470,7 +547,7 @@ func (m *resolver) pubErrToSubs(reqID string, err error) {
 	}
 }
 
-func (m *resolver) pubAddrToSubs(reqID string, addr string) {
+func (m *Resolver) pubAddrToSubs(reqID string, addr string) {
 	m.subMu.RLock()
 	defer m.subMu.RUnlock()
 	pool, ok := m.subs[reqID]
@@ -488,7 +565,7 @@ func (m *resolver) pubAddrToSubs(reqID string, addr string) {
 
 // refreshApp will perform a mDNS network browse for a provided
 // app id. This function is blocking.
-func (m *resolver) refreshApp(ctx context.Context, appID string) error {
+func (m *Resolver) refreshApp(ctx context.Context, appID string) error {
 	if appID == "" {
 		return nil
 	}
@@ -518,7 +595,7 @@ func (m *resolver) refreshApp(ctx context.Context, appID string) error {
 
 // refreshAllApps will perform a mDNS network browse for each address
 // currently in the cache. This function is blocking.
-func (m *resolver) refreshAllApps(ctx context.Context) error {
+func (m *Resolver) refreshAllApps(ctx context.Context) error {
 	m.logger.Debug("Refreshing all mDNS addresses.")
 
 	// check if we have any IPv4 or IPv6 addresses
@@ -558,10 +635,10 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 }
 
 // browse will perform a non-blocking mdns network browse for the provided app id.
-func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip string)) error {
+func (m *Resolver) browse(ctx context.Context, appID string, onEach func(ip string)) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
-		return fmt.Errorf("failed to initialize resolver: %e", err)
+		return fmt.Errorf("failed to initialize resolver: %w", err)
 	}
 	entries := make(chan *zeroconf.ServiceEntry)
 
@@ -624,7 +701,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 	}(entries)
 
 	if err = resolver.Browse(ctx, appID, "local.", entries); err != nil {
-		return fmt.Errorf("failed to browse: %s", err.Error())
+		return fmt.Errorf("failed to browse: %w", err)
 	}
 
 	return nil
@@ -632,7 +709,7 @@ func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 
 // addAppAddressIPv4 adds an IPv4 address to the
 // cache for the provided app id.
-func (m *resolver) addAppAddressIPv4(appID string, addr string) {
+func (m *Resolver) addAppAddressIPv4(appID string, addr string) {
 	m.ipv4Mu.Lock()
 	defer m.ipv4Mu.Unlock()
 
@@ -646,7 +723,7 @@ func (m *resolver) addAppAddressIPv4(appID string, addr string) {
 
 // addAppIPv4Address adds an IPv6 address to the
 // cache for the provided app id.
-func (m *resolver) addAppAddressIPv6(appID string, addr string) {
+func (m *Resolver) addAppAddressIPv6(appID string, addr string) {
 	m.ipv6Mu.Lock()
 	defer m.ipv6Mu.Unlock()
 
@@ -660,7 +737,7 @@ func (m *resolver) addAppAddressIPv6(appID string, addr string) {
 
 // getAppIDsIPv4 returns a list of the current IPv4 app IDs.
 // This method uses expire on read to evict expired addreses.
-func (m *resolver) getAppIDsIPv4() []string {
+func (m *Resolver) getAppIDsIPv4() []string {
 	m.ipv4Mu.RLock()
 	defer m.ipv4Mu.RUnlock()
 
@@ -677,7 +754,7 @@ func (m *resolver) getAppIDsIPv4() []string {
 
 // getAppIDsIPv6 returns a list of the known IPv6 app IDs.
 // This method uses expire on read to evict expired addreses.
-func (m *resolver) getAppIDsIPv6() []string {
+func (m *Resolver) getAppIDsIPv6() []string {
 	m.ipv6Mu.RLock()
 	defer m.ipv6Mu.RUnlock()
 
@@ -694,13 +771,13 @@ func (m *resolver) getAppIDsIPv6() []string {
 
 // getAppIDs returns a list of app ids currently in
 // the cache, ensuring expired addresses are evicted.
-func (m *resolver) getAppIDs() []string {
+func (m *Resolver) getAppIDs() []string {
 	return union(m.getAppIDsIPv4(), m.getAppIDsIPv6())
 }
 
 // nextIPv4Address returns the next IPv4 address for
 // the provided app id from the cache.
-func (m *resolver) nextIPv4Address(appID string) *string {
+func (m *Resolver) nextIPv4Address(appID string) *string {
 	m.ipv4Mu.RLock()
 	defer m.ipv4Mu.RUnlock()
 	addrList, exists := m.appAddressesIPv4[appID]
@@ -718,7 +795,7 @@ func (m *resolver) nextIPv4Address(appID string) *string {
 
 // nextIPv6Address returns the next IPv6 address for
 // the provided app id from the cache.
-func (m *resolver) nextIPv6Address(appID string) *string {
+func (m *Resolver) nextIPv6Address(appID string) *string {
 	m.ipv6Mu.RLock()
 	defer m.ipv6Mu.RUnlock()
 	addrList, exists := m.appAddressesIPv6[appID]

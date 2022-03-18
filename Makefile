@@ -61,7 +61,7 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) --timeout=5m
 
 ################################################################################
 # Target: lint                                                                 #

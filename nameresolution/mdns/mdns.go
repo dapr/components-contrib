@@ -484,7 +484,7 @@ func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct
 	go func() {
 		var addr string
 
-		cctx, cancel := context.WithCancel(ctx)
+		browseCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		// onFirst will be invoked on the first address received.
@@ -499,7 +499,7 @@ func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct
 
 		m.logger.Debugf("Browsing for first mDNS address for app id %s", appID)
 
-		err := m.browse(cctx, appID, onFirst)
+		err := m.browse(browseCtx, appID, onFirst)
 		if err != nil {
 			m.pubErrToSubs(appID, err)
 			done <- struct{}{} // signal that all subscribers have been notified.
@@ -507,12 +507,12 @@ func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct
 		}
 
 		// wait for the context to be canceled or time out.
-		<-cctx.Done()
+		<-browseCtx.Done()
 
-		if errors.Is(cctx.Err(), context.Canceled) {
+		if errors.Is(browseCtx.Err(), context.Canceled) {
 			// expect this when we've found an address and canceled the browse.
 			m.logger.Debugf("Browsing for first mDNS address for app id %s canceled.", appID)
-		} else if errors.Is(cctx.Err(), context.DeadlineExceeded) {
+		} else if errors.Is(browseCtx.Err(), context.DeadlineExceeded) {
 			// expect this when we've been unable to find the first address before the timeout.
 			m.logger.Debugf("Browsing for first mDNS address for app id %s timed out.", appID)
 		}
@@ -565,27 +565,27 @@ func (m *Resolver) pubAddrToSubs(reqID string, addr string) {
 
 // refreshApp will perform a mDNS network browse for a provided
 // app id. This function is blocking.
-func (m *Resolver) refreshApp(ctx context.Context, appID string) error {
+func (m *Resolver) refreshApp(refreshCtx context.Context, appID string) error {
 	if appID == "" {
 		return nil
 	}
 
 	m.logger.Debugf("Refreshing mDNS addresses for app id %s.", appID)
 
-	ctx, cancel := context.WithTimeout(ctx, refreshTimeout)
+	refreshCtx, cancel := context.WithTimeout(refreshCtx, refreshTimeout)
 	defer cancel()
 
-	if err := m.browse(ctx, appID, nil); err != nil {
+	if err := m.browse(refreshCtx, appID, nil); err != nil {
 		return err
 	}
 
 	// wait for the context to be canceled or time out.
-	<-ctx.Done()
+	<-refreshCtx.Done()
 
-	if errors.Is(ctx.Err(), context.Canceled) {
+	if errors.Is(refreshCtx.Err(), context.Canceled) {
 		// this is not expected, investigate why context was canceled.
 		m.logger.Warnf("Refreshing mDNS addresses for app id %s canceled.", appID)
-	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	} else if errors.Is(refreshCtx.Err(), context.DeadlineExceeded) {
 		// expect this when our browse has timedout.
 		m.logger.Debugf("Refreshing mDNS addresses for app id %s timed out.", appID)
 	}

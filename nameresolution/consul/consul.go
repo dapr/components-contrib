@@ -79,8 +79,7 @@ type registryInterface interface {
 }
 
 type registry struct {
-	entries map[string]*registryEntry
-	mu      sync.RWMutex
+	entries sync.Map
 }
 
 type registryEntry struct {
@@ -89,10 +88,11 @@ type registryEntry struct {
 }
 
 func (r *registry) get(service string) *registryEntry {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	if result, ok := r.entries.Load(service); ok {
+		return result.(*registryEntry)
+	}
 
-	return r.entries[service]
+	return nil
 }
 
 func (e *registryEntry) next() *consul.ServiceEntry {
@@ -151,22 +151,13 @@ func (r *registry) addOrUpdate(service string, services []*consul.ServiceEntry) 
 	}
 
 	// add
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.entries[service] = &registryEntry{
+	r.entries.Store(service, &registryEntry{
 		services: services,
-	}
+	})
 }
 
 func (r *registry) remove(service string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, ok := r.entries[service]; !ok {
-		return
-	}
-
-	delete(r.entries, service)
+	r.entries.Delete(service)
 }
 
 func (r *registry) expire(service string) {
@@ -192,7 +183,7 @@ type resolverConfig struct {
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: map[string]*registryEntry{}})
+	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: sync.Map{}})
 }
 
 func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface) nr.Resolver {

@@ -16,6 +16,7 @@ package consul
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -674,7 +675,7 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				registry := &registry{entries: map[string]*registryEntry{}}
+				registry := &registry{entries: sync.Map{}}
 
 				result := []*consul.ServiceEntry{
 					{
@@ -686,7 +687,9 @@ func TestRegistry(t *testing.T) {
 				}
 
 				registry.addOrUpdate(appID, result)
-				assert.Equal(t, result, registry.entries[appID].services)
+
+				entry, _ := registry.entries.Load(appID)
+				assert.Equal(t, result, entry.(*registryEntry).services)
 
 				update := []*consul.ServiceEntry{
 					{
@@ -698,7 +701,8 @@ func TestRegistry(t *testing.T) {
 				}
 
 				registry.addOrUpdate(appID, update)
-				assert.Equal(t, update, registry.entries[appID].services)
+				entry, _ = registry.entries.Load(appID)
+				assert.Equal(t, update, entry.(*registryEntry).services)
 			},
 		},
 		{
@@ -706,26 +710,30 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				registry := &registry{
-					entries: map[string]*registryEntry{
-						appID: {
-							services: []*consul.ServiceEntry{
-								{
-									Service: &consul.AgentService{
-										Address: "123.234.345.456",
-										Port:    8600,
-									},
+				entryMap := sync.Map{}
+				entryMap.Store(
+					appID,
+					&registryEntry{
+						services: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "123.234.345.456",
+									Port:    8600,
 								},
 							},
-						},
-					},
+						}})
+
+				registry := &registry{
+					entries: entryMap,
 				}
 
-				assert.NotNil(t, registry.entries[appID].services)
+				entry, _ := registry.entries.Load(appID)
+				assert.NotNil(t, entry.(*registryEntry).services)
 
 				registry.expire(appID)
 
-				assert.Nil(t, registry.entries[appID].services)
+				entry, _ = registry.entries.Load(appID)
+				assert.Nil(t, entry.(*registryEntry).services)
 			},
 		},
 		{
@@ -733,24 +741,27 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				registry := &registry{
-					entries: map[string]*registryEntry{
-						appID: {
-							services: []*consul.ServiceEntry{
-								{
-									Service: &consul.AgentService{
-										Address: "123.234.345.456",
-										Port:    8600,
-									},
+				entryMap := sync.Map{}
+				entryMap.Store(
+					appID,
+					&registryEntry{
+						services: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "123.234.345.456",
+									Port:    8600,
 								},
 							},
-						},
-					},
+						}})
+
+				registry := &registry{
+					entries: entryMap,
 				}
 
 				registry.remove(appID)
 
-				assert.Nil(t, registry.entries[appID])
+				entry, _ := registry.entries.Load(appID)
+				assert.Nil(t, entry)
 			},
 		},
 	}

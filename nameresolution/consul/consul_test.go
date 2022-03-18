@@ -675,7 +675,7 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				registry := &registry{entries: sync.Map{}}
+				registry := &registry{entries: &sync.Map{}}
 
 				result := []*consul.ServiceEntry{
 					{
@@ -710,7 +710,7 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				entryMap := sync.Map{}
+				entryMap := &sync.Map{}
 				entryMap.Store(
 					appID,
 					&registryEntry{
@@ -741,7 +741,7 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				entryMap := sync.Map{}
+				entryMap := &sync.Map{}
 				entryMap.Store(
 					appID,
 					&registryEntry{

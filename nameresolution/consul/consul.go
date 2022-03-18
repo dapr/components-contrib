@@ -79,7 +79,7 @@ type registryInterface interface {
 }
 
 type registry struct {
-	entries sync.Map
+	entries *sync.Map
 }
 
 type registryEntry struct {
@@ -183,7 +183,7 @@ type resolverConfig struct {
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: sync.Map{}})
+	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: &sync.Map{}})
 }
 
 func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface) nr.Resolver {

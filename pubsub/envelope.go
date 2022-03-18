@@ -34,19 +34,22 @@ const (
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute.
 	DefaultCloudEventDataContentType = "text/plain"
-	TraceParentField                 = "traceparent"
-	TraceStateField                  = "tracestate"
-	TopicField                       = "topic"
-	PubsubField                      = "pubsubname"
-	ExpirationField                  = "expiration"
-	DataContentTypeField             = "datacontenttype"
-	DataField                        = "data"
-	DataBase64Field                  = "data_base64"
-	SpecVersionField                 = "specversion"
-	TypeField                        = "type"
-	SourceField                      = "source"
-	IDField                          = "id"
-	SubjectField                     = "subject"
+	// traceid, backwards compatibles
+	// ::TODO delete traceid, and keep traceparent
+	TraceIDField         = "traceid"
+	TraceParentField     = "traceparent"
+	TraceStateField      = "tracestate"
+	TopicField           = "topic"
+	PubsubField          = "pubsubname"
+	ExpirationField      = "expiration"
+	DataContentTypeField = "datacontenttype"
+	DataField            = "data"
+	DataBase64Field      = "data_base64"
+	SpecVersionField     = "specversion"
+	TypeField            = "type"
+	SourceField          = "source"
+	IDField              = "id"
+	SubjectField         = "subject"
 )
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
@@ -90,6 +93,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TypeField:            eventType,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
+		TraceIDField:         traceParent,
 		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
 	}
@@ -111,6 +115,7 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 		return m, err
 	}
 
+	m[TraceIDField] = traceParent
 	m[TraceParentField] = traceParent
 	m[TraceStateField] = traceState
 	m[TopicField] = topic

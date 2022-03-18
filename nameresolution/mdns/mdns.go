@@ -132,6 +132,7 @@ func (a *addressList) next() *string {
 // to be accessed only when using subMu lock.
 type SubscriberPool struct {
 	Once        *sync.Once
+	Count       int64
 	Subscribers []Subscriber
 }
 
@@ -143,8 +144,7 @@ func NewSubscriberPool(w Subscriber) *SubscriberPool {
 }
 
 func (p *SubscriberPool) Add(sub Subscriber) {
-	id := len(p.Subscribers)
-	sub.ID = id
+	sub.ID = p.Count + 1 // This is only called via the subMu doesn't need to be atomic.
 	p.Subscribers = append(p.Subscribers, sub)
 }
 
@@ -158,7 +158,7 @@ func (p *SubscriberPool) Remove(sub Subscriber) {
 }
 
 type Subscriber struct {
-	ID       int
+	ID       int64
 	AddrChan chan string
 	ErrChan  chan error
 }
@@ -669,11 +669,61 @@ func (m *Resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 	}
 	entries := make(chan *zeroconf.ServiceEntry)
 
+	handleEntry := func(entry *zeroconf.ServiceEntry) {
+		for _, text := range entry.Text {
+			if text != appID {
+				m.logger.Debugf("mDNS response doesn't match app id %s, skipping.", appID)
+
+				break
+			}
+
+			m.logger.Debugf("mDNS response for app id %s received.", appID)
+
+			hasIPv4Address := len(entry.AddrIPv4) > 0
+			hasIPv6Address := len(entry.AddrIPv6) > 0
+
+			if !hasIPv4Address && !hasIPv6Address {
+				m.logger.Debugf("mDNS response for app id %s doesn't contain any IPv4 or IPv6 addresses, skipping.", appID)
+
+				break
+			}
+
+			var addr string
+			port := entry.Port
+
+			// TODO: we currently only use the first IPv4 and IPv6 address.
+			// We should understand the cases in which additional addresses
+			// are returned and whether we need to support them.
+			if hasIPv4Address {
+				addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
+				m.addAppAddressIPv4(appID, addr)
+			}
+			if hasIPv6Address {
+				addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
+				m.addAppAddressIPv6(appID, addr)
+			}
+
+			if onEach != nil {
+				onEach(addr) // invoke callback.
+			}
+		}
+	}
+
 	// handle each service entry returned from the mDNS browse.
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for {
 			select {
+			case entry := <-results:
+				if entry == nil {
+					break
+				}
+				handleEntry(entry)
 			case <-ctx.Done():
+				// drain the results before exiting.
+				for len(results) > 0 {
+					handleEntry(<-results)
+				}
+
 				if errors.Is(ctx.Err(), context.Canceled) {
 					m.logger.Debugf("mDNS browse for app id %s canceled.", appID)
 				} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -681,48 +731,6 @@ func (m *Resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 				}
 
 				return // stop listening for results.
-			case entry := <-results:
-				if entry == nil {
-					break
-				}
-
-				for _, text := range entry.Text {
-					if text != appID {
-						m.logger.Debugf("mDNS response doesn't match app id %s, skipping.", appID)
-
-						break
-					}
-
-					m.logger.Debugf("mDNS response for app id %s received.", appID)
-
-					hasIPv4Address := len(entry.AddrIPv4) > 0
-					hasIPv6Address := len(entry.AddrIPv6) > 0
-
-					if !hasIPv4Address && !hasIPv6Address {
-						m.logger.Debugf("mDNS response for app id %s doesn't contain any IPv4 or IPv6 addresses, skipping.", appID)
-
-						break
-					}
-
-					var addr string
-					port := entry.Port
-
-					// TODO: we currently only use the first IPv4 and IPv6 address.
-					// We should understand the cases in which additional addresses
-					// are returned and whether we need to support them.
-					if hasIPv4Address {
-						addr = fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), port)
-						m.addAppAddressIPv4(appID, addr)
-					}
-					if hasIPv6Address {
-						addr = fmt.Sprintf("%s:%d", entry.AddrIPv6[0].String(), port)
-						m.addAppAddressIPv6(appID, addr)
-					}
-
-					if onEach != nil {
-						onEach(addr) // invoke callback.
-					}
-				}
 			}
 		}
 	}(entries)

@@ -471,6 +471,10 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// block on the published channel as this signals that we have
 				// published the address to all other subscribers first.
 				<-published
+
+				// we cannot guarentee all subscribers have received the error
+				// event though we have published. Therefore, those subscribers
+				// will timeout and return an error.
 			})
 		}
 		return addr, nil
@@ -480,6 +484,10 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// block on the published channel as this signals that we have
 				// published the error to all other subscribers first.
 				<-published
+
+				// we cannot guarentee all subscribers have received the error
+				// event though we have published. Therefore, those subscribers
+				// will timeout and read the value from the cache.
 			})
 		}
 		return "", err

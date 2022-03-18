@@ -205,9 +205,12 @@ func NewResolver(logger logger.Logger) *Resolver {
 	// refresh app addresses on demand.
 	go func() {
 		for {
+			refreshCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
 			select {
 			case appID := <-r.refreshChan:
-				if err := r.refreshApp(context.Background(), appID); err != nil {
+				if err := r.refreshApp(refreshCtx, appID); err != nil {
 					r.logger.Warnf(err.Error())
 				}
 			case <-r.shutdownRefresh:
@@ -220,9 +223,12 @@ func NewResolver(logger logger.Logger) *Resolver {
 	// refresh all app addresses periodically.
 	go func() {
 		for {
+			refreshCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
 			select {
 			case <-time.After(refreshInterval):
-				if err := r.refreshAllApps(context.Background()); err != nil {
+				if err := r.refreshAllApps(refreshCtx); err != nil {
 					r.logger.Warnf(err.Error())
 				}
 			case <-r.shutdownRefreshPeridoic:
@@ -314,6 +320,8 @@ func (m *Resolver) Close() error {
 		doneChan <- struct{}{}
 		close(doneChan)
 	}
+	// clear the registrations map.
+	m.registrations = make(map[string]chan struct{})
 
 	// stop all refresh loops
 	m.shutdownRefresh <- struct{}{}
@@ -424,29 +432,30 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	// only one subscriber per pool will perform the first browse for the
 	// requested app id. The rest will subscribe for an address or error.
 	var once *sync.Once
-	var done chan struct{}
+	var published chan struct{}
 	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
 	defer cancel()
 	appIDSubs.Once.Do(func() {
-		done = make(chan struct{}, 1)
-		m.browseOne(ctx, req.ID, done)
+		published = make(chan struct{}, 1)
+		m.browseOne(ctx, req.ID, published)
 
 		// once will only be set for the first browser.
 		once = new(sync.Once)
 	})
 
 	// there is a window of time where we may not have subscribed
-	// to the appID yet but the first browser has already published
-	// the address and updated the cache. We should recheck the cache
+	// to the app id yet but the first browser has already updated
+	// the cache and published the address. We should recheck the cache
 	// now that we are subscribed to ensure we get the address regardless.
-	// There should be no possibility that the first browser will update
-	// the cache before it's own execution context has reach this check so
-	// it can't short-circuit the subscription.
-	if addr := m.nextIPv4Address(req.ID); addr != nil {
-		return *addr, nil
-	}
-	if addr := m.nextIPv6Address(req.ID); addr != nil {
-		return *addr, nil
+	// This should only be performed if we are not the first browser to avoid
+	// the first browser short circuiting the subscriptions.
+	if once == nil {
+		if addr := m.nextIPv4Address(req.ID); addr != nil {
+			return *addr, nil
+		}
+		if addr := m.nextIPv6Address(req.ID); addr != nil {
+			return *addr, nil
+		}
 	}
 
 	select {
@@ -456,23 +465,37 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		if once != nil {
 			once.Do(func() {
 				// trigger the background refresh for additional addresses.
+				// WARN: this can block if refreshChan is full.
 				m.refreshChan <- req.ID
 
-				// block on the done channel as this signals that we have
+				// block on the published channel as this signals that we have
 				// published the address to all other subscribers first.
-				<-done
+				<-published
 			})
 		}
 		return addr, nil
 	case err := <-sub.ErrChan:
 		if once != nil {
 			once.Do(func() {
-				// block on the done channel as this signals that we have
+				// block on the published channel as this signals that we have
 				// published the error to all other subscribers first.
-				<-done
+				<-published
 			})
 		}
 		return "", err
+	case <-time.After(time.Second * 2):
+		// If an error was published before we subscribed but
+		// after we checked the cache then we may get stuck.
+		// Therefore, if no address or error has been received
+		// within 2 seconds, we will check the cache again and
+		// if no address is present we will return an error.
+		if addr := m.nextIPv4Address(req.ID); addr != nil {
+			return *addr, nil
+		}
+		if addr := m.nextIPv6Address(req.ID); addr != nil {
+			return *addr, nil
+		}
+		return "", fmt.Errorf("timeout waiting for address for app id %s", req.ID)
 	}
 }
 
@@ -480,7 +503,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 // matching the provided app id. It will return the first address it
 // receives and stop browsing for any more.
 // This must be called in a sync.Once block to avoid concurrency issues.
-func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct{}) {
+func (m *Resolver) browseOne(ctx context.Context, appID string, published chan struct{}) {
 	go func() {
 		var addr string
 
@@ -502,7 +525,8 @@ func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct
 		err := m.browse(browseCtx, appID, onFirst)
 		if err != nil {
 			m.pubErrToSubs(appID, err)
-			done <- struct{}{} // signal that all subscribers have been notified.
+
+			published <- struct{}{} // signal that all subscribers have been notified.
 			return
 		}
 
@@ -521,13 +545,13 @@ func (m *Resolver) browseOne(ctx context.Context, appID string, done chan struct
 		if addr == "" {
 			m.pubErrToSubs(appID, fmt.Errorf("couldn't find service: %s", appID))
 
-			done <- struct{}{} // signal that all subscribers have been notified.
+			published <- struct{}{} // signal that all subscribers have been notified.
 			return
 		}
 
 		m.pubAddrToSubs(appID, addr)
 
-		done <- struct{}{} // signal that all subscribers have been notified.
+		published <- struct{}{} // signal that all subscribers have been notified.
 	}()
 }
 
@@ -624,7 +648,10 @@ func (m *Resolver) refreshAllApps(ctx context.Context) error {
 		go func(a string) {
 			defer wg.Done()
 
-			m.refreshApp(ctx, a)
+			err := m.refreshApp(ctx, a)
+			if err != nil {
+				m.logger.Warnf("error refreshing mDNS addresses for app id %s: %v", a, err)
+			}
 		}(appID)
 	}
 

@@ -364,7 +364,9 @@ func ResolverConcurrencyFound(t *testing.T) {
 				assert.Equal(t, appCBPQDN, pt)
 			}
 
-			assert.Less(t, elapsed, 1*time.Second)
+			// It should tax a maximum of 3 seconds to
+			// resolve an address.
+			assert.Less(t, elapsed, 3*time.Second)
 		}()
 	}
 

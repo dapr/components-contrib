@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mongodb
+package redis
 
 import (
 	"encoding/json"
@@ -26,27 +26,24 @@ import (
 func TestMongoQuery(t *testing.T) {
 	tests := []struct {
 		input string
-		query string
+		query []interface{}
+		err   error
 	}{
 		{
 			input: "../../tests/state/query/q1.json",
-			query: ``,
+			query: []interface{}{"*", "LIMIT", "0", "2"},
 		},
 		{
 			input: "../../tests/state/query/q2.json",
-			query: `{ "value.state": "CA" }`,
+			query: []interface{}{"@state:(CA)", "LIMIT", "0", "2"},
 		},
 		{
 			input: "../../tests/state/query/q3.json",
-			query: `{ "$and": [ { "value.person.org": "A" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] }`,
-		},
-		{
-			input: "../../tests/state/query/q4.json",
-			query: `{ "$or": [ { "value.person.org": "A" }, { "$and": [ { "value.person.org": "B" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] } ] }`,
+			err:   ErrMultipleSortBy,
 		},
 		{
 			input: "../../tests/state/query/q6.json",
-			query: `{ "$or": [ { "value.person.id": 123 }, { "$and": [ { "value.person.org": "B" }, { "value.person.id": { "$in": [ 567, 890 ] } } ] } ] }`,
+			query: []interface{}{"((@id:[123 123])|((@org:(B)) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
 		},
 	}
 	for _, test := range tests {
@@ -56,10 +53,14 @@ func TestMongoQuery(t *testing.T) {
 		err = json.Unmarshal(data, &qq)
 		assert.NoError(t, err)
 
-		q := &Query{}
+		q := &Query{
+			aliases: map[string]string{"person.org": "org", "person.id": "id", "state": "state"},
+		}
 		qbuilder := query.NewQueryBuilder(q)
-		err = qbuilder.BuildQuery(&qq)
-		assert.NoError(t, err)
-		assert.Equal(t, test.query, q.query)
+		if err = qbuilder.BuildQuery(&qq); err != nil {
+			assert.EqualError(t, err, test.err.Error())
+		} else {
+			assert.Equal(t, test.query, q.query)
+		}
 	}
 }

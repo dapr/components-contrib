@@ -26,7 +26,7 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true", "DisableSSL": "true", "InsecureSSL": "true"
+			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true", "DisableSSL": "true", "InsecureSSL": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)

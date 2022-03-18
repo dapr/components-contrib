@@ -405,10 +405,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	m.subMu.Lock()
 	appIDSubs, exists := m.subs[req.ID]
 	if !exists {
-		// WARN: this must set the value of the
-		// appIDSubs variable so that the defer
-		// does not invoke Remove(sub) on a nil
-		// receiver on line 343.
+		// WARN: must set appIDSubs variable for use below.
 		appIDSubs = NewSubscriberPool(sub)
 		m.subs[req.ID] = appIDSubs
 	} else {

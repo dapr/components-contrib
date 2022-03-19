@@ -41,8 +41,17 @@ const (
 	storageAccountNameEnvKey     = "AzureBlobStorageAccount"
 	storageAccountKeyEnvKey      = "AzureBlobStorageAccessKey"
 	azureCredentialsEnvKey       = "AZURE_CREDENTIALS"
+	testStorageContainerName     = "iothub-bindings-integration-test"
 
-	testStorageContainerName = "iothub-bindings-integration-test"
+	// use for AAD integration test
+	azureServicePrincipalClientIdEnvKey     = "AzureCertificationServicePrincipalClientId"
+	azureServicePrincipalClientSecretEnvKey = "AzureCertificationServicePrincipalClientSecret"
+	azureTenantIdEnvKey                     = "AzureCertificationTenantId"
+	azureBlobStorageAccountEnvKey           = "AzureBlobStorageAccount"
+	eventHubsBindingsContainerEnvKey        = "AzureEventHubsBindingsContainer"
+	eventHubBindingsHubEnvKey               = "AzureEventHubsBindingsHub"
+	eventHubBindingsNamespaceEnvKey         = "AzureEventHubsBindingsNamespace"
+	eventHubsBindingsConsumerGroupEnvKey    = "AzureEventHubsBindingsConsumerGroup"
 )
 
 func createIotHubBindingsMetadata() bindings.Metadata {
@@ -57,6 +66,67 @@ func createIotHubBindingsMetadata() bindings.Metadata {
 	}
 
 	return metadata
+}
+
+func createEventHubsBindingsAADMetadata() bindings.Metadata {
+	metadata := bindings.Metadata{
+		Properties: map[string]string{
+			consumerGroup:        os.Getenv(eventHubsBindingsConsumerGroupEnvKey),
+			storageAccountName:   os.Getenv(azureBlobStorageAccountEnvKey),
+			storageContainerName: os.Getenv(eventHubsBindingsContainerEnvKey),
+			"eventHub":           os.Getenv(eventHubBindingsHubEnvKey),
+			"eventHubNamespace":  os.Getenv(eventHubBindingsNamespaceEnvKey),
+			"azureTenantId":      os.Getenv(azureTenantIdEnvKey),
+			"azureClientId":      os.Getenv(azureServicePrincipalClientIdEnvKey),
+			"azureClientSecret":  os.Getenv(azureServicePrincipalClientSecretEnvKey),
+		},
+	}
+
+	return metadata
+}
+
+func testEventHubsBindingsAADAuthentication(t *testing.T) {
+	logger := logger.NewLogger("bindings.azure.eventhubs.integration.test")
+	metadata := createEventHubsBindingsAADMetadata()
+	eventHubsBindings := NewAzureEventHubs(logger)
+
+	err := eventHubsBindings.Init(metadata)
+	assert.NoError(t, err)
+
+	req := &bindings.InvokeRequest{
+		Data: []byte("Integration test message"),
+	}
+	_, err = eventHubsBindings.Invoke(req)
+	assert.NoError(t, err)
+
+	// Setup Read binding to capture readResponses in a closure so that test asserts can be
+	// performed on the main thread, including the case where the handler is never invoked.
+	var readResponses []bindings.ReadResponse
+	handler := func(data *bindings.ReadResponse) ([]byte, error) {
+		readResponses = append(readResponses, *data)
+		return nil, nil
+	}
+
+	_, err = eventHubsBindings.Invoke(req)
+	assert.NoError(t, err)
+
+	go eventHubsBindings.Read(handler)
+
+	time.Sleep(1 * time.Second)
+	_, err = eventHubsBindings.Invoke(req)
+	assert.NoError(t, err)
+
+	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s
+	// Sleep long enough so that the azure event hubs SDK has time to persist updated checkpoints
+	// before the test process exits.
+	time.Sleep(10 * time.Second)
+
+	assert.Greater(t, len(readResponses), 0, "Failed to receive any EventHub events")
+	logger.Infof("Received %d messages", len(readResponses))
+	for _, r := range readResponses {
+		logger.Infof("Message metadata: %v", r.Metadata)
+		assert.Contains(t, string(r.Data), "Integration test message")
+	}
 }
 
 func testReadIotHubEvents(t *testing.T) {
@@ -110,9 +180,11 @@ func testReadIotHubEvents(t *testing.T) {
 
 func TestIntegrationCases(t *testing.T) {
 	connectionString := os.Getenv(iotHubConnectionStringEnvKey)
-	if connectionString == "" {
-		t.Skipf("EventHubs bindings integration to IoT Hub tests skipped. To enable them, define the endpoint connection string using environment variable '%s')", iotHubConnectionStringEnvKey)
+	if connectionString != "" {
+		t.Run("Read IoT Hub events", testReadIotHubEvents)
 	}
-
-	t.Run("Read IoT Hub events", testReadIotHubEvents)
+	serviceprincipal := os.Getenv(azureServicePrincipalClientIdEnvKey)
+	if serviceprincipal != "" {
+		t.Run("Event Hubs Binding AAD authentication", testEventHubsBindingsAADAuthentication)
+	}
 }

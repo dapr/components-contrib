@@ -63,7 +63,7 @@ func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 // Init sets up CockroachDB connection and ensures that the state table exists.
 func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 	p.logger.Debug("Initializing CockroachDB state store")
-	p.logger.Debug(metadata)
+
 	p.metadata = metadata
 
 	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {

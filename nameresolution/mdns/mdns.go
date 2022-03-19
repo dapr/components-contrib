@@ -453,15 +453,20 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				m.refreshChan <- req.ID
 
 				// block on the published channel as this signals that we have
-				// published the address to all other subscribers first.
+				// published the address to all other subscribers before we return.
 				<-published
 
-				// published is an unbuffered channel so we know all subscribers
-				// have received either the address or error by the time we get
-				// here. We now delete the subscribers.
-				m.subMu.Lock()
-				delete(m.subs, req.ID)
-				m.subMu.Unlock()
+				// AddrChan is a buffered channel and we cannot guarantee that
+				// all subscribers will read the value even though we have published.
+				// Therefore it is not safe to remove the subscribers until after
+				// any subscribers would have timed out so we run a delayed background
+				// cleanup.
+				go func() {
+					time.Sleep(time.Second * 3)
+					m.subMu.Lock()
+					delete(m.subs, req.ID)
+					m.subMu.Unlock()
+				}()
 			})
 		}
 		return addr, nil
@@ -469,15 +474,20 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		if once != nil {
 			once.Do(func() {
 				// block on the published channel as this signals that we have
-				// published the error to all other subscribers first.
+				// published the error to all other subscribers before we return.
 				<-published
 
-				// published is an unbuffered channel so we know all subscribers
-				// have received either the address or error by the time we get
-				// here. We now delete the subscribers.
-				m.subMu.Lock()
-				delete(m.subs, req.ID)
-				m.subMu.Unlock()
+				// ErrChan is a buffered channel and we cannot guarantee that
+				// all subscribers will read the value even though we have published.
+				// Therefore it is not safe to remove the subscribers until after
+				// any subscribers would have timed out so we run a delayed background
+				// cleanup.
+				go func() {
+					time.Sleep(time.Second * 3)
+					m.subMu.Lock()
+					delete(m.subs, req.ID)
+					m.subMu.Unlock()
+				}()
 			})
 		}
 		return "", err

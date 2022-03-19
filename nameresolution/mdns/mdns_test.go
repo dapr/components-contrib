@@ -138,7 +138,7 @@ func TestResolver(t *testing.T) {
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:1234", pt)
+	assert.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
 }
 
 func TestResolverClose(t *testing.T) {
@@ -159,7 +159,7 @@ func TestResolverClose(t *testing.T) {
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:1234", pt)
+	assert.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
 
 	// act again
 	err = resolver.Close()
@@ -269,11 +269,50 @@ func TestResolverConcurrency(t *testing.T) {
 			name: "ResolverConcurrencyFound",
 			test: ResolverConcurrencyFound,
 		},
+		{
+			name: "ResolverConcurrencySubscriberClear",
+			test: ResolverConcurrencySubsriberClear,
+		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, tc.test)
 	}
+}
+
+func ResolverConcurrencySubsriberClear(t *testing.T) {
+	// arrange
+	resolver := NewResolver(logger.NewLogger("test"))
+	defer resolver.Close()
+	md := nr.Metadata{Properties: map[string]string{
+		nr.MDNSInstanceName:    "testAppID",
+		nr.MDNSInstanceAddress: localhost,
+		nr.MDNSInstancePort:    "1234",
+	}}
+
+	// act
+	err := resolver.Init(md)
+	require.NoError(t, err)
+
+	request := nr.ResolveRequest{ID: "testAppID"}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			pt, err := resolver.ResolveID(request)
+			require.NoError(t, err)
+			require.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
+		}()
+	}
+
+	wg.Wait()
+
+	// Wait long enough for the background clear to occur.
+	time.Sleep(4 * time.Second)
+	require.Equal(t, 0, len(resolver.subs))
 }
 
 // WARN: This is deliberately not a test function.

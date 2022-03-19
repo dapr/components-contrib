@@ -34,8 +34,8 @@ const (
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute.
 	DefaultCloudEventDataContentType = "text/plain"
-	// traceid, backwards compatibles
-	// ::TODO delete traceid, and keep traceparent
+	// traceid, backwards compatibles.
+	// ::TODO delete traceid, and keep traceparent.
 	TraceIDField         = "traceid"
 	TraceParentField     = "traceparent"
 	TraceStateField      = "tracestate"

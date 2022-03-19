@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	localhost = "127.0.0.1"
+	localhost      = "127.0.0.1"
+	numConcurrency = 100
 )
 
 func TestInitMetadata(t *testing.T) {
@@ -311,7 +312,7 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 	wg.Wait()
 
 	// Wait long enough for the background clear to occur.
-	time.Sleep(4 * time.Second)
+	time.Sleep(3 * time.Second)
 	require.Equal(t, 0, len(resolver.subs))
 }
 
@@ -373,7 +374,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 
 	// act...
 	wg := sync.WaitGroup{}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numConcurrency; i++ {
 		idx := i
 		wg.Add(1)
 		go func() {
@@ -422,7 +423,7 @@ func ResolverConcurrencyNotFound(t *testing.T) {
 
 	// act...
 	wg := sync.WaitGroup{}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numConcurrency; i++ {
 		idx := i
 		wg.Add(1)
 		go func() {

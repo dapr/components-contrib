@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -35,6 +34,13 @@ const (
 	// browseOneTimeout is the timeout used when
 	// browsing for the first response to a single app id.
 	browseOneTimeout = time.Second * 1
+	// subscriberTimeout is the timeout used when
+	// subscribing to the first browser returning a response.
+	subscriberTimeout = time.Second * 2
+	// subscriberCleanupWait is the time to wait before
+	// performing a clean up of a subscriber pool. This
+	// MUST be greater than subscriberTimeout.
+	subscriberCleanupWait = time.Millisecond * 2500
 	// refreshTimeout is the timeout used when
 	// browsing for any responses to a single app id.
 	refreshTimeout = time.Second * 3
@@ -133,7 +139,6 @@ func (a *addressList) next() *string {
 // to be accessed only when using subMu lock.
 type SubscriberPool struct {
 	Once        *sync.Once
-	Count       int64
 	Subscribers []Subscriber
 }
 
@@ -145,12 +150,10 @@ func NewSubscriberPool(w Subscriber) *SubscriberPool {
 }
 
 func (p *SubscriberPool) Add(sub Subscriber) {
-	sub.ID = atomic.AddInt64(&p.Count, 1)
 	p.Subscribers = append(p.Subscribers, sub)
 }
 
 type Subscriber struct {
-	ID       int64
 	AddrChan chan string
 	ErrChan  chan error
 }
@@ -462,7 +465,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// any subscribers would have timed out so we run a delayed background
 				// cleanup.
 				go func() {
-					time.Sleep(time.Second * 3)
+					time.Sleep(subscriberCleanupWait)
 					m.subMu.Lock()
 					delete(m.subs, req.ID)
 					m.subMu.Unlock()
@@ -483,7 +486,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 				// any subscribers would have timed out so we run a delayed background
 				// cleanup.
 				go func() {
-					time.Sleep(time.Second * 3)
+					time.Sleep(subscriberCleanupWait)
 					m.subMu.Lock()
 					delete(m.subs, req.ID)
 					m.subMu.Unlock()
@@ -491,11 +494,9 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 			})
 		}
 		return "", err
-	case <-time.After(time.Second * 2):
-		// If an error was published before we subscribed but
-		// after we checked the cache then we may get stuck.
-		// Therefore, if no address or error has been received
-		// within 2 seconds, we will check the cache again and
+	case <-time.After(subscriberTimeout):
+		// If no address or error has been received
+		// within the timeout, we will check the cache again and
 		// if no address is present we will return an error.
 		if addr := m.nextIPv4Address(req.ID); addr != nil {
 			return *addr, nil

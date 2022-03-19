@@ -430,12 +430,14 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 		once = new(sync.Once)
 	})
 
-	// there is a window of time where we may not have subscribed
-	// to the app id yet but the first browser has already updated
-	// the cache and published the address. We should recheck the cache
-	// now that we are subscribed to ensure we get the address regardless.
-	// This should only be performed if we are not the first browser to avoid
-	// the first browser short circuiting the subscriptions.
+	// if subscribed to the app id but the first browser has already
+	// read the subscribers to send the publish event then we may
+	// not receive the address or error. The first browser will always
+	// update the cache before reading the subscribers so we can
+	// recheck the cache here to make sure we get the address or error
+	// regardless. This block should not be executed by the first
+	// browser as they must wait on the published channel and perform
+	// the cleanup before returning.
 	if once == nil {
 		if addr := m.nextIPv4Address(req.ID); addr != nil {
 			return *addr, nil
@@ -574,7 +576,7 @@ func (m *Resolver) pubErrToSubs(reqID string, err error) {
 		return
 	}
 	for _, subscriber := range pool.Subscribers {
-		// ErrChan is a buffered channel so this is non blocking.
+		// ErrChan is a buffered channel so this is non blocking unless full.
 		subscriber.ErrChan <- err
 		subscriber.Close()
 	}
@@ -590,7 +592,7 @@ func (m *Resolver) pubAddrToSubs(reqID string, addr string) {
 		return
 	}
 	for _, subscriber := range pool.Subscribers {
-		// AddrChan is a buffered channel so this is non blocking.
+		// AddrChan is a buffered channel so this is non blocking unless full.
 		subscriber.AddrChan <- addr
 		subscriber.Close()
 	}

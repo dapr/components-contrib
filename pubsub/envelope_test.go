@@ -136,7 +136,7 @@ func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 	t.Run("trace id", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
 			"mypubsub", "", []byte("data"), "1", "")
-		assert.Equal(t, "1", envelope[TraceIDField])
+		assert.Equal(t, "1", envelope[TraceParentField])
 	})
 
 	t.Run("trace state", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
 		assert.Equal(t, "pubsub", n[PubsubField])
-		assert.Equal(t, "1", n[TraceIDField])
+		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
 		assert.Nil(t, n[DataField])
 		assert.Nil(t, n[DataBase64Field])
@@ -264,7 +264,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
 		assert.Equal(t, "pubsub", n[PubsubField])
-		assert.Equal(t, "1", n[TraceIDField])
+		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
 		assert.Nil(t, n[DataBase64Field])
 		assert.Equal(t, "hello world", n[DataField])
@@ -284,7 +284,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "a", n["customfield"])
 		assert.Equal(t, "b", n[TopicField])
 		assert.Equal(t, "pubsub", n[PubsubField])
-		assert.Equal(t, "1", n[TraceIDField])
+		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
 		assert.Nil(t, n[DataField])
 		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0x1}), n[DataBase64Field])
@@ -306,8 +306,7 @@ func TestNewFromRawPayload(t *testing.T) {
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "mytopic", n[TopicField])
 		assert.Equal(t, "mypubsub", n[PubsubField])
-		assert.Nil(t, n["traceid"])
-		assert.Nil(t, n[TraceIDField])
+		assert.Nil(t, n[TraceParentField])
 		assert.Nil(t, n[DataField])
 		assert.Equal(t, "aGVsbG8gd29ybGQ=", n[DataBase64Field])
 	})

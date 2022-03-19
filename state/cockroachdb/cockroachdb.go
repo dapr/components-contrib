@@ -34,7 +34,7 @@ func New(logger logger.Logger) *CockroachDB {
 	return internalNew(logger, dba)
 }
 
-// new creates a new instance of a CockroachDB state store.
+// internalNew creates a new instance of a CockroachDB state store.
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func internalNew(logger logger.Logger, dba dbAccess) *CockroachDB {
 	return &CockroachDB{

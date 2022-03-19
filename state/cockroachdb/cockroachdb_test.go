@@ -28,10 +28,11 @@ const (
 
 // Fake implementation of interface postgressql.dbaccess.
 type fakeDBaccess struct {
-	logger       logger.Logger
-	initExecuted bool
-	setExecuted  bool
-	getExecuted  bool
+	logger         logger.Logger
+	initExecuted   bool
+	setExecuted    bool
+	getExecuted    bool
+	deleteExecuted bool
 }
 
 func (m *fakeDBaccess) Init(metadata state.Metadata) error {
@@ -49,28 +50,29 @@ func (m *fakeDBaccess) Set(req *state.SetRequest) error {
 func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	m.getExecuted = true
 
-	return &state.GetResponse{
-		Data:        nil,
-		ETag:        nil,
-		Metadata:    nil,
-		ContentType: nil,
-	}, nil
+	return nil, nil
 }
 
 func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
+	m.deleteExecuted = true
+
 	return nil
 }
 
-func (m *fakeDBaccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (m *fakeDBaccess) BulkSet(req []state.SetRequest) error {
+	return nil
+}
+
+func (m *fakeDBaccess) BulkDelete(req []state.DeleteRequest) error {
+	return nil
+}
+
+func (m *fakeDBaccess) ExecuteMulti(req *state.TransactionalStateRequest) error {
 	return nil
 }
 
 func (m *fakeDBaccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
-	return &state.QueryResponse{
-		Results:  nil,
-		Token:    "",
-		Metadata: nil,
-	}, nil
+	return nil, nil
 }
 
 func (m *fakeDBaccess) Close() error {
@@ -86,128 +88,6 @@ func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	_, fake := createCockroachDBWithFake(t)
 	assert.True(t, fake.initExecuted)
-}
-
-func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-	pgs := createCockroachDB(t)
-	err := pgs.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-		Metadata:   nil,
-	})
-	assert.Nil(t, err)
-}
-
-func TestInvalidMultiAction(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: "Something invalid",
-		Request:   createSetRequest(),
-	})
-
-	pgs := createCockroachDB(t)
-	err := pgs.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-		Metadata:   nil,
-	})
-	assert.NotNil(t, err)
-}
-
-func TestValidSetRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createSetRequest(),
-	})
-
-	pgs := createCockroachDB(t)
-	err := pgs.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-		Metadata:   nil,
-	})
-	assert.Nil(t, err)
-}
-
-func TestInvalidMultiSetRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation.
-	})
-
-	pgs := createCockroachDB(t)
-	err := pgs.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-		Metadata:   nil,
-	})
-	assert.NotNil(t, err)
-}
-
-func TestValidMultiDeleteRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createDeleteRequest(),
-	})
-
-	pgs := createCockroachDB(t)
-	err := pgs.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-		Metadata:   nil,
-	})
-	assert.Nil(t, err)
-}
-
-func TestInvalidMultiDeleteRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createSetRequest(), // Set request is not valid for Delete operation.
-	})
-
-	pgs := createCockroachDB(t)
-	err := pgs.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-		Metadata:   nil,
-	})
-	assert.NotNil(t, err)
-}
-
-func createSetRequest() state.SetRequest {
-	return state.SetRequest{
-		Key:      randomKey(),
-		Value:    randomJSON(),
-		ETag:     nil,
-		Metadata: nil,
-		Options: state.SetStateOption{
-			Concurrency: "",
-			Consistency: "",
-		},
-		ContentType: nil,
-	}
-}
-
-func createDeleteRequest() state.DeleteRequest {
-	return state.DeleteRequest{
-		Key:      randomKey(),
-		ETag:     nil,
-		Metadata: nil,
-		Options: state.DeleteStateOption{
-			Concurrency: "",
-			Consistency: "",
-		},
-	}
 }
 
 func createCockroachDBWithFake(t *testing.T) (*CockroachDB, *fakeDBaccess) {

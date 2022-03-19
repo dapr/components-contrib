@@ -14,8 +14,6 @@ limitations under the License.
 package cockroachdb
 
 import (
-	"fmt"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -76,7 +74,7 @@ func (c *CockroachDB) Ping() error {
 
 // BulkDelete removes multiple entries from the store.
 func (c *CockroachDB) BulkDelete(req []state.DeleteRequest) error {
-	return c.dbaccess.ExecuteMulti(nil, req)
+	return c.dbaccess.BulkDelete(req)
 }
 
 // BulkGet performs a bulks get operations.
@@ -87,39 +85,12 @@ func (c *CockroachDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResp
 
 // BulkSet adds/updates multiple entities on store.
 func (c *CockroachDB) BulkSet(req []state.SetRequest) error {
-	return c.dbaccess.ExecuteMulti(req, nil)
+	return c.dbaccess.BulkSet(req)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
 func (c *CockroachDB) Multi(request *state.TransactionalStateRequest) error {
-	var deletes []state.DeleteRequest
-	var sets []state.SetRequest
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
-			}
-
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
-		}
-	}
-
-	if len(sets) > 0 || len(deletes) > 0 {
-		return c.dbaccess.ExecuteMulti(sets, deletes)
-	}
-
-	return nil
+	return c.dbaccess.ExecuteMulti(request)
 }
 
 // Query executes a query against store.

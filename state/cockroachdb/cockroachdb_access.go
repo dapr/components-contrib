@@ -166,12 +166,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, sql.ErrNoRows) {
-			return &state.GetResponse{
-				Data:        nil,
-				ETag:        nil,
-				Metadata:    nil,
-				ContentType: nil,
-			}, nil
+			return &state.GetResponse{}, nil
 		}
 
 		return nil, err

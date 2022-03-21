@@ -281,6 +281,9 @@ func TestResolverConcurrency(t *testing.T) {
 	}
 }
 
+// WARN: This is deliberately not a test function.
+// This test case must be run in serial and is executed
+// by the TestResolverConcurrency test function.
 func ResolverConcurrencySubsriberClear(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))

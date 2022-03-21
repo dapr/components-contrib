@@ -140,5 +140,3 @@ require (
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
-
-replace github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 => github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.3

@@ -122,5 +122,3 @@ replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.g
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
-
-replace github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 => github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.3

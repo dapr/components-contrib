@@ -145,7 +145,7 @@ require (
 )
 
 require (
-	github.com/alibabacloud-go/darabonba-openapi v0.1.15
+	github.com/alibabacloud-go/darabonba-openapi v0.1.16
 	github.com/alibabacloud-go/oos-20190601 v1.0.1
 	github.com/alibabacloud-go/tea v1.1.17
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
@@ -188,7 +188,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/OneOfOne/xxhash v1.2.7 // indirect
-	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
 	github.com/alibabacloud-go/openapi-util v0.0.10 // indirect
@@ -327,5 +327,3 @@ require (
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
 
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
-
-replace github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 => github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.3

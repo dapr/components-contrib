@@ -103,7 +103,8 @@ func (e *registryEntry) next() *consul.ServiceEntry {
 		return nil
 	}
 
-	return shuffle(e.services)[0]
+	rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(len(e.services))))
+	return e.services[rndbig.Int64()]
 }
 
 func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
@@ -134,7 +135,8 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 		return nil, fmt.Errorf("no healthy services found with AppID:%s", service)
 	}
 
-	return shuffle(services)[0], nil
+	rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(len(services))))
+	return services[rndbig.Int64()], nil
 }
 
 func (r *registry) addOrUpdate(service string, services []*consul.ServiceEntry) {
@@ -244,17 +246,6 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 	}
 
 	return addr, nil
-}
-
-func shuffle(services []*consul.ServiceEntry) []*consul.ServiceEntry {
-	for i := len(services) - 1; i > 0; i-- {
-		rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
-		j := rndbig.Int64()
-
-		services[i], services[j] = services[j], services[i]
-	}
-
-	return services
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode.

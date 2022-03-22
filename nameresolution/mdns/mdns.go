@@ -165,7 +165,6 @@ func (s *Subscriber) Close() {
 
 func NewSubscriber() Subscriber {
 	return Subscriber{
-		// ID is assigned by the pool.
 		AddrChan: make(chan string, 1),
 		ErrChan:  make(chan error, 1),
 	}
@@ -199,10 +198,10 @@ func NewResolver(logger logger.Logger) *Resolver {
 
 	// refresh app addresses on demand.
 	go func() {
-		for {
-			refreshCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+		refreshCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
+		for {
 			select {
 			case appID := <-r.refreshChan:
 				if err := r.refreshApp(refreshCtx, appID); err != nil {
@@ -217,10 +216,10 @@ func NewResolver(logger logger.Logger) *Resolver {
 
 	// refresh all app addresses periodically.
 	go func() {
-		for {
-			refreshCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+		refreshCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
+		for {
 			select {
 			case <-time.After(refreshInterval):
 				if err := r.refreshAllApps(refreshCtx); err != nil {
@@ -332,6 +331,10 @@ func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, p
 	// Register the app id with the resolver.
 	done := make(chan struct{})
 	key := fmt.Sprintf("%s:%d", appID, port) // WARN: we do not support unique ips.
+
+	// NOTE: The registrations map is used to track all registered
+	// app ids. The Dapr runtime currently only registers 1 app ID
+	// per instance so this is only really used in the tests.
 	m.registrationMu.Lock()
 	_, exists := m.registrations[key]
 	if exists {

@@ -133,10 +133,6 @@ func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
 		return err
 	}
 

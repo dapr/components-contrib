@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/config"
 )
 
 type ValueType struct {
@@ -54,9 +55,10 @@ type queryScenario struct {
 
 type TestConfig struct {
 	utils.CommonConfig
+	GetRequestMetadata map[string]string
 }
 
-func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]interface{}) TestConfig {
+func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]interface{}) (TestConfig, error) {
 	tc := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "state",
@@ -64,9 +66,12 @@ func NewTestConfig(component string, allOperations bool, operations []string, co
 			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
+		GetRequestMetadata: map[string]string{},
 	}
 
-	return tc
+	err := config.Decode(conf, &tc)
+
+	return tc, err
 }
 
 // ConformanceTests runs conf tests for state store.
@@ -258,8 +263,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req := &state.GetRequest{
 						Key: scenario.key,
 					}
+					req.Metadata = map[string]string{}
+					for k, v := range config.GetRequestMetadata {
+						req.Metadata[k] = v
+					}
 					if len(scenario.contentType) != 0 {
-						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+						req.Metadata[metadata.ContentType] = scenario.contentType
 					}
 					res, err := statestore.Get(req)
 					assert.Nil(t, err)

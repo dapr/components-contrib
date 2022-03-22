@@ -289,7 +289,12 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				}
 				store := loadStateStore(comp)
 				assert.NotNil(t, store)
-				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				storeConfig, err := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+
+					break
+				}
 				conf_state.ConformanceTests(t, props, store, storeConfig)
 			case "secretstores":
 				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)

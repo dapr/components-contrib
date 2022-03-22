@@ -47,6 +47,7 @@ const (
 	writeConcern     = "writeConcern"
 	readConcern      = "readConcern"
 	operationTimeout = "operationTimeout"
+	relaxedJsonKey   = "relaxedJson"
 	params           = "params"
 	id               = "_id"
 	value            = "value"
@@ -204,6 +205,14 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 // Get retrieves state from MongoDB with a key.
 func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	var result Item
+	var relaxedJson bool
+
+	if val, ok := req.Metadata[relaxedJsonKey]; ok && val != "" {
+		v, err := strconv.ParseBool(val)
+		if err == nil {
+			relaxedJson = v
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
@@ -227,14 +236,23 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	case primitive.D:
 		// Setting canonical to `false`.
 		// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
-		// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
+		// Having bson marshalled into relaxed JSON instead of canonical JSON, this way type preservation is lost but
 		// interoperability is preserved
 		// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
 		// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
 		// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
-		if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
-			return &state.GetResponse{}, err
+		if relaxedJson {
+			if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
+				return &state.GetResponse{}, err
+			}
+		} else {
+			m.logger.Warnf("MongoDB canonical extended JSON representation is returned for %s."+
+				"Use %q metadata for GetRequest as canonical representation is deprecated since v1.7.0 of Dapr.", req.Key, relaxedJsonKey)
+			if data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+				return &state.GetResponse{}, err
+			}
 		}
+
 	default:
 		if data, err = json.Marshal(result.Value); err != nil {
 			return &state.GetResponse{}, err

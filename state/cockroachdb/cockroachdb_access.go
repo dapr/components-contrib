@@ -469,7 +469,7 @@ func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, erro
 	}
 
 	if delReq.Key == "" {
-		return delReq, fmt.Errorf("missing key in upsert operation")
+		return delReq, fmt.Errorf("missing key in delete operation")
 	}
 
 	return delReq, nil

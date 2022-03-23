@@ -133,7 +133,7 @@ func (m *Middleware) evalRequest(ctx *fasthttp.RequestCtx, meta *middlewareMetad
 			buf := []byte("")
 			result := fasthttp.AppendNormalizedHeaderKeyBytes(buf, []byte(scrubbedHeader))
 			normalizedHeader := result[0:]
-			if bytes.Equal(key, []byte(normalizedHeader)) {
+			if bytes.Equal(key, normalizedHeader) {
 				headers[string(key)] = string(value)
 			}
 		}

@@ -14,12 +14,13 @@ limitations under the License.
 package pubsub
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
 
 	contrib_contenttype "github.com/dapr/components-contrib/contenttype"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
@@ -34,24 +35,39 @@ const (
 	DefaultCloudEventSource = "Dapr"
 	// DefaultCloudEventDataContentType is the default content-type for the data attribute.
 	DefaultCloudEventDataContentType = "text/plain"
-	TraceIDField                     = "traceid"
-	TraceStateField                  = "tracestate"
-	TopicField                       = "topic"
-	PubsubField                      = "pubsubname"
-	ExpirationField                  = "expiration"
-	DataContentTypeField             = "datacontenttype"
-	DataField                        = "data"
-	DataBase64Field                  = "data_base64"
-	SpecVersionField                 = "specversion"
-	TypeField                        = "type"
-	SourceField                      = "source"
-	IDField                          = "id"
-	SubjectField                     = "subject"
+	// traceid, backwards compatibles.
+	// ::TODO delete traceid, and keep traceparent.
+	TraceIDField         = "traceid"
+	TraceParentField     = "traceparent"
+	TraceStateField      = "tracestate"
+	TopicField           = "topic"
+	PubsubField          = "pubsubname"
+	ExpirationField      = "expiration"
+	DataContentTypeField = "datacontenttype"
+	DataField            = "data"
+	DataBase64Field      = "data_base64"
+	SpecVersionField     = "specversion"
+	TypeField            = "type"
+	SourceField          = "source"
+	IDField              = "id"
+	SubjectField         = "subject"
 )
+
+// unmarshalPrecise is a wrapper around encoding/json's Decoder
+// with UseNumber. It prevents data loss for big numbers
+// while unmarshalling.
+func unmarshalPrecise(data []byte, v interface{}) error {
+	decoder := json.NewDecoder(bytes.NewBuffer(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(v); err != nil {
+		return err
+	}
+	return nil
+}
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
-	dataContentType string, data []byte, traceID string, traceState string) map[string]interface{} {
+	dataContentType string, data []byte, traceParent string, traceState string) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -70,7 +86,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	ceDataField := DataField
 	var err error
 	if contrib_contenttype.IsJSONContentType(dataContentType) {
-		err = jsoniter.Unmarshal(data, &ceData)
+		err = unmarshalPrecise(data, &ceData)
 	} else if contrib_contenttype.IsBinaryContentType(dataContentType) {
 		ceData = base64.StdEncoding.EncodeToString(data)
 		ceDataField = DataBase64Field
@@ -90,7 +106,8 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TypeField:            eventType,
 		TopicField:           topic,
 		PubsubField:          pubsubName,
-		TraceIDField:         traceID,
+		TraceIDField:         traceParent,
+		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
 	}
 
@@ -104,14 +121,15 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON.
-func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceID string, traceState string) (map[string]interface{}, error) {
+func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string) (map[string]interface{}, error) {
 	var m map[string]interface{}
-	err := jsoniter.Unmarshal(cloudEvent, &m)
+	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
 		return m, err
 	}
 
-	m[TraceIDField] = traceID
+	m[TraceIDField] = traceParent
+	m[TraceParentField] = traceParent
 	m[TraceStateField] = traceState
 	m[TopicField] = topic
 	m[PubsubField] = pubsub

@@ -149,7 +149,14 @@ func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]st
 		case string:
 			result.Data = []byte(obj)
 		case primitive.D:
-			if result.Data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+			// Setting canonical to `false`.
+			// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
+			// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
+			// interoperability is preserved
+			// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
+			// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
+			// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
+			if result.Data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
 				result.Error = err.Error()
 			}
 		default:

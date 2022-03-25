@@ -90,9 +90,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			value: ValueType{Message: fmt.Sprintf("%s-test", key)},
 		},
 		{
-			key:         fmt.Sprintf("%s-struct-with-int", key),
-			value:       intValueType{Message: 42},
-			contentType: contenttype.JSONContentType,
+			key:   fmt.Sprintf("%s-struct-with-int", key),
+			value: intValueType{Message: 42},
 		},
 		{
 			key:         fmt.Sprintf("%s-to-be-deleted", key),

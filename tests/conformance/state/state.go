@@ -33,6 +33,10 @@ type ValueType struct {
 	Message string `json:"message"`
 }
 
+type intValueType struct {
+	Message int32 `json:"message"`
+}
+
 type scenario struct {
 	key              string
 	value            interface{}
@@ -95,6 +99,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			key:         fmt.Sprintf("%s-struct", key),
 			value:       ValueType{Message: fmt.Sprintf("test%s", key)},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key:         fmt.Sprintf("%s-struct-with-int", key),
+			value:       intValueType{Message: 42},
 			contentType: contenttype.JSONContentType,
 		},
 		{
@@ -453,6 +462,100 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 		})
+
+		t.Run("transaction-order", func(t *testing.T) {
+			// Arrange
+			firstKey := "key1"
+			firstValue := "value1"
+			secondKey := "key2"
+			secondValue := "value2"
+			thirdKey := "key3"
+			thirdValue := "value3"
+
+			// for CosmosDB
+			partitionMetadata := map[string]string{
+				"partitionKey": "myPartition",
+			}
+
+			// prerequisite: key1 should be present
+			err := statestore.Set(&state.SetRequest{
+				Key:      firstKey,
+				Value:    firstValue,
+				Metadata: partitionMetadata,
+			})
+			assert.NoError(t, err, "set request should be successful")
+
+			// prerequisite: key2 should not be present
+			err = statestore.Delete(&state.DeleteRequest{
+				Key:      secondKey,
+				Metadata: partitionMetadata,
+			})
+			assert.NoError(t, err, "delete request should be successful")
+
+			// prerequisite: key3 should not be present
+			err = statestore.Delete(&state.DeleteRequest{
+				Key:      thirdKey,
+				Metadata: partitionMetadata,
+			})
+			assert.NoError(t, err, "delete request should be successful")
+
+			operations := []state.TransactionalStateOperation{
+				// delete an item that already exists
+				{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key: firstKey,
+					},
+				},
+				// upsert a new item
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   secondKey,
+						Value: secondValue,
+					},
+				},
+				// delete the item that was just upserted
+				{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key: secondKey,
+					},
+				},
+				// upsert a new item
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   thirdKey,
+						Value: thirdValue,
+					},
+				},
+			}
+
+			expected := map[string][]byte{
+				firstKey:  []byte(nil),
+				secondKey: []byte(nil),
+				thirdKey:  []byte(fmt.Sprintf("\"%s\"", thirdValue)),
+			}
+
+			// Act
+			transactionStore := statestore.(state.TransactionalStore)
+			err = transactionStore.Multi(&state.TransactionalStateRequest{
+				Operations: operations,
+				Metadata:   partitionMetadata,
+			})
+			assert.Nil(t, err)
+
+			// Assert
+			for k, v := range expected {
+				res, err := statestore.Get(&state.GetRequest{
+					Key:      k,
+					Metadata: partitionMetadata,
+				})
+				assert.Nil(t, err)
+				assert.Equal(t, v, res.Data)
+			}
+		})
 	} else {
 		// Check if transactional feature is NOT listed
 		features := statestore.Features()
@@ -664,6 +767,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 func assertEquals(t *testing.T, value interface{}, res *state.GetResponse) {
 	switch v := value.(type) {
+	case intValueType:
+		// Custom type requires case mapping
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
 	case ValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(res.Data, &v); err != nil {

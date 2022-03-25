@@ -25,3 +25,6 @@ components:
   - component: cassandra
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+  - component: cockroachdb
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]

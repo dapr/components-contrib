@@ -29,4 +29,6 @@ type metadata struct {
 	ClientCertURL           string
 	DisableEntityManagement bool
 	EnableMessageOrdering   bool
+	MaxReconnectionAttempts int
+	ConnectionRecoveryInSec int
 }

@@ -240,6 +240,29 @@ func CreateProcessInstance(
 	return processInstance, nil
 }
 
+func ActicateJob(
+	cmd *command.ZeebeCommand,
+	payload map[string]interface{}) (*[]pb.ActivatedJob, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &bindings.InvokeRequest{Data: data, Operation: command.ActivateJobsOperation}
+	res, err := cmd.Invoke(req)
+	if err != nil {
+		return nil, err
+	}
+
+	activatedJobs := &[]pb.ActivatedJob{}
+	err = json.Unmarshal(res.Data, activatedJobs)
+	if err != nil {
+		return nil, err
+	}
+
+	return activatedJobs, nil
+}
+
 // CalcWorker is a simple calculation worker.
 func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 	variables := &CalcVariables{}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	gcppubsub "cloud.google.com/go/pubsub"
 	"google.golang.org/api/option"
@@ -29,7 +30,9 @@ import (
 )
 
 const (
-	errorMessagePrefix                 = "gcp pubsub error:"
+	errorMessagePrefix = "gcp pubsub error:"
+
+	// Metadata keys.
 	metadataConsumerIDKey              = "consumerID"
 	metadataTypeKey                    = "type"
 	metadataProjectIDKey               = "projectId"
@@ -44,6 +47,12 @@ const (
 	metadataPrivateKeyKey              = "privateKey"
 	metadataDisableEntityManagementKey = "disableEntityManagement"
 	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
+	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
+	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
+
+	// Defaults.
+	defaultMaxReconnectionAttempts = 30
+	defaultConnectionRecoveryInSec = 2
 )
 
 // GCPPubSub type.
@@ -51,6 +60,8 @@ type GCPPubSub struct {
 	client   *gcppubsub.Client
 	metadata *metadata
 	logger   logger.Logger
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 type GCPAuthJSON struct {
@@ -144,6 +155,24 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	result.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
+	if val, ok := pubSubMetadata.Properties[metadataMaxReconnectionAttemptsKey]; ok && val != "" {
+		var err error
+		result.MaxReconnectionAttempts, err = strconv.Atoi(val)
+		if err != nil {
+			return &result, fmt.Errorf("%s invalid maxReconnectionAttempts %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	result.ConnectionRecoveryInSec = defaultConnectionRecoveryInSec
+	if val, ok := pubSubMetadata.Properties[metadataConnectionRecoveryInSecKey]; ok && val != "" {
+		var err error
+		result.ConnectionRecoveryInSec, err = strconv.Atoi(val)
+		if err != nil {
+			return &result, fmt.Errorf("%s invalid connectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
 	return &result, nil
 }
 
@@ -162,6 +191,8 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 
 	g.client = pubsubClient
 	g.metadata = metadata
+
+	g.ctx, g.cancel = context.WithCancel(context.Background())
 
 	return nil
 }
@@ -244,22 +275,78 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 }
 
 func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {
-	err := sub.Receive(context.Background(), func(ctx context.Context, m *gcppubsub.Message) {
-		msg := &pubsub.NewMessage{
-			Data:  m.Data,
-			Topic: topic.ID(),
+	// Limit the number of attempted reconnects we make.
+	reconnAttempts := make(chan struct{}, g.metadata.MaxReconnectionAttempts)
+	for i := 0; i < g.metadata.MaxReconnectionAttempts; i++ {
+		reconnAttempts <- struct{}{}
+	}
+
+	readReconnectAttemptsRemaining := func() int { return len(reconnAttempts) }
+
+	// Periodically refill the reconnect attempts channel to avoid
+	// exhausting all the refill attempts due to intermittent issues
+	// occurring over a longer period of time.
+	reconnCtx, reconnCancel := context.WithCancel(g.ctx)
+	defer reconnCancel()
+
+	go func() {
+		// Calculate refill interval relative to MaxReconnectionAttempts and ConnectionRecoveryInSec
+		// in order to allow reconnection attempts to be exhausted in case of a permanent issue (e.g. wrong subscription name).
+		refillInterval := time.Duration(2*g.metadata.MaxReconnectionAttempts*g.metadata.ConnectionRecoveryInSec) * time.Second
+		for {
+			select {
+			case <-reconnCtx.Done():
+				g.logger.Debugf("Reconnect context for subscription %s is done", sub.ID())
+				return
+			case <-time.After(refillInterval):
+				attempts := readReconnectAttemptsRemaining()
+				if attempts < g.metadata.MaxReconnectionAttempts {
+					reconnAttempts <- struct{}{}
+				}
+				g.logger.Debugf("Number of reconnect attempts remaining for subscription %s: %d", sub.ID(), attempts)
+			}
+		}
+	}()
+
+	// Reconnect loop.
+	var receiveErr error = nil
+	for {
+		receiveErr = sub.Receive(g.ctx, func(ctx context.Context, m *gcppubsub.Message) {
+			msg := &pubsub.NewMessage{
+				Data:  m.Data,
+				Topic: topic.ID(),
+			}
+
+			err := handler(ctx, msg)
+
+			if err == nil {
+				m.Ack()
+			} else {
+				m.Nack()
+			}
+		})
+
+		g.logger.Infof("Lost connection to subscription %s", sub.ID())
+		// Exit out of reconnect loop if Receive method returns without error.
+		if receiveErr == nil || receiveErr == context.Canceled {
+			g.logger.Infof("Subscription was cancelled, not reconnecting.")
+			break
 		}
 
-		err := handler(ctx, msg)
-
-		if err == nil {
-			m.Ack()
-		} else {
-			m.Nack()
+		// If we get to here - there was an error returned from the Receive method.
+		g.logger.Warnf("Connection to subscription %s closed with error: %s", sub.ID(), receiveErr)
+		reconnectionAttemptsRemaining := readReconnectAttemptsRemaining()
+		if reconnectionAttemptsRemaining == 0 {
+			g.logger.Errorf("Reconnection attempts exhausted for subscription %s, giving up after %d attempts.", sub.ID(), g.metadata.MaxReconnectionAttempts)
+			break
 		}
-	})
 
-	return err
+		g.logger.Infof("Sleeping for %d seconds before attempting to reconnect to subscription %s ... [%d/%d]", g.metadata.ConnectionRecoveryInSec, sub.ID(), g.metadata.MaxReconnectionAttempts-reconnectionAttemptsRemaining, g.metadata.MaxReconnectionAttempts)
+		time.Sleep(time.Second * time.Duration(g.metadata.ConnectionRecoveryInSec))
+		<-reconnAttempts
+	}
+
+	return receiveErr
 }
 
 func (g *GCPPubSub) ensureTopic(topic string) error {
@@ -307,6 +394,7 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 }
 
 func (g *GCPPubSub) Close() error {
+	g.cancel()
 	return g.client.Close()
 }
 

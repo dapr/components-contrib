@@ -49,9 +49,14 @@ func TestParseMetadata(t *testing.T) {
 			missingConsumerGroupErrorMsg,
 		},
 		{
-			"missing connectionString",
+			"no connectionString requires AAD specific params",
 			map[string]string{consumerGroup: "fake", storageAccountName: "account", storageAccountKey: "key", storageContainerName: "container"},
-			missingConnectionStringErrorMsg,
+			missingHubNameErrorMsg,
+		},
+		{
+			"only some required params for AAD specified",
+			map[string]string{consumerGroup: "fakeConsumer", storageAccountName: "account", storageAccountKey: "key", hubName: "namespace", storageContainerName: "fakeContainer"},
+			missingHubNamespaceErrorMsg,
 		},
 		{
 			"missing storageAccountName",

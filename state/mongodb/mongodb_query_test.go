@@ -44,6 +44,10 @@ func TestMongoQuery(t *testing.T) {
 			input: "../../tests/state/query/q4.json",
 			query: `{ "$or": [ { "value.person.org": "A" }, { "$and": [ { "value.person.org": "B" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] } ] }`,
 		},
+		{
+			input: "../../tests/state/query/q6.json",
+			query: `{ "$or": [ { "value.person.id": 123 }, { "$and": [ { "value.person.org": "B" }, { "value.person.id": { "$in": [ 567, 890 ] } } ] } ] }`,
+		},
 	}
 	for _, test := range tests {
 		data, err := ioutil.ReadFile(test.input)

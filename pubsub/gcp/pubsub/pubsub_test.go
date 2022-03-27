@@ -21,6 +21,10 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
+const (
+	invalidNumber = "invalid_number"
+)
+
 func TestInit(t *testing.T) {
 	t.Run("metadata is correct with explicit creds", func(t *testing.T) {
 		m := pubsub.Metadata{}
@@ -73,4 +77,60 @@ func TestInit(t *testing.T) {
 		_, err := createMetadata(m)
 		assert.Error(t, err)
 	})
+
+	t.Run("missing optional maxReconnectionAttempts", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "superproject",
+		}
+		m.Properties[metadataMaxReconnectionAttemptsKey] = ""
+
+		pubSubMetadata, err := createMetadata(m)
+
+		assert.Equal(t, 30, pubSubMetadata.MaxReconnectionAttempts)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxReconnectionAttempts", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "superproject",
+		}
+		m.Properties[metadataMaxReconnectionAttemptsKey] = invalidNumber
+
+		_, err := createMetadata(m)
+
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional connectionRecoveryInSec", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "superproject",
+		}
+		m.Properties[metadataConnectionRecoveryInSecKey] = ""
+
+		pubSubMetadata, err := createMetadata(m)
+
+		assert.Equal(t, 2, pubSubMetadata.ConnectionRecoveryInSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional connectionRecoveryInSec", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"projectId": "superproject",
+		}
+		m.Properties[metadataConnectionRecoveryInSecKey] = invalidNumber
+
+		_, err := createMetadata(m)
+
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+}
+
+func assertValidErrorMessage(t *testing.T, err error) {
+	assert.Contains(t, err.Error(), errorMessagePrefix)
 }

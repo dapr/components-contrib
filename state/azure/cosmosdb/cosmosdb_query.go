@@ -136,7 +136,7 @@ func (q *Query) setNextParameter(val string) string {
 	return pname
 }
 
-func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Collection) ([]state.QueryItem, string, error) {
+func (q *Query) execute(client *documentdb.DocumentDB, collection string) ([]state.QueryItem, string, error) {
 	opts := []documentdb.CallOption{documentdb.CrossPartition()}
 	if q.limit != 0 {
 		opts = append(opts, documentdb.Limit(q.limit))
@@ -145,7 +145,7 @@ func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Co
 		opts = append(opts, documentdb.Continuation(q.token))
 	}
 	items := []CosmosItem{}
-	resp, err := client.QueryDocuments(collection.Self, &q.query, &items, opts...)
+	resp, err := client.QueryDocuments(collection, &q.query, &items, opts...)
 	if err != nil {
 		return nil, "", err
 	}

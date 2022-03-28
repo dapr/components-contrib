@@ -235,6 +235,19 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
 			return &state.GetResponse{}, err
 		}
+	case primitive.A:
+		newobj := bson.D{{Key: value, Value: obj}}
+
+		if data, err = bson.MarshalExtJSON(newobj, false, true); err != nil {
+			return &state.GetResponse{}, err
+		}
+		var input interface{}
+		json.Unmarshal(data, &input)
+		value := input.(map[string]interface{})[value]
+		if data, err = json.Marshal(value); err != nil {
+			return &state.GetResponse{}, err
+		}
+
 	default:
 		if data, err = json.Marshal(result.Value); err != nil {
 			return &state.GetResponse{}, err

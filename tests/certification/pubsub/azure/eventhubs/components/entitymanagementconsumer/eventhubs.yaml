@@ -1,0 +1,29 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+  namespace: default
+spec:
+  type: pubsub.azure.eventhubs
+  version: v1
+  metadata:
+    - name: eventHubNamespace
+      value: eventingdev
+    - name: azureTenantId
+      value: <<TODO>>
+    - name: azureClientId
+      value: <<TODO>>
+    - name: azureClientSecret
+      value: <<TODO>>
+    - name: enableEntityManagement
+      value : true
+    - name: resourceGroupName
+      value: <<TODO>>
+    - name: subscriptionID
+      value: <<TODO>>
+    - name: storageAccountName
+      value: <<TODO>>
+    - name: storageAccountKey
+      value: <<TODO>>
+    - name: storageContainerName
+      value: <<TODO>>

@@ -4,10 +4,10 @@ go 1.17
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.2.0
-	github.com/dapr/components-contrib v1.6.0-rc.1.0.20220217181903-80c2bbe28485
+	github.com/dapr/components-contrib v1.7.0-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.6.1-0.20220218024719-bdd702c480c8
-	github.com/dapr/go-sdk v1.3.0
+	github.com/dapr/dapr v1.7.0-rc.2
+	github.com/dapr/go-sdk v1.3.1
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0
 )
@@ -93,6 +93,7 @@ require (
 	github.com/prometheus/statsd_exporter v0.22.3 // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect

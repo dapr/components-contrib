@@ -335,6 +335,8 @@ github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnG
 github.com/dapr/dapr v1.4.3/go.mod h1:jqB+3LI4HTXmhG8GnJDL3YSzAurBWLm2ag0xu3RHWcs=
 github.com/dapr/dapr v1.6.1 h1:QJ98z/NkXfon+VLfHwpLznLlqXfRxIXtdZC1XfZfqpE=
 github.com/dapr/dapr v1.6.1/go.mod h1:iFmgQKBjIIpRQjOWGYRRZDXdLSGz1TLmwvAShOv3nHs=
+github.com/dapr/dapr v1.7.0-rc.2 h1:EIFAjcYZztggTKM6sDwBue2tuXKhW6L5hLbMCgWH448=
+github.com/dapr/dapr v1.7.0-rc.2/go.mod h1:YbacMSteh7nGRP777IJDuCn5sgJxL9cRVdiWEirBXbM=
 github.com/dapr/go-sdk v1.3.0 h1:s8+/xPyXkwWiHoLJ1JLpAmYALoGChmcLXVHs2Qvjkos=
 github.com/dapr/go-sdk v1.3.0/go.mod h1:EwumX9/p4DLhcujRPTC3bRCs2oVO/Xsl9EEknuPT+BA=
 github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233 h1:M0dWIG8kUxEFU57IqTWeqptNqlBsfosFgsA5Ov7rJ8g=

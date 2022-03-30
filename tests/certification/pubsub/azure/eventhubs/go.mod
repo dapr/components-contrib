@@ -3,12 +3,12 @@ module github.com/dapr/components-contrib/tests/certification/pubsub/azure/event
 go 1.17
 
 require (
-	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/dapr/components-contrib v1.6.0-rc.2.0.20220314042520-f4b0fdd6ac9b
+	github.com/dapr/components-contrib v1.6.1
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.6.1-0.20220314021550-5a307f3deaa1
+	github.com/dapr/dapr v1.6.1
 	github.com/dapr/go-sdk v1.3.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
+	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/multierr v1.7.0
 )
@@ -42,6 +42,7 @@ require (
 	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -60,10 +61,8 @@ require (
 	github.com/google/cel-go v0.9.0 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/consul/api v1.11.0 // indirect
@@ -102,7 +101,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
 	go.opencensus.io v0.23.0 // indirect
@@ -111,7 +109,6 @@ require (
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838 // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220204135822-1c1b9b1eba6a // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect

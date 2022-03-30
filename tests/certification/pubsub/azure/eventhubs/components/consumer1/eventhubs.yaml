@@ -8,12 +8,24 @@ spec:
   version: v1
   metadata:
   - name: consumerID
-    value: ehcertification1
+    secretKeyRef:
+      name: CertificationAzureEventHubsConsumerID1
+      key: CertificationAzureEventHubsConsumerID1  
   - name: connectionString
-    value: <<TODO>>
+    secretKeyRef:
+      name: CertificationAzureEventHubsConnectionString
+      key: CertificationAzureEventHubsConnectionString
   - name: storageAccountName
-    value: <<TODO>>
+    secretKeyRef:
+      name: CertificationAzureEventHubsStorageAccountName
+      key: CertificationAzureEventHubsStorageAccountName
   - name: storageAccountKey
-    value: <<TODO>>
+    secretKeyRef:
+      name: CertificationAzureEventHubsStorageAccountName
+      key: CertificationAzureEventHubsStorageAccountName
   - name: storageContainerName
-    value: <<TODO>>
+    secretKeyRef:
+      name: CertificationAzureEventHubsStorageAccountContainerName
+      key: CertificationAzureEventHubsStorageAccountContainerName
+auth:
+  secretstore: envvar-secret-store

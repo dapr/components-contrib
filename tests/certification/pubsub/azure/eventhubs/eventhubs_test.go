@@ -26,7 +26,10 @@ import (
 	// Pub-Sub.
 	"github.com/dapr/components-contrib/pubsub"
 	pubsub_evethubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
+	"github.com/dapr/components-contrib/secretstores"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
@@ -73,6 +76,10 @@ func TestEventhubs(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	component := pubsub_loader.New("azure.eventhubs", func() pubsub.PubSub {
 		return pubsub_evethubs.NewAzureEventHubs(log)
+	})
+
+	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
+		return secretstore_env.NewEnvSecretStore(log)
 	})
 
 	consumerGroup1 := watcher.NewOrdered()
@@ -180,6 +187,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 
 		// Run subscriberApplication app2
@@ -193,6 +201,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicName1, consumerGroup1, consumerGroup2)).
 		Step("publish messages to unUsedTopic", publishMessages(metadata, sidecarName1, unUsedTopic)).
@@ -200,7 +209,7 @@ func TestEventhubs(t *testing.T) {
 		Step("verify if app2 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup2)).
 
-		// Test : multiple publisher with differnt partitionkey, multiple subscriber with same consumer ID
+		// Test : multiple publisher with different partitionkey, multiple subscriber with same consumer ID
 		// Run subscriberApplication app3
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
 			subscriberApplication(appID3, topicName1, consumerGroup2))).
@@ -212,6 +221,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
+			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 
 		// publish message in topic1 from two publisher apps, however there are two subscriber apps (app2,app3) with same consumerID
@@ -231,6 +241,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
 		Step("verify if app4 has recevied messages published to topic", assertMessages(50*time.Second, consumerGroup4)).
@@ -247,6 +258,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*4),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*4),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
+			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step("add expected IOT messages (simulate add message to iot)", addExpectedMessagesforIot(consumerGroup5)).
 		Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).

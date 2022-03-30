@@ -7,23 +7,43 @@ spec:
   type: pubsub.azure.eventhubs
   version: v1
   metadata:
-    - name: eventHubNamespace
-      value: eventingdev
-    - name: azureTenantId
-      value: <<TODO>>
-    - name: azureClientId
-      value: <<TODO>>
-    - name: azureClientSecret
-      value: <<TODO>>
     - name: enableEntityManagement
       value : true
+    - name: eventHubNamespace
+      secretKeyRef:
+        name: CertificationAzureEventHubsNameSpaceName
+        key: CertificationAzureEventHubsNameSpaceName    
+    - name: azureTenantId
+      secretKeyRef:
+        name: CertificationAzureEventHubsazureTenantId
+        key: CertificationAzureEventHubsazureTenantId    
+    - name: azureClientId
+      secretKeyRef:
+        name: CertificationAzureEventHubsAzureClientId
+        key: CertificationAzureEventHubsAzureClientId   
+    - name: azureClientSecret
+      secretKeyRef:
+        name: CertificationAzureEventHubsAzureClientSecret
+        key: CertificationAzureEventHubsAzureClientSecret
     - name: resourceGroupName
-      value: <<TODO>>
+      secretKeyRef:
+        name: CertificationAzureEventHubsResourceGroupName
+        key: CertificationAzureEventHubsResourceGroupName
     - name: subscriptionID
-      value: <<TODO>>
+      secretKeyRef:
+        name: CertificationAzureEventHubsSubscriptionID
+        key: CertificationAzureEventHubsSubscriptionID
     - name: storageAccountName
-      value: <<TODO>>
+      secretKeyRef:
+        name: CertificationAzureEventHubsStorageAccountName
+        key: CertificationAzureEventHubsStorageAccountName
     - name: storageAccountKey
-      value: <<TODO>>
+      secretKeyRef:
+        name: CertificationAzureEventHubsStorageAccountKey
+        key: CertificationAzureEventHubsStorageAccountKey
     - name: storageContainerName
-      value: <<TODO>>
+      secretKeyRef:
+        name: CertificationAzureEventHubsStorageAccountContainerName
+        key: CertificationAzureEventHubsStorageAccountContainerName
+auth:
+  secretstore: envvar-secret-store

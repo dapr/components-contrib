@@ -23,7 +23,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.23.1
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
-	github.com/a8m/documentdb v1.3.1-0.20211026005403-13c3593b3c3a
+	github.com/a8m/documentdb v1.3.1-0.20220324204957-1a60bd29b196
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/ajg/form v1.5.1 // indirect
@@ -145,7 +145,7 @@ require (
 )
 
 require (
-	github.com/alibabacloud-go/darabonba-openapi v0.1.14
+	github.com/alibabacloud-go/darabonba-openapi v0.1.16
 	github.com/alibabacloud-go/oos-20190601 v1.0.1
 	github.com/alibabacloud-go/tea v1.1.17
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
@@ -188,7 +188,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/OneOfOne/xxhash v1.2.7 // indirect
-	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.2 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
 	github.com/alibabacloud-go/openapi-util v0.0.10 // indirect

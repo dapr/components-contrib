@@ -24,11 +24,7 @@
     },
     "sort": [
         {
-            "key": "state",
-            "order": "DESC"
-        },
-        {
-            "key": "person.name"
+            "key": "person.id"
         }
     ],
     "page": {

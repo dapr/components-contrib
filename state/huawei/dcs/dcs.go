@@ -29,13 +29,13 @@ type StateStore struct {
 }
 
 type dcsMetadata struct {
-	InstanceName string `json:"instanceName"`
-	InstanceID   string `json:"instanceId"`
-	ProjectID    string `json:"projectId"`
-	Region       string `json:"region"`
-	VPCId        string `json:"vpcId"`
-	DCSHost      string `json:"dcsHost"`
-	DCSPassword  string `json:"dcsPassword"`
+	InstanceName string `json:"instanceName"` // (optional) name of the dcs instance
+	InstanceID   string `json:"instanceId"`   // id of the dcs instance
+	ProjectID    string `json:"projectId"`    // tenant id of the dcs instance
+	Region       string `json:"region"`       // (optional) Huawei cloud region where the dcs instance falls into
+	VPCId        string `json:"vpcId"`        // (optional) Huawei cloud vpc id of the dcs instance
+	DCSHost      string `json:"dcsHost"`      // connection ip and port of the dcs instance (ip:port)
+	DCSPassword  string `json:"dcsPassword"`  // password for the dcs instance connection
 }
 
 // NewStateStore returns a new DCS (redis) state store.
@@ -84,7 +84,11 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 
 	// re-map DCS host/password to respective redis keys
 	metadata.Properties["redisHost"] = metadata.Properties["dcsHost"]
-	metadata.Properties["redisPassword"] = metadata.Properties["dcsPassword"]
+	if val, ok := metadata.Properties["dcsPassword"]; ok {
+		metadata.Properties["redisPassword"] = val
+	} else {
+		return fmt.Errorf("missing dcs password")
+	}
 
 	err = d.r.Init(metadata)
 	if err != nil {

@@ -80,13 +80,13 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"InstanceName": "my-dcs",
-			"InstanceId":   "1234",
-			"ProjectId":    "abcd",
-			"Region":       "cn-north-4",
-			"VPCId":        "vpc-test",
-			"DCSHost":      "127.0.0.1:6379",
-			"DCSPassword":  "pass",
+			"instanceName": "my-dcs",
+			"instanceId":   "1234",
+			"projectId":    "abcd",
+			"region":       "cn-north-4",
+			"vpcId":        "vpc-test",
+			"dcsHost":      "127.0.0.1:6379",
+			"dcsPassword":  "",
 		}
 		err := d.Init(m)
 		assert.Nil(t, err)
@@ -94,7 +94,7 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with missing instance id", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"ProjectId": "abcd",
+			"projectId": "abcd",
 		}
 		err := d.Init(m)
 		assert.NotNil(t, err)
@@ -103,7 +103,7 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with missing project id", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"InstanceId": "1234",
+			"instanceId": "1234",
 		}
 		err := d.Init(m)
 		assert.NotNil(t, err)
@@ -112,19 +112,31 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with missing DCS host", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"InstanceId": "1234",
-			"ProjectId":  "abcd",
+			"instanceId": "1234",
+			"projectId":  "abcd",
 		}
 		err := d.Init(m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing dcs host"))
 	})
 
+	t.Run("Init with missing DCS password", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"instanceId": "1234",
+			"projectId":  "abcd",
+			"dcsHost":    "127.0.0.1:6379",
+		}
+		err := d.Init(m)
+		assert.NotNil(t, err)
+		assert.Equal(t, err, fmt.Errorf("missing dcs password"))
+	})
+
 	t.Run("Init only with mandatory fields", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"InstanceId": "1234",
-			"ProjectId":  "abcd",
-			"DCSHost":    "127.0.0.1:6379",
+			"instanceId":  "1234",
+			"projectId":   "abcd",
+			"dcsHost":     "127.0.0.1:6379",
+			"dcsPassword": "",
 		}
 		err := d.Init(m)
 		assert.Nil(t, err)

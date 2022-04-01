@@ -11,39 +11,39 @@ spec:
       value : true
     - name: eventHubNamespace
       secretKeyRef:
-        name: CertificationAzureEventHubsNameSpaceName
-        key: CertificationAzureEventHubsNameSpaceName    
+        name: AzureEventHubsPubsubNamespace
+        key: AzureEventHubsPubsubNamespace    
     - name: azureTenantId
       secretKeyRef:
-        name: CertificationAzureEventHubsazureTenantId
-        key: CertificationAzureEventHubsazureTenantId    
+        name: AzureCertificationTenantId
+        key: AzureCertificationTenantId    
     - name: azureClientId
       secretKeyRef:
-        name: CertificationAzureEventHubsAzureClientId
-        key: CertificationAzureEventHubsAzureClientId   
+        name: AzureCertificationServicePrincipalClientId
+        key: AzureCertificationServicePrincipalClientId   
     - name: azureClientSecret
       secretKeyRef:
-        name: CertificationAzureEventHubsAzureClientSecret
-        key: CertificationAzureEventHubsAzureClientSecret
+        name: AzureCertificationServicePrincipalClientSecret
+        key: AzureCertificationServicePrincipalClientSecret
     - name: resourceGroupName
       secretKeyRef:
-        name: CertificationAzureEventHubsResourceGroupName
-        key: CertificationAzureEventHubsResourceGroupName
+        name: AzureResourceGroupName
+        key: AzureResourceGroupName
     - name: subscriptionID
       secretKeyRef:
-        name: CertificationAzureEventHubsSubscriptionID
-        key: CertificationAzureEventHubsSubscriptionID
+        name: AzureCertificationSubscriptionId
+        key: AzureCertificationSubscriptionId
     - name: storageAccountName
       secretKeyRef:
-        name: CertificationAzureEventHubsStorageAccountName
-        key: CertificationAzureEventHubsStorageAccountName
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
     - name: storageAccountKey
       secretKeyRef:
-        name: CertificationAzureEventHubsStorageAccountKey
-        key: CertificationAzureEventHubsStorageAccountKey
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
     - name: storageContainerName
       secretKeyRef:
-        name: CertificationAzureEventHubsStorageAccountContainerName
-        key: CertificationAzureEventHubsStorageAccountContainerName
+        name: AzureEventHubsPubsubContainer
+        key: AzureEventHubsPubsubContainer
 auth:
   secretstore: envvar-secret-store

@@ -23,6 +23,12 @@ var eventHubPubsubName = '${eventHubsNamespaceName}-pubsub-topic'
 var eventHubPubsubPolicyName = '${eventHubPubsubName}-policy'
 var eventHubPubsubConsumerGroupName = '${eventHubPubsubName}-cg'
 
+var certificationEventHubPubsub1Name = 'certification-pubsub-topic1'
+var certificationEventHubPubsub1PolicyName = '${certificationEventHubPubsub1Name}-policy'
+
+var certificationEventHubPubsub2Name = 'certification-pubsub-topic2'
+var certificationEventHubPubsub2PolicyName = '${certificationEventHubPubsub2Name}-policy'
+
 
 resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   name: eventHubsNamespaceName
@@ -61,6 +67,32 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
       name: eventHubPubsubConsumerGroupName
     }
   }
+  resource certificationEventHubPubsub1 'eventhubs' = {
+    name: certificationEventHubPubsub1Name
+    resource certificationEventHubPubsub1Policy 'authorizationRules' = {
+      name: certificationEventHubPubsub1PolicyName
+      properties: {
+        rights: [
+          'Manage'
+          'Send'
+          'Listen'
+        ]
+      }
+    }
+  }
+  resource certificationEventHubPubsub2 'eventhubs' = {
+    name: certificationEventHubPubsub2Name
+    resource certificationEventHubPubsub2Policy 'authorizationRules' = {
+      name: certificationEventHubPubsub2PolicyName
+      properties: {
+        rights: [
+          'Manage'
+          'Send'
+          'Listen'
+        ]
+      }
+    }
+  }
 }
 
 output eventHubBindingsName string = eventHubsNamespace::eventHubBindings.name
@@ -70,3 +102,9 @@ output eventHubBindingsConsumerGroupName string = eventHubsNamespace::eventHubBi
 output eventHubPubsubName string = eventHubsNamespace::eventHubPubsub.name
 output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubPolicy.name
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name
+
+output certificationEventHubPubsub1Name string = eventHubsNamespace::certificationEventHubPubsub1.name
+output certificationEventHubPubsub1PolicyName string = eventHubsNamespace::certificationEventHubPubsub1::eventHubPubsubPolicy.name
+
+output certificationEventHubPubsub2Name string = eventHubsNamespace::certificationEventHubPubsub2.name
+output certificationEventHubPubsub2PolicyName string = eventHubsNamespace::certificationEventHubPubsub2::eventHubPubsubPolicy.name

@@ -8,24 +8,22 @@ spec:
   version: v1
   metadata:
   - name: consumerID
-    secretKeyRef:
-      name: CertificationAzureEventHubsConsumerID1
-      key: CertificationAzureEventHubsConsumerID1  
+    value: ehcertification1
   - name: connectionString
     secretKeyRef:
-      name: CertificationAzureEventHubsConnectionString
-      key: CertificationAzureEventHubsConnectionString
+      name: AzureEventHubsPubsub1ConnectionString
+      key: AzureEventHubsPubsub1ConnectionString
   - name: storageAccountName
     secretKeyRef:
-      name: CertificationAzureEventHubsStorageAccountName
-      key: CertificationAzureEventHubsStorageAccountName
+      name: AzureBlobStorageAccount
+      key: AzureBlobStorageAccount
   - name: storageAccountKey
     secretKeyRef:
-      name: CertificationAzureEventHubsStorageAccountName
-      key: CertificationAzureEventHubsStorageAccountName
+      name: AzureBlobStorageAccessKey
+      key: AzureBlobStorageAccessKey
   - name: storageContainerName
     secretKeyRef:
-      name: CertificationAzureEventHubsStorageAccountContainerName
-      key: CertificationAzureEventHubsStorageAccountContainerName
+      name: AzureEventHubsPubsubContainer
+      key: AzureEventHubsPubsubContainer
 auth:
   secretstore: envvar-secret-store

@@ -8,24 +8,22 @@ spec:
   version: v1
   metadata:
     - name: consumerID
-      secretKeyRef:
-        name: CertificationAzureEventHubsIOTHubConsumerID
-        key: CertificationAzureEventHubsIOTHubConsumerID    
+      value: ehiotcertification
     - name: connectionString
       secretKeyRef:
-        name: CertificationAzureEventHubsIOTHubConnectionString
-        key: CertificationAzureEventHubsIOTHubConnectionString    
+        name: AzureIotHubEventHubConnectionString
+        key: AzureIotHubEventHubConnectionString
     - name: storageAccountName
       secretKeyRef:
-        name: CertificationAzureEventHubsStorageAccountName
-        key: CertificationAzureEventHubsStorageAccountName
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
     - name: storageAccountKey
       secretKeyRef:
-        name: CertificationAzureEventHubsStorageAccountKey
-        key: CertificationAzureEventHubsStorageAccountKey
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
     - name: storageContainerName
       secretKeyRef:
-        name: CertificationAzureEventHubsStorageAccountContainerName
-        key: CertificationAzureEventHubsStorageAccountContainerName
+        name: AzureEventHubsPubsubContainer
+        key: AzureEventHubsPubsubContainer
 auth:
   secretstore: envvar-secret-store

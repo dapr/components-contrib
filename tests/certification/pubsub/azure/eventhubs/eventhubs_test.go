@@ -64,8 +64,8 @@ const (
 	portOffset       = 2
 	messageKey       = "partitionKey"
 	pubsubName       = "messagebus"
-	topicName1       = "neworder"
-	unUsedTopic      = "newinvoice"
+	topicName1       = "certification-pubsub-topic1"
+	unUsedTopic      = "certification-pubsub-topic2"
 	iotTopicName     = "testioteventing"
 	topicToBeCreated = "brandneworder"
 	partition0       = "partition-0"
@@ -204,7 +204,9 @@ func TestEventhubs(t *testing.T) {
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicName1, consumerGroup1, consumerGroup2)).
-		Step("publish messages to unUsedTopic", publishMessages(metadata, sidecarName1, unUsedTopic)).
+		// TODO : option 1: Give sidecar1 component refering eh connection string with acess on both the topics
+		// option 2: Start a sidecar with a component refering eh connection string of unusedTopic
+		// Step("publish messages to unUsedTopic", publishMessages(metadata, sidecarName1, unUsedTopic)).
 		Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup2)).

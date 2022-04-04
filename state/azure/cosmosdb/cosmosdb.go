@@ -14,6 +14,7 @@ limitations under the License.
 package cosmosdb
 
 import (
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,15 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
 )
+
+// Version of the stored procedure to use.
+const spVersion = 2
+
+//go:embed storedprocedures/__dapr_v2__.js
+var spDefinition string
+
+//go:embed storedprocedures/__daprver__.js
+var spVersionDefinition string
 
 // StateStore is a CosmosDB state store.
 type StateStore struct {

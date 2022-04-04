@@ -1,21 +1,4 @@
-/*
-Copyright 2021 The Dapr Authors
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package cosmosdb
-
-const spVersion = 2
-
-const spDefinition string = `// operations - an array of objects to upsert or delete
+// operations - an array of objects to upsert or delete
 function dapr_multi_v2(operations) {
     if (typeof operations === "string") {
         throw new Error("arg is a string, expected array of objects");
@@ -117,9 +100,4 @@ function dapr_multi_v2(operations) {
             tryExecute(operations[operationCount], callback);
         }
     }
-}`
-
-const spVersionDefinition = `function daprSpVersion(prefix) {
-    var response = getContext().getResponse();
-    response.setBody(2);
-}`
+}

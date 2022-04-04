@@ -104,7 +104,7 @@ output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eve
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name
 
 output certificationEventHubPubsub1Name string = eventHubsNamespace::certificationEventHubPubsub1.name
-output certificationEventHubPubsub1PolicyName string = eventHubsNamespace::certificationEventHubPubsub1::eventHubPubsubPolicy.name
+output certificationEventHubPubsub1PolicyName string = eventHubsNamespace::certificationEventHubPubsub1::certificationEventHubPubsub1Policy.name
 
 output certificationEventHubPubsub2Name string = eventHubsNamespace::certificationEventHubPubsub2.name
-output certificationEventHubPubsub2PolicyName string = eventHubsNamespace::certificationEventHubPubsub2::eventHubPubsubPolicy.name
+output certificationEventHubPubsub2PolicyName string = eventHubsNamespace::certificationEventHubPubsub2::certificationEventHubPubsub2Policy.name

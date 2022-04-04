@@ -13,6 +13,8 @@ limitations under the License.
 
 package cosmosdb
 
+const spVersion = 2
+
 const spDefinition string = `// operations - an array of objects to upsert or delete
 function dapr_multi_v2(operations) {
     if (typeof operations === "string") {
@@ -115,4 +117,9 @@ function dapr_multi_v2(operations) {
             tryExecute(operations[operationCount], callback);
         }
     }
+}`
+
+const spVersionDefinition = `function daprSpVersion(prefix) {
+    var response = getContext().getResponse();
+    response.setBody(2);
 }`

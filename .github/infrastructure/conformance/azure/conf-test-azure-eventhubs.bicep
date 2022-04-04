@@ -29,6 +29,8 @@ var certificationEventHubPubsub1PolicyName = '${certificationEventHubPubsub1Name
 var certificationEventHubPubsub2Name = 'certification-pubsub-topic2'
 var certificationEventHubPubsub2PolicyName = '${certificationEventHubPubsub2Name}-policy'
 
+var certificationConsumerGroupName1 = 'ehcertification1'
+var certificationConsumerGroupName2 = 'ehcertification2'
 
 resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   name: eventHubsNamespaceName
@@ -39,6 +41,9 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   }
   resource eventHubBindings 'eventhubs' = {
     name: eventHubBindingsName
+    properties: {
+      messageRetentionInDays: 1
+    }
     resource eventHubBindingsPolicy 'authorizationRules' = {
       name: eventHubBindingsPolicyName
       properties: {
@@ -54,6 +59,9 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   }
   resource eventHubPubsub 'eventhubs' = {
     name: eventHubPubsubName
+    properties: {
+      messageRetentionInDays: 1
+    }
     resource eventHubPubsubPolicy 'authorizationRules' = {
       name: eventHubPubsubPolicyName
       properties: {
@@ -69,28 +77,44 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   }
   resource certificationEventHubPubsub1 'eventhubs' = {
     name: certificationEventHubPubsub1Name
+    properties: {
+      messageRetentionInDays: 1
+    }
     resource certificationEventHubPubsub1Policy 'authorizationRules' = {
       name: certificationEventHubPubsub1PolicyName
       properties: {
         rights: [
-          'Manage'
           'Send'
           'Listen'
         ]
       }
     }
+    resource eventHubPubsubConsumerGroup1 'consumergroups' = {
+      name: certificationConsumerGroupName1
+    }
+    resource eventHubPubsubConsumerGroup2 'consumergroups' = {
+      name: certificationConsumerGroupName2
+    }
   }
   resource certificationEventHubPubsub2 'eventhubs' = {
     name: certificationEventHubPubsub2Name
+    properties: {
+      messageRetentionInDays: 1
+    }
     resource certificationEventHubPubsub2Policy 'authorizationRules' = {
       name: certificationEventHubPubsub2PolicyName
       properties: {
         rights: [
-          'Manage'
           'Send'
           'Listen'
         ]
       }
+    }
+    resource eventHubPubsubConsumerGroup1 'consumergroups' = {
+      name: certificationConsumerGroupName1
+    }
+    resource eventHubPubsubConsumerGroup2 'consumergroups' = {
+      name: certificationConsumerGroupName2
     }
   }
 }

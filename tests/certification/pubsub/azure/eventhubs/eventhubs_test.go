@@ -85,7 +85,7 @@ func TestEventhubs(t *testing.T) {
 	consumerGroup1 := watcher.NewOrdered()
 	consumerGroup2 := watcher.NewOrdered()
 	consumerGroup4 := watcher.NewOrdered()
-	consumerGroup5 := watcher.NewOrdered()
+	// consumerGroup5 := watcher.NewOrdered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
 	metadata := map[string]string{
@@ -163,16 +163,16 @@ func TestEventhubs(t *testing.T) {
 	}
 
 	// simulate the publish of messages to iot endpoint (./send-iot-device-events.sh)
-	addExpectedMessagesforIot := func(messageWatchers *watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			messages := make([]string, numMessages)
-			for i := range messages {
-				messages[i] = fmt.Sprintf("testmessageForEventHubCertificationTest #%v", i+1)
-			}
-			messageWatchers.ExpectStrings(messages...)
-			return nil
-		}
-	}
+	// addExpectedMessagesforIot := func(messageWatchers *watcher.Watcher) flow.Runnable {
+	// 	return func(ctx flow.Context) error {
+	// 		messages := make([]string, numMessages)
+	// 		for i := range messages {
+	// 			messages[i] = fmt.Sprintf("testmessageForEventHubCertificationTest #%v", i+1)
+	// 		}
+	// 		messageWatchers.ExpectStrings(messages...)
+	// 		return nil
+	// 	}
+	// }
 
 	flow.New(t, "eventhubs certification").
 
@@ -246,23 +246,23 @@ func TestEventhubs(t *testing.T) {
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
-		Step("verify if app4 has recevied messages published to topic", assertMessages(50*time.Second, consumerGroup4)).
+		Step("verify if app4 has recevied messages published to topic", assertMessages(10*time.Second, consumerGroup4)).
 
-		// Test : IOT hub
+		// TODO : Test : IOT hub
 		// PREREQ : Add messages to IOT endpoint via (./send-iot-device-events.sh)
 		// Run subscriberApplication app5
-		Step(app.Run(appID5, fmt.Sprintf(":%d", appPort+portOffset*4),
-			subscriberApplication(appID5, iotTopicName, consumerGroup5))).
-		// Run the Dapr sidecar with the iot component
-		Step(sidecar.Run(sidecarName5,
-			embedded.WithComponentsPath("./components/iotconsumer"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
-		Step("add expected IOT messages (simulate add message to iot)", addExpectedMessagesforIot(consumerGroup5)).
-		Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
+		// Step(app.Run(appID5, fmt.Sprintf(":%d", appPort+portOffset*4),
+		// 	subscriberApplication(appID5, iotTopicName, consumerGroup5))).
+		// // Run the Dapr sidecar with the iot component
+		// Step(sidecar.Run(sidecarName5,
+		// 	embedded.WithComponentsPath("./components/iotconsumer"),
+		// 	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*4),
+		// 	embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*4),
+		// 	embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*4),
+		// 	embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
+		// 	runtime.WithSecretStores(secretStoreComponent),
+		// 	runtime.WithPubSubs(component))).
+		// Step("add expected IOT messages (simulate add message to iot)", addExpectedMessagesforIot(consumerGroup5)).
+		// Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
 		Run()
 }

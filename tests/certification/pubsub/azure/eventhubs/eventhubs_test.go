@@ -47,17 +47,19 @@ import (
 )
 
 const (
-	sidecarName1 = "dapr-1"
-	sidecarName2 = "dapr-2"
-	sidecarName3 = "dapr-3"
-	sidecarName4 = "dapr-4"
-	sidecarName5 = "dapr-5"
+	sidecarDummyName = "dapr-dummy"
+	sidecarName1     = "dapr-1"
+	sidecarName2     = "dapr-2"
+	sidecarName3     = "dapr-3"
+	sidecarName4     = "dapr-4"
+	sidecarName5     = "dapr-5"
 
-	appID1 = "app-1"
-	appID2 = "app-2"
-	appID3 = "app-3"
-	appID4 = "app-4"
-	appID5 = "app-5"
+	dummyAppID = "dummy-app"
+	appID1     = "app-1"
+	appID2     = "app-2"
+	appID3     = "app-3"
+	appID4     = "app-4"
+	appID5     = "app-5"
 
 	numMessages      = 100
 	appPort          = 8000
@@ -82,8 +84,8 @@ func TestEventhubs(t *testing.T) {
 		return secretstore_env.NewEnvSecretStore(log)
 	})
 
-	consumerGroup1 := watcher.NewOrdered()
-	consumerGroup2 := watcher.NewOrdered()
+	consumerGroup1 := watcher.NewUnordered()
+	consumerGroup2 := watcher.NewUnordered()
 	consumerGroup4 := watcher.NewOrdered()
 	// consumerGroup5 := watcher.NewOrdered()
 
@@ -121,6 +123,13 @@ func TestEventhubs(t *testing.T) {
 		}
 	}
 
+	// dummy app to compliment dummy sidecar
+	dummyApp := func(appID string) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return nil
+		}
+	}
+
 	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 
@@ -140,11 +149,23 @@ func TestEventhubs(t *testing.T) {
 
 			// publish messages
 			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
-			publishOptions := dapr.PublishEventWithMetadata(metadata)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
 
 			for _, message := range messages {
 				ctx.Logf("Publishing: %q", message)
-				err := client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+
 				require.NoError(ctx, err, "error publishing message")
 			}
 			return nil
@@ -155,7 +176,7 @@ func TestEventhubs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 2*timeout)
+				m.Assert(ctx, 25*timeout)
 			}
 
 			return nil
@@ -203,10 +224,22 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicName1, consumerGroup1, consumerGroup2)).
-		// TODO : option 1: Give sidecar1 component refering eh connection string with acess on both the topics
-		// option 2: Start a sidecar with a component refering eh connection string of unusedTopic
-		// Step("publish messages to unUsedTopic", publishMessages(metadata, sidecarName1, unUsedTopic)).
+
+		// Run dummy app
+		Step(app.Run(dummyAppID, fmt.Sprintf(":%d", appPort+portOffset*10),
+			dummyApp(dummyAppID))).
+		// Run the dummy Dapr sidecar with the dummyconsumer component, to be used for publishing messages to a topic with no subscribers (unused)
+		Step(sidecar.Run(sidecarDummyName,
+			embedded.WithComponentsPath("./components/dummyconsumer"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*10),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*10),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*10),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*10),
+			runtime.WithSecretStores(secretStoreComponent),
+			runtime.WithPubSubs(component))).
+		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicName1, consumerGroup1, consumerGroup2)).
+		// Start a sidecar with a component refering eh connection string of unusedTopic
+		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarDummyName, unUsedTopic)).
 		Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup2)).

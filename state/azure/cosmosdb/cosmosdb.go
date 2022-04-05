@@ -473,8 +473,8 @@ func (c *StateStore) getCollectionLink() string {
 }
 
 // getDocumentLink returns the link to a document in the collection.
-func (c *StateStore) getDocumentLink(docId string) string {
-	return fmt.Sprintf("dbs/%s/colls/%s/docs/%s", c.metadata.Database, c.metadata.Collection, docId)
+func (c *StateStore) getDocumentLink(docID string) string {
+	return fmt.Sprintf("dbs/%s/colls/%s/docs/%s", c.metadata.Database, c.metadata.Collection, docID)
 }
 
 // getSprocLink returns the link to a stored procedure in the collection.

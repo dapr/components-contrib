@@ -13,7 +13,7 @@ components:
     allOperations: true
     config:
       pubsubName: azure-eventhubs
-      testTopicName: dapr2-conf-test-eventhubs-pubsub-topic
+      testTopicName: dapr3-conf-test-eventhubs-pubsub-topic
       ## with partition key set, inorder processing is guaranteed.
       ## https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-features#mapping-of-events-to-partitions
       checkInOrderProcessing: true

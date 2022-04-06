@@ -26,6 +26,27 @@ jobs:
         with:
           github-token: ${{secrets.DAPR_BOT_TOKEN}}
           script: |
+            // list of owner who can control dapr-bot workflow
+            // TODO: Read owners from OWNERS file.
+            const owners = [
+              "yaron2",
+              "berndverst",
+              "artursouza",
+              "mukundansundar",
+              "halspang",
+              "tanvigour",
+              "pkedy",
+              "amuluyavarote",
+              "daixiang0",
+              "ItalyPaleAle",
+              "jjcollinge",
+              "pravinpushkar",
+              "shivamkm07",
+              "shubham1172",
+              "skyao",
+              "msfussell",
+              "Taction"
+            ];
             const payload = context.payload;
             const issue = context.issue;
             const isFromPulls = !!payload.issue.pull_request;
@@ -77,3 +98,43 @@ jobs:
 
               return;
             }
+
+            // actions above this check are enabled for everyone.
+            if (owners.indexOf(context.actor) < 0) {
+              return;
+            }
+
+            if (isFromPulls && commentBody) {
+              if (commentBody.indexOf("/ok-to-test") == 0) {
+                // Get pull request
+                const pull = await github.pulls.get({
+                  owner: issue.owner,
+                  repo: issue.repo,
+                  pull_number: issue.number
+                });
+                if (pull && pull.data) {                
+                  // Get commit id and repo from pull head
+                  const testPayload = {
+                    pull_head_ref: pull.data.head.sha,
+                    pull_head_repo: pull.data.head.repo.full_name,
+                    command: "ok-to-test",
+                    issue: issue,
+                  };
+      
+                  // Fire repository_dispatch event to trigger certification test
+                  await github.repos.createDispatchEvent({
+                    owner: issue.owner,
+                    repo: issue.repo,
+                    event_type: "certification-test",
+                    client_payload: testPayload,
+                  });
+                  // Fire repository_dispatch event to trigger conformance test
+                  await github.repos.createDispatchEvent({
+                    owner: issue.owner,
+                    repo: issue.repo,
+                    event_type: "conformance-test",
+                    client_payload: testPayload,
+                  });
+                  
+                  console.log(`Trigger Certification and Conformance tests for ${JSON.stringify(testPayload)}`);
+                }

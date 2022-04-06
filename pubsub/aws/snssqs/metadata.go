@@ -49,6 +49,8 @@ type snsSqsMetadata struct {
 	assetsManagementTimeoutSeconds float64
 	// aws account ID. internally resolved if not given.
 	accountID string
+	// publish concurrency mode
+	concurrency pubsub.ConcurrencyMode
 }
 
 func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
@@ -139,9 +141,23 @@ func (s *snsSqs) getSnsSqsMetatdata(metadata pubsub.Metadata) (*snsSqsMetadata, 
 		return nil, err
 	}
 
+	if err := md.setConcurrencyMode(props); err != nil {
+		return nil, err
+	}
+
 	s.logger.Debug(md.hideDebugPrintedCredentials())
 
 	return md, nil
+}
+
+func (md *snsSqsMetadata) setConcurrencyMode(props map[string]string) error {
+	c, err := pubsub.Concurrency(props)
+	if err != nil {
+		return err
+	}
+	md.concurrency = c
+
+	return nil
 }
 
 func (md *snsSqsMetadata) hideDebugPrintedCredentials() string {

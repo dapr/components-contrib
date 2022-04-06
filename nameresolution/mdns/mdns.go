@@ -329,7 +329,7 @@ func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, p
 	var err error
 
 	// Register the app id with the resolver.
-	done := make(chan struct{})
+	done := make(chan struct{}, 1)
 	key := fmt.Sprintf("%s:%d", appID, port) // WARN: we do not support unique ips.
 
 	// NOTE: The registrations map is used to track all registered

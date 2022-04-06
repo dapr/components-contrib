@@ -626,9 +626,17 @@ func (s *snsSqs) consumeSubscription(queueInfo, deadLettersQueueInfo *sqsQueueIn
 					s.logger.Errorf("message is not valid for further processing by the handler. error is: %w", err)
 					continue
 				}
-				if err := s.callHandler(message, queueInfo, handler); err != nil {
-					s.logger.Errorf("error handling received message with error: %w", err)
-					continue
+
+				f := func() {
+					if err := s.callHandler(message, queueInfo, handler); err != nil {
+						s.logger.Errorf("error handling received message with error: %w", err)
+					}
+				}
+				switch s.metadata.concurrency {
+				case pubsub.Single:
+					f()
+				case pubsub.Parallel:
+					go f()
 				}
 			}
 		}

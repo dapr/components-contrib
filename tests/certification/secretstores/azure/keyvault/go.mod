@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/secretstores/azure
 go 1.17
 
 require (
-	github.com/dapr/components-contrib v1.7.0-rc.1
+	github.com/dapr/components-contrib v1.7.0-rc.4
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.7.0-rc.2
+	github.com/dapr/dapr v1.7.0-rc.3
 	github.com/dapr/go-sdk v1.3.1
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0

@@ -320,12 +320,23 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	items := []CosmosItem{}
-	_, err = c.client.QueryDocuments(
-		c.getCollectionLink(),
-		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: req.Key}),
-		&items,
-		options...,
-	)
+	err = retryOperation(func() error {
+		_, innerErr := c.client.QueryDocuments(
+			c.getCollectionLink(),
+			documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: req.Key}),
+			&items,
+			options...,
+		)
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Delete Query request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
 	if err != nil {
 		return err
 	} else if len(items) == 0 {
@@ -491,6 +502,7 @@ func (c *StateStore) getSprocLink(sprocName string) string {
 
 func (c *StateStore) checkStoredProcedures() error {
 	var ver int
+	// not wrapping this in a retryable block because this method is already used as part of one
 	err := c.client.ExecuteStoredProcedure(c.getSprocLink(versionSpName), nil, &ver, documentdb.PartitionKey("1"))
 	if err == nil {
 		c.logger.Debugf("Cosmos DB stored procedure version: %d", ver)
@@ -506,6 +518,7 @@ func (c *StateStore) ensureStoredProcedures() error {
 	verSpLink := c.getSprocLink(versionSpName)
 
 	// get a link to the sp's
+	// not wrapping this in a retryable block because this method is already used as part of one
 	sp, err := c.client.ReadStoredProcedure(spLink)
 	if err != nil && !isNotFoundError(err) {
 		return err

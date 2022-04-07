@@ -171,6 +171,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/hashicorp/go-hclog v0.14.1 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
+	github.com/mattn/go-sqlite3 v1.14.12 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 )

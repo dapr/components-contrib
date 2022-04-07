@@ -3,10 +3,10 @@ module github.com/dapr/components-contrib/tests/certification/bindings/azure/cos
 go 1.17
 
 require (
-	github.com/a8m/documentdb v1.3.1-0.20220331220217-1e66c639b09a
-	github.com/dapr/components-contrib v1.7.0-rc.1
+	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1
+	github.com/dapr/components-contrib v1.7.0-rc.4
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.7.0-rc.2
+	github.com/dapr/dapr v1.7.0-rc.3
 	github.com/dapr/go-sdk v1.3.1
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0

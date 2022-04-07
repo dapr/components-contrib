@@ -629,10 +629,10 @@ func (s *snsSqs) consumeSubscription(queueInfo, deadLettersQueueInfo *sqsQueueIn
 
 				f := func() {
 					if err := s.callHandler(message, queueInfo, handler); err != nil {
-						s.logger.Errorf("error handling received message with error: %w", err)
+						s.logger.Errorf("error while handling received message. error is: %w", err)
 					}
 				}
-				switch s.metadata.concurrency {
+				switch s.metadata.concurrencyMode {
 				case pubsub.Single:
 					f()
 				case pubsub.Parallel:

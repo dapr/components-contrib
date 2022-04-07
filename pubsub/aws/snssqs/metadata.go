@@ -50,7 +50,7 @@ type snsSqsMetadata struct {
 	// aws account ID. internally resolved if not given.
 	accountID string
 	// publish concurrency mode
-	concurrency pubsub.ConcurrencyMode
+	concurrencyMode pubsub.ConcurrencyMode
 }
 
 func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
@@ -155,7 +155,7 @@ func (md *snsSqsMetadata) setConcurrencyMode(props map[string]string) error {
 	if err != nil {
 		return err
 	}
-	md.concurrency = c
+	md.concurrencyMode = c
 
 	return nil
 }

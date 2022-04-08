@@ -52,40 +52,6 @@ jobs:
             const isFromPulls = !!payload.issue.pull_request;
             const commentBody = payload.comment.body;
 
-            if (isFromPulls && commentBody) {
-              if (commentBody.indexOf("/ok-to-test") == 0) {
-                // Get pull request
-                const pull = await github.pulls.get({
-                  owner: issue.owner,
-                  repo: issue.repo,
-                  pull_number: issue.number
-                });
-                if (pull && pull.data) {
-                  // Get commit id and repo from pull head
-                  const testPayload = {
-                    pull_head_ref: pull.data.head.sha,
-                    pull_head_repo: pull.data.head.repo.full_name,
-                    command: "ok-to-test",
-                    issue: issue,
-                  };
-                  // Fire repository_dispatch event to trigger conformance test
-                  await github.repos.createDispatchEvent({
-                    owner: issue.owner,
-                    repo: issue.repo,
-                    event_type: "conformance-test",
-                    client_payload: testPayload,
-                  });
-                  // Fire repository_dispatch event to trigger certification test
-                  await github.repos.createDispatchEvent({
-                    owner: issue.owner,
-                    repo: issue.repo,
-                    event_type: "certification-test",
-                    client_payload: testPayload,
-                  });
-                }
-              }
-            }
-
             if (!isFromPulls && commentBody && commentBody.indexOf("/assign") == 0) {
               if (!issue.assignees || issue.assignees.length === 0) {
                 await github.issues.addAssignees({
@@ -112,7 +78,7 @@ jobs:
                   repo: issue.repo,
                   pull_number: issue.number
                 });
-                if (pull && pull.data) {                
+                if (pull && pull.data) {
                   // Get commit id and repo from pull head
                   const testPayload = {
                     pull_head_ref: pull.data.head.sha,
@@ -120,7 +86,7 @@ jobs:
                     command: "ok-to-test",
                     issue: issue,
                   };
-      
+
                   // Fire repository_dispatch event to trigger certification test
                   await github.repos.createDispatchEvent({
                     owner: issue.owner,
@@ -128,6 +94,7 @@ jobs:
                     event_type: "certification-test",
                     client_payload: testPayload,
                   });
+
                   // Fire repository_dispatch event to trigger conformance test
                   await github.repos.createDispatchEvent({
                     owner: issue.owner,
@@ -135,6 +102,6 @@ jobs:
                     event_type: "conformance-test",
                     client_payload: testPayload,
                   });
-                  
-                  console.log(`Trigger Certification and Conformance tests for ${JSON.stringify(testPayload)}`);
                 }
+              }
+            }

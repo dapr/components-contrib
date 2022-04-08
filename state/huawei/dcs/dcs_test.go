@@ -54,7 +54,7 @@ type querySchemaElem struct {
 type querySchemas map[string]*querySchemaElem
 
 // This is a copy (mock) for the actual redis.StateStore
-// make sure to update this when necessary, to keep the test cases passed
+// make sure to update this when necessary, to keep the test cases passed.
 type MockRedisStateStore struct {
 	state.DefaultBulkStore
 	client         redisext.UniversalClient
@@ -72,7 +72,7 @@ type MockRedisStateStore struct {
 }
 
 func TestInit(t *testing.T) {
-	//TODO: Modify to use the Mock redis store. currently, it uses the local redis instance
+	// TODO: Modify to use the Mock redis store. currently, it uses the local redis instance
 
 	l := logger.NewLogger("test")
 	m := state.Metadata{}

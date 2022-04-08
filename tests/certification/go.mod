@@ -4,9 +4,9 @@ go 1.17
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/dapr/components-contrib v1.6.0-rc.1.0.20220217181903-80c2bbe28485
-	github.com/dapr/dapr v1.6.1-0.20220218024719-bdd702c480c8
-	github.com/dapr/go-sdk v1.3.0
+	github.com/dapr/components-contrib v1.7.0-rc.4
+	github.com/dapr/dapr v1.7.0-rc.3
+	github.com/dapr/go-sdk v1.3.1
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/go-cmp v0.5.6
 	github.com/pkg/errors v0.9.1
@@ -14,13 +14,19 @@ require (
 )
 
 require (
+	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/color v1.10.0 // indirect
+	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-kit/log v0.1.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/go-hclog v0.14.1 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect
+	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
+	github.com/stretchr/objx v0.3.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	k8s.io/component-base v0.23.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 )

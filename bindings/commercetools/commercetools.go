@@ -98,7 +98,6 @@ func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 			res, err = handleGraphQLQuery(ctx, ct, query)
 			if err != nil {
 				ct.logger.Errorf("error GraphQLQuery")
-				ct.logger.Errorf("%s", err)
 
 				return nil, err
 			}

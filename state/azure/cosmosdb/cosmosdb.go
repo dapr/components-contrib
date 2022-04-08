@@ -14,7 +14,7 @@ limitations under the License.
 package cosmosdb
 
 import (
-	// For go:embed
+	// For go:embed.
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"

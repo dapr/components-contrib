@@ -72,16 +72,16 @@ func TestSqlServer(t *testing.T) {
 		defer client.Close()
 
 		// save state, default options: strong, last-write
-		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"))
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
 		assert.NoError(t, err)
 
 		// get state
-		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1")
+		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "certificationdata", string(item.Value))
 
 		// delete state
-		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1")
+		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 
 		return nil
@@ -132,11 +132,11 @@ func TestSqlServer(t *testing.T) {
 		assert.NoError(t, err)
 
 		// save state with the key certificationkey1, default options: strong, last-write
-		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data)
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data, nil)
 		assert.NoError(t, err)
 
 		// get state for key certificationkey1
-		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1")
+		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, string(data), string(item.Value))
 
@@ -157,7 +157,7 @@ func TestSqlServer(t *testing.T) {
 		}
 
 		// delete state for key certificationkey1
-		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1")
+		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 
 		return nil
@@ -202,16 +202,16 @@ func TestSqlServer(t *testing.T) {
 
 		for _, sqlInjectionAttempt := range sqlInjectionAttempts {
 			// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
-			err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt))
+			err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt), nil)
 			assert.NoError(t, err)
 
 			// get state for key sqlInjectionAttempt's value
-			item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt)
+			item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, sqlInjectionAttempt, string(item.Value))
 
 			// delete state for key sqlInjectionAttempt's value
-			err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt)
+			err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt, nil)
 			assert.NoError(t, err)
 		}
 

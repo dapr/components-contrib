@@ -14,6 +14,8 @@ limitations under the License.
 package cosmosdb
 
 import (
+	// For go:embed.
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -34,6 +36,15 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
 )
+
+// Version of the stored procedure to use.
+const spVersion = 2
+
+//go:embed storedprocedures/__dapr_v2__.js
+var spDefinition string
+
+//go:embed storedprocedures/__daprver__.js
+var spVersionDefinition string
 
 // StateStore is a CosmosDB state store.
 type StateStore struct {
@@ -268,11 +279,11 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != nil {
-		options = append(options, documentdb.IfMatch((*req.ETag)))
+		options = append(options, documentdb.IfMatch(*req.ETag))
 	}
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
 		etag := uuid.NewString()
-		options = append(options, documentdb.IfMatch((etag)))
+		options = append(options, documentdb.IfMatch(etag))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -319,21 +330,8 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
-	items := []CosmosItem{}
-	_, err = c.client.QueryDocuments(
-		c.getCollectionLink(),
-		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: req.Key}),
-		&items,
-		options...,
-	)
-	if err != nil {
-		return err
-	} else if len(items) == 0 {
-		return nil
-	}
-
 	if req.ETag != nil {
-		options = append(options, documentdb.IfMatch((*req.ETag)))
+		options = append(options, documentdb.IfMatch(*req.ETag))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -343,7 +341,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	}
 
 	err = retryOperation(func() error {
-		_, innerErr := c.client.DeleteDocument(items[0].Self, options...)
+		_, innerErr := c.client.DeleteDocument(c.getDocumentLink(req.Key), options...)
 		if innerErr != nil {
 			if isTooManyRequestsError(innerErr) {
 				return innerErr
@@ -355,14 +353,15 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		c.logger.Warnf("CosmosDB state store Delete request failed: %v; retrying in %s", err, d)
 	}, 20*time.Second)
 
-	if err != nil {
+	if err != nil && !isNotFoundError(err) {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
+		return err
 	}
 
-	return err
+	return nil
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
@@ -484,13 +483,19 @@ func (c *StateStore) getCollectionLink() string {
 	return fmt.Sprintf("dbs/%s/colls/%s/", c.metadata.Database, c.metadata.Collection)
 }
 
-// getSprocLink returns the link to the stored procedures.
+// getDocumentLink returns the link to a document in the collection.
+func (c *StateStore) getDocumentLink(docID string) string {
+	return fmt.Sprintf("dbs/%s/colls/%s/docs/%s", c.metadata.Database, c.metadata.Collection, docID)
+}
+
+// getSprocLink returns the link to a stored procedure in the collection.
 func (c *StateStore) getSprocLink(sprocName string) string {
 	return fmt.Sprintf("dbs/%s/colls/%s/sprocs/%s", c.metadata.Database, c.metadata.Collection, sprocName)
 }
 
 func (c *StateStore) checkStoredProcedures() error {
 	var ver int
+	// not wrapping this in a retryable block because this method is already used as part of one
 	err := c.client.ExecuteStoredProcedure(c.getSprocLink(versionSpName), nil, &ver, documentdb.PartitionKey("1"))
 	if err == nil {
 		c.logger.Debugf("Cosmos DB stored procedure version: %d", ver)
@@ -506,6 +511,7 @@ func (c *StateStore) ensureStoredProcedures() error {
 	verSpLink := c.getSprocLink(versionSpName)
 
 	// get a link to the sp's
+	// not wrapping this in a retryable block because this method is already used as part of one
 	sp, err := c.client.ReadStoredProcedure(spLink)
 	if err != nil && !isNotFoundError(err) {
 		return err

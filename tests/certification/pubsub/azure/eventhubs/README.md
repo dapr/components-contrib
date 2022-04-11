@@ -52,7 +52,7 @@ This project aims to test the Azure Event Hubs pubsub component under various co
    - Test: Send 100+ unique messasges to the newly created eventHub topic
    - App: Observe successful messages
    - Test: Confirm that subscriber receives all messages
- - Test IOT Event Hub 
+ - Test IOT Event Hub : [TODO]
    - Start an app with 1 publisher and 1 subscriber
    - The publisher publishes to 1 IOT EventHub with 1 partition 
    - The subscriber is subscribed to 1 topic
@@ -66,10 +66,10 @@ This project aims to test the Azure Event Hubs pubsub component under various co
   - Test connection string based authentication mechanism
   - Test AAD Service Principal based authentication
     - Utilize a service principal with appropriate roles granted
-  - Test MSI based authentication
+  - Test MSI based authentication : [TODO]
     - Utilize Managed Identity
 ### Network Tests?
-  - Simulate network interruptions
+  - Simulate network interruptions [TODO : network interruptions during publish]
     - Test: Simulate network interruptions 
     - Component: Begins to reconnect and resubscribe
 

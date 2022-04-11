@@ -15,6 +15,7 @@ param eventHubsNamespaceName string
 param rgLocation string = resourceGroup().location
 param confTestTags object = {}
 
+var eventHubsNamespacePolicy = '${eventHubsNamespaceName}-namespace-policy'
 var eventHubBindingsName = '${eventHubsNamespaceName}-bindings-topic'
 var eventHubBindingsPolicyName = '${eventHubBindingsName}-policy'
 var eventHubBindingsConsumerGroupName = '${eventHubBindingsName}-cg'
@@ -27,7 +28,6 @@ var certificationEventHubPubsub1Name = 'certification-pubsub-topic1'
 var certificationEventHubPubsub1PolicyName = '${certificationEventHubPubsub1Name}-policy'
 
 var certificationEventHubPubsub2Name = 'certification-pubsub-topic2'
-var certificationEventHubPubsub2PolicyName = '${certificationEventHubPubsub2Name}-policy'
 
 var certificationConsumerGroupName1 = 'ehcertification1'
 var certificationConsumerGroupName2 = 'ehcertification2'
@@ -38,6 +38,16 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   tags: confTestTags
   sku: {
     name: 'Standard' // For > 1 consumer group
+  }
+  // For connectionstring and test operation at namespace level
+  resource eventHubPubsubNamespacePolicy 'authorizationRules' = {
+    name: eventHubsNamespacePolicy
+    properties: {
+      rights: [
+        'Send'
+        'Listen'
+      ]
+    }
   }
   resource eventHubBindings 'eventhubs' = {
     name: eventHubBindingsName
@@ -101,15 +111,6 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
     properties: {
       messageRetentionInDays: 1
     }
-    resource certificationEventHubPubsub2Policy 'authorizationRules' = {
-      name: certificationEventHubPubsub2PolicyName
-      properties: {
-        rights: [
-          'Send'
-          'Listen'
-        ]
-      }
-    }
     resource eventHubPubsubConsumerGroup1 'consumergroups' = {
       name: certificationConsumerGroupName1
     }
@@ -127,8 +128,6 @@ output eventHubPubsubName string = eventHubsNamespace::eventHubPubsub.name
 output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubPolicy.name
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name
 
+output eventHubsNamespacePolicyName string = eventHubsNamespace::eventHubPubsubNamespacePolicy.name
 output certificationEventHubPubsub1Name string = eventHubsNamespace::certificationEventHubPubsub1.name
 output certificationEventHubPubsub1PolicyName string = eventHubsNamespace::certificationEventHubPubsub1::certificationEventHubPubsub1Policy.name
-
-output certificationEventHubPubsub2Name string = eventHubsNamespace::certificationEventHubPubsub2.name
-output certificationEventHubPubsub2PolicyName string = eventHubsNamespace::certificationEventHubPubsub2::certificationEventHubPubsub2Policy.name

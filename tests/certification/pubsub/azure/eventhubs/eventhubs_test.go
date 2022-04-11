@@ -69,7 +69,7 @@ const (
 	topicName1       = "certification-pubsub-topic1"
 	unUsedTopic      = "certification-pubsub-topic2"
 	iotTopicName     = "testioteventing"
-	topicToBeCreated = "certification-pubsub-topic-created-per-test-run"
+	topicToBeCreated = "certification-topic-per-test-run"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
 )
@@ -176,6 +176,12 @@ func TestEventhubs(t *testing.T) {
 		}
 	}
 
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
+		assert.Nil(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
+		return nil
+	}
+
 	// simulate the publish of messages to iot endpoint (./send-iot-device-events.sh)
 	// addExpectedMessagesforIot := func(messageWatchers *watcher.Watcher) flow.Runnable {
 	// 	return func(ctx flow.Context) error {
@@ -242,7 +248,6 @@ func TestEventhubs(t *testing.T) {
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicName1, consumerGroup2)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicName1, consumerGroup2)).
 		Step("verify if app2, app3 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
-
 		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app4
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*3),
@@ -257,7 +262,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
-		Step("publish messages to topicToBeCreated", publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
 		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 
 		// TODO : Test : IOT hub
@@ -277,13 +282,6 @@ func TestEventhubs(t *testing.T) {
 		// Step("add expected IOT messages (simulate add message to iot)", addExpectedMessagesforIot(consumerGroup5)).
 		// Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
 		Run()
-
-	deleteEventhub := func(ctx flow.Context) error {
-		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
-		assert.Nil(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
-		return nil
-	}
-
 	flow.New(t, "cleanup azure artifacts").
 		Step("delete eventhub created as part of the eventhub management test", deleteEventhub).
 		Run()

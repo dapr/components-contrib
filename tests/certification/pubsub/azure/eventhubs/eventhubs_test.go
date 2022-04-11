@@ -16,10 +16,12 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -69,7 +71,7 @@ const (
 	topicName1       = "certification-pubsub-topic1"
 	unUsedTopic      = "certification-pubsub-topic2"
 	iotTopicName     = "testioteventing"
-	topicToBeCreated = "brandneworder"
+	topicToBeCreated = "certification-pubsub-topic-created-per-test-run"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
 )
@@ -297,5 +299,15 @@ func TestEventhubs(t *testing.T) {
 		// 	runtime.WithPubSubs(component))).
 		// Step("add expected IOT messages (simulate add message to iot)", addExpectedMessagesforIot(consumerGroup5)).
 		// Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
+		Run()
+
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
+		assert.Nil(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
+		return nil
+	}
+
+	flow.New(t, "cleanup azure artifacts").
+		Step("delete eventhub created as part of the eventhub management test", deleteEventhub).
 		Run()
 }

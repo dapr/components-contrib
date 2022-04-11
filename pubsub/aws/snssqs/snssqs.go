@@ -562,7 +562,7 @@ func (s *snsSqs) callHandler(message *sqs.Message, queueInfo *sqsQueueInfo, hand
 		return fmt.Errorf("failed loading topic (sanitized): %s from internal topics cache. SNS topic might be just created", sanitizedTopic)
 	}
 
-	s.logger.Debugf("Processing SNS message id: %s of topic: %s", message.MessageId, sanitizedTopic)
+	s.logger.Debugf("Processing SNS message id: %s of topic: %s", *message.MessageId, sanitizedTopic)
 
 	ctx, cancelFn := context.WithCancel(s.ctx)
 	defer cancelFn()

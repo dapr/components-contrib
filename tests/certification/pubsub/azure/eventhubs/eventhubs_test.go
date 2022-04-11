@@ -49,19 +49,17 @@ import (
 )
 
 const (
-	sidecarDummyName = "dapr-dummy"
-	sidecarName1     = "dapr-1"
-	sidecarName2     = "dapr-2"
-	sidecarName3     = "dapr-3"
-	sidecarName4     = "dapr-4"
-	sidecarName5     = "dapr-5"
+	sidecarName1 = "dapr-1"
+	sidecarName2 = "dapr-2"
+	sidecarName3 = "dapr-3"
+	sidecarName4 = "dapr-4"
+	sidecarName5 = "dapr-5"
 
-	dummyAppID = "dummy-app"
-	appID1     = "app-1"
-	appID2     = "app-2"
-	appID3     = "app-3"
-	appID4     = "app-4"
-	appID5     = "app-5"
+	appID1 = "app-1"
+	appID2 = "app-2"
+	appID3 = "app-3"
+	appID4 = "app-4"
+	appID5 = "app-5"
 
 	numMessages      = 100
 	appPort          = 8000
@@ -122,13 +120,6 @@ func TestEventhubs(t *testing.T) {
 					return false, nil
 				}),
 			)
-		}
-	}
-
-	// dummy app to compliment dummy sidecar
-	dummyApp := func(appID string) app.SetupFn {
-		return func(ctx flow.Context, s common.Service) error {
-			return nil
 		}
 	}
 
@@ -204,7 +195,7 @@ func TestEventhubs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicName1, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1.
+		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer1"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -226,25 +217,11 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
-
-		// Run dummy app
-		Step(app.Run(dummyAppID, fmt.Sprintf(":%d", appPort+portOffset*10),
-			dummyApp(dummyAppID))).
-		// Run the dummy Dapr sidecar with the dummyconsumer component, to be used for publishing messages to a topic with no subscribers (unused)
-		Step(sidecar.Run(sidecarDummyName,
-			embedded.WithComponentsPath("./components/dummyconsumer"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*10),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*10),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*10),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicName1, consumerGroup1, consumerGroup2)).
-		// Start a sidecar with a component refering eh connection string of unusedTopic
-		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarDummyName, unUsedTopic)).
+		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, unUsedTopic)).
 		Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
-		Step("reset", flow.Reset(consumerGroup2)).
+		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 
 		// Test : multiple publisher with different partitionkey, multiple subscriber with same consumer ID
 		// Run subscriberApplication app3
@@ -266,7 +243,7 @@ func TestEventhubs(t *testing.T) {
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicName1, consumerGroup2)).
 		Step("verify if app2, app3 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 
-		// Test : Entitymanagement
+		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app4
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*3),
 			subscriberApplication(appID4, topicToBeCreated, consumerGroup4))).
@@ -280,8 +257,8 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
-		Step("verify if app4 has recevied messages published to topic", assertMessages(10*time.Second, consumerGroup4)).
+		Step("publish messages to topicToBeCreated", publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
+		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 
 		// TODO : Test : IOT hub
 		// PREREQ : Add messages to IOT endpoint via (./send-iot-device-events.sh)

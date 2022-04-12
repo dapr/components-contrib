@@ -25,3 +25,5 @@ spec:
       value: 1
     - name: messageMaxNumber
       value: 10
+    - name: concurrencyMode
+      value: "single"

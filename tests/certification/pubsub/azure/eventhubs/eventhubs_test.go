@@ -182,14 +182,17 @@ func TestEventhubs(t *testing.T) {
 		return nil
 	}
 
-	// simulate the publish of messages to iot endpoint (./send-iot-device-events.sh)
-	// addExpectedMessagesforIot := func(messageWatchers *watcher.Watcher) flow.Runnable {
+	// TODO : to be uncommented as part of IOT hub
+	// publishMessageAsDevice := func(messageWatchers *watcher.Watcher) flow.Runnable {
 	// 	return func(ctx flow.Context) error {
-	// 		messages := make([]string, numMessages)
+	// 		messages := make([]string, 10)
 	// 		for i := range messages {
 	// 			messages[i] = fmt.Sprintf("testmessageForEventHubCertificationTest #%v", i+1)
 	// 		}
 	// 		messageWatchers.ExpectStrings(messages...)
+
+	// 		output, err := exec.Command("/bin/sh", "send-iot-device-events.sh", topicToBeCreated).Output()
+	// 		assert.Nil(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
 	// 		return nil
 	// 	}
 	// }
@@ -266,7 +269,6 @@ func TestEventhubs(t *testing.T) {
 		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 
 		// TODO : Test : IOT hub
-		// PREREQ : Add messages to IOT endpoint via (./send-iot-device-events.sh)
 		// Run subscriberApplication app5
 		// Step(app.Run(appID5, fmt.Sprintf(":%d", appPort+portOffset*4),
 		// 	subscriberApplication(appID5, iotTopicName, consumerGroup5))).
@@ -279,9 +281,10 @@ func TestEventhubs(t *testing.T) {
 		// 	embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
 		// 	runtime.WithSecretStores(secretStoreComponent),
 		// 	runtime.WithPubSubs(component))).
-		// Step("add expected IOT messages (simulate add message to iot)", addExpectedMessagesforIot(consumerGroup5)).
+		// Step("add expected IOT messages (simulate add message to iot)", publishMessageAsDevice(consumerGroup5)).
 		// Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
 		Run()
+
 	flow.New(t, "cleanup azure artifacts").
 		Step("delete eventhub created as part of the eventhub management test", deleteEventhub).
 		Run()

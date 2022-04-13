@@ -23,6 +23,7 @@ import (
 
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
+	"github.com/google/uuid"
 )
 
 const daprMeta string = "DAPR_PORT" // default key for DAPR_PORT metadata
@@ -249,9 +250,10 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 		cfg.Checks = []*consul.AgentServiceCheck{
 			{
 				Name:     "Dapr Health Status",
-				CheckID:  fmt.Sprintf("daprHealth:%s", appID),
+				CheckID:  fmt.Sprintf("daprHealth:%s:%s", appID, uuid.New().String()),
 				Interval: "15s",
 				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort),
+				DeregisterCriticalServiceAfter: "10m",
 			},
 		}
 	}
@@ -262,6 +264,7 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	}
 
 	return &consul.AgentServiceRegistration{
+		ID:      uuid.New().String(),
 		Name:    appID,
 		Address: host,
 		Port:    appPortInt,

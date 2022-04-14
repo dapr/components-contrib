@@ -179,7 +179,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if cache == nil {
 		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
 		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
-			Topic:           req.Topic,
+			Topic:           topic,
 			DisableBatching: p.metadata.DisableBatching,
 		})
 		if err != nil {

@@ -562,7 +562,7 @@ func (s *snsSqs) callHandler(message *sqs.Message, queueInfo *sqsQueueInfo, hand
 		return fmt.Errorf("failed loading topic (sanitized): %s from internal topics cache. SNS topic might be just created", sanitizedTopic)
 	}
 
-	s.logger.Debugf("Processing SNS message id: %s of topic: %s", message.MessageId, sanitizedTopic)
+	s.logger.Debugf("Processing SNS message id: %s of topic: %s", *message.MessageId, sanitizedTopic)
 
 	ctx, cancelFn := context.WithCancel(s.ctx)
 	defer cancelFn()
@@ -621,16 +621,30 @@ func (s *snsSqs) consumeSubscription(queueInfo, deadLettersQueueInfo *sqsQueueIn
 			}
 			s.logger.Debugf("%v message(s) received", len(messageResponse.Messages))
 
+			var wg sync.WaitGroup
 			for _, message := range messageResponse.Messages {
 				if err := s.validateMessage(message, queueInfo, deadLettersQueueInfo, handler); err != nil {
 					s.logger.Errorf("message is not valid for further processing by the handler. error is: %w", err)
 					continue
 				}
-				if err := s.callHandler(message, queueInfo, handler); err != nil {
-					s.logger.Errorf("error handling received message with error: %w", err)
-					continue
+
+				f := func() {
+					if err := s.callHandler(message, queueInfo, handler); err != nil {
+						s.logger.Errorf("error while handling received message. error is: %w", err)
+					}
+
+					wg.Done()
+				}
+
+				wg.Add(1)
+				switch s.metadata.concurrencyMode {
+				case pubsub.Single:
+					f()
+				case pubsub.Parallel:
+					go f()
 				}
 			}
+			wg.Wait()
 		}
 	}()
 }

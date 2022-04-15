@@ -132,4 +132,20 @@ func TestEventhubBinding(t *testing.T) {
 		Step("send and wait", sendAndReceive).
 		Run()
 
+	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
+	flow.New(t, "eventhubs binding authentication using connection string").
+		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("sidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/binding/connectionstring"),
+			runtime.WithSecretStores(secrets_components),
+			runtime.WithOutputBindings(out_component),
+			runtime.WithInputBindings(in_component),
+		)).
+		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "21092", "31092", "41092")).
+		Step("send and wait", sendAndReceive).
+		Run()
+
 }

@@ -3,10 +3,10 @@ module servicebusqueue_test
 go 1.17
 
 require (
-	github.com/dapr/components-contrib v1.6.0-rc.1.0.20220217181903-80c2bbe28485
+	github.com/dapr/components-contrib v1.7.0-rc.4
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.6.1-0.20220218024719-bdd702c480c8
-	github.com/dapr/go-sdk v1.3.0
+	github.com/dapr/dapr v1.7.0
+	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/multierr v1.7.0
@@ -23,7 +23,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.20.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1 // indirect
-	github.com/Azure/azure-service-bus-go v0.11.1 // indirect
 	github.com/Azure/azure-storage-blob-go v0.10.0 // indirect
 	github.com/Azure/go-amqp v0.13.13 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
@@ -102,6 +101,7 @@ require (
 	github.com/prometheus/statsd_exporter v0.22.3 // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect
@@ -134,7 +134,6 @@ require (
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b // indirect
-	nhooyr.io/websocket v1.8.7 // indirect
 	sigs.k8s.io/controller-runtime v0.11.0 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect

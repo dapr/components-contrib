@@ -218,7 +218,7 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --upn "${ADMIN_UPN}" --query "[].objectId" --output tsv)"
+ADMIN_ID="$(az ad user list --filter "mail eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
 SUB_ID="$(az account show --query "id" --output tsv)"
 TENANT_ID="$(az account show --query "tenantId" --output tsv)"
 DEPLOY_NAME="${PREFIX}-azure-conf-test"
@@ -658,7 +658,7 @@ az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resour
 # Storage
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
 # Event Hubs
-az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/{$EVENT_HUBS_NAMESPACE}/eventhubs/*"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/${EVENT_HUBS_NAMESPACE}/eventhubs/*"
 
 # Now export the service principal information
 CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"

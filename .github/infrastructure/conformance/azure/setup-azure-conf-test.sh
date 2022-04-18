@@ -221,7 +221,7 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --upn "${ADMIN_UPN}" --query "[].objectId" --output tsv)"
+ADMIN_ID="$(az ad user list --filter "mail eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
 SUB_ID="$(az account show --query "id" --output tsv)"
 TENANT_ID="$(az account show --query "tenantId" --output tsv)"
 DEPLOY_NAME="${PREFIX}-azure-conf-test"

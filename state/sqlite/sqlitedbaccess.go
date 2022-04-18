@@ -307,9 +307,7 @@ func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
 }
 
 func (a *sqliteDBAccess) cleanupTimeout() {
-	if !a.writeMu.TryLock() {
-		return
-	}
+	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
 	tx, err := a.db.Begin()
 	if err != nil {

@@ -22,7 +22,7 @@ type setRequest struct {
 	key         string
 	value       string
 	isBinary    bool
-	ttlSeconds  *int
+	ttlSeconds  *int64
 	concurrency *string
 	etag        *string
 }
@@ -53,7 +53,10 @@ func prepareSetRequest(a *sqliteDBAccess, tx *sql.Tx, req *state.SetRequest) (*s
 	}
 
 	// Convert to json string.
-	bt, _ := utils.Marshal(requestValue, json.Marshal)
+	bt, err := utils.Marshal(requestValue, json.Marshal)
+	if err != nil {
+		return nil, err
+	}
 	value := string(bt)
 
 	return &setRequest{
@@ -135,13 +138,12 @@ func checkRequestOptions(a *sqliteDBAccess, req *state.SetRequest) error {
 }
 
 // Returns nil or non-negative value, nil means never expire.
-func parseTTL(requestMetadata map[string]string, logger logger.Logger) (*int, error) {
+func parseTTL(requestMetadata map[string]string, logger logger.Logger) (*int64, error) {
 	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
+		parsedInt, err := strconv.ParseInt(val, 10, 0)
 		if err != nil {
 			return nil, fmt.Errorf("error in parsing ttl metadata : %w", err)
 		}
-		parsedInt := int(parsedVal)
 
 		if parsedInt < -1 {
 			return nil, fmt.Errorf("incorrect value for %s %d", metadataTTLKey, parsedInt)

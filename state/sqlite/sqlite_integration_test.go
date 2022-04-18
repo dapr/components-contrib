@@ -621,12 +621,11 @@ func TestParseTTL(t *testing.T) {
 	})
 	t.Run("TTL is a number", func(t *testing.T) {
 		t.Parallel()
-		ttlInSeconds := 12345
 		ttl, err := parseTTL(map[string]string{
-			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			"ttlInSeconds": "12345",
 		}, log)
 		assert.NoError(t, err)
-		assert.Equal(t, *ttl, ttlInSeconds)
+		assert.Equal(t, *ttl, int64(12345))
 	})
 	t.Run("TTL not set", func(t *testing.T) {
 		t.Parallel()

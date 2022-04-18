@@ -16,9 +16,11 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -67,6 +69,7 @@ func TestEventhubBinding(t *testing.T) {
 	appPort := ports[2]
 
 	consumerGroup1 := watcher.NewUnordered()
+	consumerGroup2 := watcher.NewUnordered()
 
 	sendAndReceive := func(ctx flow.Context) error {
 
@@ -116,6 +119,20 @@ func TestEventhubBinding(t *testing.T) {
 		return err
 	}
 
+	publishMessages := func(ctx flow.Context) error {
+		// Define what is expected
+		outputmsg := make([]string, numMessages)
+		for i := 0; i < numMessages; i++ {
+			outputmsg[i] = fmt.Sprintf("publish messages to device: Message %03d", i)
+		}
+		consumerGroup2.ExpectStrings(outputmsg...)
+		cmd := exec.Command("/bin/bash", "../../../tests/scripts/send-iot-device-events.sh")
+		out, err := cmd.CombinedOutput()
+		assert.Nil(t, err, "Error in send-iot-device-events.sh:\n%s", out)
+		consumerGroup2.Assert(ctx, time.Minute)
+		return nil
+	}
+
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using service principal").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
@@ -148,4 +165,17 @@ func TestEventhubBinding(t *testing.T) {
 		Step("send and wait", sendAndReceive).
 		Run()
 
+	flow.New(t, "eventhubs binding IoTHub testing").
+		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("sidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/binding/iothub"),
+			runtime.WithSecretStores(secrets_components),
+			runtime.WithOutputBindings(out_component),
+			runtime.WithInputBindings(in_component),
+		)).
+		Step("Send messages to IoT", publishMessages).
+		Run()
 }

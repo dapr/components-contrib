@@ -50,7 +50,7 @@ func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (m *fakeDBaccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (m *fakeDBaccess) ExecuteMulti(reqs []state.TransactionalStateOperation) error {
 	return nil
 }
 
@@ -76,22 +76,6 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestInvalidMultiAction(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: "Something invalid",
-		Request:   createSetRequest(),
-	})
-
-	ods := createSqlite(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-	})
-	assert.NotNil(t, err)
-}
-
 func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
 	var operations []state.TransactionalStateOperation
@@ -108,22 +92,6 @@ func TestValidSetRequest(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestInvalidMultiSetRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation.
-	})
-
-	ods := createSqlite(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-	})
-	assert.NotNil(t, err)
-}
-
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
 	var operations []state.TransactionalStateOperation
@@ -138,22 +106,6 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 		Operations: operations,
 	})
 	assert.Nil(t, err)
-}
-
-func TestInvalidMultiDeleteRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createSetRequest(), // Set request is not valid for Delete operation.
-	})
-
-	ods := createSqlite(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
-		Operations: operations,
-	})
-	assert.NotNil(t, err)
 }
 
 func createSetRequest() state.SetRequest {

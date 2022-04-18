@@ -107,9 +107,6 @@ func TestSqliteIntegration(t *testing.T) {
 	t.Run("Delete with invalid etag fails when first write is enforced", func(t *testing.T) {
 		deleteWithInvalidEtagFails(t, s)
 	})
-	t.Run("Update and Delete with invalid etag and no first write policy enforced succeeds", func(t *testing.T) {
-		updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t, s)
-	})
 
 	t.Run("Delete item with no key fails", func(t *testing.T) {
 		deleteWithNoKeyFails(t, s)
@@ -400,45 +397,6 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, s *Sqlite) {
 	}
 	err = s.Delete(deleteReq)
 	assert.Nil(t, err, "Deleting an item with the right etag while enforcing FirstWrite policy should succeed")
-
-	// Item is not in the data store.
-	assert.False(t, storeItemExists(t, s, key))
-}
-
-func updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t *testing.T, s *Sqlite) {
-	// Create and retrieve new item.
-	key := randomKey()
-	value := &fakeItem{Color: "hazel"}
-	setItem(t, s, key, value, nil)
-	getResponse, _ := getItem(t, s, key)
-	assert.NotNil(t, getResponse.ETag)
-
-	// Change the value and compare.
-	value.Color = "purple"
-	someInvalidEtag := "1234581736145"
-	setReq := &state.SetRequest{
-		Key:   key,
-		ETag:  &someInvalidEtag,
-		Value: value,
-		Options: state.SetStateOption{
-			Concurrency: state.LastWrite,
-		},
-	}
-	err := s.Set(setReq)
-	assert.Nil(t, err, "Setting the item should be successful")
-	_, updatedItem := getItem(t, s, key)
-	assert.Equal(t, value, updatedItem)
-
-	// Delete.
-	deleteReq := &state.DeleteRequest{
-		Key:  key,
-		ETag: &someInvalidEtag,
-		Options: state.DeleteStateOption{
-			Concurrency: state.LastWrite,
-		},
-	}
-	err = s.Delete(deleteReq)
-	assert.Nil(t, err, "Deleting an item with the wrong etag but not enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
 	assert.False(t, storeItemExists(t, s, key))

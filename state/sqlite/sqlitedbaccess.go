@@ -171,7 +171,7 @@ func (a *sqliteDBAccess) Delete(req *state.DeleteRequest) error {
 	return tx.Commit()
 }
 
-func (a *sqliteDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (a *sqliteDBAccess) ExecuteMulti(reqs []state.TransactionalStateOperation) error {
 	a.logger.Debug("Executing multiple SQLite operations, within a single transaction")
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
@@ -181,24 +181,29 @@ func (a *sqliteDBAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.D
 		return err
 	}
 
-	if len(deletes) > 0 {
-		for _, d := range deletes {
-			da := d // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = a.deleteValue(tx, &da)
-			if err != nil {
-				tx.Rollback()
-				return err
+	for _, req := range reqs {
+		switch req.Operation {
+		case state.Upsert:
+			if setReq, ok := req.Request.(state.SetRequest); ok {
+				err = a.setValue(tx, &setReq)
+				if err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				return fmt.Errorf("expecting set request")
 			}
-		}
-	}
-	if len(sets) > 0 {
-		for _, s := range sets {
-			sa := s // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = a.setValue(tx, &sa)
-			if err != nil {
-				tx.Rollback()
-				return err
+		case state.Delete:
+			if delReq, ok := req.Request.(state.DeleteRequest); ok {
+				err = a.deleteValue(tx, &delReq)
+				if err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				return fmt.Errorf("expecting delete request")
 			}
+		default:
 		}
 	}
 	return tx.Commit()
@@ -285,7 +290,7 @@ func (a *sqliteDBAccess) deleteValue(tx *sql.Tx, req *state.DeleteRequest) error
 		return err
 	}
 
-	if !hasUpdate && req.ETag != nil && *req.ETag != "" && req.Options.Concurrency == state.FirstWrite {
+	if !hasUpdate && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
 	}
 	return nil

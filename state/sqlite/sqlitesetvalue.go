@@ -16,8 +16,8 @@ import (
 
 // Parsed Set Request.
 type setRequest struct {
-	dbAccess sqliteDBAccess
-	tx       *sql.Tx
+	tx        *sql.Tx
+	tableName string
 
 	key         string
 	value       string
@@ -60,8 +60,9 @@ func prepareSetRequest(a *sqliteDBAccess, tx *sql.Tx, req *state.SetRequest) (*s
 	value := string(bt)
 
 	return &setRequest{
-		dbAccess:    *a,
-		tx:          tx,
+		tx:        tx,
+		tableName: a.tableName,
+
 		key:         req.Key,
 		value:       value,
 		concurrency: &req.Options.Concurrency,
@@ -74,7 +75,7 @@ func prepareSetRequest(a *sqliteDBAccess, tx *sql.Tx, req *state.SetRequest) (*s
 func (req *setRequest) setValue() (bool, error) {
 	newEtag := uuid.New().String()
 	tx := req.tx
-	tableName := req.dbAccess.tableName
+	tableName := req.tableName
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
 	var res sql.Result

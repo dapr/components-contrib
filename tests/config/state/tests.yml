@@ -28,3 +28,6 @@ components:
   - component: cockroachdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
+  - component: sqlite
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]

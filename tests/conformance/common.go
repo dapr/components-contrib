@@ -70,6 +70,7 @@ import (
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
+	s_sqlite "github.com/dapr/components-contrib/state/sqlite"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
@@ -425,6 +426,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_cassandra.NewCassandraStateStore(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
+	case "sqlite":
+		store = s_sqlite.NewSqliteStateStore(testLogger)
 	default:
 		return nil
 	}

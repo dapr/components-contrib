@@ -1,8 +1,6 @@
 package sqlite
 
 import (
-	"fmt"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -52,7 +50,14 @@ func (s *Sqlite) Delete(req *state.DeleteRequest) error {
 
 // BulkDelete removes multiple entries from the store.
 func (s *Sqlite) BulkDelete(req []state.DeleteRequest) error {
-	return s.dbaccess.ExecuteMulti(nil, req)
+	var ops = make([]state.TransactionalStateOperation, len(req))
+	for _, r := range req {
+		ops = append(ops, state.TransactionalStateOperation{
+			Operation: state.Delete,
+			Request:   r,
+		})
+	}
+	return s.dbaccess.ExecuteMulti(ops)
 }
 
 // Get returns an entity from store.
@@ -73,39 +78,19 @@ func (s *Sqlite) Set(req *state.SetRequest) error {
 
 // BulkSet adds/updates multiple entities on store.
 func (s *Sqlite) BulkSet(req []state.SetRequest) error {
-	return s.dbaccess.ExecuteMulti(req, nil)
+	var ops = make([]state.TransactionalStateOperation, len(req))
+	for _, r := range req {
+		ops = append(ops, state.TransactionalStateOperation{
+			Operation: state.Upsert,
+			Request:   r,
+		})
+	}
+	return s.dbaccess.ExecuteMulti(ops)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
 func (s *Sqlite) Multi(request *state.TransactionalStateRequest) error {
-	var deletes []state.DeleteRequest
-	var sets []state.SetRequest
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
-			}
-
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
-		}
-	}
-
-	if len(sets) > 0 || len(deletes) > 0 {
-		return s.dbaccess.ExecuteMulti(sets, deletes)
-	}
-
-	return nil
+	return s.dbaccess.ExecuteMulti(request.Operations)
 }
 
 // Close implements io.Closer.

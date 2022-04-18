@@ -1,0 +1,13 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.sqlite
+  metadata:
+  - name: connectionString
+    value: ':memory:'
+  - name: tableName
+    value: dapr_state
+  - name: cleanupIntervalInSeconds
+    value: 10

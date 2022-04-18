@@ -159,6 +159,7 @@ require (
 )
 
 require (
+	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 )
@@ -167,6 +168,7 @@ require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
+	github.com/appscode/go-querystring v0.0.0-20170504095604-0126cfb3f1dc // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/golang/glog v1.0.0 // indirect

@@ -204,8 +204,13 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 	bo = backoff.WithContext(bo, ctx)
 
 	return nil, retry.NotifyRecover(func() error {
-		m.logger.Debugf("mqtt publishing topic %s with data: %v", m.metadata.topic, req.Data)
-		token := m.producer.Publish(m.metadata.topic, m.metadata.qos, m.metadata.retain, req.Data)
+		topic, ok := req.Metadata[mqttTopic]
+		if !ok || topic == "" {
+			// If user does not specify a topic, publish via the component's default topic.
+			topic = m.metadata.topic
+		}
+		m.logger.Debugf("mqtt publishing topic %s with data: %v", topic, req.Data)
+		token := m.producer.Publish(topic, m.metadata.qos, m.metadata.retain, req.Data)
 		if !token.WaitTimeout(defaultWait) || token.Error() != nil {
 			return fmt.Errorf("mqtt error from publish: %v", token.Error())
 		}

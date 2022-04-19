@@ -218,7 +218,10 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 }
 
 func (m *MQTT) handleMessage(handler func(context.Context, *bindings.ReadResponse) ([]byte, error), mqttMsg mqtt.Message) error {
-	msg := bindings.ReadResponse{Data: mqttMsg.Payload()}
+	msg := bindings.ReadResponse{
+		Data:     mqttMsg.Payload(),
+		Metadata: map[string]string{mqttTopic: mqttMsg.Topic()},
+	}
 
 	// paho.mqtt.golang requires that handlers never block or it can deadlock on client.Disconnect.
 	// To ensure that the Dapr runtime does not hang on teardown on of the component, run the app's

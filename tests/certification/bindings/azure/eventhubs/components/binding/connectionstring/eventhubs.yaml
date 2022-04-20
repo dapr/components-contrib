@@ -7,8 +7,6 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
-    - name: enableEntityManagement
-      value : true
     - name: connectionString
       secretKeyRef:
         name: AzureEventHubsBindingsConnectionString

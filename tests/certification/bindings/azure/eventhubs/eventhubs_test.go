@@ -126,7 +126,7 @@ func TestEventhubBinding(t *testing.T) {
 			outputmsg[i] = fmt.Sprintf("publish messages to device: Message %03d", i)
 		}
 		consumerGroup2.ExpectStrings(outputmsg...)
-		cmd := exec.Command("/bin/bash", "../../../tests/scripts/send-iot-device-events.sh")
+		cmd := exec.Command("/bin/bash", "send-iot-device-events.sh")
 		out, err := cmd.CombinedOutput()
 		assert.Nil(t, err, "Error in send-iot-device-events.sh:\n%s", out)
 		consumerGroup2.Assert(ctx, time.Minute)
@@ -145,7 +145,7 @@ func TestEventhubBinding(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "21092", "31092", "41092")).
+		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive).
 		Run()
 
@@ -161,7 +161,7 @@ func TestEventhubBinding(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "21092", "31092", "41092")).
+		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive).
 		Run()
 

@@ -7,16 +7,10 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
-    - name: enableEntityManagement
-      value : true
     - name: connectionString
       secretKeyRef:
         name: AzureIotHubEventHubConnectionString
         key: AzureIotHubEventHubConnectionString 
-    - name: credentials
-      secretKeyRef:
-        name: AZURE_CREDENTIALS
-        key: AZURE_CREDENTIALS    
     - name: storageAccountName
       secretKeyRef:
         name: AzureBlobStorageAccount
@@ -27,8 +21,8 @@ spec:
         key: AzureBlobStorageAccessKey
     - name: storageContainerName
       secretKeyRef:
-        name: iothub-bindings-integration-test
-        key: iothub-bindings-integration-test
+        name: AzureEventHubsBindingsContainer
+        key: AzureEventHubsBindingsContainer
     - name: iotHub
       secretKeyRef:
         name: AzureIotHubName

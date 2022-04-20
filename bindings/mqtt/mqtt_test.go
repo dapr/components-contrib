@@ -14,6 +14,7 @@ limitations under the License.
 package mqtt
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 func getFakeProperties() map[string]string {
@@ -187,4 +189,74 @@ func TestParseMetadata(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, m.tlsCfg.clientKey, "failed to parse valid client certificate key")
 	})
+
+	t.Run("Response returns the topic that the subscribed data is from.", func(t *testing.T) {
+		const msg = "hello world"
+
+		payload := []byte(msg)
+		topic := "/topic/where/the/data/is/from"
+
+		logger := logger.NewLogger("test")
+		m := NewMQTT(logger)
+		m.ctx, m.cancel = context.WithCancel(context.Background())
+
+		m.handleMessage(func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
+			assert.Equal(t, payload, r.Data)
+			metadata := r.Metadata
+			responseTopic, ok := metadata[mqttTopic]
+			assert.True(t, ok)
+			assert.Equal(t, topic, responseTopic)
+			return r.Data, nil
+		}, &mqttMockMessage{
+			topic:   topic,
+			payload: payload,
+		})
+	})
+}
+
+type mqttMockMessage struct {
+	duplicate         bool
+	qos               byte
+	retained          bool
+	topic             string
+	mqttMockMessageID uint16
+	payload           []byte
+	ackCalled         bool
+	noautoack         bool
+}
+
+func (m *mqttMockMessage) Duplicate() bool {
+	return m.duplicate
+}
+
+func (m *mqttMockMessage) Qos() byte {
+	return m.qos
+}
+
+func (m *mqttMockMessage) Retained() bool {
+	return m.retained
+}
+
+func (m *mqttMockMessage) Topic() string {
+	return m.topic
+}
+
+func (m *mqttMockMessage) MessageID() uint16 {
+	return m.mqttMockMessageID
+}
+
+func (m *mqttMockMessage) Payload() []byte {
+	return m.payload
+}
+
+func (m *mqttMockMessage) Ack() {
+	m.ackCalled = true
+}
+
+func (m *mqttMockMessage) NoAutoAck() bool {
+	return m.noautoack
+}
+
+func (m *mqttMockMessage) AutoAckOff() {
+	m.noautoack = true
 }

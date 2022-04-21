@@ -50,7 +50,6 @@ require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20210411162248-d9abbec934ba
 	github.com/dghubble/go-twitter v0.0.0-20190719072343-39e5462e111f
 	github.com/dghubble/oauth1 v0.6.0
-	github.com/dgraph-io/ristretto v0.1.0
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.3.5
@@ -169,9 +168,7 @@ require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/appscode/go-querystring v0.0.0-20170504095604-0126cfb3f1dc // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
-	github.com/golang/glog v1.0.0 // indirect
 	github.com/hashicorp/go-hclog v0.14.1 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect

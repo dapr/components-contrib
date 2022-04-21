@@ -1,114 +1,185 @@
-/*
-Copyright 2021 The Dapr Authors
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
 
 package inmemory
 
 import (
 	"fmt"
-
-	"github.com/dgraph-io/ristretto"
+	"sync"
 
 	"github.com/dapr/kit/logger"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
 )
 
-// StateStore is an in-memory state store.
-// The first version is used for perf test.
-type StateStore struct {
-	state.DefaultBulkStore
-	cache *ristretto.Cache
-
-	features []state.Feature
-	logger   logger.Logger
+type inMemStateStoreItem struct {
+	data []byte
+	etag *string
 }
 
-// NewInMemoryStateStore returns a new in-memory state store.
-func NewInMemoryStateStore(logger logger.Logger) *StateStore {
-	s := &StateStore{
-		// the first version of in-memory state is used for perf test, no advanced feature provided
-		features: []state.Feature{},
-		logger:   logger,
+type inMemoryStore struct {
+	items map[string]*inMemStateStoreItem
+	lock  *sync.RWMutex
+	log   logger.Logger
+}
+
+func NewInMemoryStateStore(logger logger.Logger) state.Store {
+	return &inMemoryStore{
+		items: map[string]*inMemStateStoreItem{},
+		lock:  &sync.RWMutex{},
+		log:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
 }
 
-func (r *StateStore) Ping() error {
+func (store *inMemoryStore) newItem(data []byte, etagString *string) *inMemStateStoreItem {
+	return &inMemStateStoreItem{
+		data: data,
+		etag: etagString,
+	}
+}
+
+func (store *inMemoryStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-// Init does metadata and connection parsing.
-func (r *StateStore) Init(_ state.Metadata) error {
-	c, _ := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 1e6,     // number of keys to track frequency of (1M).
-		MaxCost:     1 << 27, // maximum cost of cache (128MB).
-		BufferItems: 64,      // number of keys per Get buffer.
-	})
-
-	r.cache = c
+func (store *inMemoryStore) Ping() error {
 	return nil
 }
 
-// Features returns the features available in this state store.
-func (r *StateStore) Features() []state.Feature {
-	return r.features
+func (store *inMemoryStore) Features() []state.Feature {
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
-// Delete performs a delete operation.
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	r.cache.Del(req.GetKey())
+func (store *inMemoryStore) Delete(req *state.DeleteRequest) error {
+	store.lock.Lock()
+	defer store.lock.Unlock()
+	delete(store.items, req.Key)
+
 	return nil
 }
 
-// Get retrieves state from redis with a key.
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	value, found := r.cache.Get(req.Key)
-
-	response := &state.GetResponse{Metadata: map[string]string{}}
-	if found && value != nil {
-		b, _ := value.([]byte)
-		response.Data = b
+func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
+	if req == nil || len(req) == 0 {
+		return nil
 	}
-	return response, nil
-}
-
-// Set saves state into memory.
-func (r *StateStore) Set(req *state.SetRequest) error {
-	b, ok := req.Value.([]byte)
-	if !ok {
-		return fmt.Errorf("in-memory store error: only support byte array")
-	}
-
-	ok = r.cache.Set(req.Key, b, int64(len(b)))
-	if !ok {
-		return fmt.Errorf("in-memory store error: fail to save to in-memory cache, key=%s", req.Key)
+	for _, dr := range req {
+		err := store.Delete(&dr)
+		if err != nil {
+			store.log.Error(err)
+			return err
+		}
 	}
 	return nil
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
-func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
-	return fmt.Errorf("in-memory store error: no support")
+func (store *inMemoryStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	store.lock.RLock()
+	defer store.lock.RUnlock()
+	item := store.items[req.Key]
+
+	if item == nil {
+		return &state.GetResponse{Data: nil, ETag: nil}, nil
+	}
+
+	return &state.GetResponse{Data: unmarshal(item.data), ETag: item.etag}, nil
 }
 
-// Query executes a query against store.
-func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
-	return nil, fmt.Errorf("in-memory store error: no support")
+func (store *inMemoryStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	res := []state.BulkGetResponse{}
+	for _, oneRequest := range req {
+		oneResponse, err := store.Get(&state.GetRequest{
+			Key:      oneRequest.Key,
+			Metadata: oneRequest.Metadata,
+			Options:  oneRequest.Options,
+		})
+		if err != nil {
+			store.log.Error(err)
+			return false, nil, err
+		}
+
+		res = append(res, state.BulkGetResponse{
+			Key:  oneRequest.Key,
+			Data: oneResponse.Data,
+			ETag: oneResponse.ETag,
+		})
+	}
+
+	return true, res, nil
 }
 
-func (r *StateStore) Close() error {
-	r.cache.Close()
+func (store *inMemoryStore) Set(req *state.SetRequest) error {
+	b, _ := marshal(req.Value)
+	store.lock.Lock()
+	defer store.lock.Unlock()
+	store.items[req.Key] = store.newItem(b, req.ETag)
+
 	return nil
+}
+
+func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
+	for _, r := range req {
+		err := store.Set(&r)
+		if err != nil {
+			store.log.Error(err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (store *inMemoryStore) Multi(request *state.TransactionalStateRequest) error {
+	store.lock.Lock()
+	defer store.lock.Unlock()
+	// First we check all eTags
+	for _, o := range request.Operations {
+		var eTag *string
+		key := ""
+		if o.Operation == state.Upsert {
+			key = o.Request.(state.SetRequest).Key
+			eTag = o.Request.(state.SetRequest).ETag
+		} else if o.Operation == state.Delete {
+			key = o.Request.(state.DeleteRequest).Key
+			eTag = o.Request.(state.DeleteRequest).ETag
+		}
+		item := store.items[key]
+		if eTag != nil && item != nil {
+			if *eTag != *item.etag {
+				return fmt.Errorf("etag does not match for key %v", key)
+			}
+		}
+		if eTag != nil && item == nil {
+			return fmt.Errorf("etag does not match for key not found %v", key)
+		}
+	}
+
+	// Now we can perform the operation.
+	for _, o := range request.Operations {
+		if o.Operation == state.Upsert {
+			req := o.Request.(state.SetRequest)
+			b, _ := marshal(req.Value)
+			store.items[req.Key] = store.newItem(b, req.ETag)
+		} else if o.Operation == state.Delete {
+			req := o.Request.(state.DeleteRequest)
+			delete(store.items, req.Key)
+		}
+	}
+
+	return nil
+}
+
+func marshal(value interface{}) ([]byte, error) {
+	v, _ := jsoniter.MarshalToString(value)
+
+	return []byte(v), nil
+}
+
+func unmarshal(val interface{}) []byte {
+	var output string
+
+	jsoniter.UnmarshalFromString(string(val.([]byte)), &output)
+
+	return []byte(output)
 }

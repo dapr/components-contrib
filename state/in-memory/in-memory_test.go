@@ -1,9 +1,15 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
 package inmemory
 
 import (
 	"testing"
-	"time"
 
+	"github.com/agrea/ptr"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/kit/logger"
@@ -11,100 +17,100 @@ import (
 	"github.com/dapr/components-contrib/state"
 )
 
-func TestNewInMemoryStateStore(t *testing.T) {
+func TestReadAndWrite(t *testing.T) {
+	ctl := gomock.NewController(t)
+
+	defer ctl.Finish()
+
 	store := NewInMemoryStateStore(logger.NewLogger("test"))
+	store.Init(state.Metadata{})
 
-	err := store.Init(state.Metadata{})
-	assert.NoError(t, err)
+	t.Run("test set 1", func(t *testing.T) {
+		setReq := &state.SetRequest{
+			Key:   "theFirstKey",
+			Value: "value of key",
+			ETag:  ptr.String("the etag"),
+		}
+		err := store.Set(setReq)
+		assert.Nil(t, err)
+	})
 
-	err = store.Ping()
-	assert.NoError(t, err)
+	t.Run("test get 1", func(t *testing.T) {
+		getReq := &state.GetRequest{
+			Key: "theFirstKey",
+		}
+		resp, err := store.Get(getReq)
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, "value of key", string(resp.Data))
+	})
 
-	assert.Equal(t, 0, len(store.Features()))
+	t.Run("test set 2", func(t *testing.T) {
+		setReq := &state.SetRequest{
+			Key:   "theSecondKey",
+			Value: "1234",
+			ETag:  ptr.String("the etag"),
+		}
+		err := store.Set(setReq)
+		assert.Nil(t, err)
+	})
 
-	err = store.Multi(nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no support")
+	t.Run("test get 2", func(t *testing.T) {
+		getReq := &state.GetRequest{
+			Key: "theSecondKey",
+		}
+		resp, err := store.Get(getReq)
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, "1234", string(resp.Data))
+	})
 
-	_, err = store.Query(nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no support")
+	t.Run("test BulkSet", func(t *testing.T) {
+		err := store.BulkSet([]state.SetRequest{{
+			Key:   "theFirstKey",
+			Value: "666",
+		}, {
+			Key:   "theSecondKey",
+			Value: "777",
+		}})
 
-	err = store.Close()
-	assert.NoError(t, err)
-}
+		assert.Nil(t, err)
+	})
 
-func TestStoreByteArray(t *testing.T) {
-	store := NewInMemoryStateStore(logger.NewLogger("test"))
-	err := store.Init(state.Metadata{})
-	assert.NoError(t, err)
+	t.Run("test BulkGet", func(t *testing.T) {
+		_, resp, err := store.BulkGet([]state.GetRequest{{
+			Key: "theFirstKey",
+		}, {
+			Key: "theSecondKey",
+		}})
 
-	key := "key-abcdefg"
-	value := []byte("value-abcdefg")
+		assert.Nil(t, err)
+		assert.Equal(t, 2, len(resp))
+		assert.Equal(t, "666", string(resp[0].Data))
+		assert.Equal(t, "777", string(resp[1].Data))
+	})
 
-	// step1: save
-	req := &state.SetRequest{
-		Key:   key,
-		Value: value,
-	}
-	err = store.Set(req)
-	assert.NoError(t, err)
-	// save is async so wait for a moment
-	time.Sleep(1 * time.Millisecond)
+	t.Run("test delete", func(t *testing.T) {
+		req := &state.DeleteRequest{
+			Key: "theFirstKey",
+		}
+		err := store.Delete(req)
+		assert.Nil(t, err)
+	})
 
-	// step2: get
-	req2 := &state.GetRequest{
-		Key: key,
-	}
-	response, err := store.Get(req2)
-	assert.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Data)
-	assert.Equal(t, value, response.Data)
+	t.Run("test BulkGet2", func(t *testing.T) {
+		_, resp, err := store.BulkGet([]state.GetRequest{{
+			Key: "theFirstKey",
+		}, {
+			Key: "theSecondKey",
+		}})
 
-	// step3: delete
-	req3 := &state.DeleteRequest{
-		Key: key,
-	}
-	err = store.Delete(req3)
-	assert.NoError(t, err)
-
-	// step4: get
-	req2 = &state.GetRequest{
-		Key: key,
-	}
-	response, err = store.Get(req2)
-	assert.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.Nil(t, response.Data)
-}
-
-func TestStoreNonByteArray(t *testing.T) {
-	store := NewInMemoryStateStore(logger.NewLogger("test"))
-	err := store.Init(state.Metadata{})
-	assert.NoError(t, err)
-
-	key := "key-abcdefg"
-	value := 1234
-
-	// step1: save with non byte[]
-	req := &state.SetRequest{
-		Key:   key,
-		Value: value,
-	}
-	err = store.Set(req)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "only support byte array")
-
-	err = store.Close()
-	assert.NoError(t, err)
-
-	// step2: save after closed
-	req = &state.SetRequest{
-		Key:   key,
-		Value: []byte{},
-	}
-	err = store.Set(req)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "fail to save to in-memory cache")
+		assert.Nil(t, err)
+		assert.Equal(t, 2, len(resp))
+		for _, r := range resp {
+			if r.Key == "theSecondKey" {
+				assert.Equal(t, "777", string(r.Data))
+			}
+		}
+	})
 }

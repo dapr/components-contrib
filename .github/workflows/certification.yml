@@ -155,6 +155,8 @@ jobs:
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
         export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+        export SOURCE_PATH="${PROJECT_PATH}/${TEST_COMPONENT}"
+        echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
       with:
@@ -212,7 +214,7 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
-          -count=1 -timeout=15m
+          -count=1 -timeout=15m -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
@@ -247,6 +249,11 @@ jobs:
         if [[ -v CERTIFICATION_FAILURE ]]; then
           exit 1
         fi
+    
+    - name: Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        flags: cert
 
     # Upload logs for test analytics to consume
     - name: Upload test results

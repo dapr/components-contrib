@@ -16,6 +16,7 @@ set -e
 # This script delete the Azure Eventhub created in the scoped Azure EventHub namespace as per the test suite.
 # Step 1 : Login to Azure with provided SPN which has `Azure Event Hubs Data Owner` role on scoped eventhub namespace.
 # Step 2 : Delete the eventhub/topic which is provided as an argument
+# Step 3 : Delete the checkpoint container used by the consumer
 # how to run : ./delete-eventhub.sh topic1
 
 
@@ -35,4 +36,8 @@ az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $
 # delete eventhub
 az eventhubs eventhub delete --resource-group $AzureResourceGroupName --namespace-name $AzureEventHubsPubsubNamespace --name $EVENTHUBNAME
 
-echo "end: delete process for eventhub: ${EVENTHUBNAME}"
+# delete checkpoint container used by the consumer
+CONTAINERNAME="certificationentitymgmttest"
+az storage container delete --account-key $AzureBlobStorageAccessKey --account-name $AzureBlobStorageAccount --name $CONTAINERNAME
+
+echo "end: delete process for eventhub: ${EVENTHUBNAME} and container ${CONTAINERNAME}"

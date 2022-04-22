@@ -24,10 +24,10 @@ var eventHubPubsubName = '${eventHubsNamespaceName}-pubsub-topic'
 var eventHubPubsubPolicyName = '${eventHubPubsubName}-policy'
 var eventHubPubsubConsumerGroupName = '${eventHubPubsubName}-cg'
 
-var certificationEventHubPubsub1Name = 'certification-pubsub-topic1'
-var certificationEventHubPubsub1PolicyName = '${certificationEventHubPubsub1Name}-policy'
+var certificationEventHubPubsubTopicActiveName = 'certification-pubsub-topic-active'
+var certificationEventHubPubsubTopicActivePolicyName = '${certificationEventHubPubsubTopicActiveName}-policy'
 
-var certificationEventHubPubsub2Name = 'certification-pubsub-topic2'
+var certificationEventHubPubsubTopicPassiveName = 'certification-pubsub-topic-passive'
 
 var certificationConsumerGroupName1 = 'ehcertification1'
 var certificationConsumerGroupName2 = 'ehcertification2'
@@ -85,13 +85,13 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
       name: eventHubPubsubConsumerGroupName
     }
   }
-  resource certificationEventHubPubsub1 'eventhubs' = {
-    name: certificationEventHubPubsub1Name
+  resource certificationEventHubPubsubTopicActive 'eventhubs' = {
+    name: certificationEventHubPubsubTopicActiveName
     properties: {
       messageRetentionInDays: 1
     }
-    resource certificationEventHubPubsub1Policy 'authorizationRules' = {
-      name: certificationEventHubPubsub1PolicyName
+    resource certificationEventHubPubsubTopicActivePolicy 'authorizationRules' = {
+      name: certificationEventHubPubsubTopicActivePolicyName
       properties: {
         rights: [
           'Send'
@@ -106,8 +106,8 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
       name: certificationConsumerGroupName2
     }
   }
-  resource certificationEventHubPubsub2 'eventhubs' = {
-    name: certificationEventHubPubsub2Name
+  resource certificationEventHubPubsubTopicPassive 'eventhubs' = {
+    name: certificationEventHubPubsubTopicPassiveName
     properties: {
       messageRetentionInDays: 1
     }
@@ -129,5 +129,5 @@ output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eve
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name
 
 output eventHubsNamespacePolicyName string = eventHubsNamespace::eventHubPubsubNamespacePolicy.name
-output certificationEventHubPubsub1Name string = eventHubsNamespace::certificationEventHubPubsub1.name
-output certificationEventHubPubsub1PolicyName string = eventHubsNamespace::certificationEventHubPubsub1::certificationEventHubPubsub1Policy.name
+output certificationEventHubPubsubTopicActiveName string = eventHubsNamespace::certificationEventHubPubsubTopicActive.name
+output certificationEventHubPubsubTopicActivePolicyName string = eventHubsNamespace::certificationEventHubPubsubTopicActive::certificationEventHubPubsubTopicActivePolicy.name

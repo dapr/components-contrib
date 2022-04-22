@@ -7,23 +7,23 @@ spec:
   type: pubsub.azure.eventhubs
   version: v1
   metadata:
-  - name: consumerID
-    value: ehcertification2
-  - name: connectionString
-    secretKeyRef:
-      name: AzureEventHubsPubsub1ConnectionString
-      key: AzureEventHubsPubsub1ConnectionString
-  - name: storageAccountName
-    secretKeyRef:
-      name: AzureBlobStorageAccount
-      key: AzureBlobStorageAccount
-  - name: storageAccountKey
-    secretKeyRef:
-      name: AzureBlobStorageAccessKey
-      key: AzureBlobStorageAccessKey
-  - name: storageContainerName
-    secretKeyRef:
-      name: AzureEventHubsPubsubContainer
-      key: AzureEventHubsPubsubContainer
+    - name: consumerID
+      value: ehcertification2
+    - name: connectionString
+      secretKeyRef:
+        name: AzureEventHubsPubsubTopicActiveConnectionString
+        key: AzureEventHubsPubsubTopicActiveConnectionString
+    - name: storageAccountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: storageAccountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: storageContainerName
+      secretKeyRef:
+        name: AzureEventHubsPubsubContainer
+        key: AzureEventHubsPubsubContainer
 auth:
   secretstore: envvar-secret-store

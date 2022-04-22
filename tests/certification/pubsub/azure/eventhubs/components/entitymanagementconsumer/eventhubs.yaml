@@ -8,19 +8,19 @@ spec:
   version: v1
   metadata:
     - name: enableEntityManagement
-      value : true
+      value: true
     - name: eventHubNamespace
       secretKeyRef:
         name: AzureEventHubsPubsubNamespace
-        key: AzureEventHubsPubsubNamespace    
+        key: AzureEventHubsPubsubNamespace
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId
-        key: AzureCertificationTenantId    
+        key: AzureCertificationTenantId
     - name: azureClientId
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientId
-        key: AzureCertificationServicePrincipalClientId   
+        key: AzureCertificationServicePrincipalClientId
     - name: azureClientSecret
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientSecret
@@ -42,8 +42,6 @@ spec:
         name: AzureBlobStorageAccessKey
         key: AzureBlobStorageAccessKey
     - name: storageContainerName
-      secretKeyRef:
-        name: AzureEventHubsPubsubContainer
-        key: AzureEventHubsPubsubContainer
+      value: certificationentitymgmttest
 auth:
   secretstore: envvar-secret-store

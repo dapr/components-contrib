@@ -8,7 +8,7 @@ spec:
   version: v1
   metadata:
     - name: consumerID
-      value: ehiotcertification
+      value: pubsub-eh-certification-cg
     - name: connectionString
       secretKeyRef:
         name: AzureIotHubEventHubConnectionString

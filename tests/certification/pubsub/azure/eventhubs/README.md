@@ -64,11 +64,11 @@ This project aims to test the Azure Event Hubs pubsub component under various co
    - Test: Confirms that all expected system properties are set
 ### Authentication Tests 
   - Test connection string based authentication mechanism
-    - Connection string scoped at namespace
-    - Connection string scoped at specific eventhub
   - Test AAD Service Principal based authentication
     - Utilize a service principal with appropriate roles granted
-### Network Tests
+  - Test MSI based authentication : [TODO]
+    - Utilize Managed Identity
+### Network Tests?
   - Simulate network interruptions [TODO : network interruptions during publish]
     - Test: Simulate network interruptions 
     - Component: Begins to reconnect and resubscribe

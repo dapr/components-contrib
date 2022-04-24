@@ -310,12 +310,12 @@ echo "INFO: EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME=${EVENT_HUBS_PUBSUB_CONSUMER_G
 
 #begin : certifications pubsub.azure.eventhubs
 
-EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME=="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubsNamespacePolicyName.value" --output tsv)"
+EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubsNamespacePolicyName.value" --output tsv)"
 echo "INFO: EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME=${EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME}"
 
 CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicActiveName.value" --output tsv)"
 echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME}"
-CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME=="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicActivePolicyName.value" --output tsv)"
+CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicActivePolicyName.value" --output tsv)"
 echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME}"
 #end
 

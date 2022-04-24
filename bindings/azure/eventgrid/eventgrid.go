@@ -74,7 +74,7 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureEventGrid) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (a *AzureEventGrid) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 			case "POST":
 				bodyBytes := ctx.PostBody()
 
-				_, err = handler(&bindings.ReadResponse{
+				_, err = handler(context.TODO(), &bindings.ReadResponse{
 					Data: bodyBytes,
 				})
 				if err != nil {
@@ -123,7 +123,7 @@ func (a *AzureEventGrid) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AzureEventGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	err := a.ensureOutputBindingMetadata()
 	if err != nil {
 		a.logger.Error(err.Error())

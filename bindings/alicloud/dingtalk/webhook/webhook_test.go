@@ -14,6 +14,7 @@ limitations under the License.
 package webhook
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -59,7 +60,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
-	_, err = d.Invoke(req)
+	_, err = d.Invoke(context.TODO(), req)
 	require.NoError(t, err)
 }
 
@@ -82,7 +83,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	var count int32
 	ch := make(chan bool, 1)
 
-	handler := func(in *bindings.ReadResponse) ([]byte, error) {
+	handler := func(ctx context.Context, in *bindings.ReadResponse) ([]byte, error) {
 		assert.Equal(t, msg, string(in.Data))
 		atomic.AddInt32(&count, 1)
 		ch <- true
@@ -94,7 +95,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation, Metadata: map[string]string{}}
-	_, err = d.Invoke(req)
+	_, err = d.Invoke(context.TODO(), req)
 	require.NoError(t, err)
 
 	select {

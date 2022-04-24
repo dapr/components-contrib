@@ -14,7 +14,6 @@ limitations under the License.
 package lock
 
 type Store interface {
-
 	// Init this component.
 	InitLockStore(metadata Metadata) error
 

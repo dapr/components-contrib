@@ -14,6 +14,7 @@ limitations under the License.
 package smtp
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -77,7 +78,7 @@ func (s *Mailer) Operations() []bindings.OperationKind {
 }
 
 // Invoke sends an email message.
-func (s *Mailer) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *Mailer) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// Merge config metadata with request metadata
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {

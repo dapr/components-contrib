@@ -38,13 +38,13 @@ const (
 )
 
 type consumer struct {
-	callback func(*bindings.ReadResponse) ([]byte, error)
+	callback func(context.Context, *bindings.ReadResponse) ([]byte, error)
 }
 
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
 	Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error
-	Write(data []byte, ttl *time.Duration) error
+	Write(ctx context.Context, data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 }
 
@@ -82,8 +82,7 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 	return nil
 }
 
-func (d *AzureQueueHelper) Write(data []byte, ttl *time.Duration) error {
-	ctx := context.TODO()
+func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
 	messagesURL := d.queueURL.NewMessagesURL()
 
 	s, err := strconv.Unquote(string(data))
@@ -126,7 +125,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		data = []byte(mt)
 	}
 
-	_, err = consumer.callback(&bindings.ReadResponse{
+	_, err = consumer.callback(ctx, &bindings.ReadResponse{
 		Data:     data,
 		Metadata: map[string]string{},
 	})
@@ -220,7 +219,7 @@ func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	ttlToUse := a.metadata.ttl
 	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
@@ -231,7 +230,7 @@ func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.Invo
 		ttlToUse = &ttl
 	}
 
-	err = a.helper.Write(req.Data, ttlToUse)
+	err = a.helper.Write(ctx, req.Data, ttlToUse)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +238,7 @@ func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.Invo
 	return nil, nil
 }
 
-func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureStorageQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	c := consumer{
 		callback: handler,
 	}

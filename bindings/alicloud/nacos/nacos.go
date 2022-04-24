@@ -14,6 +14,7 @@ limitations under the License.
 package nacos
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -52,7 +53,7 @@ type Nacos struct {
 	servers      []constant.ServerConfig
 	logger       logger.Logger
 	configClient config_client.IConfigClient
-	readHandler  func(response *bindings.ReadResponse) ([]byte, error)
+	readHandler  func(ctx context.Context, response *bindings.ReadResponse) ([]byte, error)
 }
 
 // NewNacos returns a new Nacos instance.
@@ -139,7 +140,7 @@ func (n *Nacos) createConfigClient() error {
 }
 
 // Read implements InputBinding's Read method.
-func (n *Nacos) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (n *Nacos) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	n.readHandler = handler
 
 	for _, watch := range n.watches {
@@ -157,7 +158,7 @@ func (n *Nacos) Close() error {
 }
 
 // Invoke implements OutputBinding's Invoke method.
-func (n *Nacos) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (n *Nacos) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return n.publish(req)
@@ -308,7 +309,7 @@ func (n *Nacos) notifyApp(group, dataID, content string) {
 	var err error
 	if n.readHandler != nil {
 		n.logger.Debugf("binding-nacos read content to app")
-		_, err = n.readHandler(&bindings.ReadResponse{Data: []byte(content), Metadata: metadata})
+		_, err = n.readHandler(context.TODO(), &bindings.ReadResponse{Data: []byte(content), Metadata: metadata})
 	} else {
 		err = errors.New("nacos error: the InputBinding.Read handler not init")
 	}

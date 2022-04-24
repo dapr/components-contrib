@@ -15,6 +15,7 @@ package apns
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -203,7 +204,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("operation must be create", func(t *testing.T) {
 		testBinding := makeTestBinding(t, testLogger)
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
-		_, err := testBinding.Invoke(req)
+		_, err := testBinding.Invoke(context.TODO(), req)
 		assert.Error(t, err, "operation not supported: delete")
 	})
 
@@ -213,7 +214,7 @@ func TestInvoke(t *testing.T) {
 			Operation: bindings.CreateOperation,
 			Metadata:  map[string]string{},
 		}
-		_, err := testBinding.Invoke(req)
+		_, err := testBinding.Invoke(context.TODO(), req)
 		assert.Error(t, err, "the device-token parameter is required")
 	})
 
@@ -224,7 +225,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the push type header is sent", func(t *testing.T) {
@@ -235,7 +236,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the message ID is sent", func(t *testing.T) {
@@ -246,7 +247,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the expiration is sent", func(t *testing.T) {
@@ -257,7 +258,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the priority is sent", func(t *testing.T) {
@@ -268,7 +269,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the topic is sent", func(t *testing.T) {
@@ -279,7 +280,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the collapse ID is sent", func(t *testing.T) {
@@ -290,7 +291,7 @@ func TestInvoke(t *testing.T) {
 
 			return successResponse()
 		})
-		_, _ = testBinding.Invoke(successRequest)
+		_, _ = testBinding.Invoke(context.TODO(), successRequest)
 	})
 
 	t.Run("the message ID is returned", func(t *testing.T) {
@@ -298,7 +299,7 @@ func TestInvoke(t *testing.T) {
 		testBinding.client = newTestClient(func(req *http.Request) *http.Response {
 			return successResponse()
 		})
-		response, err := testBinding.Invoke(successRequest)
+		response, err := testBinding.Invoke(context.TODO(), successRequest)
 		assert.Nil(t, err)
 		assert.NotNil(t, response.Data)
 		var body notificationResponse
@@ -318,7 +319,7 @@ func TestInvoke(t *testing.T) {
 				Body:       ioutil.NopCloser(strings.NewReader(body)),
 			}
 		})
-		_, err := testBinding.Invoke(successRequest)
+		_, err := testBinding.Invoke(context.TODO(), successRequest)
 		assert.Error(t, err, "BadDeviceToken")
 	})
 }

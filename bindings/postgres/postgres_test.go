@@ -14,6 +14,7 @@ limitations under the License.
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -71,22 +72,22 @@ func TestPostgresIntegration(t *testing.T) {
 		Operation: execOperation,
 		Metadata:  map[string]string{commandSQLKey: testTableDDL},
 	}
-
+	ctx := context.TODO()
 	t.Run("Invoke create table", func(t *testing.T) {
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
 		req.Metadata[commandSQLKey] = testDelete
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke insert", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
-			res, err := b.Invoke(req)
+			res, err := b.Invoke(ctx, req)
 			assertResponse(t, res, err)
 		}
 	})
@@ -94,7 +95,7 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("Invoke update", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
-			res, err := b.Invoke(req)
+			res, err := b.Invoke(ctx, req)
 			assertResponse(t, res, err)
 		}
 	})
@@ -102,7 +103,7 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("Invoke select", func(t *testing.T) {
 		req.Operation = queryOperation
 		req.Metadata[commandSQLKey] = testSelect
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
 	})
 
@@ -110,7 +111,7 @@ func TestPostgresIntegration(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = testDelete
 		req.Data = nil
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(ctx, req)
 		assertResponse(t, res, err)
 	})
 
@@ -118,7 +119,7 @@ func TestPostgresIntegration(t *testing.T) {
 		req.Operation = closeOperation
 		req.Metadata = nil
 		req.Data = nil
-		_, err := b.Invoke(req)
+		_, err := b.Invoke(ctx, req)
 		assert.NoError(t, err)
 	})
 

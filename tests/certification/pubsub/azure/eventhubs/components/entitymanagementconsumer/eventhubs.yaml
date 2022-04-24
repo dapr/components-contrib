@@ -1,0 +1,47 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+  namespace: default
+spec:
+  type: pubsub.azure.eventhubs
+  version: v1
+  metadata:
+    - name: enableEntityManagement
+      value: true
+    - name: eventHubNamespace
+      secretKeyRef:
+        name: AzureEventHubsPubsubNamespace
+        key: AzureEventHubsPubsubNamespace
+    - name: azureTenantId
+      secretKeyRef:
+        name: AzureCertificationTenantId
+        key: AzureCertificationTenantId
+    - name: azureClientId
+      secretKeyRef:
+        name: AzureCertificationServicePrincipalClientId
+        key: AzureCertificationServicePrincipalClientId
+    - name: azureClientSecret
+      secretKeyRef:
+        name: AzureCertificationServicePrincipalClientSecret
+        key: AzureCertificationServicePrincipalClientSecret
+    - name: resourceGroupName
+      secretKeyRef:
+        name: AzureResourceGroupName
+        key: AzureResourceGroupName
+    - name: subscriptionID
+      secretKeyRef:
+        name: AzureCertificationSubscriptionId
+        key: AzureCertificationSubscriptionId
+    - name: storageAccountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: storageAccountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: storageContainerName
+      value: certificationentitymgmttest
+auth:
+  secretstore: envvar-secret-store

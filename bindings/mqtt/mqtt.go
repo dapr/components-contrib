@@ -193,7 +193,7 @@ func (m *MQTT) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// MQTT client Publish() has an internal race condition in the default autoreconnect config.
 	// To mitigate sporadic failures on the Dapr side, this implementation retries 3 times at
 	// a fixed 200ms interval. This is not configurable to keep this as an implementation detail
@@ -201,7 +201,7 @@ func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, er
 	// by the more general Dapr APIs for resiliency moving forwards.
 	cbo := backoff.NewConstantBackOff(200 * time.Millisecond)
 	bo := backoff.WithMaxRetries(cbo, 3)
-	bo = backoff.WithContext(bo, m.ctx)
+	bo = backoff.WithContext(bo, ctx)
 
 	return nil, retry.NotifyRecover(func() error {
 		m.logger.Debugf("mqtt publishing topic %s with data: %v", m.metadata.topic, req.Data)
@@ -217,7 +217,7 @@ func (m *MQTT) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, er
 	})
 }
 
-func (m *MQTT) handleMessage(handler func(*bindings.ReadResponse) ([]byte, error), mqttMsg mqtt.Message) error {
+func (m *MQTT) handleMessage(handler func(context.Context, *bindings.ReadResponse) ([]byte, error), mqttMsg mqtt.Message) error {
 	msg := bindings.ReadResponse{Data: mqttMsg.Payload()}
 
 	// paho.mqtt.golang requires that handlers never block or it can deadlock on client.Disconnect.
@@ -226,7 +226,7 @@ func (m *MQTT) handleMessage(handler func(*bindings.ReadResponse) ([]byte, error
 	ch := make(chan error)
 	go func(m *bindings.ReadResponse) {
 		defer close(ch)
-		_, err := handler(m)
+		_, err := handler(context.TODO(), m)
 		ch <- err
 	}(&msg)
 
@@ -243,7 +243,7 @@ func (m *MQTT) handleMessage(handler func(*bindings.ReadResponse) ([]byte, error
 	}
 }
 
-func (m *MQTT) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (m *MQTT) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
 

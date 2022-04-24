@@ -89,10 +89,10 @@ func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	return b, err
 }
 
-func (g *GCPPubSub) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (g *GCPPubSub) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	sub := g.client.Subscription(g.metadata.Subscription)
 	err := sub.Receive(context.Background(), func(ctx context.Context, m *pubsub.Message) {
-		_, err := handler(&bindings.ReadResponse{
+		_, err := handler(ctx, &bindings.ReadResponse{
 			Data:     m.Data,
 			Metadata: map[string]string{id: m.ID, publishTime: m.PublishTime.String()},
 		})
@@ -108,14 +108,13 @@ func (g *GCPPubSub) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (g *GCPPubSub) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPPubSub) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	topicName := g.metadata.Topic
 	if val, ok := req.Metadata[topic]; ok && val != "" {
 		topicName = val
 	}
 
 	t := g.client.Topic(topicName)
-	ctx := context.Background()
 	_, err := t.Publish(ctx, &pubsub.Message{
 		Data: req.Data,
 	}).Get(ctx)

@@ -170,7 +170,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Read test running ...")
 			go func() {
 				testLogger.Info("Read callback invoked ...")
-				err := inputBinding.Read(func(r *bindings.ReadResponse) ([]byte, error) {
+				err := inputBinding.Read(func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
 					inputBindingCall++
 					readChan <- inputBindingCall
 
@@ -195,7 +195,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Create test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.CreateOperation
-			_, err := outputBinding.Invoke(&req)
+			_, err := outputBinding.Invoke(context.TODO(), &req)
 			assert.NoError(t, err, "expected no error invoking output binding")
 			createPerformed = true
 			testLogger.Info("Create test done.")
@@ -208,7 +208,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Get test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
-			resp, err := outputBinding.Invoke(&req)
+			resp, err := outputBinding.Invoke(context.TODO(), &req)
 			assert.Nil(t, err, "expected no error invoking output binding")
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
@@ -223,7 +223,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("List test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.ListOperation
-			_, err := outputBinding.Invoke(&req)
+			_, err := outputBinding.Invoke(context.TODO(), &req)
 			assert.NoError(t, err, "expected no error invoking output binding")
 			testLogger.Info("List test done.")
 		})
@@ -251,12 +251,12 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			testLogger.Info("Delete test running ...")
 			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
-			_, err := outputBinding.Invoke(&req)
+			_, err := outputBinding.Invoke(context.TODO(), &req)
 			assert.Nil(t, err, "expected no error invoking output binding")
 
 			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
 				req.Operation = bindings.GetOperation
-				resp, err := outputBinding.Invoke(&req)
+				resp, err := outputBinding.Invoke(context.TODO(), &req)
 				assert.NoError(t, err, "expected no error invoking output binding")
 				assert.NotNil(t, resp)
 				assert.Nil(t, resp.Data)

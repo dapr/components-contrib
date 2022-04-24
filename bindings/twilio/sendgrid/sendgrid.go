@@ -14,6 +14,7 @@ limitations under the License.
 package sendgrid
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,7 +98,7 @@ func (sg *SendGrid) Operations() []bindings.OperationKind {
 }
 
 // Write does the work of sending message to SendGrid API.
-func (sg *SendGrid) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present
 

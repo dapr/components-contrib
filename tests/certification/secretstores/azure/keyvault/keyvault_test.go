@@ -198,6 +198,6 @@ func TestKeyVault(t *testing.T) {
 
 	flow.New(t, "keyvault authentication using managed identity").
 		Step("Test secret access using managed identity authentication", managedIdentityTest)
-		// temporarily disable the managed identity test until we decide whether to remove this test or find a different way to spin up the required environment.
-                // Run().
+	// temporarily disable the managed identity test until we decide whether to remove this test or find a different way to spin up the required environment.
+	// Run().
 }

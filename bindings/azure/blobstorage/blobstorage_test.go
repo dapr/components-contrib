@@ -14,6 +14,7 @@ limitations under the License.
 package blobstorage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
@@ -77,7 +78,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.get(&r)
+		_, err := blobStorage.get(context.TODO(), &r)
 		if assert.Error(t, err) {
 			assert.Equal(t, ErrMissingBlobName, err)
 		}
@@ -89,7 +90,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.delete(&r)
+		_, err := blobStorage.delete(context.TODO(), &r)
 		if assert.Error(t, err) {
 			assert.Equal(t, ErrMissingBlobName, err)
 		}
@@ -101,7 +102,7 @@ func TestDeleteOption(t *testing.T) {
 			"blobName":        "foo",
 			"deleteSnapshots": "invalid",
 		}
-		_, err := blobStorage.delete(&r)
+		_, err := blobStorage.delete(context.TODO(), &r)
 		assert.Error(t, err)
 	})
 }

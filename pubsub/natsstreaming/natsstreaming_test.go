@@ -134,7 +134,6 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 	}
 
 	tests := []test{
-
 		{
 			"using startWithLastReceived",
 			map[string]string{

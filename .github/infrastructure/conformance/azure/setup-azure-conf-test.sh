@@ -681,7 +681,7 @@ az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resour
 # Storage
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
 # Event Hubs
-az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/${EVENT_HUBS_NAMESPACE}/eventhubs/*"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/${EVENT_HUBS_NAMESPACE}"
 # IOT hub used in eventhubs certification test
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "IoT Hub Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"

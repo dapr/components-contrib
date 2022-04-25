@@ -10,7 +10,7 @@ This project aims to test the Azure Event Hubs pubsub component under various co
     - Start an app with 1 publisher and 1 subscriber
     - The publisher publishes to 2 topics 
     - The subscriber is subscribed to 1 topic
-    - Test: Sends 100+ unique messages
+    - Test: Sends 10+ unique messages
     - App: Simulates periodic errors
     - Component: Retries on error
     - App: Observes successful messages
@@ -20,7 +20,7 @@ This project aims to test the Azure Event Hubs pubsub component under various co
     - Start an app with 1 publisher and 2 subscribers
     - The publisher publishes to 1 topic with 2 partitions (EventHub scalable consumer pattern)
     - The subscriber is subscribed to 1 topic
-    - Test: Sends 100+ unique messages
+    - Test: Sends 10+ unique messages
     - App: Simulates periodic errors
     - Component: Retries on error
     - App: Observes successful messages
@@ -30,7 +30,7 @@ This project aims to test the Azure Event Hubs pubsub component under various co
     - Start an app with 1 publisher and 2 subscribers
     - The publisher publishes to 1 topic with 2 partitions (EventHub scalable consumer pattern)
     - The subscriber is subscribed to 1 topic
-    - Test: Sends 100+ unique messages
+    - Test: Sends 10+ unique messages
     - App: Simulates periodic errors
     - Component: Retries on error
     - App: Observes successful messages
@@ -40,7 +40,7 @@ This project aims to test the Azure Event Hubs pubsub component under various co
     - Start an app with 2 publishers and 2 subscribers
     - The publisher publishes to 1 topic with 2 partitions (EventHub scalable consumer pattern)
     - The subscriber is subscribed to 1 topic
-    - Test: Sends 100+ unique messages from each publisher
+    - Test: Sends 10+ unique messages from each publisher
     - App: Simulates periodic errors
     - Component: Retries on error
     - App: Observes successful messages
@@ -49,14 +49,14 @@ This project aims to test the Azure Event Hubs pubsub component under various co
  - Test entity management
    - Start a publisher and subscriber with a topic that does not exist
    - Test: Confirm creation of topic/eventHub in given eventHub namespace
-   - Test: Send 100+ unique messasges to the newly created eventHub topic
+   - Test: Send 10+ unique messasges to the newly created eventHub topic
    - App: Observe successful messages
    - Test: Confirm that subscriber receives all messages
- - Test IOT Event Hub : [TODO]
+ - Test IOT Event Hub
    - Start an app with 1 publisher and 1 subscriber
    - The publisher publishes to 1 IOT EventHub with 1 partition 
    - The subscriber is subscribed to 1 topic
-   - Test: Sends 100+ unique messages
+   - Test: Sends 10+ unique messages
    - App: Simulates periodic errors
    - Component: Retries on error
    - App: Observes successful messages
@@ -66,9 +66,7 @@ This project aims to test the Azure Event Hubs pubsub component under various co
   - Test connection string based authentication mechanism
   - Test AAD Service Principal based authentication
     - Utilize a service principal with appropriate roles granted
-  - Test MSI based authentication : [TODO]
-    - Utilize Managed Identity
-### Network Tests?
+### Network Tests
   - Simulate network interruptions [TODO : network interruptions during publish]
     - Test: Simulate network interruptions 
     - Component: Begins to reconnect and resubscribe

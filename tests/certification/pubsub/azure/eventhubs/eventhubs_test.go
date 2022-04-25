@@ -62,7 +62,7 @@ const (
 	appID4 = "app-4"
 	appID5 = "app-5"
 
-	numMessages      = 100
+	numMessages      = 10
 	appPort          = 8000
 	portOffset       = 2
 	messageKey       = "partitionKey"

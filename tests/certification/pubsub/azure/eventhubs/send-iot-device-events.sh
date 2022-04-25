@@ -24,6 +24,11 @@ fi
 # `IoT Hub Data Contributor` scoped at this resource
 # `Owner` scoped at this resource
 
+# Install azure-iot extension without prompt 
+# https://docs.microsoft.com/en-us/cli/azure/azure-cli-extensions-overview
+# https://github.com/Azure/azure-iot-cli-extension
+az config set extension.use_dynamic_install=yes_without_prompt
+
 # login to azure
 az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId
 

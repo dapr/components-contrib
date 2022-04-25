@@ -37,7 +37,12 @@ type Query struct {
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	// { <key>: <val> }
-	return fmt.Sprintf("{ %q: %q }", f.Key, f.Val), nil
+	switch v := f.Val.(type) {
+	case string:
+		return fmt.Sprintf(`{ "value.%s": %q }`, f.Key, v), nil
+	default:
+		return fmt.Sprintf(`{ "value.%s": %v }`, f.Key, v), nil
+	}
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
@@ -45,9 +50,18 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 	if len(f.Vals) == 0 {
 		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
 	}
-	str := fmt.Sprintf(`{ %q: { "$in": [ %q`, f.Key, f.Vals[0])
-	for _, v := range f.Vals[1:] {
-		str += fmt.Sprintf(", %q", v)
+	str := fmt.Sprintf(`{ "value.%s": { "$in": [ `, f.Key)
+
+	for i := 0; i < len(f.Vals); i++ {
+		if i > 0 {
+			str += ", "
+		}
+		switch v := f.Vals[i].(type) {
+		case string:
+			str += fmt.Sprintf("%q", v)
+		default:
+			str += fmt.Sprintf("%v", v)
+		}
 	}
 	str += " ] } }"
 
@@ -117,7 +131,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 			if s.Order == query.DESC {
 				order = -1
 			}
-			sort = append(sort, bson.E{Key: s.Key, Value: order})
+			sort = append(sort, bson.E{Key: "value." + s.Key, Value: order})
 		}
 		q.opts.SetSort(sort)
 	}
@@ -157,7 +171,14 @@ func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]st
 		case string:
 			result.Data = []byte(obj)
 		case primitive.D:
-			if result.Data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+			// Setting canonical to `false`.
+			// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
+			// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
+			// interoperability is preserved
+			// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
+			// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
+			// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
+			if result.Data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
 				result.Error = err.Error()
 			}
 		default:

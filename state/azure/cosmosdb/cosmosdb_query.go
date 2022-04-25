@@ -40,7 +40,7 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	}
 	name := q.setNextParameter(val)
 
-	return fmt.Sprintf("%s = %s", replaceKeywords("c."+f.Key), name), nil
+	return fmt.Sprintf("%s = %s", replaceKeywords("c.value."+f.Key), name), nil
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
@@ -57,7 +57,7 @@ func (q *Query) VisitIN(f *query.IN) (string, error) {
 		names[i] = q.setNextParameter(val)
 	}
 
-	return fmt.Sprintf("%s IN (%s)", replaceKeywords("c."+f.Key), strings.Join(names, ", ")), nil
+	return fmt.Sprintf("%s IN (%s)", replaceKeywords("c.value."+f.Key), strings.Join(names, ", ")), nil
 }
 
 func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) {
@@ -115,9 +115,9 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 		order := make([]string, sz)
 		for i, item := range qq.Sort {
 			if item.Order == query.DESC {
-				order[i] = fmt.Sprintf("%s DESC", replaceKeywords("c."+item.Key))
+				order[i] = fmt.Sprintf("%s DESC", replaceKeywords("c.value."+item.Key))
 			} else {
-				order[i] = fmt.Sprintf("%s ASC", replaceKeywords("c."+item.Key))
+				order[i] = fmt.Sprintf("%s ASC", replaceKeywords("c.value."+item.Key))
 			}
 		}
 		orderBy = fmt.Sprintf(" ORDER BY %s", strings.Join(order, ", "))
@@ -136,7 +136,7 @@ func (q *Query) setNextParameter(val string) string {
 	return pname
 }
 
-func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Collection) ([]state.QueryItem, string, error) {
+func (q *Query) execute(client *documentdb.DocumentDB, collection string) ([]state.QueryItem, string, error) {
 	opts := []documentdb.CallOption{documentdb.CrossPartition()}
 	if q.limit != 0 {
 		opts = append(opts, documentdb.Limit(q.limit))
@@ -145,7 +145,7 @@ func (q *Query) execute(client *documentdb.DocumentDB, collection *documentdb.Co
 		opts = append(opts, documentdb.Continuation(q.token))
 	}
 	items := []CosmosItem{}
-	resp, err := client.QueryDocuments(collection.Self, &q.query, &items, opts...)
+	resp, err := client.QueryDocuments(collection, &q.query, &items, opts...)
 	if err != nil {
 		return nil, "", err
 	}

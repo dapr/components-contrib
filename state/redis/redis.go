@@ -15,35 +15,77 @@ package redis
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/agrea/ptr"
 	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/contenttype"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	daprmetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	setQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if type(var1) == \"table\" then redis.call(\"DEL\", KEYS[1]); end; local var2 = redis.pcall(\"HGET\", KEYS[1], \"first-write\"); if not var1 or type(var1)==\"table\" or var1 == \"\" or var1 == ARGV[1] or (not var2 and ARGV[1] == \"0\") then redis.call(\"HSET\", KEYS[1], \"data\", ARGV[2]); if ARGV[3] == \"0\" then redis.call(\"HSET\", KEYS[1], \"first-write\", 0); end; return redis.call(\"HINCRBY\", KEYS[1], \"version\", 1) else return error(\"failed to set key \" .. KEYS[1]) end"
-	delQuery                 = "local var1 = redis.pcall(\"HGET\", KEYS[1], \"version\"); if not var1 or type(var1)==\"table\" or var1 == ARGV[1] or var1 == \"\" or ARGV[1] == \"0\" then return redis.call(\"DEL\", KEYS[1]) else return error(\"failed to delete \" .. KEYS[1]) end"
+	setDefaultQuery = `
+	local etag = redis.pcall("HGET", KEYS[1], "version");
+	if type(etag) == "table" then
+	  redis.call("DEL", KEYS[1]);
+	end;
+	local fwr = redis.pcall("HGET", KEYS[1], "first-write");
+	if not etag or type(etag)=="table" or etag == "" or etag == ARGV[1] or (not fwr and ARGV[1] == "0") then
+	  redis.call("HSET", KEYS[1], "data", ARGV[2]);
+	  if ARGV[3] == "0" then
+	    redis.call("HSET", KEYS[1], "first-write", 0);
+	  end;
+	  return redis.call("HINCRBY", KEYS[1], "version", 1)
+	else
+	  return error("failed to set key " .. KEYS[1])
+	end`
+	delDefaultQuery = `
+	local etag = redis.pcall("HGET", KEYS[1], "version");
+	if not etag or type(etag)=="table" or etag == ARGV[1] or etag == "" or ARGV[1] == "0" then
+	  return redis.call("DEL", KEYS[1])
+	else
+	  return error("failed to delete " .. KEYS[1])
+	end`
+	setJSONQuery = `
+	local etag = redis.pcall("JSON.GET", KEYS[1], ".version");
+	if type(etag) == "table" then
+	  redis.call("JSON.DEL", KEYS[1]);
+	end;
+	if not etag or type(etag)=="table" or etag == "" then
+	  etag = ARGV[1];
+	end;
+	local fwr = redis.pcall("JSON.GET", KEYS[1], ".first-write");
+	if etag == ARGV[1] or ((not fwr or type(fwr) == "table") and ARGV[1] == "0") then
+	  redis.call("JSON.SET", KEYS[1], "$", ARGV[2]);
+	  if ARGV[3] == "0" then
+	    redis.call("JSON.SET", KEYS[1], ".first-write", 0);
+	  end;
+	  return redis.call("JSON.SET", KEYS[1], ".version", (etag+1))
+	else
+	  return error("failed to set key " .. KEYS[1])
+	end`
+	delJSONQuery = `
+	local etag = redis.pcall("JSON.GET", KEYS[1], ".version");
+	if not etag or type(etag)=="table" or etag == ARGV[1] or etag == "" or ARGV[1] == "0" then
+	  return redis.call("JSON.DEL", KEYS[1])
+	else
+	  return error("failed to delete " .. KEYS[1])
+	end`
 	connectedSlavesReplicas  = "connected_slaves:"
 	infoReplicationDelimiter = "\r\n"
-	maxRetries               = "maxRetries"
-	maxRetryBackoff          = "maxRetryBackoff"
 	ttlInSeconds             = "ttlInSeconds"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
-	defaultMaxRetries        = 3
-	defaultMaxRetryBackoff   = time.Second * 2
 )
 
 // StateStore is a Redis state store.
@@ -52,8 +94,9 @@ type StateStore struct {
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
 	json           jsoniter.API
-	metadata       metadata
+	metadata       rediscomponent.Metadata
 	replicas       int
+	querySchemas   querySchemas
 
 	features []state.Feature
 	logger   logger.Logger
@@ -74,41 +117,6 @@ func NewRedisStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-func parseRedisMetadata(meta state.Metadata) (metadata, error) {
-	m := metadata{}
-
-	m.maxRetries = defaultMaxRetries
-	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
-		}
-		m.maxRetries = int(parsedVal)
-	}
-
-	m.maxRetryBackoff = defaultMaxRetryBackoff
-	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
-		}
-		m.maxRetryBackoff = time.Duration(parsedVal)
-	}
-
-	if val, ok := meta.Properties[ttlInSeconds]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)
-		}
-		intVal := int(parsedVal)
-		m.ttlInSeconds = &intVal
-	} else {
-		m.ttlInSeconds = nil
-	}
-
-	return m, nil
-}
-
 func (r *StateStore) Ping() error {
 	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
@@ -119,27 +127,38 @@ func (r *StateStore) Ping() error {
 
 // Init does metadata and connection parsing.
 func (r *StateStore) Init(metadata state.Metadata) error {
-	m, err := parseRedisMetadata(metadata)
+	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
 		return err
 	}
 	r.metadata = m
 
-	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.maxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.maxRetryBackoff)}
+	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.MaxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.MaxRetryBackoff)}
 	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
 	if err != nil {
 		return err
 	}
 
+	// check for query schemas
+	if r.querySchemas, err = parseQuerySchemas(m.QueryIndexes); err != nil {
+		return fmt.Errorf("redis store: error parsing query index schema: %v", err)
+	}
+
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+		return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
 	}
 
-	r.replicas, err = r.getConnectedSlaves()
+	if r.replicas, err = r.getConnectedSlaves(); err != nil {
+		return err
+	}
 
-	return err
+	if err = r.registerSchemas(); err != nil {
+		return fmt.Errorf("redis store: error registering query schemas: %v", err)
+	}
+
+	return nil
 }
 
 // Features returns the features available in this state store.
@@ -181,6 +200,13 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 		etag := "0"
 		req.ETag = &etag
 	}
+
+	var delQuery string
+	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+		delQuery = delJSONQuery
+	} else {
+		delQuery = delDefaultQuery
+	}
 	_, err := r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
@@ -216,8 +242,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 	}, nil
 }
 
-// Get retrieves state from redis with a key.
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
@@ -241,6 +266,57 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
+func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) {
+	res, err := r.client.Do(r.ctx, "JSON.GET", req.Key).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return &state.GetResponse{}, nil
+	}
+
+	str, ok := res.(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid result")
+	}
+
+	var entry jsonEntry
+	if err = r.json.UnmarshalFromString(str, &entry); err != nil {
+		return nil, err
+	}
+
+	var version *string
+	if entry.Version != nil {
+		version = new(string)
+		*version = strconv.Itoa(*entry.Version)
+	}
+
+	data, err := r.json.Marshal(entry.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &state.GetResponse{
+		Data: data,
+		ETag: version,
+	}, nil
+}
+
+// Get retrieves state from redis with a key.
+func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+		return r.getJSON(req)
+	}
+
+	return r.getDefault(req)
+}
+
+type jsonEntry struct {
+	Data    interface{} `json:"data"`
+	Version *int        `json:"version,omitempty"`
+}
+
 func (r *StateStore) setValue(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -256,16 +332,25 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 	// apply global TTL
 	if ttl == nil {
-		ttl = r.metadata.ttlInSeconds
+		ttl = r.metadata.TTLInSeconds
 	}
-
-	bt, _ := utils.Marshal(req.Value, r.json.Marshal)
 
 	firstWrite := 1
 	if req.Options.Concurrency == state.FirstWrite {
 		firstWrite = 0
 	}
-	_, err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Result()
+
+	var bt []byte
+	var setQuery string
+	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+		setQuery = setJSONQuery
+		bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
+	} else {
+		setQuery = setDefaultQuery
+		bt, _ = utils.Marshal(req.Value, r.json.Marshal)
+	}
+
+	err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -305,6 +390,17 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
+	var setQuery, delQuery string
+	var isJSON bool
+	if contentType, ok := request.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+		isJSON = true
+		setQuery = setJSONQuery
+		delQuery = delJSONQuery
+	} else {
+		setQuery = setDefaultQuery
+		delQuery = delDefaultQuery
+	}
+
 	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
 		//nolint:golint,nestif
@@ -320,10 +416,14 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			}
 			// apply global TTL
 			if ttl == nil {
-				ttl = r.metadata.ttlInSeconds
+				ttl = r.metadata.TTLInSeconds
 			}
-
-			bt, _ := utils.Marshal(req.Value, r.json.Marshal)
+			var bt []byte
+			if isJSON {
+				bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
+			} else {
+				bt, _ = utils.Marshal(req.Value, r.json.Marshal)
+			}
 			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
 			if ttl != nil && *ttl > 0 {
 				pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
@@ -346,6 +446,26 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	return err
 }
 
+func (r *StateStore) registerSchemas() error {
+	for name, elem := range r.querySchemas {
+		r.logger.Infof("redis: create query index %s", name)
+		if err := r.client.Do(r.ctx, elem.schema...).Err(); err != nil {
+			if err.Error() != "Index already exists" {
+				return err
+			}
+			r.logger.Infof("redis: drop stale query index %s", name)
+			if err = r.client.Do(r.ctx, "FT.DROPINDEX", name).Err(); err != nil {
+				return err
+			}
+			if err = r.client.Do(r.ctx, elem.schema...).Err(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *string, err error) {
 	seenData := false
 	seenVersion := false
@@ -362,7 +482,7 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 		}
 	}
 	if !seenData || !seenVersion {
-		return "", nil, errors.New("required hash field 'data' or 'version' was not found")
+		return "", nil, fmt.Errorf("required hash field 'data' or 'version' was not found")
 	}
 
 	return data, version, nil
@@ -392,6 +512,33 @@ func (r *StateStore) parseTTL(req *state.SetRequest) (*int, error) {
 	}
 
 	return nil, nil
+}
+
+// Query executes a query against store.
+func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	indexName, ok := daprmetadata.TryGetQueryIndexName(req.Metadata)
+	if !ok {
+		return nil, fmt.Errorf("query index not found")
+	}
+	elem, ok := r.querySchemas[indexName]
+	if !ok {
+		return nil, fmt.Errorf("query index schema %q not found", indexName)
+	}
+
+	q := NewQuery(indexName, elem.keys)
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(r.ctx, r.client)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
 }
 
 func (r *StateStore) Close() error {

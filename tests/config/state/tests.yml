@@ -2,8 +2,7 @@
 componentType: state
 components:
   - component: redis
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
+    allOperations: true
   - component: mongodb
     allOperations: true
   - component: azure.cosmosdb
@@ -26,3 +25,6 @@ components:
   - component: cassandra
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+  - component: cockroachdb
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]

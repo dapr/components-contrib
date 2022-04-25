@@ -16,21 +16,39 @@ package influx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-
-	influxdb2 "github.com/influxdata/influxdb-client-go"
-	"github.com/influxdata/influxdb-client-go/api"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+
+	influxdb2 "github.com/influxdata/influxdb-client-go"
+	"github.com/influxdata/influxdb-client-go/api"
+	"github.com/pkg/errors"
 )
+
+const queryOperation bindings.OperationKind = "query"
+
+const (
+	rawQueryKey     = "raw"
+	respOperatorKey = "operation"
+)
+
+var (
+	ErrInvalidRequestData      = errors.New("Influx Error: Cannot convert request data")
+	ErrCannotWriteRecord       = errors.New("Influx Error: Cannot write point")
+	ErrInvalidRequestOperation = errors.Errorf("invalid operation type. Expected %s or %s", queryOperation, bindings.CreateOperation)
+	ErrMetadataMissing         = errors.New("metadata required")
+	ErrMetadataRawNotFound     = errors.Errorf("required metadata not set: %s", rawQueryKey)
+)
+
+var _ bindings.OutputBinding = &Influx{}
 
 // Influx allows writing to InfluxDB.
 type Influx struct {
 	metadata *influxMetadata
 	client   influxdb2.Client
 	writeAPI api.WriteAPIBlocking
+	queryAPI api.QueryAPI
 	logger   logger.Logger
 }
 
@@ -73,6 +91,7 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 	client := influxdb2.NewClient(i.metadata.URL, i.metadata.Token)
 	i.client = client
 	i.writeAPI = i.client.WriteAPIBlocking(i.metadata.Org, i.metadata.Bucket)
+	i.queryAPI = i.client.QueryAPI(i.metadata.Org)
 
 	return nil
 }
@@ -95,31 +114,59 @@ func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata,
 
 // Operations returns supported operations.
 func (i *Influx) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{bindings.CreateOperation, queryOperation}
 }
 
 // Invoke called on supported operations.
 func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var jsonPoint map[string]interface{}
-	err := json.Unmarshal(req.Data, &jsonPoint)
-	if err != nil {
-		return nil, errors.New("Influx Error: Cannot convert request data")
+	switch req.Operation {
+	case bindings.CreateOperation:
+		var jsonPoint map[string]interface{}
+		err := json.Unmarshal(req.Data, &jsonPoint)
+		if err != nil {
+			return nil, ErrInvalidRequestData
+		}
+
+		line := fmt.Sprintf("%s,%s %s", jsonPoint["measurement"], jsonPoint["tags"], jsonPoint["values"])
+
+		// write the point
+		err = i.writeAPI.WriteRecord(context.Background(), line)
+		if err != nil {
+			return nil, ErrCannotWriteRecord
+		}
+		return nil, nil
+	case queryOperation:
+		if req.Metadata == nil {
+			return nil, ErrMetadataMissing
+		}
+
+		s, ok := req.Metadata[rawQueryKey]
+		if !ok || s == "" {
+			return nil, ErrMetadataRawNotFound
+		}
+
+		res, err := i.queryAPI.QueryRaw(context.Background(), s, influxdb2.DefaultDialect())
+		if err != nil {
+			return nil, errors.Wrap(err, "do query influx err")
+		}
+
+		resp := &bindings.InvokeResponse{
+			Data: []byte(res),
+			Metadata: map[string]string{
+				respOperatorKey: string(req.Operation),
+				rawQueryKey:     s,
+			},
+		}
+		return resp, nil
+	default:
+		i.logger.Warnf("unsupported operation invoked")
+		return nil, ErrInvalidRequestOperation
 	}
-
-	line := fmt.Sprintf("%s,%s %s", jsonPoint["measurement"], jsonPoint["tags"], jsonPoint["values"])
-
-	// write the point
-	err = i.writeAPI.WriteRecord(context.Background(), line)
-	if err != nil {
-		return nil, errors.New("Influx Error: Cannot write point")
-	}
-
-	return nil, nil
 }
 
 func (i *Influx) Close() error {
 	i.client.Close()
 	i.writeAPI = nil
-
+	i.queryAPI = nil
 	return nil
 }

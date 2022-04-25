@@ -11,12 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package redis
-
-import "time"
-
-type metadata struct {
-	maxRetries      int
-	maxRetryBackoff time.Duration
-	ttlInSeconds    *int
+function daprSpVersion(prefix) {
+    var response = getContext().getResponse();
+    response.setBody(2);
 }

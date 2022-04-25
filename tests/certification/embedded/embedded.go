@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/dapr/pkg/grpc"
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/operator/client"
+	"github.com/dapr/dapr/pkg/resiliency"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/dapr/pkg/runtime/security"
 	"github.com/dapr/kit/logger"
@@ -112,7 +113,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		allowedOrigins, config, componentsPath, string(runtime.HTTPProtocol), string(mode),
 		daprHTTPPort, daprInternalGRPC, daprAPIGRPCPort, []string{"127.0.0.1"}, nil, appPort, profilePort,
 		enableProfiling, maxConcurrency, enableMTLS, sentryAddress, appSSL, maxRequestBodySize, "",
-		runtime.DefaultReadBufferSize, false, time.Second)
+		runtime.DefaultReadBufferSize, false, time.Second, true)
 
 	for _, opt := range opts {
 		opt(runtimeConfig)
@@ -162,7 +163,8 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 			}
 			defer conn.Close()
 			namespace = os.Getenv("NAMESPACE")
-			globalConfig, configErr = global_config.LoadKubernetesConfiguration(config, namespace, client)
+			podName := os.Getenv("POD_NAME")
+			globalConfig, configErr = global_config.LoadKubernetesConfiguration(config, namespace, podName, client)
 		case modes.StandaloneMode:
 			globalConfig, _, configErr = global_config.LoadStandaloneConfiguration(config)
 		}
@@ -185,5 +187,5 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		return nil, nil, err
 	}
 
-	return runtime.NewDaprRuntime(runtimeConfig, globalConfig, accessControlList), runtimeConfig, nil
+	return runtime.NewDaprRuntime(runtimeConfig, globalConfig, accessControlList, &resiliency.NoOp{}), runtimeConfig, nil
 }

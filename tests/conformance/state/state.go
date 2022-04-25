@@ -23,12 +23,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/contenttype"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
 
 type ValueType struct {
 	Message string `json:"message"`
+}
+
+type intValueType struct {
+	Message int32 `json:"message"`
 }
 
 type scenario struct {
@@ -38,6 +44,7 @@ type scenario struct {
 	bulkOnly         bool
 	transactionOnly  bool
 	transactionGroup int
+	contentType      string
 }
 
 type queryScenario struct {
@@ -90,8 +97,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			value: "hello world",
 		},
 		{
-			key:   fmt.Sprintf("%s-struct", key),
-			value: ValueType{Message: fmt.Sprintf("%s-test", key)},
+			key:         fmt.Sprintf("%s-struct", key),
+			value:       ValueType{Message: fmt.Sprintf("test%s", key)},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key:         fmt.Sprintf("%s-struct-with-int", key),
+			value:       intValueType{Message: 42},
+			contentType: contenttype.JSONContentType,
 		},
 		{
 			key:         fmt.Sprintf("%s-to-be-deleted", key),
@@ -188,10 +201,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				"filter": {
 					"OR": [
 						{
-							"EQ": {"value.message": "dummy"}
+							"EQ": {"message": "dummy"}
 						},
 						{
-							"IN": {"value.message": ["` + key + `-test", "dummy"]}
+							"IN": {"message": ["test` + key + `", "dummy"]}
 						}
 					]
 				}
@@ -200,7 +213,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct", key),
-					Data: []byte(fmt.Sprintf("{\"message\":\"%s-test\"}", key)),
+					Data: []byte(fmt.Sprintf("{\"message\":\"test%s\"}", key)),
 				},
 			},
 		},
@@ -223,10 +236,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			for _, scenario := range scenarios {
 				if !scenario.bulkOnly && !scenario.transactionOnly {
 					t.Logf("Setting value for %s", scenario.key)
-					err := statestore.Set(&state.SetRequest{
+					req := &state.SetRequest{
 						Key:   scenario.key,
 						Value: scenario.value,
-					})
+					}
+					if len(scenario.contentType) != 0 {
+						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+					}
+					err := statestore.Set(req)
 					assert.Nil(t, err)
 				}
 			}
@@ -238,9 +255,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			for _, scenario := range scenarios {
 				if !scenario.bulkOnly && !scenario.transactionOnly {
 					t.Logf("Checking value presence for %s", scenario.key)
-					res, err := statestore.Get(&state.GetRequest{
+					req := &state.GetRequest{
 						Key: scenario.key,
-					})
+					}
+					if len(scenario.contentType) != 0 {
+						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+					}
+					res, err := statestore.Get(req)
 					assert.Nil(t, err)
 					assertEquals(t, scenario.value, res)
 				}
@@ -257,6 +278,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				var req state.QueryRequest
 				err := json.Unmarshal([]byte(scenario.query), &req.Query)
 				assert.NoError(t, err)
+				req.Metadata = map[string]string{
+					metadata.ContentType:    contenttype.JSONContentType,
+					metadata.QueryIndexName: "qIndx",
+				}
 				resp, err := querier.Query(&req)
 				assert.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
@@ -279,9 +304,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				if !scenario.bulkOnly && scenario.toBeDeleted {
 					// this also deletes two keys that were not inserted in the set operation
 					t.Logf("Deleting %s", scenario.key)
-					err := statestore.Delete(&state.DeleteRequest{
+					req := &state.DeleteRequest{
 						Key: scenario.key,
-					})
+					}
+					if len(scenario.contentType) != 0 {
+						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+					}
+					err := statestore.Delete(req)
 					assert.Nil(t, err)
 
 					t.Logf("Checking value absence for %s", scenario.key)
@@ -431,6 +460,100 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						}
 					}
 				}
+			}
+		})
+
+		t.Run("transaction-order", func(t *testing.T) {
+			// Arrange
+			firstKey := "key1"
+			firstValue := "value1"
+			secondKey := "key2"
+			secondValue := "value2"
+			thirdKey := "key3"
+			thirdValue := "value3"
+
+			// for CosmosDB
+			partitionMetadata := map[string]string{
+				"partitionKey": "myPartition",
+			}
+
+			// prerequisite: key1 should be present
+			err := statestore.Set(&state.SetRequest{
+				Key:      firstKey,
+				Value:    firstValue,
+				Metadata: partitionMetadata,
+			})
+			assert.NoError(t, err, "set request should be successful")
+
+			// prerequisite: key2 should not be present
+			err = statestore.Delete(&state.DeleteRequest{
+				Key:      secondKey,
+				Metadata: partitionMetadata,
+			})
+			assert.NoError(t, err, "delete request should be successful")
+
+			// prerequisite: key3 should not be present
+			err = statestore.Delete(&state.DeleteRequest{
+				Key:      thirdKey,
+				Metadata: partitionMetadata,
+			})
+			assert.NoError(t, err, "delete request should be successful")
+
+			operations := []state.TransactionalStateOperation{
+				// delete an item that already exists
+				{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key: firstKey,
+					},
+				},
+				// upsert a new item
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   secondKey,
+						Value: secondValue,
+					},
+				},
+				// delete the item that was just upserted
+				{
+					Operation: state.Delete,
+					Request: state.DeleteRequest{
+						Key: secondKey,
+					},
+				},
+				// upsert a new item
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   thirdKey,
+						Value: thirdValue,
+					},
+				},
+			}
+
+			expected := map[string][]byte{
+				firstKey:  []byte(nil),
+				secondKey: []byte(nil),
+				thirdKey:  []byte(fmt.Sprintf("\"%s\"", thirdValue)),
+			}
+
+			// Act
+			transactionStore := statestore.(state.TransactionalStore)
+			err = transactionStore.Multi(&state.TransactionalStateRequest{
+				Operations: operations,
+				Metadata:   partitionMetadata,
+			})
+			assert.Nil(t, err)
+
+			// Assert
+			for k, v := range expected {
+				res, err := statestore.Get(&state.GetRequest{
+					Key:      k,
+					Metadata: partitionMetadata,
+				})
+				assert.Nil(t, err)
+				assert.Equal(t, v, res.Data)
 			}
 		})
 	} else {
@@ -644,6 +767,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 func assertEquals(t *testing.T, value interface{}, res *state.GetResponse) {
 	switch v := value.(type) {
+	case intValueType:
+		// Custom type requires case mapping
+		if err := json.Unmarshal(res.Data, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		}
+		assert.Equal(t, value, v)
 	case ValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(res.Data, &v); err != nil {

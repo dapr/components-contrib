@@ -34,15 +34,19 @@ func TestMongoQuery(t *testing.T) {
 		},
 		{
 			input: "../../tests/state/query/q2.json",
-			query: `{ "state": "CA" }`,
+			query: `{ "value.state": "CA" }`,
 		},
 		{
 			input: "../../tests/state/query/q3.json",
-			query: `{ "$and": [ { "person.org": "A" }, { "state": { "$in": [ "CA", "WA" ] } } ] }`,
+			query: `{ "$and": [ { "value.person.org": "A" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] }`,
 		},
 		{
 			input: "../../tests/state/query/q4.json",
-			query: `{ "$or": [ { "person.org": "A" }, { "$and": [ { "person.org": "B" }, { "state": { "$in": [ "CA", "WA" ] } } ] } ] }`,
+			query: `{ "$or": [ { "value.person.org": "A" }, { "$and": [ { "value.person.org": "B" }, { "value.state": { "$in": [ "CA", "WA" ] } } ] } ] }`,
+		},
+		{
+			input: "../../tests/state/query/q6.json",
+			query: `{ "$or": [ { "value.person.id": 123 }, { "$and": [ { "value.person.org": "B" }, { "value.person.id": { "$in": [ 567, 890 ] } } ] } ] }`,
 		},
 	}
 	for _, test := range tests {

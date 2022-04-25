@@ -1,0 +1,29 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+  namespace: default
+spec:
+  type: pubsub.azure.eventhubs
+  version: v1
+  metadata:
+    - name: consumerID
+      value: pubsub-eh-certification-cg
+    - name: connectionString
+      secretKeyRef:
+        name: AzureIotHubEventHubConnectionString
+        key: AzureIotHubEventHubConnectionString
+    - name: storageAccountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: storageAccountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: storageContainerName
+      secretKeyRef:
+        name: AzureEventHubsPubsubContainer
+        key: AzureEventHubsPubsubContainer
+auth:
+  secretstore: envvar-secret-store

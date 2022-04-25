@@ -124,24 +124,24 @@ func (g *GCPStorage) Operations() []bindings.OperationKind {
 	}
 }
 
-func (g *GCPStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	req.Metadata = g.handleBackwardCompatibilityForMetadata(req.Metadata)
 
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return g.create(req)
+		return g.create(ctx, req)
 	case bindings.GetOperation:
-		return g.get(req)
+		return g.get(ctx, req)
 	case bindings.DeleteOperation:
-		return g.delete(req)
+		return g.delete(ctx, req)
 	case bindings.ListOperation:
-		return g.list(req)
+		return g.list(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
 }
 
-func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var err error
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
@@ -169,7 +169,7 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		req.Data = decoded
 	}
 
-	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(context.Background())
+	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(ctx)
 	defer h.Close()
 	if _, err = h.Write(req.Data); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error. Uploading: %w", err)
@@ -194,7 +194,7 @@ func (g *GCPStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	}, nil
 }
 
-func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("gcp binding binding error. error merge metadata : %w", err)
@@ -207,7 +207,7 @@ func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 		return nil, fmt.Errorf("gcp bucket binding error: can't read key value")
 	}
 
-	rc, err := g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(context.Background())
+	rc, err := g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)
 	}
@@ -229,7 +229,7 @@ func (g *GCPStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	}, nil
 }
 
-func (g *GCPStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPStorage) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
@@ -239,12 +239,12 @@ func (g *GCPStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 
 	object := g.client.Bucket(g.metadata.Bucket).Object(key)
 
-	err := object.Delete(context.Background())
+	err := object.Delete(ctx)
 
 	return nil, err
 }
 
-func (g *GCPStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (g *GCPStorage) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload listPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -261,7 +261,7 @@ func (g *GCPStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 	}
 
 	var result []storage.ObjectAttrs
-	it := g.client.Bucket(g.metadata.Bucket).Objects(context.Background(), input)
+	it := g.client.Bucket(g.metadata.Bucket).Objects(ctx, input)
 	for {
 		attrs, errIt := it.Next()
 		if errIt == iterator.Done || len(result) == int(payload.MaxResults) {

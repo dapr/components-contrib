@@ -126,7 +126,6 @@ func TestEventhubs(t *testing.T) {
 
 	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-
 			// prepare the messages
 			messages := make([]string, numMessages)
 			for i := range messages {

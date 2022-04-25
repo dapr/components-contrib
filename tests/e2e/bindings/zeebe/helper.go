@@ -181,7 +181,8 @@ func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, err
 func DeployProcess(
 	cmd *command.ZeebeCommand,
 	fileName string,
-	modifiers ...func(string) string) (*pb.ProcessMetadata, error) {
+	modifiers ...func(string) string,
+) (*pb.ProcessMetadata, error) {
 	data, err := GetTestFile(fileName, modifiers...)
 	if err != nil {
 		return nil, err
@@ -219,7 +220,8 @@ func DeployProcess(
 // CreateProcessInstance creates a process instance and returns the process instance data.
 func CreateProcessInstance(
 	cmd *command.ZeebeCommand,
-	payload map[string]interface{}) (*pb.CreateProcessInstanceResponse, error) {
+	payload map[string]interface{},
+) (*pb.CreateProcessInstanceResponse, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -242,7 +244,8 @@ func CreateProcessInstance(
 
 func ActicateJob(
 	cmd *command.ZeebeCommand,
-	payload map[string]interface{}) (*[]pb.ActivatedJob, error) {
+	payload map[string]interface{},
+) (*[]pb.ActivatedJob, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -298,7 +301,8 @@ func InitTestProcess(
 	cmd *command.ZeebeCommand,
 	id string,
 	testWorker func(*bindings.ReadResponse) ([]byte, error),
-	additionalMetadata ...MetadataPair) error {
+	additionalMetadata ...MetadataPair,
+) error {
 	testJobType := id + "-test"
 
 	_, err := DeployProcess(

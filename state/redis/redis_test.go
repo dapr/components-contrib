@@ -326,7 +326,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		client:   c,
 		json:     jsoniter.ConfigFastest,
 		logger:   logger.NewLogger("test"),
-		metadata: metadata{ttlInSeconds: &globalTTLInSeconds},
+		metadata: rediscomponent.Metadata{TTLInSeconds: &globalTTLInSeconds},
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 

@@ -23,6 +23,11 @@ if [[ -z "${AZURE_CREDENTIALS}" ]]; then
     exit 1
 fi
 
+# Install azure-iot extension without prompt 
+# https://docs.microsoft.com/en-us/cli/azure/azure-cli-extensions-overview
+# https://github.com/Azure/azure-iot-cli-extension
+az config set extension.use_dynamic_install=yes_without_prompt
+
 # Log in to Azure using provided Service Principal (SP) credentials
 # The provided SP must have Contributor role access to the IoT Hub specified by IOT_HUB_NAME
 SDK_AUTH_SP_APPID="$(echo "${AZURE_CREDENTIALS}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"

@@ -14,6 +14,7 @@ limitations under the License.
 package tablestore
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"time"
@@ -69,7 +70,7 @@ func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AliCloudTableStore) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AliCloudTableStore) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
 	}

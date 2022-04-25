@@ -49,18 +49,23 @@ func (c Context) WithTimeout(timeout time.Duration) (Context, context.CancelFunc
 func (c Context) Name() string {
 	return c.name
 }
+
 func (c Context) Deadline() (deadline time.Time, ok bool) {
 	return c.Context.Deadline()
 }
+
 func (c Context) Done() <-chan struct{} {
 	return c.Context.Done()
 }
+
 func (c Context) Err() error {
 	return c.Context.Err()
 }
+
 func (c Context) Value(key interface{}) interface{} {
 	return c.Context.Value(key)
 }
+
 func (c Context) MustGet(args ...interface{}) {
 	if len(args)%2 != 0 {
 		c.Fatal("invalid number of arguments passed to Get")

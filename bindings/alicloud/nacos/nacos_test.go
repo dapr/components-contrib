@@ -14,6 +14,7 @@ limitations under the License.
 package nacos
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -38,7 +39,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	var count int32
 	ch := make(chan bool, 1)
 
-	handler := func(in *bindings.ReadResponse) ([]byte, error) {
+	handler := func(ctx context.Context, in *bindings.ReadResponse) ([]byte, error) {
 		require.Equal(t, "hello", string(in.Data))
 		atomic.AddInt32(&count, 1)
 		ch <- true

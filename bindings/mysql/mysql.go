@@ -14,6 +14,7 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -127,7 +128,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 }
 
 // Invoke handles all invoke operations.
-func (m *Mysql) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
 	}

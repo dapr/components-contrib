@@ -14,6 +14,7 @@ limitations under the License.
 package bucket
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -220,7 +221,7 @@ func TestGetOption(t *testing.T) {
 	gs.metadata = &gcpMetadata{}
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := gs.get(&r)
+		_, err := gs.get(context.TODO(), &r)
 		assert.Error(t, err)
 	})
 }
@@ -231,7 +232,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := gs.delete(&r)
+		_, err := gs.delete(context.TODO(), &r)
 		assert.Error(t, err)
 	})
 }

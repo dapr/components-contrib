@@ -11,13 +11,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package redis
+package lock
 
-import "time"
+// Lock acquire request.
+type TryLockRequest struct {
+	ResourceID string
+	LockOwner  string
+	Expire     int32
+}
 
-type metadata struct {
-	maxRetries      int
-	maxRetryBackoff time.Duration
-	ttlInSeconds    *int
-	queryIndexes    string
+// Lock release request.
+type UnlockRequest struct {
+	ResourceID string
+	LockOwner  string
 }

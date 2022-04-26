@@ -58,7 +58,7 @@ type jobWorkerMetadata struct {
 }
 
 type jobHandler struct {
-	callback func(*bindings.ReadResponse) ([]byte, error)
+	callback func(context.Context, *bindings.ReadResponse) ([]byte, error)
 	logger   logger.Logger
 }
 
@@ -89,7 +89,7 @@ func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (z *ZeebeJobWorker) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (z *ZeebeJobWorker) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	h := jobHandler{
 		callback: handler,
 		logger:   z.logger,
@@ -174,7 +174,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	headers["X-Zeebe-Retries"] = strconv.FormatInt(int64(job.Retries), 10)
 	headers["X-Zeebe-Deadline"] = strconv.FormatInt(job.Deadline, 10)
 
-	resultVariables, err := h.callback(&bindings.ReadResponse{
+	resultVariables, err := h.callback(context.TODO(), &bindings.ReadResponse{
 		Data:     []byte(job.Variables),
 		Metadata: headers,
 	})

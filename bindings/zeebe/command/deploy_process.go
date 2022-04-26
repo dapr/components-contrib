@@ -29,7 +29,7 @@ const (
 
 var ErrMissingFileName = errors.New("fileName is a required attribute")
 
-func (z *ZeebeCommand) deployProcess(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) deployProcess(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var deployFileName string
 
 	if val, ok := req.Metadata[fileName]; ok && val != "" {
@@ -40,7 +40,7 @@ func (z *ZeebeCommand) deployProcess(req *bindings.InvokeRequest) (*bindings.Inv
 
 	response, err := z.client.NewDeployProcessCommand().
 		AddResource(req.Data, deployFileName).
-		Send(context.Background())
+		Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot deploy process with fileName %s: %w", deployFileName, err)
 	}

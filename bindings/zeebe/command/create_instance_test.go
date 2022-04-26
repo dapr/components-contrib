@@ -112,7 +112,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
 
@@ -126,7 +126,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingCreationVars)
 	})
 
@@ -143,7 +143,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
@@ -162,7 +162,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
@@ -181,7 +181,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
@@ -202,7 +202,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)

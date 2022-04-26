@@ -38,7 +38,7 @@ func (m *MockHelper) Init(accountName string, accountKey string, queueName strin
 	return retvals.Error(0)
 }
 
-func (m *MockHelper) Write(data []byte, ttl *time.Duration) error {
+func (m *MockHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
 	retvals := m.Called(data, ttl)
 
 	return retvals.Error(0)
@@ -65,7 +65,7 @@ func TestWriteQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	_, err = a.Invoke(&r)
+	_, err = a.Invoke(context.TODO(), &r)
 
 	assert.Nil(t, err)
 }
@@ -87,7 +87,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	_, err = a.Invoke(&r)
+	_, err = a.Invoke(context.TODO(), &r)
 
 	assert.Nil(t, err)
 }
@@ -112,7 +112,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 		Metadata: map[string]string{metadata.TTLMetadataKey: "1"},
 	}
 
-	_, err = a.Invoke(&r)
+	_, err = a.Invoke(context.TODO(), &r)
 
 	assert.Nil(t, err)
 }
@@ -149,11 +149,11 @@ func TestReadQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	_, err = a.Invoke(&r)
+	_, err = a.Invoke(context.TODO(), &r)
 
 	assert.Nil(t, err)
 
-	handler := func(data *bindings.ReadResponse) ([]byte, error) {
+	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 
@@ -184,11 +184,11 @@ func TestReadQueueDecode(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
 
-	_, err = a.Invoke(&r)
+	_, err = a.Invoke(context.TODO(), &r)
 
 	assert.Nil(t, err)
 
-	handler := func(data *bindings.ReadResponse) ([]byte, error) {
+	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 
@@ -246,7 +246,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
-	handler := func(data *bindings.ReadResponse) ([]byte, error) {
+	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 

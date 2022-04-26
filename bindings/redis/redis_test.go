@@ -43,7 +43,7 @@ func TestInvoke(t *testing.T) {
 	_, err := c.Do(context.Background(), "GET", testKey).Result()
 	assert.Equal(t, redis.Nil, err)
 
-	bindingRes, err := bind.Invoke(&bindings.InvokeRequest{
+	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Data:     []byte(testData),
 		Metadata: map[string]string{"key": testKey},
 	})

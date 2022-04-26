@@ -15,6 +15,7 @@ package s3
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	b64 "encoding/base64"
 	"encoding/json"
@@ -268,7 +269,7 @@ func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 	}, nil
 }
 
-func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return s.create(req)

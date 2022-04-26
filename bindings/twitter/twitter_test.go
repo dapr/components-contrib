@@ -14,6 +14,7 @@ limitations under the License.
 package twitter
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -69,7 +70,7 @@ func TestReadError(t *testing.T) {
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 
-	tw.Read(func(res *bindings.ReadResponse) ([]byte, error) {
+	tw.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		t.Logf("result: %+v", res)
 		assert.NotNilf(t, err, "no error on read with invalid credentials")
 
@@ -93,7 +94,7 @@ func TestReed(t *testing.T) {
 	assert.Nilf(t, err, "error initializing read")
 
 	counter := 0
-	err = tw.Read(func(res *bindings.ReadResponse) ([]byte, error) {
+	err = tw.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		counter++
 		t.Logf("tweet[%d]", counter)
 		var tweet twitter.Tweet
@@ -126,7 +127,7 @@ func TestInvoke(t *testing.T) {
 		},
 	}
 
-	resp, err := tw.Invoke(req)
+	resp, err := tw.Invoke(context.TODO(), req)
 	assert.Nilf(t, err, "error on invoke")
 	assert.NotNil(t, resp)
 }

@@ -65,13 +65,13 @@ type kafkaMetadata struct {
 
 type consumer struct {
 	ready    chan bool
-	callback func(*bindings.ReadResponse) ([]byte, error)
+	callback func(context.Context, *bindings.ReadResponse) ([]byte, error)
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		if consumer.callback != nil {
-			_, err := consumer.callback(&bindings.ReadResponse{
+			_, err := consumer.callback(context.TODO(), &bindings.ReadResponse{
 				Data: message.Value,
 			})
 			if err == nil {
@@ -128,7 +128,7 @@ func (k *Kafka) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (k *Kafka) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (k *Kafka) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	msg := &sarama.ProducerMessage{
 		Topic: k.publishTopic,
 		Value: sarama.ByteEncoder(req.Data),
@@ -238,7 +238,7 @@ func (k *Kafka) getSyncProducer(meta *kafkaMetadata) (sarama.SyncProducer, error
 	return producer, nil
 }
 
-func (k *Kafka) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (k *Kafka) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	if len(k.topics) == 0 {
 		k.logger.Warnf("kafka binding: no topic defined, input bindings will not be started")
 		return nil

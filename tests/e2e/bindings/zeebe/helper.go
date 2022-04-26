@@ -14,6 +14,7 @@ limitations under the License.
 package zeebe
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -190,7 +191,7 @@ func DeployProcess(
 
 	metadata := map[string]string{"fileName": fileName}
 	req := &bindings.InvokeRequest{Data: data, Metadata: metadata, Operation: command.DeployProcessOperation}
-	res, err := cmd.Invoke(req)
+	res, err := cmd.Invoke(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +229,7 @@ func CreateProcessInstance(
 	}
 
 	req := &bindings.InvokeRequest{Data: data, Operation: command.CreateInstanceOperation}
-	res, err := cmd.Invoke(req)
+	res, err := cmd.Invoke(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func ActicateJob(
 	}
 
 	req := &bindings.InvokeRequest{Data: data, Operation: command.ActivateJobsOperation}
-	res, err := cmd.Invoke(req)
+	res, err := cmd.Invoke(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +301,7 @@ func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 func InitTestProcess(
 	cmd *command.ZeebeCommand,
 	id string,
-	testWorker func(*bindings.ReadResponse) ([]byte, error),
+	testWorker func(context.Context, *bindings.ReadResponse) ([]byte, error),
 	additionalMetadata ...MetadataPair,
 ) error {
 	testJobType := id + "-test"

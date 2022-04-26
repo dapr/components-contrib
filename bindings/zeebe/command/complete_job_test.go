@@ -80,7 +80,7 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("elementInstanceKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: CompleteJobOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingJobKey)
 	})
 
@@ -99,7 +99,7 @@ func TestCompleteJob(t *testing.T) {
 		var mc mockCompleteJobClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)

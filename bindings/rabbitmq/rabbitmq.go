@@ -236,7 +236,7 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
 }
 
-func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (r *RabbitMQ) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	msgs, err := r.channel.Consume(
 		r.queue.Name,
 		"",
@@ -254,7 +254,7 @@ func (r *RabbitMQ) Read(handler func(*bindings.ReadResponse) ([]byte, error)) er
 
 	go func() {
 		for d := range msgs {
-			_, err := handler(&bindings.ReadResponse{
+			_, err := handler(context.TODO(), &bindings.ReadResponse{
 				Data: d.Body,
 			})
 			if err == nil {

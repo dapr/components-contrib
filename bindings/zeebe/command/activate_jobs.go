@@ -37,7 +37,7 @@ type activateJobsPayload struct {
 	FetchVariables    []string          `json:"fetchVariables"`
 }
 
-func (z *ZeebeCommand) activateJobs(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload activateJobsPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -68,7 +68,6 @@ func (z *ZeebeCommand) activateJobs(req *bindings.InvokeRequest) (*bindings.Invo
 		cmd = cmd.FetchVariables(payload.FetchVariables...)
 	}
 
-	ctx := context.Background()
 	response, err := cmd.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot activate jobs for type %s: %w", payload.JobType, err)

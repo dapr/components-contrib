@@ -87,7 +87,7 @@ func TestThrowError(t *testing.T) {
 	t.Run("jobKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: ThrowErrorOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingJobKey)
 	})
 
@@ -100,7 +100,7 @@ func TestThrowError(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: ThrowErrorOperation}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingErrorCode)
 	})
 
@@ -118,7 +118,7 @@ func TestThrowError(t *testing.T) {
 		var mc mockThrowErrorClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)

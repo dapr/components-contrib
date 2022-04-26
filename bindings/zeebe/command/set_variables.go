@@ -33,7 +33,7 @@ type setVariablesPayload struct {
 	Variables          interface{} `json:"variables"`
 }
 
-func (z *ZeebeCommand) setVariables(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) setVariables(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload setVariablesPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -55,7 +55,7 @@ func (z *ZeebeCommand) setVariables(req *bindings.InvokeRequest) (*bindings.Invo
 		return nil, err
 	}
 
-	response, err := cmd.Local(payload.Local).Send(context.Background())
+	response, err := cmd.Local(payload.Local).Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot set variables for element instance key %d: %w", payload.ElementInstanceKey, err)
 	}

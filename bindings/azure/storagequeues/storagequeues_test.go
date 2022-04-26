@@ -32,8 +32,8 @@ type MockHelper struct {
 	mock.Mock
 }
 
-func (m *MockHelper) Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error {
-	retvals := m.Called(accountName, accountKey, queueName, decodeBase64)
+func (m *MockHelper) Init(endpoint, accountName, accountKey, queueName string, decodeBase64 bool) error {
+	retvals := m.Called(endpoint, accountName, accountKey, queueName, decodeBase64)
 
 	return retvals.Error(0)
 }
@@ -50,7 +50,7 @@ func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
 
 func TestWriteQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
+	mm.On("Init", "", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in == nil
 	})).Return(nil)
@@ -72,7 +72,7 @@ func TestWriteQueue(t *testing.T) {
 
 func TestWriteWithTTLInQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
+	mm.On("Init", "", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 	mm.On("Write", mock.AnythingOfTypeArgument("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in != nil && *in == time.Second
 	})).Return(nil)
@@ -94,7 +94,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 
 func TestWriteWithTTLInWrite(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
+	mm.On("Init", "", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 	mm.On("Write", mock.AnythingOfTypeArgument("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in != nil && *in == time.Second
 	})).Return(nil)
@@ -137,7 +137,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 
 func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
+	mm.On("Init", "", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
@@ -171,7 +171,7 @@ func TestReadQueue(t *testing.T) {
 
 func TestReadQueueDecode(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
+	mm.On("Init", "", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool")).Return(nil)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
@@ -235,7 +235,7 @@ func TestReadQueueDecode(t *testing.T) {
 */
 func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
-	mm.On("Init", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), false).Return(nil)
+	mm.On("Init", "", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), false).Return(nil)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
@@ -270,6 +270,7 @@ func TestParseMetadata(t *testing.T) {
 		properties         map[string]string
 		expectedAccountKey string
 		expectedQueueName  string
+		expectedQueueEndpoint string
 		expectedTTL        *time.Duration
 	}{
 		{
@@ -277,12 +278,21 @@ func TestParseMetadata(t *testing.T) {
 			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"},
 			expectedAccountKey: "myKey",
 			expectedQueueName:  "queue1",
+			expectedQueueEndpoint: "",
+		},
+		{
+			name:               "Accout, key, and endpoint",
+			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "someAccount", "queueEndpoint": "https://foo.example.com:10001"},
+			expectedAccountKey: "myKey",
+			expectedQueueName:  "queue1",
+			expectedQueueEndpoint: "https://foo.example.com:10001",
 		},
 		{
 			name:               "Empty TTL",
 			properties:         map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
 			expectedAccountKey: "myKey",
 			expectedQueueName:  "queue1",
+			expectedQueueEndpoint: "",
 		},
 		{
 			name:               "With TTL",
@@ -290,6 +300,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedAccountKey: "myKey",
 			expectedQueueName:  "queue1",
 			expectedTTL:        &oneSecondDuration,
+			expectedQueueEndpoint: "",
 		},
 	}
 
@@ -305,6 +316,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedAccountKey, meta.AccountKey)
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
 			assert.Equal(t, tt.expectedTTL, meta.ttl)
+			assert.Equal(t, tt.expectedQueueEndpoint, meta.QueueEndpoint)
 		})
 	}
 }

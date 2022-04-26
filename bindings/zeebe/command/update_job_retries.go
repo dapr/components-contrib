@@ -28,7 +28,7 @@ type updateJobRetriesPayload struct {
 	Retries *int32 `json:"retries"`
 }
 
-func (z *ZeebeCommand) updateJobRetries(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) updateJobRetries(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload updateJobRetriesPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -45,7 +45,7 @@ func (z *ZeebeCommand) updateJobRetries(req *bindings.InvokeRequest) (*bindings.
 		cmd2 = cmd1.Retries(*payload.Retries)
 	}
 
-	_, err = cmd2.Send(context.Background())
+	_, err = cmd2.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot uodate job retries for key %d: %w", payload.JobKey, err)
 	}

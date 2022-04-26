@@ -96,7 +96,7 @@ func TestMQTT(t *testing.T) {
 		return pubsub_mqtt.NewMQTTPubSub(log)
 	})
 
-	//In-order processing not guaranteed
+	// In-order processing not guaranteed
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -130,7 +130,6 @@ func TestMQTT(t *testing.T) {
 	// verifies the application has received them.
 	test := func(messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-
 			client := sidecar.GetClient(ctx, sidecarName1)
 
 			// Declare what is expected BEFORE performing any steps
@@ -158,13 +157,11 @@ func TestMQTT(t *testing.T) {
 			}
 
 			return nil
-
 		}
 	}
 
 	multiple_test := func(messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-
 			var wg sync.WaitGroup
 			wg.Add(2)
 			publish_msgs := func(sidecarName string) {

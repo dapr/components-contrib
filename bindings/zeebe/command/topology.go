@@ -21,8 +21,8 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 )
 
-func (z *ZeebeCommand) topology() (*bindings.InvokeResponse, error) {
-	response, err := z.client.NewTopologyCommand().Send(context.Background())
+func (z *ZeebeCommand) topology(ctx context.Context) (*bindings.InvokeResponse, error) {
+	response, err := z.client.NewTopologyCommand().Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get zeebe toplogy: %w", err)
 	}

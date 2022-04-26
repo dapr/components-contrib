@@ -34,7 +34,7 @@ type publishMessagePayload struct {
 	Variables      interface{}       `json:"variables"`
 }
 
-func (z *ZeebeCommand) publishMessage(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) publishMessage(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload publishMessagePayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -64,7 +64,6 @@ func (z *ZeebeCommand) publishMessage(req *bindings.InvokeRequest) (*bindings.In
 		}
 	}
 
-	ctx := context.Background()
 	response, err := cmd.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot publish message with name %s: %w", payload.MessageName, err)

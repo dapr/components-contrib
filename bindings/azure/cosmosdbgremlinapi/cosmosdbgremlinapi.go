@@ -14,6 +14,7 @@ limitations under the License.
 package cosmosdbgremlinapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,7 +98,7 @@ func (c *CosmosDBGremlinAPI) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{queryOperation}
 }
 
-func (c *CosmosDBGremlinAPI) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDBGremlinAPI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var jsonPoint map[string]interface{}
 	err := json.Unmarshal(req.Data, &jsonPoint)
 	if err != nil {

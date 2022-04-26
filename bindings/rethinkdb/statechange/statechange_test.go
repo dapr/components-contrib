@@ -14,6 +14,7 @@ limitations under the License.
 package statechange
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -73,7 +74,7 @@ func TestBinding(t *testing.T) {
 	assert.NoErrorf(t, err, "error initializing")
 
 	go func() {
-		err = b.Read(func(res *bindings.ReadResponse) ([]byte, error) {
+		err = b.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 			assert.NotNil(t, res)
 			t.Logf("state change event:\n%s", string(res.Data))
 

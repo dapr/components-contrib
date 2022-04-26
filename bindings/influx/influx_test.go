@@ -17,12 +17,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
-
 	"github.com/golang/mock/gomock"
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -93,7 +93,7 @@ func TestInflux_Invoke_BindingCreateOperation(t *testing.T) {
 		writeAPI: w,
 	}
 	for _, test := range tests {
-		resp, err := influx.Invoke(test.request)
+		resp, err := influx.Invoke(context.TODO(), test.request)
 		assert.Equal(t, test.want.resp, resp)
 		assert.Equal(t, test.want.err, err)
 	}
@@ -115,7 +115,7 @@ func TestInflux_Invoke_BindingInvalidOperation(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		resp, err := (*Influx)(nil).Invoke(test.request)
+		resp, err := (*Influx)(nil).Invoke(context.TODO(), test.request)
 		assert.Equal(t, test.want.resp, resp)
 		assert.Equal(t, test.want.err, err)
 	}
@@ -157,7 +157,7 @@ func TestInflux_Invoke_BindingQueryOperation(t *testing.T) {
 		logger:   logger.NewLogger("test"),
 	}
 	for _, test := range tests {
-		resp, err := influx.Invoke(test.request)
+		resp, err := influx.Invoke(context.TODO(), test.request)
 		assert.Equal(t, test.want.resp, resp)
 		assert.Equal(t, test.want.err, err)
 	}

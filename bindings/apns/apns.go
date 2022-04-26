@@ -102,21 +102,21 @@ func (a *APNS) Operations() []bindings.OperationKind {
 
 // Invoke is called by Dapr to send a push notification to the APNS output
 // binding.
-func (a *APNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *APNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req.Operation != bindings.CreateOperation {
 		return nil, fmt.Errorf("operation not supported: %v", req.Operation)
 	}
 
-	return a.sendPushNotification(req)
+	return a.sendPushNotification(ctx, req)
 }
 
-func (a *APNS) sendPushNotification(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *APNS) sendPushNotification(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	deviceToken, ok := req.Metadata[deviceTokenKey]
 	if !ok || deviceToken == "" {
 		return nil, errors.New("the device-token parameter is required")
 	}
 
-	httpResponse, err := a.sendPushNotificationToAPNS(deviceToken, req)
+	httpResponse, err := a.sendPushNotificationToAPNS(ctx, deviceToken, req)
 	if err != nil {
 		return nil, err
 	}
@@ -130,10 +130,10 @@ func (a *APNS) sendPushNotification(req *bindings.InvokeRequest) (*bindings.Invo
 	return makeErrorResponse(httpResponse)
 }
 
-func (a *APNS) sendPushNotificationToAPNS(deviceToken string, req *bindings.InvokeRequest) (*http.Response, error) {
+func (a *APNS) sendPushNotificationToAPNS(ctx context.Context, deviceToken string, req *bindings.InvokeRequest) (*http.Response, error) {
 	url := a.urlPrefix + deviceToken
 	httpRequest, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		url,
 		bytes.NewReader(req.Data),

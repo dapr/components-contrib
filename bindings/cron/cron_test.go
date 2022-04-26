@@ -14,6 +14,7 @@ limitations under the License.
 package cron
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -68,12 +69,12 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
 	testsNum := 3
 	i := 0
-	err := c.Read(func(res *bindings.ReadResponse) ([]byte, error) {
+	err := c.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
 		assert.LessOrEqualf(t, i, testsNum, "Invoke didn't stop the schedule")
 		i++
 		if i == testsNum {
-			resp, err := c.Invoke(&bindings.InvokeRequest{
+			resp, err := c.Invoke(context.TODO(), &bindings.InvokeRequest{
 				Operation: bindings.DeleteOperation,
 			})
 			assert.NoError(t, err)
@@ -91,7 +92,7 @@ func TestCronInvokeInvalidOperation(t *testing.T) {
 	c := getNewCron()
 	initErr := c.Init(getTestMetadata("@every 1s"))
 	assert.NoErrorf(t, initErr, "Error on Init")
-	_, err := c.Invoke(&bindings.InvokeRequest{
+	_, err := c.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Operation: bindings.CreateOperation,
 	})
 	assert.Error(t, err)

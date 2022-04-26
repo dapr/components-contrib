@@ -14,6 +14,7 @@ limitations under the License.
 package rabbitmq
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -101,7 +102,7 @@ func (r *RabbitMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (r *RabbitMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	pub := amqp.Publishing{
 		DeliveryMode: amqp.Persistent,
 		ContentType:  "text/plain",

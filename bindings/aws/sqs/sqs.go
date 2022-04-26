@@ -14,6 +14,7 @@ limitations under the License.
 package sqs
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -77,7 +78,7 @@ func (a *AWSSQS) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AWSSQS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	msgBody := string(req.Data)
 	_, err := a.Client.SendMessage(&sqs.SendMessageInput{
 		MessageBody: &msgBody,
@@ -87,7 +88,7 @@ func (a *AWSSQS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, err
 }
 
-func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AWSSQS) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	for {
 		result, err := a.Client.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl: a.QueueURL,
@@ -110,7 +111,7 @@ func (a *AWSSQS) Read(handler func(*bindings.ReadResponse) ([]byte, error)) erro
 				res := bindings.ReadResponse{
 					Data: []byte(*body),
 				}
-				_, err := handler(&res)
+				_, err := handler(context.TODO(), &res)
 				if err == nil {
 					msgHandle := m.ReceiptHandle
 

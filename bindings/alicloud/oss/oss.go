@@ -15,6 +15,7 @@ package oss
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
@@ -63,7 +64,7 @@ func (s *AliCloudOSS) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (s *AliCloudOSS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AliCloudOSS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	key := ""
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key = val

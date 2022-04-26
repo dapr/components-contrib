@@ -150,7 +150,6 @@ func TestServiceBusQueue(t *testing.T) {
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("send and wait", test).
 		Run()
-
 }
 
 func TestAzureServiceBusQueuesTTLs(t *testing.T) {

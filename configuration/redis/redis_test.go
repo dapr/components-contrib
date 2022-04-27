@@ -260,6 +260,7 @@ func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
 		Addr: s.Addr(),
 		DB:   defaultDB,
 	}
+	s.HSet("notSupportedType", "notSupportedValue")
 
 	return s, redis.NewClient(opts)
 }

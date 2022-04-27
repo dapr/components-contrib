@@ -87,7 +87,7 @@ func TestFailJob(t *testing.T) {
 	t.Run("jobKey is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: FailJobOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingJobKey)
 	})
 
@@ -100,7 +100,7 @@ func TestFailJob(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: FailJobOperation}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingRetries)
 	})
 
@@ -118,7 +118,7 @@ func TestFailJob(t *testing.T) {
 		var mc mockFailJobClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.JobKey, mc.cmd1.jobKey)

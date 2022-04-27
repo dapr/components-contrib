@@ -14,6 +14,7 @@ limitations under the License.
 package signalr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -192,7 +193,7 @@ func TestWriteShouldFail(t *testing.T) {
 
 	t.Run("Missing hub should fail", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := s.Invoke(&bindings.InvokeRequest{
+		_, err := s.Invoke(context.TODO(), &bindings.InvokeRequest{
 			Data:     []byte("hello world"),
 			Metadata: map[string]string{},
 		})
@@ -204,7 +205,7 @@ func TestWriteShouldFail(t *testing.T) {
 		httpTransport.reset()
 		httpErr := errors.New("fake error")
 		httpTransport.errToReturn = httpErr
-		_, err := s.Invoke(&bindings.InvokeRequest{
+		_, err := s.Invoke(context.TODO(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -218,7 +219,7 @@ func TestWriteShouldFail(t *testing.T) {
 	t.Run("SignalR call returns status != [200, 202]", func(t *testing.T) {
 		httpTransport.reset()
 		httpTransport.response.StatusCode = 401
-		_, err := s.Invoke(&bindings.InvokeRequest{
+		_, err := s.Invoke(context.TODO(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -243,7 +244,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 	t.Run("Has authorization", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := s.Invoke(&bindings.InvokeRequest{
+		_, err := s.Invoke(context.TODO(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -277,7 +278,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			httpTransport.reset()
 			s.hub = tt.hubInMetadata
-			_, err := s.Invoke(&bindings.InvokeRequest{
+			_, err := s.Invoke(context.TODO(), &bindings.InvokeRequest{
 				Data: []byte("hello world"),
 				Metadata: map[string]string{
 					hubKey:   tt.hubInWriteRequest,

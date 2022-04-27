@@ -95,7 +95,7 @@ func amqpReady(url string) flow.Runnable {
 func TestRabbitMQ(t *testing.T) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	log := logger.NewLogger("dapr.components")
-	//log.SetOutputLevel(logger.DebugLevel)
+	// log.SetOutputLevel(logger.DebugLevel)
 
 	pubTopics := []string{topicRed, topicBlue, topicGreen}
 	subTopics := []string{topicRed, topicBlue}

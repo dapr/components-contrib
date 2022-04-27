@@ -14,6 +14,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("operation must be supported", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrUnsupportedOperation(bindings.DeleteOperation))
 	})
 }

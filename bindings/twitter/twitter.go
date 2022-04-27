@@ -14,6 +14,7 @@ limitations under the License.
 package twitter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -85,7 +86,7 @@ func (t *Binding) Operations() []bindings.OperationKind {
 }
 
 // Read triggers the Twitter search and events on each result tweet.
-func (t *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (t *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	if t.query == "" {
 		return nil
 	}
@@ -99,7 +100,7 @@ func (t *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 
 			return
 		}
-		handler(&bindings.ReadResponse{
+		handler(context.TODO(), &bindings.ReadResponse{
 			Data: data,
 			Metadata: map[string]string{
 				"query": t.query,
@@ -154,7 +155,7 @@ func (t *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 }
 
 // Invoke handles all operations.
-func (t *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (t *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	t.logger.Debugf("operation: %v", req.Operation)
 	if req.Metadata == nil {
 		return nil, fmt.Errorf("metadata not set")

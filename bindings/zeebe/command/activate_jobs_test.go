@@ -103,7 +103,7 @@ func TestActivateJobs(t *testing.T) {
 	t.Run("jobType is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: ActivateJobsOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingJobType)
 	})
 
@@ -116,7 +116,7 @@ func TestActivateJobs(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Data: data, Operation: ActivateJobsOperation}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingMaxJobsToActivate)
 	})
 
@@ -133,7 +133,7 @@ func TestActivateJobs(t *testing.T) {
 		var mc mockActivateJobsClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)
@@ -156,7 +156,7 @@ func TestActivateJobs(t *testing.T) {
 		var mc mockActivateJobsClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.JobType, mc.cmd1.jobType)

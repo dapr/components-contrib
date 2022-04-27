@@ -82,12 +82,10 @@ func (ct *Binding) Operations() []bindings.OperationKind {
 }
 
 // Invoke is triggered from Dapr.
-func (ct *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (ct *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var reqData Data
 	json.Unmarshal(req.Data, &reqData)
 	query := reqData.Query
-
-	ctx := context.Background()
 
 	res := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 	var err error

@@ -14,6 +14,7 @@ limitations under the License.
 package kubernetes
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -81,7 +82,7 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (k *kubernetesInput) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
@@ -140,7 +141,7 @@ func (k *kubernetesInput) Read(handler func(*bindings.ReadResponse) ([]byte, err
 			if err != nil {
 				k.logger.Errorf("Error marshalling event %w", err)
 			} else {
-				handler(&bindings.ReadResponse{
+				handler(context.TODO(), &bindings.ReadResponse{
 					Data: data,
 				})
 			}

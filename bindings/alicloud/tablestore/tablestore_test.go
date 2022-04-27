@@ -14,6 +14,7 @@ limitations under the License.
 package tablestore
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -68,7 +69,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: data,
 	}
 
-	putInvokeResp, err := aliCloudTableStore.Invoke(putRowReq)
+	putInvokeResp, err := aliCloudTableStore.Invoke(context.TODO(), putRowReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, putInvokeResp)
@@ -79,7 +80,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		"column2": int64(2),
 	})
 
-	putInvokeResp, err = aliCloudTableStore.Invoke(putRowReq)
+	putInvokeResp, err = aliCloudTableStore.Invoke(context.TODO(), putRowReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, putInvokeResp)
@@ -99,7 +100,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: getData,
 	}
 
-	getInvokeResp, err := aliCloudTableStore.Invoke(getInvokeReq)
+	getInvokeResp, err := aliCloudTableStore.Invoke(context.TODO(), getInvokeReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, getInvokeResp)
@@ -133,7 +134,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: listData,
 	}
 
-	listResp, err := aliCloudTableStore.Invoke(listReq)
+	listResp, err := aliCloudTableStore.Invoke(context.TODO(), listReq)
 	assert.Nil(t, err)
 	assert.NotNil(t, listResp)
 
@@ -161,12 +162,12 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: deleteData,
 	}
 
-	deleteResp, err := aliCloudTableStore.Invoke(deleteReq)
+	deleteResp, err := aliCloudTableStore.Invoke(context.TODO(), deleteReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, deleteResp)
 
-	getInvokeResp, err = aliCloudTableStore.Invoke(getInvokeReq)
+	getInvokeResp, err = aliCloudTableStore.Invoke(context.TODO(), getInvokeReq)
 
 	assert.Nil(t, err)
 	assert.Nil(t, getInvokeResp.Data)

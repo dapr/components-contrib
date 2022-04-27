@@ -187,15 +187,15 @@ func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
 	client, err := a.ns.NewQueue(a.queue.Name)
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close(context.Background())
+	defer client.Close(ctx)
 
 	msg := servicebus.NewMessage(req.Data)
 	if val, ok := req.Metadata[id]; ok && val != "" {
@@ -217,9 +217,9 @@ func (a *AzureServiceBusQueues) Invoke(req *bindings.InvokeRequest) (*bindings.I
 	return nil, client.Send(ctx, msg)
 }
 
-func (a *AzureServiceBusQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	var sbHandler servicebus.HandlerFunc = func(ctx context.Context, msg *servicebus.Message) error {
-		_, err := handler(&bindings.ReadResponse{
+		_, err := handler(ctx, &bindings.ReadResponse{
 			Data:     msg.Data,
 			Metadata: map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label},
 		})

@@ -14,6 +14,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -88,30 +89,30 @@ func (z *ZeebeCommand) Operations() []bindings.OperationKind {
 	}
 }
 
-func (z *ZeebeCommand) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case TopologyOperation:
-		return z.topology()
+		return z.topology(ctx)
 	case DeployProcessOperation:
-		return z.deployProcess(req)
+		return z.deployProcess(ctx, req)
 	case CreateInstanceOperation:
-		return z.createInstance(req)
+		return z.createInstance(ctx, req)
 	case CancelInstanceOperation:
-		return z.cancelInstance(req)
+		return z.cancelInstance(ctx, req)
 	case SetVariablesOperation:
-		return z.setVariables(req)
+		return z.setVariables(ctx, req)
 	case ResolveIncidentOperation:
-		return z.resolveIncident(req)
+		return z.resolveIncident(ctx, req)
 	case PublishMessageOperation:
-		return z.publishMessage(req)
+		return z.publishMessage(ctx, req)
 	case ActivateJobsOperation:
-		return z.activateJobs(req)
+		return z.activateJobs(ctx, req)
 	case CompleteJobOperation:
-		return z.completeJob(req)
+		return z.completeJob(ctx, req)
 	case FailJobOperation:
-		return z.failJob(req)
+		return z.failJob(ctx, req)
 	case UpdateJobRetriesOperation:
-		return z.updateJobRetries(req)
+		return z.updateJobRetries(ctx, req)
 	case ThrowErrorOperation:
 		return z.throwError(req)
 	case bindings.GetOperation:

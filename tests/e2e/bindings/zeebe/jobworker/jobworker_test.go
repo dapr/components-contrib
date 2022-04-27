@@ -34,7 +34,8 @@ import (
 func initCalcProcess(
 	cmd *command.ZeebeCommand,
 	id string,
-	ackWorker func(*bindings.ReadResponse) ([]byte, error)) error {
+	ackWorker func(*bindings.ReadResponse) ([]byte, error),
+) error {
 	calcJobType := id + "-calc"
 	ackJobType := id + "-ack"
 
@@ -68,7 +69,8 @@ func initCalcProcess(
 func calcResultWorker(
 	t *testing.T,
 	expectedResult float64,
-	count *int32) (chan bool, func(in *bindings.ReadResponse) ([]byte, error)) {
+	count *int32,
+) (chan bool, func(in *bindings.ReadResponse) ([]byte, error)) {
 	ch := make(chan bool, 1)
 
 	return ch, func(in *bindings.ReadResponse) ([]byte, error) {
@@ -91,7 +93,8 @@ func calcVariablesWorker(
 	expectedOperator string,
 	expectedFirstOperand float64,
 	expectedSecondOperand float64,
-	count *int32) (chan bool, func(in *bindings.ReadResponse) ([]byte, error)) {
+	count *int32,
+) (chan bool, func(in *bindings.ReadResponse) ([]byte, error)) {
 	ch := make(chan bool, 1)
 
 	return ch, func(in *bindings.ReadResponse) ([]byte, error) {

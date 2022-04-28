@@ -26,6 +26,8 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+var ErrMultipleSortBy error = errors.New("multiple SORTBY steps are not allowed. Sort multiple fields in a single step")
+
 type Query struct {
 	schemaName string
 	aliases    map[string]string
@@ -50,31 +52,56 @@ func (q *Query) getAlias(jsonPath string) (string, error) {
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
-	// @<key>:(<val>)
+	// string:  @<key>:(<val>)
+	// numeric: @<key>:[<val> <val>]
 	alias, err := q.getAlias(f.Key)
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("@%s:(%s)", alias, f.Val), nil
+	switch v := f.Val.(type) {
+	case string:
+		return fmt.Sprintf("@%s:(%s)", alias, v), nil
+	default:
+		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+	}
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
-	// @<key>:(<val1>|<val2>...)
-	if len(f.Vals) == 0 {
-		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
+	// string:  @<key>:(<val1>|<val2>...)
+	// numeric: replace with OR
+	n := len(f.Vals)
+	if n < 2 {
+		return "", fmt.Errorf("too few values in IN operator for key %q", f.Key)
 	}
-	alias, err := q.getAlias(f.Key)
-	if err != nil {
-		return "", err
-	}
-	vals := make([]string, len(f.Vals))
-	for i := range f.Vals {
-		vals[i] = f.Vals[i].(string)
-	}
-	str := fmt.Sprintf("@%s:(%s)", alias, strings.Join(vals, "|"))
 
-	return str, nil
+	switch f.Vals[0].(type) {
+	case string:
+		alias, err := q.getAlias(f.Key)
+		if err != nil {
+			return "", err
+		}
+		vals := make([]string, n)
+		for i := 0; i < n; i++ {
+			vals[i] = f.Vals[i].(string)
+		}
+		str := fmt.Sprintf("@%s:(%s)", alias, strings.Join(vals, "|"))
+
+		return str, nil
+
+	default:
+		or := &query.OR{
+			Filters: make([]query.Filter, n),
+		}
+		for i := 0; i < n; i++ {
+			or.Filters[i] = &query.EQ{
+				Key: f.Key,
+				Val: f.Vals[i],
+			}
+		}
+
+		return q.VisitOR(or)
+	}
 }
 
 func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) {
@@ -132,7 +159,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	// sorting
 	if len(qq.Sort) > 0 {
 		if len(qq.Sort) != 1 {
-			return errors.New("multiple SORTBY steps are not allowed. Sort multiple fields in a single step")
+			return ErrMultipleSortBy
 		}
 		alias, err := q.getAlias(qq.Sort[0].Key)
 		if err != nil {

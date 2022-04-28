@@ -3,11 +3,11 @@ module github.com/dapr/components-contrib/tests/certification/bindings/azure/cos
 go 1.17
 
 require (
-	github.com/a8m/documentdb v1.3.1-0.20211026005403-13c3593b3c3a
-	github.com/dapr/components-contrib v1.6.0-rc.1.0.20220217181903-80c2bbe28485
+	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1
+	github.com/dapr/components-contrib v1.7.1-0.20220426033643-068938c67654
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.6.1-0.20220218024719-bdd702c480c8
-	github.com/dapr/go-sdk v1.3.0
+	github.com/dapr/dapr v1.7.1-0.20220426092903-063b1611d1cb
+	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.7.0
@@ -71,7 +71,7 @@ require (
 	github.com/hashicorp/serf v0.9.5 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.13.4 // indirect
+	github.com/klauspost/compress v1.14.4 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect
@@ -86,13 +86,14 @@ require (
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.11.0 // indirect
+	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/prometheus/statsd_exporter v0.22.3 // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect

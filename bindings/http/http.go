@@ -15,6 +15,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -88,7 +89,7 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 }
 
 // Invoke performs an HTTP request to the configured HTTP endpoint.
-func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
 	if req.Metadata != nil {
 		if path, ok := req.Metadata["path"]; ok {
@@ -114,11 +115,11 @@ func (h *HTTPSource) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
 	}
 
-	// nolint: noctx
 	request, err := http.NewRequest(method, u, body)
 	if err != nil {
 		return nil, err
 	}
+	request = request.WithContext(ctx)
 
 	// Set default values for Content-Type and Accept headers.
 	if body != nil {

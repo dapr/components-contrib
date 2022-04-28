@@ -14,6 +14,7 @@ limitations under the License.
 package ses
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -101,7 +102,7 @@ func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
 	return &m, nil
 }
 
-func (a *AWSSES) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata := a.metadata.mergeWithRequestMetadata(req)
 
 	if metadata.EmailFrom == "" {

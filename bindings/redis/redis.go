@@ -61,10 +61,10 @@ func (r *Redis) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (r *Redis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.client.Do(r.ctx, "SET", key, req.Data).Result()
+		_, err := r.client.Do(ctx, "SET", key, req.Data).Result()
 		if err != nil {
 			return nil, err
 		}

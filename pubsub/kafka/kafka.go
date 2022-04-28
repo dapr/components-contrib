@@ -54,6 +54,7 @@ func (p *PubSub) Features() []pubsub.Feature {
 	return nil
 }
 
+// subscribeAdapter is used to adapter pubsub.Handler to kafka.EventHandler with the same content.
 type subscribeAdapter struct {
 	handler pubsub.Handler
 }

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )

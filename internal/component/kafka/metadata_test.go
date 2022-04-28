@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/kit/logger"
 )
 
 var (
@@ -31,7 +32,6 @@ func getBaseMetadata() map[string]string {
 }
 
 func getCompleteMetadata() map[string]string {
-
 	return map[string]string{
 		"consumerGroup": "a", "clientID": "a", "brokers": "a", "authType": mtlsAuthType, "maxMessageBytes": "2048",
 		skipVerify: "true", clientCert: clientCertPemMock, clientKey: clientKeyMock, caCert: caCertMock,

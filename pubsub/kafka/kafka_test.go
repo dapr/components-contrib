@@ -13,3 +13,48 @@ limitations under the License.
 
 package kafka
 
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/internal/component/kafka"
+	"github.com/dapr/components-contrib/pubsub"
+)
+
+func TestSubscribeAdapter(t *testing.T) {
+	// subscribeAdapter is used to adapter pubsub.Handler to kafka.EventHandler
+	// step1: prepare a new kafka event
+	ct := "text/plain"
+	event := &kafka.NewEvent{
+		Topic:       "topic1",
+		Data:        []byte("abcdefg"),
+		Metadata:    map[string]string{"k1": "v1"},
+		ContentType: &ct,
+	}
+	ctx := context.Background()
+
+	a := testAdapter{ctx: ctx, event: event, t: t}
+
+	// step2: call this adapter method to mock the new kafka event is triggered from kafka topic
+	err := newSubscribeAdapter(a.testHandler).adapter(ctx, event)
+	assert.NoError(t, err)
+}
+
+type testAdapter struct {
+	ctx   context.Context
+	event *kafka.NewEvent
+	t     *testing.T
+}
+
+func (a *testAdapter) testHandler(ctx context.Context, msg *pubsub.NewMessage) error {
+	// step3: the pubsub handler should be called with the adapted pubsub event with the same content of the kafka event
+	assert.Equal(a.t, ctx, a.ctx)
+	assert.Equal(a.t, msg.Topic, a.event.Topic)
+	assert.Equal(a.t, msg.Data, a.event.Data)
+	assert.Equal(a.t, msg.Metadata, a.event.Metadata)
+	assert.Equal(a.t, msg.ContentType, a.event.ContentType)
+
+	return nil
+}

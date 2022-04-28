@@ -28,7 +28,7 @@ type resolveIncidentPayload struct {
 	IncidentKey *int64 `json:"incidentKey"`
 }
 
-func (z *ZeebeCommand) resolveIncident(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) resolveIncident(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload resolveIncidentPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -41,7 +41,7 @@ func (z *ZeebeCommand) resolveIncident(req *bindings.InvokeRequest) (*bindings.I
 
 	_, err = z.client.NewResolveIncidentCommand().
 		IncidentKey(*payload.IncidentKey).
-		Send(context.Background())
+		Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot resolve incident for key %d: %w", payload.IncidentKey, err)
 	}

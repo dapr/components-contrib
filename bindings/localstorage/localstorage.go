@@ -14,6 +14,7 @@ limitations under the License.
 package localstorage
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -241,7 +242,7 @@ func walkPath(root string) ([]string, error) {
 }
 
 // Invoke is called for output bindings.
-func (ls *LocalStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (ls *LocalStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	filename := ""
 	if val, ok := req.Metadata[fileNameMetadataKey]; ok && val != "" {
 		filename = val

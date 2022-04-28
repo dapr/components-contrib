@@ -14,6 +14,7 @@ limitations under the License.
 package sns
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -96,7 +97,7 @@ func (a *AWSSNS) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AWSSNS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload dataPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {

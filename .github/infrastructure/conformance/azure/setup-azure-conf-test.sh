@@ -166,6 +166,7 @@ ACR_VAR_NAME="AzureContainerRegistryName"
 CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME="AzureCertificationServicePrincipalClientSecret"
 CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME="AzureCertificationServicePrincipalClientId"
 CERTIFICATION_TENANT_ID_VAR_NAME="AzureCertificationTenantId"
+CERTIFICATION_SUBSCRIPTION_ID_VAR_NAME="AzureCertificationSubscriptionId"
 
 COSMOS_DB_VAR_NAME="AzureCosmosDB"
 COSMOS_DB_COLLECTION_VAR_NAME="AzureCosmosDBCollection"
@@ -191,6 +192,8 @@ EVENT_HUBS_PUBSUB_CONSUMER_GROUP_VAR_NAME="AzureEventHubsPubsubConsumerGroup"
 EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME="AzureEventHubsPubsubContainer"
 EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME="AzureEventHubsPubsubNamespace"
 EVENT_HUBS_PUBSUB_HUB_VAR_NAME="AzureEventHubsPubsubHub"
+EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubNamespaceConnectionString"
+CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubTopicActiveConnectionString"
 
 IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
 IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
@@ -218,7 +221,7 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --upn "${ADMIN_UPN}" --query "[].objectId" --output tsv)"
+ADMIN_ID="$(az ad user list --filter "mail eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
 SUB_ID="$(az account show --query "id" --output tsv)"
 TENANT_ID="$(az account show --query "tenantId" --output tsv)"
 DEPLOY_NAME="${PREFIX}-azure-conf-test"
@@ -304,6 +307,18 @@ EVENT_HUB_PUBSUB_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" -
 echo "INFO: EVENT_HUB_PUBSUB_POLICY_NAME=${EVENT_HUB_PUBSUB_POLICY_NAME}"
 EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubPubsubConsumerGroupName.value" --output tsv)"
 echo "INFO: EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME=${EVENT_HUBS_PUBSUB_CONSUMER_GROUP_NAME}"
+
+#begin : certifications pubsub.azure.eventhubs
+
+EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventHubsNamespacePolicyName.value" --output tsv)"
+echo "INFO: EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME=${EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME}"
+
+CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicActiveName.value" --output tsv)"
+echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME}"
+CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicActivePolicyName.value" --output tsv)"
+echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME}"
+#end
+
 IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" --output tsv)"
 echo "INFO: IOT_HUB_NAME=${IOT_HUB_NAME}"
 IOT_HUB_BINDINGS_CONSUMER_GROUP_FULLNAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubBindingsConsumerGroupName.value" --output tsv)"
@@ -612,6 +627,14 @@ EVENT_HUBS_PUBSUB_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule 
 echo export ${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONNECTION_STRING}"
 
+EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING="$(az eventhubs namespace authorization-rule keys list --name "${EVENT_HUBS_PUB_SUB_NAMESPACE_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
+echo export ${EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING}"
+
+CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING="$(az eventhubs eventhub authorization-rule keys list --name "${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME}" --namespace-name "${EVENT_HUBS_NAMESPACE}" --eventhub-name "${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
+echo export ${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME}=\"${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING}"
+
 echo export ${EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME}=\"${EVENT_HUBS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_NAMESPACE}"
 
@@ -658,7 +681,10 @@ az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resour
 # Storage
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
 # Event Hubs
-az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/{$EVENT_HUBS_NAMESPACE}/eventhubs/*"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/${EVENT_HUBS_NAMESPACE}"
+# IOT hub used in eventhubs certification test
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "IoT Hub Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
 
 # Now export the service principal information
 CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
@@ -668,6 +694,8 @@ echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${CERTIF
 az keyvault secret set --name "${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_SPAUTH_SP_CLIENT_SECRET}"
 echo export ${CERTIFICATION_TENANT_ID_VAR_NAME}=\"${CERTIFICATION_TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${CERTIFICATION_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_TENANT_ID}"
+echo export ${CERTIFICATION_SUBSCRIPTION_ID_VAR_NAME}=\"${SUB_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_SUBSCRIPTION_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SUB_ID}"
 
 # ---------------------------
 # Display completion message

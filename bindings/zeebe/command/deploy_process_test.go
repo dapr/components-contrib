@@ -14,6 +14,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestDeployProcess(t *testing.T) {
 	t.Run("fileName is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: DeployProcessOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingFileName)
 	})
 }

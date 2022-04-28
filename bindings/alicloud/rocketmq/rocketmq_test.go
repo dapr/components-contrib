@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -37,7 +38,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	require.NoError(t, err)
 
 	var count int32
-	handler := func(in *bindings.ReadResponse) ([]byte, error) {
+	handler := func(ctx context.Context, in *bindings.ReadResponse) ([]byte, error) {
 		require.Equal(t, "hello", string(in.Data))
 		atomic.AddInt32(&count, 1)
 

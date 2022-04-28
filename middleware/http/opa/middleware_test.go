@@ -258,6 +258,27 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			status: 200,
 		},
+		"allow when multiple headers included with space": {
+			meta: middleware.Metadata{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = false
+						allow = { "status_code": 200 } {
+							input.request.headers["X-Jwt-Header"]
+							input.request.headers["X-My-Custom-Header"]
+						}
+						`,
+					"includedHeaders": "x-my-custom-header, x-jwt-header",
+				},
+			},
+			req: func(ctx *fh.RequestCtx) {
+				ctx.Request.SetHost("https://my.site")
+				ctx.Request.Header.Add("x-jwt-header", "1")
+				ctx.Request.Header.Add("x-my-custom-header", "2")
+			},
+			status: 200,
+		},
 	}
 
 	for name, test := range tests {

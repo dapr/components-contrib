@@ -28,7 +28,7 @@ type cancelInstancePayload struct {
 	ProcessInstanceKey *int64 `json:"processInstanceKey"`
 }
 
-func (z *ZeebeCommand) cancelInstance(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) cancelInstance(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload cancelInstancePayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -41,7 +41,7 @@ func (z *ZeebeCommand) cancelInstance(req *bindings.InvokeRequest) (*bindings.In
 
 	_, err = z.client.NewCancelInstanceCommand().
 		ProcessInstanceKey(*payload.ProcessInstanceKey).
-		Send(context.Background())
+		Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot cancel instance for process instance key %d: %w", payload.ProcessInstanceKey, err)
 	}

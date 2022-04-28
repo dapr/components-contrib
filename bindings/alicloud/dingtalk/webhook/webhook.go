@@ -51,7 +51,7 @@ type webhookResult struct {
 }
 
 type outgoingWebhook struct {
-	handler func(*bindings.ReadResponse) ([]byte, error)
+	handler func(context.Context, *bindings.ReadResponse) ([]byte, error)
 }
 
 var webhooks = struct { // nolint: gochecknoglobals
@@ -94,7 +94,7 @@ func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the outgoing webhook, not yet production ready.
-func (t *DingTalkWebhook) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (t *DingTalkWebhook) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
 
 	webhooks.Lock()
@@ -113,13 +113,13 @@ func (t *DingTalkWebhook) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation}
 }
 
-func (t *DingTalkWebhook) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (t *DingTalkWebhook) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	rst := &bindings.InvokeResponse{Metadata: map[string]string{}, Data: nil}
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return rst, t.sendMessage(req)
+		return rst, t.sendMessage(ctx, req)
 	case bindings.GetOperation:
-		return rst, t.receivedMessage(req)
+		return rst, t.receivedMessage(ctx, req)
 	case bindings.DeleteOperation, bindings.ListOperation:
 		return rst, fmt.Errorf("dingtalk webhook error: unsupported operation %s", req.Operation)
 	default:
@@ -138,21 +138,21 @@ func (t *DingTalkWebhook) getOutgoingWebhook() (*outgoingWebhook, error) {
 	return item, nil
 }
 
-func (t *DingTalkWebhook) receivedMessage(req *bindings.InvokeRequest) error {
+func (t *DingTalkWebhook) receivedMessage(ctx context.Context, req *bindings.InvokeRequest) error {
 	item, err := t.getOutgoingWebhook()
 	if err != nil {
 		return err
 	}
 
 	in := &bindings.ReadResponse{Data: req.Data, Metadata: req.Metadata}
-	if _, err = item.handler(in); err != nil {
+	if _, err = item.handler(ctx, in); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (t *DingTalkWebhook) sendMessage(req *bindings.InvokeRequest) error {
+func (t *DingTalkWebhook) sendMessage(ctx context.Context, req *bindings.InvokeRequest) error {
 	msg := req.Data
 
 	postURL, err := getPostURL(t.settings.URL, t.settings.Secret)
@@ -160,7 +160,7 @@ func (t *DingTalkWebhook) sendMessage(req *bindings.InvokeRequest) error {
 		return fmt.Errorf("dingtalk webhook error: get url failed. %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPClientTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHTTPClientTimeout)
 	defer cancel()
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", postURL, bytes.NewReader(msg))

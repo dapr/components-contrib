@@ -76,12 +76,12 @@ const (
 // recordProcessorFactory.
 type recordProcessorFactory struct {
 	logger  logger.Logger
-	handler func(*bindings.ReadResponse) ([]byte, error)
+	handler func(context.Context, *bindings.ReadResponse) ([]byte, error)
 }
 
 type recordProcessor struct {
 	logger  logger.Logger
-	handler func(*bindings.ReadResponse) ([]byte, error)
+	handler func(context.Context, *bindings.ReadResponse) ([]byte, error)
 }
 
 // NewAWSKinesis returns a new AWS Kinesis instance.
@@ -135,7 +135,7 @@ func (a *AWSKinesis) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AWSKinesis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	partitionKey := req.Metadata[partitionKeyName]
 	if partitionKey == "" {
 		partitionKey = uuid.New().String()
@@ -149,7 +149,7 @@ func (a *AWSKinesis) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRespon
 	return nil, err
 }
 
-func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AWSKinesis) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		a.worker = worker.NewWorker(a.recordProcessorFactory(handler), a.workerConfig)
 		err := a.worker.Start()
@@ -179,7 +179,7 @@ func (a *AWSKinesis) Read(handler func(*bindings.ReadResponse) ([]byte, error)) 
 }
 
 // Subscribe to all shards.
-func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDescription, handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDescription, handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	consumerARN, err := a.ensureConsumer(streamDesc.StreamARN)
 	if err != nil {
 		a.logger.Error(err)
@@ -210,7 +210,7 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 					switch e := event.(type) {
 					case *kinesis.SubscribeToShardEvent:
 						for _, rec := range e.Records {
-							handler(&bindings.ReadResponse{
+							handler(ctx, &bindings.ReadResponse{
 								Data: rec.Data,
 							})
 						}
@@ -329,7 +329,7 @@ func (a *AWSKinesis) parseMetadata(metadata bindings.Metadata) (*kinesisMetadata
 	return &m, nil
 }
 
-func (a *AWSKinesis) recordProcessorFactory(handler func(*bindings.ReadResponse) ([]byte, error)) interfaces.IRecordProcessorFactory {
+func (a *AWSKinesis) recordProcessorFactory(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) interfaces.IRecordProcessorFactory {
 	return &recordProcessorFactory{logger: a.logger, handler: handler}
 }
 
@@ -348,7 +348,7 @@ func (p *recordProcessor) ProcessRecords(input *interfaces.ProcessRecordsInput) 
 	}
 
 	for _, v := range input.Records {
-		p.handler(&bindings.ReadResponse{
+		p.handler(context.TODO(), &bindings.ReadResponse{
 			Data: v.Data,
 		})
 	}

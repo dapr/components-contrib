@@ -190,7 +190,7 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 	}
 }
 
-func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobHTTPHeaders azblob.BlobHTTPHeaders
 	var blobURL azblob.BlockBlobURL
 	var blobName string
@@ -244,7 +244,7 @@ func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.Invoke
 		req.Data = decoded
 	}
 
-	_, err = azblob.UploadBufferToBlockBlob(context.Background(), req.Data, blobURL, azblob.UploadToBlockBlobOptions{
+	_, err = azblob.UploadBufferToBlockBlob(ctx, req.Data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
 		Metadata:        req.Metadata,
 		BlobHTTPHeaders: blobHTTPHeaders,
@@ -271,7 +271,7 @@ func (a *AzureBlobStorage) create(req *bindings.InvokeRequest) (*bindings.Invoke
 	}, nil
 }
 
-func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobURL azblob.BlockBlobURL
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobURL = a.getBlobURL(val)
@@ -279,7 +279,6 @@ func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeRes
 		return nil, ErrMissingBlobName
 	}
 
-	ctx := context.TODO()
 	resp, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
@@ -314,7 +313,7 @@ func (a *AzureBlobStorage) get(req *bindings.InvokeRequest) (*bindings.InvokeRes
 	}, nil
 }
 
-func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var blobURL azblob.BlockBlobURL
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobURL = a.getBlobURL(val)
@@ -331,12 +330,12 @@ func (a *AzureBlobStorage) delete(req *bindings.InvokeRequest) (*bindings.Invoke
 		}
 	}
 
-	_, err := blobURL.Delete(context.Background(), deleteSnapshotsOptions, azblob.BlobAccessConditions{})
+	_, err := blobURL.Delete(ctx, deleteSnapshotsOptions, azblob.BlobAccessConditions{})
 
 	return nil, err
 }
 
-func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	options := azblob.ListBlobsSegmentOptions{}
 
 	hasPayload := false
@@ -376,7 +375,6 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 
 	var blobs []azblob.BlobItem
 	metadata := map[string]string{}
-	ctx := context.Background()
 	for currentMaker := initialMarker; currentMaker.NotDone(); {
 		var listBlob *azblob.ListBlobsFlatSegmentResponse
 		listBlob, err := a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
@@ -409,16 +407,16 @@ func (a *AzureBlobStorage) list(req *bindings.InvokeRequest) (*bindings.InvokeRe
 	}, nil
 }
 
-func (a *AzureBlobStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return a.create(req)
+		return a.create(ctx, req)
 	case bindings.GetOperation:
-		return a.get(req)
+		return a.get(ctx, req)
 	case bindings.DeleteOperation:
-		return a.delete(req)
+		return a.delete(ctx, req)
 	case bindings.ListOperation:
-		return a.list(req)
+		return a.list(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}

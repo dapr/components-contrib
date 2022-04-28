@@ -17,14 +17,15 @@ param confTestTags object = {}
 
 var iotHubBindingsConsumerGroupName = '${iotHubName}/events/bindings-cg'
 var iotHubPubsubConsumerGroupName = '${iotHubName}/events/pubsub-cg'
+var iotHubPubsubEhCertificationConsumerGroupName = '${iotHubName}/events/pubsub-eh-certification-cg'
 
 resource iotHub 'Microsoft.Devices/IotHubs@2021-03-31' = {
   name: iotHubName
   location: rgLocation
   tags: confTestTags
   sku: {
-      capacity: 1
-      name: 'S1'
+    capacity: 1
+    name: 'S1'
   }
   properties: {
     eventHubEndpoints: {
@@ -50,6 +51,16 @@ resource iotHubPubsubConsumerGroup 'Microsoft.Devices/IotHubs/eventHubEndpoints/
   name: iotHubPubsubConsumerGroupName
   properties: {
     name: 'pubsub-cg'
+  }
+  dependsOn: [
+    iotHub
+  ]
+}
+
+resource iotHubPubsubEhCertificationConsumerGroup 'Microsoft.Devices/IotHubs/eventHubEndpoints/ConsumerGroups@2021-03-31' = {
+  name: iotHubPubsubEhCertificationConsumerGroupName
+  properties: {
+    name: 'pubsub-eh-certification-cg'
   }
   dependsOn: [
     iotHub

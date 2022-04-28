@@ -93,7 +93,7 @@ func (t *SMS) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (t *SMS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	toNumberValue := t.metadata.toNumber
 	if toNumberValue == "" {
 		toNumberFromRequest, ok := req.Metadata[toNumber]
@@ -110,7 +110,7 @@ func (t *SMS) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 	vDr := *strings.NewReader(v.Encode())
 
 	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", twilioURL, &vDr)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", twilioURL, &vDr)
 	if err != nil {
 		return nil, err
 	}

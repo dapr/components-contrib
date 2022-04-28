@@ -36,7 +36,7 @@ type createInstancePayload struct {
 	Variables            interface{} `json:"variables"`
 }
 
-func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) createInstance(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload createInstancePayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -75,7 +75,7 @@ func (z *ZeebeCommand) createInstance(req *bindings.InvokeRequest) (*bindings.In
 		}
 	}
 
-	response, err := cmd3.Send(context.Background())
+	response, err := cmd3.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create instane for %s: %w", errorDetail, err)
 	}

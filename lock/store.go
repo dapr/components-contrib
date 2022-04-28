@@ -11,13 +11,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package redis
+package lock
 
-import "time"
+type Store interface {
+	// Init this component.
+	InitLockStore(metadata Metadata) error
 
-type metadata struct {
-	maxRetries      int
-	maxRetryBackoff time.Duration
-	ttlInSeconds    *int
-	queryIndexes    string
+	// TryLock tries to acquire a lock.
+	TryLock(req *TryLockRequest) (*TryLockResponse, error)
+
+	// Unlock tries to release a lock.
+	Unlock(req *UnlockRequest) (*UnlockResponse, error)
 }

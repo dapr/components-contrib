@@ -14,6 +14,7 @@ limitations under the License.
 package cosmosdb
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -23,7 +24,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/authentication/azure"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
@@ -135,7 +135,7 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		var obj interface{}

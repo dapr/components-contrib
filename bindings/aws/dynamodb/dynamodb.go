@@ -14,6 +14,7 @@ limitations under the License.
 package dynamodb
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -68,7 +69,7 @@ func (d *DynamoDB) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (d *DynamoDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var obj interface{}
 	err := json.Unmarshal(req.Data, &obj)
 	if err != nil {

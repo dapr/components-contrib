@@ -40,7 +40,8 @@ type Middleware struct {
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (
-	func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
+	func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error,
+) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err

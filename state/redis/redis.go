@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/agrea/ptr"
 	"github.com/go-redis/redis/v8"
@@ -83,15 +82,10 @@ const (
 	end`
 	connectedSlavesReplicas  = "connected_slaves:"
 	infoReplicationDelimiter = "\r\n"
-	maxRetries               = "maxRetries"
-	maxRetryBackoff          = "maxRetryBackoff"
 	ttlInSeconds             = "ttlInSeconds"
-	queryIndexes             = "queryIndexes"
 	defaultBase              = 10
 	defaultBitSize           = 0
 	defaultDB                = 0
-	defaultMaxRetries        = 3
-	defaultMaxRetryBackoff   = time.Second * 2
 )
 
 // StateStore is a Redis state store.
@@ -100,7 +94,7 @@ type StateStore struct {
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
 	json           jsoniter.API
-	metadata       metadata
+	metadata       rediscomponent.Metadata
 	replicas       int
 	querySchemas   querySchemas
 
@@ -123,45 +117,6 @@ func NewRedisStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-func parseRedisMetadata(meta state.Metadata) (metadata, error) {
-	m := metadata{}
-
-	m.maxRetries = defaultMaxRetries
-	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
-		}
-		m.maxRetries = int(parsedVal)
-	}
-
-	m.maxRetryBackoff = defaultMaxRetryBackoff
-	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
-		}
-		m.maxRetryBackoff = time.Duration(parsedVal)
-	}
-
-	if val, ok := meta.Properties[ttlInSeconds]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)
-		}
-		intVal := int(parsedVal)
-		m.ttlInSeconds = &intVal
-	} else {
-		m.ttlInSeconds = nil
-	}
-
-	if val, ok := meta.Properties[queryIndexes]; ok && val != "" {
-		m.queryIndexes = val
-	}
-
-	return m, nil
-}
-
 func (r *StateStore) Ping() error {
 	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
@@ -172,20 +127,20 @@ func (r *StateStore) Ping() error {
 
 // Init does metadata and connection parsing.
 func (r *StateStore) Init(metadata state.Metadata) error {
-	m, err := parseRedisMetadata(metadata)
+	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
 		return err
 	}
 	r.metadata = m
 
-	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.maxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.maxRetryBackoff)}
+	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.MaxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.MaxRetryBackoff)}
 	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
 	if err != nil {
 		return err
 	}
 
 	// check for query schemas
-	if r.querySchemas, err = parseQuerySchemas(m.queryIndexes); err != nil {
+	if r.querySchemas, err = parseQuerySchemas(m.QueryIndexes); err != nil {
 		return fmt.Errorf("redis store: error parsing query index schema: %v", err)
 	}
 
@@ -377,7 +332,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 	// apply global TTL
 	if ttl == nil {
-		ttl = r.metadata.ttlInSeconds
+		ttl = r.metadata.TTLInSeconds
 	}
 
 	firstWrite := 1
@@ -461,7 +416,7 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			}
 			// apply global TTL
 			if ttl == nil {
-				ttl = r.metadata.ttlInSeconds
+				ttl = r.metadata.TTLInSeconds
 			}
 			var bt []byte
 			if isJSON {

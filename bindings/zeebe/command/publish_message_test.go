@@ -104,7 +104,7 @@ func TestPublishMessage(t *testing.T) {
 	t.Run("messageName is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: PublishMessageOperation}
-		_, err := cmd.Invoke(req)
+		_, err := cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingMessageName)
 	})
 
@@ -120,7 +120,7 @@ func TestPublishMessage(t *testing.T) {
 		var mc mockPublishMessageClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
@@ -145,7 +145,7 @@ func TestPublishMessage(t *testing.T) {
 		var mc mockPublishMessageClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)

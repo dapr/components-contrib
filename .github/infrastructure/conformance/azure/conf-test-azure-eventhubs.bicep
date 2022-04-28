@@ -15,6 +15,7 @@ param eventHubsNamespaceName string
 param rgLocation string = resourceGroup().location
 param confTestTags object = {}
 
+var eventHubsNamespacePolicy = '${eventHubsNamespaceName}-namespace-policy'
 var eventHubBindingsName = '${eventHubsNamespaceName}-bindings-topic'
 var eventHubBindingsPolicyName = '${eventHubBindingsName}-policy'
 var eventHubBindingsConsumerGroupName = '${eventHubBindingsName}-cg'
@@ -23,6 +24,13 @@ var eventHubPubsubName = '${eventHubsNamespaceName}-pubsub-topic'
 var eventHubPubsubPolicyName = '${eventHubPubsubName}-policy'
 var eventHubPubsubConsumerGroupName = '${eventHubPubsubName}-cg'
 
+var certificationEventHubPubsubTopicActiveName = 'certification-pubsub-topic-active'
+var certificationEventHubPubsubTopicActivePolicyName = '${certificationEventHubPubsubTopicActiveName}-policy'
+
+var certificationEventHubPubsubTopicPassiveName = 'certification-pubsub-topic-passive'
+
+var certificationConsumerGroupName1 = 'ehcertification1'
+var certificationConsumerGroupName2 = 'ehcertification2'
 
 resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   name: eventHubsNamespaceName
@@ -31,8 +39,21 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   sku: {
     name: 'Standard' // For > 1 consumer group
   }
+  // For connectionstring and test operation at namespace level
+  resource eventHubPubsubNamespacePolicy 'authorizationRules' = {
+    name: eventHubsNamespacePolicy
+    properties: {
+      rights: [
+        'Send'
+        'Listen'
+      ]
+    }
+  }
   resource eventHubBindings 'eventhubs' = {
     name: eventHubBindingsName
+    properties: {
+      messageRetentionInDays: 1
+    }
     resource eventHubBindingsPolicy 'authorizationRules' = {
       name: eventHubBindingsPolicyName
       properties: {
@@ -48,6 +69,9 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
   }
   resource eventHubPubsub 'eventhubs' = {
     name: eventHubPubsubName
+    properties: {
+      messageRetentionInDays: 1
+    }
     resource eventHubPubsubPolicy 'authorizationRules' = {
       name: eventHubPubsubPolicyName
       properties: {
@@ -61,6 +85,39 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
       name: eventHubPubsubConsumerGroupName
     }
   }
+  resource certificationEventHubPubsubTopicActive 'eventhubs' = {
+    name: certificationEventHubPubsubTopicActiveName
+    properties: {
+      messageRetentionInDays: 1
+    }
+    resource certificationEventHubPubsubTopicActivePolicy 'authorizationRules' = {
+      name: certificationEventHubPubsubTopicActivePolicyName
+      properties: {
+        rights: [
+          'Send'
+          'Listen'
+        ]
+      }
+    }
+    resource eventHubPubsubConsumerGroup1 'consumergroups' = {
+      name: certificationConsumerGroupName1
+    }
+    resource eventHubPubsubConsumerGroup2 'consumergroups' = {
+      name: certificationConsumerGroupName2
+    }
+  }
+  resource certificationEventHubPubsubTopicPassive 'eventhubs' = {
+    name: certificationEventHubPubsubTopicPassiveName
+    properties: {
+      messageRetentionInDays: 1
+    }
+    resource eventHubPubsubConsumerGroup1 'consumergroups' = {
+      name: certificationConsumerGroupName1
+    }
+    resource eventHubPubsubConsumerGroup2 'consumergroups' = {
+      name: certificationConsumerGroupName2
+    }
+  }
 }
 
 output eventHubBindingsName string = eventHubsNamespace::eventHubBindings.name
@@ -70,3 +127,7 @@ output eventHubBindingsConsumerGroupName string = eventHubsNamespace::eventHubBi
 output eventHubPubsubName string = eventHubsNamespace::eventHubPubsub.name
 output eventHubPubsubPolicyName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubPolicy.name
 output eventHubPubsubConsumerGroupName string = eventHubsNamespace::eventHubPubsub::eventHubPubsubConsumerGroup.name
+
+output eventHubsNamespacePolicyName string = eventHubsNamespace::eventHubPubsubNamespacePolicy.name
+output certificationEventHubPubsubTopicActiveName string = eventHubsNamespace::certificationEventHubPubsubTopicActive.name
+output certificationEventHubPubsubTopicActivePolicyName string = eventHubsNamespace::certificationEventHubPubsubTopicActive::certificationEventHubPubsubTopicActivePolicy.name

@@ -18,12 +18,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
-
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/influxdata/influxdb-client-go/api"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 const queryOperation bindings.OperationKind = "query"
@@ -118,7 +118,7 @@ func (i *Influx) Operations() []bindings.OperationKind {
 }
 
 // Invoke called on supported operations.
-func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (i *Influx) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		var jsonPoint map[string]interface{}
@@ -130,7 +130,7 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		line := fmt.Sprintf("%s,%s %s", jsonPoint["measurement"], jsonPoint["tags"], jsonPoint["values"])
 
 		// write the point
-		err = i.writeAPI.WriteRecord(context.Background(), line)
+		err = i.writeAPI.WriteRecord(ctx, line)
 		if err != nil {
 			return nil, ErrCannotWriteRecord
 		}
@@ -145,7 +145,7 @@ func (i *Influx) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 			return nil, ErrMetadataRawNotFound
 		}
 
-		res, err := i.queryAPI.QueryRaw(context.Background(), s, influxdb2.DefaultDialect())
+		res, err := i.queryAPI.QueryRaw(ctx, s, influxdb2.DefaultDialect())
 		if err != nil {
 			return nil, errors.Wrap(err, "do query influx err")
 		}

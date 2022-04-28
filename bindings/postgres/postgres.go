@@ -79,7 +79,7 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 }
 
 // Invoke handles all invoke operations.
-func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
+func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
 	}
@@ -111,14 +111,14 @@ func (p *Postgres) Invoke(req *bindings.InvokeRequest) (resp *bindings.InvokeRes
 
 	switch req.Operation { // nolint: exhaustive
 	case execOperation:
-		r, err := p.exec(sql)
+		r, err := p.exec(ctx, sql)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case queryOperation:
-		d, err := p.query(sql)
+		d, err := p.query(ctx, sql)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
 		}
@@ -148,10 +148,10 @@ func (p *Postgres) Close() error {
 	return nil
 }
 
-func (p *Postgres) query(sql string) (result []byte, err error) {
+func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err error) {
 	p.logger.Debugf("query: %s", sql)
 
-	rows, err := p.db.Query(context.Background(), sql)
+	rows, err := p.db.Query(ctx, sql)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing %s", sql)
 	}
@@ -172,10 +172,10 @@ func (p *Postgres) query(sql string) (result []byte, err error) {
 	return
 }
 
-func (p *Postgres) exec(sql string) (result int64, err error) {
+func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err error) {
 	p.logger.Debugf("exec: %s", sql)
 
-	res, err := p.db.Exec(context.Background(), sql)
+	res, err := p.db.Exec(ctx, sql)
 	if err != nil {
 		return 0, errors.Wrapf(err, "error executing %s", sql)
 	}

@@ -76,7 +76,7 @@ const (
 	sysPropMessageID                  = "message-id"
 )
 
-func readHandler(e *eventhub.Event, handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func readHandler(e *eventhub.Event, handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	res := bindings.ReadResponse{Data: e.Data, Metadata: map[string]string{}}
 	if e.SystemProperties.SequenceNumber != nil {
 		res.Metadata[sysPropSequenceNumber] = strconv.FormatInt(*e.SystemProperties.SequenceNumber, 10)
@@ -114,7 +114,7 @@ func readHandler(e *eventhub.Event, handler func(*bindings.ReadResponse) ([]byte
 	if e.ID != "" {
 		res.Metadata[sysPropMessageID] = e.ID
 	}
-	_, err := handler(&res)
+	_, err := handler(context.TODO(), &res)
 
 	return err
 }
@@ -281,7 +281,7 @@ func (a *AzureEventHubs) Operations() []bindings.OperationKind {
 }
 
 // Write posts an event hubs message.
-func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureEventHubs) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	event := &eventhub.Event{
 		Data: req.Data,
 	}
@@ -296,7 +296,7 @@ func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 		}
 	}
 
-	err := a.hub.Send(context.Background(), event)
+	err := a.hub.Send(ctx, event)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (a *AzureEventHubs) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeRe
 }
 
 // Read gets messages from eventhubs in a non-blocking fashion.
-func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureEventHubs) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	if !a.metadata.partitioned() {
 		if err := a.RegisterEventProcessor(handler); err != nil {
 			return err
@@ -327,7 +327,7 @@ func (a *AzureEventHubs) Read(handler func(*bindings.ReadResponse) ([]byte, erro
 }
 
 // RegisterPartitionedEventProcessor - receive eventhub messages by partitionID.
-func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	ctx := context.Background()
 
 	runtimeInfo, err := a.hub.GetRuntimeInformation(ctx)
@@ -376,7 +376,7 @@ func contains(arr []string, str string) bool {
 
 // RegisterEventProcessor - receive eventhub messages by eventprocessor
 // host by balancing partitions.
-func (a *AzureEventHubs) RegisterEventProcessor(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureEventHubs) RegisterEventProcessor(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(a.storageCredential, a.metadata.storageAccountName, a.metadata.storageContainerName, *a.azureEnvironment)
 	if err != nil {
 		return err

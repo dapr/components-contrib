@@ -78,12 +78,10 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go.
-func (k *Kafka) Subscribe(topic string, _ map[string]string, handler EventHandler) error {
+func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHandler) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
-
-	topics := k.addTopic(topic)
 
 	// Close resources and reset synchronization primitives
 	k.closeSubscriptionResources()

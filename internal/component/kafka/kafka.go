@@ -34,7 +34,6 @@ type Kafka struct {
 	saslPassword  string
 	initialOffset int64
 	cg            sarama.ConsumerGroup
-	topics        map[string]bool
 	cancel        context.CancelFunc
 	consumer      consumer
 	config        *sarama.Config
@@ -107,8 +106,6 @@ func (k *Kafka) Init(metadata map[string]string) error {
 		return err
 	}
 
-	k.topics = make(map[string]bool)
-
 	// Default retry configuration is used if no
 	// backOff properties are set.
 	if err := retry.DecodeConfigWithPrefix(
@@ -133,21 +130,6 @@ func (k *Kafka) Close() (err error) {
 	}
 
 	return err
-}
-
-func (k *Kafka) addTopic(newTopic string) []string {
-	// Add topic to our map of topics
-	k.topics[newTopic] = true
-
-	topics := make([]string, len(k.topics))
-
-	i := 0
-	for topic := range k.topics {
-		topics[i] = topic
-		i++
-	}
-
-	return topics
 }
 
 // EventHandler is the handler used to handle the subscribed event.

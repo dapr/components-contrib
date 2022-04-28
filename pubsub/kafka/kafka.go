@@ -23,15 +23,34 @@ import (
 )
 
 type PubSub struct {
-	kafka *kafka.Kafka
+	kafka  *kafka.Kafka
+	topics map[string]bool
 }
 
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
+	p.topics = make(map[string]bool)
 	return p.kafka.Init(metadata.Properties)
 }
 
 func (p *PubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	return p.kafka.Subscribe(req.Topic, req.Metadata, newSubscribeAdapter(handler).adapter)
+	topics := p.addTopic(req.Topic)
+
+	return p.kafka.Subscribe(topics, req.Metadata, newSubscribeAdapter(handler).adapter)
+}
+
+func (p *PubSub) addTopic(newTopic string) []string {
+	// Add topic to our map of topics
+	p.topics[newTopic] = true
+
+	topics := make([]string, len(p.topics))
+
+	i := 0
+	for topic := range p.topics {
+		topics[i] = topic
+		i++
+	}
+
+	return topics
 }
 
 // NewKafka returns a new kafka pubsub instance.

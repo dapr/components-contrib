@@ -48,9 +48,9 @@ func TestReadVaultToken(t *testing.T) {
 			vaultTokenMountPath: f.Name(),
 		}
 
-		token, err := v.readVaultToken()
+		err = v.initVaultToken()
 		assert.Nil(t, err)
-		assert.Equal(t, tokenString, token)
+		assert.Equal(t, tokenString, v.vaultToken)
 	})
 
 	t.Run("read incorrect token", func(t *testing.T) {
@@ -67,9 +67,9 @@ func TestReadVaultToken(t *testing.T) {
 		v := vaultSecretStore{
 			vaultTokenMountPath: f.Name(),
 		}
-		token, err := v.readVaultToken()
+		err = v.initVaultToken()
 		assert.Nil(t, err)
-		assert.NotEqual(t, "thisistheroottoken", token)
+		assert.NotEqual(t, "thisistheroottoken", v.vaultToken)
 	})
 
 	t.Run("read token from vaultToken", func(t *testing.T) {
@@ -77,10 +77,10 @@ func TestReadVaultToken(t *testing.T) {
 			vaultToken: expectedTok,
 		}
 
-		actualToken, err := v.readVaultToken()
+		err := v.initVaultToken()
 
 		assert.Nil(t, err)
-		assert.Equal(t, expectedTok, actualToken)
+		assert.Equal(t, expectedTok, v.vaultToken)
 	})
 }
 
@@ -110,7 +110,7 @@ func TestVaultEnginePath(t *testing.T) {
 	t.Run("without engine path config", func(t *testing.T) {
 		v := vaultSecretStore{}
 
-		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", "skipVerify": "true"}})
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}})
 		assert.Nil(t, err)
 		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
 	})
@@ -118,7 +118,7 @@ func TestVaultEnginePath(t *testing.T) {
 	t.Run("with engine path config", func(t *testing.T) {
 		v := vaultSecretStore{}
 
-		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultTokenMountPath: "mock", "skipVerify": "true", vaultEnginePath: "kv"}})
+		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}})
 		assert.Nil(t, err)
 		assert.Equal(t, v.vaultEnginePath, "kv")
 	})
@@ -127,7 +127,7 @@ func TestVaultEnginePath(t *testing.T) {
 func TestVaultTokenPrefix(t *testing.T) {
 	t.Run("default value of vaultKVUsePrefix is true to emulate previous behaviour", func(t *testing.T) {
 		properties := map[string]string{
-			"vaultTokenMountPath": expectedTokMountPath,
+			componentVaultToken: expectedTok,
 		}
 
 		m := secretstores.Metadata{

@@ -14,6 +14,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -68,11 +69,11 @@ func validateConsistencyOption(c string) error {
 }
 
 // SetWithOptions handles SetRequest with request options.
-func SetWithOptions(method func(req *SetRequest) error, req *SetRequest) error {
-	return method(req)
+func SetWithOptions(method func(ctx context.Context, req *SetRequest) error, ctx context.Context, req *SetRequest) error {
+	return method(ctx, req)
 }
 
 // DeleteWithOptions handles DeleteRequest with options.
-func DeleteWithOptions(method func(req *DeleteRequest) error, req *DeleteRequest) error {
-	return method(req)
+func DeleteWithOptions(method func(ctx context.Context, req *DeleteRequest) error, ctx context.Context, req *DeleteRequest) error {
+	return method(ctx, req)
 }

@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -334,7 +335,7 @@ func TestInvalidBulkSetNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.roachDba.BulkSet(sets)
+	err := m.roachDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -356,7 +357,7 @@ func TestInvalidBulkSetEmptyValue(t *testing.T) {
 	})
 
 	// Act
-	err := m.roachDba.BulkSet(sets)
+	err := m.roachDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -379,7 +380,7 @@ func TestValidBulkSet(t *testing.T) {
 	})
 
 	// Act
-	err := m.roachDba.BulkSet(sets)
+	err := m.roachDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.Nil(t, err)
@@ -400,7 +401,7 @@ func TestInvalidBulkDeleteNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.roachDba.BulkDelete(deletes)
+	err := m.roachDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -422,7 +423,7 @@ func TestValidBulkDelete(t *testing.T) {
 	})
 
 	// Act
-	err := m.roachDba.BulkDelete(deletes)
+	err := m.roachDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
 	assert.Nil(t, err)

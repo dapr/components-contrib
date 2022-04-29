@@ -117,8 +117,8 @@ func NewRedisStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-func (r *StateStore) Ping() error {
-	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
+func (r *StateStore) Ping(ctx context.Context) error {
+	if _, err := r.client.Ping(ctx).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -195,7 +195,7 @@ func (r *StateStore) parseConnectedSlaves(res string) int {
 	return 0
 }
 
-func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
+func (r *StateStore) deleteValue(ctx context.Context, req *state.DeleteRequest) error {
 	if req.ETag == nil {
 		etag := "0"
 		req.ETag = &etag
@@ -207,7 +207,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	} else {
 		delQuery = delDefaultQuery
 	}
-	_, err := r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err := r.client.Do(ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -216,13 +216,13 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 }
 
 // Delete performs a delete operation.
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
 
-	return state.DeleteWithOptions(r.deleteValue, req)
+	return state.DeleteWithOptions(r.deleteValue, ctx, req)
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
@@ -242,8 +242,8 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 	}, nil
 }
 
-func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	res, err := r.client.Do(ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
@@ -304,12 +304,12 @@ func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) 
 }
 
 // Get retrieves state from redis with a key.
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
 		return r.getJSON(req)
 	}
 
-	return r.getDefault(req)
+	return r.getDefault(ctx, req)
 }
 
 type jsonEntry struct {
@@ -317,7 +317,7 @@ type jsonEntry struct {
 	Version *int        `json:"version,omitempty"`
 }
 
-func (r *StateStore) setValue(req *state.SetRequest) error {
+func (r *StateStore) setValue(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -350,7 +350,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		bt, _ = utils.Marshal(req.Value, r.json.Marshal)
 	}
 
-	err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
+	err = r.client.Do(ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -384,8 +384,8 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 }
 
 // Set saves state into redis.
-func (r *StateStore) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(r.setValue, req)
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
+	return state.SetWithOptions(r.setValue, ctx, req)
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.

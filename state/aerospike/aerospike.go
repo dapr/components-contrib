@@ -14,6 +14,7 @@ limitations under the License.
 package aerospike
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -110,7 +111,7 @@ func (aspike *Aerospike) Features() []state.Feature {
 }
 
 // Set stores value for a key to Aerospike. It honors ETag (for concurrency) and consistency settings.
-func (aspike *Aerospike) Set(req *state.SetRequest) error {
+func (aspike *Aerospike) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -162,7 +163,7 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 }
 
 // Get retrieves state from Aerospike with a key.
-func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (aspike *Aerospike) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	asKey, err := as.NewKey(aspike.namespace, aspike.set, req.Key)
 	if err != nil {
 		return nil, err
@@ -196,7 +197,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 }
 
 // Delete performs a delete operation.
-func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
+func (aspike *Aerospike) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -238,7 +239,7 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (aspike *Aerospike) Ping() error {
+func (aspike *Aerospike) Ping(ctx context.Context) error {
 	return nil
 }
 

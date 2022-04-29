@@ -14,6 +14,7 @@ limitations under the License.
 package oracledatabase
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -57,7 +58,7 @@ func newOracleDatabaseAccess(logger logger.Logger) *oracleDatabaseAccess {
 	}
 }
 
-func (o *oracleDatabaseAccess) Ping() error {
+func (o *oracleDatabaseAccess) Ping(ctx context.Context) error {
 	return o.db.Ping()
 }
 
@@ -96,8 +97,8 @@ func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 }
 
 // Set makes an insert or update to the database.
-func (o *oracleDatabaseAccess) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(o.setValue, req)
+func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) error {
+	return state.SetWithOptions(o.setValue, ctx, req)
 }
 
 func parseTTL(requestMetadata map[string]string) (*int, error) {
@@ -115,7 +116,7 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 }
 
 // setValue is an internal implementation of set to enable passing the logic to state.SetWithRetries as a func.
-func (o *oracleDatabaseAccess) setValue(req *state.SetRequest) error {
+func (o *oracleDatabaseAccess) setValue(ctx context.Context, req *state.SetRequest) error {
 	o.logger.Debug("Setting state value in OracleDatabase")
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -214,7 +215,7 @@ func (o *oracleDatabaseAccess) setValue(req *state.SetRequest) error {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (o *oracleDatabaseAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	o.logger.Debug("Getting state value from OracleDatabase")
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
@@ -253,12 +254,12 @@ func (o *oracleDatabaseAccess) Get(req *state.GetRequest) (*state.GetResponse, e
 }
 
 // Delete removes an item from the state store.
-func (o *oracleDatabaseAccess) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(o.deleteValue, req)
+func (o *oracleDatabaseAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return state.DeleteWithOptions(o.deleteValue, ctx, req)
 }
 
 // deleteValue is an internal implementation of delete to enable passing the logic to state.DeleteWithRetries as a func.
-func (o *oracleDatabaseAccess) deleteValue(req *state.DeleteRequest) error {
+func (o *oracleDatabaseAccess) deleteValue(ctx context.Context, req *state.DeleteRequest) error {
 	o.logger.Debug("Deleting state value from OracleDatabase")
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
@@ -303,7 +304,7 @@ func (o *oracleDatabaseAccess) deleteValue(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (o *oracleDatabaseAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (o *oracleDatabaseAccess) ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error {
 	o.logger.Debug("Executing multiple OracleDatabase operations,  within a single transaction")
 	tx, err := o.db.Begin()
 	if err != nil {
@@ -313,7 +314,7 @@ func (o *oracleDatabaseAccess) ExecuteMulti(sets []state.SetRequest, deletes []s
 	if len(deletes) > 0 {
 		for _, d := range deletes {
 			da := d // Fix for gosec  G601: Implicit memory aliasing in for looo.
-			err = o.Delete(&da)
+			err = o.Delete(ctx, &da)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -323,7 +324,7 @@ func (o *oracleDatabaseAccess) ExecuteMulti(sets []state.SetRequest, deletes []s
 	if len(sets) > 0 {
 		for _, s := range sets {
 			sa := s // Fix for gosec  G601: Implicit memory aliasing in for looo.
-			err = o.Set(&sa)
+			err = o.Set(ctx, &sa)
 			if err != nil {
 				tx.Rollback()
 				return err

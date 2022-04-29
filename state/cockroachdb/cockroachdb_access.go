@@ -22,6 +22,7 @@ import (
 	"strconv"
 
 	"github.com/agrea/ptr"
+	"golang.org/x/net/context"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
@@ -95,12 +96,12 @@ func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 }
 
 // Set makes an insert or update to the database.
-func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(p.setValue, req)
+func (p *cockroachDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
+	return state.SetWithOptions(p.setValue, ctx, req)
 }
 
 // setValue is an internal implementation of set to enable passing the logic to state.SetWithRetries as a func.
-func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
+func (p *cockroachDBAccess) setValue(ctx context.Context, req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in CockroachDB")
 
 	value, isBinary, err := validateAndReturnValue(req)
@@ -148,7 +149,7 @@ func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 	return nil
 }
 
-func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
+func (p *cockroachDBAccess) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	p.logger.Debug("Executing BulkSet request")
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -158,7 +159,7 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 	if len(req) > 0 {
 		for _, s := range req {
 			sa := s // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = p.Set(&sa)
+			err = p.Set(ctx, &sa)
 			if err != nil {
 				tx.Rollback()
 
@@ -173,7 +174,7 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (p *cockroachDBAccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	p.logger.Debug("Getting state value from CockroachDB")
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
@@ -221,12 +222,12 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 }
 
 // Delete removes an item from the state store.
-func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(p.deleteValue, req)
+func (p *cockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return state.DeleteWithOptions(p.deleteValue, ctx, req)
 }
 
 // deleteValue is an internal implementation of delete to enable passing the logic to state.DeleteWithRetries as a func.
-func (p *cockroachDBAccess) deleteValue(req *state.DeleteRequest) error {
+func (p *cockroachDBAccess) deleteValue(ctx context.Context, req *state.DeleteRequest) error {
 	p.logger.Debug("Deleting state value from CockroachDB")
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
@@ -264,7 +265,7 @@ func (p *cockroachDBAccess) deleteValue(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (p *cockroachDBAccess) BulkDelete(req []state.DeleteRequest) error {
+func (p *cockroachDBAccess) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	p.logger.Debug("Executing BulkDelete request")
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -274,7 +275,7 @@ func (p *cockroachDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = p.Delete(&da)
+			err = p.Delete(ctx, &da)
 			if err != nil {
 				tx.Rollback()
 
@@ -307,7 +308,7 @@ func (p *cockroachDBAccess) ExecuteMulti(request *state.TransactionalStateReques
 				return err
 			}
 
-			err = p.Set(&setReq)
+			err = p.Set(context.TODO(), &setReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -322,7 +323,7 @@ func (p *cockroachDBAccess) ExecuteMulti(request *state.TransactionalStateReques
 				return err
 			}
 
-			err = p.Delete(&delReq)
+			err = p.Delete(context.TODO(), &delReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -377,7 +378,7 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 }
 
 // Ping implements database ping.
-func (p *cockroachDBAccess) Ping() error {
+func (p *cockroachDBAccess) Ping(ctx context.Context) error {
 	return p.db.Ping()
 }
 

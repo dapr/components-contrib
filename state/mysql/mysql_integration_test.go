@@ -13,6 +13,7 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -268,7 +269,7 @@ func deleteItemThatDoesNotExist(t *testing.T, mys *MySQL) {
 		Key: randomKey(),
 	}
 
-	err := mys.Delete(deleteReq)
+	err := mys.Delete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 }
 
@@ -277,7 +278,7 @@ func deleteWithNoKeyFails(t *testing.T, mys *MySQL) {
 		Key: "",
 	}
 
-	err := mys.Delete(deleteReq)
+	err := mys.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -295,7 +296,7 @@ func deleteWithInvalidEtagFails(t *testing.T, mys *MySQL) {
 		ETag: &eTag,
 	}
 
-	err := mys.Delete(deleteReq)
+	err := mys.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -311,7 +312,7 @@ func newItemWithEtagFails(t *testing.T, mys *MySQL) {
 		Value: value,
 	}
 
-	err := mys.Set(setReq)
+	err := mys.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -340,7 +341,7 @@ func updateWithOldETagFails(t *testing.T, mys *MySQL) {
 		Value: newValue,
 	}
 
-	err := mys.Set(setReq)
+	err := mys.Set(context.Background(), setReq)
 	assert.NotNil(t, err, "Error was not thrown using old eTag")
 }
 
@@ -379,7 +380,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 		},
 	}
 
-	err := mys.BulkSet(setReq)
+	err := mys.BulkSet(context.Background(), setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -393,7 +394,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 		},
 	}
 
-	err = mys.BulkDelete(deleteReq)
+	err = mys.BulkDelete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -404,7 +405,7 @@ func setItemWithNoKey(t *testing.T, mys *MySQL) {
 		Key: "",
 	}
 
-	err := mys.Set(setReq)
+	err := mys.Set(context.Background(), setReq)
 	assert.NotNil(t, err, "Error was not nil when setting item with no key.")
 }
 
@@ -438,7 +439,7 @@ func getItemWithNoKey(t *testing.T, mys *MySQL) {
 		Key: "",
 	}
 
-	response, getErr := mys.Get(getReq)
+	response, getErr := mys.Get(context.Background(), getReq)
 	assert.NotNil(t, getErr)
 	assert.Nil(t, response)
 }
@@ -566,7 +567,7 @@ func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag *stri
 		Value: value,
 	}
 
-	err := mys.Set(setReq)
+	err := mys.Set(context.Background(), setReq)
 	assert.Nil(t, err, "Error setting an item")
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists, "Item does not exist after being set")
@@ -578,7 +579,7 @@ func getItem(t *testing.T, mys *MySQL, key string) (*state.GetResponse, *fakeIte
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := mys.Get(getReq)
+	response, getErr := mys.Get(context.Background(), getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -594,7 +595,7 @@ func deleteItem(t *testing.T, mys *MySQL, key string, eTag *string) {
 		Options: state.DeleteStateOption{},
 	}
 
-	deleteErr := mys.Delete(deleteReq)
+	deleteErr := mys.Delete(context.Background(), deleteReq)
 	assert.Nil(t, deleteErr, "There was an error deleting a record")
 	assert.False(t, storeItemExists(t, key), "Item still exists after delete")
 }

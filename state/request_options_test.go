@@ -14,6 +14,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,21 +24,21 @@ import (
 func TestSetRequestWithOptions(t *testing.T) {
 	t.Run("set with default options", func(t *testing.T) {
 		counter := 0
-		SetWithOptions(func(req *SetRequest) error {
+		SetWithOptions(func(ctx context.Context, req *SetRequest) error {
 			counter++
 
 			return nil
-		}, &SetRequest{})
+		}, context.Background(), &SetRequest{})
 		assert.Equal(t, 1, counter, "should execute only once")
 	})
 
 	t.Run("set with no explicit options", func(t *testing.T) {
 		counter := 0
-		SetWithOptions(func(req *SetRequest) error {
+		SetWithOptions(func(ctx context.Context, req *SetRequest) error {
 			counter++
 
 			return nil
-		}, &SetRequest{
+		}, context.Background(), &SetRequest{
 			Options: SetStateOption{},
 		})
 		assert.Equal(t, 1, counter, "should execute only once")

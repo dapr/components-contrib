@@ -38,6 +38,7 @@ Concurrency is supported with ETags according to https://docs.microsoft.com/en-u
 package tablestorage
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -110,7 +111,7 @@ func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
 	err := r.deleteRow(req)
@@ -126,7 +127,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	return err
 }
 
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key)
 	entity := r.table.GetEntityReference(pk, rk)
@@ -147,7 +148,7 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, err
 }
 
-func (r *StateStore) Set(req *state.SetRequest) error {
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
 	err := r.writeRow(req)
@@ -275,7 +276,7 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	return entity.Delete(true, nil)
 }
 
-func (r *StateStore) Ping() error {
+func (r *StateStore) Ping(ctx context.Context) error {
 	return nil
 }
 

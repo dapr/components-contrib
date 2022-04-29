@@ -14,6 +14,7 @@ limitations under the License.
 package consul
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -102,7 +103,7 @@ func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 }
 
 // Get retrieves a Consul KV item.
-func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *Consul) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	queryOpts := &api.QueryOptions{}
 	if req.Options.Consistency == state.Strong {
 		queryOpts.RequireConsistent = true
@@ -124,7 +125,7 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves a Consul KV item.
-func (c *Consul) Set(req *state.SetRequest) error {
+func (c *Consul) Set(ctx context.Context, req *state.SetRequest) error {
 	var reqValByte []byte
 	b, ok := req.Value.([]byte)
 	if ok {
@@ -146,12 +147,12 @@ func (c *Consul) Set(req *state.SetRequest) error {
 	return nil
 }
 
-func (c *Consul) Ping() error {
+func (c *Consul) Ping(ctx context.Context) error {
 	return nil
 }
 
 // Delete performes a Consul KV delete operation.
-func (c *Consul) Delete(req *state.DeleteRequest) error {
+func (c *Consul) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
 	_, err := c.client.KV().Delete(keyWithPath, nil)
 	if err != nil {

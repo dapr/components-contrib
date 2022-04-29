@@ -14,6 +14,7 @@ limitations under the License.
 package hazelcast
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -91,7 +92,7 @@ func (store *Hazelcast) Features() []state.Feature {
 }
 
 // Set stores value for a key to Hazelcast.
-func (store *Hazelcast) Set(req *state.SetRequest) error {
+func (store *Hazelcast) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req)
 	if err != nil {
 		return err
@@ -117,7 +118,7 @@ func (store *Hazelcast) Set(req *state.SetRequest) error {
 }
 
 // Get retrieves state from Hazelcast with a key.
-func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (store *Hazelcast) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	resp, err := store.hzMap.Get(req.Key)
 	if err != nil {
 		return nil, fmt.Errorf("hazelcast error: failed to get value for %s: %s", req.Key, err)
@@ -137,12 +138,12 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-func (store *Hazelcast) Ping() error {
+func (store *Hazelcast) Ping(ctx context.Context) error {
 	return nil
 }
 
 // Delete performs a delete operation.
-func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
+func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err

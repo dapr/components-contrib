@@ -24,6 +24,7 @@ import (
 
 	"github.com/agrea/ptr"
 	mssql "github.com/denisenkom/go-mssqldb"
+	"golang.org/x/net/context"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -332,7 +333,7 @@ func (s *SQLServer) getTable(metadata state.Metadata) error {
 	return nil
 }
 
-func (s *SQLServer) Ping() error {
+func (s *SQLServer) Ping(ctx context.Context) error {
 	return nil
 }
 
@@ -414,7 +415,7 @@ func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.Del
 }
 
 // Delete removes an entity from the store.
-func (s *SQLServer) Delete(req *state.DeleteRequest) error {
+func (s *SQLServer) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return s.executeDelete(s.db, req)
 }
 
@@ -460,7 +461,7 @@ type TvpDeleteTableStringKey struct {
 }
 
 // BulkDelete removes multiple entries from the store.
-func (s *SQLServer) BulkDelete(req []state.DeleteRequest) error {
+func (s *SQLServer) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -517,7 +518,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 }
 
 // Get returns an entity from store.
-func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	rows, err := s.db.Query(s.getCommand, sql.Named(keyColumnName, req.Key))
 	if err != nil {
 		return nil, err
@@ -549,12 +550,12 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations.
-func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
-func (s *SQLServer) Set(req *state.SetRequest) error {
+func (s *SQLServer) Set(ctx context.Context, req *state.SetRequest) error {
 	return s.executeSet(s.db, req)
 }
 
@@ -608,7 +609,7 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 }
 
 // BulkSet adds/updates multiple entities on store.
-func (s *SQLServer) BulkSet(req []state.SetRequest) error {
+func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err

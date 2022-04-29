@@ -69,7 +69,7 @@ func (store *inMemoryStore) Close() error {
 	return nil
 }
 
-func (store *inMemoryStore) Ping() error {
+func (store *inMemoryStore) Ping(ctx context.Context) error {
 	return nil
 }
 
@@ -77,7 +77,7 @@ func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
-func (store *inMemoryStore) Delete(req *state.DeleteRequest) error {
+func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	// step1: validate parameters
 	if err := store.doDeleteValidateParameters(req); err != nil {
 		return err
@@ -125,7 +125,7 @@ func (store *inMemoryStore) doDelete(key string) {
 	delete(store.items, key)
 }
 
-func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
+func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	if len(req) == 0 {
 		return nil
 	}
@@ -157,7 +157,7 @@ func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-func (store *inMemoryStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	item := store.doGetWithReadLock(req.Key)
 	if item != nil && isExpired(item.expire) {
 		item = store.doGetWithWriteLock(req.Key)
@@ -198,11 +198,11 @@ func isExpired(expire int64) bool {
 	return time.Now().UnixMilli() > expire
 }
 
-func (store *inMemoryStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 
-func (store *inMemoryStore) Set(req *state.SetRequest) error {
+func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// step1: validate parameters
 	ttlInSeconds, err := store.doSetValidateParameters(req)
 	if err != nil {
@@ -272,7 +272,7 @@ type innerSetRequest struct {
 	data         []byte
 }
 
-func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
+func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	if len(req) == 0 {
 		return nil
 	}

@@ -13,6 +13,7 @@ limitations under the License.
 package sqlserver
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -127,7 +128,7 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 }
 
 func assertUserExists(t *testing.T, store *SQLServer, key string) (user, string) {
-	getRes, err := store.Get(&state.GetRequest{Key: key})
+	getRes, err := store.Get(context.Background(), &state.GetRequest{Key: key})
 	assert.Nil(t, err)
 	assert.NotNil(t, getRes)
 	assert.NotNil(t, getRes.Data, "No data was returned")
@@ -150,7 +151,7 @@ func assertLoadedUserIsEqual(t *testing.T, store *SQLServer, key string, expecte
 }
 
 func assertUserDoesNotExist(t *testing.T, store *SQLServer, key string) {
-	_, err := store.Get(&state.GetRequest{Key: key})
+	_, err := store.Get(context.Background(), &state.GetRequest{Key: key})
 	assert.Nil(t, err)
 }
 
@@ -221,14 +222,14 @@ func testSingleOperations(t *testing.T) {
 			assertUserDoesNotExist(t, store, john.ID)
 
 			// Save and read
-			err := store.Set(&state.SetRequest{Key: john.ID, Value: john})
+			err := store.Set(context.Background(), &state.SetRequest{Key: john.ID, Value: john})
 			assert.Nil(t, err)
 			johnV1, etagFromInsert := assertLoadedUserIsEqual(t, store, john.ID, john)
 
 			// Update with ETAG
 			waterJohn := johnV1
 			waterJohn.FavoriteBeverage = "Water"
-			err = store.Set(&state.SetRequest{Key: waterJohn.ID, Value: waterJohn, ETag: &etagFromInsert})
+			err = store.Set(context.Background(), &state.SetRequest{Key: waterJohn.ID, Value: waterJohn, ETag: &etagFromInsert})
 			assert.Nil(t, err)
 
 			// Get updated
@@ -237,7 +238,7 @@ func testSingleOperations(t *testing.T) {
 			// Update without ETAG
 			noEtagJohn := johnV2
 			noEtagJohn.FavoriteBeverage = "No Etag John"
-			err = store.Set(&state.SetRequest{Key: noEtagJohn.ID, Value: noEtagJohn})
+			err = store.Set(context.Background(), &state.SetRequest{Key: noEtagJohn.ID, Value: noEtagJohn})
 			assert.Nil(t, err)
 
 			// 7. Get updated
@@ -246,17 +247,17 @@ func testSingleOperations(t *testing.T) {
 			// 8. Update with invalid ETAG should fail
 			failedJohn := johnV3
 			failedJohn.FavoriteBeverage = "Will not work"
-			err = store.Set(&state.SetRequest{Key: failedJohn.ID, Value: failedJohn, ETag: &etagFromInsert})
+			err = store.Set(context.Background(), &state.SetRequest{Key: failedJohn.ID, Value: failedJohn, ETag: &etagFromInsert})
 			assert.NotNil(t, err)
 			_, etag := assertLoadedUserIsEqual(t, store, johnV3.ID, johnV3)
 
 			// 9. Delete with invalid ETAG should fail
-			err = store.Delete(&state.DeleteRequest{Key: johnV3.ID, ETag: &invEtag})
+			err = store.Delete(context.Background(), &state.DeleteRequest{Key: johnV3.ID, ETag: &invEtag})
 			assert.NotNil(t, err)
 			assertLoadedUserIsEqual(t, store, johnV3.ID, johnV3)
 
 			// 10. Delete with valid ETAG
-			err = store.Delete(&state.DeleteRequest{Key: johnV2.ID, ETag: &etag})
+			err = store.Delete(context.Background(), &state.DeleteRequest{Key: johnV2.ID, ETag: &etag})
 			assert.Nil(t, err)
 
 			assertUserDoesNotExist(t, store, johnV2.ID)
@@ -270,7 +271,7 @@ func testSetNewRecordWithInvalidEtagShouldFail(t *testing.T) {
 	u := user{uuid.New().String(), "John", "Coffee"}
 
 	invEtag := invalidEtag
-	err := store.Set(&state.SetRequest{Key: u.ID, Value: u, ETag: &invEtag})
+	err := store.Set(context.Background(), &state.SetRequest{Key: u.ID, Value: u, ETag: &invEtag})
 	assert.NotNil(t, err)
 }
 
@@ -278,7 +279,7 @@ func testSetNewRecordWithInvalidEtagShouldFail(t *testing.T) {
 func testIndexedProperties(t *testing.T) {
 	store := getTestStore(t, `[{ "column":"FavoriteBeverage", "property":"FavoriteBeverage", "type":"nvarchar(100)"}, { "column":"PetsCount", "property":"PetsCount", "type": "INTEGER"}]`)
 
-	err := store.BulkSet([]state.SetRequest{
+	err := store.BulkSet(context.Background(), []state.SetRequest{
 		{Key: "1", Value: userWithPets{user{"1", "John", "Coffee"}, 3}},
 		{Key: "2", Value: userWithPets{user{"2", "Laura", "Water"}, 1}},
 		{Key: "3", Value: userWithPets{user{"3", "Carl", "Beer"}, 0}},
@@ -340,7 +341,7 @@ func testMultiOperations(t *testing.T) {
 				bulkSet[i] = state.SetRequest{Key: u.ID, Value: u}
 			}
 
-			err := store.BulkSet(bulkSet)
+			err := store.BulkSet(context.Background(), bulkSet)
 			assert.Nil(t, err)
 			assertUserCountIsEqualTo(t, store, len(initialUsers))
 
@@ -517,7 +518,7 @@ func testBulkSet(t *testing.T) {
 					sets[i] = state.SetRequest{Key: u.ID, Value: u}
 				}
 
-				err := store.BulkSet(sets)
+				err := store.BulkSet(context.Background(), sets)
 				assert.Nil(t, err)
 				totalUsers = len(sets)
 				assertUserCountIsEqualTo(t, store, totalUsers)
@@ -529,7 +530,7 @@ func testBulkSet(t *testing.T) {
 				modified.FavoriteBeverage = beverageTea
 				toInsert := user{keyGen.NextKey(), "Maria", "Wine"}
 
-				err := store.BulkSet([]state.SetRequest{
+				err := store.BulkSet(context.Background(), []state.SetRequest{
 					{Key: modified.ID, Value: modified, ETag: &toModifyETag},
 					{Key: toInsert.ID, Value: toInsert},
 				})
@@ -548,7 +549,7 @@ func testBulkSet(t *testing.T) {
 				modified.FavoriteBeverage = beverageTea
 				toInsert := user{keyGen.NextKey(), "Tony", "Milk"}
 
-				err := store.BulkSet([]state.SetRequest{
+				err := store.BulkSet(context.Background(), []state.SetRequest{
 					{Key: modified.ID, Value: modified},
 					{Key: toInsert.ID, Value: toInsert},
 				})
@@ -575,7 +576,7 @@ func testBulkSet(t *testing.T) {
 					{Key: modified.ID, Value: modified, ETag: &invEtag},
 				}
 
-				err := store.BulkSet(sets)
+				err := store.BulkSet(context.Background(), sets)
 				assert.NotNil(t, err)
 				assertUserCountIsEqualTo(t, store, totalUsers)
 				assertUserDoesNotExist(t, store, toInsert1.ID)
@@ -618,7 +619,7 @@ func testBulkDelete(t *testing.T) {
 			for i, u := range initialUsers {
 				sets[i] = state.SetRequest{Key: u.ID, Value: u}
 			}
-			err := store.BulkSet(sets)
+			err := store.BulkSet(context.Background(), sets)
 			assert.Nil(t, err)
 			totalUsers := len(initialUsers)
 			assertUserCountIsEqualTo(t, store, totalUsers)
@@ -628,7 +629,7 @@ func testBulkDelete(t *testing.T) {
 			t.Run("Delete 2 items without etag should work", func(t *testing.T) {
 				deleted1 := initialUsers[userIndex].ID
 				deleted2 := initialUsers[userIndex+1].ID
-				err := store.BulkDelete([]state.DeleteRequest{
+				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1},
 					{Key: deleted2},
 				})
@@ -645,7 +646,7 @@ func testBulkDelete(t *testing.T) {
 				deleted1, deleted1Etag := assertUserExists(t, store, initialUsers[userIndex].ID)
 				deleted2, deleted2Etag := assertUserExists(t, store, initialUsers[userIndex+1].ID)
 
-				err := store.BulkDelete([]state.DeleteRequest{
+				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID, ETag: &deleted2Etag},
 				})
@@ -662,7 +663,7 @@ func testBulkDelete(t *testing.T) {
 				deleted1, deleted1Etag := assertUserExists(t, store, initialUsers[userIndex].ID)
 				deleted2 := initialUsers[userIndex+1]
 
-				err := store.BulkDelete([]state.DeleteRequest{
+				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID},
 				})
@@ -680,7 +681,7 @@ func testBulkDelete(t *testing.T) {
 				deleted2 := initialUsers[userIndex+1]
 
 				invEtag := invalidEtag
-				err := store.BulkDelete([]state.DeleteRequest{
+				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID, ETag: &invEtag},
 				})
@@ -700,7 +701,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	store := getTestStore(t, "")
 
 	u := user{"1", "John", "Coffee"}
-	err := store.Set(&state.SetRequest{Key: u.ID, Value: u})
+	err := store.Set(context.Background(), &state.SetRequest{Key: u.ID, Value: u})
 	assert.Nil(t, err)
 
 	var originalInsertTime time.Time
@@ -722,7 +723,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 
 	modified := u
 	modified.FavoriteBeverage = beverageTea
-	err = store.Set(&state.SetRequest{Key: modified.ID, Value: modified})
+	err = store.Set(context.Background(), &state.SetRequest{Key: modified.ID, Value: modified})
 	assert.Nil(t, err)
 	assertDBQuery(t, store, getUserTsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
@@ -746,7 +747,7 @@ func testConcurrentSets(t *testing.T) {
 	store := getTestStore(t, "")
 
 	u := user{"1", "John", "Coffee"}
-	err := store.Set(&state.SetRequest{Key: u.ID, Value: u})
+	err := store.Set(context.Background(), &state.SetRequest{Key: u.ID, Value: u})
 	assert.Nil(t, err)
 
 	_, etag := assertLoadedUserIsEqual(t, store, u.ID, u)
@@ -763,7 +764,7 @@ func testConcurrentSets(t *testing.T) {
 			defer wc.Done()
 
 			modified := user{"1", "John", beverageTea}
-			err := store.Set(&state.SetRequest{Key: id, Value: modified, ETag: &etag})
+			err := store.Set(context.Background(), &state.SetRequest{Key: id, Value: modified, ETag: &etag})
 			if err != nil {
 				atomic.AddInt32(&totalErrors, 1)
 			} else {

@@ -14,6 +14,7 @@ limitations under the License.
 package jetstream
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -92,7 +93,7 @@ func (js *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (js *StateStore) Ping() error {
+func (js *StateStore) Ping(ctx context.Context) error {
 	return nil
 }
 
@@ -101,7 +102,7 @@ func (js *StateStore) Features() []state.Feature {
 }
 
 // Get retrieves state with a key.
-func (js *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (js *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	entry, err := js.bucket.Get(escape(req.Key))
 	if err != nil {
 		return nil, err
@@ -113,14 +114,14 @@ func (js *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set stores value for a key.
-func (js *StateStore) Set(req *state.SetRequest) error {
+func (js *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	bt, _ := utils.Marshal(req.Value, js.json.Marshal)
 	_, err := js.bucket.Put(escape(req.Key), bt)
 	return err
 }
 
 // Delete performs a delete operation.
-func (js *StateStore) Delete(req *state.DeleteRequest) error {
+func (js *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return js.bucket.Delete(escape(req.Key))
 }
 

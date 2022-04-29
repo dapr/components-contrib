@@ -14,6 +14,7 @@ limitations under the License.
 package oracledatabase
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dapr/components-contrib/state"
@@ -49,8 +50,8 @@ func (o *OracleDatabase) Init(metadata state.Metadata) error {
 	return o.dbaccess.Init(metadata)
 }
 
-func (o *OracleDatabase) Ping() error {
-	return o.dbaccess.Ping()
+func (o *OracleDatabase) Ping(ctx context.Context) error {
+	return o.dbaccess.Ping(ctx)
 }
 
 // Features returns the features available in this state store.
@@ -59,38 +60,38 @@ func (o *OracleDatabase) Features() []state.Feature {
 }
 
 // Delete removes an entity from the store.
-func (o *OracleDatabase) Delete(req *state.DeleteRequest) error {
-	return o.dbaccess.Delete(req)
+func (o *OracleDatabase) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return o.dbaccess.Delete(ctx, req)
 }
 
 // BulkDelete removes multiple entries from the store.
-func (o *OracleDatabase) BulkDelete(req []state.DeleteRequest) error {
-	return o.dbaccess.ExecuteMulti(nil, req)
+func (o *OracleDatabase) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	return o.dbaccess.ExecuteMulti(ctx, nil, req)
 }
 
 // Get returns an entity from store.
-func (o *OracleDatabase) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return o.dbaccess.Get(req)
+func (o *OracleDatabase) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	return o.dbaccess.Get(ctx, req)
 }
 
 // BulkGet performs a bulks get operations.
-func (o *OracleDatabase) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (o *OracleDatabase) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with ExecuteMulti for performance.
 	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
-func (o *OracleDatabase) Set(req *state.SetRequest) error {
-	return o.dbaccess.Set(req)
+func (o *OracleDatabase) Set(ctx context.Context, req *state.SetRequest) error {
+	return o.dbaccess.Set(ctx, req)
 }
 
 // BulkSet adds/updates multiple entities on store.
-func (o *OracleDatabase) BulkSet(req []state.SetRequest) error {
-	return o.dbaccess.ExecuteMulti(req, nil)
+func (o *OracleDatabase) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	return o.dbaccess.ExecuteMulti(ctx, req, nil)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
-func (o *OracleDatabase) Multi(request *state.TransactionalStateRequest) error {
+func (o *OracleDatabase) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	var deletes []state.DeleteRequest
 	var sets []state.SetRequest
 	for _, req := range request.Operations {
@@ -115,7 +116,7 @@ func (o *OracleDatabase) Multi(request *state.TransactionalStateRequest) error {
 	}
 
 	if len(sets) > 0 || len(deletes) > 0 {
-		return o.dbaccess.ExecuteMulti(sets, deletes)
+		return o.dbaccess.ExecuteMulti(ctx, sets, deletes)
 	}
 
 	return nil

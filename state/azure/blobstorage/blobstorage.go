@@ -132,16 +132,16 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 // Delete the state.
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
-	return r.deleteFile(req)
+	return r.deleteFile(ctx, req)
 }
 
 // Get the state.
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
-	data, etag, contentType, err := r.readFile(req)
+	data, etag, contentType, err := r.readFile(ctx, req)
 	if err != nil {
 		r.logger.Debugf("error %s", err)
 
@@ -160,16 +160,16 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set the state.
-func (r *StateStore) Set(req *state.SetRequest) error {
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
-	return r.writeFile(req)
+	return r.writeFile(ctx, req)
 }
 
-func (r *StateStore) Ping() error {
+func (r *StateStore) Ping(ctx context.Context) error {
 	accessConditions := azblob.BlobAccessConditions{}
 
-	if _, err := r.containerURL.GetProperties(context.Background(), accessConditions.LeaseAccessConditions); err != nil {
+	if _, err := r.containerURL.GetProperties(ctx, accessConditions.LeaseAccessConditions); err != nil {
 		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerURL.URL().Host, err)
 	}
 
@@ -206,10 +206,10 @@ func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, e
 	return &meta, nil
 }
 
-func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, *string, error) {
+func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) ([]byte, string, *string, error) {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 
-	resp, err := blobURL.Download(context.Background(), 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
+	resp, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
 
@@ -230,7 +230,7 @@ func (r *StateStore) readFile(req *state.GetRequest) ([]byte, string, *string, e
 	return data.Bytes(), string(resp.ETag()), &contentType, nil
 }
 
-func (r *StateStore) writeFile(req *state.SetRequest) error {
+func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error {
 	accessConditions := azblob.BlobAccessConditions{}
 
 	if req.Options.Concurrency == state.FirstWrite && req.ETag != nil {
@@ -247,7 +247,7 @@ func (r *StateStore) writeFile(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	_, err = azblob.UploadBufferToBlockBlob(context.Background(), r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
+	_, err = azblob.UploadBufferToBlockBlob(ctx, r.marshal(req), blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:      16,
 		Metadata:         req.Metadata,
 		AccessConditions: accessConditions,
@@ -307,7 +307,7 @@ func (r *StateStore) createBlobHTTPHeadersFromRequest(req *state.SetRequest) (az
 	return blobHTTPHeaders, nil
 }
 
-func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
+func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) error {
 	blobURL := r.containerURL.NewBlockBlobURL(getFileName(req.Key))
 	accessConditions := azblob.BlobAccessConditions{}
 
@@ -319,7 +319,7 @@ func (r *StateStore) deleteFile(req *state.DeleteRequest) error {
 		accessConditions.IfMatch = azblob.ETag(etag)
 	}
 
-	_, err := blobURL.Delete(context.Background(), azblob.DeleteSnapshotsOptionNone, accessConditions)
+	_, err := blobURL.Delete(ctx, azblob.DeleteSnapshotsOptionNone, accessConditions)
 	if err != nil {
 		r.logger.Debugf("delete file %s, err %s", req.Key, err)
 

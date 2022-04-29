@@ -14,6 +14,7 @@ limitations under the License.
 package zookeeper
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -80,7 +81,7 @@ func TestGet(t *testing.T) {
 	t.Run("With key exists", func(t *testing.T) {
 		conn.EXPECT().Get("foo").Return([]byte("bar"), &zk.Stat{Version: 123}, nil).Times(1)
 
-		res, err := s.Get(&state.GetRequest{Key: "foo"})
+		res, err := s.Get(context.Background(), &state.GetRequest{Key: "foo"})
 		assert.NotNil(t, res, "Key must be exists")
 		assert.Equal(t, "bar", string(res.Data), "Value must be equals")
 		assert.Equal(t, ptr.String("123"), res.ETag, "ETag must be equals")
@@ -90,7 +91,7 @@ func TestGet(t *testing.T) {
 	t.Run("With key non-exists", func(t *testing.T) {
 		conn.EXPECT().Get("foo").Return(nil, nil, zk.ErrNoNode).Times(1)
 
-		res, err := s.Get(&state.GetRequest{Key: "foo"})
+		res, err := s.Get(context.Background(), &state.GetRequest{Key: "foo"})
 		assert.Equal(t, &state.GetResponse{}, res, "Response must be empty")
 		assert.NoError(t, err, "Non-existent key must not be treated as error")
 	})
@@ -108,21 +109,21 @@ func TestDelete(t *testing.T) {
 	t.Run("With key", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
-		err := s.Delete(&state.DeleteRequest{Key: "foo"})
+		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo"})
 		assert.NoError(t, err, "Key must be exists")
 	})
 
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(123)).Return(nil).Times(1)
 
-		err := s.Delete(&state.DeleteRequest{Key: "foo", ETag: &etag})
+		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo", ETag: &etag})
 		assert.NoError(t, err, "Key must be exists")
 	})
 
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(nil).Times(1)
 
-		err := s.Delete(&state.DeleteRequest{
+		err := s.Delete(context.Background(), &state.DeleteRequest{
 			Key:     "foo",
 			ETag:    &etag,
 			Options: state.DeleteStateOption{Concurrency: state.LastWrite},
@@ -133,14 +134,14 @@ func TestDelete(t *testing.T) {
 	t.Run("With delete error", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrUnknown).Times(1)
 
-		err := s.Delete(&state.DeleteRequest{Key: "foo"})
+		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo"})
 		assert.EqualError(t, err, "zk: unknown error")
 	})
 
 	t.Run("With delete and ignore NoNode error", func(t *testing.T) {
 		conn.EXPECT().Delete("foo", int32(anyVersion)).Return(zk.ErrNoNode).Times(1)
 
-		err := s.Delete(&state.DeleteRequest{Key: "foo"})
+		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "foo"})
 		assert.NoError(t, err, "Delete must be successful")
 	})
 }
@@ -159,7 +160,7 @@ func TestBulkDelete(t *testing.T) {
 			&zk.DeleteRequest{Path: "bar", Version: int32(anyVersion)},
 		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
 
-		err := s.BulkDelete([]state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
+		err := s.BulkDelete(context.Background(), []state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
 		assert.NoError(t, err, "Key must be exists")
 	})
 
@@ -171,7 +172,7 @@ func TestBulkDelete(t *testing.T) {
 			{Error: zk.ErrUnknown}, {Error: zk.ErrNoAuth},
 		}, nil).Times(1)
 
-		err := s.BulkDelete([]state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
+		err := s.BulkDelete(context.Background(), []state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
 		assert.Equal(t, err.(*multierror.Error).Errors, []error{zk.ErrUnknown, zk.ErrNoAuth})
 	})
 	t.Run("With keys and ignore NoNode error", func(t *testing.T) {
@@ -182,7 +183,7 @@ func TestBulkDelete(t *testing.T) {
 			{Error: zk.ErrNoNode}, {},
 		}, nil).Times(1)
 
-		err := s.BulkDelete([]state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
+		err := s.BulkDelete(context.Background(), []state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
 		assert.NoError(t, err, "Key must be exists")
 	})
 }
@@ -201,19 +202,19 @@ func TestSet(t *testing.T) {
 	t.Run("With key", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
 		assert.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and version", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(123)).Return(stat, nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar", ETag: &etag})
+		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar", ETag: &etag})
 		assert.NoError(t, err, "Key must be set")
 	})
 	t.Run("With key and concurrency", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(stat, nil).Times(1)
 
-		err := s.Set(&state.SetRequest{
+		err := s.Set(context.Background(), &state.SetRequest{
 			Key:     "foo",
 			Value:   "bar",
 			ETag:    &etag,
@@ -225,14 +226,14 @@ func TestSet(t *testing.T) {
 	t.Run("With error", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrUnknown).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
 		assert.EqualError(t, err, "zk: unknown error")
 	})
 	t.Run("With NoNode error and retry", func(t *testing.T) {
 		conn.EXPECT().Set("foo", []byte("\"bar\""), int32(anyVersion)).Return(nil, zk.ErrNoNode).Times(1)
 		conn.EXPECT().Create("foo", []byte("\"bar\""), int32(0), nil).Return("/foo", nil).Times(1)
 
-		err := s.Set(&state.SetRequest{Key: "foo", Value: "bar"})
+		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
 		assert.NoError(t, err, "Key must be create")
 	})
 }
@@ -251,7 +252,7 @@ func TestBulkSet(t *testing.T) {
 			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
 		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
 
-		err := s.BulkSet([]state.SetRequest{
+		err := s.BulkSet(context.Background(), []state.SetRequest{
 			{Key: "foo", Value: "bar"},
 			{Key: "bar", Value: "foo"},
 		})
@@ -266,7 +267,7 @@ func TestBulkSet(t *testing.T) {
 			{Error: zk.ErrUnknown}, {Error: zk.ErrNoAuth},
 		}, nil).Times(1)
 
-		err := s.BulkSet([]state.SetRequest{
+		err := s.BulkSet(context.Background(), []state.SetRequest{
 			{Key: "foo", Value: "bar"},
 			{Key: "bar", Value: "foo"},
 		})
@@ -283,7 +284,7 @@ func TestBulkSet(t *testing.T) {
 			&zk.CreateRequest{Path: "foo", Data: []byte("\"bar\"")},
 		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
 
-		err := s.BulkSet([]state.SetRequest{
+		err := s.BulkSet(context.Background(), []state.SetRequest{
 			{Key: "foo", Value: "bar"},
 			{Key: "bar", Value: "foo"},
 		})

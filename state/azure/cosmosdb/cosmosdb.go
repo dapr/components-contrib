@@ -15,6 +15,7 @@ package cosmosdb
 
 import (
 	// For go:embed.
+	"context"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -212,7 +213,7 @@ func (c *StateStore) Features() []state.Feature {
 }
 
 // Get retrieves a CosmosDB item.
-func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	key := req.Key
 
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
@@ -269,7 +270,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves a CosmosDB item.
-func (c *StateStore) Set(req *state.SetRequest) error {
+func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -321,7 +322,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 }
 
 // Delete performs a delete operation.
-func (c *StateStore) Delete(req *state.DeleteRequest) error {
+func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -463,7 +464,7 @@ func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 	}, nil
 }
 
-func (c *StateStore) Ping() error {
+func (c *StateStore) Ping(ctx context.Context) error {
 	return retryOperation(func() error {
 		_, innerErr := c.findCollection()
 		if innerErr != nil {

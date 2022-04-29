@@ -13,6 +13,7 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -333,7 +334,7 @@ func TestInvalidBulkSetNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkSet(sets)
+	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -355,7 +356,7 @@ func TestInvalidBulkSetEmptyValue(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkSet(sets)
+	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -378,7 +379,7 @@ func TestValidBulkSet(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkSet(sets)
+	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.Nil(t, err)
@@ -399,7 +400,7 @@ func TestInvalidBulkDeleteNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkDelete(deletes)
+	err := m.pgDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -421,7 +422,7 @@ func TestValidBulkDelete(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkDelete(deletes)
+	err := m.pgDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
 	assert.Nil(t, err)

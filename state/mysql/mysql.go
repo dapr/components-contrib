@@ -14,6 +14,7 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -158,7 +159,7 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 	return m.finishInit(db, err)
 }
 
-func (m *MySQL) Ping() error {
+func (m *MySQL) Ping(ctx context.Context) error {
 	return nil
 }
 
@@ -296,13 +297,13 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 
 // Delete removes an entity from the store
 // Store Interface.
-func (m *MySQL) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(m.deleteValue, req)
+func (m *MySQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return state.DeleteWithOptions(m.deleteValue, ctx, req)
 }
 
 // deleteValue is an internal implementation of delete to enable passing the
 // logic to state.DeleteWithRetries as a func.
-func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
+func (m *MySQL) deleteValue(ctx context.Context, req *state.DeleteRequest) error {
 	m.logger.Debug("Deleting state value from MySql")
 
 	if req.Key == "" {
@@ -340,7 +341,7 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 
 // BulkDelete removes multiple entries from the store
 // Store Interface.
-func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
+func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	m.logger.Debug("Executing BulkDelete request")
 
 	tx, err := m.db.Begin()
@@ -351,7 +352,7 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Delete(&da)
+			err = m.Delete(ctx, &da)
 			if err != nil {
 				tx.Rollback()
 
@@ -367,7 +368,7 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 
 // Get returns an entity from store
 // Store Interface.
-func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *MySQL) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	m.logger.Debug("Getting state value from MySql")
 
 	if req.Key == "" {
@@ -417,13 +418,13 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set adds/updates an entity on store
 // Store Interface.
-func (m *MySQL) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(m.setValue, req)
+func (m *MySQL) Set(ctx context.Context, req *state.SetRequest) error {
+	return state.SetWithOptions(m.setValue, ctx, req)
 }
 
 // setValue is an internal implementation of set to enable passing the logic
 // to state.SetWithRetries as a func.
-func (m *MySQL) setValue(req *state.SetRequest) error {
+func (m *MySQL) setValue(ctx context.Context, req *state.SetRequest) error {
 	m.logger.Debug("Setting state value in MySql")
 
 	err := state.CheckRequestOptions(req.Options)
@@ -502,7 +503,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 
 // BulkSet adds/updates multiple entities on store
 // Store Interface.
-func (m *MySQL) BulkSet(req []state.SetRequest) error {
+func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	m.logger.Debug("Executing BulkSet request")
 
 	tx, err := m.db.Begin()
@@ -513,7 +514,7 @@ func (m *MySQL) BulkSet(req []state.SetRequest) error {
 	if len(req) > 0 {
 		for _, s := range req {
 			sa := s // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Set(&sa)
+			err = m.Set(ctx, &sa)
 			if err != nil {
 				tx.Rollback()
 
@@ -546,7 +547,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = m.Set(&setReq)
+			err = m.Set(context.TODO(), &setReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -559,7 +560,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = m.Delete(&delReq)
+			err = m.Delete(context.TODO(), &delReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -602,7 +603,7 @@ func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteR
 }
 
 // BulkGet performs a bulks get operations.
-func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// by default, the store doesn't support bulk get
 	// return false so daprd will fallback to call get() method one by one
 	return false, nil, nil

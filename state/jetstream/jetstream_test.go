@@ -14,6 +14,7 @@ limitations under the License.
 package jetstream
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -110,8 +111,8 @@ func TestSetGetAndDelete(t *testing.T) {
 	tData := map[string]string{
 		"dkey": "dvalue",
 	}
-
-	err = store.Set(&state.SetRequest{
+	ctx := context.Background()
+	err = store.Set(ctx, &state.SetRequest{
 		Key:   tkey,
 		Value: tData,
 	})
@@ -120,7 +121,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 
-	resp, err := store.Get(&state.GetRequest{
+	resp, err := store.Get(ctx, &state.GetRequest{
 		Key: tkey,
 	})
 	if err != nil {
@@ -133,7 +134,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		t.Fatal("Response data does not match written data\n")
 	}
 
-	err = store.Delete(&state.DeleteRequest{
+	err = store.Delete(ctx, &state.DeleteRequest{
 		Key: tkey,
 	})
 	if err != nil {
@@ -141,7 +142,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 
-	_, err = store.Get(&state.GetRequest{
+	_, err = store.Get(ctx, &state.GetRequest{
 		Key: tkey,
 	})
 	if err == nil {

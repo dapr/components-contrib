@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,29 +42,29 @@ func (m *fakeDBaccess) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (m *fakeDBaccess) Set(req *state.SetRequest) error {
+func (m *fakeDBaccess) Set(ctx context.Context, req *state.SetRequest) error {
 	m.setExecuted = true
 
 	return nil
 }
 
-func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	m.getExecuted = true
 
 	return nil, nil
 }
 
-func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
+func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	m.deleteExecuted = true
 
 	return nil
 }
 
-func (m *fakeDBaccess) BulkSet(req []state.SetRequest) error {
+func (m *fakeDBaccess) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	return nil
 }
 
-func (m *fakeDBaccess) BulkDelete(req []state.DeleteRequest) error {
+func (m *fakeDBaccess) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	return nil
 }
 
@@ -79,7 +80,7 @@ func (m *fakeDBaccess) Close() error {
 	return nil
 }
 
-func (m *fakeDBaccess) Ping() error {
+func (m *fakeDBaccess) Ping(ctx context.Context) error {
 	return nil
 }
 

@@ -14,6 +14,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,23 +26,23 @@ func TestStore_withDefaultBulkImpl(t *testing.T) {
 	var store Store = s
 	require.Equal(t, s.count, 0)
 	require.Equal(t, s.bulkCount, 0)
-
-	store.Get(&GetRequest{})
-	store.Set(&SetRequest{})
-	store.Delete(&DeleteRequest{})
+	ctx := context.Background()
+	store.Get(ctx, &GetRequest{})
+	store.Set(ctx, &SetRequest{})
+	store.Delete(ctx, &DeleteRequest{})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	bulkGet, responses, err := store.BulkGet([]GetRequest{{}, {}, {}})
+	bulkGet, responses, err := store.BulkGet(ctx, []GetRequest{{}, {}, {}})
 	require.Equal(t, false, bulkGet)
 	require.Equal(t, 0, len(responses))
 	require.NoError(t, err)
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
-	store.BulkSet([]SetRequest{{}, {}, {}, {}})
+	store.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
 	require.Equal(t, 3+4, s.count)
 	require.Equal(t, 0, s.bulkCount)
-	store.BulkDelete([]DeleteRequest{{}, {}, {}, {}, {}})
+	store.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
 	require.Equal(t, 3+4+5, s.count)
 	require.Equal(t, 0, s.bulkCount)
 }
@@ -51,21 +52,21 @@ func TestStore_withCustomisedBulkImpl_notSupportBulkGet(t *testing.T) {
 	var store Store = s
 	require.Equal(t, s.count, 0)
 	require.Equal(t, s.bulkCount, 0)
-
-	store.Get(&GetRequest{})
-	store.Set(&SetRequest{})
-	store.Delete(&DeleteRequest{})
+	ctx := context.Background()
+	store.Get(ctx, &GetRequest{})
+	store.Set(ctx, &SetRequest{})
+	store.Delete(ctx, &DeleteRequest{})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	bulkGet, _, _ := store.BulkGet([]GetRequest{{}, {}, {}})
+	bulkGet, _, _ := store.BulkGet(ctx, []GetRequest{{}, {}, {}})
 	require.Equal(t, false, bulkGet)
 	require.Equal(t, 6, s.count)
 	require.Equal(t, 0, s.bulkCount)
-	store.BulkSet([]SetRequest{{}, {}, {}, {}})
+	store.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
 	require.Equal(t, 6, s.count)
 	require.Equal(t, 1, s.bulkCount)
-	store.BulkDelete([]DeleteRequest{{}, {}, {}, {}, {}})
+	store.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
 	require.Equal(t, 6, s.count)
 	require.Equal(t, 2, s.bulkCount)
 }
@@ -75,21 +76,21 @@ func TestStore_withCustomisedBulkImpl_supportBulkGet(t *testing.T) {
 	var store Store = s
 	require.Equal(t, s.count, 0)
 	require.Equal(t, s.bulkCount, 0)
-
-	store.Get(&GetRequest{})
-	store.Set(&SetRequest{})
-	store.Delete(&DeleteRequest{})
+	ctx := context.Background()
+	store.Get(ctx, &GetRequest{})
+	store.Set(ctx, &SetRequest{})
+	store.Delete(ctx, &DeleteRequest{})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	bulkGet, _, _ := store.BulkGet([]GetRequest{{}, {}, {}})
+	bulkGet, _, _ := store.BulkGet(ctx, []GetRequest{{}, {}, {}})
 	require.Equal(t, true, bulkGet)
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 1, s.bulkCount)
-	store.BulkSet([]SetRequest{{}, {}, {}, {}})
+	store.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 2, s.bulkCount)
-	store.BulkDelete([]DeleteRequest{{}, {}, {}, {}, {}})
+	store.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 3, s.bulkCount)
 }
@@ -110,25 +111,25 @@ func (s *Store1) Init(metadata Metadata) error {
 	return nil
 }
 
-func (s *Store1) Delete(req *DeleteRequest) error {
+func (s *Store1) Delete(ctx context.Context, req *DeleteRequest) error {
 	s.count++
 
 	return nil
 }
 
-func (s *Store1) Get(req *GetRequest) (*GetResponse, error) {
+func (s *Store1) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
 	s.count++
 
 	return &GetResponse{}, nil
 }
 
-func (s *Store1) Set(req *SetRequest) error {
+func (s *Store1) Set(ctx context.Context, req *SetRequest) error {
 	s.count++
 
 	return nil
 }
 
-func (s *Store1) Ping() error {
+func (s *Store1) Ping(ctx context.Context) error {
 	return nil
 }
 
@@ -149,29 +150,29 @@ func (s *Store2) Features() []Feature {
 	return nil
 }
 
-func (s *Store2) Delete(req *DeleteRequest) error {
+func (s *Store2) Delete(ctx context.Context, req *DeleteRequest) error {
 	s.count++
 
 	return nil
 }
 
-func (s *Store2) Get(req *GetRequest) (*GetResponse, error) {
+func (s *Store2) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
 	s.count++
 
 	return &GetResponse{}, nil
 }
 
-func (s *Store2) Set(req *SetRequest) error {
+func (s *Store2) Set(ctx context.Context, req *SetRequest) error {
 	s.count++
 
 	return nil
 }
 
-func (s *Store2) Ping() error {
+func (s *Store2) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store2) BulkGet(req []GetRequest) (bool, []BulkGetResponse, error) {
+func (s *Store2) BulkGet(ctx context.Context, req []GetRequest) (bool, []BulkGetResponse, error) {
 	if s.supportBulkGet {
 		s.bulkCount++
 
@@ -183,13 +184,13 @@ func (s *Store2) BulkGet(req []GetRequest) (bool, []BulkGetResponse, error) {
 	return false, nil, nil
 }
 
-func (s *Store2) BulkSet(req []SetRequest) error {
+func (s *Store2) BulkSet(ctx context.Context, req []SetRequest) error {
 	s.bulkCount++
 
 	return nil
 }
 
-func (s *Store2) BulkDelete(req []DeleteRequest) error {
+func (s *Store2) BulkDelete(ctx context.Context, req []DeleteRequest) error {
 	s.bulkCount++
 
 	return nil

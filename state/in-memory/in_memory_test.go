@@ -14,6 +14,7 @@ limitations under the License.
 package inmemory
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -43,13 +44,13 @@ func TestReadAndWrite(t *testing.T) {
 			Value: valueA,
 			ETag:  ptr.String("the etag"),
 		}
-		err := store.Set(setReq)
+		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
 		// get after set
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(getReq)
+		resp, err := store.Get(context.Background(), getReq)
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, valueA, string(resp.Data))
@@ -62,7 +63,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value:    valueA,
 			Metadata: map[string]string{"ttlInSeconds": "1"},
 		}
-		err := store.Set(setReq)
+		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
 		// simulate expiration
 		time.Sleep(2 * time.Second)
@@ -70,7 +71,7 @@ func TestReadAndWrite(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(getReq)
+		resp, err := store.Get(context.Background(), getReq)
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
@@ -84,20 +85,20 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "1234",
 			ETag:  ptr.String("the etag"),
 		}
-		err := store.Set(setReq)
+		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
 		// get
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
-		resp, err := store.Get(getReq)
+		resp, err := store.Get(context.Background(), getReq)
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "1234", string(resp.Data))
 	})
 
 	t.Run("BulkSet two keys", func(t *testing.T) {
-		err := store.BulkSet([]state.SetRequest{{
+		err := store.BulkSet(context.Background(), []state.SetRequest{{
 			Key:   "theFirstKey",
 			Value: "666",
 		}, {
@@ -109,7 +110,7 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("BulkGet fails when not supported", func(t *testing.T) {
-		supportBulk, _, err := store.BulkGet([]state.GetRequest{{
+		supportBulk, _, err := store.BulkGet(context.Background(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
@@ -123,7 +124,7 @@ func TestReadAndWrite(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "theFirstKey",
 		}
-		err := store.Delete(req)
+		err := store.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 }

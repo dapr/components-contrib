@@ -235,25 +235,26 @@ func TestGetWithMockClient(t *testing.T) {
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
 	t.Parallel()
+	ctx := context.Background()
 	t.Run("Test regular Get", func(t *testing.T) {
-		getResponse, err := s.Get(&state.GetRequest{Key: "test-key"})
+		getResponse, err := s.Get(ctx, &state.GetRequest{Key: "test-key"})
 		assert.True(t, mockClient.getIsCalled, "function Get should be invoked on the mockClient")
 		assert.Equal(t, "Hello World", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.NotNil(t, *getResponse.ETag, "ETag should be set")
 		assert.Nil(t, err)
 	})
 	t.Run("Test Get with composite key", func(t *testing.T) {
-		getResponse, err := s.Get(&state.GetRequest{Key: "test-app||test-key"})
+		getResponse, err := s.Get(ctx, &state.GetRequest{Key: "test-app||test-key"})
 		assert.Equal(t, "Hello Continent", string(getResponse.Data), "Value retrieved should be equal to value set")
 		assert.Nil(t, err)
 	})
 	t.Run("Test Get with an unknown key", func(t *testing.T) {
-		getResponse, err := s.Get(&state.GetRequest{Key: "unknownKey"})
+		getResponse, err := s.Get(ctx, &state.GetRequest{Key: "unknownKey"})
 		assert.Nil(t, getResponse.Data, "No value should be retrieved for an unknown key")
 		assert.Nil(t, err, "404", "Not finding an object because of unknown key should not result in an error")
 	})
 	t.Run("Test expired element (because of TTL) ", func(t *testing.T) {
-		getResponse, err := s.Get(&state.GetRequest{Key: "test-expired-ttl-key"})
+		getResponse, err := s.Get(ctx, &state.GetRequest{Key: "test-expired-ttl-key"})
 		assert.Nil(t, getResponse.Data, "No value should be retrieved for an expired state element")
 		assert.Nil(t, err, "Not returning an object because of expiration should not result in an error")
 	})
@@ -277,7 +278,7 @@ func TestPingWithMockClient(t *testing.T) {
 	s.client = mockClient
 
 	t.Run("Test Ping", func(t *testing.T) {
-		err := s.Ping()
+		err := s.Ping(context.Background())
 		assert.Nil(t, err)
 		assert.True(t, mockClient.pingBucketIsCalled, "function pingBucket should be invoked on the mockClient")
 	})
@@ -288,29 +289,30 @@ func TestSetWithMockClient(t *testing.T) {
 	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	mockClient := &mockedObjectStoreClient{}
 	statestore.client = mockClient
+	ctx := context.Background()
 	t.Run("Set without a key", func(t *testing.T) {
-		err := statestore.Set(&state.SetRequest{Value: []byte("test-value")})
+		err := statestore.Set(ctx, &state.SetRequest{Value: []byte("test-value")})
 		assert.Equal(t, err, fmt.Errorf("key for value to set was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Regular Set Operation", func(t *testing.T) {
 		testKey := "test-key"
-		err := statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value")})
+		err := statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("test-value")})
 		assert.Nil(t, err, "Setting a value with a proper key should be errorfree")
 		assert.True(t, mockClient.putIsCalled, "function put should be invoked on the mockClient")
 	})
 	t.Run("Regular Set Operation with TTL", func(t *testing.T) {
 		testKey := "test-key"
-		err := statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
+		err := statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
 			"ttlInSeconds": "5",
 		})})
 		assert.Nil(t, err, "Setting a value with a proper key and a correct TTL value should be errorfree")
 
-		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
+		err = statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
 			"ttlInSeconds": "XXX",
 		})})
 		assert.NotNil(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
 
-		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
+		err = statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("test-value"), Metadata: (map[string]string{
 			"ttlInSeconds": "1",
 		})})
 		assert.Nil(t, err, "Setting a value with a proper key and a correct TTL value should be errorfree")
@@ -320,22 +322,22 @@ func TestSetWithMockClient(t *testing.T) {
 		incorrectETag := "notTheCorrectETag"
 		etag := "correctETag"
 
-		err := statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: &incorrectETag, Options: state.SetStateOption{
+		err := statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: &incorrectETag, Options: state.SetStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Updating value with wrong etag should fail")
 
-		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: nil, Options: state.SetStateOption{
+		err = statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: nil, Options: state.SetStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Asking for FirstWrite concurrency policy without ETag should fail")
 
-		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: &etag, Options: state.SetStateOption{
+		err = statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: &etag, Options: state.SetStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.Nil(t, err, "Updating value with proper etag should go fine")
 
-		err = statestore.Set(&state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: nil, Options: state.SetStateOption{
+		err = statestore.Set(ctx, &state.SetRequest{Key: testKey, Value: []byte("overwritten-value"), ETag: nil, Options: state.SetStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Updating value with concurrency policy at FirstWrite should fail when ETag is missing")
@@ -347,35 +349,36 @@ func TestDeleteWithMockClient(t *testing.T) {
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
+	ctx := context.Background()
 	t.Run("Delete without a key", func(t *testing.T) {
-		err := s.Delete(&state.DeleteRequest{})
+		err := s.Delete(ctx, &state.DeleteRequest{})
 		assert.Equal(t, err, fmt.Errorf("key for value to delete was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Delete with an unknown key", func(t *testing.T) {
-		err := s.Delete(&state.DeleteRequest{Key: "unknownKey"})
+		err := s.Delete(ctx, &state.DeleteRequest{Key: "unknownKey"})
 		assert.Contains(t, err.Error(), "404", "Unknown Key results in error: http status code 404, object not found")
 	})
 	t.Run("Regular Delete Operation", func(t *testing.T) {
 		testKey := "test-key"
-		err := s.Delete(&state.DeleteRequest{Key: testKey})
+		err := s.Delete(ctx, &state.DeleteRequest{Key: testKey})
 		assert.Nil(t, err, "Deleting an existing value with a proper key should be errorfree")
 		assert.True(t, mockClient.deleteIsCalled, "function delete should be invoked on the mockClient")
 	})
 	t.Run("Testing Delete & Concurrency (ETags)", func(t *testing.T) {
 		testKey := "etag-test-delete-key"
 		incorrectETag := "notTheCorrectETag"
-		err := s.Delete(&state.DeleteRequest{Key: testKey, ETag: &incorrectETag, Options: state.DeleteStateOption{
+		err := s.Delete(ctx, &state.DeleteRequest{Key: testKey, ETag: &incorrectETag, Options: state.DeleteStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Deleting value with an incorrect etag should be prevented")
 
 		etag := "correctETag"
-		err = s.Delete(&state.DeleteRequest{Key: testKey, ETag: &etag, Options: state.DeleteStateOption{
+		err = s.Delete(ctx, &state.DeleteRequest{Key: testKey, ETag: &etag, Options: state.DeleteStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.Nil(t, err, "Deleting value with proper etag should go fine")
 
-		err = s.Delete(&state.DeleteRequest{Key: testKey, ETag: nil, Options: state.DeleteStateOption{
+		err = s.Delete(ctx, &state.DeleteRequest{Key: testKey, ETag: nil, Options: state.DeleteStateOption{
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Asking for FirstWrite concurrency policy without ETag should fail")

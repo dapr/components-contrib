@@ -14,6 +14,7 @@ limitations under the License.
 package dynamodb
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -70,7 +71,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (d *StateStore) Ping() error {
+func (d *StateStore) Ping(ctx context.Context) error {
 	return nil
 }
 
@@ -80,7 +81,7 @@ func (d *StateStore) Features() []state.Feature {
 }
 
 // Get retrieves a dynamoDB item.
-func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	input := &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(req.Options.Consistency == state.Strong),
 		TableName:      aws.String(d.table),
@@ -124,13 +125,13 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulk get operations.
-func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (d *StateStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with dynamodb.BatchGetItem for performance
 	return false, nil, nil
 }
 
 // Set saves a dynamoDB item.
-func (d *StateStore) Set(req *state.SetRequest) error {
+func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	value, err := d.marshalToString(req.Value)
 	if err != nil {
 		return fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
@@ -176,7 +177,7 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 }
 
 // BulkSet performs a bulk set operation.
-func (d *StateStore) BulkSet(req []state.SetRequest) error {
+func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
 	for _, r := range req {
@@ -234,7 +235,7 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 }
 
 // Delete performs a delete operation.
-func (d *StateStore) Delete(req *state.DeleteRequest) error {
+func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	input := &dynamodb.DeleteItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
 			"key": {
@@ -249,7 +250,7 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 // BulkDelete performs a bulk delete operation.
-func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
+func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
 	for _, r := range req {

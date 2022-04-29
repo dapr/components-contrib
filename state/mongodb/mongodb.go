@@ -159,8 +159,8 @@ func (m *MongoDB) Features() []state.Feature {
 }
 
 // Set saves state into MongoDB.
-func (m *MongoDB) Set(req *state.SetRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
+func (m *MongoDB) Set(ctx context.Context, req *state.SetRequest) error {
+	ctx, cancel := context.WithTimeout(ctx, m.operationTimeout)
 	defer cancel()
 
 	err := m.setInternal(ctx, req)
@@ -171,8 +171,8 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 	return nil
 }
 
-func (m *MongoDB) Ping() error {
-	if err := m.client.Ping(context.Background(), nil); err != nil {
+func (m *MongoDB) Ping(ctx context.Context) error {
+	if err := m.client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.host, err)
 	}
 
@@ -205,10 +205,10 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 }
 
 // Get retrieves state from MongoDB with a key.
-func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	var result Item
 
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, m.operationTimeout)
 	defer cancel()
 
 	filter := bson.M{id: req.Key}
@@ -264,8 +264,8 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Delete performs a delete operation.
-func (m *MongoDB) Delete(req *state.DeleteRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
+func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	ctx, cancel := context.WithTimeout(ctx, m.operationTimeout)
 	defer cancel()
 
 	err := m.deleteInternal(ctx, req)

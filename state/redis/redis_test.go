@@ -273,7 +273,7 @@ func TestTransactionalDelete(t *testing.T) {
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
-	ss.Set(&state.SetRequest{
+	ss.Set(context.Background(), &state.SetRequest{
 		Key:   "weapon",
 		Value: "deathstar",
 	})
@@ -307,12 +307,12 @@ func TestPing(t *testing.T) {
 		clientSettings: &rediscomponent.Settings{},
 	}
 
-	err := ss.Ping()
+	err := ss.Ping(context.Background())
 	assert.NoError(t, err)
 
 	s.Close()
 
-	err = ss.Ping()
+	err = ss.Ping(context.Background())
 	assert.Error(t, err)
 }
 
@@ -331,7 +331,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	t.Run("TTL: Only global specified", func(t *testing.T) {
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 		})
@@ -342,7 +342,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 
 	t.Run("TTL: Global and Request specified", func(t *testing.T) {
 		requestTTL := 200
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 			Metadata: map[string]string{
@@ -424,7 +424,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 
 	t.Run("TTL specified", func(t *testing.T) {
 		ttlInSeconds := 100
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 			Metadata: map[string]string{
@@ -438,7 +438,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 	})
 
 	t.Run("TTL not specified", func(t *testing.T) {
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon200",
 			Value: "deathstar200",
 		})
@@ -449,7 +449,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 	})
 
 	t.Run("TTL Changed for Existing Key", func(t *testing.T) {
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon300",
 			Value: "deathstar300",
 		})
@@ -458,7 +458,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 
 		// make the key no longer persistent
 		ttlInSeconds := 123
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon300",
 			Value: "deathstar300",
 			Metadata: map[string]string{
@@ -469,7 +469,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 
 		// make the key persistent again
-		ss.Set(&state.SetRequest{
+		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon300",
 			Value: "deathstar301",
 			Metadata: map[string]string{
@@ -493,7 +493,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
-	ss.Set(&state.SetRequest{
+	ss.Set(context.Background(), &state.SetRequest{
 		Key:   "weapon100",
 		Value: "deathstar100",
 	})

@@ -14,6 +14,7 @@ limitations under the License.
 package cassandra
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -230,12 +231,12 @@ func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
 }
 
 // Delete performs a delete operation.
-func (c *Cassandra) Delete(req *state.DeleteRequest) error {
+func (c *Cassandra) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).Exec()
 }
 
 // Get retrieves state from cassandra with a key.
-func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
 	if req.Options.Consistency == state.Strong {
@@ -269,7 +270,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves state into cassandra.
-func (c *Cassandra) Set(req *state.SetRequest) error {
+func (c *Cassandra) Set(ctx context.Context, req *state.SetRequest) error {
 	var bt []byte
 	b, ok := req.Value.([]byte)
 	if ok {
@@ -308,7 +309,7 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).Exec()
 }
 
-func (c *Cassandra) Ping() error {
+func (c *Cassandra) Ping(ctx context.Context) error {
 	return nil
 }
 

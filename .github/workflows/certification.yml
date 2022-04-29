@@ -106,7 +106,7 @@ jobs:
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
-      cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
+      # cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
 
   certification:
     name: ${{ matrix.component }} certification
@@ -214,7 +214,9 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
-          -count=1 -timeout=15m -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
+          --coverprofile=cover.out --covermode=set --coverpkg=${{ env.SOURCE_PATH }}
+
+        cat cover.out
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "

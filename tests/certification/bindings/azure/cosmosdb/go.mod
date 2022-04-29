@@ -4,9 +4,9 @@ go 1.17
 
 require (
 	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1
-	github.com/dapr/components-contrib v1.7.0-rc.4
+	github.com/dapr/components-contrib v1.7.1-0.20220426033643-068938c67654
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.7.0
+	github.com/dapr/dapr v1.7.1-0.20220426092903-063b1611d1cb
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0

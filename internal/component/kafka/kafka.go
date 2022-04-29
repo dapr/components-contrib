@@ -42,9 +42,9 @@ type Kafka struct {
 	consumeRetryInterval time.Duration
 }
 
-func NewKafka(l logger.Logger) *Kafka {
+func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger: l,
+		logger: logger,
 	}
 }
 

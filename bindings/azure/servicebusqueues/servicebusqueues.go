@@ -86,7 +86,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) error {
 			return sErr
 		}
 
-		tokenProvider, tErr := settings.GetAADTokenProvider()
+		tokenProvider, tErr := settings.GetAMQPTokenProvider()
 		if tErr != nil {
 			return tErr
 		}

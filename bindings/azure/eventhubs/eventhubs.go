@@ -193,12 +193,12 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 		a.hub = hub
 	} else {
 		// Connect via AAD.
-		settings, sErr := azauth.NewEnvironmentSettings("eventhubs", metadata.Properties)
+		settings, sErr := azauth.NewEnvironmentSettings(azauth.AzureEventHubsResourceName, metadata.Properties)
 		if sErr != nil {
 			return sErr
 		}
 		a.eventHubSettings = settings
-		tokenProvider, tokenErr := a.eventHubSettings.GetAADTokenProvider()
+		tokenProvider, tokenErr := a.eventHubSettings.GetAMQPTokenProvider()
 		if tokenErr != nil {
 			return fmt.Errorf("%s %w", hubConnectionInitErrorMsg, err)
 		}

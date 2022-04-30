@@ -304,7 +304,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 			return err
 		}
 
-		tokenProvider, err := settings.GetAADTokenProvider()
+		tokenProvider, err := settings.GetAMQPTokenProvider()
 		if err != nil {
 			return err
 		}

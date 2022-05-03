@@ -129,6 +129,23 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		}
 	}
 
+	// 4. MSI using Default Credential
+	// DefaultAzureCredential is a default credential chain for applications that will be deployed to Azure.
+	// It combines credentials suitable for deployed applications with credentials suitable in local development.
+	// It attempts to authenticate with each of these credential types, in the following order:
+	//	- EnvironmentCredential
+	//	- ManagedIdentityCredential
+	//	- AzureCLICredential
+	// Consult the documentation for these credential types for more information on how they authenticate.
+	{
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err == nil {
+			creds = append(creds, cred)
+		} else {
+			errMsg += err.Error() + "\n"
+		}
+	}
+
 	if len(creds) == 0 {
 		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %v", errMsg)
 	}

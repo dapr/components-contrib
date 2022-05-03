@@ -198,6 +198,22 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 	defer client.Close(ctx)
 
 	msg := servicebus.NewMessage(req.Data)
+
+	if msg.UserProperties == nil {
+		msg.UserProperties = make(map[string]interface{}, len(req.Metadata))
+	}
+	for key, val := range req.Metadata {
+		if key == id {
+			msg.ID = val
+		} else if key == correlationID {
+			msg.CorrelationID = val
+		} else {
+			// Add to user props
+			a.logger.Debugf("[%s] -- [%s]", key, val)
+			msg.UserProperties[key] = val
+		}
+	}
+
 	if val, ok := req.Metadata[id]; ok && val != "" {
 		msg.ID = val
 	}
@@ -219,9 +235,15 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 
 func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	var sbHandler servicebus.HandlerFunc = func(ctx context.Context, msg *servicebus.Message) error {
+		metadata := map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label}
+		if msg.UserProperties != nil {
+			for key, val := range msg.UserProperties {
+				metadata[key] = val.(string)
+			}
+		}
 		_, err := handler(ctx, &bindings.ReadResponse{
 			Data:     msg.Data,
-			Metadata: map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label},
+			Metadata: metadata,
 		})
 		if err == nil {
 			return msg.Complete(ctx)

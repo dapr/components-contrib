@@ -38,6 +38,7 @@ type sqsMetadata struct {
 	QueueName    string `json:"queueName"`
 	Region       string `json:"region"`
 	Endpoint     string `json:"endpoint"`
+	QueueURL     string `json:"queueURL"`
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
@@ -60,15 +61,19 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
-	queueName := m.QueueName
-	resultURL, err := client.GetQueueUrl(&sqs.GetQueueUrlInput{
-		QueueName: aws.String(queueName),
-	})
-	if err != nil {
-		return err
-	}
+	if m.QueueURL != "" {
+		a.QueueURL = &m.QueueURL
+	} else {
+		queueName := m.QueueName
+		resultURL, err := client.GetQueueUrl(&sqs.GetQueueUrlInput{
+			QueueName: aws.String(queueName),
+		})
+		if err != nil {
+			return err
+		}
 
-	a.QueueURL = resultURL.QueueUrl
+		a.QueueURL = resultURL.QueueUrl
+	}
 	a.Client = client
 
 	return nil

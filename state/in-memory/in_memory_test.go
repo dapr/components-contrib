@@ -33,7 +33,7 @@ func TestReadAndWrite(t *testing.T) {
 	store := NewInMemoryStateStore(logger.NewLogger("test"))
 	store.Init(state.Metadata{})
 
-	t.Run("test set 1", func(t *testing.T) {
+	t.Run("set kv with etag successfully", func(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   "theFirstKey",
 			Value: "value of key",
@@ -43,7 +43,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("test get 1", func(t *testing.T) {
+	t.Run("get the previous value after set", func(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theFirstKey",
 		}
@@ -53,7 +53,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Equal(t, "value of key", string(resp.Data))
 	})
 
-	t.Run("test set 2", func(t *testing.T) {
+	t.Run("set the second key successfully", func(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   "theSecondKey",
 			Value: "1234",
@@ -63,7 +63,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("test get 2", func(t *testing.T) {
+	t.Run("get value of the second key successfuly", func(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
@@ -73,7 +73,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Equal(t, "1234", string(resp.Data))
 	})
 
-	t.Run("test BulkSet", func(t *testing.T) {
+	t.Run("BulkSet two keys", func(t *testing.T) {
 		err := store.BulkSet([]state.SetRequest{{
 			Key:   "theFirstKey",
 			Value: "666",
@@ -85,7 +85,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("test BulkGet", func(t *testing.T) {
+	t.Run("BulkGet fails when not supported", func(t *testing.T) {
 		supportBulk, _, err := store.BulkGet([]state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
@@ -96,7 +96,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Equal(t, false, supportBulk)
 	})
 
-	t.Run("test delete", func(t *testing.T) {
+	t.Run("delete theFirstKey", func(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "theFirstKey",
 		}
@@ -104,7 +104,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("test BulkGet2", func(t *testing.T) {
+	t.Run("BulkGet fails when not supported", func(t *testing.T) {
 		supportBulk, _, err := store.BulkGet([]state.GetRequest{{
 			Key: "theFirstKey",
 		}, {

@@ -198,6 +198,22 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 	defer client.Close(ctx)
 
 	msg := servicebus.NewMessage(req.Data)
+
+	if msg.UserProperties == nil {
+		msg.UserProperties = make(map[string]interface{}, len(req.Metadata))
+	}
+	for key, val := range req.Metadata {
+		if key == id {
+			msg.ID = val
+		} else if key == correlationID {
+			msg.CorrelationID = val
+		} else {
+			// Add to user props
+			a.logger.Debugf("[%s] -- [%s]", key, val)
+			msg.UserProperties[key] = val
+		}
+	}
+
 	if val, ok := req.Metadata[id]; ok && val != "" {
 		msg.ID = val
 	}

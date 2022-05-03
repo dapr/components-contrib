@@ -235,9 +235,15 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 
 func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	var sbHandler servicebus.HandlerFunc = func(ctx context.Context, msg *servicebus.Message) error {
+		metadata := map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label}
+		if msg.UserProperties != nil {
+			for key, val := range msg.UserProperties {
+				metadata[key] = val.(string)
+			}
+		}
 		_, err := handler(ctx, &bindings.ReadResponse{
 			Data:     msg.Data,
-			Metadata: map[string]string{id: msg.ID, correlationID: msg.CorrelationID, label: msg.Label},
+			Metadata: metadata,
 		})
 		if err == nil {
 			return msg.Complete(ctx)

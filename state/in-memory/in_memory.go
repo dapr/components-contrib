@@ -64,7 +64,7 @@ func (store *inMemoryStore) Close() error {
 	// release memory reference
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	store.items = nil
+	store.items = map[string]*inMemStateStoreItem{}
 
 	return nil
 }

@@ -63,7 +63,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("get value of the second key successfuly", func(t *testing.T) {
+	t.Run("get value of the second key successfully", func(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}

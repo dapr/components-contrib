@@ -14,6 +14,7 @@ limitations under the License.
 package inmemory
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -36,6 +37,9 @@ type inMemoryStore struct {
 	items map[string]*inMemStateStoreItem
 	lock  *sync.RWMutex
 	log   logger.Logger
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewInMemoryStateStore(logger logger.Logger) state.Store {
@@ -47,8 +51,21 @@ func NewInMemoryStateStore(logger logger.Logger) state.Store {
 }
 
 func (store *inMemoryStore) Init(metadata state.Metadata) error {
+	store.ctx, store.cancel = context.WithCancel(context.Background())
 	// start a background go routine to clean expired item
 	go store.startCleanThread()
+	return nil
+}
+
+func (store *inMemoryStore) Close() error {
+	if store.cancel != nil {
+		store.cancel()
+	}
+	// release memory reference
+	store.lock.Lock()
+	defer store.lock.Unlock()
+	store.items = nil
+
 	return nil
 }
 
@@ -369,11 +386,13 @@ func unmarshal(val interface{}) []byte {
 }
 
 func (store *inMemoryStore) startCleanThread() {
-	// TODO: add close() method and pass a close channel to this for loop
 	for {
-		store.doCleanExpiredItems()
-
-		time.Sleep(time.Second)
+		select {
+		case <-time.After(time.Second):
+			store.doCleanExpiredItems()
+		case <-store.ctx.Done():
+			return
+		}
 	}
 }
 

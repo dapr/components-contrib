@@ -15,6 +15,7 @@ package inmemory
 
 import (
 	"testing"
+	"time"
 
 	"github.com/agrea/ptr"
 	"github.com/golang/mock/gomock"
@@ -33,27 +34,51 @@ func TestReadAndWrite(t *testing.T) {
 	store := NewInMemoryStateStore(logger.NewLogger("test"))
 	store.Init(state.Metadata{})
 
-	t.Run("set kv with etag successfully", func(t *testing.T) {
+	keyA := "theFirstKey"
+	valueA := "value of key"
+	t.Run("set kv with etag and then get", func(t *testing.T) {
+		// set
 		setReq := &state.SetRequest{
-			Key:   "theFirstKey",
-			Value: "value of key",
+			Key:   keyA,
+			Value: valueA,
 			ETag:  ptr.String("the etag"),
 		}
 		err := store.Set(setReq)
 		assert.Nil(t, err)
-	})
-
-	t.Run("get the previous value after set", func(t *testing.T) {
+		// get after set
 		getReq := &state.GetRequest{
-			Key: "theFirstKey",
+			Key: keyA,
 		}
 		resp, err := store.Get(getReq)
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, "value of key", string(resp.Data))
+		assert.Equal(t, valueA, string(resp.Data))
 	})
 
-	t.Run("set the second key successfully", func(t *testing.T) {
+	t.Run("get nothing when expired", func(t *testing.T) {
+		// set with LWW
+		setReq := &state.SetRequest{
+			Key:      keyA,
+			Value:    valueA,
+			Metadata: map[string]string{"ttlInSeconds": "1"},
+		}
+		err := store.Set(setReq)
+		assert.Nil(t, err)
+		// simulate expiration
+		time.Sleep(2 * time.Second)
+		// get
+		getReq := &state.GetRequest{
+			Key: keyA,
+		}
+		resp, err := store.Get(getReq)
+		assert.Nil(t, err)
+		assert.NotNil(t, resp)
+		assert.Nil(t, resp.Data)
+		assert.Nil(t, resp.ETag)
+	})
+
+	t.Run("set and get the second key successfully", func(t *testing.T) {
+		// set
 		setReq := &state.SetRequest{
 			Key:   "theSecondKey",
 			Value: "1234",
@@ -61,9 +86,7 @@ func TestReadAndWrite(t *testing.T) {
 		}
 		err := store.Set(setReq)
 		assert.Nil(t, err)
-	})
-
-	t.Run("get value of the second key successfully", func(t *testing.T) {
+		// get
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}

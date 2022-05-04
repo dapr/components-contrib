@@ -156,8 +156,7 @@ func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
 func (store *inMemoryStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	item := store.doGetWithReadLock(req.Key)
 	if item != nil && isExpired(item.expire) {
-		store.doDeleteExpiredWithWriteLock(req.Key)
-		item = nil
+		item = store.doGetWithWriteLock(req.Key)
 	}
 
 	if item == nil {
@@ -173,14 +172,19 @@ func (store *inMemoryStore) doGetWithReadLock(key string) *inMemStateStoreItem {
 	return store.items[key]
 }
 
-func (store *inMemoryStore) doDeleteExpiredWithWriteLock(key string) {
+func (store *inMemoryStore) doGetWithWriteLock(key string) *inMemStateStoreItem {
 	store.lock.Lock()
 	defer store.lock.Unlock()
 	// get item and check expired again to avoid if item changed between we got this write-lock
 	item := store.items[key]
-	if item != nil && isExpired(item.expire) {
-		store.doDelete(key)
+	if item == nil {
+		return nil
 	}
+	if isExpired(item.expire) {
+		store.doDelete(key)
+		return nil
+	}
+	return item
 }
 
 func isExpired(expire int64) bool {

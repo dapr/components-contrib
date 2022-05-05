@@ -94,6 +94,8 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		}
 		m.DisableBatching = disableBatching
 	}
+	// TODO: Set the default value of BatchingMaxMessages to 1000
+	m.BatchingMaxMessages = 1000
 	if val, ok := meta.Properties[batchingMaxMessages]; ok {
 		batchingMaxMessages, err := strconv.ParseUint(val, 10, 64)
 		if err != nil {
@@ -101,6 +103,8 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		}
 		m.BatchingMaxMessages = uint(batchingMaxMessages)
 	}
+	// TODO: Set the default value of BatchingMaxSize to 128kb
+	m.BatchingMaxSize = 128 * 1024
 	if val, ok := meta.Properties[batchingMaxSize]; ok {
 		batchingMaxSize, err := strconv.ParseUint(val, 10, 64)
 		if err != nil {

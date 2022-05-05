@@ -36,11 +36,11 @@ const (
 	deliverAt           = "deliverAt"
 	deliverAfter        = "deliverAfter"
 	disableBatching     = "disableBatching"
-	batchingMaxSize     = "batchingMaxSize"
-	batchingMaxMessages = "batchingMaxMessages"
 	tenant              = "tenant"
 	namespace           = "namespace"
 	persistent          = "persistent"
+	batchingMaxSize     = "batchingMaxSize"
+	batchingMaxMessages = "batchingMaxMessages"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"

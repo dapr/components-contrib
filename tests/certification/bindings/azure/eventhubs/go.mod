@@ -8,6 +8,7 @@ require (
 	github.com/dapr/dapr v1.7.1-0.20220426092903-063b1611d1cb
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
+	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/multierr v1.7.0
 )
@@ -62,7 +63,6 @@ require (
 	github.com/google/cel-go v0.9.0 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c // indirect

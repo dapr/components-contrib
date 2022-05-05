@@ -1,0 +1,16 @@
+go 1.18
+
+use (
+	.
+	./tests/certification
+	./tests/certification/bindings/azure/blobstorage
+	./tests/certification/bindings/azure/cosmosdb
+	./tests/certification/bindings/azure/servicebusqueues
+	./tests/certification/pubsub/azure/eventhubs
+	./tests/certification/pubsub/kafka
+	./tests/certification/pubsub/mqtt
+	./tests/certification/pubsub/rabbitmq
+	./tests/certification/secretstores/azure/keyvault
+	./tests/certification/state/sqlserver
+	./tests/e2e/pubsub/jetstream
+)

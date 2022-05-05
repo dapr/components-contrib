@@ -244,7 +244,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		redisValue, err := r.client.Get(ctx, redisKey).Result()
 		if err != nil {
 			if strings.Contains(err.Error(), redisWrongTypeIdentifyStr) {
-				r.logger.Warnf("redis key %s 's type is not supported, ignore it", redisKey)
+				r.logger.Warnf("redis key %s 's type is not supported, ignore it\n", redisKey)
 				continue
 			}
 			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", redisKey, err)

@@ -3,5 +3,3 @@
 .vscode
 /vendor
 go.work
-.dccache
-/.vs

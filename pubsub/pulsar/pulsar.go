@@ -30,15 +30,17 @@ import (
 )
 
 const (
-	host            = "host"
-	consumerID      = "consumerID"
-	enableTLS       = "enableTLS"
-	deliverAt       = "deliverAt"
-	deliverAfter    = "deliverAfter"
-	disableBatching = "disableBatching"
-	tenant          = "tenant"
-	namespace       = "namespace"
-	persistent      = "persistent"
+	host                = "host"
+	consumerID          = "consumerID"
+	enableTLS           = "enableTLS"
+	deliverAt           = "deliverAt"
+	deliverAfter        = "deliverAfter"
+	disableBatching     = "disableBatching"
+	batchingMaxSize     = "batchingMaxSize"
+	batchingMaxMessages = "batchingMaxMessages"
+	tenant              = "tenant"
+	namespace           = "namespace"
+	persistent          = "persistent"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -92,7 +94,22 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		}
 		m.DisableBatching = disableBatching
 	}
-
+	m.BatchingMaxMessages = 1000
+	if val, ok := meta.Properties[batchingMaxMessages]; ok {
+		batchingMaxMessages, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for batchingMaxMessages")
+		}
+		m.BatchingMaxMessages = uint(batchingMaxMessages)
+	}
+	m.BatchingMaxSize = 128 * 1024
+	if val, ok := meta.Properties[batchingMaxSize]; ok {
+		batchingMaxSize, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for BatchingMaxSize")
+		}
+		m.BatchingMaxSize = uint(batchingMaxSize)
+	}
 	if val, ok := meta.Properties[persistent]; ok && val != "" {
 		per, err := strconv.ParseBool(val)
 		if err != nil {
@@ -179,8 +196,10 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if cache == nil {
 		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
 		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
-			Topic:           topic,
-			DisableBatching: p.metadata.DisableBatching,
+			Topic:               topic,
+			DisableBatching:     p.metadata.DisableBatching,
+			BatchingMaxMessages: p.metadata.BatchingMaxMessages,
+			BatchingMaxSize:     p.metadata.BatchingMaxSize,
 		})
 		if err != nil {
 			return err

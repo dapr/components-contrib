@@ -25,9 +25,11 @@ import (
 func TestParsePulsarMetadata(t *testing.T) {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{
-		"host":            "a",
-		"enableTLS":       "false",
-		"disableBatching": "true",
+		"host":                "a",
+		"enableTLS":           "false",
+		"disableBatching":     "true",
+		"batchingMaxSize":     "100",
+		"batchingMaxMessages": "200",
 	}
 	meta, err := parsePulsarMetadata(m)
 
@@ -37,6 +39,8 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, true, meta.DisableBatching)
 	assert.Equal(t, defaultTenant, meta.Tenant)
 	assert.Equal(t, defaultNamespace, meta.Namespace)
+	assert.Equal(t, 100, meta.BatchingMaxSize)
+	assert.Equal(t, 200, meta.BatchingMaxMessages)
 }
 
 func TestParsePublishMetadata(t *testing.T) {

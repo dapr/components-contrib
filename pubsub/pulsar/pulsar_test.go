@@ -39,8 +39,8 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, true, meta.DisableBatching)
 	assert.Equal(t, defaultTenant, meta.Tenant)
 	assert.Equal(t, defaultNamespace, meta.Namespace)
-	assert.Equal(t, 100, meta.BatchingMaxSize)
-	assert.Equal(t, 200, meta.BatchingMaxMessages)
+	assert.Equal(t, uint(100), meta.BatchingMaxSize)
+	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
 }
 
 func TestParsePublishMetadata(t *testing.T) {

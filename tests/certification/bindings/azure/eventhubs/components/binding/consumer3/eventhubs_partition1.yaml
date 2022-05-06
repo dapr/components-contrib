@@ -1,0 +1,34 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-partition1-binding
+  namespace: default
+spec:
+  type: bindings.azure.eventhubs
+  version: v1
+  metadata:
+  - name: connectionString      # Azure EventHubs connection string
+    secretKeyRef:
+      name: AzureEventHubsBindingsConnectionString
+      value: AzureEventHubsBindingsConnectionString
+  - name: consumerGroup         # EventHubs consumer group
+    secretKeyRef:
+      name: AzureEventHubsBindingsConsumerGroup
+      value: AzureEventHubsBindingsConsumerGroup
+  - name: storageAccountName    # Azure Storage Account Name
+    secretKeyRef:
+      name: AzureBlobStorageAccount
+      value: AzureBlobStorageAccount
+  - name: storageAccountKey     # Azure Storage Account Key
+    secretKeyRef:
+      name: AzureBlobStorageAccessKey
+      value: AzureBlobStorageAccessKey  
+  - name: storageContainerName  # Azure Storage Container Name
+    secretKeyRef:
+      name: AzureEventHubsBindingsContainer
+      value: AzureEventHubsBindingsContainer
+  - name: partitionID
+    value: 1
+auth:
+  secretStore: envvar-secret-store
+  

@@ -114,7 +114,6 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) 
 	// Always set delivery count.
 	addToMetadata(pubsubMsg, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
 
-	//nolint:golint,nestif
 	if asbMsg.SystemProperties != nil {
 		systemProps := asbMsg.SystemProperties
 		if systemProps.EnqueuedTime != nil {

@@ -38,6 +38,7 @@ type mockClient struct {
 }
 
 func (mcf mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
+	//nolint:staticcheck
 	mcf.metadata = metadata
 
 	if mcf.error != nil {

@@ -327,7 +327,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 	return mapped
 }
 
-//nolint:golint,stylecheck
+//nolint:stylecheck
 type HttpBasicAuth struct {
 	Username string
 	Password string
@@ -337,11 +337,12 @@ type Config struct {
 	Address    string
 	Scheme     string
 	Datacenter string
-	HttpAuth   *HttpBasicAuth //nolint:golint,stylecheck
-	WaitTime   time.Duration
-	Token      string
-	TokenFile  string
-	TLSConfig  TLSConfig
+	//nolint:stylecheck
+	HttpAuth  *HttpBasicAuth
+	WaitTime  time.Duration
+	Token     string
+	TokenFile string
+	TLSConfig TLSConfig
 }
 
 type TLSConfig struct {

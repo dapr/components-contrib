@@ -74,6 +74,7 @@ func getEndpoint(endpoint, reqURI, accountName, queueName string) (*url.URL, err
 
 	return url.Parse(fmt.Sprintf(reqURI, accountName, queueName))
 }
+
 // Init sets up this helper.
 func (d *AzureQueueHelper) Init(endpoint string, accountName string, accountKey string, queueName string, decodeBase64 bool) error {
 	credential, err := azqueue.NewSharedKeyCredential(accountName, accountKey)
@@ -179,12 +180,12 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	AccountKey   string `json:"storageAccessKey"`
-	QueueName    string `json:"queue"`
+	AccountKey    string `json:"storageAccessKey"`
+	QueueName     string `json:"queue"`
 	QueueEndpoint string `json:"queueEndpoint"`
-	AccountName  string `json:"storageAccount"`
-	DecodeBase64 string `json:"decodeBase64"`
-	ttl          *time.Duration
+	AccountName   string `json:"storageAccount"`
+	DecodeBase64  string `json:"decodeBase64"`
+	ttl           *time.Duration
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.

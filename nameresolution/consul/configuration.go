@@ -92,7 +92,7 @@ func mapClientConfig(config *Config) *consul.Config {
 		return nil
 	}
 
-	mapBasicAuth := func(config *HttpBasicAuth) *consul.HttpBasicAuth {
+	mapBasicAuth := func(config *HTTPBasicAuth) *consul.HttpBasicAuth {
 		if config == nil {
 			return nil
 		}
@@ -107,7 +107,7 @@ func mapClientConfig(config *Config) *consul.Config {
 		Address:    config.Address,
 		Scheme:     config.Scheme,
 		Datacenter: config.Datacenter,
-		HttpAuth:   mapBasicAuth(config.HttpAuth),
+		HttpAuth:   mapBasicAuth(config.HTTPAuth),
 		WaitTime:   config.WaitTime,
 		Token:      config.Token,
 		TokenFile:  config.TokenFile,
@@ -327,8 +327,7 @@ func mapAdvancedRegistration(config *AgentServiceRegistration) *consul.AgentServ
 	return mapped
 }
 
-//nolint:stylecheck
-type HttpBasicAuth struct {
+type HTTPBasicAuth struct {
 	Username string
 	Password string
 }
@@ -337,12 +336,11 @@ type Config struct {
 	Address    string
 	Scheme     string
 	Datacenter string
-	//nolint:stylecheck
-	HttpAuth  *HttpBasicAuth
-	WaitTime  time.Duration
-	Token     string
-	TokenFile string
-	TLSConfig TLSConfig
+	HTTPAuth   *HTTPBasicAuth
+	WaitTime   time.Duration
+	Token      string
+	TokenFile  string
+	TLSConfig  TLSConfig
 }
 
 type TLSConfig struct {

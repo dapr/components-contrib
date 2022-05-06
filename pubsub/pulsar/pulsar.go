@@ -53,11 +53,11 @@ const (
 	topicFormat      = "%s://%s/%s/%s"
 	persistentStr    = "persistent"
 	nonPersistentStr = "non-persistent"
-	//TODO defaultBatchingMaxPublishDelay init default for maximum delay to batch messages
+	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages
 	defaultBatchingMaxPublishDelay = 10 * time.Millisecond
-	//TODO defaultMaxMessages init default num of entries in per batch.
+	// defaultMaxMessages init default num of entries in per batch.
 	defaultMaxMessages = 1000
-	//TODO defaultMaxBatchSize init default for maximum number of bytes per batch
+	// defaultMaxBatchSize init default for maximum number of bytes per batch
 	defaultMaxBatchSize = 128 * 1024
 )
 

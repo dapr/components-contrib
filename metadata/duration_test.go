@@ -29,44 +29,44 @@ func TestDuration_ToISOString(t *testing.T) {
 			want:     "P0D",
 		},
 		{
-			duration: time.Duration(1 * time.Second),
+			duration: 1 * time.Second,
 			want:     "PT1S",
 		},
 		{
 			name:     "truncate fractions of seconds",
-			duration: time.Duration(1100 * time.Millisecond),
+			duration: 1100 * time.Millisecond,
 			want:     "PT1S",
 		},
 		{
-			duration: time.Duration(24 * time.Hour),
+			duration: 24 * time.Hour,
 			want:     "P1D",
 		},
 		{
-			duration: time.Duration(48 * time.Hour),
+			duration: 48 * time.Hour,
 			want:     "P2D",
 		},
 		{
-			duration: time.Duration(50 * time.Hour),
+			duration: 50 * time.Hour,
 			want:     "P2DT2H",
 		},
 		{
-			duration: time.Duration(50*time.Hour + 20*time.Minute),
+			duration: 50*time.Hour + 20*time.Minute,
 			want:     "P2DT2H20M",
 		},
 		{
-			duration: time.Duration(50*time.Hour + 100*time.Minute),
+			duration: 50*time.Hour + 100*time.Minute,
 			want:     "P2DT3H40M",
 		},
 		{
-			duration: time.Duration(50*time.Hour + 20*time.Minute + 15*time.Second),
+			duration: 50*time.Hour + 20*time.Minute + 15*time.Second,
 			want:     "P2DT2H20M15S",
 		},
 		{
-			duration: time.Duration(50*time.Hour + 15*time.Second),
+			duration: 50*time.Hour + 15*time.Second,
 			want:     "P2DT2H15S",
 		},
 		{
-			duration: time.Duration(240*time.Hour + 15*time.Second),
+			duration: 240*time.Hour + 15*time.Second,
 			want:     "P10DT15S",
 		},
 	}
@@ -75,7 +75,7 @@ func TestDuration_ToISOString(t *testing.T) {
 		if name == "" {
 			name = tt.want
 		}
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			d := Duration{
 				Duration: tt.duration,
 			}

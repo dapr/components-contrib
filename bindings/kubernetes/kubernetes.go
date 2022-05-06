@@ -36,7 +36,7 @@ import (
 type kubernetesInput struct {
 	kubeClient        kubernetes.Interface
 	namespace         string
-	resyncPeriodInSec time.Duration // nolint:stylecheck
+	resyncPeriodInSec time.Duration
 	logger            logger.Logger
 }
 

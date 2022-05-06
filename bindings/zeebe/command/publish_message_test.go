@@ -75,7 +75,8 @@ func (cmd2 *mockPublishMessageCommandStep2) CorrelationKey(correlationKey string
 	return cmd2.cmd3
 }
 
-//nolint // MessageId comes from the Zeebe client API and cannot be written as MessageID
+// MessageId comes from the Zeebe client API and cannot be written as MessageID
+// Note that when the `stylecheck` linter is working again, this method will need "nolink:stylecheck" (can't change name to ID or it won't satisfy an interface)
 func (cmd3 *mockPublishMessageCommandStep3) MessageId(messageID string) commands.PublishMessageCommandStep3 {
 	cmd3.messageID = messageID
 

@@ -501,7 +501,8 @@ func (c *StateStore) checkStoredProcedures() error {
 		c.logger.Debugf("Cosmos DB stored procedure version: %d", ver)
 	}
 	if err != nil || (err == nil && ver != spVersion) {
-		return fmt.Errorf("Dapr requires stored procedures created in Cosmos DB before it can be used as state store. Those stored procedures are currently not existing or are using a different version than expected. When you authenticate using Azure AD we cannot automatically create them for you: please start this state store with a Cosmos DB master key just once so we can create the stored procedures for you; otherwise, you can check our docs to learn how to create them yourself: https://aka.ms/dapr/cosmosdb-aad") // nolint:stylecheck
+		// Note that when the `stylecheck` linter is working with Go 1.18 again, this will need "nolint:stylecheck"
+		return fmt.Errorf("Dapr requires stored procedures created in Cosmos DB before it can be used as state store. Those stored procedures are currently not existing or are using a different version than expected. When you authenticate using Azure AD we cannot automatically create them for you: please start this state store with a Cosmos DB master key just once so we can create the stored procedures for you; otherwise, you can check our docs to learn how to create them yourself: https://aka.ms/dapr/cosmosdb-aad")
 	}
 	return nil
 }

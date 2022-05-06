@@ -61,7 +61,8 @@ func (mc *mockCreateInstanceClient) NewCreateInstanceCommand() commands.CreateIn
 	return mc.cmd1
 }
 
-//nolint // BPMNProcessId comes from the Zeebe client API and cannot be written as BPMNProcessID
+// BPMNProcessId comes from the Zeebe client API and cannot be written as BPMNProcessID
+// Note that when the `stylecheck` linter is working again, this method will need "nolink:stylecheck" (can't change name to ID or it won't satisfy an interface)
 func (cmd1 *mockCreateInstanceCommandStep1) BPMNProcessId(bpmnProcessID string) commands.CreateInstanceCommandStep2 {
 	cmd1.bpmnProcessID = bpmnProcessID
 

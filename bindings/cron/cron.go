@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/robfig/cron/v3"
+	cron "github.com/robfig/cron/v3"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"

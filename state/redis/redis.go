@@ -403,7 +403,6 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 
 	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
-		//nolint:golint,nestif
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			ver, err := r.parseETag(&req)

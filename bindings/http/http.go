@@ -33,7 +33,7 @@ import (
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
-// nolint:golint
+//revive:disable-next-line
 type HTTPSource struct {
 	metadata httpMetadata
 	client   *http.Client

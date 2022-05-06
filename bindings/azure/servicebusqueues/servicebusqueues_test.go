@@ -25,7 +25,7 @@ import (
 )
 
 func TestParseMetadata(t *testing.T) {
-	var oneSecondDuration time.Duration = time.Second
+	oneSecondDuration := time.Second
 
 	testCases := []struct {
 		name                     string

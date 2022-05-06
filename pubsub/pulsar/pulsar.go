@@ -36,12 +36,12 @@ const (
 	deliverAt               = "deliverAt"
 	deliverAfter            = "deliverAfter"
 	disableBatching         = "disableBatching"
-	tenant                  = "tenant"
-	namespace               = "namespace"
-	persistent              = "persistent"
 	batchingMaxPublishDelay = "batchingMaxPublishDelay"
 	batchingMaxSize         = "batchingMaxSize"
 	batchingMaxMessages     = "batchingMaxMessages"
+	tenant                  = "tenant"
+	namespace               = "namespace"
+	persistent              = "persistent"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -53,11 +53,12 @@ const (
 	topicFormat      = "%s://%s/%s/%s"
 	persistentStr    = "persistent"
 	nonPersistentStr = "non-persistent"
-	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages
+
+	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages.
 	defaultBatchingMaxPublishDelay = 10 * time.Millisecond
 	// defaultMaxMessages init default num of entries in per batch.
 	defaultMaxMessages = 1000
-	// defaultMaxBatchSize init default for maximum number of bytes per batch
+	// defaultMaxBatchSize init default for maximum number of bytes per batch.
 	defaultMaxBatchSize = 128 * 1024
 )
 

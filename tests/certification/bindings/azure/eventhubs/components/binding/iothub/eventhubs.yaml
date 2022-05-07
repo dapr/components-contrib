@@ -1,0 +1,35 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-eventhubs-binding
+  namespace: default
+spec:
+  type: bindings.azure.eventhubs
+  version: v1
+  metadata:
+    - name: connectionString
+      secretKeyRef:
+        name: AzureIotHubEventHubConnectionString
+        key: AzureIotHubEventHubConnectionString 
+    - name: storageAccountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: storageAccountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: storageContainerName
+      secretKeyRef:
+        name: AzureEventHubsBindingsContainer
+        key: AzureEventHubsBindingsContainer
+    - name: iotHub
+      secretKeyRef:
+        name: AzureIotHubName
+        key: AzureIotHubName
+    - name: consumerGroup
+      secretKeyRef:
+        name: AzureIotHubBindingsConsumerGroup
+        key: AzureIotHubBindingsConsumerGroup
+auth:
+  secretStore: envvar-secret-store

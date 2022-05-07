@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/bindings/azure/cosmosdb
 
-go 1.17
+go 1.18
 
 require (
 	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1

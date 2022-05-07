@@ -411,7 +411,7 @@ func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
 }
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {
-	var exists bool = false
+	exists := false
 	err := db.QueryRow("SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
 
 	return exists, err

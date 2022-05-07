@@ -14,12 +14,10 @@ limitations under the License.
 package servicebus
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,93 +126,6 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 				assert.Equal(t, tc.expectedAzServiceBusMessage.Subject, msg.Subject)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.PartitionKey, msg.PartitionKey)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.ScheduledEnqueueTime.Unix(), msg.ScheduledEnqueueTime.Unix())
-			}
-		})
-	}
-}
-
-func TestNewPubsubMessageFromAzServiceBusMessage(t *testing.T) {
-	testMessageData := []byte("test message")
-	testContentType := "testContentType"
-	testMessageID := "testMessageId"
-	testCorrelationID := "testCorrelationId"
-	testSessionID := "testSessionId"
-	testLabel := "testLabel"
-	testReplyTo := "testReplyTo"
-	testTo := "testTo"
-	testPartitionKey := testSessionID
-	testLockToken, _ := uuid.NewV4()
-	nowUtc := time.Now().UTC()
-	testSequenceNumber := int64(10)
-	testSequenceNumberValue := "10"
-	testDeliveryCount := uint32(2)
-	testDeliveryCountValue := "2"
-
-	testCases := []struct {
-		name                  string
-		azServiceBusMessage   azservicebus.ReceivedMessage
-		topic                 string
-		expectedPubsubMessage pubsub.NewMessage
-		expectError           bool
-	}{
-		{
-			name: "Maps azure service bus message to pubsub message",
-			azServiceBusMessage: azservicebus.ReceivedMessage{
-				ContentType:          &testContentType,
-				MessageID:            testMessageID,
-				CorrelationID:        &testCorrelationID,
-				SessionID:            &testSessionID,
-				ReplyTo:              &testReplyTo,
-				DeliveryCount:        testDeliveryCount,
-				To:                   &testTo,
-				LockToken:            testLockToken,
-				Subject:              &testLabel,
-				LockedUntil:          &nowUtc,
-				SequenceNumber:       &testSequenceNumber,
-				ScheduledEnqueueTime: &nowUtc,
-				PartitionKey:         &testPartitionKey,
-				EnqueuedTime:         &nowUtc,
-			},
-			topic: "testTopic",
-			expectedPubsubMessage: pubsub.NewMessage{
-				Data:  testMessageData,
-				Topic: "testTopic",
-				Metadata: map[string]string{
-					fmt.Sprintf("metadata.%s", MessageIDMetadataKey):               testMessageID,
-					fmt.Sprintf("metadata.%s", SessionIDMetadataKey):               testSessionID,
-					fmt.Sprintf("metadata.%s", CorrelationIDMetadataKey):           testCorrelationID,
-					fmt.Sprintf("metadata.%s", ContentTypeMetadataKey):             testContentType,
-					fmt.Sprintf("metadata.%s", LabelMetadataKey):                   testLabel,
-					fmt.Sprintf("metadata.%s", DeliveryCountMetadataKey):           testDeliveryCountValue,
-					fmt.Sprintf("metadata.%s", ToMetadataKey):                      testTo,
-					fmt.Sprintf("metadata.%s", ReplyToMetadataKey):                 testReplyTo,
-					fmt.Sprintf("metadata.%s", LockTokenMetadataKey):               testLockToken.String(),
-					fmt.Sprintf("metadata.%s", LockedUntilUtcMetadataKey):          nowUtc.Format(http.TimeFormat),
-					fmt.Sprintf("metadata.%s", SequenceNumberMetadataKey):          testSequenceNumberValue,
-					fmt.Sprintf("metadata.%s", ScheduledEnqueueTimeUtcMetadataKey): nowUtc.Format(http.TimeFormat),
-					fmt.Sprintf("metadata.%s", PartitionKeyMetadataKey):            testPartitionKey,
-					fmt.Sprintf("metadata.%s", EnqueuedTimeUtcMetadataKey):         nowUtc.Format(http.TimeFormat),
-				},
-			},
-			expectError: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// act.
-			pubsubMsg, err := NewPubsubMessageFromASBMessage(&tc.azServiceBusMessage, tc.topic)
-
-			// assert.
-			if tc.expectError {
-				require.NotNil(t, err)
-			} else {
-				require.Nil(t, err)
-				assert.Equal(t, tc.expectedPubsubMessage.Data, pubsubMsg.Data)
-				assert.Equal(t, tc.expectedPubsubMessage.Topic, pubsubMsg.Topic)
-				for k := range tc.expectedPubsubMessage.Metadata {
-					assert.Equal(t, tc.expectedPubsubMessage.Metadata[k], pubsubMsg.Metadata[k])
-				}
 			}
 		})
 	}

@@ -17,7 +17,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
+	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 

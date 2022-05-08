@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/pubsub/azure/eventhubs
 
-go 1.17
+go 1.18
 
 require (
 	github.com/dapr/components-contrib v1.7.1-0.20220426033643-068938c67654

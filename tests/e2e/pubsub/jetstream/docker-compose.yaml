@@ -9,7 +9,7 @@ services:
       - ./jwt:/jwt
 
   dev:
-    image: golang:1.17.6
+    image: golang:1.18
     network_mode:
       service:nats
     volumes:

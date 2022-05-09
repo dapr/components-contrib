@@ -556,7 +556,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	assert.Nil(t, err)
 	defer db.Close()
 
-	var exists bool = false
+	exists := false
 	statement := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %s WHERE key = $1)`, tableName)
 	err = db.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)

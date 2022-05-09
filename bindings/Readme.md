@@ -18,7 +18,7 @@ Input binding:
 ```go
 type InputBinding interface {
 	Init(metadata Metadata) error
-	Read(handler func(*ReadResponse) ([]byte, error)) error
+	Read(handler func(context.Context, *ReadResponse) ([]byte, error)) error
 }
 ```
 
@@ -30,7 +30,7 @@ Each output binding can decide which operations it supports. This information is
 ```go
 type OutputBinding interface {
 	Init(metadata Metadata) error
-	Invoke(req *InvokeRequest) (*InvokeResponse, error)
+	Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind
 }
 ```

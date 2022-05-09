@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/a8m/documentdb"
-	"github.com/cenkalti/backoff/v4"
+	backoff "github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"

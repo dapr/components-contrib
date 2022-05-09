@@ -65,7 +65,7 @@ const (
 	// mongodb+srv://<server>/<params>
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 
-	// mongodb+srv://<server>/<params>
+	// mongodb+srv://<username>:<password>@<server>/<params>
 	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s"
 )
 

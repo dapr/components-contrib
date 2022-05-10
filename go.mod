@@ -158,6 +158,7 @@ require (
 )
 
 require (
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.87
 	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
 	gopkg.in/couchbase/gocb.v1 v1.6.4

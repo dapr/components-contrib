@@ -22,6 +22,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/cenkalti/backoff/v4"
+
 	"github.com/dapr/kit/retry"
 )
 

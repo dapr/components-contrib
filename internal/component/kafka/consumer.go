@@ -61,9 +61,21 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 	if err != nil {
 		return err
 	}
+
+	// get metadata from headers
+	metadata := make(map[string]string)
+	for _, header := range message.Headers {
+		// header starts with "ce_", it's cloudevent metadata
+		key := string(header.Key)
+		if len(key) > 3 && key[:3] == "ce_" {
+			metadata[key[3:]] = string(header.Value)
+		}
+	}
+
 	event := NewEvent{
-		Topic: message.Topic,
-		Data:  message.Value,
+		Topic:    message.Topic,
+		Data:     message.Value,
+		Metadata: metadata,
 	}
 	err = handler(session.Context(), &event)
 	if err == nil {

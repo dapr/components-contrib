@@ -327,3 +327,82 @@ func TestNewFromRawPayload(t *testing.T) {
 		assert.Equal(t, "aGVsbG8gd29ybGQ=", n[DataBase64Field])
 	})
 }
+
+func TestFromBinaryModePayload(t *testing.T) {
+	t.Run("string data", func(t *testing.T) {
+		metadata := map[string]string{
+			SourceField: "source",
+		}
+		n := FromBinaryModePayload([]byte("hello world"), metadata, "mytopic", "mypubsub")
+		assert.NotNil(t, n[IDField])
+		assert.Equal(t, "1.0", n[SpecVersionField])
+		assert.Equal(t, "mytopic", n[TopicField])
+		assert.Equal(t, "mypubsub", n[PubsubField])
+		assert.Equal(t, "source", n[SourceField])
+		assert.Nil(t, n[TraceParentField])
+		assert.Nil(t, n[DataField])
+		assert.Equal(t, "aGVsbG8gd29ybGQ=", n[DataBase64Field])
+	})
+}
+
+func TestNewCloudEventMetadata(t *testing.T) {
+	t.Run("create cloud event headers", func(t *testing.T) {
+		envelope := NewCloudEventMetadata("id", "source", "eventType", "subject", "topic", "pubsubName",
+			"dataContentType", "traceParent", "traceState")
+		assert.NotNil(t, envelope)
+		assert.Equal(t, "id", envelope[IDField])
+		assert.Equal(t, "source", envelope[SourceField])
+		assert.Equal(t, "eventType", envelope[TypeField])
+		assert.Equal(t, "subject", envelope[SubjectField])
+		assert.Equal(t, "topic", envelope[TopicField])
+		assert.Equal(t, "pubsubName", envelope[PubsubField])
+		assert.Equal(t, "dataContentType", envelope[DataContentTypeField])
+		assert.Equal(t, "traceParent", envelope[TraceParentField])
+		assert.Equal(t, "traceState", envelope[TraceStateField])
+	})
+	t.Run("create default values", func(t *testing.T) {
+		envelope := NewCloudEventMetadata("", "", "", "", "", "",
+			"", "", "")
+		assert.NotNil(t, envelope)
+		assert.NotEqual(t, "", envelope[IDField])
+		assert.Equal(t, DefaultCloudEventSource, envelope[SourceField])
+		assert.Equal(t, DefaultCloudEventType, envelope[TypeField])
+		assert.Equal(t, DefaultCloudEventDataContentType, envelope[DataContentTypeField])
+	})
+}
+
+func TestUpdateCloudEventMetadata(t *testing.T) {
+	t.Run("create cloud event from binary mode", func(t *testing.T) {
+		metadata := map[string]interface{}{}
+		UpdateCloudEventMetadata(metadata, "topic", "pubsub", "traceId", "traceParent", "traceState", "contentType")
+
+		assert.NotNil(t, metadata)
+		assert.Equal(t, "topic", metadata[TopicField])
+		assert.Equal(t, "pubsub", metadata[PubsubField])
+		assert.Equal(t, "traceId", metadata[TraceIDField])
+		assert.Equal(t, "traceParent", metadata[TraceParentField])
+		assert.Equal(t, "traceState", metadata[TraceStateField])
+		assert.Equal(t, "contentType", metadata[DataContentTypeField])
+
+		// check defaults
+		assert.Equal(t, DefaultCloudEventSource, metadata[SourceField])
+		assert.Equal(t, DefaultCloudEventType, metadata[TypeField])
+		assert.Equal(t, CloudEventsSpecVersion, metadata[SpecVersionField])
+	})
+
+	t.Run("create cloud event override defaults", func(t *testing.T) {
+		metadata := map[string]interface{}{
+			SourceField:      "source",
+			TypeField:        "eventType",
+			SpecVersionField: "specVersion",
+		}
+
+		UpdateCloudEventMetadata(metadata, "topic", "pubsub", "traceId", "traceParent", "traceState", "contentType")
+
+		assert.NotNil(t, metadata)
+
+		assert.Equal(t, "source", metadata[SourceField])
+		assert.Equal(t, "eventType", metadata[TypeField])
+		assert.Equal(t, "specVersion", metadata[SpecVersionField])
+	})
+}

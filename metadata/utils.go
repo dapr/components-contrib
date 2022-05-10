@@ -29,6 +29,9 @@ const (
 	// RawPayloadKey defines the metadata key for forcing raw payload in pubsub.
 	RawPayloadKey = "rawPayload"
 
+	// BinaryModeKey defines the metadata key for forcing raw payload in pubsub.
+	BinaryModeKey = "binaryMode"
+
 	// PriorityMetadataKey defines the metadata key for setting a priority.
 	PriorityMetadataKey = "priority"
 
@@ -92,6 +95,19 @@ func IsRawPayload(props map[string]string) (bool, error) {
 			return false, errors.Wrapf(err, "%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
 		}
 
+		return boolVal, nil
+	}
+
+	return false, nil
+}
+
+// IsBinaryMode determines if payload should be used as-is because we're using CloudEvents binary mode
+func IsBinaryMode(props map[string]string) (bool, error) {
+	if val, ok := props[BinaryModeKey]; ok && val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return false, errors.Wrapf(err, "%s value must be a valid boolean: actual is '%s'", BinaryModeKey, val)
+		}
 		return boolVal, nil
 	}
 

@@ -64,6 +64,51 @@ func TestIsRawPayload(t *testing.T) {
 	})
 }
 
+func TestIsBinaryMode(t *testing.T) {
+	t.Run("Metadata not found", func(t *testing.T) {
+		val, err := IsBinaryMode(map[string]string{
+			"notfound": "1",
+		})
+
+		assert.Equal(t, false, val)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Metadata map is nil", func(t *testing.T) {
+		val, err := IsBinaryMode(nil)
+
+		assert.Equal(t, false, val)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Metadata with bad value", func(t *testing.T) {
+		val, err := IsBinaryMode(map[string]string{
+			"binaryMode": "Not a boolean",
+		})
+
+		assert.Equal(t, false, val)
+		assert.NotNil(t, err)
+	})
+
+	t.Run("Metadata with correct value as false", func(t *testing.T) {
+		val, err := IsBinaryMode(map[string]string{
+			"binaryMode": "false",
+		})
+
+		assert.Equal(t, false, val)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Metadata with correct value as true", func(t *testing.T) {
+		val, err := IsBinaryMode(map[string]string{
+			"binaryMode": "true",
+		})
+
+		assert.Equal(t, true, val)
+		assert.Nil(t, err)
+	})
+}
+
 func TestTryGetContentType(t *testing.T) {
 	t.Run("Metadata without content type", func(t *testing.T) {
 		val, ok := TryGetContentType(map[string]string{})

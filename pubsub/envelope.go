@@ -53,6 +53,18 @@ const (
 	SubjectField         = "subject"
 )
 
+var CloudEventMetadata = [...]string{TraceIDField, TraceParentField, TraceStateField, TopicField, PubsubField, ExpirationField, DataContentTypeField, DataField, DataBase64Field, SpecVersionField, TypeField, SourceField, IDField, SubjectField}
+
+// IsCloudEventMetadata Checks if key is a valid cloudevent metadata
+func IsCloudEventMetadata(k string) bool {
+	for _, field := range CloudEventMetadata {
+		if field == k {
+			return true
+		}
+	}
+	return false
+}
+
 // unmarshalPrecise is a wrapper around encoding/json's Decoder
 // with UseNumber. It prevents data loss for big numbers
 // while unmarshalling.
@@ -69,20 +81,6 @@ func unmarshalPrecise(data []byte, v interface{}) error {
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
 	dataContentType string, data []byte, traceParent string, traceState string,
 ) map[string]interface{} {
-	// defaults
-	if id == "" {
-		id = uuid.New().String()
-	}
-	if source == "" {
-		source = DefaultCloudEventSource
-	}
-	if eventType == "" {
-		eventType = DefaultCloudEventType
-	}
-	if dataContentType == "" {
-		dataContentType = DefaultCloudEventDataContentType
-	}
-
 	var ceData interface{}
 	ceDataField := DataField
 	var err error
@@ -99,6 +97,31 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		ceData = string(data)
 	}
 
+	ce := NewCloudEventMetadata(id, source, eventType, subject, topic, pubsubName, dataContentType, traceParent, traceState)
+
+	ce[ceDataField] = ceData
+
+	return ce
+}
+
+// NewCloudEventsHeaders returns a map representation of a cloudevents headers.
+func NewCloudEventMetadata(id, source, eventType, subject string, topic string, pubsubName string,
+	dataContentType string, traceParent string, traceState string,
+) map[string]interface{} {
+	// defaults
+	if id == "" {
+		id = uuid.New().String()
+	}
+	if source == "" {
+		source = DefaultCloudEventSource
+	}
+	if eventType == "" {
+		eventType = DefaultCloudEventType
+	}
+	if dataContentType == "" {
+		dataContentType = DefaultCloudEventDataContentType
+	}
+
 	ce := map[string]interface{}{
 		IDField:              id,
 		SpecVersionField:     CloudEventsSpecVersion,
@@ -111,8 +134,6 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
 	}
-
-	ce[ceDataField] = ceData
 
 	if subject != "" {
 		ce[SubjectField] = subject
@@ -128,27 +149,32 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 	if err != nil {
 		return m, err
 	}
-
-	m[TraceIDField] = traceParent
-	m[TraceParentField] = traceParent
-	m[TraceStateField] = traceState
-	m[TopicField] = topic
-	m[PubsubField] = pubsub
-
-	// specify default value if it's unspecified from the original CloudEvent
-	if m[SourceField] == nil {
-		m[SourceField] = DefaultCloudEventSource
-	}
-
-	if m[TypeField] == nil {
-		m[TypeField] = DefaultCloudEventType
-	}
-
-	if m[SpecVersionField] == nil {
-		m[SpecVersionField] = CloudEventsSpecVersion
-	}
+	UpdateCloudEventMetadata(m, topic, pubsub, traceParent, traceParent, traceState, DefaultCloudEventDataContentType)
 
 	return m, nil
+}
+
+func UpdateCloudEventMetadata(metadata map[string]interface{}, topic string, pubsub string, traceId string, traceParent string, traceState string, contentType string) {
+
+	metadata[TraceIDField] = traceId
+	metadata[TraceParentField] = traceParent
+	metadata[TraceStateField] = traceState
+	metadata[TopicField] = topic
+	metadata[PubsubField] = pubsub
+	metadata[DataContentTypeField] = contentType
+
+	// default values
+	if metadata[SourceField] == nil {
+		metadata[SourceField] = DefaultCloudEventSource
+	}
+
+	if metadata[TypeField] == nil {
+		metadata[TypeField] = DefaultCloudEventType
+	}
+
+	if metadata[SpecVersionField] == nil {
+		metadata[SpecVersionField] = CloudEventsSpecVersion
+	}
 }
 
 // FromRawPayload returns a CloudEvent for a raw payload on subscriber's end.
@@ -167,6 +193,18 @@ func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
 		PubsubField:          pubsub,
 		DataBase64Field:      base64.StdEncoding.EncodeToString(data),
 	}
+}
+
+// FromBinaryModePayload returns a CloudEvent for a binary mode payload on subscriber's end.
+func FromBinaryModePayload(data []byte, metadata map[string]string, topic, pubsub string) map[string]interface{} {
+	m := make(map[string]interface{})
+	m = FromRawPayload(data, topic, pubsub)
+	for k, v := range metadata {
+		if IsCloudEventMetadata(k) {
+			m[k] = v
+		}
+	}
+	return m
 }
 
 // HasExpired determines if the current cloud event has expired.

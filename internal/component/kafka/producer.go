@@ -17,6 +17,7 @@ import (
 	"errors"
 
 	"github.com/Shopify/sarama"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
@@ -56,6 +57,9 @@ func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) e
 		} else {
 			if msg.Headers == nil {
 				msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
+			}
+			if pubsub.IsCloudEventMetadata(name) {
+				name = "ce_" + name
 			}
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
 				Key:   []byte(name),

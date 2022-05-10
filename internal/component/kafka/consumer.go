@@ -22,7 +22,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/cenkalti/backoff/v4"
-
 	"github.com/dapr/kit/retry"
 )
 
@@ -40,28 +39,36 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
 	for message := range claim.Messages() {
-		event := NewEvent{
-			Topic: message.Topic,
-			Data:  message.Value,
-		}
-		if err := retry.NotifyRecover(func() error {
-			consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-			err := consumer.callback(session.Context(), &event)
-			if err == nil {
-				session.MarkMessage(message, "")
+		if consumer.k.consumeRetryEnabled {
+			if err := retry.NotifyRecover(func() error {
+				return consumer.doCallback(session, message)
+			}, b, func(err error, d time.Duration) {
+				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+			}, func() {
+				consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+			}); err != nil {
+				return err
 			}
-
-			return err
-		}, b, func(err error, d time.Duration) {
-			consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-		}, func() {
-			consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-		}); err != nil {
-			return err
+		} else {
+			_ = consumer.doCallback(session, message)
 		}
 	}
 
 	return nil
+}
+
+func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) error {
+	consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+	event := NewEvent{
+		Topic: message.Topic,
+		Data:  message.Value,
+	}
+	err := consumer.callback(session.Context(), &event)
+	if err == nil {
+		session.MarkMessage(message, "")
+	}
+
+	return err
 }
 
 func (consumer *consumer) Cleanup(sarama.ConsumerGroupSession) error {

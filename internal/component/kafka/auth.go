@@ -42,15 +42,15 @@ func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
 }
 
 func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
-	if metadata.TLSDisable {
+	if metadata.TLSDisable || metadata.AuthType == noAuthType {
 		config.Net.TLS.Enable = false
 		return nil
 	}
-	config.Net.TLS.Enable = true
-
 	if !metadata.TLSSkipVerify && metadata.TLSCaCert == "" {
+		config.Net.TLS.Enable = false
 		return nil
 	}
+
 	// nolint: gosec
 	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify, MinVersion: tls.VersionTLS12}
 	if metadata.TLSCaCert != "" {
@@ -59,6 +59,7 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 			return errors.New("kafka error: unable to load ca certificate")
 		}
 		config.Net.TLS.Config.RootCAs = caCertPool
+		config.Net.TLS.Enable = true
 	}
 
 	return nil

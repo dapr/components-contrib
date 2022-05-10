@@ -54,9 +54,12 @@ func (p *PubSub) addTopic(newTopic string) []string {
 }
 
 // NewKafka returns a new kafka pubsub instance.
-func NewKafka(l logger.Logger) pubsub.PubSub {
+func NewKafka(logger logger.Logger) pubsub.PubSub {
+	k := kafka.NewKafka(logger)
+	// in kafka pubsub component, enable consumer retry by default
+	k.DefaultConsumeRetryEnabled = true
 	return &PubSub{
-		kafka: kafka.NewKafka(l),
+		kafka: k,
 	}
 }
 

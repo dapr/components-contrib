@@ -29,7 +29,9 @@ const (
 	caCert               = "caCert"
 	clientCert           = "clientCert"
 	clientKey            = "clientKey"
+	consumeRetryEnabled  = "consumeRetryEnabled"
 	consumeRetryInterval = "consumeRetryInterval"
+	authType             = "authType"
 	passwordAuthType     = "password"
 	oidcAuthType         = "oidc"
 	mtlsAuthType         = "mtls"
@@ -54,13 +56,14 @@ type kafkaMetadata struct {
 	TLSCaCert            string
 	TLSClientCert        string
 	TLSClientKey         string
+	ConsumeRetryEnabled  bool
 	ConsumeRetryInterval time.Duration
 	Version              sarama.KafkaVersion
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
 func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, error) {
-	authTypeVal, authTypePres := metadata["authType"]
+	authTypeVal, authTypePres := metadata[authType]
 	authReqVal, authReqPres := metadata["authRequired"]
 	saslPassVal, saslPassPres := metadata["saslPassword"]
 
@@ -73,16 +76,22 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 				// If legacy authRequired was used, either SASL username or mtls is the method.
 				if saslPassPres && saslPassVal != "" {
 					// User has specified saslPassword, so intend for password auth.
-					metadata["authType"] = passwordAuthType
+					metadata[authType] = passwordAuthType
 				} else {
-					metadata["authType"] = mtlsAuthType
+					metadata[authType] = mtlsAuthType
 				}
 			} else {
-				metadata["authType"] = noAuthType
+				metadata[authType] = noAuthType
 			}
 		} else {
 			return metadata, errors.New("kafka error: invalid value for 'authRequired' attribute")
 		}
+	}
+
+	// if consumeRetryEnabled is not present, use component default value
+	consumeRetryEnabledVal, consumeRetryEnabledPres := metadata[consumeRetryEnabled]
+	if !consumeRetryEnabledPres || consumeRetryEnabledVal == "" {
+		metadata[consumeRetryEnabled] = strconv.FormatBool(k.DefaultConsumeRetryEnabled)
 	}
 
 	return metadata, nil
@@ -234,6 +243,14 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 		if boolVal {
 			k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
 		}
+	}
+
+	if val, ok := metadata[consumeRetryEnabled]; ok && val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", consumeRetryEnabled, err)
+		}
+		meta.ConsumeRetryEnabled = boolVal
 	}
 
 	if val, ok := metadata[consumeRetryInterval]; ok && val != "" {

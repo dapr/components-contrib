@@ -38,8 +38,13 @@ type Kafka struct {
 	consumer      consumer
 	config        *sarama.Config
 
-	backOffConfig        retry.Config
-	consumeRetryInterval time.Duration
+	backOffConfig retry.Config
+
+	// The default value should be true for kafka pubsub component and false for kafka binding component
+	// This default value can be overridden by metadata consumeRetryEnabled
+	DefaultConsumeRetryEnabled bool
+	consumeRetryEnabled        bool
+	consumeRetryInterval       time.Duration
 }
 
 func NewKafka(logger logger.Logger) *Kafka {
@@ -114,6 +119,7 @@ func (k *Kafka) Init(metadata map[string]string) error {
 		"backOff"); err != nil {
 		return err
 	}
+	k.consumeRetryEnabled = meta.ConsumeRetryEnabled
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
 
 	k.logger.Debug("Kafka message bus initialization complete")

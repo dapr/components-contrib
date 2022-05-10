@@ -37,8 +37,11 @@ type Binding struct {
 
 // NewKafka returns a new kafka pubsub instance.
 func NewKafka(logger logger.Logger) *Binding {
+	k := kafka.NewKafka(logger)
+	// in kafka binding component, disable consumer retry by default
+	k.DefaultConsumeRetryEnabled = false
 	return &Binding{
-		kafka:  kafka.NewKafka(logger),
+		kafka:  k,
 		logger: logger,
 	}
 }

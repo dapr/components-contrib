@@ -47,6 +47,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
+		prepare func(*redis.Client)
+		restore func(*redis.Client)
 		fields  fields
 		args    args
 		want    *configuration.GetResponse
@@ -118,9 +120,43 @@ func TestConfigurationStore_Get(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "test does not throw error for wrong type during get all",
+			prepare: func(client *redis.Client) {
+				client.HSet(context.Background(), "notSupportedType", []string{"key1", "value1", "key2", "value2"})
+			},
+			fields: fields{
+				client: c,
+				json:   jsoniter.ConfigFastest,
+				logger: logger.NewLogger("test"),
+			},
+			args: args{
+				req: &configuration.GetRequest{},
+				ctx: context.Background(),
+			},
+			want: &configuration.GetResponse{
+				Items: []*configuration.Item{
+					{
+						Key:      "testKey",
+						Value:    "testValue",
+						Metadata: make(map[string]string),
+					}, {
+						Key:      "testKey2",
+						Value:    "testValue2",
+						Metadata: make(map[string]string),
+					},
+				},
+			},
+			restore: func(client *redis.Client) {
+				client.HDel(context.Background(), "notSupportedType")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.prepare != nil {
+				tt.prepare(tt.fields.client)
+			}
 			r := &ConfigurationStore{
 				client:   tt.fields.client,
 				json:     tt.fields.json,
@@ -150,6 +186,9 @@ func TestConfigurationStore_Get(t *testing.T) {
 
 			for k := range got.Items {
 				assert.Equal(t, tt.want.Items[k], got.Items[k])
+			}
+			if tt.restore != nil {
+				tt.restore(tt.fields.client)
 			}
 		})
 	}

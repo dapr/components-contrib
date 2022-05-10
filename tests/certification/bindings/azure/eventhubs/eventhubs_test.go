@@ -130,7 +130,7 @@ func TestSinglePartition(t *testing.T) {
 		return err
 	}
 
-	iotHubName := os.Getenv(iotHubNameEnvKey)
+	/*iotHubName := os.Getenv(iotHubNameEnvKey)
 	consumerGroup3 := watcher.NewUnordered()
 	sendIOTDevice := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
@@ -175,7 +175,7 @@ func TestSinglePartition(t *testing.T) {
 		)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Run()
+		Run()*/
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
@@ -194,7 +194,7 @@ func TestSinglePartition(t *testing.T) {
 		Run()
 }
 
-func TestEventhubBindingMultipleSenders(t *testing.T) {
+/*func TestEventhubBindingMultipleSenders(t *testing.T) {
 
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
@@ -425,4 +425,4 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive).
 		Run()
-}
+}*/

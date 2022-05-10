@@ -266,41 +266,41 @@ func TestParseMetadata(t *testing.T) {
 	var oneSecondDuration time.Duration = time.Second
 
 	testCases := []struct {
-		name                  string
-		properties            map[string]string
-		expectedAccountKey    string
-		expectedQueueName     string
-		expectedQueueEndpoint string
-		expectedTTL           *time.Duration
+		name                     string
+		properties               map[string]string
+		expectedAccountKey       string
+		expectedQueueName        string
+		expectedQueueEndpointUrl string
+		expectedTTL              *time.Duration
 	}{
 		{
-			name:                  "Account and key",
-			properties:            map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"},
-			expectedAccountKey:    "myKey",
-			expectedQueueName:     "queue1",
-			expectedQueueEndpoint: "",
+			name:                     "Account and key",
+			properties:               map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"},
+			expectedAccountKey:       "myKey",
+			expectedQueueName:        "queue1",
+			expectedQueueEndpointUrl: "",
 		},
 		{
-			name:                  "Accout, key, and endpoint",
-			properties:            map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "someAccount", "queueEndpoint": "https://foo.example.com:10001"},
-			expectedAccountKey:    "myKey",
-			expectedQueueName:     "queue1",
-			expectedQueueEndpoint: "https://foo.example.com:10001",
+			name:                     "Accout, key, and endpoint",
+			properties:               map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "someAccount", "queueEndpointUrl": "https://foo.example.com:10001"},
+			expectedAccountKey:       "myKey",
+			expectedQueueName:        "queue1",
+			expectedQueueEndpointUrl: "https://foo.example.com:10001",
 		},
 		{
-			name:                  "Empty TTL",
-			properties:            map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
-			expectedAccountKey:    "myKey",
-			expectedQueueName:     "queue1",
-			expectedQueueEndpoint: "",
+			name:                     "Empty TTL",
+			properties:               map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
+			expectedAccountKey:       "myKey",
+			expectedQueueName:        "queue1",
+			expectedQueueEndpointUrl: "",
 		},
 		{
-			name:                  "With TTL",
-			properties:            map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"},
-			expectedAccountKey:    "myKey",
-			expectedQueueName:     "queue1",
-			expectedTTL:           &oneSecondDuration,
-			expectedQueueEndpoint: "",
+			name:                     "With TTL",
+			properties:               map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"},
+			expectedAccountKey:       "myKey",
+			expectedQueueName:        "queue1",
+			expectedTTL:              &oneSecondDuration,
+			expectedQueueEndpointUrl: "",
 		},
 	}
 
@@ -316,7 +316,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedAccountKey, meta.AccountKey)
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
 			assert.Equal(t, tt.expectedTTL, meta.ttl)
-			assert.Equal(t, tt.expectedQueueEndpoint, meta.QueueEndpoint)
+			assert.Equal(t, tt.expectedQueueEndpointUrl, meta.QueueEndpoint)
 		})
 	}
 }

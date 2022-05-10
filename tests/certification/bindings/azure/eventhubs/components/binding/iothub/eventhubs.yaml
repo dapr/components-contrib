@@ -7,6 +7,8 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
+    - name: consumerID
+      value: bindings-consumergroup
     - name: connectionString
       secretKeyRef:
         name: AzureIotHubEventHubConnectionString
@@ -23,13 +25,5 @@ spec:
       secretKeyRef:
         name: AzureEventHubsBindingsContainer
         key: AzureEventHubsBindingsContainer
-    - name: iotHub
-      secretKeyRef:
-        name: AzureIotHubName
-        key: AzureIotHubName
-    - name: consumerGroup
-      secretKeyRef:
-        name: AzureIotHubBindingsConsumerGroup
-        key: AzureIotHubBindingsConsumerGroup
 auth:
   secretStore: envvar-secret-store

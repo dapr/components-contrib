@@ -126,15 +126,4 @@ func TestReadAndWrite(t *testing.T) {
 		err := store.Delete(req)
 		assert.Nil(t, err)
 	})
-
-	t.Run("BulkGet fails when not supported", func(t *testing.T) {
-		supportBulk, _, err := store.BulkGet([]state.GetRequest{{
-			Key: "theFirstKey",
-		}, {
-			Key: "theSecondKey",
-		}})
-
-		assert.Nil(t, err)
-		assert.Equal(t, false, supportBulk)
-	})
 }

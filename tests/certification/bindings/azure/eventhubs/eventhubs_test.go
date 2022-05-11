@@ -89,7 +89,7 @@ func TestSinglePartition(t *testing.T) {
 				outputmsg[i] = fmt.Sprintf("output binding: Message %03d", i)
 			}
 			consumerGroup1.ExpectStrings(outputmsg...)
-			time.Sleep(20 * time.Second)
+			time.Sleep(100 * time.Second)
 			if !hasKey {
 				metadata[messageKey] = uuid.NewString()
 			}

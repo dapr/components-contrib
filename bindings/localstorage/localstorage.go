@@ -220,10 +220,15 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 	}, nil
 }
 
-//nolint:staticcheck
 func getSecureAbsRelPath(rootPath string, filename string) (absPath string, relPath string, err error) {
 	absPath, err = securejoin.SecureJoin(rootPath, filename)
+	if err != nil {
+		return
+	}
 	relPath, err = filepath.Rel(rootPath, absPath)
+	if err != nil {
+		return
+	}
 
 	return
 }

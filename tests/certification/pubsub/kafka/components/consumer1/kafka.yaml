@@ -16,5 +16,3 @@ spec:
     value: oldest
   - name: backOffDuration
     value: 50ms
-  - name: disableTls
-    value: true

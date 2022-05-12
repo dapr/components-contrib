@@ -109,9 +109,13 @@ func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency
 		if item == nil {
 			return state.NewETagError(state.ETagMismatch, fmt.Errorf("state not exist or expired for key=%s", key))
 		}
-		if item.etag == nil || *item.etag != *etag {
+		if item.etag == nil {
 			return state.NewETagError(state.ETagMismatch, fmt.Errorf(
-				"state etag not match for key=%s: current=%s, expect=%s", key, *item.etag, *etag))
+				"state etag not match for key=%s: current=nil, expect=%s", key, *etag))
+		}
+		if *item.etag != *etag {
+			return state.NewETagError(state.ETagMismatch, fmt.Errorf(
+				"state etag not match for key=%s: current=%s, expect=%s", *item.etag, *etag))
 		}
 	}
 	return nil

@@ -194,7 +194,7 @@ func TestSinglePartition(t *testing.T) {
 		Run()
 }
 
-/*func TestEventhubBindingMultipleSenders(t *testing.T) {
+func TestEventhubBindingMultipleSenders(t *testing.T) {
 
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
@@ -249,7 +249,7 @@ func TestSinglePartition(t *testing.T) {
 			outputmsg2[i] = fmt.Sprintf("output binding: Message %03d", i)
 		}
 		consumerGroup2.ExpectStrings(outputmsg2...)
-		time.Sleep(40 * time.Second)
+		time.Sleep(120 * time.Second)
 
 		// Send events from output binding
 		for _, msg2 := range outputmsg2 {
@@ -366,7 +366,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			outputmsg2[i] = fmt.Sprintf("output binding: Message %03d", i)
 		}
 		consumerGroup2.ExpectStrings(outputmsg2...)
-		time.Sleep(40 * time.Second)
+		time.Sleep(120 * time.Second)
 
 		// Send events from output binding
 		for _, msg2 := range outputmsg2 {
@@ -425,4 +425,4 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive).
 		Run()
-}*/
+}

@@ -96,9 +96,12 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 
 	// Receiver loop
 	for {
-		if done := s.ctx.Err(); done != nil {
+		select {
+		// This blocks if there are too many active messages already
+		case s.activeMessagesChan <- struct{}{}:
+		case <-s.ctx.Done():
 			s.logger.Debugf("Receive context for topic %s done", s.topic)
-			return done
+			return s.ctx.Err()
 		}
 
 		// This method blocks until we get a message or the context is canceled
@@ -124,16 +127,8 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 
 		s.addActiveMessage(msg)
 
-		select {
-		// This blocks if there are too many active messages already
-		case s.activeMessagesChan <- struct{}{}:
-			s.logger.Debugf("Processing received message: %s", msg.MessageID)
-			s.handleAsync(s.ctx, msg, handlerFunc)
-		// Need to handle context cancelation here too, in case the context is canceled while we're waiting to process an active message
-		case <-s.ctx.Done():
-			s.logger.Debugf("Receive context for topic %s done", s.topic)
-			return s.ctx.Err()
-		}
+		s.logger.Debugf("Processing received message: %s", msg.MessageID)
+		s.handleAsync(s.ctx, msg, handlerFunc)
 	}
 }
 

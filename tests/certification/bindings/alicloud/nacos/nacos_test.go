@@ -15,6 +15,7 @@ package nacosbinding_test
 
 import (
 	"fmt"
+	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -39,6 +40,8 @@ const (
 	sidecarName = "nacos-sidecar"
 	configData  = "my config data"
 	bindingName = "alicloud-nacos-binding"
+	nacosClusterName ="nacos"
+	dockerComposeYAML = "docker-compose.yml"
 )
 
 func createConfigAndData() (map[string]interface{}, map[string]string) {
@@ -163,7 +166,7 @@ func TestNacosBinding(t *testing.T) {
 	}
 
 	flow.New(t, "nacos binding create config").
-		//Step(dockercompose.Run(nacosClusterName, dockerComposeYAML)).
+		Step(dockercompose.Run(nacosClusterName, dockerComposeYAML)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components"),

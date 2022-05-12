@@ -357,7 +357,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	a.logger.Infof("Creating message with body: %s", string(req.Data))
+	//a.logger.Debugf("Creating message with body: %s", string(req.Data))
 	msg, err := NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err

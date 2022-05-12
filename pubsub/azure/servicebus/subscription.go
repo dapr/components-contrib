@@ -237,9 +237,9 @@ func (s *subscription) receiveMessage(ctx context.Context, handler func(ctx cont
 	s.logger.Debugf("Waiting to receive message on topic %s", s.topic)
 	msg := <-s.prefetchChan
 
-	s.logger.Infof("Process received message: %s", msg.MessageID)
-	body, _ := msg.Body()
-	s.logger.Infof("Message body: %s", string(body))
+	s.logger.Debugf("Process received message: %s", msg.MessageID)
+	//body, _ := msg.Body()
+	//s.logger.Debugf("Message body: %s", string(body))
 
 	err := handler(ctx, msg)
 	if err != nil {

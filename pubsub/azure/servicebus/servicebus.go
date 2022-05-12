@@ -48,9 +48,7 @@ const (
 	disableEntityManagement         = "disableEntityManagement"
 	maxConcurrentHandlers           = "maxConcurrentHandlers"
 	handlerTimeoutInSec             = "handlerTimeoutInSec"
-	prefetchCount                   = "prefetchCount"
 	maxActiveMessages               = "maxActiveMessages"
-	maxActiveMessagesRecoveryInSec  = "maxActiveMessagesRecoveryInSec"
 	maxReconnectionAttempts         = "maxReconnectionAttempts"
 	connectionRecoveryInSec         = "connectionRecoveryInSec"
 	publishMaxRetries               = "publishMaxRetries"
@@ -65,7 +63,6 @@ const (
 	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
 	// We should change this if performance testing suggests a more sensible default.
 	defaultMaxActiveMessages               = 10000
-	defaultMaxActiveMessagesRecoveryInSec  = 2
 	defaultDisableEntityManagement         = false
 	defaultMaxReconnectionAttempts         = 30
 	defaultConnectionRecoveryInSec         = 2
@@ -86,8 +83,6 @@ var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
 	"com.microsoft:session-lock-lost":        {},
 	"com.microsoft:store-lock-lost":          {},
 }
-
-type handle = struct{}
 
 type azureServiceBus struct {
 	metadata    metadata
@@ -181,15 +176,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	m.MaxActiveMessagesRecoveryInSec = defaultMaxActiveMessagesRecoveryInSec
-	if val, ok := meta.Properties[maxActiveMessagesRecoveryInSec]; ok && val != "" {
-		var err error
-		m.MaxActiveMessagesRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid recoveryInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
 	m.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
 	if val, ok := meta.Properties[maxReconnectionAttempts]; ok && val != "" {
 		var err error
@@ -248,15 +234,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 			return m, fmt.Errorf("%s invalid maxConcurrentHandlers %s, %s", errorMessagePrefix, val, err)
 		}
 		m.MaxConcurrentHandlers = &valAsInt
-	}
-
-	if val, ok := meta.Properties[prefetchCount]; ok && val != "" {
-		var err error
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid prefetchCount %s, %s", errorMessagePrefix, val, err)
-		}
-		m.PrefetchCount = &valAsInt
 	}
 
 	m.PublishMaxRetries = defaultPublishMaxRetries
@@ -451,7 +428,16 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 				return
 			}
-			sub := newSubscription(a.ctx, req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.metadata.PrefetchCount, a.logger)
+			sub := newSubscription(
+				a.ctx,
+				req.Topic,
+				subEntity,
+				a.metadata.MaxActiveMessages,
+				a.metadata.TimeoutInSec,
+				a.metadata.HandlerTimeoutInSec,
+				a.metadata.MaxConcurrentHandlers,
+				a.logger,
+			)
 
 			// ReceiveAndBlock will only return with an error
 			// that it cannot handle internally. The subscription
@@ -462,10 +448,6 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 			innerErr := sub.ReceiveAndBlock(
 				handler,
 				a.metadata.LockRenewalInSec,
-				a.metadata.HandlerTimeoutInSec,
-				a.metadata.TimeoutInSec,
-				a.metadata.MaxActiveMessages,
-				a.metadata.MaxActiveMessagesRecoveryInSec,
 			)
 			if innerErr != nil {
 				var detachError *amqp.DetachError

@@ -68,8 +68,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 15, m.LockRenewalInSec)
 		assert.NotNil(t, m.MaxActiveMessages)
 		assert.Equal(t, 100, m.MaxActiveMessages)
-		assert.NotNil(t, m.MaxActiveMessagesRecoveryInSec)
-		assert.Equal(t, 5, m.MaxActiveMessagesRecoveryInSec)
 		assert.NotNil(t, m.MaxReconnectionAttempts)
 		assert.Equal(t, 30, m.MaxReconnectionAttempts)
 		assert.NotNil(t, m.ConnectionRecoveryInSec)
@@ -85,8 +83,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 120, *m.LockDurationInSec)
 		assert.NotNil(t, m.MaxConcurrentHandlers)
 		assert.Equal(t, 1, *m.MaxConcurrentHandlers)
-		assert.NotNil(t, m.PrefetchCount)
-		assert.Equal(t, 10, *m.PrefetchCount)
 	})
 
 	t.Run("missing required connectionString and namespaceName", func(t *testing.T) {

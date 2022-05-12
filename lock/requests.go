@@ -15,9 +15,9 @@ package lock
 
 // Lock acquire request.
 type TryLockRequest struct {
-	ResourceID string
-	LockOwner  string
-	Expire     int32
+	ResourceID      string
+	LockOwner       string
+	ExpiryInSeconds int32
 }
 
 // Lock release request.

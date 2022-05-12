@@ -214,9 +214,15 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
+<<<<<<< HEAD
           --coverprofile=cover.out --covermode=set --coverpkg=${{ env.SOURCE_PATH }}
 
         cat cover.out
+=======
+          -count=1 -timeout=15m
+
+        go test --coverprofile=cover.out --covermode=set --coverpkg=${{ env.SOURCE_PATH }}
+>>>>>>> 48c1485c (Using go test instead of gotestsum)
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "

@@ -27,23 +27,21 @@ const (
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		connectionString:               "fakeConnectionString",
-		namespaceName:                  "",
-		consumerID:                     "fakeConId",
-		disableEntityManagement:        "true",
-		timeoutInSec:                   "90",
-		handlerTimeoutInSec:            "30",
-		maxDeliveryCount:               "10",
-		autoDeleteOnIdleInSec:          "240",
-		defaultMessageTimeToLiveInSec:  "2400",
-		lockDurationInSec:              "120",
-		lockRenewalInSec:               "15",
-		maxConcurrentHandlers:          "1",
-		prefetchCount:                  "10",
-		maxActiveMessages:              "100",
-		maxActiveMessagesRecoveryInSec: "5",
-		maxReconnectionAttempts:        "30",
-		connectionRecoveryInSec:        "5",
+		connectionString:              "fakeConnectionString",
+		namespaceName:                 "",
+		consumerID:                    "fakeConId",
+		disableEntityManagement:       "true",
+		timeoutInSec:                  "90",
+		handlerTimeoutInSec:           "30",
+		maxDeliveryCount:              "10",
+		autoDeleteOnIdleInSec:         "240",
+		defaultMessageTimeToLiveInSec: "2400",
+		lockDurationInSec:             "120",
+		lockRenewalInSec:              "15",
+		maxConcurrentHandlers:         "1",
+		maxActiveMessages:             "100",
+		maxReconnectionAttempts:       "30",
+		connectionRecoveryInSec:       "5",
 	}
 }
 
@@ -70,8 +68,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 15, m.LockRenewalInSec)
 		assert.NotNil(t, m.MaxActiveMessages)
 		assert.Equal(t, 100, m.MaxActiveMessages)
-		assert.NotNil(t, m.MaxActiveMessagesRecoveryInSec)
-		assert.Equal(t, 5, m.MaxActiveMessagesRecoveryInSec)
 		assert.NotNil(t, m.MaxReconnectionAttempts)
 		assert.Equal(t, 30, m.MaxReconnectionAttempts)
 		assert.NotNil(t, m.ConnectionRecoveryInSec)
@@ -87,8 +83,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 120, *m.LockDurationInSec)
 		assert.NotNil(t, m.MaxConcurrentHandlers)
 		assert.Equal(t, 1, *m.MaxConcurrentHandlers)
-		assert.NotNil(t, m.PrefetchCount)
-		assert.Equal(t, 10, *m.PrefetchCount)
 	})
 
 	t.Run("missing required connectionString and namespaceName", func(t *testing.T) {
@@ -336,38 +330,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
-	t.Run("missing optional maxActiveMessagesRecoveryInSec", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = ""
-
-		// act.
-		m, err := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert.
-		assert.Equal(t, 2, m.MaxActiveMessagesRecoveryInSec)
-		assert.Nil(t, err)
-	})
-
-	t.Run("invalid optional maxActiveMessagesRecoveryInSec", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[maxActiveMessagesRecoveryInSec] = invalidNumber
-
-		// act.
-		_, err := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert.
-		assert.Error(t, err)
-		assertValidErrorMessage(t, err)
-	})
-
 	t.Run("missing optional maxReconnectionAttempts", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
@@ -583,38 +545,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Properties: fakeProperties,
 		}
 		fakeMetaData.Properties[maxConcurrentHandlers] = invalidNumber
-
-		// act.
-		_, err := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert.
-		assert.Error(t, err)
-		assertValidErrorMessage(t, err)
-	})
-
-	t.Run("missing nullable prefetchCount", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[prefetchCount] = ""
-
-		// act.
-		m, err := parseAzureServiceBusMetadata(fakeMetaData)
-
-		// assert.
-		assert.Nil(t, m.PrefetchCount)
-		assert.Nil(t, err)
-	})
-
-	t.Run("invalid nullable prefetchCount", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
-		}
-		fakeMetaData.Properties[prefetchCount] = invalidNumber
 
 		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)

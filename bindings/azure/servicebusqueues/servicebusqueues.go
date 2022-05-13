@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -52,6 +53,8 @@ type AzureServiceBusQueues struct {
 	adminClient    *sbadmin.Client
 	shutdownSignal int32
 	timeout        time.Duration
+	sender         *servicebus.Sender
+	senderLock     sync.RWMutex
 	logger         logger.Logger
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -67,7 +70,10 @@ type serviceBusQueuesMetadata struct {
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
-	return &AzureServiceBusQueues{logger: logger}
+	return &AzureServiceBusQueues{
+		senderLock: sync.RWMutex{},
+		logger:     logger,
+	}
 }
 
 // Init parses connection properties and creates a new Service Bus Queue client.
@@ -186,14 +192,24 @@ func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	var err error
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 
-	sender, err := a.client.NewSender(a.metadata.QueueName, nil)
-	if err != nil {
-		return nil, err
+	a.senderLock.RLock()
+	sender := a.sender
+	a.senderLock.RUnlock()
+
+	if sender == nil {
+		a.senderLock.Lock()
+		sender, err = a.client.NewSender(a.metadata.QueueName, nil)
+		if err != nil {
+			a.senderLock.Unlock()
+			return nil, err
+		}
+		a.sender = sender
+		a.senderLock.Unlock()
 	}
-	defer sender.Close(ctx)
 
 	msg := &servicebus.Message{
 		Body: req.Data,
@@ -313,9 +329,22 @@ func (a *AzureServiceBusQueues) attemptConnectionForever(backoff backoff.BackOff
 	return receiver
 }
 
-func (a *AzureServiceBusQueues) Close() error {
-	defer a.cancel()
+func (a *AzureServiceBusQueues) Close() (err error) {
 	a.logger.Info("Shutdown called!")
+	a.senderLock.Lock()
+	defer func() {
+		a.senderLock.Unlock()
+		a.cancel()
+	}()
+	if a.sender != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+		err = a.sender.Close(ctx)
+		a.sender = nil
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
 	a.setShutdown()
 	return nil
 }

@@ -30,15 +30,18 @@ import (
 )
 
 const (
-	host            = "host"
-	consumerID      = "consumerID"
-	enableTLS       = "enableTLS"
-	deliverAt       = "deliverAt"
-	deliverAfter    = "deliverAfter"
-	disableBatching = "disableBatching"
-	tenant          = "tenant"
-	namespace       = "namespace"
-	persistent      = "persistent"
+	host                    = "host"
+	consumerID              = "consumerID"
+	enableTLS               = "enableTLS"
+	deliverAt               = "deliverAt"
+	deliverAfter            = "deliverAfter"
+	disableBatching         = "disableBatching"
+	batchingMaxPublishDelay = "batchingMaxPublishDelay"
+	batchingMaxSize         = "batchingMaxSize"
+	batchingMaxMessages     = "batchingMaxMessages"
+	tenant                  = "tenant"
+	namespace               = "namespace"
+	persistent              = "persistent"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -50,6 +53,13 @@ const (
 	topicFormat      = "%s://%s/%s/%s"
 	persistentStr    = "persistent"
 	nonPersistentStr = "non-persistent"
+
+	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages.
+	defaultBatchingMaxPublishDelay = 10 * time.Millisecond
+	// defaultMaxMessages init default num of entries in per batch.
+	defaultMaxMessages = 1000
+	// defaultMaxBatchSize init default for maximum number of bytes per batch.
+	defaultMaxBatchSize = 128 * 1024
 )
 
 type Pulsar struct {
@@ -92,7 +102,30 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 		}
 		m.DisableBatching = disableBatching
 	}
-
+	m.BatchingMaxPublishDelay = defaultBatchingMaxPublishDelay
+	if val, ok := meta.Properties[batchingMaxPublishDelay]; ok {
+		batchingMaxPublishDelay, err := formatDuration(val)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for batchingMaxPublishDelay")
+		}
+		m.BatchingMaxPublishDelay = batchingMaxPublishDelay
+	}
+	m.BatchingMaxMessages = defaultMaxMessages
+	if val, ok := meta.Properties[batchingMaxMessages]; ok {
+		batchingMaxMessages, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for batchingMaxMessages")
+		}
+		m.BatchingMaxMessages = uint(batchingMaxMessages)
+	}
+	m.BatchingMaxSize = defaultMaxBatchSize
+	if val, ok := meta.Properties[batchingMaxSize]; ok {
+		batchingMaxSize, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for batchingMaxSize")
+		}
+		m.BatchingMaxSize = uint(batchingMaxSize)
+	}
 	if val, ok := meta.Properties[persistent]; ok && val != "" {
 		per, err := strconv.ParseBool(val)
 		if err != nil {
@@ -179,8 +212,11 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if cache == nil {
 		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
 		producer, err = p.client.CreateProducer(pulsar.ProducerOptions{
-			Topic:           topic,
-			DisableBatching: p.metadata.DisableBatching,
+			Topic:                   topic,
+			DisableBatching:         p.metadata.DisableBatching,
+			BatchingMaxPublishDelay: p.metadata.BatchingMaxPublishDelay,
+			BatchingMaxMessages:     p.metadata.BatchingMaxMessages,
+			BatchingMaxSize:         p.metadata.BatchingMaxSize,
 		})
 		if err != nil {
 			return err
@@ -316,4 +352,15 @@ func (p *Pulsar) formatTopic(topic string) string {
 		persist = nonPersistentStr
 	}
 	return fmt.Sprintf(topicFormat, persist, p.metadata.Tenant, p.metadata.Namespace, topic)
+}
+
+func formatDuration(durationString string) (time.Duration, error) {
+	if val, err := strconv.Atoi(durationString); err == nil {
+		return time.Duration(val) * time.Millisecond, nil
+	}
+
+	// Convert it by parsing
+	d, err := time.ParseDuration(durationString)
+
+	return d, err
 }

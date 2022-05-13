@@ -33,23 +33,24 @@ import (
 )
 
 const (
-	connectedSlavesReplicas  = "connected_slaves:"
-	infoReplicationDelimiter = "\r\n"
-	host                     = "redisHost"
-	password                 = "redisPassword"
-	enableTLS                = "enableTLS"
-	maxRetries               = "maxRetries"
-	maxRetryBackoff          = "maxRetryBackoff"
-	failover                 = "failover"
-	sentinelMasterName       = "sentinelMasterName"
-	defaultBase              = 10
-	defaultBitSize           = 0
-	defaultDB                = 0
-	defaultMaxRetries        = 3
-	defaultMaxRetryBackoff   = time.Second * 2
-	defaultEnableTLS         = false
-	keySpacePrefix           = "__keyspace@0__:"
-	keySpaceAny              = "__keyspace@0__:*"
+	connectedSlavesReplicas   = "connected_slaves:"
+	infoReplicationDelimiter  = "\r\n"
+	host                      = "redisHost"
+	password                  = "redisPassword"
+	enableTLS                 = "enableTLS"
+	maxRetries                = "maxRetries"
+	maxRetryBackoff           = "maxRetryBackoff"
+	failover                  = "failover"
+	sentinelMasterName        = "sentinelMasterName"
+	defaultBase               = 10
+	defaultBitSize            = 0
+	defaultDB                 = 0
+	defaultMaxRetries         = 3
+	defaultMaxRetryBackoff    = time.Second * 2
+	defaultEnableTLS          = false
+	keySpacePrefix            = "__keyspace@0__:"
+	keySpaceAny               = "__keyspace@0__:*"
+	redisWrongTypeIdentifyStr = "WRONGTYPE"
 )
 
 // ConfigurationStore is a Redis configuration store.
@@ -242,6 +243,10 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 		redisValue, err := r.client.Get(ctx, redisKey).Result()
 		if err != nil {
+			if strings.Contains(err.Error(), redisWrongTypeIdentifyStr) {
+				r.logger.Warnf("redis key %s 's type is not supported, ignore it\n", redisKey)
+				continue
+			}
 			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", redisKey, err)
 		}
 		val, version := internal.GetRedisValueAndVersion(redisValue)

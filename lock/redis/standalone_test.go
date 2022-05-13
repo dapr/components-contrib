@@ -99,9 +99,9 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	// 1. client1 trylock
 	ownerID1 := uuid.New().String()
 	resp, err := comp.TryLock(&lock.TryLockRequest{
-		ResourceID: resourceID,
-		LockOwner:  ownerID1,
-		Expire:     10,
+		ResourceID:      resourceID,
+		LockOwner:       ownerID1,
+		ExpiryInSeconds: 10,
 	})
 	assert.NoError(t, err)
 	assert.True(t, resp.Success)
@@ -111,9 +111,9 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	go func() {
 		owner2 := uuid.New().String()
 		resp2, err2 := comp.TryLock(&lock.TryLockRequest{
-			ResourceID: resourceID,
-			LockOwner:  owner2,
-			Expire:     10,
+			ResourceID:      resourceID,
+			LockOwner:       owner2,
+			ExpiryInSeconds: 10,
 		})
 		assert.NoError(t, err2)
 		assert.False(t, resp2.Success)
@@ -132,9 +132,9 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	go func() {
 		owner2 := uuid.New().String()
 		resp2, err2 := comp.TryLock(&lock.TryLockRequest{
-			ResourceID: resourceID,
-			LockOwner:  owner2,
-			Expire:     10,
+			ResourceID:      resourceID,
+			LockOwner:       owner2,
+			ExpiryInSeconds: 10,
 		})
 		assert.NoError(t, err2)
 		assert.True(t, resp2.Success, "client2 failed to get lock?!")

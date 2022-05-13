@@ -11,6 +11,7 @@ Currently supported secret stores are:
 * GCP Cloud KMS
 * GCP Secret Manager
 * AlibabaCloud OOS Parameter Store
+* HuaweiCloud CSMS
 
 ## Implementing a new Secret Store
 

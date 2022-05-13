@@ -40,6 +40,9 @@ const (
 
 	// AzureServiceBusDefaultMessageTimeToLive defines the default time to live for queues, which is 14 days. The same way Azure Portal does.
 	AzureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
+
+	// Default timeout in seconds
+	DefaultTimeoutInSec = 60
 )
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
@@ -48,6 +51,7 @@ type AzureServiceBusQueues struct {
 	client         *servicebus.Client
 	adminClient    *sbadmin.Client
 	shutdownSignal int32
+	timeout        time.Duration
 	logger         logger.Logger
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -57,6 +61,7 @@ type serviceBusQueuesMetadata struct {
 	ConnectionString string `json:"connectionString"`
 	NamespaceName    string `json:"namespaceName,omitempty"`
 	QueueName        string `json:"queueName"`
+	TimeoutInSec     int    `json:"timeoutInSec"`
 	ttl              time.Duration
 }
 
@@ -71,6 +76,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 	if err != nil {
 		return err
 	}
+	a.timeout = time.Duration(a.metadata.TimeoutInSec) * time.Second
 
 	userAgent := "dapr-" + logger.DaprVersion
 	if a.metadata.ConnectionString != "" {
@@ -109,7 +115,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 	getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
 	if err != nil {
@@ -120,7 +126,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 		ttlDur := contrib_metadata.Duration{
 			Duration: a.metadata.ttl,
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 		defer cancel()
 		_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
 			Properties: &sbadmin.QueueProperties{
@@ -159,16 +165,18 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	if err != nil {
 		return nil, err
 	}
-
-	// set the same default message time to live as suggested in Azure Portal to 14 days (otherwise it will be 10675199 days)
 	if !ok {
+		// set the same default message time to live as suggested in Azure Portal to 14 days (otherwise it will be 10675199 days)
 		ttl = AzureServiceBusDefaultMessageTimeToLive
 	}
-
 	m.ttl = ttl
 
 	// Queue names are case-insensitive and are forced to lowercase. This mimics the Azure portal's behavior.
 	m.QueueName = strings.ToLower(m.QueueName)
+
+	if m.TimeoutInSec < 1 {
+		m.TimeoutInSec = DefaultTimeoutInSec
+	}
 
 	return &m, nil
 }
@@ -178,7 +186,7 @@ func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 
 	sender, err := a.client.NewSender(a.metadata.QueueName, nil)
@@ -262,7 +270,7 @@ func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.Rea
 
 		// Disconnect (gracefully) before attempting to re-connect (unless we're shutting down)
 		// Use a background context here because a.ctx may be canceled already at this stage
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 		if err := receiver.Close(ctx); err != nil {
 			// Log only
 			a.logger.Warnf("Error closing receiver of Azure Service Bus Queue binding: %s", err.Error())
@@ -273,7 +281,7 @@ func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.Rea
 }
 
 func (a *AzureServiceBusQueues) abandonMessage(receiver *servicebus.Receiver, msg *servicebus.ReceivedMessage) {
-	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(a.ctx, a.timeout)
 	err := receiver.AbandonMessage(ctx, msg, nil)
 	if err != nil {
 		// Log only

@@ -7,8 +7,8 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/pubsub v1.12.2
 	cloud.google.com/go/storage v1.10.0
-	github.com/Azure/azure-amqp-common-go/v3 v3.1.0
-	github.com/Azure/azure-event-hubs-go/v3 v3.3.10
+	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
+	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
 	github.com/Azure/azure-sdk-for-go v63.4.0+incompatible
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.14.0

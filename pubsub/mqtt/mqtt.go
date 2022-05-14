@@ -59,7 +59,6 @@ type mqttPubSub struct {
 	consumer mqtt.Client
 	metadata *metadata
 	logger   logger.Logger
-	topics   map[string]byte
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -174,7 +173,6 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	m.backOff = backoff.WithContext(b, m.ctx)
 
 	m.producer = p
-	m.topics = make(map[string]byte)
 
 	m.logger.Debug("mqtt message bus initialization complete")
 
@@ -195,8 +193,6 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 
 // Subscribe to the mqtt pub sub topic.
 func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	m.topics[req.Topic] = m.metadata.qos
-
 	// reset synchronization
 	if m.consumer != nil {
 		m.logger.Warnf("re-initializing the subscriber")
@@ -213,8 +209,9 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 	m.consumer = c
 
 	go func() {
-		token := m.consumer.SubscribeMultiple(
-			m.topics,
+		token := m.consumer.Subscribe(
+			req.Topic,
+			m.metadata.qos,
 			func(client mqtt.Client, mqttMsg mqtt.Message) {
 				mqttMsg.AutoAckOff()
 				msg := pubsub.NewMessage{

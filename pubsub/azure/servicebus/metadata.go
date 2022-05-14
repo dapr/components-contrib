@@ -22,7 +22,6 @@ type metadata struct {
 	HandlerTimeoutInSec             int    `json:"handlerTimeoutInSec"`
 	LockRenewalInSec                int    `json:"lockRenewalInSec"`
 	MaxActiveMessages               int    `json:"maxActiveMessages"`
-	MaxActiveMessagesRecoveryInSec  int    `json:"maxActiveMessagesRecoveryInSec"`
 	MaxReconnectionAttempts         int    `json:"maxReconnectionAttempts"`
 	ConnectionRecoveryInSec         int    `json:"connectionRecoveryInSec"`
 	DisableEntityManagement         bool   `json:"disableEntityManagement"`
@@ -31,7 +30,6 @@ type metadata struct {
 	DefaultMessageTimeToLiveInSec   *int   `json:"defaultMessageTimeToLiveInSec"`
 	AutoDeleteOnIdleInSec           *int   `json:"autoDeleteOnIdleInSec"`
 	MaxConcurrentHandlers           *int   `json:"maxConcurrentHandlers"`
-	PrefetchCount                   *int   `json:"prefetchCount"`
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName,omitempty"`

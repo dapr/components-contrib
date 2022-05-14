@@ -131,7 +131,7 @@ func (r *StandaloneRedisLock) parseConnectedSlaves(res string) int {
 // Try to acquire a redis lock.
 func (r *StandaloneRedisLock) TryLock(req *lock.TryLockRequest) (*lock.TryLockResponse, error) {
 	// 1.Setting redis expiration time
-	nx := r.client.SetNX(r.ctx, req.ResourceID, req.LockOwner, time.Second*time.Duration(req.Expire))
+	nx := r.client.SetNX(r.ctx, req.ResourceID, req.LockOwner, time.Second*time.Duration(req.ExpiryInSeconds))
 	if nx == nil {
 		return &lock.TryLockResponse{}, fmt.Errorf("[standaloneRedisLock]: SetNX returned nil.ResourceID: %s", req.ResourceID)
 	}

@@ -14,9 +14,11 @@ limitations under the License.
 package metadata
 
 // JSON marshaling and unmarshaling methods for time.Duration based on https://stackoverflow.com/a/48051946
+// Includes methods to return an ISO-8601 formatted string from a time.Duration.
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 )
 
@@ -49,4 +51,42 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	default:
 		return errors.New("invalid duration")
 	}
+}
+
+// ToISOString returns the duration formatted as a ISO-8601 duration string (-ish).
+// This methods supports days, hours, minutes, and seconds. It assumes all durations are in UTC time and are not impacted by DST (so all days are 24-hours long).
+// This method does not support fractions of seconds, and durations are truncated to seconds.
+// See https://en.wikipedia.org/wiki/ISO_8601#Durations for referece.
+func (d Duration) ToISOString() string {
+	// Truncate to seconds, removing fractional seconds
+	trunc := d.Truncate(time.Second)
+
+	seconds := int64(trunc.Seconds())
+	if seconds == 0 {
+		// Zero value
+		return "P0D"
+	}
+
+	res := "P"
+	if seconds >= 86400 {
+		res += strconv.FormatInt(seconds/86400, 10) + "D"
+		seconds %= 86400
+	}
+	if seconds == 0 {
+		// Short-circuit if there's nothing left (we had whole days only)
+		return res
+	}
+	res += "T"
+	if seconds >= 3600 {
+		res += strconv.FormatInt(seconds/3600, 10) + "H"
+		seconds %= 3600
+	}
+	if seconds >= 60 {
+		res += strconv.FormatInt(seconds/60, 10) + "M"
+		seconds %= 60
+	}
+	if seconds > 0 {
+		res += strconv.FormatInt(seconds, 10) + "S"
+	}
+	return res
 }

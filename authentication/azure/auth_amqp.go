@@ -13,21 +13,24 @@ limitations under the License.
 
 package azure
 
-import "github.com/Azure/azure-amqp-common-go/v3/aad"
+import (
+	amqpaad "github.com/Azure/azure-amqp-common-go/v3/aad"
+)
 
 const (
 	AzureServiceBusResourceName string = "servicebus"
+	AzureEventHubsResourceName  string = "eventhubs"
 )
 
-// GetTokenProvider creates a TokenProvider for AAD retrieved from, in order:
+// GetAMQPTokenProvider creates a TokenProvider for AAD for AMQP retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
 // 3. MSI.
-func (s EnvironmentSettings) GetAADTokenProvider() (*aad.TokenProvider, error) {
+func (s EnvironmentSettings) GetAMQPTokenProvider() (*amqpaad.TokenProvider, error) {
 	spt, err := s.GetServicePrincipalToken()
 	if err != nil {
 		return nil, err
 	}
 
-	return aad.NewJWTProvider(aad.JWTProviderWithAADToken(spt), aad.JWTProviderWithAzureEnvironment(s.AzureEnvironment))
+	return amqpaad.NewJWTProvider(amqpaad.JWTProviderWithAADToken(spt), amqpaad.JWTProviderWithAzureEnvironment(s.AzureEnvironment))
 }

@@ -815,7 +815,7 @@ func TestMapConfig(t *testing.T) {
 				Address:    "Address",
 				Scheme:     "Scheme",
 				Datacenter: "Datacenter",
-				HttpAuth: &HttpBasicAuth{
+				HTTPAuth: &HTTPBasicAuth{
 					Username: "Username",
 					Password: "Password",
 				},
@@ -1132,9 +1132,9 @@ func compareClientConfig(t *testing.T, expected *Config, actual *consul.Config) 
 	assert.Equal(t, expected.Address, actual.Address)
 	assert.Equal(t, expected.Datacenter, actual.Datacenter)
 
-	if expected.HttpAuth != nil {
-		assert.Equal(t, expected.HttpAuth.Username, actual.HttpAuth.Username)
-		assert.Equal(t, expected.HttpAuth.Password, actual.HttpAuth.Password)
+	if expected.HTTPAuth != nil {
+		assert.Equal(t, expected.HTTPAuth.Username, actual.HttpAuth.Username)
+		assert.Equal(t, expected.HTTPAuth.Password, actual.HttpAuth.Password)
 	}
 
 	assert.Equal(t, expected.Scheme, actual.Scheme)

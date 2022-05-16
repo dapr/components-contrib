@@ -14,12 +14,13 @@ limitations under the License.
 package servicebus
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
-	azservicebus "github.com/Azure/azure-service-bus-go"
+	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -72,11 +73,17 @@ const (
 	ReplyToSessionID = "ReplyToSessionId" // read, write.
 )
 
-func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) (*pubsub.NewMessage, error) {
+func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic string) (*pubsub.NewMessage, error) {
 	pubsubMsg := &pubsub.NewMessage{
-		Data:  asbMsg.Data,
 		Topic: topic,
 	}
+
+	body, err := asbMsg.Body()
+	if err != nil {
+		return nil, err
+	}
+
+	pubsubMsg.Data = body
 
 	addToMetadata := func(msg *pubsub.NewMessage, key, value string) {
 		if msg.Metadata == nil {
@@ -86,54 +93,51 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) 
 		msg.Metadata[fmt.Sprintf("metadata.%s", key)] = value
 	}
 
-	if asbMsg.ID != "" {
-		addToMetadata(pubsubMsg, MessageIDMetadataKey, asbMsg.ID)
+	if asbMsg.MessageID != "" {
+		addToMetadata(pubsubMsg, MessageIDMetadataKey, asbMsg.MessageID)
 	}
 	if asbMsg.SessionID != nil {
 		addToMetadata(pubsubMsg, SessionIDMetadataKey, *asbMsg.SessionID)
 	}
-	if asbMsg.CorrelationID != "" {
-		addToMetadata(pubsubMsg, CorrelationIDMetadataKey, asbMsg.CorrelationID)
+	if asbMsg.CorrelationID != nil && *asbMsg.CorrelationID != "" {
+		addToMetadata(pubsubMsg, CorrelationIDMetadataKey, *asbMsg.CorrelationID)
 	}
-	if asbMsg.Label != "" {
-		addToMetadata(pubsubMsg, LabelMetadataKey, asbMsg.Label)
+	if asbMsg.Subject != nil && *asbMsg.Subject != "" {
+		addToMetadata(pubsubMsg, LabelMetadataKey, *asbMsg.Subject)
 	}
-	if asbMsg.ReplyTo != "" {
-		addToMetadata(pubsubMsg, ReplyToMetadataKey, asbMsg.ReplyTo)
+	if asbMsg.ReplyTo != nil && *asbMsg.ReplyTo != "" {
+		addToMetadata(pubsubMsg, ReplyToMetadataKey, *asbMsg.ReplyTo)
 	}
-	if asbMsg.To != "" {
-		addToMetadata(pubsubMsg, ToMetadataKey, asbMsg.To)
+	if asbMsg.To != nil && *asbMsg.To != "" {
+		addToMetadata(pubsubMsg, ToMetadataKey, *asbMsg.To)
 	}
-	if asbMsg.ContentType != "" {
-		addToMetadata(pubsubMsg, ContentTypeMetadataKey, asbMsg.ContentType)
+	if asbMsg.ContentType != nil && *asbMsg.ContentType != "" {
+		addToMetadata(pubsubMsg, ContentTypeMetadataKey, *asbMsg.ContentType)
 	}
-	if asbMsg.LockToken != nil {
-		addToMetadata(pubsubMsg, LockTokenMetadataKey, asbMsg.LockToken.String())
+	if asbMsg.LockToken != [16]byte{} {
+		addToMetadata(pubsubMsg, LockTokenMetadataKey, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
 	}
 
 	// Always set delivery count.
 	addToMetadata(pubsubMsg, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
 
-	if asbMsg.SystemProperties != nil {
-		systemProps := asbMsg.SystemProperties
-		if systemProps.EnqueuedTime != nil {
-			// Preserve RFC2616 time format.
-			addToMetadata(pubsubMsg, EnqueuedTimeUtcMetadataKey, systemProps.EnqueuedTime.UTC().Format(http.TimeFormat))
-		}
-		if systemProps.SequenceNumber != nil {
-			addToMetadata(pubsubMsg, SequenceNumberMetadataKey, strconv.FormatInt(*systemProps.SequenceNumber, 10))
-		}
-		if systemProps.ScheduledEnqueueTime != nil {
-			// Preserve RFC2616 time format.
-			addToMetadata(pubsubMsg, ScheduledEnqueueTimeUtcMetadataKey, systemProps.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
-		}
-		if systemProps.PartitionKey != nil {
-			addToMetadata(pubsubMsg, PartitionKeyMetadataKey, *systemProps.PartitionKey)
-		}
-		if systemProps.LockedUntil != nil {
-			// Preserve RFC2616 time format.
-			addToMetadata(pubsubMsg, LockedUntilUtcMetadataKey, systemProps.LockedUntil.UTC().Format(http.TimeFormat))
-		}
+	if asbMsg.EnqueuedTime != nil {
+		// Preserve RFC2616 time format.
+		addToMetadata(pubsubMsg, EnqueuedTimeUtcMetadataKey, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
+	}
+	if asbMsg.SequenceNumber != nil {
+		addToMetadata(pubsubMsg, SequenceNumberMetadataKey, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
+	}
+	if asbMsg.ScheduledEnqueueTime != nil {
+		// Preserve RFC2616 time format.
+		addToMetadata(pubsubMsg, ScheduledEnqueueTimeUtcMetadataKey, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
+	}
+	if asbMsg.PartitionKey != nil {
+		addToMetadata(pubsubMsg, PartitionKeyMetadataKey, *asbMsg.PartitionKey)
+	}
+	if asbMsg.LockedUntil != nil {
+		// Preserve RFC2616 time format.
+		addToMetadata(pubsubMsg, LockedUntilUtcMetadataKey, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
 	}
 
 	return pubsubMsg, nil
@@ -141,136 +145,72 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.Message, topic string) 
 
 // NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.
 func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.Message, error) {
-	asbMsg := azservicebus.NewMessage(req.Data)
+	asbMsg := &azservicebus.Message{
+		Body: req.Data,
+	}
 
 	// Common properties.
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
-	if hasTTL {
-		asbMsg.TTL = &ttl
+	ttl, ok, _ := contrib_metadata.TryGetTTL(req.Metadata)
+	if ok {
+		asbMsg.TimeToLive = &ttl
 	}
 
 	// Azure Service Bus specific properties.
 	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
-	msgID, hasMsgID, _ := tryGetMessageID(req.Metadata)
-	if hasMsgID {
-		asbMsg.ID = msgID
+	msgID, ok, _ := tryGetString(req.Metadata, MessageIDMetadataKey)
+	if ok {
+		asbMsg.MessageID = &msgID
 	}
 
-	correlationID, hasCorrelationID, _ := tryGetCorrelationID(req.Metadata)
-	if hasCorrelationID {
-		asbMsg.CorrelationID = correlationID
+	correlationID, ok, _ := tryGetString(req.Metadata, CorrelationIDMetadataKey)
+	if ok {
+		asbMsg.CorrelationID = &correlationID
 	}
 
-	sessionID, hasSessionID, _ := tryGetSessionID(req.Metadata)
-	if hasSessionID {
+	sessionID, okSessionID, _ := tryGetString(req.Metadata, SessionIDMetadataKey)
+	if okSessionID {
 		asbMsg.SessionID = &sessionID
 	}
 
-	label, hasLabel, _ := tryGetLabel(req.Metadata)
-	if hasLabel {
-		asbMsg.Label = label
+	label, ok, _ := tryGetString(req.Metadata, LabelMetadataKey)
+	if ok {
+		asbMsg.Subject = &label
 	}
 
-	replyTo, hasReplyTo, _ := tryGetReplyTo(req.Metadata)
-	if hasReplyTo {
-		asbMsg.ReplyTo = replyTo
+	replyTo, ok, _ := tryGetString(req.Metadata, ReplyToMetadataKey)
+	if ok {
+		asbMsg.ReplyTo = &replyTo
 	}
 
-	to, hasTo, _ := tryGetTo(req.Metadata)
-	if hasTo {
-		asbMsg.To = to
+	to, ok, _ := tryGetString(req.Metadata, ToMetadataKey)
+	if ok {
+		asbMsg.To = &to
 	}
 
-	partitionKey, hasPartitionKey, _ := tryGetPartitionKey(req.Metadata)
-	if hasPartitionKey {
-		if hasSessionID {
-			if partitionKey != sessionID {
-				return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
-			}
+	partitionKey, ok, _ := tryGetString(req.Metadata, PartitionKeyMetadataKey)
+	if ok {
+		if okSessionID && partitionKey != sessionID {
+			return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
 		}
 
-		if asbMsg.SystemProperties == nil {
-			asbMsg.SystemProperties = &azservicebus.SystemProperties{}
-		}
-
-		asbMsg.SystemProperties.PartitionKey = &partitionKey
+		asbMsg.PartitionKey = &partitionKey
 	}
 
-	contentType, hasContentType, _ := tryGetContentType(req.Metadata)
-	if hasContentType {
-		asbMsg.ContentType = contentType
+	contentType, ok, _ := tryGetString(req.Metadata, ContentTypeMetadataKey)
+	if ok {
+		asbMsg.ContentType = &contentType
 	}
 
-	scheduledEnqueueTime, hasScheduledEnqueueTime, _ := tryGetScheduledEnqueueTime(req.Metadata)
-	if hasScheduledEnqueueTime {
-		if asbMsg.SystemProperties == nil {
-			asbMsg.SystemProperties = &azservicebus.SystemProperties{}
-		}
-
-		asbMsg.SystemProperties.ScheduledEnqueueTime = scheduledEnqueueTime
+	scheduledEnqueueTime, ok, _ := tryGetScheduledEnqueueTime(req.Metadata)
+	if ok {
+		asbMsg.ScheduledEnqueueTime = scheduledEnqueueTime
 	}
 
 	return asbMsg, nil
 }
 
-func tryGetMessageID(props map[string]string) (string, bool, error) {
-	if val, ok := props[MessageIDMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetCorrelationID(props map[string]string) (string, bool, error) {
-	if val, ok := props[CorrelationIDMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetSessionID(props map[string]string) (string, bool, error) {
-	if val, ok := props[SessionIDMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetLabel(props map[string]string) (string, bool, error) {
-	if val, ok := props[LabelMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetReplyTo(props map[string]string) (string, bool, error) {
-	if val, ok := props[ReplyToMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetTo(props map[string]string) (string, bool, error) {
-	if val, ok := props[ToMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetPartitionKey(props map[string]string) (string, bool, error) {
-	if val, ok := props[PartitionKeyMetadataKey]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetContentType(props map[string]string) (string, bool, error) {
-	if val, ok := props[ContentTypeMetadataKey]; ok && val != "" {
+func tryGetString(props map[string]string, key string) (string, bool, error) {
+	if val, ok := props[key]; ok && val != "" {
 		return val, true, nil
 	}
 

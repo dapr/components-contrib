@@ -24,9 +24,12 @@ import (
 	"github.com/Azure/go-amqp"
 	"github.com/cenkalti/backoff/v4"
 
-	azservicebus "github.com/Azure/azure-service-bus-go"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 
 	azauth "github.com/dapr/components-contrib/authentication/azure"
+	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -45,9 +48,7 @@ const (
 	disableEntityManagement         = "disableEntityManagement"
 	maxConcurrentHandlers           = "maxConcurrentHandlers"
 	handlerTimeoutInSec             = "handlerTimeoutInSec"
-	prefetchCount                   = "prefetchCount"
 	maxActiveMessages               = "maxActiveMessages"
-	maxActiveMessagesRecoveryInSec  = "maxActiveMessagesRecoveryInSec"
 	maxReconnectionAttempts         = "maxReconnectionAttempts"
 	connectionRecoveryInSec         = "connectionRecoveryInSec"
 	publishMaxRetries               = "publishMaxRetries"
@@ -62,7 +63,6 @@ const (
 	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
 	// We should change this if performance testing suggests a more sensible default.
 	defaultMaxActiveMessages               = 10000
-	defaultMaxActiveMessagesRecoveryInSec  = 2
 	defaultDisableEntityManagement         = false
 	defaultMaxReconnectionAttempts         = 30
 	defaultConnectionRecoveryInSec         = 2
@@ -84,17 +84,14 @@ var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
 	"com.microsoft:store-lock-lost":          {},
 }
 
-type handle = struct{}
-
 type azureServiceBus struct {
-	metadata      metadata
-	namespace     *azservicebus.Namespace
-	topicManager  *azservicebus.TopicManager
-	logger        logger.Logger
-	subscriptions []*subscription
-	features      []pubsub.Feature
-	topics        map[string]*azservicebus.Topic
-	topicsLock    *sync.RWMutex
+	metadata    metadata
+	client      *servicebus.Client
+	adminClient *sbadmin.Client
+	logger      logger.Logger
+	features    []pubsub.Feature
+	topics      map[string]*servicebus.Sender
+	topicsLock  *sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -103,11 +100,10 @@ type azureServiceBus struct {
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger:        logger,
-		subscriptions: []*subscription{},
-		features:      []pubsub.Feature{pubsub.FeatureMessageTTL},
-		topics:        map[string]*azservicebus.Topic{},
-		topicsLock:    &sync.RWMutex{},
+		logger:     logger,
+		features:   []pubsub.Feature{pubsub.FeatureMessageTTL},
+		topics:     map[string]*servicebus.Sender{},
+		topicsLock: &sync.RWMutex{},
 	}
 }
 
@@ -180,15 +176,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	m.MaxActiveMessagesRecoveryInSec = defaultMaxActiveMessagesRecoveryInSec
-	if val, ok := meta.Properties[maxActiveMessagesRecoveryInSec]; ok && val != "" {
-		var err error
-		m.MaxActiveMessagesRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid recoveryInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
 	m.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
 	if val, ok := meta.Properties[maxReconnectionAttempts]; ok && val != "" {
 		var err error
@@ -249,15 +236,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.MaxConcurrentHandlers = &valAsInt
 	}
 
-	if val, ok := meta.Properties[prefetchCount]; ok && val != "" {
-		var err error
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid prefetchCount %s, %s", errorMessagePrefix, val, err)
-		}
-		m.PrefetchCount = &valAsInt
-	}
-
 	m.PublishMaxRetries = defaultPublishMaxRetries
 	if val, ok := meta.Properties[publishMaxRetries]; ok && val != "" {
 		var err error
@@ -281,48 +259,48 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
-	m, err := parseAzureServiceBusMetadata(metadata)
+func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
+	a.metadata, err = parseAzureServiceBusMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
 	userAgent := "dapr-" + logger.DaprVersion
-	a.metadata = m
 	if a.metadata.ConnectionString != "" {
-		a.namespace, err = azservicebus.NewNamespace(
-			azservicebus.NamespaceWithConnectionString(a.metadata.ConnectionString),
-			azservicebus.NamespaceWithUserAgent(userAgent))
+		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, &servicebus.ClientOptions{
+			ApplicationID: userAgent,
+		})
+		if err != nil {
+			return err
+		}
 
+		a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
 		if err != nil {
 			return err
 		}
 	} else {
-		// Initialization code
-		settings, err := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
-		if err != nil {
-			return err
+		settings, innerErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
+		if innerErr != nil {
+			return innerErr
 		}
 
-		tokenProvider, err := settings.GetAADTokenProvider()
-		if err != nil {
-			return err
+		token, innerErr := settings.GetTokenCredential()
+		if innerErr != nil {
+			return innerErr
 		}
 
-		a.namespace, err = azservicebus.NewNamespace(azservicebus.NamespaceWithTokenProvider(tokenProvider),
-			azservicebus.NamespaceWithUserAgent(userAgent))
-		if err != nil {
-			return err
+		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, &servicebus.ClientOptions{
+			ApplicationID: userAgent,
+		})
+		if innerErr != nil {
+			return innerErr
 		}
 
-		// We set these separately as the ServiceBus SDK does not provide a way to pass the environment via the options
-		// pattern unless you allow it to recreate the entire environment which seems wasteful.
-		a.namespace.Name = a.metadata.NamespaceName
-		a.namespace.Environment = *settings.AzureEnvironment
-		a.namespace.Suffix = settings.AzureEnvironment.ServiceBusEndpointSuffix
+		a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
+		if innerErr != nil {
+			return innerErr
+		}
 	}
-
-	a.topicManager = a.namespace.NewTopicManager()
 
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 
@@ -330,7 +308,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) error {
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	var sender *azservicebus.Topic
+	var sender *servicebus.Sender
 	var err error
 
 	a.topicsLock.RLock()
@@ -347,7 +325,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 			}
 		}
 		a.topicsLock.Lock()
-		sender, err = a.namespace.NewTopic(req.Topic)
+		sender, err = a.client.NewSender(req.Topic, nil)
 		a.topics[req.Topic] = sender
 		a.topicsLock.Unlock()
 
@@ -356,46 +334,51 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
+	// a.logger.Debugf("Creating message with body: %s", string(req.Data))
 	msg, err := NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
 	}
 
-	return a.doPublish(sender, msg)
-}
-
-func (a *azureServiceBus) doPublish(sender *azservicebus.Topic, msg *azservicebus.Message) error {
 	ebo := backoff.NewExponentialBackOff()
 	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
 	bo = backoff.WithContext(bo, a.ctx)
 
-	return retry.NotifyRecover(func() error {
-		ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
-		defer cancel()
+	msgID := "nil"
+	if msg.MessageID != nil {
+		msgID = *msg.MessageID
+	}
+	return retry.NotifyRecover(
+		func() (err error) {
+			ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+			defer cancel()
 
-		err := sender.Send(ctx, msg)
-		if err == nil {
-			return nil
-		}
+			err = sender.SendMessage(ctx, msg, nil)
+			if err != nil {
+				var amqpError *amqp.Error
+				if errors.As(err, &amqpError) {
+					if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
+						return amqpError // Retries.
+					}
+				}
 
-		var amqpError *amqp.Error
-		if errors.As(err, &amqpError) {
-			if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
-				return amqpError // Retries.
+				if errors.Is(err, amqp.ErrConnClosed) {
+					return err // Retries.
+				}
+
+				return backoff.Permanent(err) // Does not retry.
 			}
-		}
-		var connClosedError azservicebus.ErrConnectionClosed
-		if errors.As(err, &connClosedError) {
-			return connClosedError // Retries.
-		}
-
-		return backoff.Permanent(err) // Does not retry.
-	}, bo, func(err error, _ time.Duration) {
-		a.logger.Debugf("Could not publish service bus message. Retrying...: %v", err)
-	}, func() {
-		a.logger.Debug("Successfully published service bus message after it previously failed")
-	})
+			return nil
+		},
+		bo,
+		func(err error, _ time.Duration) {
+			a.logger.Debugf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
+		},
+		func() {
+			a.logger.Debugf("Successfully published service bus message (%s) after it previously failed", msgID)
+		},
+	)
 }
 
 func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -427,7 +410,6 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				select {
 				case <-reconnCtx.Done():
 					a.logger.Debugf("Reconnect context for topic %s is done", req.Topic)
-
 					return
 				case <-time.After(2 * time.Minute):
 					attempts := readAttemptsStale()
@@ -441,39 +423,32 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 
 		// Reconnect loop.
 		for {
-			topic, err := a.namespace.NewTopic(req.Topic)
-			if err != nil {
-				a.logger.Errorf("%s could not instantiate topic %s, %s", errorMessagePrefix, req.Topic, err)
-
-				return
-			}
-
-			var opts []azservicebus.SubscriptionOption
-			if a.metadata.PrefetchCount != nil {
-				opts = append(opts, azservicebus.SubscriptionWithPrefetchCount(uint32(*a.metadata.PrefetchCount)))
-			}
-			subEntity, err := topic.NewSubscription(subID, opts...)
+			subEntity, err := a.client.NewReceiverForSubscription(req.Topic, subID, nil)
 			if err != nil {
 				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
-
 				return
 			}
-			sub := newSubscription(req.Topic, subEntity, a.metadata.MaxConcurrentHandlers, a.logger)
-			a.subscriptions = append(a.subscriptions, sub)
+			sub := newSubscription(
+				a.ctx,
+				req.Topic,
+				subEntity,
+				a.metadata.MaxActiveMessages,
+				a.metadata.TimeoutInSec,
+				a.metadata.HandlerTimeoutInSec,
+				a.metadata.MaxConcurrentHandlers,
+				a.logger,
+			)
+
 			// ReceiveAndBlock will only return with an error
 			// that it cannot handle internally. The subscription
 			// connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt
 			// to re-establish the subscription connection until
 			// we exhaust the number of reconnect attempts.
-			ctx, cancel := context.WithCancel(context.Background())
-			innerErr := sub.ReceiveAndBlock(ctx,
+			innerErr := sub.ReceiveAndBlock(
 				handler,
 				a.metadata.LockRenewalInSec,
-				a.metadata.HandlerTimeoutInSec,
-				a.metadata.TimeoutInSec,
-				a.metadata.MaxActiveMessages,
-				a.metadata.MaxActiveMessagesRecoveryInSec)
+			)
 			if innerErr != nil {
 				var detachError *amqp.DetachError
 				var amqpError *amqp.Error
@@ -484,12 +459,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 					a.logger.Error(innerErr)
 				}
 			}
-			cancel() // Cancel receive context.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+			sub.close(ctx)
+			cancel()
 
 			attempts := readAttemptsStale()
 			if attempts == 0 {
 				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, a.metadata.MaxReconnectionAttempts)
-
 				return
 			}
 
@@ -503,13 +479,13 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 }
 
 func (a *azureServiceBus) ensureTopic(topic string) error {
-	entity, err := a.getTopicEntity(topic)
+	shouldCreate, err := a.shouldCreateTopic(topic)
 	if err != nil {
 		return err
 	}
 
-	if entity == nil {
-		err = a.createTopicEntity(topic)
+	if shouldCreate {
+		err = a.createTopic(topic)
 		if err != nil {
 			return err
 		}
@@ -524,18 +500,13 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 		return err
 	}
 
-	subManager, err := a.namespace.NewSubscriptionManager(topic)
+	shouldCreate, err := a.shouldCreateSubscription(topic, name)
 	if err != nil {
 		return err
 	}
 
-	entity, err := a.getSubscriptionEntity(subManager, topic, name)
-	if err != nil {
-		return err
-	}
-
-	if entity == nil {
-		err = a.createSubscriptionEntity(subManager, topic, name)
+	if shouldCreate {
+		err = a.createSubscription(topic, name)
 		if err != nil {
 			return err
 		}
@@ -544,128 +515,123 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	return nil
 }
 
-func (a *azureServiceBus) getTopicEntity(topic string) (*azservicebus.TopicEntity, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) shouldCreateTopic(topic string) (bool, error) {
+	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 
-	if a.topicManager == nil {
-		return nil, fmt.Errorf("%s init() has not been called", errorMessagePrefix)
+	if a.adminClient == nil {
+		return false, fmt.Errorf("%s init() has not been called", errorMessagePrefix)
 	}
-	topicEntity, err := a.topicManager.Get(ctx, topic)
-	if err != nil && !azservicebus.IsErrNotFound(err) {
-		return nil, fmt.Errorf("%s could not get topic %s, %s", errorMessagePrefix, topic, err)
+	res, err := a.adminClient.GetTopic(ctx, topic, nil)
+	if err != nil {
+		return false, fmt.Errorf("%s could not get topic %s, %s", errorMessagePrefix, topic, err.Error())
+	}
+	if res == nil {
+		// If res is nil, the topic does not exist
+		return true, nil
 	}
 
-	return topicEntity, nil
+	return false, nil
 }
 
-func (a *azureServiceBus) createTopicEntity(topic string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) createTopic(topic string) error {
+	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
-	_, err := a.topicManager.Put(ctx, topic)
+	_, err := a.adminClient.CreateTopic(ctx, topic, nil)
 	if err != nil {
-		return fmt.Errorf("%s could not put topic %s, %s", errorMessagePrefix, topic, err)
+		return fmt.Errorf("%s could not create topic %s, %s", errorMessagePrefix, topic, err)
 	}
 
 	return nil
 }
 
-func (a *azureServiceBus) getSubscriptionEntity(mgr *azservicebus.SubscriptionManager, topic, subscription string) (*azservicebus.SubscriptionEntity, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) shouldCreateSubscription(topic, subscription string) (bool, error) {
+	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
-	entity, err := mgr.Get(ctx, subscription)
-	if err != nil && !azservicebus.IsErrNotFound(err) {
-		return nil, fmt.Errorf("%s could not get subscription %s, %s", errorMessagePrefix, subscription, err)
+	res, err := a.adminClient.GetSubscription(ctx, topic, subscription, nil)
+	if err != nil {
+		return false, fmt.Errorf("%s could not get subscription %s, %s", errorMessagePrefix, subscription, err)
+	}
+	if res == nil {
+		// If res is subscription, the topic does not exist
+		return true, nil
 	}
 
-	return entity, nil
+	return false, nil
 }
 
-func (a *azureServiceBus) createSubscriptionEntity(mgr *azservicebus.SubscriptionManager, topic, subscription string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-	defer cancel()
-
-	opts, err := a.createSubscriptionManagementOptions()
+func (a *azureServiceBus) createSubscription(topic, subscription string) error {
+	props, err := a.createSubscriptionProperties()
 	if err != nil {
 		return err
 	}
 
-	_, err = mgr.Put(ctx, subscription, opts...)
+	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+	defer cancel()
+	_, err = a.adminClient.CreateSubscription(ctx, topic, subscription, &sbadmin.CreateSubscriptionOptions{
+		Properties: props,
+	})
 	if err != nil {
-		return fmt.Errorf("%s could not put subscription %s, %s", errorMessagePrefix, subscription, err)
+		return fmt.Errorf("%s could not create subscription %s, %s", errorMessagePrefix, subscription, err)
 	}
 
 	return nil
 }
 
-func (a *azureServiceBus) createSubscriptionManagementOptions() ([]azservicebus.SubscriptionManagementOption, error) {
-	var opts []azservicebus.SubscriptionManagementOption
+func (a *azureServiceBus) createSubscriptionProperties() (*sbadmin.SubscriptionProperties, error) {
+	properties := &sbadmin.SubscriptionProperties{}
+
 	if a.metadata.MaxDeliveryCount != nil {
-		opts = append(opts, subscriptionManagementOptionsWithMaxDeliveryCount(a.metadata.MaxDeliveryCount))
-	}
-	if a.metadata.LockDurationInSec != nil {
-		opts = append(opts, subscriptionManagementOptionsWithLockDuration(a.metadata.LockDurationInSec))
-	}
-	if a.metadata.DefaultMessageTimeToLiveInSec != nil {
-		opts = append(opts, subscriptionManagementOptionsWithDefaultMessageTimeToLive(a.metadata.DefaultMessageTimeToLiveInSec))
-	}
-	if a.metadata.AutoDeleteOnIdleInSec != nil {
-		opts = append(opts, subscriptionManagementOptionsWithAutoDeleteOnIdle(a.metadata.AutoDeleteOnIdleInSec))
+		maxDeliveryCount := int32(*a.metadata.MaxDeliveryCount)
+		properties.MaxDeliveryCount = &maxDeliveryCount
 	}
 
-	return opts, nil
+	if a.metadata.LockDurationInSec != nil {
+		lockDuration := contrib_metadata.Duration{
+			Duration: time.Duration(*a.metadata.LockDurationInSec) * time.Second,
+		}
+		properties.LockDuration = to.Ptr(lockDuration.ToISOString())
+	}
+
+	if a.metadata.DefaultMessageTimeToLiveInSec != nil {
+		defaultMessageTimeToLive := contrib_metadata.Duration{
+			Duration: time.Duration(*a.metadata.DefaultMessageTimeToLiveInSec) * time.Second,
+		}
+		properties.DefaultMessageTimeToLive = to.Ptr(defaultMessageTimeToLive.ToISOString())
+	}
+
+	if a.metadata.AutoDeleteOnIdleInSec != nil {
+		autoDeleteOnIdle := contrib_metadata.Duration{
+			Duration: time.Duration(*a.metadata.AutoDeleteOnIdleInSec) * time.Second,
+		}
+		properties.AutoDeleteOnIdle = to.Ptr(autoDeleteOnIdle.ToISOString())
+	}
+
+	return properties, nil
 }
 
 func (a *azureServiceBus) Close() error {
-	for _, s := range a.subscriptions {
-		s.close(a.ctx)
-	}
-
-	for _, t := range a.topics {
-		t.Close(a.ctx)
-	}
-
+	// Cancel the context which will stop all subscriptions too
 	a.cancel()
+
+	// Close all topics
+	var ctx context.Context
+	var cancel context.CancelFunc
+	var err error
+	for _, t := range a.topics {
+		a.logger.Debugf("Closing topic %s", t)
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(a.metadata.TimeoutInSec)*time.Second)
+		err = t.Close(ctx)
+		if err != nil {
+			// Log only
+			a.logger.Warnf("%s closing topic %s: %+v", errorMessagePrefix, t, err)
+		}
+		cancel()
+	}
 
 	return nil
 }
 
 func (a *azureServiceBus) Features() []pubsub.Feature {
 	return a.features
-}
-
-func subscriptionManagementOptionsWithMaxDeliveryCount(maxDeliveryCount *int) azservicebus.SubscriptionManagementOption {
-	return func(d *azservicebus.SubscriptionDescription) error {
-		mdc := int32(*maxDeliveryCount)
-		d.MaxDeliveryCount = &mdc
-
-		return nil
-	}
-}
-
-func subscriptionManagementOptionsWithAutoDeleteOnIdle(durationInSec *int) azservicebus.SubscriptionManagementOption {
-	return func(d *azservicebus.SubscriptionDescription) error {
-		duration := fmt.Sprintf("PT%dS", *durationInSec)
-		d.AutoDeleteOnIdle = &duration
-
-		return nil
-	}
-}
-
-func subscriptionManagementOptionsWithDefaultMessageTimeToLive(durationInSec *int) azservicebus.SubscriptionManagementOption {
-	return func(d *azservicebus.SubscriptionDescription) error {
-		duration := fmt.Sprintf("PT%dS", *durationInSec)
-		d.DefaultMessageTimeToLive = &duration
-
-		return nil
-	}
-}
-
-func subscriptionManagementOptionsWithLockDuration(durationInSec *int) azservicebus.SubscriptionManagementOption {
-	return func(d *azservicebus.SubscriptionDescription) error {
-		duration := fmt.Sprintf("PT%dS", *durationInSec)
-		d.LockDuration = &duration
-
-		return nil
-	}
 }

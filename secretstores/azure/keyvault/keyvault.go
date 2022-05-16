@@ -143,14 +143,17 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 	secretIDPrefix := k.getVaultURI() + secretItemIDPrefix
 
-	pager := k.vaultClient.ListSecrets(&azsecrets.ListSecretsOptions{
-		MaxResults: maxResults,
-	})
+	pager := k.vaultClient.ListPropertiesOfSecrets(nil)
 
-	for pager.NextPage(context.TODO()) {
-		pr := pager.PageResponse()
+out:
+	for pager.More() {
+		pr, err := pager.NextPage(context.TODO())
+		if err != nil {
+			return secretstores.BulkGetSecretResponse{}, err
+		}
+
 		for _, secret := range pr.Secrets {
-			if secret.Attributes == nil || secret.Attributes.Enabled == nil || !*secret.Attributes.Enabled {
+			if secret.Properties == nil || secret.Properties.Enabled == nil || !*secret.Properties.Enabled {
 				continue
 			}
 
@@ -167,10 +170,10 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 			resp.Data[secretName] = map[string]string{secretName: secretValue}
 		}
-	}
 
-	if pager.Err() != nil {
-		return secretstores.BulkGetSecretResponse{}, pager.Err()
+		if maxResults != nil && *maxResults > 0 && len(resp.Data) >= int(*maxResults) {
+			break out
+		}
 	}
 
 	return resp, nil

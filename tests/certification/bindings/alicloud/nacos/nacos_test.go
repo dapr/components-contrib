@@ -37,10 +37,10 @@ import (
 )
 
 const (
-	sidecarName = "nacos-sidecar"
-	configData  = "my config data"
-	bindingName = "alicloud-nacos-binding"
-	nacosClusterName ="nacos"
+	sidecarName       = "nacos-sidecar"
+	configData        = "my config data"
+	bindingName       = "alicloud-nacos-binding"
+	nacosClusterName  = "nacos"
 	dockerComposeYAML = "docker-compose.yml"
 )
 
@@ -108,7 +108,7 @@ func TestNacosBinding(t *testing.T) {
 		invokeErr := invokeCreateWithConfig(ctx, config)
 		assert.NoError(t, invokeErr)
 
-		// sleep to avoid metdata request rate limit before initializing new client
+		// sleep to avoid metadata request rate limit before initializing new client
 		flow.Sleep(3 * time.Second)
 
 		client, creatConfigErr := nacosclient.CreateConfigClient(nacosConfig)
@@ -136,7 +136,7 @@ func TestNacosBinding(t *testing.T) {
 	testInvokeGetAndVerify := func(ctx flow.Context) error {
 		nacosConfig, config := createConfigAndData()
 
-		// sleep to avoid metdata request rate limit before initializing new client
+		// sleep to avoid metadata request rate limit before initializing new client
 		flow.Sleep(3 * time.Second)
 
 		client, creatConfigErr := nacosclient.CreateConfigClient(nacosConfig)
@@ -165,18 +165,24 @@ func TestNacosBinding(t *testing.T) {
 		return nil
 	}
 
-	flow.New(t, "nacos binding create config").
+	testInvokeGetWithErrorAndVerify := func(ctx flow.Context) error {
+		_, config := createConfigAndData()
+
+		// sleep to avoid metadata request rate limit before initializing new client
+		flow.Sleep(3 * time.Second)
+
+		_, invokeErr := invokeGetWithConfig(ctx, config)
+		assert.NotNil(t, invokeErr)
+		return nil
+	}
+
+	flow.New(t, "test nacos binding config").
 		Step(dockercompose.Run(nacosClusterName, dockerComposeYAML)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithInputBindings(
-				bindings_loader.NewInput("alicloud.nacos", func() bindings.InputBinding {
-					return nacosbinding.NewNacos(log)
-				}),
-			),
 			runtime.WithOutputBindings(
 				bindings_loader.NewOutput("alicloud.nacos", func() bindings.OutputBinding {
 					return nacosbinding.NewNacos(log)
@@ -184,5 +190,6 @@ func TestNacosBinding(t *testing.T) {
 			))).
 		Step("verify data sent to output binding is written to nacos", testInvokeCreateAndVerify).
 		Step("verify data sent in nacos can be got correctly", testInvokeGetAndVerify).
+		Step("verify get config with error", testInvokeGetWithErrorAndVerify).
 		Run()
 }

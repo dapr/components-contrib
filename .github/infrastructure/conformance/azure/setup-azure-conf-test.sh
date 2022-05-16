@@ -221,7 +221,11 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --filter "mail eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
+ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
+if [[ -z "${ADMIN_ID}" ]]; then
+    echo "Could not find user with upn ${ADMIN_UPN}"
+    exit 1
+fi
 SUB_ID="$(az account show --query "id" --output tsv)"
 TENANT_ID="$(az account show --query "tenantId" --output tsv)"
 DEPLOY_NAME="${PREFIX}-azure-conf-test"

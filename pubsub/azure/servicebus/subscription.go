@@ -99,6 +99,7 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		select {
 		// This blocks if there are too many active messages already
 		case s.activeMessagesChan <- struct{}{}:
+		// Return if context is canceled
 		case <-s.ctx.Done():
 			s.logger.Debugf("Receive context for topic %s done", s.topic)
 			return s.ctx.Err()
@@ -157,7 +158,7 @@ func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.C
 
 		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
 		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-		finalizeCtx, finalizeCancel := context.WithTimeout(ctx, timeout)
+		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), timeout)
 		defer finalizeCancel()
 
 		if appErr != nil {

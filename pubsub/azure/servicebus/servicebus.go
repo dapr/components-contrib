@@ -463,6 +463,12 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 			sub.close(ctx)
 			cancel()
 
+			// If context was canceled, do not attempt to reconnect
+			if a.ctx.Err() != nil {
+				a.logger.Debug("Context canceled; will not try to reconnect")
+				return
+			}
+
 			attempts := readAttemptsStale()
 			if attempts == 0 {
 				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, a.metadata.MaxReconnectionAttempts)

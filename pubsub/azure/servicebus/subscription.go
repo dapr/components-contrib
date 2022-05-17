@@ -65,7 +65,7 @@ func newSubscription(
 		cancel:             cancel,
 	}
 
-	if maxRetriableEPS > 1 {
+	if maxRetriableEPS > 0 {
 		s.retriableErrLimit = ratelimit.New(maxRetriableEPS)
 	} else {
 		s.retriableErrLimit = ratelimit.NewUnlimited()

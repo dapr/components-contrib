@@ -197,8 +197,8 @@ func TestSinglePartition(t *testing.T) {
 		)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Step("delete the eventhub and container", deleteeventhub)
-	Run()
+		Step("delete the eventhub and container", deleteeventhub).
+		Run()
 }
 
 func TestEventhubBindingMultipleSenders(t *testing.T) {

@@ -176,6 +176,11 @@ func TestSinglePartition(t *testing.T) {
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
 		Run()*/
+	deleteeventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh")
+		cmd.CombinedOutput()
+		return nil
+	}
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
@@ -191,10 +196,11 @@ func TestSinglePartition(t *testing.T) {
 		)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Run()
+		Step("delete the eventhub and container", deleteeventhub)
+	Run()
 }
 
-/*func TestEventhubBindingMultipleSenders(t *testing.T) {
+func TestEventhubBindingMultipleSenders(t *testing.T) {
 
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
@@ -311,7 +317,7 @@ func TestSinglePartition(t *testing.T) {
 		Run()
 }
 
-func TestEventhubBindingMultiplePartition(t *testing.T) {
+/*func TestEventhubBindingMultiplePartition(t *testing.T) {
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
 		return eventhubs.NewAzureEventHubs(logger)

@@ -36,38 +36,7 @@ import (
 )
 
 const (
-	// Keys.
-	connectionString                = "connectionString"
-	consumerID                      = "consumerID"
-	maxDeliveryCount                = "maxDeliveryCount"
-	timeoutInSec                    = "timeoutInSec"
-	lockDurationInSec               = "lockDurationInSec"
-	lockRenewalInSec                = "lockRenewalInSec"
-	defaultMessageTimeToLiveInSec   = "defaultMessageTimeToLiveInSec"
-	autoDeleteOnIdleInSec           = "autoDeleteOnIdleInSec"
-	disableEntityManagement         = "disableEntityManagement"
-	maxConcurrentHandlers           = "maxConcurrentHandlers"
-	handlerTimeoutInSec             = "handlerTimeoutInSec"
-	maxActiveMessages               = "maxActiveMessages"
-	maxReconnectionAttempts         = "maxReconnectionAttempts"
-	connectionRecoveryInSec         = "connectionRecoveryInSec"
-	publishMaxRetries               = "publishMaxRetries"
-	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
-	namespaceName                   = "namespaceName"
-	errorMessagePrefix              = "azure service bus error:"
-
-	// Defaults.
-	defaultTimeoutInSec        = 60
-	defaultHandlerTimeoutInSec = 60
-	defaultLockRenewalInSec    = 20
-	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
-	// We should change this if performance testing suggests a more sensible default.
-	defaultMaxActiveMessages               = 10000
-	defaultDisableEntityManagement         = false
-	defaultMaxReconnectionAttempts         = 30
-	defaultConnectionRecoveryInSec         = 2
-	defaultPublishMaxRetries               = 5
-	defaultPublishInitialRetryInternalInMs = 500
+	errorMessagePrefix = "azure service bus error:"
 )
 
 var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
@@ -173,6 +142,18 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.MaxActiveMessages, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("%s invalid maxActiveMessages %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
+	m.MaxRetriableErrorsPerSec = defaultMaxRetriableErrorsPerSec
+	if val, ok := meta.Properties[maxRetriableErrorsPerSec]; ok && val != "" {
+		var err error
+		m.MaxRetriableErrorsPerSec, err = strconv.Atoi(val)
+		if err == nil && m.MaxRetriableErrorsPerSec < 0 {
+			err = errors.New("must not be negative")
+		}
+		if err != nil {
+			return m, fmt.Errorf("%s invalid maxRetriableErrorsPerSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -435,6 +416,7 @@ func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.
 				a.metadata.MaxActiveMessages,
 				a.metadata.TimeoutInSec,
 				a.metadata.HandlerTimeoutInSec,
+				a.metadata.MaxRetriableErrorsPerSec,
 				a.metadata.MaxConcurrentHandlers,
 				a.logger,
 			)

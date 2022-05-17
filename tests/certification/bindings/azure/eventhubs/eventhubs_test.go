@@ -178,10 +178,9 @@ func TestSinglePartition(t *testing.T) {
 		Run()*/
 	deleteeventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh")
-		cmd.CombinedOutput()
+		output.CombinedOutput()
 		return nil
 	}
-
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").

@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
-	"github.com/cenkalti/backoff/v4"
 	"go.uber.org/ratelimit"
 
 	azauth "github.com/dapr/components-contrib/authentication/azure"
@@ -246,26 +245,34 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 }
 
 func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
-	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
-	connConfig := retry.DefaultConfig()
-	connConfig.Policy = retry.PolicyExponential
-	connConfig.MaxInterval = 5 * time.Minute
-	connBackoff := connConfig.NewBackOffWithContext(a.ctx)
-
 	for a.ctx.Err() == nil {
-		receiver := a.attemptConnectionForever(connBackoff)
+		receiver := a.attemptConnectionForever()
 		if receiver == nil {
 			a.logger.Errorf("Failed to connect to Azure Service Bus Queue.")
 			continue
 		}
 
-		// Blocks until the connection is closed
-		msgs, err := receiver.ReceiveMessages(a.ctx, 1, nil)
-		if err != nil {
-			a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
-		}
+		// Receive messages loop
+		// This continues until the context is canceled
+		for a.ctx.Err() == nil {
+			// Blocks until the connection is closed or the context is canceled
+			msgs, err := receiver.ReceiveMessages(a.ctx, 1, nil)
+			if err != nil {
+				a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+			}
 
-		for _, msg := range msgs {
+			l := len(msgs)
+			if l == 0 {
+				// We got no message, which is unusual too
+				a.logger.Warn("Received 0 messages from Service Bus")
+				continue
+			} else if l > 1 {
+				// We are requesting one message only; this should never happen
+				a.logger.Errorf("Expected one message from Service Bus, but received %d", l)
+			}
+
+			msg := msgs[0]
+
 			body, err := msg.Body()
 			if err != nil {
 				a.logger.Warnf("Error reading message body: %s", err.Error())
@@ -325,11 +332,19 @@ func (a *AzureServiceBusQueues) abandonMessage(receiver *servicebus.Receiver, ms
 
 	// If we're here, it means we got a retriable error, so we need to consume a retriable error token before this (synchronous) method returns
 	// If there have been too many retriable errors per second, this method slows the consuming down
+	a.logger.Debugf("Taking a retriable error token")
+	before := time.Now()
 	_ = a.retriableErrLimit.Take()
+	a.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
 }
 
-func (a *AzureServiceBusQueues) attemptConnectionForever(backoff backoff.BackOff) *servicebus.Receiver {
-	var receiver *servicebus.Receiver
+func (a *AzureServiceBusQueues) attemptConnectionForever() (receiver *servicebus.Receiver) {
+	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
+	config := retry.DefaultConfig()
+	config.Policy = retry.PolicyExponential
+	config.MaxInterval = 5 * time.Minute
+	backoff := config.NewBackOffWithContext(a.ctx)
+
 	retry.NotifyRecover(
 		func() error {
 			clientAttempt, err := a.client.NewReceiverForQueue(a.metadata.QueueName, nil)

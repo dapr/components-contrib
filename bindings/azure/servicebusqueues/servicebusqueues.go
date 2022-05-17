@@ -277,7 +277,10 @@ func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.Rea
 				continue
 			}
 
-			err = receiver.CompleteMessage(a.ctx, msg, nil)
+			// Use a background context in case a.ctx has been canceled already
+			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+			err = receiver.CompleteMessage(ctx, msg, nil)
+			cancel()
 			if err != nil {
 				a.logger.Warnf("Error completing message: %s", err.Error())
 				continue
@@ -297,7 +300,10 @@ func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.Rea
 }
 
 func (a *AzureServiceBusQueues) abandonMessage(receiver *servicebus.Receiver, msg *servicebus.ReceivedMessage) {
-	ctx, cancel := context.WithTimeout(a.ctx, a.timeout)
+	// Add a lock (of a fixed duration) to prevent the messages from being redelivered right away
+	msg.LockedUntil = to.Ptr(time.Now().Add(2 * time.Second))
+	// Use a background context in case a.ctx has been canceled already
+	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	err := receiver.AbandonMessage(ctx, msg, nil)
 	if err != nil {
 		// Log only

@@ -16,8 +16,8 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
-	//"os"
-	//"os/exec"
+
+	"os/exec"
 	"testing"
 	"time"
 
@@ -182,8 +182,10 @@ func TestSinglePartition(t *testing.T) {
 		return nil
 	}
 
+
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
+		// Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -302,6 +304,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 		return err
 	}
 	flow.New(t, "eventhubs binding authentication using multiple senders and receivers").
+		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -418,6 +421,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 		return err
 	}
 	flow.New(t, "eventhubs binding authentication using connection string all partitions").
+		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),

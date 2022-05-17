@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
@@ -253,7 +254,11 @@ func (c CredentialsConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken,
 // GetTokenCredential returns the azcore.TokenCredential object from the credentials.
 func (c CredentialsConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
 	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, &azidentity.ClientSecretCredentialOptions{
-		AuthorityHost: azidentity.AuthorityHost(c.AADEndpoint),
+		ClientOptions: azcore.ClientOptions{
+			Cloud: cloud.Configuration{
+				LoginEndpoint: c.AADEndpoint,
+			},
+		},
 	})
 }
 
@@ -334,7 +339,11 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 	// Create the azcore.TokenCredential object
 	certs := []*x509.Certificate{cert}
 	opts := &azidentity.ClientCertificateCredentialOptions{
-		AuthorityHost: azidentity.AuthorityHost(c.AADEndpoint),
+		ClientOptions: azcore.ClientOptions{
+			Cloud: cloud.Configuration{
+				LoginEndpoint: c.AADEndpoint,
+			},
+		},
 	}
 	return azidentity.NewClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
 }

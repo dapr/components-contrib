@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -246,6 +247,8 @@ func (s *subscription) tryRenewLocks() {
 
 func (s *subscription) abandonMessage(ctx context.Context, m *azservicebus.ReceivedMessage) error {
 	s.logger.Debugf("Abandoning message %s on topic %s", m.MessageID, s.topic)
+	// Add a lock (of a fixed duration) to prevent the messages from being redelivered right away
+	m.LockedUntil = to.Ptr(time.Now().Add(2 * time.Second))
 	return s.receiver.AbandonMessage(ctx, m, nil)
 }
 

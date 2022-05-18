@@ -1,0 +1,11 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: alicloud-nacos-binding
+  namespace: default
+spec:
+  type: bindings.alicloud.nacos
+  version: v1
+  metadata:
+  - name: endpoint
+    value: localhost:8848

@@ -190,7 +190,7 @@ func TestSinglePartition(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
+		//Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
 		Run()
 }

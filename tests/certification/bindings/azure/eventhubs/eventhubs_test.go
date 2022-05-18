@@ -17,7 +17,7 @@ import (
 	"context"
 	"fmt"
 
-	"os/exec"
+	//"os/exec"
 	"testing"
 	"time"
 
@@ -89,7 +89,7 @@ func TestSinglePartition(t *testing.T) {
 				outputmsg[i] = fmt.Sprintf("output binding: Message %03d", i)
 			}
 			consumerGroup1.ExpectStrings(outputmsg...)
-			time.Sleep(120 * time.Second)
+			time.Sleep(20 * time.Second)
 			if !hasKey {
 				metadata[messageKey] = uuid.NewString()
 			}
@@ -176,11 +176,6 @@ func TestSinglePartition(t *testing.T) {
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
 		Run()*/
-	deleteeventhub := func(ctx flow.Context) error {
-		output, err := exec.Command("/bin/sh", "deleteeventhub.sh")
-		output.CombinedOutput()
-		return nil
-	}
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
@@ -197,7 +192,6 @@ func TestSinglePartition(t *testing.T) {
 		)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Step("delete the eventhub and container", deleteeventhub).
 		Run()
 }
 
@@ -233,7 +227,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 			outputmsg[i] = fmt.Sprintf("input binding: Message %03d", i)
 		}
 		consumerGroup1.ExpectStrings(outputmsg...)
-		time.Sleep(40 * time.Second)
+		time.Sleep(20 * time.Second)
 
 		// Send events from input binding
 		for _, msg := range outputmsg {
@@ -256,7 +250,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 			outputmsg2[i] = fmt.Sprintf("output binding: Message %03d", i)
 		}
 		consumerGroup2.ExpectStrings(outputmsg2...)
-		time.Sleep(120 * time.Second)
+		time.Sleep(20 * time.Second)
 
 		// Send events from output binding
 		for _, msg2 := range outputmsg2 {
@@ -314,12 +308,11 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive).
 		Run()
 }
 
-/*func TestEventhubBindingMultiplePartition(t *testing.T) {
+func TestEventhubBindingMultiplePartition(t *testing.T) {
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
 		return eventhubs.NewAzureEventHubs(logger)
@@ -431,7 +424,6 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive).
 		Run()
-}*/
+}

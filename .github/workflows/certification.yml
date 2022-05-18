@@ -52,7 +52,6 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - pubsub.kafka
         - bindings.kafka
         EOF
         )

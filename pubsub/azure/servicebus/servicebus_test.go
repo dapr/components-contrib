@@ -300,7 +300,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assertValidErrorMessage(t, err)
 	})
 
-	t.Run("missing optional MaxRetriableErrorsPerSec", func(t *testing.T) {
+	t.Run("missing optional maxRetriableErrorsPerSec", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
@@ -316,7 +316,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
-	t.Run("invalid optional MaxRetriableErrorsPerSec", func(t *testing.T) {
+	t.Run("invalid optional maxRetriableErrorsPerSec", func(t *testing.T) {
 		// NaN: Not a Number
 		fakeProperties := getFakeProperties()
 

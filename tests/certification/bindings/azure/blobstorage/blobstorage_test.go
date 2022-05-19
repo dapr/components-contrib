@@ -558,16 +558,16 @@ func TestBlobStorage(t *testing.T) {
 
 		cred, _ := azblob.NewSharedKeyCredential(os.Getenv("AzureBlobStorageAccount"), os.Getenv("AzureBlobStorageAccessKey"))
 		service, _ := azblob.NewServiceClientWithSharedKey(fmt.Sprintf("https://%s.blob.core.windows.net/", os.Getenv("AzureBlobStorageAccount")), cred, nil)
-		containerClient := service.NewContainerClient(os.Getenv("AzureBlobStorageContainer"))
+		containerClient, _ := service.NewContainerClient(os.Getenv("AzureBlobStorageContainer"))
 
-		blobClient := containerClient.NewBlockBlobClient("snapshotthis.txt")
-		uploadResp, uploadErr := blobClient.UploadBufferToBlockBlob(
+		blobClient, _ := containerClient.NewBlockBlobClient("snapshotthis.txt")
+		uploadResp, uploadErr := blobClient.UploadBuffer(
 			ctx, []byte("some example content"),
-			azblob.HighLevelUploadToBlockBlobOption{}) // nolint: exhaustivestruct
+			azblob.UploadOption{}) // nolint: exhaustivestruct
 		assert.NoError(t, uploadErr)
 		uploadResp.Body.Close()
 		_, createSnapshotErr := blobClient.CreateSnapshot(
-			ctx, &azblob.CreateBlobSnapshotOptions{}) // nolint: exhaustivestruct
+			ctx, &azblob.BlobCreateSnapshotOptions{}) // nolint: exhaustivestruct
 		assert.NoError(t, createSnapshotErr)
 
 		// list the contents of the container including snapshots for the specific blob only.
@@ -586,7 +586,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// create another snapshot.
 		_, createSnapshotErr2 := blobClient.CreateSnapshot(
-			ctx, &azblob.CreateBlobSnapshotOptions{}) // nolint: exhaustivestruct
+			ctx, &azblob.BlobCreateSnapshotOptions{}) // nolint: exhaustivestruct
 		assert.NoError(t, createSnapshotErr2)
 
 		// delete base blob and snapshots all at once.

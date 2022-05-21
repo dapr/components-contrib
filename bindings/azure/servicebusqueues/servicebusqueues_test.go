@@ -39,14 +39,14 @@ func TestParseMetadata(t *testing.T) {
 			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1"},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
-			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
+			expectedTTL:              azureServiceBusDefaultMessageTimeToLive,
 		},
 		{
 			name:                     "Empty TTL",
 			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: ""},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
-			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
+			expectedTTL:              azureServiceBusDefaultMessageTimeToLive,
 		},
 		{
 			name:                     "With TTL",

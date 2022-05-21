@@ -270,7 +270,7 @@ func TestAzureServiceBusQueuesTTLs(t *testing.T) {
 
 func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	messages := watcher.NewOrdered()
+	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]

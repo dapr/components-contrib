@@ -108,7 +108,6 @@ type ErrorCollection struct {
 func (c *ErrorCollection) Append(e error, stopCh chan struct{}) {
 	c.mux.Lock()
 	if len(c.errors) == 0 {
-		stopCh <- struct{}{}
 		close(stopCh)
 	}
 	c.errors = append(c.errors, e)

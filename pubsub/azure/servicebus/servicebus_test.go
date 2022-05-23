@@ -42,6 +42,7 @@ func getFakeProperties() map[string]string {
 		maxActiveMessages:             "100",
 		maxReconnectionAttempts:       "30",
 		connectionRecoveryInSec:       "5",
+		maxRetriableErrorsPerSec:      "50",
 	}
 }
 
@@ -72,6 +73,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, 30, m.MaxReconnectionAttempts)
 		assert.NotNil(t, m.ConnectionRecoveryInSec)
 		assert.Equal(t, 5, m.ConnectionRecoveryInSec)
+		assert.Equal(t, 50, m.MaxRetriableErrorsPerSec)
 
 		assert.NotNil(t, m.AutoDeleteOnIdleInSec)
 		assert.Equal(t, 240, *m.AutoDeleteOnIdleInSec)
@@ -182,7 +184,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert.
-		assert.Equal(t, 60, m.TimeoutInSec)
+		assert.Equal(t, defaultTimeoutInSec, m.TimeoutInSec)
 		assert.Nil(t, err)
 	})
 
@@ -246,7 +248,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert.
-		assert.Equal(t, 60, m.HandlerTimeoutInSec)
+		assert.Equal(t, defaultHandlerTimeoutInSec, m.HandlerTimeoutInSec)
 		assert.Nil(t, err)
 	})
 
@@ -278,7 +280,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert.
-		assert.Equal(t, 20, m.LockRenewalInSec)
+		assert.Equal(t, defaultLockRenewalInSec, m.LockRenewalInSec)
 		assert.Nil(t, err)
 	})
 
@@ -292,6 +294,54 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert.
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxRetriableErrorsPerSec", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxRetriableErrorsPerSec] = ""
+
+		// act.
+		m, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert.
+		assert.Equal(t, defaultMaxRetriableErrorsPerSec, m.MaxRetriableErrorsPerSec)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid optional maxRetriableErrorsPerSec", func(t *testing.T) {
+		// NaN: Not a Number
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxRetriableErrorsPerSec] = invalidNumber
+
+		// act.
+		_, err := parseAzureServiceBusMetadata(fakeMetaData)
+
+		// assert.
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+
+		// Negative number
+		fakeProperties = getFakeProperties()
+
+		fakeMetaData = pubsub.Metadata{
+			Properties: fakeProperties,
+		}
+		fakeMetaData.Properties[maxRetriableErrorsPerSec] = "-1"
+
+		// act.
+		_, err = parseAzureServiceBusMetadata(fakeMetaData)
 
 		// assert.
 		assert.Error(t, err)

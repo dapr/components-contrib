@@ -20,6 +20,7 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"go.uber.org/ratelimit"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -33,6 +34,7 @@ type subscription struct {
 	receiver           *azservicebus.Receiver
 	timeout            time.Duration
 	handlerTimeout     time.Duration
+	retriableErrLimit  ratelimit.Limiter
 	handleChan         chan struct{}
 	logger             logger.Logger
 	ctx                context.Context
@@ -46,6 +48,7 @@ func newSubscription(
 	maxActiveMessages int,
 	timeoutInSec int,
 	handlerTimeoutInSec int,
+	maxRetriableEPS int,
 	maxConcurrentHandlers *int,
 	logger logger.Logger,
 ) *subscription {
@@ -60,6 +63,12 @@ func newSubscription(
 		logger:             logger,
 		ctx:                ctx,
 		cancel:             cancel,
+	}
+
+	if maxRetriableEPS > 0 {
+		s.retriableErrLimit = ratelimit.New(maxRetriableEPS)
+	} else {
+		s.retriableErrLimit = ratelimit.NewUnlimited()
 	}
 
 	if maxConcurrentHandlers != nil {
@@ -99,6 +108,7 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		select {
 		// This blocks if there are too many active messages already
 		case s.activeMessagesChan <- struct{}{}:
+		// Return if context is canceled
 		case <-s.ctx.Done():
 			s.logger.Debugf("Receive context for topic %s done", s.topic)
 			return s.ctx.Err()
@@ -141,13 +151,13 @@ func (s *subscription) close(ctx context.Context) {
 	}
 }
 
-func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) error {
+func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error) {
 	handlerTimeout := s.handlerTimeout
 	timeout := s.timeout
-	return func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) error {
+	return func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error) {
 		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, s.topic)
 		if err != nil {
-			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+			return false, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
 		}
 
 		handleCtx, handleCancel := context.WithTimeout(ctx, handlerTimeout)
@@ -157,38 +167,50 @@ func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.C
 
 		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
 		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-		finalizeCtx, finalizeCancel := context.WithTimeout(ctx, timeout)
+		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), timeout)
 		defer finalizeCancel()
 
 		if appErr != nil {
 			s.logger.Warnf("Error in app's handler: %+v", appErr)
 			if abandonErr := s.abandonMessage(finalizeCtx, asbMsg); abandonErr != nil {
-				return fmt.Errorf("failed to abandon: %+v", abandonErr)
+				return true, fmt.Errorf("failed to abandon: %+v", abandonErr)
 			}
 
-			return nil
+			return true, nil
 		}
 		if completeErr := s.completeMessage(finalizeCtx, asbMsg); completeErr != nil {
-			return fmt.Errorf("failed to complete: %+v", completeErr)
+			return false, fmt.Errorf("failed to complete: %+v", completeErr)
 		}
 
-		return nil
+		return false, nil
 	}
 }
 
-func (s *subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handlerFunc func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) error) {
+func (s *subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handlerFunc func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error)) {
 	go func() {
+		var consumeToken bool
+		var err error
+
 		// If handleChan is non-nil, we have a limit on how many handler we can process
 		limitConcurrentHandlers := cap(s.handleChan) > 0
 		defer func() {
-			// Remove the message from the map of active ones
-			s.removeActiveMessage(msg.MessageID)
-
 			// Release a handler if needed
 			if limitConcurrentHandlers {
 				<-s.handleChan
 				s.logger.Debugf("Released message handle for %s on topic %s", msg.MessageID, s.topic)
 			}
+
+			// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
+			// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
+			if consumeToken {
+				s.logger.Debugf("Taking a retriable error token")
+				before := time.Now()
+				_ = s.retriableErrLimit.Take()
+				s.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
+			}
+
+			// Remove the message from the map of active ones
+			s.removeActiveMessage(msg.MessageID)
 
 			// Remove an entry from activeMessageChan to allow processing more messages
 			<-s.activeMessagesChan
@@ -207,7 +229,7 @@ func (s *subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 			}
 		}
 
-		err := handlerFunc(ctx, msg)
+		consumeToken, err = handlerFunc(ctx, msg)
 		if err != nil {
 			// Log the error only, as we're running asynchronously
 			s.logger.Errorf("%s error handling message %s on topic '%s', %s", errorMessagePrefix, msg.MessageID, s.topic, err)

@@ -19,13 +19,12 @@ import (
 	"errors"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
-	"github.com/cenkalti/backoff/v4"
+	"go.uber.org/ratelimit"
 
 	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
@@ -39,33 +38,37 @@ const (
 	label         = "label"
 	id            = "id"
 
-	// AzureServiceBusDefaultMessageTimeToLive defines the default time to live for queues, which is 14 days. The same way Azure Portal does.
-	AzureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
+	// azureServiceBusDefaultMessageTimeToLive defines the default time to live for queues, which is 14 days. The same way Azure Portal does.
+	azureServiceBusDefaultMessageTimeToLive = time.Hour * 24 * 14
 
 	// Default timeout in seconds
-	DefaultTimeoutInSec = 60
+	defaultTimeoutInSec = 60
+
+	// Default rate of retriable errors per second
+	defaultMaxRetriableErrorsPerSec = 10
 )
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
-	metadata       *serviceBusQueuesMetadata
-	client         *servicebus.Client
-	adminClient    *sbadmin.Client
-	shutdownSignal int32
-	timeout        time.Duration
-	sender         *servicebus.Sender
-	senderLock     sync.RWMutex
-	logger         logger.Logger
-	ctx            context.Context
-	cancel         context.CancelFunc
+	metadata          *serviceBusQueuesMetadata
+	client            *servicebus.Client
+	adminClient       *sbadmin.Client
+	timeout           time.Duration
+	sender            *servicebus.Sender
+	senderLock        sync.RWMutex
+	retriableErrLimit ratelimit.Limiter
+	logger            logger.Logger
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 type serviceBusQueuesMetadata struct {
-	ConnectionString string `json:"connectionString"`
-	NamespaceName    string `json:"namespaceName,omitempty"`
-	QueueName        string `json:"queueName"`
-	TimeoutInSec     int    `json:"timeoutInSec"`
-	ttl              time.Duration
+	ConnectionString         string `json:"connectionString"`
+	NamespaceName            string `json:"namespaceName,omitempty"`
+	QueueName                string `json:"queueName"`
+	TimeoutInSec             int    `json:"timeoutInSec"`
+	MaxRetriableErrorsPerSec *int   `json:"maxRetriableErrorsPerSec"`
+	ttl                      time.Duration
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
@@ -83,6 +86,11 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 		return err
 	}
 	a.timeout = time.Duration(a.metadata.TimeoutInSec) * time.Second
+	if *a.metadata.MaxRetriableErrorsPerSec > 0 {
+		a.retriableErrLimit = ratelimit.New(*a.metadata.MaxRetriableErrorsPerSec)
+	} else {
+		a.retriableErrLimit = ratelimit.NewUnlimited()
+	}
 
 	userAgent := "dapr-" + logger.DaprVersion
 	if a.metadata.ConnectionString != "" {
@@ -144,8 +152,6 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 		}
 	}
 
-	a.clearShutdown()
-
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	return nil
@@ -173,7 +179,7 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	}
 	if !ok {
 		// set the same default message time to live as suggested in Azure Portal to 14 days (otherwise it will be 10675199 days)
-		ttl = AzureServiceBusDefaultMessageTimeToLive
+		ttl = azureServiceBusDefaultMessageTimeToLive
 	}
 	m.ttl = ttl
 
@@ -181,7 +187,14 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 	m.QueueName = strings.ToLower(m.QueueName)
 
 	if m.TimeoutInSec < 1 {
-		m.TimeoutInSec = DefaultTimeoutInSec
+		m.TimeoutInSec = defaultTimeoutInSec
+	}
+
+	if m.MaxRetriableErrorsPerSec == nil {
+		m.MaxRetriableErrorsPerSec = to.Ptr(defaultMaxRetriableErrorsPerSec)
+	}
+	if *m.MaxRetriableErrorsPerSec < 0 {
+		return nil, errors.New("maxRetriableErrorsPerSec must be non-negative")
 	}
 
 	return &m, nil
@@ -232,26 +245,34 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 }
 
 func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
-	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
-	connConfig := retry.DefaultConfig()
-	connConfig.Policy = retry.PolicyExponential
-	connConfig.MaxInterval = 5 * time.Minute
-	connBackoff := connConfig.NewBackOffWithContext(a.ctx)
-
-	for !a.isShutdown() {
-		receiver := a.attemptConnectionForever(connBackoff)
+	for a.ctx.Err() == nil {
+		receiver := a.attemptConnectionForever()
 		if receiver == nil {
 			a.logger.Errorf("Failed to connect to Azure Service Bus Queue.")
 			continue
 		}
 
-		msgs, err := receiver.ReceiveMessages(a.ctx, 10, nil)
-		if err != nil {
-			a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
-		}
+		// Receive messages loop
+		// This continues until the context is canceled
+		for a.ctx.Err() == nil {
+			// Blocks until the connection is closed or the context is canceled
+			msgs, err := receiver.ReceiveMessages(a.ctx, 1, nil)
+			if err != nil {
+				a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+			}
 
-		// Blocks until the connection is closed
-		for _, msg := range msgs {
+			l := len(msgs)
+			if l == 0 {
+				// We got no message, which is unusual too
+				a.logger.Warn("Received 0 messages from Service Bus")
+				continue
+			} else if l > 1 {
+				// We are requesting one message only; this should never happen
+				a.logger.Errorf("Expected one message from Service Bus, but received %d", l)
+			}
+
+			msg := msgs[0]
+
 			body, err := msg.Body()
 			if err != nil {
 				a.logger.Warnf("Error reading message body: %s", err.Error())
@@ -277,7 +298,10 @@ func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.Rea
 				continue
 			}
 
-			err = receiver.CompleteMessage(a.ctx, msg, nil)
+			// Use a background context in case a.ctx has been canceled already
+			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+			err = receiver.CompleteMessage(ctx, msg, nil)
+			cancel()
 			if err != nil {
 				a.logger.Warnf("Error completing message: %s", err.Error())
 				continue
@@ -297,17 +321,30 @@ func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.Rea
 }
 
 func (a *AzureServiceBusQueues) abandonMessage(receiver *servicebus.Receiver, msg *servicebus.ReceivedMessage) {
-	ctx, cancel := context.WithTimeout(a.ctx, a.timeout)
+	// Use a background context in case a.ctx has been canceled already
+	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	err := receiver.AbandonMessage(ctx, msg, nil)
+	cancel()
 	if err != nil {
 		// Log only
 		a.logger.Warnf("Error abandoning message: %s", err.Error())
 	}
-	cancel()
+
+	// If we're here, it means we got a retriable error, so we need to consume a retriable error token before this (synchronous) method returns
+	// If there have been too many retriable errors per second, this method slows the consuming down
+	a.logger.Debugf("Taking a retriable error token")
+	before := time.Now()
+	_ = a.retriableErrLimit.Take()
+	a.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
 }
 
-func (a *AzureServiceBusQueues) attemptConnectionForever(backoff backoff.BackOff) *servicebus.Receiver {
-	var receiver *servicebus.Receiver
+func (a *AzureServiceBusQueues) attemptConnectionForever() (receiver *servicebus.Receiver) {
+	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
+	config := retry.DefaultConfig()
+	config.Policy = retry.PolicyExponential
+	config.MaxInterval = 5 * time.Minute
+	backoff := config.NewBackOffWithContext(a.ctx)
+
 	retry.NotifyRecover(
 		func() error {
 			clientAttempt, err := a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
@@ -345,19 +382,5 @@ func (a *AzureServiceBusQueues) Close() (err error) {
 			return err
 		}
 	}
-	a.setShutdown()
 	return nil
-}
-
-func (a *AzureServiceBusQueues) setShutdown() {
-	atomic.CompareAndSwapInt32(&a.shutdownSignal, 0, 1)
-}
-
-func (a *AzureServiceBusQueues) clearShutdown() {
-	atomic.CompareAndSwapInt32(&a.shutdownSignal, 1, 0)
-}
-
-func (a *AzureServiceBusQueues) isShutdown() bool {
-	val := atomic.LoadInt32(&a.shutdownSignal)
-	return val == 1
 }

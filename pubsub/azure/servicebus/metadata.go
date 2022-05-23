@@ -25,6 +25,7 @@ type metadata struct {
 	MaxReconnectionAttempts         int    `json:"maxReconnectionAttempts"`
 	ConnectionRecoveryInSec         int    `json:"connectionRecoveryInSec"`
 	DisableEntityManagement         bool   `json:"disableEntityManagement"`
+	MaxRetriableErrorsPerSec        int    `json:"maxRetriableErrorsPerSec"`
 	MaxDeliveryCount                *int   `json:"maxDeliveryCount"`
 	LockDurationInSec               *int   `json:"lockDurationInSec"`
 	DefaultMessageTimeToLiveInSec   *int   `json:"defaultMessageTimeToLiveInSec"`
@@ -34,3 +35,39 @@ type metadata struct {
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName,omitempty"`
 }
+
+const (
+	// Keys.
+	connectionString                = "connectionString"
+	consumerID                      = "consumerID"
+	timeoutInSec                    = "timeoutInSec"
+	handlerTimeoutInSec             = "handlerTimeoutInSec"
+	lockRenewalInSec                = "lockRenewalInSec"
+	maxActiveMessages               = "maxActiveMessages"
+	maxReconnectionAttempts         = "maxReconnectionAttempts"
+	connectionRecoveryInSec         = "connectionRecoveryInSec"
+	disableEntityManagement         = "disableEntityManagement"
+	maxRetriableErrorsPerSec        = "maxRetriableErrorsPerSec"
+	maxDeliveryCount                = "maxDeliveryCount"
+	lockDurationInSec               = "lockDurationInSec"
+	defaultMessageTimeToLiveInSec   = "defaultMessageTimeToLiveInSec"
+	autoDeleteOnIdleInSec           = "autoDeleteOnIdleInSec"
+	maxConcurrentHandlers           = "maxConcurrentHandlers"
+	publishMaxRetries               = "publishMaxRetries"
+	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
+	namespaceName                   = "namespaceName"
+
+	// Defaults.
+	defaultTimeoutInSec             = 60
+	defaultHandlerTimeoutInSec      = 60
+	defaultLockRenewalInSec         = 20
+	defaultMaxRetriableErrorsPerSec = 10
+	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
+	// We should change this if performance testing suggests a more sensible default.
+	defaultMaxActiveMessages               = 10000
+	defaultDisableEntityManagement         = false
+	defaultMaxReconnectionAttempts         = 30
+	defaultConnectionRecoveryInSec         = 2
+	defaultPublishMaxRetries               = 5
+	defaultPublishInitialRetryInternalInMs = 500
+)

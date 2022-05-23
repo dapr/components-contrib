@@ -101,14 +101,22 @@ type rabbitMQConnectionBroker interface {
 }
 
 type ErrorCollection struct {
-	errors []error
-	mux    sync.Mutex
+	errors    []error
+	mux       sync.Mutex
+	ErrNotify chan struct{}
 }
 
-func (c *ErrorCollection) Append(e error, stopCh chan struct{}) {
+func NewErrorCollection() ErrorCollection {
+	return ErrorCollection{
+		errors:    []error{},
+		ErrNotify: make(chan struct{}),
+	}
+}
+
+func (c *ErrorCollection) Append(e error) {
 	c.mux.Lock()
 	if len(c.errors) == 0 {
-		close(stopCh)
+		close(c.ErrNotify)
 	}
 	c.errors = append(c.errors, e)
 	c.mux.Unlock()
@@ -458,19 +466,18 @@ func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgs <-chan amq
 			}
 		}
 	case pubsub.Parallel:
-		ec := ErrorCollection{errors: []error{}}
-		stopCh := make(chan struct{})
+		ec := NewErrorCollection()
 		var wg sync.WaitGroup
 		for {
 			select {
-			case <-stopCh:
+			case <-ec.ErrNotify:
 				wg.Wait()
 				return ec.GetErrors()
 			case d := <-msgs:
 				wg.Add(1)
 				go func(channel rabbitMQChannelBroker, d amqp.Delivery, topic string, handler pubsub.Handler) {
 					if e := r.handleMessage(channel, d, topic, handler); e != nil && mustReconnect(channel, []error{e}) {
-						ec.Append(e, stopCh)
+						ec.Append(e)
 					}
 					wg.Done()
 				}(channel, d, topic, handler)

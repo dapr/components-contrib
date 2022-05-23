@@ -106,8 +106,8 @@ type ErrorCollection struct {
 	ErrNotify chan struct{}
 }
 
-func NewErrorCollection() ErrorCollection {
-	return ErrorCollection{
+func NewErrorCollection() *ErrorCollection {
+	return &ErrorCollection{
 		errors:    []error{},
 		ErrNotify: make(chan struct{}),
 	}

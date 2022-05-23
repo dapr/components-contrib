@@ -33,6 +33,7 @@ type MSSQL struct {
 
 var _ = bindings.OutputBinding(&MSSQL{})
 
+
 // NewMSSQL returns a new MSSQL output binding.
 func NewMSSQL(logger logger.Logger) *MSSQL {
 	return &MSSQL{logger: logger}

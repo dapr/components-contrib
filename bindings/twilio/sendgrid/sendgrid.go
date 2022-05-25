@@ -106,42 +106,48 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present
 
-	// Set the email from name, this is optional
-	fromName := ""
-	if sg.metadata.EmailFromName != "" {
-		fromName = sg.metadata.EmailFromName
-	}
-	if req.Metadata["emailFromName"] != "" {
-		fromName = req.Metadata["emailFromName"]
-	}
-
 	// Build email from address, this is required
 	var fromAddress *mail.Email
 	if sg.metadata.EmailFrom != "" {
+		// Optionally set the email from name
+		fromName := ""
+		if sg.metadata.EmailFromName != "" {
+			fromName = sg.metadata.EmailFromName
+		}
+
 		fromAddress = mail.NewEmail(fromName, sg.metadata.EmailFrom)
 	}
 	if req.Metadata["emailFrom"] != "" {
+		// Optionally set the email from name
+		fromName := ""
+		if req.Metadata["emailFromName"] != "" {
+			fromName = req.Metadata["emailFromName"]
+		}
+
 		fromAddress = mail.NewEmail(fromName, req.Metadata["emailFrom"])
 	}
 	if fromAddress == nil {
 		return nil, fmt.Errorf("error SendGrid from email not supplied")
 	}
 
-	// Set the email to name, this is optional
-	toName := ""
-	if sg.metadata.EmailToName != "" {
-		toName = sg.metadata.EmailToName
-	}
-	if req.Metadata["emailToName"] != "" {
-		toName = req.Metadata["emailToName"]
-	}
-
 	// Build email to address, this is required
 	var toAddress *mail.Email
 	if sg.metadata.EmailTo != "" {
+		// Optionally set the email to name
+		toName := ""
+		if sg.metadata.EmailToName != "" {
+			toName = sg.metadata.EmailToName
+		}
+
 		toAddress = mail.NewEmail(toName, sg.metadata.EmailTo)
 	}
 	if req.Metadata["emailTo"] != "" {
+		// Optionally set the email to name
+		toName := ""
+		if req.Metadata["emailToName"] != "" {
+			toName = req.Metadata["emailToName"]
+		}
+
 		toAddress = mail.NewEmail(toName, req.Metadata["emailTo"])
 	}
 	if toAddress == nil {

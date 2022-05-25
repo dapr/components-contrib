@@ -15,6 +15,8 @@ package kafka
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"github.com/dapr/kit/logger"
 
@@ -24,32 +26,50 @@ import (
 
 type PubSub struct {
 	kafka  *kafka.Kafka
-	topics map[string]bool
+	topics map[string]pubsub.Handler
+	lock   sync.RWMutex
 }
 
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
-	p.topics = make(map[string]bool)
 	return p.kafka.Init(metadata.Properties)
 }
 
 func (p *PubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	topics := p.addTopic(req.Topic)
+	// Add the topic to the list of those we subscribe to
+	p.lock.Lock()
+	p.topics[req.Topic] = handler
+	topics := p.topicList()
+	p.lock.Unlock()
 
-	return p.kafka.Subscribe(topics, req.Metadata, newSubscribeAdapter(handler).adapter)
+	return p.kafka.Subscribe(context.Background(), topics, req.Metadata, p.handleMessage)
 }
 
-func (p *PubSub) addTopic(newTopic string) []string {
-	// Add topic to our map of topics
-	p.topics[newTopic] = true
+func (p *PubSub) handleMessage(ctx context.Context, event *kafka.NewEvent) error {
+	// Get the handler
+	p.lock.RLock()
+	handler, ok := p.topics[event.Topic]
+	p.lock.RUnlock()
+	if !ok || handler == nil {
+		return fmt.Errorf("handler for messages of topic %s not found", event.Topic)
+	}
 
+	// Invoke the handler
+	msg := &pubsub.NewMessage{
+		Topic:       event.Topic,
+		Data:        event.Data,
+		Metadata:    event.Metadata,
+		ContentType: event.ContentType,
+	}
+	return handler(ctx, msg)
+}
+
+func (p *PubSub) topicList() []string {
 	topics := make([]string, len(p.topics))
-
 	i := 0
 	for topic := range p.topics {
 		topics[i] = topic
 		i++
 	}
-
 	return topics
 }
 
@@ -59,7 +79,9 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 	// in kafka pubsub component, enable consumer retry by default
 	k.DefaultConsumeRetryEnabled = true
 	return &PubSub{
-		kafka: k,
+		kafka:  k,
+		topics: make(map[string]pubsub.Handler),
+		lock:   sync.RWMutex{},
 	}
 }
 
@@ -74,22 +96,4 @@ func (p *PubSub) Close() (err error) {
 
 func (p *PubSub) Features() []pubsub.Feature {
 	return nil
-}
-
-// subscribeAdapter is used to adapter pubsub.Handler to kafka.EventHandler with the same content.
-type subscribeAdapter struct {
-	handler pubsub.Handler
-}
-
-func newSubscribeAdapter(handler pubsub.Handler) *subscribeAdapter {
-	return &subscribeAdapter{handler: handler}
-}
-
-func (a *subscribeAdapter) adapter(ctx context.Context, event *kafka.NewEvent) error {
-	return a.handler(ctx, &pubsub.NewMessage{
-		Topic:       event.Topic,
-		Data:        event.Data,
-		Metadata:    event.Metadata,
-		ContentType: event.ContentType,
-	})
 }

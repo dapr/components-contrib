@@ -80,7 +80,7 @@ func (b *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]
 		return nil
 	}
 
-	err := b.kafka.Subscribe(b.topics, map[string]string{}, newBindingAdapter(handler).adapter)
+	err := b.kafka.Subscribe(context.Background(), b.topics, map[string]string{}, newBindingAdapter(handler).adapter)
 	return err
 }
 

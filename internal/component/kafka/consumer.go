@@ -86,7 +86,7 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 
 // Subscribe to topic in the Kafka cluster
 // This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go.
-func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHandler) error {
+func (k *Kafka) Subscribe(ctx context.Context, topics []string, _ map[string]string, handler EventHandler) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
@@ -101,7 +101,7 @@ func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHan
 
 	k.cg = cg
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	k.cancel = cancel
 
 	ready := make(chan bool)
@@ -123,6 +123,12 @@ func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHan
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {
+			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
+			// us out of the consume loop
+			if ctx.Err() != nil {
+				return
+			}
+
 			k.logger.Debugf("Starting loop to consume.")
 
 			// Consume the requested topics
@@ -136,12 +142,6 @@ func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHan
 			})
 			if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
 				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
-			}
-
-			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
-			// us out of the consume loop
-			if ctx.Err() != nil {
-				return
 			}
 		}
 	}()

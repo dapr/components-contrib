@@ -16,6 +16,7 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
+
 	//"os/exec"
 	"testing"
 	"time"
@@ -145,6 +146,7 @@ func TestSinglePartition(t *testing.T) {
 	    return nil
 
 	    flow.New(t, "eventhubs binding IoTHub testing").
+			Step("sleep", flow.Sleep(10*time.Second)).
 	    	Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 	    	Step(sidecar.Run("sidecar",
 	        	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -158,9 +160,10 @@ func TestSinglePartition(t *testing.T) {
 	        Step("Send messages to IoT", publishMessages).
 	        Run()
 
-			//TODO: Verfiy service principal
-	        // Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
-	        flow.New(t, "eventhubs binding authentication using service principal").
+		//TODO: Verfiy service principal
+	    // Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
+	    flow.New(t, "eventhubs binding authentication using service principal").
+			Step("sleep", flow.Sleep(10*time.Second)).
 	        Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 	        Step(sidecar.Run("sidecar",
 	        	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -177,6 +180,7 @@ func TestSinglePartition(t *testing.T) {
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
+		// Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -294,6 +298,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 		return err
 	}
 	flow.New(t, "eventhubs binding authentication using multiple senders and receivers").
+		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -410,6 +415,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		return err
 	}
 	flow.New(t, "eventhubs binding authentication using connection string all partitions").
+		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),

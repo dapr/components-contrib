@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: ttl-binding
+  name: queue-ttl-binding
   namespace: default
 spec:
   type: bindings.azure.storagequeues
@@ -16,7 +16,7 @@ spec:
         name: AzureBlobStorageAccessKey
         key:  AzureBlobStorageAccessKey
   - name: queue
-    value: "ttlqueue"
+    value: "queuettlqueue"
   - name: ttlInSeconds
     value: 10 # Short TTL for easier testing
 auth:

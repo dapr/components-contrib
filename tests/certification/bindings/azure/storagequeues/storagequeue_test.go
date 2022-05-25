@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -144,7 +144,6 @@ func TestStorageQueue(t *testing.T) {
 					return secretstore_env.NewEnvSecretStore(log)
 				}),
 			))).
-		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("send and wait", test).
 		Run()
 }
@@ -168,10 +167,21 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 
 			metadata := make(map[string]string)
 
+			// Send to the queue with TTL.
+			queueTTLReq := &daprClient.InvokeBindingRequest{Name: "queue-ttl-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
+			err := client.InvokeOutputBinding(ctx, queueTTLReq)
+			require.NoError(ctx, err, "error publishing message")
+
 			// Send message with TTL set in yaml file
-			messageTTLReq := &daprClient.InvokeBindingRequest{Name: "ttl-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
+			messageTTLReq := &daprClient.InvokeBindingRequest{Name: "msg-ttl-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
 			messageTTLReq.Metadata["ttlInSeconds"] = "10"
 			err = client.InvokeOutputBinding(ctx, messageTTLReq)
+			require.NoError(ctx, err, "error publishing message")
+
+			// Send message with TTL to ensure it overwrites Queue TTL.
+			mixedTTLReq := &daprClient.InvokeBindingRequest{Name: "overwrite-ttl-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
+			mixedTTLReq.Metadata["ttlInSeconds"] = "10"
+			err = client.InvokeOutputBinding(ctx, mixedTTLReq)
 			require.NoError(ctx, err, "error publishing message")
 		}
 
@@ -183,8 +193,18 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 	ttlApplication := func(ctx flow.Context, s common.Service) (err error) {
 		// Setup the input binding endpoints.
 		err = multierr.Combine(err,
-			s.AddBindingInvocationHandler("ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+			s.AddBindingInvocationHandler("queue-ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				ctx.Logf("Oh no! Got message: %s", string(in.Data))
+				ttlMessages.FailIfNotExpected(t, string(in.Data))
+				return []byte("{}"), nil
+			}),
+			s.AddBindingInvocationHandler("msg-ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 				ctx.Logf("Got message: %s", string(in.Data))
+				ttlMessages.FailIfNotExpected(t, string(in.Data))
+				return []byte("{}"), nil
+			}),
+			s.AddBindingInvocationHandler("overwrite-ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				ctx.Logf("Oh no! Got message: %s", string(in.Data))
 				ttlMessages.FailIfNotExpected(t, string(in.Data))
 				return []byte("{}"), nil
 			}))
@@ -404,6 +424,7 @@ func TestAzureStorageQueueRetriesOnError(t *testing.T) {
 					return secretstore_env.NewEnvSecretStore(log)
 				}),
 			))).
+		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "443")).
 		Step("send and wait", testRetry).
 		Run()
 }

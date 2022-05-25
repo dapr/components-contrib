@@ -174,7 +174,7 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 
 			// Send message with TTL set in yaml file
 			messageTTLReq := &daprClient.InvokeBindingRequest{Name: "msg-ttl-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
-			messageTTLReq.Metadata["ttlInSeconds"] = "10"
+			messageTTLReq.Metadata["ttlInSeconds"] = "20"
 			err = client.InvokeOutputBinding(ctx, messageTTLReq)
 			require.NoError(ctx, err, "error publishing message")
 
@@ -194,7 +194,7 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 		// Setup the input binding endpoints.
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("queue-ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				ctx.Logf("Oh no! Got message: %s", string(in.Data))
+				ctx.Logf("Got message: %s", string(in.Data))
 				ttlMessages.FailIfNotExpected(t, string(in.Data))
 				return []byte("{}"), nil
 			}),
@@ -204,11 +204,108 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 				return []byte("{}"), nil
 			}),
 			s.AddBindingInvocationHandler("overwrite-ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				ctx.Logf("Oh no! Got message: %s", string(in.Data))
+				ctx.Logf("Got message: %s", string(in.Data))
 				ttlMessages.FailIfNotExpected(t, string(in.Data))
 				return []byte("{}"), nil
 			}))
 
+		return err
+	}
+
+	freshPorts, _ := dapr_testing.GetFreePorts(2)
+
+	flow.New(t, "storagequeue ttl certification").
+		// Run the application logic above.
+		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
+		Step(sidecar.Run("ttlSidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/ttl"),
+			runtime.WithOutputBindings(
+				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
+					return binding_asq.NewAzureStorageQueues(log)
+				}),
+			),
+			runtime.WithInputBindings(
+				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
+					return binding_asq.NewAzureStorageQueues(log)
+				}),
+			),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+			))).
+		Step("send ttl messages", ttlTest).
+		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
+		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
+		Step(sidecar.Run("appSidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(freshPorts[0]),
+			embedded.WithDaprHTTPPort(freshPorts[1]),
+			runtime.WithOutputBindings(
+				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
+					return binding_asq.NewAzureStorageQueues(log)
+				}),
+			),
+			runtime.WithInputBindings(
+				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
+					return binding_asq.NewAzureStorageQueues(log)
+				}),
+			),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+			))).
+		Step("verify no messages", func(ctx flow.Context) error {
+			// Assertion on the data.
+			ttlMessages.Assert(t, time.Minute)
+			return nil
+		}).
+		Run()
+}
+
+func TestAzureStorageQueueTTLsWithLessSleepTime(t *testing.T) {
+	log := logger.NewLogger("dapr-components")
+	ttlMessages := watcher.NewUnordered()
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	ttlTest := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		ctx.Logf("Sending messages for expiration.")
+		for i := 0; i < numOfMessages; i++ {
+			msg := fmt.Sprintf("Expiring message %d", i)
+
+			metadata := make(map[string]string)
+
+			// Send message with TTL set in yaml file
+			messageTTLReq := &daprClient.InvokeBindingRequest{Name: "msg-ttl-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
+			messageTTLReq.Metadata["ttlInSeconds"] = "20"
+			err = client.InvokeOutputBinding(ctx, messageTTLReq)
+			require.NoError(ctx, err, "error publishing message")
+		}
+
+		// Wait for double the TTL after sending the last message.
+		time.Sleep(time.Second * 1)
+		return nil
+	}
+
+	ttlApplication := func(ctx flow.Context, s common.Service) (err error) {
+		// Setup the input binding endpoints.
+		err = multierr.Combine(err,
+			s.AddBindingInvocationHandler("msg-ttl-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				ttlMessages.Observe(string(in.Data))
+				ctx.Logf("Got message: %s", string(in.Data))
+				return []byte("{}"), nil
+			}))
 		return err
 	}
 

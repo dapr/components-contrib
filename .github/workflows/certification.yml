@@ -95,6 +95,8 @@ jobs:
           required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        - component: bindings.azure.blobstorage
+          required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"

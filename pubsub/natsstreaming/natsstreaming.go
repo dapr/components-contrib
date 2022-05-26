@@ -247,8 +247,8 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 		n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
 
 		f := func() {
-			err := handler(n.ctx, &msg)
-			if err == nil {
+			herr := handler(n.ctx, &msg)
+			if herr == nil {
 				natsMsg.Ack()
 			}
 		}

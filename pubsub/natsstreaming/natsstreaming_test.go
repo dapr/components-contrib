@@ -141,6 +141,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 				natsStreamingClusterID: "testcluster",
 				consumerID:             "consumer1",
 				subscriptionType:       "topic",
+				pubsub.ConcurrencyKey:  "single",
 				startWithLastReceived:  "true",
 			},
 			"startWithLastReceived", "true",
@@ -153,6 +154,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 				natsStreamingClusterID: "testcluster",
 				consumerID:             "consumer1",
 				subscriptionType:       "topic",
+				pubsub.ConcurrencyKey:  "single",
 				deliverAll:             "true",
 			},
 			"deliverAll", "true",
@@ -165,6 +167,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 				natsStreamingClusterID: "testcluster",
 				consumerID:             "consumer1",
 				subscriptionType:       "topic",
+				pubsub.ConcurrencyKey:  "single",
 				deliverNew:             "true",
 			},
 			"deliverNew", "true",
@@ -177,6 +180,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 				natsStreamingClusterID: "testcluster",
 				consumerID:             "consumer1",
 				subscriptionType:       "topic",
+				pubsub.ConcurrencyKey:  "single",
 				startAtSequence:        "42",
 			},
 			"startAtSequence", "42",
@@ -189,9 +193,23 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 				natsStreamingClusterID: "testcluster",
 				consumerID:             "consumer1",
 				subscriptionType:       "topic",
+				pubsub.ConcurrencyKey:  "single",
 				startAtTimeDelta:       "1h",
 			},
 			"startAtTimeDelta", "1h",
+		},
+
+		{
+			"using concurrencyMode",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				startAtTimeDelta:       "1h",
+				pubsub.ConcurrencyKey:  "single",
+			},
+			"concurrencyMode", "single",
 		},
 	}
 
@@ -208,12 +226,14 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 			assert.NotEmpty(t, m.natsStreamingClusterID)
 			assert.NotEmpty(t, m.subscriptionType)
 			assert.NotEmpty(t, m.natsQueueGroupName)
+			assert.NotEmpty(t, m.concurrencyMode)
 			assert.NotEmpty(t, _test.expectedMetadataValue)
 
 			assert.Equal(t, _test.properties[natsURL], m.natsURL)
 			assert.Equal(t, _test.properties[natsStreamingClusterID], m.natsStreamingClusterID)
 			assert.Equal(t, _test.properties[subscriptionType], m.subscriptionType)
 			assert.Equal(t, _test.properties[consumerID], m.natsQueueGroupName)
+			assert.Equal(t, _test.properties[pubsub.ConcurrencyKey], string(m.concurrencyMode))
 			assert.Equal(t, _test.properties[_test.expectedMetadataName], _test.expectedMetadataValue)
 		})
 	}

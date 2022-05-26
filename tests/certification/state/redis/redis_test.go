@@ -154,31 +154,32 @@ func TestRedis(t *testing.T) {
 
 	//ETag test
 	eTagTest := func(ctx flow.Context) error {
-		etag := "1"
+		etag1 := "1"
+		etag100 := "100"
 
-		err0 := stateStore.Set(&state.SetRequest{
+		err1 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
-		err1 := stateStore.Set(&state.SetRequest{
+		assert.Equal(t, nil, err1)
+		err2 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
 			Value: "v2",
-			ETag:  &etag,
+			ETag:  &etag1,
 		})
-		etag4 := "4"
-		err4 := stateStore.Set(&state.SetRequest{
+		assert.Equal(t, nil, err2)
+		err3 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
 			Value: "v3",
-			ETag:  &etag4,
+			ETag:  &etag100,
 		})
+		assert.Error(t, err3)
 		resp, err := stateStore.Get(&state.GetRequest{
 			Key: "k",
 		})
-		assert.Equal(t, "2", *resp.ETag, "check etag")
-		assert.Equal(t, nil, err0, "failed to parse ETag")
-		assert.Equal(t, nil, err1, "failed to parse ETag")
-		assert.Equal(t, nil, err, "failed to parse ETag")
-		assert.Error(t, err4)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, "2", *resp.ETag)
+		assert.Equal(t, "\"v2\"", string(resp.Data))
 
 		return nil
 	}
@@ -228,7 +229,7 @@ func TestRedis(t *testing.T) {
 					Operation: state.Upsert,
 					Request: state.SetRequest{
 						Key:   "reqKey3",
-						Value: "reqKey103",
+						Value: "reqVal103",
 						Metadata: map[string]string{
 							"ttlInSeconds": "50",
 						},
@@ -237,6 +238,17 @@ func TestRedis(t *testing.T) {
 			},
 		})
 		assert.Equal(t, nil, err)
+		resp1, err := stateStore.Get(&state.GetRequest{
+			Key: "reqKey1",
+		})
+		assert.Equal(t, "2", *resp1.ETag)
+		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
+
+		resp3, err := stateStore.Get(&state.GetRequest{
+			Key: "reqKey3",
+		})
+		assert.Equal(t, "2", *resp3.ETag)
+		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
 		return nil
 	}
 

@@ -1,37 +1,35 @@
-# SQL Server certification testing
+# Redis State Store certification testing
 
-This project aims to test the SQL Server State Store component under various conditions.
+This project aims to test the Redis State Store component under various conditions.
 
 ## Test plan
 
-### SQL Injection
+## Basic Test for CRUD operations:
+1. Able to create and test connection.
+2. Able to do set, fetch, update and delete.
+3. Negative test to fetch record with key, that is not present.
 
-* Not prone to SQL injection on write
-* Not prone to SQL injection on read
-* Not prone to SQL injection on delete
+## Test save or update data with different TTL settings:
+1. TTL not expiring
+2. TTL not a valid number
+3. Provide a TTL of 1 second:
+a. Fetch this record just after saving
+b. Sleep for 2 seconds
+c. Try to fetch again after a gap of 2 seconds, record shouldn't be found
 
-### Indexed Properties
+## Component must reconnect when server or network errors are encountered
 
-* Verifies Indices are created for each indexed property in component metadata
-* Verifies JSON data properties are parsed and written to dedicated database columns
+## Infra test:
+1- When redis goes down and then comes back up - client is able to connect
 
-### Custom Properties
+## eTag related:
+a. Insert a Key-Value pair, eTag will be 1
+b. Update Value v2 for this Key with eTag equal to 1 - new eTag wil be 2.
+c. Try to Update v3 for this Key with eTag equal to 4 - value should not get updated.
+d. Get and validate eTag for it should be 2 only.
 
-* Verifies the use of custom tablename (default is states)
-* Verifies the use of a custom schema (default is dbo)
+## Transaction related, like Upsert:
+Upsert in Multi function, using 3 keys with updating values and TTL for 2 of the keys, down in the order.
 
-### Connection to different SQL Server types
-
-* Verifies connection handling with Azure SQL Server
-* Verifies connection handling with SQL Server in Docker to represent self hosted SQL Server options
-
-### Other tests
-
-* Client reconnects (if applicable) upon network interruption
-
-
-### Running the tests
-
-This must be run in the GitHub Actions Workflow configured for test infrastructure setup.
-
-If you have access to an Azure subscription you can run this locally on Mac or Linux after running `setup-azure-conf-test.sh` in `.github/infrastructure/conformance/azure` and then sourcing the generated bash rc file.
+## enableTLS set to true & enableTLS not integer:
+Testing by creating component with ignoreErrors: true and then trying to use it, by trying to save, which should error out as state store never got configured successfully. 

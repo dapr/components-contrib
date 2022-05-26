@@ -5,11 +5,11 @@ go 1.18
 require (
 	github.com/Shopify/sarama v1.23.1
 	github.com/cenkalti/backoff/v4 v4.1.1
-	github.com/dapr/components-contrib v1.7.1-0.20220426033643-068938c67654
-	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.7.1-0.20220426092903-063b1611d1cb
+	github.com/dapr/components-contrib v1.7.1-0.20220524172535-3a2a27a253fc
+	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
+	github.com/dapr/dapr v1.7.4-0.20220524013316-84c58f76e885
 	github.com/dapr/go-sdk v1.4.0
-	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
+	github.com/dapr/kit v0.0.2-0.20220420235722-15a34b12afe5
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/multierr v1.7.0

@@ -180,6 +180,12 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
+	c, err := pubsub.Concurrency(meta.Properties)
+	if err != nil {
+		return m, fmt.Errorf("nats-streaming error: can't parse %s: %s", pubsub.ConcurrencyKey, err)
+	}
+
+	m.concurrencyMode = c
 	return m, nil
 }
 
@@ -237,24 +243,21 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 			Topic: req.Topic,
 			Data:  natsMsg.Data,
 		}
-		b := n.backOffConfig.NewBackOffWithContext(n.ctx)
 
-		rerr := retry.NotifyRecover(func() error {
-			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
-			herr := handler(n.ctx, &msg)
-			if herr == nil {
-				// we only send a successful ACK if there is no error from Dapr runtime
+		n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
+
+		f := func() {
+			err := handler(n.ctx, &msg)
+			if err == nil {
 				natsMsg.Ack()
 			}
+		}
 
-			return herr
-		}, b, func(err error, d time.Duration) {
-			n.logger.Errorf("Error processing NATS Streaming message: %s/%d. Retrying...", natsMsg.Subject, natsMsg.Sequence)
-		}, func() {
-			n.logger.Infof("Successfully processed NATS Streaming message after it previously failed: %s/%d", natsMsg.Subject, natsMsg.Sequence)
-		})
-		if rerr != nil && !errors.Is(rerr, context.Canceled) {
-			n.logger.Errorf("Error processing message and retries are exhausted:  %s/%d.", natsMsg.Subject, natsMsg.Sequence)
+		switch n.metadata.concurrencyMode {
+		case pubsub.Single:
+			f()
+		case pubsub.Parallel:
+			go f()
 		}
 	}
 

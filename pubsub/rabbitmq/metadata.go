@@ -34,11 +34,31 @@ type metadata struct {
 	deliveryMode     uint8 // Transient (0 or 1) or Persistent (2)
 	prefetchCount    uint8 // Prefetch deactivated if 0
 	reconnectWait    time.Duration
-	concurrency      pubsub.ConcurrencyMode
 	maxLen           int64
 	maxLenBytes      int64
 	exchangeKind     string
+	publishConfirm   bool
+	concurrency      pubsub.ConcurrencyMode
 }
+
+const (
+	metadataConsumerIDKey           = "consumerID"
+	metadataHostKey                 = "host"
+	metadataDurableKey              = "durable"
+	metadataEnableDeadLetterKey     = "enableDeadLetter"
+	metadataDeleteWhenUnusedKey     = "deletedWhenUnused"
+	metadataAutoAckKey              = "autoAck"
+	metadataRequeueInFailureKey     = "requeueInFailure"
+	metadataDeliveryModeKey         = "deliveryMode"
+	metadataPrefetchCountKey        = "prefetchCount"
+	metadataReconnectWaitSecondsKey = "reconnectWaitSeconds"
+	metadataMaxLenKey               = "maxLen"
+	metadataMaxLenBytesKey          = "maxLenBytes"
+	metadataExchangeKindKey         = "exchangeKind"
+	metadataPublishConfirmKey       = "publishConfirm"
+
+	defaultReconnectWaitSeconds = 3
+)
 
 // createMetadata creates a new instance from the pubsub metadata.
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
@@ -48,6 +68,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		autoAck:          false,
 		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		exchangeKind:     fanoutExchangeKind,
+		publishConfirm:   false,
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataHostKey]; found && val != "" {
@@ -69,13 +90,13 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataDurable]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataDurableKey]; found && val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			result.durable = boolVal
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataEnableDeadLetter]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataEnableDeadLetterKey]; found && val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			result.enableDeadLetter = boolVal
 		}
@@ -99,35 +120,41 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataReconnectWaitSeconds]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataReconnectWaitSecondsKey]; found && val != "" {
 		if intVal, err := strconv.Atoi(val); err == nil {
 			result.reconnectWait = time.Duration(intVal) * time.Second
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataPrefetchCount]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataPrefetchCountKey]; found && val != "" {
 		if intVal, err := strconv.Atoi(val); err == nil {
 			result.prefetchCount = uint8(intVal)
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataMaxLen]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataMaxLenKey]; found && val != "" {
 		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
 			result.maxLen = intVal
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataMaxLenBytes]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataMaxLenBytesKey]; found && val != "" {
 		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
 			result.maxLenBytes = intVal
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataExchangeKind]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataExchangeKindKey]; found && val != "" {
 		if exchangeKindValid(val) {
 			result.exchangeKind = val
 		} else {
 			return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, val)
+		}
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataPublishConfirmKey]; found && val != "" {
+		if boolVal, err := strconv.ParseBool(val); err == nil {
+			result.publishConfirm = boolVal
 		}
 	}
 

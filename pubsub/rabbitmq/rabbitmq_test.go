@@ -261,11 +261,11 @@ func TestSubscribeReconnect(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey:              "anyhost",
-			metadataConsumerIDKey:        "consumer",
-			metadataAutoAckKey:           "true",
-			metadataReconnectWaitSeconds: "0",
-			pubsub.ConcurrencyKey:        string(pubsub.Single),
+			metadataHostKey:                 "anyhost",
+			metadataConsumerIDKey:           "consumer",
+			metadataAutoAckKey:              "true",
+			metadataReconnectWaitSecondsKey: "0",
+			pubsub.ConcurrencyKey:           string(pubsub.Single),
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -325,13 +325,19 @@ func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global boo
 }
 
 func (r *rabbitMQInMemoryBroker) Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error {
+	// This is actually how the SDK implements it
+	_, err := r.PublishWithDeferredConfirm(exchange, key, mandatory, immediate, msg)
+	return err
+}
+
+func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirm(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error) {
 	if string(msg.Body) == errorChannelConnection {
-		return errors.New(errorChannelConnection)
+		return nil, errors.New(errorChannelConnection)
 	}
 
 	r.buffer <- createAMQPMessage(msg.Body)
 
-	return nil
+	return nil, nil
 }
 
 func (r *rabbitMQInMemoryBroker) QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
@@ -355,6 +361,10 @@ func (r *rabbitMQInMemoryBroker) Ack(tag uint64, multiple bool) error {
 }
 
 func (r *rabbitMQInMemoryBroker) ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error {
+	return nil
+}
+
+func (r *rabbitMQInMemoryBroker) Confirm(noWait bool) error {
 	return nil
 }
 

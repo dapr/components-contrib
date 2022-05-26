@@ -64,6 +64,9 @@ const (
 
 	// mongodb+srv://<server>/<params>
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
+
+	// mongodb+srv://<username>:<password>@<server>/<params>
+	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s"
 )
 
 // MongoDB is a state store implementation for MongoDB.
@@ -225,9 +228,29 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	case string:
 		data = []byte(obj)
 	case primitive.D:
-		if data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+		// Setting canonical to `false`.
+		// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
+		// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
+		// interoperability is preserved
+		// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
+		// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
+		// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
+		if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
 			return &state.GetResponse{}, err
 		}
+	case primitive.A:
+		newobj := bson.D{{Key: value, Value: obj}}
+
+		if data, err = bson.MarshalExtJSON(newobj, false, true); err != nil {
+			return &state.GetResponse{}, err
+		}
+		var input interface{}
+		json.Unmarshal(data, &input)
+		value := input.(map[string]interface{})[value]
+		if data, err = json.Marshal(value); err != nil {
+			return &state.GetResponse{}, err
+		}
+
 	default:
 		if data, err = json.Marshal(result.Value); err != nil {
 			return &state.GetResponse{}, err
@@ -335,6 +358,10 @@ func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 
 func getMongoURI(metadata *mongoDBMetadata) string {
 	if len(metadata.server) != 0 {
+		if metadata.username != "" && metadata.password != "" {
+			return fmt.Sprintf(connectionURIFormatWithSrvAndCredentials, metadata.username, metadata.password, metadata.server, metadata.databaseName, metadata.params)
+		}
+
 		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.server, metadata.params)
 	}
 

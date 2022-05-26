@@ -61,7 +61,8 @@ func (mc *mockCreateInstanceClient) NewCreateInstanceCommand() commands.CreateIn
 	return mc.cmd1
 }
 
-//nolint // BPMNProcessId comes from the Zeebe client API and cannot be written as BPMNProcessID
+// BPMNProcessId comes from the Zeebe client API and cannot be written as BPMNProcessID
+// Note that when the `stylecheck` linter is working again, this method will need "nolink:stylecheck" (can't change name to ID or it won't satisfy an interface)
 func (cmd1 *mockCreateInstanceCommandStep1) BPMNProcessId(bpmnProcessID string) commands.CreateInstanceCommandStep2 {
 	cmd1.bpmnProcessID = bpmnProcessID
 
@@ -112,7 +113,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrAmbiguousCreationVars)
 	})
 
@@ -126,7 +127,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.Error(t, err, ErrMissingCreationVars)
 	})
 
@@ -143,7 +144,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
@@ -162,7 +163,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
@@ -181,7 +182,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
@@ -202,7 +203,7 @@ func TestCreateInstance(t *testing.T) {
 		var mc mockCreateInstanceClient
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)

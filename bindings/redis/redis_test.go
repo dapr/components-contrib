@@ -17,7 +17,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
+	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 
@@ -43,7 +43,7 @@ func TestInvoke(t *testing.T) {
 	_, err := c.Do(context.Background(), "GET", testKey).Result()
 	assert.Equal(t, redis.Nil, err)
 
-	bindingRes, err := bind.Invoke(&bindings.InvokeRequest{
+	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Data:     []byte(testData),
 		Metadata: map[string]string{"key": testKey},
 	})

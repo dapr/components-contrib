@@ -28,7 +28,7 @@ type completeJobPayload struct {
 	Variables interface{} `json:"variables"`
 }
 
-func (z *ZeebeCommand) completeJob(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) completeJob(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload completeJobPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -49,7 +49,7 @@ func (z *ZeebeCommand) completeJob(req *bindings.InvokeRequest) (*bindings.Invok
 		}
 	}
 
-	_, err = cmd3.Send(context.Background())
+	_, err = cmd3.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot complete job for key %d: %w", payload.JobKey, err)
 	}

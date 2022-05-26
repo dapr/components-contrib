@@ -14,6 +14,7 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -84,14 +85,14 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke create table", func(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = testCreateTable
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = testDelete
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})
 
@@ -99,7 +100,7 @@ func TestMysqlIntegration(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat), "{\"key\":\"val\"}")
-			res, err := b.Invoke(req)
+			res, err := b.Invoke(context.TODO(), req)
 			assertResponse(t, res, err)
 		}
 	})
@@ -108,7 +109,7 @@ func TestMysqlIntegration(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(mySQLDateTimeFormat), i)
-			res, err := b.Invoke(req)
+			res, err := b.Invoke(context.TODO(), req)
 			assertResponse(t, res, err)
 		}
 	})
@@ -116,7 +117,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke select", func(t *testing.T) {
 		req.Operation = queryOperation
 		req.Metadata[commandSQLKey] = testSelect
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
@@ -144,7 +145,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke select JSON_EXTRACT", func(t *testing.T) {
 		req.Operation = queryOperation
 		req.Metadata[commandSQLKey] = testSelectJSONExtract
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
@@ -161,14 +162,14 @@ func TestMysqlIntegration(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = testDelete
 		req.Data = nil
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke drop", func(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = testDropTable
-		res, err := b.Invoke(req)
+		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})
 
@@ -176,7 +177,7 @@ func TestMysqlIntegration(t *testing.T) {
 		req.Operation = closeOperation
 		req.Metadata = nil
 		req.Data = nil
-		_, err := b.Invoke(req)
+		_, err := b.Invoke(context.TODO(), req)
 		assert.NoError(t, err)
 	})
 }

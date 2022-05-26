@@ -61,7 +61,7 @@ endif
 ################################################################################
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE)
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) --timeout=15m
 
 ################################################################################
 # Target: lint                                                                 #
@@ -79,7 +79,7 @@ MODFILES := $(shell find . -name go.mod)
 define modtidy-target
 .PHONY: modtidy-$(1)
 modtidy-$(1):
-	cd $(shell dirname $(1)); go mod tidy -compat=1.17; cd -
+	cd $(shell dirname $(1)); go mod tidy -compat=1.18; cd -
 endef
 
 # Generate modtidy target action for each go.mod file

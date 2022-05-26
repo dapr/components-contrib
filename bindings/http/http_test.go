@@ -14,6 +14,7 @@ limitations under the License.
 package http_test
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -23,10 +24,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/bindings"
 	binding_http "github.com/dapr/components-contrib/bindings/http"
+	"github.com/dapr/kit/logger"
 )
 
 func TestOperations(t *testing.T) {
@@ -175,7 +175,7 @@ func TestInit(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			response, err := hs.Invoke(&bindings.InvokeRequest{
+			response, err := hs.Invoke(context.TODO(), &bindings.InvokeRequest{
 				Data:      []byte(tc.input),
 				Metadata:  tc.metadata,
 				Operation: bindings.OperationKind(tc.operation),

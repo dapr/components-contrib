@@ -14,6 +14,7 @@ limitations under the License.
 package localstorage
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -219,10 +220,15 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 	}, nil
 }
 
-//nolint:staticcheck
 func getSecureAbsRelPath(rootPath string, filename string) (absPath string, relPath string, err error) {
 	absPath, err = securejoin.SecureJoin(rootPath, filename)
+	if err != nil {
+		return
+	}
 	relPath, err = filepath.Rel(rootPath, absPath)
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -241,7 +247,7 @@ func walkPath(root string) ([]string, error) {
 }
 
 // Invoke is called for output bindings.
-func (ls *LocalStorage) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (ls *LocalStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	filename := ""
 	if val, ok := req.Metadata[fileNameMetadataKey]; ok && val != "" {
 		filename = val

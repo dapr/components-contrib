@@ -14,12 +14,13 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -100,7 +101,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: execOperation,
 		}
-		resp, err := m.Invoke(req)
+		resp, err := m.Invoke(context.TODO(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, "1", resp.Metadata[respRowsAffectedKey])
 	})
@@ -113,7 +114,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: execOperation,
 		}
-		resp, err := m.Invoke(req)
+		resp, err := m.Invoke(context.TODO(), req)
 		assert.Nil(t, resp)
 		assert.NotNil(t, err)
 	})
@@ -131,7 +132,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: queryOperation,
 		}
-		resp, err := m.Invoke(req)
+		resp, err := m.Invoke(context.TODO(), req)
 		assert.Nil(t, err)
 		var data []interface{}
 		err = json.Unmarshal(resp.Data, &data)
@@ -147,7 +148,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: queryOperation,
 		}
-		resp, err := m.Invoke(req)
+		resp, err := m.Invoke(context.TODO(), req)
 		assert.Nil(t, resp)
 		assert.NotNil(t, err)
 	})
@@ -157,7 +158,7 @@ func TestInvoke(t *testing.T) {
 		req := &bindings.InvokeRequest{
 			Operation: closeOperation,
 		}
-		resp, _ := m.Invoke(req)
+		resp, _ := m.Invoke(context.TODO(), req)
 		assert.Nil(t, resp)
 	})
 
@@ -167,7 +168,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  map[string]string{},
 			Operation: "unsupported",
 		}
-		resp, err := m.Invoke(req)
+		resp, err := m.Invoke(context.TODO(), req)
 		assert.Nil(t, resp)
 		assert.NotNil(t, err)
 	})

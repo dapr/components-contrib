@@ -26,10 +26,49 @@ jobs:
         with:
           github-token: ${{secrets.DAPR_BOT_TOKEN}}
           script: |
+            // list of owner who can control dapr-bot workflow
+            // TODO: Read owners from OWNERS file.
+            const owners = [
+              "yaron2",
+              "berndverst",
+              "artursouza",
+              "mukundansundar",
+              "halspang",
+              "tanvigour",
+              "pkedy",
+              "amuluyavarote",
+              "daixiang0",
+              "ItalyPaleAle",
+              "jjcollinge",
+              "pravinpushkar",
+              "shivamkm07",
+              "shubham1172",
+              "skyao",
+              "msfussell",
+              "Taction"
+            ];
             const payload = context.payload;
             const issue = context.issue;
             const isFromPulls = !!payload.issue.pull_request;
             const commentBody = payload.comment.body;
+
+            if (!isFromPulls && commentBody && commentBody.indexOf("/assign") == 0) {
+              if (!issue.assignees || issue.assignees.length === 0) {
+                await github.issues.addAssignees({
+                  owner: issue.owner,
+                  repo: issue.repo,
+                  issue_number: issue.number,
+                  assignees: [context.actor],
+                })
+              }
+
+              return;
+            }
+
+            // actions above this check are enabled for everyone.
+            if (owners.indexOf(context.actor) < 0) {
+              return;
+            }
 
             if (isFromPulls && commentBody) {
               if (commentBody.indexOf("/ok-to-test") == 0) {
@@ -47,13 +86,7 @@ jobs:
                     command: "ok-to-test",
                     issue: issue,
                   };
-                  // Fire repository_dispatch event to trigger conformance test
-                  await github.repos.createDispatchEvent({
-                    owner: issue.owner,
-                    repo: issue.repo,
-                    event_type: "conformance-test",
-                    client_payload: testPayload,
-                  });
+
                   // Fire repository_dispatch event to trigger certification test
                   await github.repos.createDispatchEvent({
                     owner: issue.owner,
@@ -61,19 +94,14 @@ jobs:
                     event_type: "certification-test",
                     client_payload: testPayload,
                   });
+
+                  // Fire repository_dispatch event to trigger conformance test
+                  await github.repos.createDispatchEvent({
+                    owner: issue.owner,
+                    repo: issue.repo,
+                    event_type: "conformance-test",
+                    client_payload: testPayload,
+                  });
                 }
               }
-            }
-
-            if (!isFromPulls && commentBody && commentBody.indexOf("/assign") == 0) {
-              if (!issue.assignees || issue.assignees.length === 0) {
-                await github.issues.addAssignees({
-                  owner: issue.owner,
-                  repo: issue.repo,
-                  issue_number: issue.number,
-                  assignees: [context.actor],
-                })
-              }
-
-              return;
             }

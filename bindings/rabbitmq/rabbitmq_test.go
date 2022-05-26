@@ -27,7 +27,7 @@ import (
 func TestParseMetadata(t *testing.T) {
 	const queueName = "test-queue"
 	const host = "test-host"
-	var oneSecondTTL time.Duration = time.Second
+	oneSecondTTL := time.Second
 
 	testCases := []struct {
 		name                     string

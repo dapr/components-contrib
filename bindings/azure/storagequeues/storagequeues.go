@@ -38,13 +38,13 @@ const (
 )
 
 type consumer struct {
-	callback func(*bindings.ReadResponse) ([]byte, error)
+	callback func(context.Context, *bindings.ReadResponse) ([]byte, error)
 }
 
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
-	Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error
-	Write(data []byte, ttl *time.Duration) error
+	Init(endpoint string, accountName string, accountKey string, queueName string, decodeBase64 bool) error
+	Write(ctx context.Context, data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 }
 
@@ -57,15 +57,36 @@ type AzureQueueHelper struct {
 	decodeBase64 bool
 }
 
+func getEndpoint(endpoint, reqURI, accountName, queueName string) (*url.URL, error) {
+	if endpoint != "" {
+		u, err := url.Parse(endpoint)
+		if err != nil {
+			return nil, err
+		}
+
+		p, err := url.Parse(queueName)
+		if err != nil {
+			return nil, err
+		}
+
+		return u.ResolveReference(p), nil
+	}
+
+	return url.Parse(fmt.Sprintf(reqURI, accountName, queueName))
+}
+
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName string, decodeBase64 bool) error {
+func (d *AzureQueueHelper) Init(endpoint string, accountName string, accountKey string, queueName string, decodeBase64 bool) error {
 	credential, err := azqueue.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
 		return err
 	}
 	d.credential = credential
 	d.decodeBase64 = decodeBase64
-	u, _ := url.Parse(fmt.Sprintf(d.reqURI, accountName, queueName))
+	u, err := getEndpoint(endpoint, d.reqURI, accountName, queueName)
+	if err != nil {
+		return err
+	}
 	userAgent := "dapr-" + logger.DaprVersion
 	pipelineOptions := azqueue.PipelineOptions{
 		Telemetry: azqueue.TelemetryOptions{
@@ -82,8 +103,7 @@ func (d *AzureQueueHelper) Init(accountName string, accountKey string, queueName
 	return nil
 }
 
-func (d *AzureQueueHelper) Write(data []byte, ttl *time.Duration) error {
-	ctx := context.TODO()
+func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
 	messagesURL := d.queueURL.NewMessagesURL()
 
 	s, err := strconv.Unquote(string(data))
@@ -126,7 +146,7 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		data = []byte(mt)
 	}
 
-	_, err = consumer.callback(&bindings.ReadResponse{
+	_, err = consumer.callback(ctx, &bindings.ReadResponse{
 		Data:     data,
 		Metadata: map[string]string{},
 	})
@@ -160,11 +180,12 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	AccountKey   string `json:"storageAccessKey"`
-	QueueName    string `json:"queue"`
-	AccountName  string `json:"storageAccount"`
-	DecodeBase64 string `json:"decodeBase64"`
-	ttl          *time.Duration
+	AccountKey    string `json:"storageAccessKey"`
+	QueueName     string `json:"queue"`
+	QueueEndpoint string `json:"queueEndpointUrl"`
+	AccountName   string `json:"storageAccount"`
+	DecodeBase64  string `json:"decodeBase64"`
+	ttl           *time.Duration
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.
@@ -185,7 +206,12 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 		decodeBase64 = true
 	}
 
-	err = a.helper.Init(a.metadata.AccountName, a.metadata.AccountKey, a.metadata.QueueName, decodeBase64)
+	endpoint := ""
+	if a.metadata.QueueEndpoint != "" {
+		endpoint = a.metadata.QueueEndpoint
+	}
+
+	err = a.helper.Init(endpoint, a.metadata.AccountName, a.metadata.AccountKey, a.metadata.QueueName, decodeBase64)
 	if err != nil {
 		return err
 	}
@@ -220,7 +246,7 @@ func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	ttlToUse := a.metadata.ttl
 	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
@@ -231,7 +257,7 @@ func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.Invo
 		ttlToUse = &ttl
 	}
 
-	err = a.helper.Write(req.Data, ttlToUse)
+	err = a.helper.Write(ctx, req.Data, ttlToUse)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +265,7 @@ func (a *AzureStorageQueues) Invoke(req *bindings.InvokeRequest) (*bindings.Invo
 	return nil, nil
 }
 
-func (a *AzureStorageQueues) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureStorageQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	c := consumer{
 		callback: handler,
 	}

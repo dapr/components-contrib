@@ -150,7 +150,6 @@ func TestServiceBusQueue(t *testing.T) {
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("send and wait", test).
 		Run()
-
 }
 
 func TestAzureServiceBusQueuesTTLs(t *testing.T) {
@@ -271,7 +270,7 @@ func TestAzureServiceBusQueuesTTLs(t *testing.T) {
 
 func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	messages := watcher.NewOrdered()
+	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]

@@ -14,6 +14,8 @@ limitations under the License.
 package cosmosdb
 
 import (
+	// For go:embed.
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -35,13 +37,19 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+// Version of the stored procedure to use.
+const spVersion = 2
+
+//go:embed storedprocedures/__dapr_v2__.js
+var spDefinition string
+
+//go:embed storedprocedures/__daprver__.js
+var spVersionDefinition string
+
 // StateStore is a CosmosDB state store.
 type StateStore struct {
 	state.DefaultBulkStore
 	client      *documentdb.DocumentDB
-	collection  *documentdb.Collection
-	db          *documentdb.Database
-	sp          *documentdb.Sproc
 	metadata    metadata
 	contentType string
 
@@ -87,10 +95,12 @@ type storedProcedureDefinition struct {
 
 const (
 	storedProcedureName   = "__dapr_v2__"
+	versionSpName         = "__daprver__"
 	metadataPartitionKey  = "partitionKey"
 	unknownPartitionKey   = "__UNKNOWN__"
 	metadataTTLKey        = "ttlInSeconds"
 	statusTooManyRequests = "429" // RFC 6585, 4
+	statusNotFound        = "NotFound"
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
@@ -156,86 +166,37 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	}
 	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 
+	c.client = documentdb.New(m.URL, config)
+	c.metadata = m
+	c.contentType = m.ContentType
+
 	// Retries initializing the client if a TooManyRequests error is encountered
-	bo := backoff.NewExponentialBackOff()
-	bo.InitialInterval = 2 * time.Second
-	bo.MaxElapsedTime = 5 * time.Minute
-	err = backoff.RetryNotify(func() (err error) {
-		client := documentdb.New(m.URL, config)
-
-		dbs, err := client.QueryDatabases(&documentdb.Query{
-			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-			Parameters: []documentdb.Parameter{
-				{Name: "@id", Value: m.Database},
-			},
-		})
-
-		if err != nil {
-			if isTooManyRequestsError(err) {
-				return err
+	err = retryOperation(func() (innerErr error) {
+		_, innerErr = c.findCollection()
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
 			}
-			return backoff.Permanent(err)
-		} else if len(dbs) == 0 {
-			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB state store not found", m.Database))
+			return backoff.Permanent(innerErr)
 		}
 
-		c.db = &dbs[0]
-		colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-			Parameters: []documentdb.Parameter{
-				{Name: "@id", Value: m.Collection},
-			},
-		})
-		if err != nil {
-			if isTooManyRequestsError(err) {
-				return err
-			}
-			return backoff.Permanent(err)
-		} else if len(colls) == 0 {
-			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB state store not found.  This must be created before Dapr uses it", m.Collection))
+		// if we're authenticating using Azure AD, we can't perform CRUD operations on stored procedures, so we need to try invoking the version SP and see if we get the desired version only
+		if m.MasterKey == "" {
+			innerErr = c.checkStoredProcedures()
+		} else {
+			innerErr = c.ensureStoredProcedures()
 		}
-
-		c.metadata = m
-		c.collection = &colls[0]
-		c.client = client
-		c.contentType = m.ContentType
-
-		sps, err := c.client.ReadStoredProcedures(c.collection.Self)
-		if err != nil {
-			if isTooManyRequestsError(err) {
-				return err
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
 			}
-			return backoff.Permanent(err)
-		}
-
-		// get a link to the sp
-		for i := range sps {
-			if sps[i].Id == storedProcedureName {
-				c.sp = &sps[i]
-
-				break
-			}
-		}
-
-		if c.sp == nil {
-			// register the stored procedure
-			createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
-			c.sp, err = c.client.CreateStoredProcedure(c.collection.Self, createspBody)
-			if err != nil {
-				if isTooManyRequestsError(err) {
-					return err
-				}
-				// if it already exists that is success
-				if !strings.HasPrefix(err.Error(), "Conflict") {
-					return backoff.Permanent(err)
-				}
-			}
+			return backoff.Permanent(innerErr)
 		}
 
 		return nil
-	}, bo, func(err error, d time.Duration) {
+	}, func(err error, d time.Duration) {
 		c.logger.Warnf("CosmosDB state store initialization failed: %v; retrying in %s", err, d)
-	})
+	}, 5*time.Minute)
 	if err != nil {
 		return err
 	}
@@ -264,12 +225,23 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	_, err := c.client.QueryDocuments(
-		c.collection.Self,
-		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: key}),
-		&items,
-		options...,
-	)
+	err := retryOperation(func() error {
+		_, innerErr := c.client.QueryDocuments(
+			c.getCollectionLink(),
+			documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: key}),
+			&items,
+			options...,
+		)
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Get request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
 	if err != nil {
 		return nil, err
 	} else if len(items) == 0 {
@@ -307,11 +279,11 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
 	if req.ETag != nil {
-		options = append(options, documentdb.IfMatch((*req.ETag)))
+		options = append(options, documentdb.IfMatch(*req.ETag))
 	}
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
 		etag := uuid.NewString()
-		options = append(options, documentdb.IfMatch((etag)))
+		options = append(options, documentdb.IfMatch(etag))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -324,7 +296,18 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.client.UpsertDocument(c.collection.Self, &doc, options...)
+	err = retryOperation(func() error {
+		_, innerErr := c.client.UpsertDocument(c.getCollectionLink(), &doc, options...)
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Set request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
 
 	if err != nil {
 		if req.ETag != nil {
@@ -347,21 +330,8 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 
-	items := []CosmosItem{}
-	_, err = c.client.QueryDocuments(
-		c.collection.Self,
-		documentdb.NewQuery("SELECT * FROM ROOT r WHERE r.id=@id", documentdb.P{Name: "@id", Value: req.Key}),
-		&items,
-		options...,
-	)
-	if err != nil {
-		return err
-	} else if len(items) == 0 {
-		return nil
-	}
-
 	if req.ETag != nil {
-		options = append(options, documentdb.IfMatch((*req.ETag)))
+		options = append(options, documentdb.IfMatch(*req.ETag))
 	}
 	if req.Options.Consistency == state.Strong {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Strong))
@@ -370,18 +340,28 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		options = append(options, documentdb.ConsistencyLevel(documentdb.Eventual))
 	}
 
-	_, err = c.client.DeleteDocument(items[0].Self, options...)
-	if err != nil {
-		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
-	}
+	err = retryOperation(func() error {
+		_, innerErr := c.client.DeleteDocument(c.getDocumentLink(req.Key), options...)
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Delete request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
 
-	if err != nil {
+	if err != nil && !isNotFoundError(err) {
+		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
+		return err
 	}
 
-	return err
+	return nil
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
@@ -424,14 +404,28 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 
 	c.logger.Debugf("#operations=%d,partitionkey=%s", len(operations), partitionKey)
 
-	options := []documentdb.CallOption{documentdb.PartitionKey(partitionKey)}
 	var retString string
 
 	// The stored procedure throws if it failed, which sets err to non-nil.  It doesn't return anything else.
-	err := c.client.ExecuteStoredProcedure(c.sp.Self, [...]interface{}{operations}, &retString, options...)
+	err := retryOperation(func() error {
+		innerErr := c.client.ExecuteStoredProcedure(
+			c.getSprocLink(storedProcedureName),
+			[...]interface{}{operations},
+			&retString,
+			documentdb.PartitionKey(partitionKey),
+		)
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Multi request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
 	if err != nil {
 		c.logger.Debugf("error=%e", err)
-
 		return err
 	}
 
@@ -444,7 +438,21 @@ func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
-	data, token, err := q.execute(c.client, c.collection)
+	var data []state.QueryItem
+	var token string
+	err := retryOperation(func() error {
+		var innerErr error
+		data, token, innerErr = q.execute(c.client, c.getCollectionLink())
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Ping request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
 	if err != nil {
 		return &state.QueryResponse{}, err
 	}
@@ -456,21 +464,121 @@ func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 }
 
 func (c *StateStore) Ping() error {
-	m := c.metadata
+	return retryOperation(func() error {
+		_, innerErr := c.findCollection()
+		if innerErr != nil {
+			if isTooManyRequestsError(innerErr) {
+				return innerErr
+			}
+			return backoff.Permanent(innerErr)
+		}
+		return nil
+	}, func(err error, d time.Duration) {
+		c.logger.Warnf("CosmosDB state store Ping request failed: %v; retrying in %s", err, d)
+	}, 20*time.Second)
+}
 
-	colls, err := c.client.QueryCollections(c.db.Self, &documentdb.Query{
-		Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-		Parameters: []documentdb.Parameter{
-			{Name: "@id", Value: m.Collection},
-		},
-	})
-	if err != nil {
+// getCollectionLink returns the link to the collection.
+func (c *StateStore) getCollectionLink() string {
+	return fmt.Sprintf("dbs/%s/colls/%s/", c.metadata.Database, c.metadata.Collection)
+}
+
+// getDocumentLink returns the link to a document in the collection.
+func (c *StateStore) getDocumentLink(docID string) string {
+	return fmt.Sprintf("dbs/%s/colls/%s/docs/%s", c.metadata.Database, c.metadata.Collection, docID)
+}
+
+// getSprocLink returns the link to a stored procedure in the collection.
+func (c *StateStore) getSprocLink(sprocName string) string {
+	return fmt.Sprintf("dbs/%s/colls/%s/sprocs/%s", c.metadata.Database, c.metadata.Collection, sprocName)
+}
+
+func (c *StateStore) checkStoredProcedures() error {
+	var ver int
+	// not wrapping this in a retryable block because this method is already used as part of one
+	err := c.client.ExecuteStoredProcedure(c.getSprocLink(versionSpName), nil, &ver, documentdb.PartitionKey("1"))
+	if err == nil {
+		c.logger.Debugf("Cosmos DB stored procedure version: %d", ver)
+	}
+	if err != nil || (err == nil && ver != spVersion) {
+		// Note that when the `stylecheck` linter is working with Go 1.18 again, this will need "nolint:stylecheck"
+		return fmt.Errorf("Dapr requires stored procedures created in Cosmos DB before it can be used as state store. Those stored procedures are currently not existing or are using a different version than expected. When you authenticate using Azure AD we cannot automatically create them for you: please start this state store with a Cosmos DB master key just once so we can create the stored procedures for you; otherwise, you can check our docs to learn how to create them yourself: https://aka.ms/dapr/cosmosdb-aad")
+	}
+	return nil
+}
+
+func (c *StateStore) ensureStoredProcedures() error {
+	spLink := c.getSprocLink(storedProcedureName)
+	verSpLink := c.getSprocLink(versionSpName)
+
+	// get a link to the sp's
+	// not wrapping this in a retryable block because this method is already used as part of one
+	sp, err := c.client.ReadStoredProcedure(spLink)
+	if err != nil && !isNotFoundError(err) {
 		return err
-	} else if len(colls) == 0 {
-		return fmt.Errorf("collection %s for CosmosDB state store not found", m.Collection)
+	}
+	verSp, err := c.client.ReadStoredProcedure(verSpLink)
+	if err != nil && !isNotFoundError(err) {
+		return err
+	}
+
+	// check version
+	replace := false
+	if verSp != nil {
+		var ver int
+		err = c.client.ExecuteStoredProcedure(verSpLink, nil, &ver, documentdb.PartitionKey("1"))
+		if err == nil {
+			c.logger.Debugf("Cosmos DB stored procedure version: %d", ver)
+		}
+		if err != nil || (err == nil && ver != spVersion) {
+			// ignore errors: just replace the stored procedures
+			replace = true
+		}
+	}
+	if verSp == nil || replace {
+		// register/replace the stored procedure
+		createspBody := storedProcedureDefinition{ID: versionSpName, Body: spVersionDefinition}
+		if replace && verSp != nil {
+			c.logger.Debugf("Replacing Cosmos DB stored procedure %s", versionSpName)
+			_, err = c.client.ReplaceStoredProcedure(verSp.Self, createspBody)
+		} else {
+			c.logger.Debugf("Creating Cosmos DB stored procedure %s", versionSpName)
+			_, err = c.client.CreateStoredProcedure(c.getCollectionLink(), createspBody)
+		}
+		// if it already exists that is success (Conflict should only happen on Create commands)
+		if err != nil && !strings.HasPrefix(err.Error(), "Conflict") {
+			return err
+		}
+	}
+
+	if sp == nil || replace {
+		// register the stored procedure
+		createspBody := storedProcedureDefinition{ID: storedProcedureName, Body: spDefinition}
+		if replace && sp != nil {
+			c.logger.Debugf("Replacing Cosmos DB stored procedure %s", storedProcedureName)
+			_, err = c.client.ReplaceStoredProcedure(sp.Self, createspBody)
+		} else {
+			c.logger.Debugf("Creating Cosmos DB stored procedure %s", storedProcedureName)
+			_, err = c.client.CreateStoredProcedure(c.getCollectionLink(), createspBody)
+		}
+		// if it already exists that is success (Conflict should only happen on Create commands)
+		if err != nil && !strings.HasPrefix(err.Error(), "Conflict") {
+			return err
+		}
 	}
 
 	return nil
+}
+
+func (c *StateStore) findCollection() (*documentdb.Collection, error) {
+	coll, err := c.client.ReadCollection(c.getCollectionLink())
+	if err != nil {
+		return nil, err
+	}
+	if coll == nil || coll.Self == "" {
+		return nil, fmt.Errorf("collection %s in database %s for CosmosDB state store not found. This must be created before Dapr uses it", c.metadata.Collection, c.metadata.Database)
+	}
+	return coll, nil
 }
 
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
@@ -540,6 +648,13 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	return nil, nil
 }
 
+func retryOperation(operation backoff.Operation, notify backoff.Notify, maxElapsedTime time.Duration) error {
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 2 * time.Second
+	bo.MaxElapsedTime = maxElapsedTime
+	return backoff.RetryNotify(operation, bo, notify)
+}
+
 func isTooManyRequestsError(err error) bool {
 	if err == nil {
 		return false
@@ -547,6 +662,20 @@ func isTooManyRequestsError(err error) bool {
 
 	if requestError, ok := err.(*documentdb.RequestError); ok {
 		if requestError.Code == statusTooManyRequests {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if requestError, ok := err.(*documentdb.RequestError); ok {
+		if requestError.Code == statusNotFound {
 			return true
 		}
 	}

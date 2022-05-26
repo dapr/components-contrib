@@ -15,9 +15,12 @@ package s3
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -60,6 +63,7 @@ type s3Metadata struct {
 	EncodeBase64   bool   `json:"encodeBase64,string"`
 	ForcePathStyle bool   `json:"forcePathStyle,string"`
 	DisableSSL     bool   `json:"disableSSL,string"`
+	InsecureSSL    bool   `json:"insecureSSL,string"`
 }
 
 type createResponse struct {
@@ -91,6 +95,19 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 	}
 
 	cfg := aws.NewConfig().WithS3ForcePathStyle(m.ForcePathStyle).WithDisableSSL(m.DisableSSL)
+
+	// Use a custom HTTP client to allow self-signed certs
+	if m.InsecureSSL {
+		customTransport := http.DefaultTransport.(*http.Transport).Clone()
+		customTransport.TLSClientConfig = &tls.Config{
+			//nolint:gosec
+			InsecureSkipVerify: true,
+		}
+		client := &http.Client{
+			Transport: customTransport,
+		}
+		cfg = cfg.WithHTTPClient(client)
+	}
 
 	s.metadata = m
 	s.s3Client = s3.New(session, cfg)
@@ -252,7 +269,7 @@ func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 	}, nil
 }
 
-func (s *AWSS3) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		return s.create(req)

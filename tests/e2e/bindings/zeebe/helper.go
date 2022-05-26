@@ -14,6 +14,7 @@ limitations under the License.
 package zeebe
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -181,7 +182,8 @@ func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, err
 func DeployProcess(
 	cmd *command.ZeebeCommand,
 	fileName string,
-	modifiers ...func(string) string) (*pb.ProcessMetadata, error) {
+	modifiers ...func(string) string,
+) (*pb.ProcessMetadata, error) {
 	data, err := GetTestFile(fileName, modifiers...)
 	if err != nil {
 		return nil, err
@@ -189,7 +191,7 @@ func DeployProcess(
 
 	metadata := map[string]string{"fileName": fileName}
 	req := &bindings.InvokeRequest{Data: data, Metadata: metadata, Operation: command.DeployProcessOperation}
-	res, err := cmd.Invoke(req)
+	res, err := cmd.Invoke(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -219,14 +221,15 @@ func DeployProcess(
 // CreateProcessInstance creates a process instance and returns the process instance data.
 func CreateProcessInstance(
 	cmd *command.ZeebeCommand,
-	payload map[string]interface{}) (*pb.CreateProcessInstanceResponse, error) {
+	payload map[string]interface{},
+) (*pb.CreateProcessInstanceResponse, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 
 	req := &bindings.InvokeRequest{Data: data, Operation: command.CreateInstanceOperation}
-	res, err := cmd.Invoke(req)
+	res, err := cmd.Invoke(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +241,30 @@ func CreateProcessInstance(
 	}
 
 	return processInstance, nil
+}
+
+func ActicateJob(
+	cmd *command.ZeebeCommand,
+	payload map[string]interface{},
+) (*[]pb.ActivatedJob, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &bindings.InvokeRequest{Data: data, Operation: command.ActivateJobsOperation}
+	res, err := cmd.Invoke(context.TODO(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	activatedJobs := &[]pb.ActivatedJob{}
+	err = json.Unmarshal(res.Data, activatedJobs)
+	if err != nil {
+		return nil, err
+	}
+
+	return activatedJobs, nil
 }
 
 // CalcWorker is a simple calculation worker.
@@ -274,8 +301,9 @@ func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 func InitTestProcess(
 	cmd *command.ZeebeCommand,
 	id string,
-	testWorker func(*bindings.ReadResponse) ([]byte, error),
-	additionalMetadata ...MetadataPair) error {
+	testWorker func(context.Context, *bindings.ReadResponse) ([]byte, error),
+	additionalMetadata ...MetadataPair,
+) error {
 	testJobType := id + "-test"
 
 	_, err := DeployProcess(

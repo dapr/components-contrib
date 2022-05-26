@@ -92,7 +92,7 @@ func (gql *GraphQL) Operations() []bindings.OperationKind {
 }
 
 // Invoke handles all invoke operations.
-func (gql *GraphQL) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (gql *GraphQL) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("GraphQL Error: Invoke request required")
 	}

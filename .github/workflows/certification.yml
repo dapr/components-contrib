@@ -93,6 +93,14 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
+        - component: bindings.azure.eventhubs
+          required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
+        - component: pubsub.azure.eventhubs
+          required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        - component: bindings.azure.blobstorage
+          required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
+        - component: bindings.azure.storagequeues
+          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
@@ -180,7 +188,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.17'
+        go-version: '^1.18'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -191,7 +199,7 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=1.17
+        go mod tidy -compat=1.18
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 

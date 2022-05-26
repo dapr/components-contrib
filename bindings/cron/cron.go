@@ -14,11 +14,12 @@ limitations under the License.
 package cron
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/robfig/cron/v3"
+	cron "github.com/robfig/cron/v3"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -70,11 +71,11 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the Cron scheduler.
-func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) error {
+func (b *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
 	c := cron.New(cron.WithParser(b.parser))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
-		handler(&bindings.ReadResponse{
+		handler(context.TODO(), &bindings.ReadResponse{
 			Metadata: map[string]string{
 				"timeZone":    c.Location().String(),
 				"readTimeUTC": time.Now().UTC().String(),
@@ -94,7 +95,7 @@ func (b *Binding) Read(handler func(*bindings.ReadResponse) ([]byte, error)) err
 }
 
 // Invoke exposes way to stop previously started cron.
-func (b *Binding) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	b.logger.Debugf("name: %s, operation: %v", b.name, req.Operation)
 	if req.Operation != bindings.DeleteOperation {
 		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",

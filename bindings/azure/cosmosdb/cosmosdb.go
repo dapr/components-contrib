@@ -14,16 +14,16 @@ limitations under the License.
 package cosmosdb
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/a8m/documentdb"
-	"github.com/cenkalti/backoff/v4"
+	backoff "github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/authentication/azure"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
@@ -31,8 +31,7 @@ import (
 // CosmosDB allows performing state operations on collections.
 type CosmosDB struct {
 	client       *documentdb.DocumentDB
-	collection   *documentdb.Collection
-	db           *documentdb.Database
+	collection   string
 	partitionKey string
 
 	logger logger.Logger
@@ -86,51 +85,29 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	config.IdentificationHydrator = nil
 	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
 
+	c.client = documentdb.New(m.URL, config)
+
 	// Retries initializing the client if a TooManyRequests error is encountered
-	bo := backoff.NewExponentialBackOff()
-	bo.InitialInterval = 2 * time.Second
-	bo.MaxElapsedTime = 5 * time.Minute
-	err = backoff.RetryNotify(func() (err error) {
-		client := documentdb.New(m.URL, config)
-
-		dbs, err := client.QueryDatabases(&documentdb.Query{
-			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-			Parameters: []documentdb.Parameter{
-				{Name: "@id", Value: m.Database},
-			},
-		})
+	err = retryOperation(func() (err error) {
+		collLink := fmt.Sprintf("dbs/%s/colls/%s/", m.Database, m.Collection)
+		coll, err := c.client.ReadCollection(collLink)
 		if err != nil {
 			if isTooManyRequestsError(err) {
 				return err
 			}
 			return backoff.Permanent(err)
-		} else if len(dbs) == 0 {
-			return backoff.Permanent(fmt.Errorf("database %s for CosmosDB binding not found", m.Database))
+		} else if coll == nil || coll.Self == "" {
+			return backoff.Permanent(
+				fmt.Errorf("collection %s in database %s for CosmosDB state store not found. This must be created before Dapr uses it", m.Collection, m.Database),
+			)
 		}
 
-		c.db = &dbs[0]
-		colls, err := client.QueryCollections(c.db.Self, &documentdb.Query{
-			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
-			Parameters: []documentdb.Parameter{
-				{Name: "@id", Value: m.Collection},
-			},
-		})
-		if err != nil {
-			if isTooManyRequestsError(err) {
-				return err
-			}
-			return backoff.Permanent(err)
-		} else if len(colls) == 0 {
-			return backoff.Permanent(fmt.Errorf("collection %s for CosmosDB binding not found", m.Collection))
-		}
-
-		c.collection = &colls[0]
-		c.client = client
+		c.collection = coll.Self
 
 		return nil
-	}, bo, func(err error, d time.Duration) {
+	}, func(err error, d time.Duration) {
 		c.logger.Warnf("CosmosDB binding initialization failed: %v; retrying in %s", err, d)
-	})
+	}, 5*time.Minute)
 	if err != nil {
 		return err
 	}
@@ -158,7 +135,7 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		var obj interface{}
@@ -172,7 +149,18 @@ func (c *CosmosDB) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse
 			return nil, err
 		}
 
-		_, err = c.client.CreateDocument(c.collection.Self, obj, documentdb.PartitionKey(val))
+		err = retryOperation(func() error {
+			_, innerErr := c.client.CreateDocument(c.collection, obj, documentdb.PartitionKey(val))
+			if innerErr != nil {
+				if isTooManyRequestsError(innerErr) {
+					return innerErr
+				}
+				return backoff.Permanent(innerErr)
+			}
+			return nil
+		}, func(err error, d time.Duration) {
+			c.logger.Warnf("CosmosDB binding Invoke request failed: %v; retrying in %s", err, d)
+		}, 20*time.Second)
 		if err != nil {
 			return nil, err
 		}
@@ -220,6 +208,13 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 	}
 
 	return c.lookup(m, ks[1:])
+}
+
+func retryOperation(operation backoff.Operation, notify backoff.Notify, maxElapsedTime time.Duration) error {
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 2 * time.Second
+	bo.MaxElapsedTime = maxElapsedTime
+	return backoff.RetryNotify(operation, bo, notify)
 }
 
 func isTooManyRequestsError(err error) bool {

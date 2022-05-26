@@ -30,7 +30,7 @@ type failJobPayload struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
-func (z *ZeebeCommand) failJob(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (z *ZeebeCommand) failJob(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload failJobPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -53,7 +53,7 @@ func (z *ZeebeCommand) failJob(req *bindings.InvokeRequest) (*bindings.InvokeRes
 		cmd = cmd.ErrorMessage(payload.ErrorMessage)
 	}
 
-	_, err = cmd.Send(context.Background())
+	_, err = cmd.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fail job for key %d: %w", payload.JobKey, err)
 	}

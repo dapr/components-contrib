@@ -79,6 +79,7 @@ jobs:
         - state.postgresql
         - state.redis
         - state.sqlserver
+        - state.cockroachdb
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -301,6 +302,11 @@ jobs:
         docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
       if: contains(matrix.component, 'cassandra')
 
+    - name: Start cockroachdb
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
+      if: contains(matrix.component, 'cockroachdb')
+
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
       run: |
@@ -310,7 +316,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.17.3'
+        go-version: '^1.18'
     
     - name: Download Go dependencies
       run: |

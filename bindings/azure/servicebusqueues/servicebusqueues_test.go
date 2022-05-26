@@ -25,7 +25,7 @@ import (
 )
 
 func TestParseMetadata(t *testing.T) {
-	var oneSecondDuration time.Duration = time.Second
+	oneSecondDuration := time.Second
 
 	testCases := []struct {
 		name                     string
@@ -39,14 +39,14 @@ func TestParseMetadata(t *testing.T) {
 			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1"},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
-			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
+			expectedTTL:              azureServiceBusDefaultMessageTimeToLive,
 		},
 		{
 			name:                     "Empty TTL",
 			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: ""},
 			expectedConnectionString: "connString",
 			expectedQueueName:        "queue1",
-			expectedTTL:              AzureServiceBusDefaultMessageTimeToLive,
+			expectedTTL:              azureServiceBusDefaultMessageTimeToLive,
 		},
 		{
 			name:                     "With TTL",

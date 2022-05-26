@@ -2,4 +2,6 @@
 .idea
 .vscode
 /vendor
+.dccache
 go.work
+go.work.sum

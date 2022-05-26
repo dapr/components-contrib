@@ -48,33 +48,11 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
 
-const (
-	sidecarName1      = "dapr-1"
-	sidecarName2      = "dapr-2"
-	sidecarName3      = "dapr-3"
-	appID1            = "app-1"
-	appID2            = "app-2"
-	appID3            = "app-3"
-	clusterName       = "kafkacertification"
-	dockerComposeYAML = "docker-compose.yml"
-	numMessages       = 1000
-	appPort           = 8000
-	portOffset        = 2
-	messageKey        = "partitionKey"
-
-	bindingName = "messagebus"
-	topicName   = "neworder"
-)
-
-var (
-	brokers          = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
-	oauthClientQuery = "https://localhost:4444/clients/dapr"
-)
-
-func TestKafka(t *testing.T) {
+func TestKafka_with_retry(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	kafka_input_1 := bindings_loader.NewInput("kafka", func() bindings.InputBinding {
 		return bindings_kafka.NewKafka(log)
@@ -98,9 +76,15 @@ func TestKafka(t *testing.T) {
 	// Application logic that tracks messages from a topic.
 	application := func(messages *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, 100)
+
 			// Setup the /orders event handler.
 			return multierr.Combine(
 				s.AddBindingInvocationHandler(bindingName, func(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
+					if err := sim(); err != nil {
+						return nil, err
+					}
 					// Track/Observe the data of the event.
 					messages.Observe(string(in.Data))
 					return in.Data, nil
@@ -149,7 +133,7 @@ func TestKafka(t *testing.T) {
 					Data:      []byte(msg),
 					Metadata:  metadata,
 				})
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "error output binding message")
 			}
 
 			// Do the messages we observed match what we expect?
@@ -224,7 +208,7 @@ func TestKafka(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "kafka certification").
+	flow.New(t, "kafka certification with retry").
 		// Run Kafka using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets",
@@ -265,14 +249,14 @@ func TestKafka(t *testing.T) {
 			}
 			return nil
 		})).
-		//
+
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			application(consumerGroup1))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
+			embedded.WithComponentsPath("./components-retry/consumer1"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -285,7 +269,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/mtls-consumer"),
+			embedded.WithComponentsPath("./components-retry/mtls-consumer"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -294,15 +278,15 @@ func TestKafka(t *testing.T) {
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
-		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
-		//
+		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup2)).
+
 		// Run the third application.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
 			application(consumerGroup2))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/oauth-consumer"),
+			embedded.WithComponentsPath("./components-retry/oauth-consumer"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
@@ -313,7 +297,7 @@ func TestKafka(t *testing.T) {
 		// Send messages with random keys to test message consumption
 		// across more than one consumer group and consumers per group.
 		Step("send and wait(consumer groups)", sendRecvTest(map[string]string{}, consumerGroup2)).
-		//
+
 		// Gradually stop each broker.
 		// This tests the components ability to handle reconnections
 		// when brokers are shutdown cleanly.
@@ -346,13 +330,13 @@ func TestKafka(t *testing.T) {
 		Step("wait", flow.Sleep(5*time.Second)).
 		//
 		// Errors will occurring here.
-		// Step("interrupt network",
-		// 	network.InterruptNetwork(30*time.Second, nil, nil, "19092", "29092", "39092")).
+		Step("interrupt network",
+			network.InterruptNetwork(30*time.Second, nil, nil, "19092", "29092", "39092")).
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages(network interruption)", assertMessages(consumerGroup1, consumerGroup2)).
-		//
+
 		// Reset and test that all messages are received during a
 		// consumer rebalance.
 		Step("reset", flow.Reset(consumerGroup2)).

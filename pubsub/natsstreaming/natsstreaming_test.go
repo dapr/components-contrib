@@ -200,7 +200,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 		},
 
 		{
-			"using concurrencyMode",
+			"using concurrencyMode single",
 			map[string]string{
 				natsURL:                "nats://foo.bar:4222",
 				natsStreamingClusterID: "testcluster",
@@ -210,6 +210,19 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 				pubsub.ConcurrencyKey:  "single",
 			},
 			"concurrencyMode", "single",
+		},
+
+		{
+			"using concurrencyMode parallel",
+			map[string]string{
+				natsURL:                "nats://foo.bar:4222",
+				natsStreamingClusterID: "testcluster",
+				consumerID:             "consumer1",
+				subscriptionType:       "topic",
+				startAtTimeDelta:       "1h",
+				pubsub.ConcurrencyKey:  "parallel",
+			},
+			"concurrencyMode", "parallel",
 		},
 	}
 

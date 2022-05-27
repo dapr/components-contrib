@@ -346,8 +346,8 @@ func TestKafka(t *testing.T) {
 		Step("wait", flow.Sleep(5*time.Second)).
 		//
 		// Errors will occurring here.
-		// Step("interrupt network",
-		// 	network.InterruptNetwork(30*time.Second, nil, nil, "19092", "29092", "39092")).
+		Step("interrupt network",
+			network.InterruptNetwork(30*time.Second, nil, nil, "19092", "29092", "39092")).
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).

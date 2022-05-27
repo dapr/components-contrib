@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: alicloud-dingtalk-binding
+  namespace: default
+spec:
+  type: bindings.alicloud.dingtalk
+  version: v1
+  metadata:
+    - name: url
+      secretKeyRef:
+        name: DingTalkURL
+        key: DingTalkURL
+    - name: id
+      secretKeyRef:
+        name: DingTalkID
+        key: DingTalkID
+    - name: secret
+      secretKeyRef:
+        name: DingTalkSecret
+        key: DingTalkSecret
+
+auth:
+  secretStore: envvar-secret-store

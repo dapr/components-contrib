@@ -1,0 +1,21 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: standard-binding-1
+  namespace: default
+spec:
+  type: bindings.azure.storagequeues
+  version: v1
+  metadata:
+  - name: storageAccount
+    secretKeyRef:
+        name: AzureBlobStorageAccount
+        key:  AzureBlobStorageAccount
+  - name: storageAccessKey
+    secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key:  AzureBlobStorageAccessKey
+  - name: queue
+    value: queue1
+auth:
+  secretStore: envvar-secret-store

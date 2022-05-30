@@ -7,19 +7,19 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/pubsub v1.12.2
 	cloud.google.com/go/storage v1.10.0
-	github.com/Azure/azure-amqp-common-go/v3 v3.1.0
-	github.com/Azure/azure-event-hubs-go/v3 v3.3.10
-	github.com/Azure/azure-sdk-for-go v59.3.0+incompatible
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.20.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.3.0
+	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
+	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
+	github.com/Azure/azure-sdk-for-go v63.4.0+incompatible
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.23.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.14.0
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.7.0
 	github.com/Azure/azure-service-bus-go v0.10.10
 	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
-	github.com/Azure/go-amqp v0.13.1
-	github.com/Azure/go-autorest/autorest v0.11.23
-	github.com/Azure/go-autorest/autorest/adal v0.9.16
-	github.com/Azure/go-autorest/autorest/azure/auth v0.5.8
+	github.com/Azure/go-amqp v0.17.4
+	github.com/Azure/go-autorest/autorest v0.11.27
+	github.com/Azure/go-autorest/autorest/adal v0.9.18
+	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.23.1
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
@@ -32,7 +32,7 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/apache/rocketmq-client-go/v2 v2.1.0
+	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	github.com/apache/thrift v0.14.0 // indirect
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/aws/aws-sdk-go v1.41.7
@@ -62,7 +62,7 @@ require (
 	github.com/go-errors/errors v1.4.0 // indirect
 	github.com/go-logr/logr v1.2.0 // indirect
 	github.com/go-ole/go-ole v1.2.5 // indirect
-	github.com/go-redis/redis/v8 v8.8.0
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
 	github.com/gofrs/flock v0.8.1
@@ -98,7 +98,6 @@ require (
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
 	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
 	github.com/nats-io/stan.go v0.8.3
-	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/open-policy-agent/opa v0.23.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
@@ -112,7 +111,7 @@ require (
 	github.com/streadway/amqp v1.0.0
 	github.com/stretchr/testify v1.7.0
 	github.com/supplyon/gremcos v0.1.0
-	github.com/tidwall/gjson v1.8.0 // indirect
+	github.com/tidwall/gjson v1.8.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4
 	github.com/vmware/vmware-go-kcl v1.5.0
@@ -160,8 +159,12 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v0.4.0
+	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.87
 	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
+	go.uber.org/ratelimit v0.2.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 )
 
@@ -169,9 +172,14 @@ require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/internal v0.1.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.4.0 // indirect
+	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/appscode/go-querystring v0.0.0-20170504095604-0126cfb3f1dc // indirect
 	github.com/hashicorp/go-hclog v0.14.1 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
+	github.com/stathat/consistent v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 )
@@ -179,11 +187,11 @@ require (
 require (
 	github.com/99designs/keyring v1.2.0 // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
-	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.1.0 // indirect
+	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v0.9.2 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.3.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest/azure/cli v0.4.2 // indirect
+	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
@@ -228,7 +236,7 @@ require (
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.0.0 // indirect
+	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -258,7 +266,7 @@ require (
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/klauspost/compress v1.14.4 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
-	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
+	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -269,7 +277,7 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
-	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 // indirect
+	github.com/pkg/browser v0.0.0-20210115035449-ce105d075bb4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -294,9 +302,6 @@ require (
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	github.com/yashtewari/glob-intersection v0.0.0-20180916065949-5c77d914dd0b // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	go.opentelemetry.io/otel v0.20.0 // indirect
-	go.opentelemetry.io/otel/metric v0.20.0 // indirect
-	go.opentelemetry.io/otel/trace v0.20.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
@@ -324,7 +329,6 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-	stathat.com/c/consistent v1.0.0 // indirect
 )
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36

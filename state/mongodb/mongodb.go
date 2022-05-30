@@ -64,6 +64,9 @@ const (
 
 	// mongodb+srv://<server>/<params>
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
+
+	// mongodb+srv://<username>:<password>@<server>/<params>
+	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s"
 )
 
 // MongoDB is a state store implementation for MongoDB.
@@ -355,6 +358,10 @@ func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 
 func getMongoURI(metadata *mongoDBMetadata) string {
 	if len(metadata.server) != 0 {
+		if metadata.username != "" && metadata.password != "" {
+			return fmt.Sprintf(connectionURIFormatWithSrvAndCredentials, metadata.username, metadata.password, metadata.server, metadata.databaseName, metadata.params)
+		}
+
 		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.server, metadata.params)
 	}
 

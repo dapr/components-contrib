@@ -106,7 +106,7 @@ jobs:
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
-      # cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
+      cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
 
   certification:
     name: ${{ matrix.component }} certification
@@ -155,7 +155,7 @@ jobs:
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
         export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
-        export SOURCE_PATH="${PROJECT_PATH}/${TEST_COMPONENT}"
+        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
         echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
@@ -214,15 +214,9 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
-<<<<<<< HEAD
           --coverprofile=cover.out --covermode=set --coverpkg=${{ env.SOURCE_PATH }}
 
         cat cover.out
-=======
-          -count=1 -timeout=15m
-
-        go test --coverprofile=cover.out --covermode=set --coverpkg=${{ env.SOURCE_PATH }}
->>>>>>> 48c1485c (Using go test instead of gotestsum)
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
@@ -262,7 +256,7 @@ jobs:
       uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-        flags: cert
+        flags: $(echo ${{ matrix.component }} | sed -E 's/\./\//g')
 
     # Upload logs for test analytics to consume
     - name: Upload test results

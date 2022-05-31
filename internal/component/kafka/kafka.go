@@ -52,7 +52,9 @@ type Kafka struct {
 
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger: logger,
+		logger:          logger,
+		subscribeTopics: make(TopicHandlers),
+		subscribeLock:   sync.RWMutex{},
 	}
 }
 

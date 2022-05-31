@@ -15,6 +15,7 @@ package dubbo
 
 import (
 	"context"
+	"sync"
 
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/cluster/failover"
 	_ "dubbo.apache.org/dubbo-go/v3/cluster/loadbalance/random"
@@ -29,15 +30,16 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-type DUBBOOutputBinding struct {
-	ctxCache map[string]*dubboContext
+type DubboOutputBinding struct {
+	ctxCache  map[string]*dubboContext
+	cacheLock sync.RWMutex
 }
 
-var dubboBinding *DUBBOOutputBinding
+var dubboBinding *DubboOutputBinding
 
-func NewDUBBOOutput(logger logger.Logger) *DUBBOOutputBinding {
+func NewDubboOutput(logger logger.Logger) *DubboOutputBinding {
 	if dubboBinding == nil {
-		dubboBinding = &DUBBOOutputBinding{
+		dubboBinding = &DubboOutputBinding{
 			ctxCache: make(map[string]*dubboContext),
 		}
 	}
@@ -45,28 +47,38 @@ func NewDUBBOOutput(logger logger.Logger) *DUBBOOutputBinding {
 	return dubboBinding
 }
 
-func (out *DUBBOOutputBinding) Init(_ bindings.Metadata) error {
+func (out *DubboOutputBinding) Init(_ bindings.Metadata) error {
 	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
 	return nil
 }
 
-func (out *DUBBOOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (out *DubboOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var (
-		cachedDubboCtx = &dubboContext{}
+		cachedDubboCtx *dubboContext
 		ok             bool
 		finalResult    = &bindings.InvokeResponse{}
 	)
 
-	dubboCtx := newDUBBOContext(req.Metadata)
+	dubboCtx := newDubboContext(req.Metadata)
 	dubboCtxKey := dubboCtx.String()
 
+	out.cacheLock.RLock()
 	if cachedDubboCtx, ok = out.ctxCache[dubboCtxKey]; !ok {
-		// not found cached dubbo context, init ctx and store into cache
-		if err := dubboCtx.Init(); err != nil {
-			return finalResult, err
+		out.cacheLock.RUnlock()
+		out.cacheLock.Lock()
+		// double check
+		if cachedDubboCtx, ok = out.ctxCache[dubboCtxKey]; !ok {
+			// not found cached dubbo context, init ctx and store into cache
+			if err := dubboCtx.Init(); err != nil {
+				out.cacheLock.Unlock()
+				return finalResult, err
+			}
+			out.ctxCache[dubboCtxKey] = dubboCtx
+			cachedDubboCtx = dubboCtx
 		}
-		out.ctxCache[dubboCtxKey] = dubboCtx
-		cachedDubboCtx = dubboCtx
+		out.cacheLock.Unlock()
+	} else {
+		out.cacheLock.RUnlock()
 	}
 
 	rsp, err := cachedDubboCtx.Invoke(req.Data)
@@ -76,10 +88,6 @@ func (out *DUBBOOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeR
 	return finalResult, err
 }
 
-func (out *DUBBOOutputBinding) Operations() []bindings.OperationKind {
+func (out *DubboOutputBinding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
-}
-
-type ProxyInvoker struct {
-	Service func(ctx context.Context, methodName string, argsTypes []string, args [][]byte) ([]byte, error)
 }

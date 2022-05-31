@@ -59,7 +59,7 @@ func TestInvoke(t *testing.T) {
 	}()
 	time.Sleep(time.Second * 3)
 	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
-	output := NewDUBBOOutput(logger.NewLogger("test"))
+	output := NewDubboOutput(logger.NewLogger("test"))
 
 	// 1. create req/rsp value
 	reqUser := &User{Name: testName}
@@ -85,6 +85,7 @@ func TestInvoke(t *testing.T) {
 		},
 		Data: reqData,
 	})
+	assert.Nil(t, err)
 
 	// 4. get rsp value
 	decoder := hessian.NewDecoder(rsp.Data)

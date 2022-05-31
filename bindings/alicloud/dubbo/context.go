@@ -28,10 +28,11 @@ type dubboContext struct {
 	port          string
 	method        string
 
+	inited bool
 	client *generic.GenericService
 }
 
-func newDUBBOContext(metadata map[string]string) *dubboContext {
+func newDubboContext(metadata map[string]string) *dubboContext {
 	dubboMetadata := &dubboContext{}
 	dubboMetadata.group = metadata[metadataRpcGroup]
 	dubboMetadata.interfaceName = metadata[metadataRpcInterface]
@@ -39,10 +40,14 @@ func newDUBBOContext(metadata map[string]string) *dubboContext {
 	dubboMetadata.method = metadata[metadataRpcMethodName]
 	dubboMetadata.hostname = metadata[metadataRpcProviderHostname]
 	dubboMetadata.port = metadata[metadataRpcProviderPort]
+	dubboMetadata.inited = false
 	return dubboMetadata
 }
 
 func (d *dubboContext) Init() error {
+	if d.inited {
+		return nil
+	}
 	consumerConfig := config.NewConsumerConfigBuilder().Build()
 	consumerConfig.ProxyFactory = constant.PassThroughProxyFactoryKey
 	rootConfig := config.NewRootConfigBuilder().
@@ -66,6 +71,7 @@ func (d *dubboContext) Init() error {
 		return perrors.Errorf("Get gerneric service of dubbo failed")
 	}
 	d.client = genericService
+	d.inited = true
 	return nil
 }
 

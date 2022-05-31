@@ -89,7 +89,7 @@ func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 	return b, err
 }
 
-func (g *GCPPubSub) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (g *GCPPubSub) Read(handler bindings.Handler) error {
 	sub := g.client.Subscription(g.metadata.Subscription)
 	err := sub.Receive(context.Background(), func(ctx context.Context, m *pubsub.Message) {
 		_, err := handler(ctx, &bindings.ReadResponse{

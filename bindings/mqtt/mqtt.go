@@ -222,7 +222,7 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 	})
 }
 
-func (m *MQTT) handleMessage(handler func(context.Context, *bindings.ReadResponse) ([]byte, error), mqttMsg mqtt.Message) error {
+func (m *MQTT) handleMessage(handler bindings.Handler, mqttMsg mqtt.Message) error {
 	msg := bindings.ReadResponse{
 		Data:     mqttMsg.Payload(),
 		Metadata: map[string]string{mqttTopic: mqttMsg.Topic()},

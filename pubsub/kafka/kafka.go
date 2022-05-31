@@ -15,8 +15,6 @@ package kafka
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	"github.com/dapr/kit/logger"
 
@@ -25,9 +23,7 @@ import (
 )
 
 type PubSub struct {
-	kafka  *kafka.Kafka
-	topics map[string]pubsub.Handler
-	lock   sync.RWMutex
+	kafka *kafka.Kafka
 }
 
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
@@ -35,40 +31,8 @@ func (p *PubSub) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *PubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	// Add the topic to the list of those we subscribe to
-	p.lock.Lock()
-	p.topics[req.Topic] = handler
-	topics := p.topicList()
-	p.lock.Unlock()
-
-	return p.kafka.Subscribe(context.Background(), topics, req.Metadata, p.handleMessage)
-}
-
-func (p *PubSub) handleMessage(ctx context.Context, event *kafka.NewEvent) error {
-	// Get the handler
-	handler, ok := p.topics[event.Topic]
-	if !ok || handler == nil {
-		return fmt.Errorf("handler for messages of topic %s not found", event.Topic)
-	}
-
-	// Invoke the handler
-	msg := &pubsub.NewMessage{
-		Topic:       event.Topic,
-		Data:        event.Data,
-		Metadata:    event.Metadata,
-		ContentType: event.ContentType,
-	}
-	return handler(ctx, msg)
-}
-
-func (p *PubSub) topicList() []string {
-	topics := make([]string, len(p.topics))
-	i := 0
-	for topic := range p.topics {
-		topics[i] = topic
-		i++
-	}
-	return topics
+	p.kafka.AddTopicHandler(req.Topic, adaptHandler(handler))
+	return p.kafka.Subscribe(context.Background())
 }
 
 // NewKafka returns a new kafka pubsub instance.
@@ -77,9 +41,7 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 	// in kafka pubsub component, enable consumer retry by default
 	k.DefaultConsumeRetryEnabled = true
 	return &PubSub{
-		kafka:  k,
-		topics: make(map[string]pubsub.Handler),
-		lock:   sync.RWMutex{},
+		kafka: k,
 	}
 }
 
@@ -94,4 +56,15 @@ func (p *PubSub) Close() (err error) {
 
 func (p *PubSub) Features() []pubsub.Feature {
 	return nil
+}
+
+func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
+	return func(ctx context.Context, event *kafka.NewEvent) error {
+		return handler(ctx, &pubsub.NewMessage{
+			Topic:       event.Topic,
+			Data:        event.Data,
+			Metadata:    event.Metadata,
+			ContentType: event.ContentType,
+		})
+	}
 }

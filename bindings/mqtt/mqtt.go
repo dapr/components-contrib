@@ -251,7 +251,7 @@ func (m *MQTT) handleMessage(handler func(context.Context, *bindings.ReadRespons
 	}
 }
 
-func (m *MQTT) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (m *MQTT) Read(handler bindings.Handler) error {
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
 

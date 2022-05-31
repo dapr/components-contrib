@@ -46,9 +46,7 @@ func (p *PubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 
 func (p *PubSub) handleMessage(ctx context.Context, event *kafka.NewEvent) error {
 	// Get the handler
-	p.lock.RLock()
 	handler, ok := p.topics[event.Topic]
-	p.lock.RUnlock()
 	if !ok || handler == nil {
 		return fmt.Errorf("handler for messages of topic %s not found", event.Topic)
 	}

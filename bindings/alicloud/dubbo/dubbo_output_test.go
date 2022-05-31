@@ -128,8 +128,7 @@ func runDubboServer(stop chan struct{}) error {
 	return nil
 }
 
-type UserProvider struct {
-}
+type UserProvider struct{}
 
 func (u *UserProvider) SayHello(_ context.Context, user *User) (*User, error) {
 	user.Name = helloPrefix + user.Name

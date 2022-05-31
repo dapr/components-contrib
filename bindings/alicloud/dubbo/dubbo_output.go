@@ -89,5 +89,5 @@ func (out *DubboOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeR
 }
 
 func (out *DubboOutputBinding) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{bindings.GetOperation}
 }

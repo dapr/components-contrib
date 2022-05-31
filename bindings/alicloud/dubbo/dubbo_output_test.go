@@ -36,7 +36,7 @@ const (
 	providerTypeName      = "UserProvider"
 	methodName            = "SayHello"
 	helloPrefix           = "hello "
-	testName              = "laurence"
+	testName              = "dubbo-test"
 )
 
 type User struct {
@@ -83,7 +83,8 @@ func TestInvoke(t *testing.T) {
 			metadataRpcMethodName:       methodName,
 			metadataRpcInterface:        providerInterfaceName,
 		},
-		Data: reqData,
+		Data:      reqData,
+		Operation: bindings.GetOperation,
 	})
 	assert.Nil(t, err)
 

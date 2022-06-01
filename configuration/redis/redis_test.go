@@ -73,7 +73,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
 					},
-				}},
+				},
+			},
 		},
 		{
 			name: "get with no request key",
@@ -96,7 +97,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 						Value:    "testValue2",
 						Metadata: make(map[string]string),
 					},
-				}},
+				},
+			},
 		},
 		{
 			name: "get with not exists key",
@@ -140,7 +142,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 						Value:    "testValue2",
 						Metadata: make(map[string]string),
 					},
-				}},
+				},
+			},
 			restore: func(client *redis.Client) {
 				client.HDel(context.Background(), "notSupportedType")
 			},

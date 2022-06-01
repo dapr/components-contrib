@@ -23,34 +23,16 @@ import (
 )
 
 type PubSub struct {
-	kafka  *kafka.Kafka
-	topics map[string]bool
+	kafka *kafka.Kafka
 }
 
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
-	p.topics = make(map[string]bool)
 	return p.kafka.Init(metadata.Properties)
 }
 
 func (p *PubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	topics := p.addTopic(req.Topic)
-
-	return p.kafka.Subscribe(topics, req.Metadata, newSubscribeAdapter(handler).adapter)
-}
-
-func (p *PubSub) addTopic(newTopic string) []string {
-	// Add topic to our map of topics
-	p.topics[newTopic] = true
-
-	topics := make([]string, len(p.topics))
-
-	i := 0
-	for topic := range p.topics {
-		topics[i] = topic
-		i++
-	}
-
-	return topics
+	p.kafka.AddTopicHandler(req.Topic, adaptHandler(handler))
+	return p.kafka.Subscribe(context.Background())
 }
 
 // NewKafka returns a new kafka pubsub instance.
@@ -76,20 +58,13 @@ func (p *PubSub) Features() []pubsub.Feature {
 	return nil
 }
 
-// subscribeAdapter is used to adapter pubsub.Handler to kafka.EventHandler with the same content.
-type subscribeAdapter struct {
-	handler pubsub.Handler
-}
-
-func newSubscribeAdapter(handler pubsub.Handler) *subscribeAdapter {
-	return &subscribeAdapter{handler: handler}
-}
-
-func (a *subscribeAdapter) adapter(ctx context.Context, event *kafka.NewEvent) error {
-	return a.handler(ctx, &pubsub.NewMessage{
-		Topic:       event.Topic,
-		Data:        event.Data,
-		Metadata:    event.Metadata,
-		ContentType: event.ContentType,
-	})
+func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
+	return func(ctx context.Context, event *kafka.NewEvent) error {
+		return handler(ctx, &pubsub.NewMessage{
+			Topic:       event.Topic,
+			Data:        event.Data,
+			Metadata:    event.Metadata,
+			ContentType: event.ContentType,
+		})
+	}
 }

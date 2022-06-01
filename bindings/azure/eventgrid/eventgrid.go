@@ -74,7 +74,7 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AzureEventGrid) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureEventGrid) Read(handler bindings.Handler) error {
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err

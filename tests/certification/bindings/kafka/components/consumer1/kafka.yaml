@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: bindings.kafka
+  version: v1
+  metadata:
+  - name: topics # Input binding topic
+    value: neworder
+  - name: publishTopic # Outpub binding topic
+    value: neworder
+  - name: brokers
+    value: localhost:19092,localhost:29092,localhost:39092
+  - name: consumerGroup
+    value: kafkaCertification1
+  - name: authType
+    value: "none"
+  - name: initialOffset
+    value: oldest
+  - name: backOffDuration
+    value: 50ms
+  - name: backOffDuration
+    value: 50ms

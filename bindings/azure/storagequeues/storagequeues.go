@@ -38,7 +38,7 @@ const (
 )
 
 type consumer struct {
-	callback func(context.Context, *bindings.ReadResponse) ([]byte, error)
+	callback bindings.Handler
 }
 
 // QueueHelper enables injection for testnig.
@@ -265,7 +265,7 @@ func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeReq
 	return nil, nil
 }
 
-func (a *AzureStorageQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureStorageQueues) Read(handler bindings.Handler) error {
 	c := consumer{
 		callback: handler,
 	}

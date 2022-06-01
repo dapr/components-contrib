@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification/pubsub/kafka
+module github.com/dapr/components-contrib/tests/certification/binding/kafka
 
 go 1.18
 

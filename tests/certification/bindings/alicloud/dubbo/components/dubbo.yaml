@@ -1,0 +1,8 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: alicloud-dubbo-binding
+  namespace: default
+spec:
+  type: bindings.alicloud.dubbo
+  version: v1

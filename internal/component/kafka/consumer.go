@@ -100,9 +100,7 @@ func (k *Kafka) RemoveTopicHandler(topic string) {
 
 // GetTopicHandler returns the handler for a topic
 func (k *Kafka) GetTopicHandler(topic string) (EventHandler, error) {
-	k.subscribeLock.RLock()
 	handler, ok := k.subscribeTopics[topic]
-	k.subscribeLock.RUnlock()
 	if !ok || handler == nil {
 		return nil, fmt.Errorf("handler for messages of topic %s not found", topic)
 	}
@@ -112,12 +110,12 @@ func (k *Kafka) GetTopicHandler(topic string) (EventHandler, error) {
 
 // Subscribe to topic in the Kafka cluster, in a background goroutine
 func (k *Kafka) Subscribe(ctx context.Context) error {
-	k.subscribeLock.Lock()
-	defer k.subscribeLock.Unlock()
-
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
+
+	k.subscribeLock.Lock()
+	defer k.subscribeLock.Unlock()
 
 	// Close resources and reset synchronization primitives
 	k.closeSubscriptionResources()

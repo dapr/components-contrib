@@ -67,8 +67,8 @@ type Pulsar struct {
 	client   pulsar.Client
 	metadata pulsarMetadata
 
-	ctx           context.Context
-	cancel        context.CancelFunc
+	publishCtx    context.Context
+	publishCancel context.CancelFunc
 	backOffConfig retry.Config
 	cache         *lru.Cache
 }
@@ -184,7 +184,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	p.cache = c
 	defer p.cache.Purge()
 
-	p.ctx, p.cancel = context.WithCancel(context.Background())
+	p.publishCtx, p.publishCancel = context.WithCancel(context.Background())
 
 	p.client = client
 	p.metadata = *m
@@ -231,7 +231,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return err
 	}
-	if _, err = producer.Send(context.Background(), msg); err != nil {
+	if _, err = producer.Send(p.publishCtx, msg); err != nil {
 		return err
 	}
 
@@ -261,7 +261,7 @@ func parsePublishMetadata(req *pubsub.PublishRequest) (
 	return
 }
 
-func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
 	topic := p.formatTopic(req.Topic)
@@ -275,46 +275,44 @@ func (p *Pulsar) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {
 		p.logger.Debugf("Could not subscribe to %s, full topic name in pulsar is %s", req.Topic, topic)
-
 		return err
 	}
 
-	go p.listenMessage(req.Topic, consumer, handler)
+	go p.listenMessage(ctx, req.Topic, consumer, handler)
 
 	return nil
 }
 
-func (p *Pulsar) listenMessage(originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessage(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			if err := p.handleMessage(originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
+			if err := p.handleMessage(ctx, originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
 				p.logger.Errorf("Error processing message and retries are exhausted: %s/%#v [key=%s]. Closing consumer.", msg.Topic(), msg.ID(), msg.Key())
-
 				return
 			}
 
-		case <-p.ctx.Done():
-			// Handle the component being closed
+		case <-ctx.Done():
+			p.logger.Errorf("Subscription context done. Closing consumer. Err: %s", ctx.Err())
 			return
 		}
 	}
 }
 
-func (p *Pulsar) handleMessage(originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
+func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg pulsar.ConsumerMessage, handler pubsub.Handler) error {
 	pubsubMsg := pubsub.NewMessage{
 		Data:     msg.Payload(),
 		Topic:    originTopic,
 		Metadata: msg.Properties(),
 	}
 
-	b := p.backOffConfig.NewBackOffWithContext(p.ctx)
+	b := p.backOffConfig.NewBackOffWithContext(ctx)
 
 	return retry.NotifyRecover(func() error {
 		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
-		err := handler(p.ctx, &pubsubMsg)
+		err := handler(ctx, &pubsubMsg)
 		if err == nil {
 			msg.Ack(msg.Message)
 		}
@@ -328,7 +326,7 @@ func (p *Pulsar) handleMessage(originTopic string, msg pulsar.ConsumerMessage, h
 }
 
 func (p *Pulsar) Close() error {
-	p.cancel()
+	p.publishCancel()
 	for _, k := range p.cache.Keys() {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {

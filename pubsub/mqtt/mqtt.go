@@ -56,21 +56,21 @@ const (
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
 type mqttPubSub struct {
-	producer   mqtt.Client
-	consumer   mqtt.Client
-	metadata   *metadata
-	logger     logger.Logger
-	topics     map[string]pubsub.Handler
-	topicsLock sync.RWMutex
-	ctx        context.Context
-	cancel     context.CancelFunc
+	producer        mqtt.Client
+	consumer        mqtt.Client
+	metadata        *metadata
+	logger          logger.Logger
+	topics          map[string]pubsub.Handler
+	subscribingLock sync.Mutex
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 // NewMQTTPubSub returns a new mqttPubSub instance.
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{
-		logger:     logger,
-		topicsLock: sync.RWMutex{},
+		logger:          logger,
+		subscribingLock: sync.Mutex{},
 	}
 }
 
@@ -198,8 +198,8 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 
 // Subscribe to the mqtt pub sub topic.
 func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	m.topicsLock.Lock()
-	defer m.topicsLock.Unlock()
+	m.subscribingLock.Lock()
+	defer m.subscribingLock.Unlock()
 
 	// reset synchronization
 	if m.consumer != nil && m.consumer.IsConnectionOpen() {
@@ -236,9 +236,7 @@ func (m *mqttPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handl
 				Data:  mqttMsg.Payload(),
 			}
 
-			m.topicsLock.RLock()
 			topicHandler, ok := m.topics[msg.Topic]
-			m.topicsLock.RUnlock()
 			if !ok || topicHandler == nil {
 				m.logger.Errorf("no handler defined for topic %s", msg.Topic)
 				return

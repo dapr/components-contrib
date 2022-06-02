@@ -78,7 +78,7 @@ func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the rocketmq subscription.
-func (a *AliCloudRocketMQ) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (a *AliCloudRocketMQ) Read(handler bindings.Handler) error {
 	a.logger.Debugf("binding rocketmq: start read input binding")
 
 	var err error
@@ -254,7 +254,7 @@ func (a *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, e
 
 type mqCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
 
-func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) mqCallback {
+func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler bindings.Handler) mqCallback {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		success := true
 		for _, v := range msgs {

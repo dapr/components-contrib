@@ -27,9 +27,10 @@ import (
 )
 
 type consumer struct {
-	k     *Kafka
-	ready chan bool
-	once  sync.Once
+	k       *Kafka
+	ready   chan bool
+	running chan struct{}
+	once    sync.Once
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
@@ -120,6 +121,12 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 	// Close resources and reset synchronization primitives
 	k.closeSubscriptionResources()
 
+	topics := k.subscribeTopics.TopicList()
+	if len(topics) == 0 {
+		// Nothing to subscribe to
+		return nil
+	}
+
 	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
 	if err != nil {
 		return err
@@ -132,11 +139,10 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 
 	ready := make(chan bool)
 	k.consumer = consumer{
-		k:     k,
-		ready: ready,
+		k:       k,
+		ready:   ready,
+		running: make(chan struct{}),
 	}
-
-	topics := k.subscribeTopics.TopicList()
 
 	go func() {
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
@@ -153,6 +159,9 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 			// Consume the requested topics
 			bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
 			innerErr := retry.NotifyRecover(func() error {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return backoff.Permanent(ctxErr)
+				}
 				return k.cg.Consume(ctx, topics, &(k.consumer))
 			}, bo, func(err error, t time.Duration) {
 				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
@@ -169,6 +178,8 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 		if err != nil {
 			k.logger.Errorf("Error closing consumer group: %v", err)
 		}
+
+		close(k.consumer.running)
 	}()
 
 	<-ready
@@ -186,6 +197,8 @@ func (k *Kafka) closeSubscriptionResources() {
 		}
 
 		k.consumer.once.Do(func() {
+			// Wait for shutdown to be complete
+			<-k.consumer.running
 			close(k.consumer.ready)
 			k.consumer.once = sync.Once{}
 		})

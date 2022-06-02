@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -35,7 +35,6 @@ func newBroker() *rabbitMQInMemoryBroker {
 func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
-		stopped:           false,
 		logger:            logger.NewLogger("test"),
 		connectionDial: func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 			broker.connectCount++
@@ -63,7 +62,7 @@ func TestNoConsumer(t *testing.T) {
 	}
 	err := pubsubRabbitMQ.Init(metadata)
 	assert.NoError(t, err)
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{}, nil)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{}, nil)
 	assert.Contains(t, err.Error(), "consumerID is required for subscriptions")
 }
 
@@ -140,7 +139,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -183,7 +182,7 @@ func TestPublishReconnect(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -234,7 +233,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -287,7 +286,7 @@ func TestSubscribeReconnect(t *testing.T) {
 		return errors.New(errorChannelConnection)
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -363,4 +362,8 @@ func (r *rabbitMQInMemoryBroker) Close() error {
 	r.closeCount++
 
 	return nil
+}
+
+func (r *rabbitMQInMemoryBroker) IsClosed() bool {
+	return r.connectCount <= r.closeCount
 }

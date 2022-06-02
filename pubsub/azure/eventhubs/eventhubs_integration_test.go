@@ -77,7 +77,7 @@ func testReadIotHubEvents(t *testing.T) {
 	// Setup subscription to capture messages in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.
 	var messages []pubsub.NewMessage
-	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+	handler := func(_ context.Context, msg *pubsub.NewMessage) error {
 		messages = append(messages, *msg)
 		return nil
 	}

@@ -16,6 +16,8 @@ package pubsub
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
@@ -34,6 +37,8 @@ import (
 const (
 	defaultPubsubName             = "pubusub"
 	defaultTopicName              = "testTopic"
+	defaultMultiTopic1Name        = "multiTopic1"
+	defaultMultiTopic2Name        = "multiTopic2"
 	defaultMessageCount           = 10
 	defaultMaxReadDuration        = 60 * time.Second
 	defaultWaitDurationToPublish  = 5 * time.Second
@@ -44,6 +49,8 @@ type TestConfig struct {
 	utils.CommonConfig
 	PubsubName             string            `mapstructure:"pubsubName"`
 	TestTopicName          string            `mapstructure:"testTopicName"`
+	TestMultiTopic1Name    string            `mapstructure:"testMultiTopic1Name"`
+	TestMultiTopic2Name    string            `mapstructure:"testMultiTopic2Name"`
 	PublishMetadata        map[string]string `mapstructure:"publishMetadata"`
 	SubscribeMetadata      map[string]string `mapstructure:"subscribeMetadata"`
 	MessageCount           int               `mapstructure:"messageCount"`
@@ -63,6 +70,8 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 		},
 		PubsubName:             defaultPubsubName,
 		TestTopicName:          defaultTopicName,
+		TestMultiTopic1Name:    defaultMultiTopic1Name,
+		TestMultiTopic2Name:    defaultMultiTopic2Name,
 		MessageCount:           defaultMessageCount,
 		MaxReadDuration:        defaultMaxReadDuration,
 		WaitDurationToPublish:  defaultWaitDurationToPublish,
@@ -191,24 +200,23 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				if err == nil {
 					awaitingMessages[string(data)] = struct{}{}
 				}
-				assert.NoError(t, err, "expected no error on publishing data %s", data)
+				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
 			}
 		})
 	}
 
 	// Verify read
-	if config.HasOperation("subscribe") {
+	if config.HasOperation("publish") && config.HasOperation("subscribe") {
 		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
-			timer := time.NewTimer(config.MaxReadDuration)
-			defer timer.Stop()
+			timeout := time.After(config.MaxReadDuration)
 			waiting := true
 			for waiting {
 				select {
 				case processed := <-processedC:
 					delete(awaitingMessages, processed)
 					waiting = len(awaitingMessages) > 0
-				case <-timer.C:
+				case <-timeout:
 					// Break out after the mamimum read duration has elapsed
 					waiting = false
 				}
@@ -217,4 +225,80 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			assert.Empty(t, awaitingMessages, "expected to read %v messages", config.MessageCount)
 		})
 	}
+
+	// Multiple handlers
+	if config.HasOperation("multiplehandlers") {
+		t.Run("mutiple handlers", func(t *testing.T) {
+			topic1Ch := make(chan string, config.MessageCount)
+			createMultiSubscriber(t, topic1Ch, ps, config.TestMultiTopic1Name, config.SubscribeMetadata, dataPrefix)
+			topic2Ch := make(chan string, config.MessageCount)
+			createMultiSubscriber(t, topic2Ch, ps, config.TestMultiTopic2Name, config.SubscribeMetadata, dataPrefix)
+
+			expectTopic1 := make([]string, 0)
+			expectTopic2 := make([]string, 0)
+			for k := (config.MessageCount + 1); k <= (config.MessageCount * 2); k++ {
+				data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
+				var topic string
+				if k%2 == 0 {
+					topic = config.TestMultiTopic1Name
+					expectTopic1 = append(expectTopic1, string(data))
+				} else {
+					topic = config.TestMultiTopic2Name
+					expectTopic2 = append(expectTopic2, string(data))
+				}
+				err := ps.Publish(&pubsub.PublishRequest{
+					Data:       data,
+					PubsubName: config.PubsubName,
+					Topic:      topic,
+					Metadata:   config.PublishMetadata,
+				})
+				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
+			}
+			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+
+			receivedTopic1 := make([]string, 0)
+			receivedTopic2 := make([]string, 0)
+			timeout := time.After(config.MaxReadDuration)
+		loop:
+			for {
+				select {
+				case msg := <-topic1Ch:
+					receivedTopic1 = append(receivedTopic1, msg)
+					if compareReceivedAndExpected(receivedTopic1, expectTopic1) && compareReceivedAndExpected(receivedTopic2, expectTopic2) {
+						break loop
+					}
+				case msg := <-topic2Ch:
+					receivedTopic2 = append(receivedTopic2, msg)
+					if compareReceivedAndExpected(receivedTopic1, expectTopic1) && compareReceivedAndExpected(receivedTopic2, expectTopic2) {
+						break loop
+					}
+				case <-timeout:
+					assert.Failf(t, "timeout while waiting for messages in multihandlers", "receivedTopic1=%v receivedTopic2=%v", receivedTopic1, receivedTopic2)
+					break loop
+				}
+			}
+		})
+	}
+}
+
+func compareReceivedAndExpected(received []string, expected []string) bool {
+	sort.Strings(received)
+	sort.Strings(expected)
+	return reflect.DeepEqual(received, expected)
+}
+
+func createMultiSubscriber(t *testing.T, ch chan<- string, ps pubsub.PubSub, topic string, subscribeMetadata map[string]string, dataPrefix string) {
+	err := ps.Subscribe(pubsub.SubscribeRequest{
+		Topic:    topic,
+		Metadata: subscribeMetadata,
+	}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+		dataString := string(msg.Data)
+		if !strings.HasPrefix(dataString, dataPrefix) {
+			t.Logf("Ignoring message without expected prefix")
+			return nil
+		}
+		ch <- string(msg.Data)
+		return nil
+	})
+	require.NoError(t, err, "expected no error on subscribe")
 }

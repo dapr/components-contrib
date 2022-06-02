@@ -110,13 +110,14 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	errorCount := 0
 	dataPrefix := "message-" + runID + "-"
 	var outOfOrder bool
+	ctx := context.Background()
 
 	// Subscribe
 	if config.HasOperation("subscribe") { // nolint: nestif
 		t.Run("subscribe", func(t *testing.T) {
 			var counter int
 			var lastSequence int
-			err := ps.Subscribe(pubsub.SubscribeRequest{
+			err := ps.Subscribe(ctx, pubsub.SubscribeRequest{
 				Topic:    config.TestTopicName,
 				Metadata: config.SubscribeMetadata,
 			}, func(ctx context.Context, msg *pubsub.NewMessage) error {
@@ -228,23 +229,40 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 	// Multiple handlers
 	if config.HasOperation("multiplehandlers") {
-		t.Run("mutiple handlers", func(t *testing.T) {
-			topic1Ch := make(chan string, config.MessageCount)
-			createMultiSubscriber(t, topic1Ch, ps, config.TestMultiTopic1Name, config.SubscribeMetadata, dataPrefix)
-			topic2Ch := make(chan string, config.MessageCount)
-			createMultiSubscriber(t, topic2Ch, ps, config.TestMultiTopic2Name, config.SubscribeMetadata, dataPrefix)
+		received1Ch := make(chan string)
+		received2Ch := make(chan string)
+		subscribe1Ctx, subscribe1Cancel := context.WithCancel(context.Background())
+		subscribe2Ctx, subscribe2Cancel := context.WithCancel(context.Background())
+		defer func() {
+			subscribe1Cancel()
+			subscribe2Cancel()
+			close(received1Ch)
+			close(received2Ch)
+		}()
 
-			expectTopic1 := make([]string, 0)
-			expectTopic2 := make([]string, 0)
+		t.Run("mutiple handlers", func(t *testing.T) {
+			createMultiSubscriber(t, subscribe1Ctx, received1Ch, ps, config.TestMultiTopic1Name, config.SubscribeMetadata, dataPrefix)
+			createMultiSubscriber(t, subscribe2Ctx, received2Ch, ps, config.TestMultiTopic2Name, config.SubscribeMetadata, dataPrefix)
+
+			sent1Ch := make(chan string)
+			sent2Ch := make(chan string)
+			allSentCh := make(chan bool)
+			defer func() {
+				close(sent1Ch)
+				close(sent2Ch)
+				close(allSentCh)
+			}()
+			wait := receiveInBackground(t, config.MaxReadDuration, received1Ch, received2Ch, sent1Ch, sent2Ch, allSentCh)
+
 			for k := (config.MessageCount + 1); k <= (config.MessageCount * 2); k++ {
 				data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
 				var topic string
 				if k%2 == 0 {
 					topic = config.TestMultiTopic1Name
-					expectTopic1 = append(expectTopic1, string(data))
+					sent1Ch <- string(data)
 				} else {
 					topic = config.TestMultiTopic2Name
-					expectTopic2 = append(expectTopic2, string(data))
+					sent2Ch <- string(data)
 				}
 				err := ps.Publish(&pubsub.PublishRequest{
 					Data:       data,
@@ -254,31 +272,107 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				})
 				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
 			}
+			allSentCh <- true
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+			<-wait
+		})
 
-			receivedTopic1 := make([]string, 0)
-			receivedTopic2 := make([]string, 0)
-			timeout := time.After(config.MaxReadDuration)
-		loop:
-			for {
-				select {
-				case msg := <-topic1Ch:
-					receivedTopic1 = append(receivedTopic1, msg)
-					if compareReceivedAndExpected(receivedTopic1, expectTopic1) && compareReceivedAndExpected(receivedTopic2, expectTopic2) {
-						break loop
-					}
-				case msg := <-topic2Ch:
-					receivedTopic2 = append(receivedTopic2, msg)
-					if compareReceivedAndExpected(receivedTopic1, expectTopic1) && compareReceivedAndExpected(receivedTopic2, expectTopic2) {
-						break loop
-					}
-				case <-timeout:
-					assert.Failf(t, "timeout while waiting for messages in multihandlers", "receivedTopic1=%v receivedTopic2=%v", receivedTopic1, receivedTopic2)
-					break loop
+		t.Run("stop subscribers", func(t *testing.T) {
+			sent1Ch := make(chan string)
+			sent2Ch := make(chan string)
+			allSentCh := make(chan bool)
+			defer func() {
+				close(allSentCh)
+			}()
+
+			for i := 0; i < 3; i++ {
+				switch i {
+				case 1: // On iteration 1, close the first subscriber
+					subscribe1Cancel()
+					close(sent1Ch)
+					sent1Ch = nil
+					time.Sleep(config.WaitDurationToPublish)
+				case 2: // On iteration 1, close the second subscriber
+					subscribe2Cancel()
+					close(sent2Ch)
+					sent2Ch = nil
+					time.Sleep(config.WaitDurationToPublish)
 				}
+
+				wait := receiveInBackground(t, config.MaxReadDuration, received1Ch, received2Ch, sent1Ch, sent2Ch, allSentCh)
+
+				offset := config.MessageCount * (i + 2)
+				for k := offset + 1; k <= (offset + config.MessageCount); k++ {
+					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
+					var topic string
+					if k%2 == 0 {
+						topic = config.TestMultiTopic1Name
+						if sent1Ch != nil {
+							sent1Ch <- string(data)
+						}
+					} else {
+						topic = config.TestMultiTopic2Name
+						if sent2Ch != nil {
+							sent2Ch <- string(data)
+						}
+					}
+					err := ps.Publish(&pubsub.PublishRequest{
+						Data:       data,
+						PubsubName: config.PubsubName,
+						Topic:      topic,
+						Metadata:   config.PublishMetadata,
+					})
+					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
+				}
+
+				allSentCh <- true
+				t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+				<-wait
 			}
 		})
 	}
+}
+
+func receiveInBackground(t *testing.T, timeout time.Duration, received1Ch <-chan string, received2Ch <-chan string, sent1Ch <-chan string, sent2Ch <-chan string, allSentCh <-chan bool) <-chan struct{} {
+	done := make(chan struct{})
+
+	go func() {
+		receivedTopic1 := make([]string, 0)
+		expectedTopic1 := make([]string, 0)
+		receivedTopic2 := make([]string, 0)
+		expectedTopic2 := make([]string, 0)
+		to := time.NewTimer(timeout)
+		allSent := false
+
+		defer func() {
+			to.Stop()
+			close(done)
+		}()
+
+		for {
+			select {
+			case msg := <-received1Ch:
+				receivedTopic1 = append(receivedTopic1, msg)
+			case msg := <-received2Ch:
+				receivedTopic2 = append(receivedTopic2, msg)
+			case msg := <-sent1Ch:
+				expectedTopic1 = append(expectedTopic1, msg)
+			case msg := <-sent2Ch:
+				expectedTopic2 = append(expectedTopic2, msg)
+			case v := <-allSentCh:
+				allSent = v
+			case <-to.C:
+				assert.Failf(t, "timeout while waiting for messages in multihandlers", "receivedTopic1=%v expectedTopic1=%v receivedTopic2=%v expectedTopic2=%v", receivedTopic1, expectedTopic1, receivedTopic2, expectedTopic2)
+				return
+			}
+
+			if allSent && compareReceivedAndExpected(receivedTopic1, expectedTopic1) && compareReceivedAndExpected(receivedTopic2, expectedTopic2) {
+				return
+			}
+		}
+	}()
+
+	return done
 }
 
 func compareReceivedAndExpected(received []string, expected []string) bool {
@@ -287,14 +381,14 @@ func compareReceivedAndExpected(received []string, expected []string) bool {
 	return reflect.DeepEqual(received, expected)
 }
 
-func createMultiSubscriber(t *testing.T, ch chan<- string, ps pubsub.PubSub, topic string, subscribeMetadata map[string]string, dataPrefix string) {
-	err := ps.Subscribe(pubsub.SubscribeRequest{
+func createMultiSubscriber(t *testing.T, subscribeCtx context.Context, ch chan<- string, ps pubsub.PubSub, topic string, subscribeMetadata map[string]string, dataPrefix string) {
+	err := ps.Subscribe(subscribeCtx, pubsub.SubscribeRequest{
 		Topic:    topic,
 		Metadata: subscribeMetadata,
 	}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		dataString := string(msg.Data)
 		if !strings.HasPrefix(dataString, dataPrefix) {
-			t.Logf("Ignoring message without expected prefix")
+			t.Log("Ignoring message without expected prefix", dataString)
 			return nil
 		}
 		ch <- string(msg.Data)

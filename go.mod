@@ -105,7 +105,6 @@ require (
 	github.com/sendgrid/rest v2.6.3+incompatible // indirect
 	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
 	github.com/sergi/go-diff v1.2.0 // indirect
-	github.com/streadway/amqp v1.0.0
 	github.com/stretchr/testify v1.7.1
 	github.com/supplyon/gremcos v0.1.0
 	github.com/tidwall/gjson v1.8.1 // indirect
@@ -163,6 +162,7 @@ require (
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.87
 	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
+	github.com/rabbitmq/amqp091-go v1.3.4
 	go.uber.org/ratelimit v0.2.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 )

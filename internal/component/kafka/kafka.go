@@ -39,7 +39,7 @@ type Kafka struct {
 	consumer        consumer
 	config          *sarama.Config
 	subscribeTopics TopicHandlers
-	subscribeLock   sync.RWMutex
+	subscribeLock   sync.Mutex
 
 	backOffConfig retry.Config
 
@@ -54,7 +54,7 @@ func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
 		logger:          logger,
 		subscribeTopics: make(TopicHandlers),
-		subscribeLock:   sync.RWMutex{},
+		subscribeLock:   sync.Mutex{},
 	}
 }
 

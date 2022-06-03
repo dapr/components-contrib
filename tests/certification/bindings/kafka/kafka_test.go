@@ -229,7 +229,8 @@ func TestKafka(t *testing.T) {
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
-		Step("wait for kafka readiness", retry.Do(time.Second, 30, func(ctx flow.Context) error {
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			config := sarama.NewConfig()
 			config.ClientID = "test-consumer"
 			config.Consumer.Return.Errors = true
@@ -247,7 +248,7 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
-		Step("wait for Dapr OAuth client", retry.Do(10*time.Second, 6, func(ctx flow.Context) error {
+		Step("wait for Dapr OAuth client", retry.Do(20*time.Second, 6, func(ctx flow.Context) error {
 			httpClient := &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{

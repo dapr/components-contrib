@@ -8,7 +8,7 @@ spec:
   version: v1
   metadata:
   - name: connectionString
-    value: ${{AzureEventHubsPubsubConnectionString}}
+    value: ${{AzureEventHubsPubsubNamespaceConnectionString}}
   - name: consumerID
     value: ${{AzureEventHubsPubsubConsumerGroup}}
   # Reuse the blob storage account from the storage bindings conformance test

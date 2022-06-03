@@ -140,7 +140,7 @@ func (n *Nacos) createConfigClient() error {
 }
 
 // Read implements InputBinding's Read method.
-func (n *Nacos) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (n *Nacos) Read(handler bindings.Handler) error {
 	n.readHandler = handler
 
 	for _, watch := range n.watches {

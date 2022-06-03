@@ -16,12 +16,12 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
-
-	//"os/exec"
+	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -177,6 +177,11 @@ func TestSinglePartition(t *testing.T) {
 		Step("send and wait", sendAndReceive(metadata)).
 		Run()*/
 
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+		return nil
+	}
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
 		// Step("sleep", flow.Sleep(10*time.Second)).
@@ -192,6 +197,7 @@ func TestSinglePartition(t *testing.T) {
 		)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
+		Step("delete containers", deleteEventhub).
 		Run()
 }
 
@@ -270,6 +276,11 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 		return nil
 	}
 
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+		return nil
+	}
 	// Application logic that tracks messages from eventhub.
 	application := func(ctx flow.Context, s common.Service) (err error) {
 		// Simulate periodic errors.
@@ -296,6 +307,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 
 		return err
 	}
+
 	flow.New(t, "eventhubs binding authentication using multiple senders and receivers").
 		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
@@ -309,6 +321,7 @@ func TestEventhubBindingMultipleSenders(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("send and wait", sendAndReceive).
+		Step("delete containers", deleteEventhub).
 		Run()
 }
 
@@ -412,6 +425,13 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			}))
 		return err
 	}
+
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+		return nil
+	}
+
 	flow.New(t, "eventhubs binding authentication using connection string all partitions").
 		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
@@ -425,5 +445,6 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("send and wait", sendAndReceive).
+		Step("delete containers", deleteEventhub).
 		Run()
 }

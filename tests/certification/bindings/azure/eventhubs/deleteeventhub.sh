@@ -11,26 +11,8 @@
 # limitations under the License.
 # ------------------------------------------------------------
 
-set -e
-
-# Delete eventhub and container after every test run for good test hygiene 
-
-
-if [ "$#" -ne 1 ] 
-then
-    echo "invalid argument, eventhubname is required."
-    exit 1;
-fi
-
-EVENTHUBNAME=$1
-
-echo "begin: delete process for eventhub: ${EVENTHUBNAME}"
-
 # login to azure
 az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId
 
-# delete eventhub
-az eventhubs eventhub delete --resource-group $AzureResourceGroupName --namespace-name $AzureEventHubsBindingsNamespace --name $EVENTHUBNAME
-
-# delete checkpoint container used by the consumer
+# delete container used by the consumer
 az storage container delete --account-key $AzureBlobStorageAccessKey --account-name $AzureBlobStorageAccount --name $AzureEventHubsBindingsContainer

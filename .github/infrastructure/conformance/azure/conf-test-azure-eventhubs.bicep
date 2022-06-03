@@ -58,7 +58,6 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
     name: eventHubBindingsName
     properties: {
       messageRetentionInDays: 1
-      partitionCount: 2
     }
     resource eventHubBindingsPolicy 'authorizationRules' = {
       name: eventHubBindingsPolicyName

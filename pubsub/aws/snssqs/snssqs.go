@@ -54,19 +54,19 @@ type snsSqs struct {
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
 	subscriptions sync.Map
 
-	snsClient       *sns.SNS
-	sqsClient       *sqs.SQS
-	stsClient       *sts.STS
-	metadata        *snsSqsMetadata
-	logger          logger.Logger
-	id              string
-	opsTimeout      time.Duration
-	ctx             context.Context
-	cancel          context.CancelFunc
-	pollerCtx       context.Context
-	pollerCancel    context.CancelFunc
-	backOffConfig   retry.Config
-	pollerSemaphore chan struct{}
+	snsClient     *sns.SNS
+	sqsClient     *sqs.SQS
+	stsClient     *sts.STS
+	metadata      *snsSqsMetadata
+	logger        logger.Logger
+	id            string
+	opsTimeout    time.Duration
+	ctx           context.Context
+	cancel        context.CancelFunc
+	pollerCtx     context.Context
+	pollerCancel  context.CancelFunc
+	backOffConfig retry.Config
+	pollerRunning chan struct{}
 }
 
 type sqsQueueInfo struct {
@@ -101,10 +101,10 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	}
 
 	return &snsSqs{
-		logger:          l,
-		id:              id,
-		topicsLock:      sync.RWMutex{},
-		pollerSemaphore: make(chan struct{}, 1),
+		logger:        l,
+		id:            id,
+		topicsLock:    sync.RWMutex{},
+		pollerRunning: make(chan struct{}, 1),
 	}
 }
 
@@ -406,6 +406,22 @@ func (s *snsSqs) createSnsSqsSubscription(parentCtx context.Context, queueArn, t
 	return *subscribeOutput.SubscriptionArn, nil
 }
 
+func (s *snsSqs) removeSnsSqsSubscription(parentCtx context.Context, subscriptionArn string) error {
+	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
+	_, err := s.snsClient.UnsubscribeWithContext(ctx, &sns.UnsubscribeInput{
+		SubscriptionArn: aws.String(subscriptionArn),
+	})
+	cancel()
+	if err != nil {
+		wrappedErr := fmt.Errorf("error unsubscribing to arn: %s %w", subscriptionArn, err)
+		s.logger.Error(wrappedErr)
+
+		return wrappedErr
+	}
+
+	return nil
+}
+
 func (s *snsSqs) getSnsSqsSubscriptionArn(parentCtx context.Context, topicArn string) (string, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
 	listSubscriptionsOutput, err := s.snsClient.ListSubscriptionsByTopicWithContext(ctx, &sns.ListSubscriptionsByTopicInput{TopicArn: aws.String(topicArn)})
@@ -644,7 +660,7 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 	}
 
 	// Signal that the poller stopped
-	<-s.pollerSemaphore
+	<-s.pollerRunning
 }
 
 func (s *snsSqs) createDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
@@ -760,10 +776,10 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 	return nil
 }
 
-func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	// subscribers declare a topic ARN and declare a SQS queue to use
 	// these should be idempotent - queues should not be created if they exist.
-	topicArn, sanitizedName, err := s.getOrCreateTopic(s.ctx, req.Topic)
+	topicArn, sanitizedName, err := s.getOrCreateTopic(subscribeCtx, req.Topic)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
 		s.logger.Error(wrappedErr)
@@ -773,7 +789,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID".
 	var queueInfo *sqsQueueInfo
-	queueInfo, err = s.getOrCreateQueue(s.ctx, s.metadata.sqsQueueName)
+	queueInfo, err = s.getOrCreateQueue(subscribeCtx, s.metadata.sqsQueueName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error retrieving SQS queue: %w", err)
 		s.logger.Error(wrappedErr)
@@ -783,7 +799,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 
 	// only after a SQS queue and SNS topic had been setup, we restrict the SendMessage action to SNS as sole source
 	// to prevent anyone but SNS to publish message to SQS.
-	err = s.restrictQueuePublishPolicyToOnlySNS(s.ctx, queueInfo, topicArn)
+	err = s.restrictQueuePublishPolicyToOnlySNS(subscribeCtx, queueInfo, topicArn)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error setting sns-sqs subscription policy: %w", err)
 		s.logger.Error(wrappedErr)
@@ -796,7 +812,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	var derr error
 
 	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
-		deadLettersQueueInfo, derr = s.getOrCreateQueue(s.ctx, s.metadata.sqsDeadLettersQueueName)
+		deadLettersQueueInfo, derr = s.getOrCreateQueue(subscribeCtx, s.metadata.sqsDeadLettersQueueName)
 		if derr != nil {
 			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
 			s.logger.Error(wrappedErr)
@@ -804,7 +820,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 			return wrappedErr
 		}
 
-		err = s.setDeadLettersQueueAttributes(s.ctx, queueInfo, deadLettersQueueInfo)
+		err = s.setDeadLettersQueueAttributes(subscribeCtx, queueInfo, deadLettersQueueInfo)
 		if err != nil {
 			wrappedErr := fmt.Errorf("error creating dead-letter queue: %w", err)
 			s.logger.Error(wrappedErr)
@@ -814,7 +830,7 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	}
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue.
-	_, err = s.getOrCreateSnsSqsSubscription(s.ctx, queueInfo.arn, topicArn)
+	subscriptionArn, err := s.getOrCreateSnsSqsSubscription(subscribeCtx, queueInfo.arn, topicArn)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error subscribing topic: %s, to queue: %s, with error: %w", topicArn, queueInfo.arn, err)
 		s.logger.Error(wrappedErr)
@@ -828,12 +844,12 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	s.topicHandlers[sanitizedName] = topicHandler{
 		topicName: req.Topic,
 		handler:   handler,
-		ctx:       s.ctx,
+		ctx:       subscribeCtx,
 	}
 
 	// Start the poller for the queue if it's not running already
 	select {
-	case s.pollerSemaphore <- struct{}{}:
+	case s.pollerRunning <- struct{}{}:
 		// If inserting in the channel succeeds, then it's not running already
 		// Use a context that is tied to the background context
 		s.pollerCtx, s.pollerCancel = context.WithCancel(s.ctx)
@@ -841,6 +857,29 @@ func (s *snsSqs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) 
 	default:
 		// Do nothing, it means the poller is already running
 	}
+
+	// Watch for subscription context cancelation to remove this subscription
+	go func() {
+		<-subscribeCtx.Done()
+
+		s.topicsLock.Lock()
+		defer s.topicsLock.Unlock()
+
+		// Remove the handler
+		delete(s.topicHandlers, sanitizedName)
+
+		// If we can perform management operations, remove the subscription entirely
+		if !s.metadata.disableEntityManagement {
+			// Use a background context because subscribeCtx is canceled already
+			// Error is logged already
+			_ = s.removeSnsSqsSubscription(s.ctx, subscriptionArn)
+		}
+
+		// If we don't have any topic left, close the poller
+		if len(s.topicHandlers) == 0 {
+			s.pollerCancel()
+		}
+	}()
 
 	return nil
 }

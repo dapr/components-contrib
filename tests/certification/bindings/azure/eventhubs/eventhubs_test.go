@@ -16,12 +16,12 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
-	"os/exec"
+	//	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
+	//	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -40,7 +40,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	//	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -159,7 +159,7 @@ func TestSinglePartition(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
-		Run()
+		Run()*/
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using service principal").
@@ -173,11 +173,11 @@ func TestSinglePartition(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Run()*/
+		Run()
+}
 
-	deleteEventhub := func(ctx flow.Context) error {
+/*deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
 		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
 		return nil
@@ -447,4 +447,4 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		Step("send and wait", sendAndReceive).
 		Step("delete containers", deleteEventhub).
 		Run()
-}
+}*/

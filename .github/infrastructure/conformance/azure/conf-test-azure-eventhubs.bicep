@@ -58,6 +58,7 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
     name: eventHubBindingsName
     properties: {
       messageRetentionInDays: 1
+      partitionCount: 2
     }
     resource eventHubBindingsPolicy 'authorizationRules' = {
       name: eventHubBindingsPolicyName
@@ -70,6 +71,12 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
     }
     resource eventHubBindingsConsumerGroup 'consumergroups' = {
       name: eventHubBindingsConsumerGroupName
+    }
+    resource eventHubBindingsCertificationConsumerGroup1 'consumergroups' = {
+      name: certificationConsumerGroupName1
+    }
+    resource eventHubBindingsCertificationConsumerGroup2 'consumergroups' = {
+      name: certificationConsumerGroupName2
     }
   }
   resource eventHubPubsub 'eventhubs' = {
@@ -137,11 +144,8 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
         ]
       }
     }
-    resource eventHubPubsubConsumerGroup1 'consumergroups' = {
-      name: certificationConsumerGroupName1
-    }
-    resource eventHubPubsubConsumerGroup2 'consumergroups' = {
-      name: certificationConsumerGroupName2
+    resource eventHubPubsubConsumerGroup 'consumergroups' = {
+      name: eventHubPubsubConsumerGroupName
     }
   }
   resource certificationEventHubPubsubTopicMulti2 'eventhubs' = {
@@ -158,11 +162,8 @@ resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2017-04-01' = {
         ]
       }
     }
-    resource eventHubPubsubConsumerGroup1 'consumergroups' = {
-      name: certificationConsumerGroupName1
-    }
-    resource eventHubPubsubConsumerGroup2 'consumergroups' = {
-      name: certificationConsumerGroupName2
+    resource eventHubPubsubConsumerGroup 'consumergroups' = {
+      name: eventHubPubsubConsumerGroupName
     }
   }
 }

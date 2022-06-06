@@ -56,6 +56,8 @@ jobs:
         - pubsub.rabbitmq
         - pubsub.mqtt
         - state.redis
+        - bindings.alicloud.dubbo
+        - bindings.kafka
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

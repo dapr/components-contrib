@@ -82,7 +82,7 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *kubernetesInput) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (k *kubernetesInput) Read(handler bindings.Handler) error {
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",

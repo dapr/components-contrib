@@ -130,8 +130,8 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 type AzureEventHubs struct {
 	metadata           *azureEventHubsMetadata
 	logger             logger.Logger
-	ctx                context.Context
-	cancel             context.CancelFunc
+	publishCtx         context.Context
+	publishCancel      context.CancelFunc
 	backOffConfig      retry.Config
 	hubClients         map[string]*eventhub.Hub
 	eventProcessors    map[string]*eph.EventProcessorHost
@@ -159,7 +159,7 @@ type azureEventHubsMetadata struct {
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
-func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
+func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
 	return &AzureEventHubs{logger: logger}
 }
 
@@ -194,25 +194,25 @@ func validateAndGetHubName(connectionString string) (string, error) {
 	return parsed.HubName, nil
 }
 
-func (aeh *AzureEventHubs) ensureEventHub(hubName string) error {
+func (aeh *AzureEventHubs) ensureEventHub(ctx context.Context, hubName string) error {
 	if aeh.hubManager == nil {
 		aeh.logger.Errorf("hubManager client not initialized properly.")
 		return fmt.Errorf("hubManager client not initialized properly")
 	}
-	entity, err := aeh.getHubEntity(hubName)
+	entity, err := aeh.getHubEntity(ctx, hubName)
 	if err != nil {
 		return err
 	}
 	if entity == nil {
-		if err := aeh.createHubEntity(hubName); err != nil {
+		if err := aeh.createHubEntity(ctx, hubName); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (aeh *AzureEventHubs) ensureSubscription(hubName string) error {
-	err := aeh.ensureEventHub(hubName)
+func (aeh *AzureEventHubs) ensureSubscription(ctx context.Context, hubName string) error {
+	err := aeh.ensureEventHub(ctx, hubName)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func (aeh *AzureEventHubs) ensureSubscription(hubName string) error {
 	if err != nil {
 		return err
 	}
-	return aeh.createConsumerGroup(hubName)
+	return aeh.createConsumerGroup(ctx, hubName)
 }
 
 func (aeh *AzureEventHubs) getConsumerGroupsClient() (*mgmt.ConsumerGroupsClient, error) {
@@ -238,17 +238,17 @@ func (aeh *AzureEventHubs) getConsumerGroupsClient() (*mgmt.ConsumerGroupsClient
 	return aeh.cgClient, nil
 }
 
-func (aeh *AzureEventHubs) createConsumerGroup(hubName string) error {
+func (aeh *AzureEventHubs) createConsumerGroup(parentCtx context.Context, hubName string) error {
 	create := false
 	backOffConfig := retry.DefaultConfig()
 	backOffConfig.Policy = retry.PolicyExponential
 	backOffConfig.MaxInterval = resourceCheckMaxRetryInterval
 	backOffConfig.MaxRetries = resourceCheckMaxRetry
 
-	b := backOffConfig.NewBackOffWithContext(aeh.ctx)
+	b := backOffConfig.NewBackOffWithContext(parentCtx)
 
 	err := retry.NotifyRecover(func() error {
-		c, err := aeh.shouldCreateConsumerGroup(hubName)
+		c, err := aeh.shouldCreateConsumerGroup(parentCtx, hubName)
 		if err == nil {
 			create = c
 			return nil
@@ -263,9 +263,9 @@ func (aeh *AzureEventHubs) createConsumerGroup(hubName string) error {
 		return err
 	}
 	if create {
-		ctx, cancel := context.WithTimeout(aeh.ctx, resourceCreationTimeout)
-		defer cancel()
+		ctx, cancel := context.WithTimeout(parentCtx, resourceCreationTimeout)
 		_, err = aeh.cgClient.CreateOrUpdate(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.EventHubNamespace, hubName, aeh.metadata.ConsumerGroup, mgmt.ConsumerGroup{})
+		cancel()
 		if err != nil {
 			return err
 		}
@@ -273,10 +273,10 @@ func (aeh *AzureEventHubs) createConsumerGroup(hubName string) error {
 	return nil
 }
 
-func (aeh *AzureEventHubs) shouldCreateConsumerGroup(hubName string) (bool, error) {
-	ctx, cancel := context.WithTimeout(aeh.ctx, resourceGetTimeout)
-	defer cancel()
+func (aeh *AzureEventHubs) shouldCreateConsumerGroup(parentCtx context.Context, hubName string) (bool, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, resourceGetTimeout)
 	g, err := aeh.cgClient.Get(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.EventHubNamespace, hubName, aeh.metadata.ConsumerGroup)
+	cancel()
 	if err != nil {
 		if g.HasHTTPStatus(404) {
 			return true, nil
@@ -289,18 +289,18 @@ func (aeh *AzureEventHubs) shouldCreateConsumerGroup(hubName string) (bool, erro
 	return false, nil
 }
 
-func (aeh *AzureEventHubs) getHubEntity(hubName string) (*eventhub.HubEntity, error) {
-	ctx, cancel := context.WithTimeout(aeh.ctx, resourceGetTimeout)
+func (aeh *AzureEventHubs) getHubEntity(parentCtx context.Context, hubName string) (*eventhub.HubEntity, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, resourceGetTimeout)
 	defer cancel()
 	return aeh.hubManager.Get(ctx, hubName)
 }
 
-func (aeh *AzureEventHubs) createHubEntity(hubName string) error {
-	ctx, cancel := context.WithTimeout(aeh.ctx, resourceCreationTimeout)
-	defer cancel()
+func (aeh *AzureEventHubs) createHubEntity(parentCtx context.Context, hubName string) error {
+	ctx, cancel := context.WithTimeout(parentCtx, resourceCreationTimeout)
 	_, err := aeh.hubManager.Put(ctx, hubName,
 		eventhub.HubWithMessageRetentionInDays(aeh.metadata.MessageRetentionInDays),
 		eventhub.HubWithPartitionCount(aeh.metadata.PartitionCount))
+	cancel()
 	if err != nil {
 		aeh.logger.Errorf("error creating event hub %s: %s", hubName, err)
 		return fmt.Errorf("error creating event hub %s: %s", hubName, err)
@@ -308,9 +308,9 @@ func (aeh *AzureEventHubs) createHubEntity(hubName string) error {
 	return nil
 }
 
-func (aeh *AzureEventHubs) ensurePublisherClient(hubName string) error {
+func (aeh *AzureEventHubs) ensurePublisherClient(ctx context.Context, hubName string) error {
 	if aeh.metadata.EnableEntityManagement {
-		if err := aeh.ensureEventHub(hubName); err != nil {
+		if err := aeh.ensureEventHub(ctx, hubName); err != nil {
 			return err
 		}
 	}
@@ -344,7 +344,7 @@ func (aeh *AzureEventHubs) ensurePublisherClient(hubName string) error {
 	return nil
 }
 
-func (aeh *AzureEventHubs) ensureSubscriberClient(topic string, leaserCheckpointer *storage.LeaserCheckpointer) (*eph.EventProcessorHost, error) {
+func (aeh *AzureEventHubs) ensureSubscriberClient(ctx context.Context, topic string, leaserCheckpointer *storage.LeaserCheckpointer) (*eph.EventProcessorHost, error) {
 	// connectionString given.
 	if aeh.metadata.ConnectionString != "" {
 		hubName, err := validateAndGetHubName(aeh.metadata.ConnectionString)
@@ -361,7 +361,13 @@ func (aeh *AzureEventHubs) ensureSubscriberClient(topic string, leaserCheckpoint
 		if err != nil {
 			return nil, err
 		}
-		processor, err := eph.NewFromConnectionString(aeh.ctx, connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.ConsumerGroup))
+		processor, err := eph.NewFromConnectionString(
+			ctx, connectionString,
+			leaserCheckpointer,
+			leaserCheckpointer,
+			eph.WithNoBanner(),
+			eph.WithConsumerGroup(aeh.metadata.ConsumerGroup),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -369,7 +375,15 @@ func (aeh *AzureEventHubs) ensureSubscriberClient(topic string, leaserCheckpoint
 		return processor, nil
 	}
 	// AAD connection.
-	processor, err := eph.New(aeh.ctx, aeh.metadata.EventHubNamespace, topic, aeh.tokenProvider, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(aeh.metadata.ConsumerGroup))
+	processor, err := eph.New(ctx,
+		aeh.metadata.EventHubNamespace,
+		topic,
+		aeh.tokenProvider,
+		leaserCheckpointer,
+		leaserCheckpointer,
+		eph.WithNoBanner(),
+		eph.WithConsumerGroup(aeh.metadata.ConsumerGroup),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -517,7 +531,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		return fmt.Errorf("invalid storage credentials with error: %w", storageCredsErr)
 	}
 
-	aeh.ctx, aeh.cancel = context.WithCancel(context.Background())
+	aeh.publishCtx, aeh.publishCancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no backOff properties are set.
 	if err := retry.DecodeConfigWithPrefix(
@@ -533,7 +547,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 // Publish sends data to Azure Event Hubs.
 func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	if _, ok := aeh.hubClients[req.Topic]; !ok {
-		if err := aeh.ensurePublisherClient(req.Topic); err != nil {
+		if err := aeh.ensurePublisherClient(aeh.publishCtx, req.Topic); err != nil {
 			return fmt.Errorf("error on establishing hub connection: %s", err)
 		}
 	}
@@ -542,7 +556,7 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	if ok {
 		event.PartitionKey = &val
 	}
-	err := aeh.hubClients[req.Topic].Send(aeh.ctx, event)
+	err := aeh.hubClients[req.Topic].Send(aeh.publishCtx, event)
 	if err != nil {
 		return fmt.Errorf("error from publish: %s", err)
 	}
@@ -551,13 +565,13 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 }
 
 // Subscribe receives data from Azure Event Hubs.
-func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	err := aeh.validateSubscriptionAttributes()
 	if err != nil {
 		return fmt.Errorf("error : error on subscribe %s", err)
 	}
 	if aeh.metadata.EnableEntityManagement {
-		if err = aeh.ensureSubscription(req.Topic); err != nil {
+		if err = aeh.ensureSubscription(subscribeCtx, req.Topic); err != nil {
 			return err
 		}
 	}
@@ -570,20 +584,20 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 		return err
 	}
 
-	processor, err := aeh.ensureSubscriberClient(req.Topic, leaserCheckpointer)
+	processor, err := aeh.ensureSubscriberClient(subscribeCtx, req.Topic, leaserCheckpointer)
 	if err != nil {
 		return err
 	}
 
 	aeh.logger.Debugf("registering handler for topic %s", req.Topic)
-	_, err = processor.RegisterHandler(aeh.ctx,
+	_, err = processor.RegisterHandler(subscribeCtx,
 		func(_ context.Context, e *eventhub.Event) error {
-			b := aeh.backOffConfig.NewBackOffWithContext(aeh.ctx)
+			b := aeh.backOffConfig.NewBackOffWithContext(subscribeCtx)
 
 			return retry.NotifyRecover(func() error {
 				aeh.logger.Debugf("Processing EventHubs event %s/%s", req.Topic, e.ID)
 
-				return subscribeHandler(aeh.ctx, req.Topic, e, handler)
+				return subscribeHandler(subscribeCtx, req.Topic, e, handler)
 			}, b, func(_ error, _ time.Duration) {
 				aeh.logger.Errorf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
 			}, func() {
@@ -594,7 +608,7 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 		return err
 	}
 
-	err = processor.StartNonBlocking(aeh.ctx)
+	err = processor.StartNonBlocking(subscribeCtx)
 	if err != nil {
 		return err
 	}
@@ -603,11 +617,16 @@ func (aeh *AzureEventHubs) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 	return nil
 }
 
-func (aeh *AzureEventHubs) Close() error {
-	defer aeh.cancel()
+func (aeh *AzureEventHubs) Close() (err error) {
+	aeh.publishCancel()
+
 	flag := false
+	var ctx context.Context
+	var cancel context.CancelFunc
 	for topic, client := range aeh.hubClients {
-		err := client.Close(aeh.ctx)
+		ctx, cancel = context.WithTimeout(context.Background(), resourceGetTimeout)
+		err = client.Close(ctx)
+		cancel()
 		if err != nil {
 			flag = true
 			aeh.logger.Warnf("error closing publish client properly for topic/eventHub %s: %s", topic, err)
@@ -615,7 +634,9 @@ func (aeh *AzureEventHubs) Close() error {
 	}
 	aeh.hubClients = map[string]*eventhub.Hub{}
 	for topic, client := range aeh.eventProcessors {
-		err := client.Close(aeh.ctx)
+		ctx, cancel = context.WithTimeout(context.Background(), resourceGetTimeout)
+		err = client.Close(ctx)
+		cancel()
 		if err != nil {
 			flag = true
 			aeh.logger.Warnf("error closing event processor host client properly for topic/eventHub %s: %s", topic, err)

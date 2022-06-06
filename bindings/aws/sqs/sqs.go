@@ -88,7 +88,7 @@ func (a *AWSSQS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	return nil, err
 }
 
-func (a *AWSSQS) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (a *AWSSQS) Read(handler bindings.Handler) error {
 	for {
 		result, err := a.Client.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl: a.QueueURL,

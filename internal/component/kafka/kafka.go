@@ -15,6 +15,7 @@ package kafka
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -25,18 +26,20 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer      sarama.SyncProducer
-	consumerGroup string
-	brokers       []string
-	logger        logger.Logger
-	authType      string
-	saslUsername  string
-	saslPassword  string
-	initialOffset int64
-	cg            sarama.ConsumerGroup
-	cancel        context.CancelFunc
-	consumer      consumer
-	config        *sarama.Config
+	producer        sarama.SyncProducer
+	consumerGroup   string
+	brokers         []string
+	logger          logger.Logger
+	authType        string
+	saslUsername    string
+	saslPassword    string
+	initialOffset   int64
+	cg              sarama.ConsumerGroup
+	cancel          context.CancelFunc
+	consumer        consumer
+	config          *sarama.Config
+	subscribeTopics TopicHandlers
+	subscribeLock   sync.Mutex
 
 	backOffConfig retry.Config
 
@@ -49,7 +52,9 @@ type Kafka struct {
 
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger: logger,
+		logger:          logger,
+		subscribeTopics: make(TopicHandlers),
+		subscribeLock:   sync.Mutex{},
 	}
 }
 

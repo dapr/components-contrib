@@ -25,20 +25,31 @@ import (
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqp "github.com/apache/rocketmq-client-go/v2/producer"
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
 
-type rocketMQ struct {
-	name         string
-	metadata     *rocketMQMetaData
-	pushConsumer mq.PushConsumer
+type topicData struct {
+	selector      mqc.MessageSelector
+	handler       pubsub.Handler
+	consumerGroup string
+	mqType        string
+	mqExpr        string
+}
 
-	logger logger.Logger
-	lock   sync.Mutex
-	topics map[string]mqc.MessageSelector
+type rocketMQ struct {
+	name     string
+	metadata *rocketMQMetaData
+
+	logger       logger.Logger
+	topics       map[string]topicData
+	producer     mq.Producer
+	producerLock sync.RWMutex
+	consumer     mq.PushConsumer
+	consumerLock sync.RWMutex
 
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -47,9 +58,11 @@ type rocketMQ struct {
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	return &rocketMQ{
-		name:   "rocketmq",
-		logger: l,
-		topics: make(map[string]mqc.MessageSelector),
+		name:         "rocketmq",
+		logger:       l,
+		topics:       make(map[string]topicData),
+		producerLock: sync.RWMutex{},
+		consumerLock: sync.RWMutex{},
 	}
 }
 
@@ -120,7 +133,16 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 			SecretKey: r.metadata.SecretKey,
 		}))
 	}
-	return mq.NewProducer(opts...)
+	producer, err := mq.NewProducer(opts...)
+	if err != nil {
+		return nil, err
+	}
+	err = producer.Start()
+	if err != nil {
+		_ = producer.Shutdown()
+		return nil, err
+	}
+	return producer, nil
 }
 
 func (r *rocketMQ) Features() []pubsub.Feature {
@@ -130,27 +152,51 @@ func (r *rocketMQ) Features() []pubsub.Feature {
 func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
 	msg := newRocketMQMessage(req)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.metadata.SendTimeOut))
-	defer cancel()
-	var (
-		producer mq.Producer
-		result   *primitive.SendResult
-		err      error
+
+	publishBo := backoff.NewExponentialBackOff()
+	publishBo.InitialInterval = 100 * time.Millisecond
+	bo := backoff.WithMaxRetries(publishBo, 3)
+	bo = backoff.WithContext(bo, r.ctx)
+	return retry.NotifyRecover(
+		func() (err error) {
+			r.producerLock.RLock()
+			producer := r.producer
+			r.producerLock.RUnlock()
+
+			if producer == nil {
+				r.producerLock.Lock()
+				r.producer, err = r.setUpProducer()
+				if err != nil {
+					r.producer = nil
+				}
+				producer = r.producer
+				r.producerLock.Unlock()
+				if err != nil {
+					return err
+				}
+			}
+
+			ctx, cancel := context.WithTimeout(r.ctx, time.Duration(r.metadata.SendTimeOut))
+			defer cancel()
+			result, err := producer.SendSync(ctx, msg)
+			if err != nil {
+				r.producerLock.Lock()
+				r.producer = nil
+				r.producerLock.Unlock()
+				r.logger.Errorf("error send message topic:%s : %v", req.Topic, err)
+				return ErrRocketmqPublishMsg
+			}
+			r.logger.Debugf("rocketmq send result topic:%s tag:%s status:%v", req.Topic, msg.GetTags(), result.Status)
+			return nil
+		},
+		bo,
+		func(err error, d time.Duration) {
+			r.logger.Errorf("rocketmq error: fail to send message. topic:%s. Retrying...", msg.Topic)
+		},
+		func() {
+			r.logger.Infof("rocketmq successfully sent message after it previously failed. topic:%s.", msg.Topic)
+		},
 	)
-	producer, err = r.setUpProducer()
-	if err != nil {
-		return err
-	}
-	if err1 := producer.Start(); err1 != nil {
-		return err1
-	}
-	result, err = producer.SendSync(ctx, msg)
-	if err != nil {
-		r.logger.Errorf("error send message topic:%s : %v", req.Topic, err)
-		return ErrRocketmqPublishMsg
-	}
-	r.logger.Debugf("rocketmq send result topic:%s tag:%s status:%v", req.Topic, msg.GetTags(), result.Status)
-	return nil
 }
 
 func newRocketMQMessage(req *pubsub.PublishRequest) *primitive.Message {
@@ -186,7 +232,7 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 				Data:     dataBytes,
 				Metadata: metadata,
 			}
-			b := r.backOffConfig.NewBackOffWithContext(r.ctx)
+			b := r.backOffConfig.NewBackOffWithContext(ctx)
 			retError := retry.NotifyRecover(func() error {
 				herr := handler(ctx, &newMessage)
 				if herr != nil {
@@ -210,36 +256,102 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 	}
 }
 
-func (r *rocketMQ) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if req.Metadata == nil {
 		req.Metadata = make(map[string]string)
-	}
-	consumerGroup := r.metadata.ConsumerGroup
-	// get consumer group from request first
-	if group, ok := req.Metadata[metadataRocketmqConsumerGroup]; ok {
-		consumerGroup = group
 	}
 	var (
 		mqExpr = req.Metadata[metadataRocketmqExpression]
 		mqType = req.Metadata[metadataRocketmqType]
-		err    error
 	)
 	if !r.validMqTypeParams(mqType) {
 		return ErrRocketmqValidPublishMsgTyp
 	}
-	r.closeSubscriptionResources()
-	if r.pushConsumer, err = r.setUpConsumer(); err != nil {
+	consumerGroup := r.metadata.ConsumerGroup
+	if group, ok := req.Metadata[metadataRocketmqConsumerGroup]; ok {
+		consumerGroup = group
+	}
+
+	r.consumerLock.Lock()
+	defer r.consumerLock.Unlock()
+
+	// Start the subscription
+	// When the connection is ready, add the topic
+	// Use the global context here to maintain the connection
+	r.startSubscription(ctx, func() {
+		r.topics[req.Topic] = topicData{
+			handler: handler,
+			selector: mqc.MessageSelector{
+				Type:       mqc.ExpressionType(mqType),
+				Expression: mqExpr,
+			},
+			consumerGroup: consumerGroup,
+			mqExpr:        mqExpr,
+			mqType:        mqType,
+		}
+	})
+
+	// Listen for context cancelation to remove the subscription
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-r.ctx.Done():
+		}
+
+		r.consumerLock.Lock()
+		defer r.consumerLock.Unlock()
+
+		// If this is the last subscription or if the global context is done, close the connection entirely
+		if len(r.topics) <= 1 || r.ctx.Err() != nil {
+			_ = r.consumer.Shutdown()
+			r.consumer = nil
+			delete(r.topics, req.Topic)
+			return
+		}
+
+		// Reconnect with one less topic
+		r.startSubscription(r.ctx, func() {
+			delete(r.topics, req.Topic)
+		})
+	}()
+
+	return nil
+}
+
+// Should be wrapped around r.consumerLock lock
+func (r *rocketMQ) startSubscription(ctx context.Context, onConnRready func()) (err error) {
+	// reset synchronization
+	if r.consumer != nil {
+		r.logger.Infof("re-initializing the consumer")
+		_ = r.consumer.Shutdown()
+		r.consumer = nil
+	} else {
+		r.logger.Infof("initializing the consumer")
+	}
+
+	r.consumer, err = r.setUpConsumer()
+	if err != nil {
+		r.consumer = nil
 		return err
 	}
-	topics := r.addTopic(req.Topic, mqc.MessageSelector{
-		Type:       mqc.ExpressionType(mqType),
-		Expression: mqExpr,
-	})
-	r.subscribeAllTopics(topics, consumerGroup, handler)
-	err = r.pushConsumer.Start()
+
+	// Invoke onConnReady so changes to the topics can be made safely
+	onConnRready()
+
+	for topic, data := range r.topics {
+		cb := r.adaptCallback(topic, r.metadata.ConsumerGroup, string(data.selector.Type), data.selector.Expression, data.handler)
+		err = r.consumer.Subscribe(topic, data.selector, cb)
+		if err != nil {
+			r.logger.Errorf("subscribe topic:%v failed,error:%v", topic, err)
+			continue
+		}
+	}
+
+	err = r.consumer.Start()
 	if err != nil {
 		return fmt.Errorf("consumer start failed. %w", err)
 	}
+
 	return nil
 }
 
@@ -251,49 +363,20 @@ func (r *rocketMQ) validMqTypeParams(mqType string) bool {
 	return true
 }
 
-// Close down consumer group resources, refresh once.
-func (r *rocketMQ) closeSubscriptionResources() {
-	if r.pushConsumer != nil {
-		if len(r.topics) > 0 {
-			_ = r.pushConsumer.Shutdown()
-		}
-	}
-}
-
-func (r *rocketMQ) subscribeAllTopics(topics []string, consumerGroup string, handler pubsub.Handler) {
-	for _, topic := range topics {
-		selector, ok := r.topics[topic]
-		if !ok {
-			r.logger.Errorf("no selector for topic:" + topic)
-			continue
-		}
-		err := r.pushConsumer.Subscribe(topic, selector, r.adaptCallback(topic, consumerGroup, string(selector.Type), selector.Expression, handler))
-		if err != nil {
-			r.logger.Errorf("subscribe topic:%v failed,error:%v", topic, err)
-			continue
-		}
-	}
-}
-
-func (r *rocketMQ) addTopic(topic string, selector mqc.MessageSelector) []string {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	r.topics[topic] = selector
-	return r.getAllTopics()
-}
-
-func (r *rocketMQ) getAllTopics() []string {
-	topics := make([]string, 0, len(r.topics))
-	for topic := range r.topics {
-		topics = append(topics, topic)
-	}
-	return topics
-}
-
 func (r *rocketMQ) Close() error {
+	r.producerLock.Lock()
+	defer r.producerLock.Unlock()
+	r.consumerLock.Lock()
+	defer r.consumerLock.Unlock()
+
 	r.cancel()
-	if r.pushConsumer != nil {
-		_ = r.pushConsumer.Shutdown()
+
+	r.producer = nil
+
+	if r.consumer != nil {
+		_ = r.consumer.Shutdown()
+		r.consumer = nil
 	}
+
 	return nil
 }

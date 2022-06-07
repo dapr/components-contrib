@@ -244,7 +244,7 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 	return nil, sender.SendMessage(ctx, msg, nil)
 }
 
-func (a *AzureServiceBusQueues) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
 	for a.ctx.Err() == nil {
 		receiver := a.attemptConnectionForever()
 		if receiver == nil {

@@ -29,7 +29,7 @@ func TestNewInMemoryBus(t *testing.T) {
 	bus.Init(pubsub.Metadata{})
 
 	ch := make(chan []byte)
-	bus.Subscribe(pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		return publish(ch, msg)
 	})
 
@@ -43,11 +43,11 @@ func TestMultipleSubscribers(t *testing.T) {
 
 	ch1 := make(chan []byte)
 	ch2 := make(chan []byte)
-	bus.Subscribe(pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		return publish(ch1, msg)
 	})
 
-	bus.Subscribe(pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		return publish(ch2, msg)
 	})
 
@@ -64,7 +64,7 @@ func TestRetry(t *testing.T) {
 	ch := make(chan []byte)
 	i := -1
 
-	bus.Subscribe(pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		i++
 		if i < 5 {
 			return errors.New("if at first you don't succeed")

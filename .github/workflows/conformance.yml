@@ -112,7 +112,7 @@ jobs:
         - component: state.azure.tablestorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
         - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsPubsubConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
+          required-secrets: AzureEventHubsPubsubNamespaceConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage

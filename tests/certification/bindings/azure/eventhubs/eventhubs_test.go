@@ -160,7 +160,7 @@ func TestSinglePartition(t *testing.T) {
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
 		Run()
-	*/
+
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using service principal").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
@@ -173,8 +173,9 @@ func TestSinglePartition(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
+		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Run()
+		Run()*/
 
 	deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()

@@ -614,11 +614,25 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	}
 	aeh.eventProcessors[req.Topic] = processor
 
+	// Listen for context cancelation and stop processing messages
+	// This seems to be necessary because otherwise the processor isn't automatically closed on context cancelation
+	go func() {
+		<-subscribeCtx.Done()
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
+		stopErr := processor.Close(stopCtx)
+		stopCancel()
+		if stopErr != nil {
+			aeh.logger.Warnf("Error closing subscribe processor: %v", stopErr)
+		}
+	}()
+
 	return nil
 }
 
 func (aeh *AzureEventHubs) Close() (err error) {
-	aeh.publishCancel()
+	if aeh.publishCancel != nil {
+		aeh.publishCancel()
+	}
 
 	flag := false
 	var ctx context.Context

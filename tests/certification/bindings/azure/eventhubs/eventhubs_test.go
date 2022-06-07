@@ -130,7 +130,7 @@ func TestSinglePartition(t *testing.T) {
 		return err
 	}
 
-	/*iotHubName := os.Getenv(iotHubNameEnvKey)
+	iotHubName := os.Getenv(iotHubNameEnvKey)
 	consumerGroup3 := watcher.NewUnordered()
 	sendIOTDevice := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
@@ -162,20 +162,20 @@ func TestSinglePartition(t *testing.T) {
 		Run()
 
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
-	flow.New(t, "eventhubs binding authentication using service principal").
-		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
-		Step(sidecar.Run("sidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/binding/serviceprincipal"),
-			runtime.WithSecretStores(secrets_components),
-			runtime.WithOutputBindings(out_component),
-			runtime.WithInputBindings(in_component),
-		)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
-		Step("send and wait", sendAndReceive(metadata)).
-		Run()*/
+	/*flow.New(t, "eventhubs binding authentication using service principal").
+	Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
+	Step(sidecar.Run("sidecar",
+		embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+		embedded.WithDaprGRPCPort(grpcPort),
+		embedded.WithDaprHTTPPort(httpPort),
+		embedded.WithComponentsPath("./components/binding/serviceprincipal"),
+		runtime.WithSecretStores(secrets_components),
+		runtime.WithOutputBindings(out_component),
+		runtime.WithInputBindings(in_component),
+	)).
+	Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
+	Step("send and wait", sendAndReceive(metadata)).
+	Run()*/
 
 	deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()

@@ -105,7 +105,7 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal(pubsub.Parallel, md.concurrencyMode)
 	r.Equal(int64(10), md.messageVisibilityTimeout)
 	r.Equal(int64(10), md.messageRetryLimit)
-	r.Equal(int64(1), md.messageWaitTimeSeconds)
+	r.Equal(int64(2), md.messageWaitTimeSeconds)
 	r.Equal(int64(10), md.messageMaxNumber)
 	r.Equal(false, md.disableEntityManagement)
 	r.Equal(float64(5), md.assetsManagementTimeoutSeconds)
@@ -137,7 +137,7 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 	r.Equal("region", md.Region)
 	r.Equal(int64(10), md.messageVisibilityTimeout)
 	r.Equal(int64(10), md.messageRetryLimit)
-	r.Equal(int64(1), md.messageWaitTimeSeconds)
+	r.Equal(int64(2), md.messageWaitTimeSeconds)
 	r.Equal(int64(10), md.messageMaxNumber)
 }
 

@@ -142,13 +142,14 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 	}
 }
 
-func (s *subscription) close(ctx context.Context) {
+func (s *subscription) close(closeCtx context.Context) {
 	s.logger.Debugf("Closing subscription to topic %s", s.topic)
 
 	// Ensure subscription entity is closed.
-	if err := s.receiver.Close(ctx); err != nil {
+	if err := s.receiver.Close(closeCtx); err != nil {
 		s.logger.Warnf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
 	}
+	s.cancel()
 }
 
 func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error) {

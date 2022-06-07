@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/secretstores/azure
 go 1.18
 
 require (
-	github.com/dapr/components-contrib v1.7.1-0.20220426033643-068938c67654
+	github.com/dapr/components-contrib v1.7.1-0.20220602220636-704f4dd7307d
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.7.1-0.20220426092903-063b1611d1cb
+	github.com/dapr/dapr v1.7.4-0.20220603165529-7e7d81477a0d
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.1
@@ -46,15 +46,16 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fasthttp/router v1.3.8 // indirect
 	github.com/fatih/color v1.10.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-kit/log v0.1.0 // indirect
+	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/cel-go v0.9.0 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
@@ -92,7 +93,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.2 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.32.1 // indirect
+	github.com/prometheus/common v0.34.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/prometheus/statsd_exporter v0.22.3 // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
@@ -104,11 +105,11 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/otel v0.20.0 // indirect
+	go.opentelemetry.io/otel v1.7.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838 // indirect
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
+	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2 // indirect
+	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
@@ -134,6 +135,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
 
 replace github.com/dapr/components-contrib/tests/certification => ../../../
 

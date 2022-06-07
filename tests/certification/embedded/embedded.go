@@ -113,7 +113,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		allowedOrigins, config, componentsPath, string(runtime.HTTPProtocol), string(mode),
 		daprHTTPPort, daprInternalGRPC, daprAPIGRPCPort, []string{"127.0.0.1"}, nil, appPort, profilePort,
 		enableProfiling, maxConcurrency, enableMTLS, sentryAddress, appSSL, maxRequestBodySize, "",
-		runtime.DefaultReadBufferSize, false, time.Second, true)
+		runtime.DefaultReadBufferSize, false, time.Second, true, false)
 
 	for _, opt := range opts {
 		opt(runtimeConfig)

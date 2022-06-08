@@ -335,7 +335,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	routingKeys := strings.Split(metadataRoutingKey, ",")
 	for i := 0; i < len(routingKeys); i++ {
 		routingKey := routingKeys[i]
-		r.logger.Infof("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
+		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
 		err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)

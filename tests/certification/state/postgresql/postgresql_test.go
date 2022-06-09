@@ -224,7 +224,7 @@ func TestPostgreSQL(t *testing.T) {
 		return nil
 	}
 
-	flow.New(t, "Connecting Redis And Verifying majority of the tests here").
+	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",

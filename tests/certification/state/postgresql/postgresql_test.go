@@ -1,0 +1,249 @@
+/*
+Copyright 2022 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/dapr/components-contrib/tests/certification/embedded"
+	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
+	state_postgres "github.com/dapr/components-contrib/state/postgresql"
+	state_loader "github.com/dapr/dapr/pkg/components/state"
+	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
+	"github.com/dapr/kit/logger"
+
+	"github.com/dapr/go-sdk/client"
+)
+
+const (
+	sidecarNamePrefix       = "postgresql-sidecar-"
+	dockerComposeYAML       = "docker-compose.yml"
+	stateStoreName          = "statestore"
+	certificationTestPrefix = "stable-certification-"
+)
+
+func TestPostgreSQL(t *testing.T) {
+	log := logger.NewLogger("dapr.components")
+	stateStore := state_postgres.NewPostgreSQLStateStore(log)
+	ports, err := dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGrpcPort := ports[0]
+
+	basicTest := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		// save state
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("postgresqlcert1"), nil)
+		assert.NoError(t, err)
+
+		// get state
+		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, "postgresqlcert1", string(item.Value))
+
+		// update state
+		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("postgresqlcert2"), nil)
+		assert.NoError(t, errUpdate)
+		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		assert.NoError(t, errUpdatedGet)
+		assert.Equal(t, "postgresqlcert2", string(item.Value))
+
+		// delete state
+		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		assert.NoError(t, err)
+
+		return nil
+	}
+
+	eTagTest := func(ctx flow.Context) error {
+		etag1 := "739"
+		etag900 := "900"
+
+		err1 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v1",
+		})
+		assert.Equal(t, nil, err1)
+		err2 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v2",
+			ETag:  &etag1,
+		})
+		assert.Equal(t, nil, err2)
+		err3 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v3",
+			ETag:  &etag900,
+		})
+		assert.Error(t, err3)
+		resp, err := stateStore.Get(&state.GetRequest{
+			Key: "k",
+		})
+		assert.Equal(t, nil, err)
+		assert.Equal(t, "740", *resp.ETag)
+		assert.Equal(t, "\"v2\"", string(resp.Data))
+
+		return nil
+	}
+
+	transactionsTest := func(ctx flow.Context) error {
+		err := stateStore.Multi(&state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "reqKey1",
+						Value: "reqVal1",
+						Metadata: map[string]string{
+							"ttlInSeconds": "-1",
+						},
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "reqKey2",
+						Value: "reqVal2",
+						Metadata: map[string]string{
+							"ttlInSeconds": "222",
+						},
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "reqKey3",
+						Value: "reqVal3",
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "reqKey1",
+						Value: "reqVal101",
+						Metadata: map[string]string{
+							"ttlInSeconds": "50",
+						},
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "reqKey3",
+						Value: "reqVal103",
+						Metadata: map[string]string{
+							"ttlInSeconds": "50",
+						},
+					},
+				},
+			},
+		})
+		assert.Equal(t, nil, err)
+		resp1, err := stateStore.Get(&state.GetRequest{
+			Key: "reqKey1",
+		})
+		assert.Equal(t, "744", *resp1.ETag)
+		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
+
+		resp3, err := stateStore.Get(&state.GetRequest{
+			Key: "reqKey3",
+		})
+		assert.Equal(t, "745", *resp3.ETag)
+		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		return nil
+	}
+
+	testGetAfterPostgresRestart := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		// save state
+		_, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		assert.NoError(t, err)
+
+		return nil
+	}
+
+	// checks the state store component is not vulnerable to SQL injection
+	verifySQLInjectionTest := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		// common SQL injection techniques for PostgreSQL
+		sqlInjectionAttempts := []string{
+			"DROP TABLE dapr_user",
+			"dapr' OR '1'='1",
+		}
+
+		for _, sqlInjectionAttempt := range sqlInjectionAttempts {
+			// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
+			err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt), nil)
+			assert.NoError(t, err)
+
+			// get state for key sqlInjectionAttempt's value
+			item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, sqlInjectionAttempt, string(item.Value))
+
+			// delete state for key sqlInjectionAttempt's value
+			err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt, nil)
+			assert.NoError(t, err)
+		}
+
+		return nil
+	}
+
+	flow.New(t, "Connecting Redis And Verifying majority of the tests here").
+		Step(dockercompose.Run("db", dockerComposeYAML)).
+		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithComponentsPath("components/docker/default"),
+			runtime.WithStates(
+				state_loader.New("postgresql", func() state.Store {
+					return stateStore
+				}),
+			))).
+		Step("Run CRUD test", basicTest).
+		Step("Run eTag test", eTagTest).
+		Step("Run transactions test", transactionsTest).
+		Step("Run SQL injection test", verifySQLInjectionTest).
+		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
+		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step("start postgresql", dockercompose.Start("db", dockerComposeYAML, "db")).
+		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step("Run connection test", testGetAfterPostgresRestart).
+		Run()
+}

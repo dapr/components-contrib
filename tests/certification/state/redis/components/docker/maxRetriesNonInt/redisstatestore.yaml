@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  ignoreErrors: true
+  metadata:
+  - name: redisHost
+    value: localhost:6379
+  - name: redisPassword
+    value: ""
+  - name: initTimeout
+    value: 5m
+  - name: timeout
+    value: 100s
+  - name: maxRetries
+    value: E

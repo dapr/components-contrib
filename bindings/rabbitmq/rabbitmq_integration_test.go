@@ -24,12 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
-	"github.com/streadway/amqp"
-	"github.com/stretchr/testify/assert"
 )
 
 const (

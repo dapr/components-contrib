@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -35,7 +35,6 @@ func newBroker() *rabbitMQInMemoryBroker {
 func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
-		stopped:           false,
 		logger:            logger.NewLogger("test"),
 		connectionDial: func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 			broker.connectCount++
@@ -63,7 +62,7 @@ func TestNoConsumer(t *testing.T) {
 	}
 	err := pubsubRabbitMQ.Init(metadata)
 	assert.NoError(t, err)
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{}, nil)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{}, nil)
 	assert.Contains(t, err.Error(), "consumerID is required for subscriptions")
 }
 
@@ -140,7 +139,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -183,7 +182,7 @@ func TestPublishReconnect(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -234,7 +233,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -262,11 +261,11 @@ func TestSubscribeReconnect(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{
 		Properties: map[string]string{
-			metadataHostKey:              "anyhost",
-			metadataConsumerIDKey:        "consumer",
-			metadataAutoAckKey:           "true",
-			metadataReconnectWaitSeconds: "0",
-			pubsub.ConcurrencyKey:        string(pubsub.Single),
+			metadataHostKey:                 "anyhost",
+			metadataConsumerIDKey:           "consumer",
+			metadataAutoAckKey:              "true",
+			metadataReconnectWaitSecondsKey: "0",
+			pubsub.ConcurrencyKey:           string(pubsub.Single),
 		},
 	}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -287,7 +286,7 @@ func TestSubscribeReconnect(t *testing.T) {
 		return errors.New(errorChannelConnection)
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
@@ -326,13 +325,19 @@ func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global boo
 }
 
 func (r *rabbitMQInMemoryBroker) Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error {
+	// This is actually how the SDK implements it
+	_, err := r.PublishWithDeferredConfirm(exchange, key, mandatory, immediate, msg)
+	return err
+}
+
+func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirm(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error) {
 	if string(msg.Body) == errorChannelConnection {
-		return errors.New(errorChannelConnection)
+		return nil, errors.New(errorChannelConnection)
 	}
 
 	r.buffer <- createAMQPMessage(msg.Body)
 
-	return nil
+	return nil, nil
 }
 
 func (r *rabbitMQInMemoryBroker) QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
@@ -359,8 +364,16 @@ func (r *rabbitMQInMemoryBroker) ExchangeDeclare(name string, kind string, durab
 	return nil
 }
 
+func (r *rabbitMQInMemoryBroker) Confirm(noWait bool) error {
+	return nil
+}
+
 func (r *rabbitMQInMemoryBroker) Close() error {
 	r.closeCount++
 
 	return nil
+}
+
+func (r *rabbitMQInMemoryBroker) IsClosed() bool {
+	return r.connectCount <= r.closeCount
 }

@@ -301,7 +301,7 @@ func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 func InitTestProcess(
 	cmd *command.ZeebeCommand,
 	id string,
-	testWorker func(context.Context, *bindings.ReadResponse) ([]byte, error),
+	testWorker bindings.Handler,
 	additionalMetadata ...MetadataPair,
 ) error {
 	testJobType := id + "-test"

@@ -70,7 +70,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the RethinkDB scheduler.
-func (b *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (b *Binding) Read(handler bindings.Handler) error {
 	b.logger.Infof("subscribing to state changes in %s.%s...", b.config.Database, b.config.Table)
 	cursor, err := r.DB(b.config.Database).Table(b.config.Table).Changes(r.ChangesOpts{
 		IncludeTypes: true,

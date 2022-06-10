@@ -73,8 +73,6 @@ type natsStreamingPubSub struct {
 
 	logger logger.Logger
 
-	ctx           context.Context
-	cancel        context.CancelFunc
 	backOffConfig retry.Config
 }
 
@@ -180,6 +178,12 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
+	c, err := pubsub.Concurrency(meta.Properties)
+	if err != nil {
+		return m, fmt.Errorf("nats-streaming error: can't parse %s: %s", pubsub.ConcurrencyKey, err)
+	}
+
+	m.concurrencyMode = c
 	return m, nil
 }
 
@@ -200,8 +204,6 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 		return fmt.Errorf("nats-streaming: error connecting to nats streaming server %s: %s", m.natsStreamingClusterID, err)
 	}
 	n.logger.Debugf("connected to natsstreaming at %s", m.natsURL)
-
-	n.ctx, n.cancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no
 	// backOff properties are set.
@@ -226,7 +228,7 @@ func (n *natsStreamingPubSub) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (n *natsStreamingPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	natStreamingsubscriptionOptions, err := n.subscriptionOptions()
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error getting subscription options %s", err)
@@ -237,40 +239,47 @@ func (n *natsStreamingPubSub) Subscribe(req pubsub.SubscribeRequest, handler pub
 			Topic: req.Topic,
 			Data:  natsMsg.Data,
 		}
-		b := n.backOffConfig.NewBackOffWithContext(n.ctx)
 
-		rerr := retry.NotifyRecover(func() error {
-			n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
-			herr := handler(n.ctx, &msg)
+		n.logger.Debugf("Processing NATS Streaming message %s/%d", natsMsg.Subject, natsMsg.Sequence)
+
+		f := func() {
+			herr := handler(ctx, &msg)
 			if herr == nil {
-				// we only send a successful ACK if there is no error from Dapr runtime
 				natsMsg.Ack()
 			}
+		}
 
-			return herr
-		}, b, func(err error, d time.Duration) {
-			n.logger.Errorf("Error processing NATS Streaming message: %s/%d. Retrying...", natsMsg.Subject, natsMsg.Sequence)
-		}, func() {
-			n.logger.Infof("Successfully processed NATS Streaming message after it previously failed: %s/%d", natsMsg.Subject, natsMsg.Sequence)
-		})
-		if rerr != nil && !errors.Is(rerr, context.Canceled) {
-			n.logger.Errorf("Error processing message and retries are exhausted:  %s/%d.", natsMsg.Subject, natsMsg.Sequence)
+		switch n.metadata.concurrencyMode {
+		case pubsub.Single:
+			f()
+		case pubsub.Parallel:
+			go f()
 		}
 	}
 
+	var subscription stan.Subscription
 	if n.metadata.subscriptionType == subscriptionTypeTopic {
-		_, err = n.natStreamingConn.Subscribe(req.Topic, natsMsgHandler, natStreamingsubscriptionOptions...)
+		subscription, err = n.natStreamingConn.Subscribe(req.Topic, natsMsgHandler, natStreamingsubscriptionOptions...)
 	} else if n.metadata.subscriptionType == subscriptionTypeQueueGroup {
-		_, err = n.natStreamingConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, natsMsgHandler, natStreamingsubscriptionOptions...)
+		subscription, err = n.natStreamingConn.QueueSubscribe(req.Topic, n.metadata.natsQueueGroupName, natsMsgHandler, natStreamingsubscriptionOptions...)
 	}
 
 	if err != nil {
 		return fmt.Errorf("nats-streaming: subscribe error %s", err)
 	}
+
+	go func() {
+		<-ctx.Done()
+		err := subscription.Unsubscribe()
+		if err != nil {
+			n.logger.Warnf("nats-streaming: error while unsubscribing from topic %s: %v", req.Topic, err)
+		}
+	}()
+
 	if n.metadata.subscriptionType == subscriptionTypeTopic {
-		n.logger.Debugf("nats: subscribed to subject %s", req.Topic)
+		n.logger.Debugf("nats-streaming: subscribed to subject %s", req.Topic)
 	} else if n.metadata.subscriptionType == subscriptionTypeQueueGroup {
-		n.logger.Debugf("nats: subscribed to subject %s with queue group %s", req.Topic, n.metadata.natsQueueGroupName)
+		n.logger.Debugf("nats-streaming: subscribed to subject %s with queue group %s", req.Topic, n.metadata.natsQueueGroupName)
 	}
 
 	return nil
@@ -333,8 +342,6 @@ func genRandomString(n int) string {
 }
 
 func (n *natsStreamingPubSub) Close() error {
-	n.cancel()
-
 	return n.natStreamingConn.Close()
 }
 

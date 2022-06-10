@@ -27,31 +27,28 @@ import (
 )
 
 type consumer struct {
-	k        *Kafka
-	ready    chan bool
-	callback EventHandler
-	once     sync.Once
+	k       *Kafka
+	ready   chan bool
+	running chan struct{}
+	once    sync.Once
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	if consumer.callback == nil {
-		return fmt.Errorf("nil consumer callback")
-	}
-
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
 	for message := range claim.Messages() {
 		if consumer.k.consumeRetryEnabled {
 			if err := retry.NotifyRecover(func() error {
 				return consumer.doCallback(session, message)
 			}, b, func(err error, d time.Duration) {
-				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 			}, func() {
 				consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 			}); err != nil {
 				return err
 			}
 		} else {
-			_ = consumer.doCallback(session, message)
+			err := consumer.doCallback(session, message)
+			consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 		}
 	}
 
@@ -60,11 +57,15 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) error {
 	consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+	handler, err := consumer.k.GetTopicHandler(message.Topic)
+	if err != nil {
+		return err
+	}
 	event := NewEvent{
 		Topic: message.Topic,
 		Data:  message.Value,
 	}
-	err := consumer.callback(session.Context(), &event)
+	err = handler(session.Context(), &event)
 	if err == nil {
 		session.MarkMessage(message, "")
 	}
@@ -84,15 +85,47 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// Subscribe to topic in the Kafka cluster
-// This call cannot block like its sibling in bindings/kafka because of where this is invoked in runtime.go.
-func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHandler) error {
+// AddTopicHandler adds a topic handler
+func (k *Kafka) AddTopicHandler(topic string, handler EventHandler) {
+	k.subscribeLock.Lock()
+	k.subscribeTopics[topic] = handler
+	k.subscribeLock.Unlock()
+}
+
+// RemoveTopicHandler removes a topic handler
+func (k *Kafka) RemoveTopicHandler(topic string) {
+	k.subscribeLock.Lock()
+	delete(k.subscribeTopics, topic)
+	k.subscribeLock.Unlock()
+}
+
+// GetTopicHandler returns the handler for a topic
+func (k *Kafka) GetTopicHandler(topic string) (EventHandler, error) {
+	handler, ok := k.subscribeTopics[topic]
+	if !ok || handler == nil {
+		return nil, fmt.Errorf("handler for messages of topic %s not found", topic)
+	}
+
+	return handler, nil
+}
+
+// Subscribe to topic in the Kafka cluster, in a background goroutine
+func (k *Kafka) Subscribe(ctx context.Context) error {
 	if k.consumerGroup == "" {
 		return errors.New("kafka: consumerGroup must be set to subscribe")
 	}
 
+	k.subscribeLock.Lock()
+	defer k.subscribeLock.Unlock()
+
 	// Close resources and reset synchronization primitives
 	k.closeSubscriptionResources()
+
+	topics := k.subscribeTopics.TopicList()
+	if len(topics) == 0 {
+		// Nothing to subscribe to
+		return nil
+	}
 
 	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
 	if err != nil {
@@ -101,33 +134,34 @@ func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHan
 
 	k.cg = cg
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	k.cancel = cancel
 
 	ready := make(chan bool)
 	k.consumer = consumer{
-		k:        k,
-		ready:    ready,
-		callback: handler,
+		k:       k,
+		ready:   ready,
+		running: make(chan struct{}),
 	}
 
 	go func() {
-		defer func() {
-			k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
-			err := k.cg.Close()
-			if err != nil {
-				k.logger.Errorf("Error closing consumer group: %v", err)
-			}
-		}()
-
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {
+			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
+			// us out of the consume loop
+			if ctx.Err() != nil {
+				break
+			}
+
 			k.logger.Debugf("Starting loop to consume.")
 
 			// Consume the requested topics
 			bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
 			innerErr := retry.NotifyRecover(func() error {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return backoff.Permanent(ctxErr)
+				}
 				return k.cg.Consume(ctx, topics, &(k.consumer))
 			}, bo, func(err error, t time.Duration) {
 				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
@@ -137,13 +171,15 @@ func (k *Kafka) Subscribe(topics []string, _ map[string]string, handler EventHan
 			if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
 				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
 			}
-
-			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
-			// us out of the consume loop
-			if ctx.Err() != nil {
-				return
-			}
 		}
+
+		k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
+		err := k.cg.Close()
+		if err != nil {
+			k.logger.Errorf("Error closing consumer group: %v", err)
+		}
+
+		close(k.consumer.running)
 	}()
 
 	<-ready
@@ -161,6 +197,8 @@ func (k *Kafka) closeSubscriptionResources() {
 		}
 
 		k.consumer.once.Do(func() {
+			// Wait for shutdown to be complete
+			<-k.consumer.running
 			close(k.consumer.ready)
 			k.consumer.once = sync.Once{}
 		})

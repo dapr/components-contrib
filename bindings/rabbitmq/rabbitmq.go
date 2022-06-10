@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/components-contrib/bindings"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
@@ -236,7 +236,7 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
 }
 
-func (r *RabbitMQ) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (r *RabbitMQ) Read(handler bindings.Handler) error {
 	msgs, err := r.channel.Consume(
 		r.queue.Name,
 		"",

@@ -276,7 +276,7 @@ func TestSubscribeBindRoutingKeys(t *testing.T) {
 		return nil
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{"routingKey": "keya,keyb,"}}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{"routingKey": "keya,keyb,"}}, handler)
 	assert.Nil(t, err)
 }
 

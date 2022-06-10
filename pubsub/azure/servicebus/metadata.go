@@ -22,8 +22,8 @@ type metadata struct {
 	HandlerTimeoutInSec             int    `json:"handlerTimeoutInSec"`
 	LockRenewalInSec                int    `json:"lockRenewalInSec"`
 	MaxActiveMessages               int    `json:"maxActiveMessages"`
-	MaxReconnectionAttempts         int    `json:"maxReconnectionAttempts"`
-	ConnectionRecoveryInSec         int    `json:"connectionRecoveryInSec"`
+	MaxConnectionRecoveryInSec      int    `json:"maxConnectionRecoveryInSec"`
+	MinConnectionRecoveryInSec      int    `json:"minConnectionRecoveryInSec"`
 	DisableEntityManagement         bool   `json:"disableEntityManagement"`
 	MaxRetriableErrorsPerSec        int    `json:"maxRetriableErrorsPerSec"`
 	MaxDeliveryCount                *int   `json:"maxDeliveryCount"`
@@ -44,8 +44,8 @@ const (
 	handlerTimeoutInSec             = "handlerTimeoutInSec"
 	lockRenewalInSec                = "lockRenewalInSec"
 	maxActiveMessages               = "maxActiveMessages"
-	maxReconnectionAttempts         = "maxReconnectionAttempts"
-	connectionRecoveryInSec         = "connectionRecoveryInSec"
+	maxConnectionRecoveryInSec      = "maxConnectionRecoveryInSec"
+	minConnectionRecoveryInSec      = "minConnectionRecoveryInSec"
 	disableEntityManagement         = "disableEntityManagement"
 	maxRetriableErrorsPerSec        = "maxRetriableErrorsPerSec"
 	maxDeliveryCount                = "maxDeliveryCount"
@@ -66,8 +66,8 @@ const (
 	// We should change this if performance testing suggests a more sensible default.
 	defaultMaxActiveMessages               = 10000
 	defaultDisableEntityManagement         = false
-	defaultMaxReconnectionAttempts         = 30
-	defaultConnectionRecoveryInSec         = 2
+	defaultMinConnectionRecoveryInSec      = 2
+	defaultMaxConnectionRecoveryInSec      = 300
 	defaultPublishMaxRetries               = 5
 	defaultPublishInitialRetryInternalInMs = 500
 )

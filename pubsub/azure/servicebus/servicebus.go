@@ -157,21 +157,21 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	m.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
-	if val, ok := meta.Properties[maxReconnectionAttempts]; ok && val != "" {
+	m.MinConnectionRecoveryInSec = defaultMinConnectionRecoveryInSec
+	if val, ok := meta.Properties[minConnectionRecoveryInSec]; ok && val != "" {
 		var err error
-		m.MaxReconnectionAttempts, err = strconv.Atoi(val)
+		m.MinConnectionRecoveryInSec, err = strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("%s invalid maxReconnectionAttempts %s, %s", errorMessagePrefix, val, err)
+			return m, fmt.Errorf("%s invalid minConnectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
-	m.ConnectionRecoveryInSec = defaultConnectionRecoveryInSec
-	if val, ok := meta.Properties[connectionRecoveryInSec]; ok && val != "" {
+	m.MaxConnectionRecoveryInSec = defaultMaxConnectionRecoveryInSec
+	if val, ok := meta.Properties[maxConnectionRecoveryInSec]; ok && val != "" {
 		var err error
-		m.ConnectionRecoveryInSec, err = strconv.Atoi(val)
+		m.MaxConnectionRecoveryInSec, err = strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("%s invalid connectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
+			return m, fmt.Errorf("%s invalid maxConnectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -350,48 +350,28 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		}
 	}
 
+	// Reconnection backoff policy
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0
+	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
+	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+
 	go func() {
-		// Limit the number of attempted reconnects we make.
-		reconnAttempts := make(chan struct{}, a.metadata.MaxReconnectionAttempts)
-		for i := 0; i < a.metadata.MaxReconnectionAttempts; i++ {
-			reconnAttempts <- struct{}{}
-		}
-
-		// len(reconnAttempts) should be considered stale but we can afford a little error here.
-		readAttemptsStale := func() int { return len(reconnAttempts) }
-
-		// Periodically refill the reconnect attempts channel to avoid
-		// exhausting all the refill attempts due to intermittent issues
-		// ocurring over a longer period of time.
-		reconnCtx, reconnCancel := context.WithCancel(subscribeCtx)
-		defer reconnCancel()
-		go func() {
-			for {
-				select {
-				case <-reconnCtx.Done():
-					a.logger.Debugf("Reconnect context for topic %s is done", req.Topic)
-					return
-				case <-time.After(2 * time.Minute):
-					attempts := readAttemptsStale()
-					if attempts < a.metadata.MaxReconnectionAttempts {
-						reconnAttempts <- struct{}{}
-					}
-					a.logger.Debugf("Number of reconnect attempts remaining for topic %s: %d", req.Topic, attempts)
-				}
-			}
-		}()
-
 		// Reconnect loop.
 		for {
-			subEntity, err := a.client.NewReceiverForSubscription(req.Topic, subID, nil)
+			// Blocks until a successful connection (or until context is canceled)
+			receiver, err := a.attemptConnectionForever(subscribeCtx, req.Topic, subID)
 			if err != nil {
-				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
+				if err != context.Canceled {
+					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+				}
 				return
 			}
 			sub := newSubscription(
 				subscribeCtx,
 				req.Topic,
-				subEntity,
+				receiver,
 				a.metadata.MaxActiveMessages,
 				a.metadata.TimeoutInSec,
 				a.metadata.HandlerTimeoutInSec,
@@ -409,6 +389,10 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			innerErr := sub.ReceiveAndBlock(
 				handler,
 				a.metadata.LockRenewalInSec,
+				func() {
+					// Reset the backoff when the subscription is sucessful and we have received the first message
+					bo.Reset()
+				},
 			)
 			if innerErr != nil {
 				var detachError *amqp.DetachError
@@ -420,6 +404,8 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 					a.logger.Error(innerErr)
 				}
 			}
+
+			// Gracefully close the connection (in case it's not closed already)
 			// Use a background context here (with timeout) because ctx may be closed already
 			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 			sub.close(closeCtx)
@@ -427,23 +413,47 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 
 			// If context was canceled, do not attempt to reconnect
 			if subscribeCtx.Err() != nil {
-				a.logger.Debug("Context canceled; will not try to reconnect")
+				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
 
-			attempts := readAttemptsStale()
-			if attempts == 0 {
-				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, a.metadata.MaxReconnectionAttempts)
-				return
-			}
-
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, a.metadata.MaxReconnectionAttempts-attempts, a.metadata.MaxReconnectionAttempts)
-			time.Sleep(time.Second * time.Duration(a.metadata.ConnectionRecoveryInSec))
-			<-reconnAttempts
+			wait := bo.NextBackOff()
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", sub.topic, wait)
+			time.Sleep(wait)
 		}
 	}()
 
 	return nil
+}
+
+// Attempts to connect to a Service Bus topic and blocks until it succeeds; it can retry forever (until the context is canceled)
+func (a *azureServiceBus) attemptConnectionForever(ctx context.Context, topicName string, subscriptionName string) (receiver *servicebus.Receiver, err error) {
+	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
+	config := retry.DefaultConfig()
+	config.Policy = retry.PolicyExponential
+	config.MaxInterval = 5 * time.Minute
+	config.MaxElapsedTime = 0
+	backoff := config.NewBackOffWithContext(ctx)
+
+	err = retry.NotifyRecover(
+		func() error {
+			clientAttempt, err := a.client.NewReceiverForSubscription(topicName, subscriptionName, nil)
+			if err != nil {
+				return err
+			}
+			receiver = clientAttempt
+			return nil
+		},
+		backoff,
+		func(err error, d time.Duration) {
+			a.logger.Warnf("Failed to connect to Azure Service Bus topic %s; will retry in %s. Error: %s", topicName, d, err.Error())
+		},
+		func() {
+			a.logger.Infof("Successfully reconnected to Azure Service Bus topic %s", topicName)
+			backoff.Reset()
+		},
+	)
+	return receiver, err
 }
 
 // senderForTopic returns the sender for a topic, or creates a new one if it doesn't exist

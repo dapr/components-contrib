@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
+	backoff "github.com/cenkalti/backoff/v4"
 	"go.uber.org/ratelimit"
 
 	azauth "github.com/dapr/components-contrib/authentication/azure"
@@ -44,6 +45,10 @@ const (
 	// Default timeout in seconds
 	defaultTimeoutInSec = 60
 
+	// Default minimum and maximum recovery time while trying to reconnect
+	defaultMinConnectionRecoveryInSec = 2
+	defaultMaxConnectionRecoveryInSec = 300
+
 	// Default rate of retriable errors per second
 	defaultMaxRetriableErrorsPerSec = 10
 )
@@ -63,12 +68,14 @@ type AzureServiceBusQueues struct {
 }
 
 type serviceBusQueuesMetadata struct {
-	ConnectionString         string `json:"connectionString"`
-	NamespaceName            string `json:"namespaceName,omitempty"`
-	QueueName                string `json:"queueName"`
-	TimeoutInSec             int    `json:"timeoutInSec"`
-	MaxRetriableErrorsPerSec *int   `json:"maxRetriableErrorsPerSec"`
-	ttl                      time.Duration
+	ConnectionString           string `json:"connectionString"`
+	NamespaceName              string `json:"namespaceName,omitempty"`
+	QueueName                  string `json:"queueName"`
+	TimeoutInSec               int    `json:"timeoutInSec"`
+	MaxConnectionRecoveryInSec int    `json:"maxConnectionRecoveryInSec"`
+	MinConnectionRecoveryInSec int    `json:"minConnectionRecoveryInSec"`
+	MaxRetriableErrorsPerSec   *int   `json:"maxRetriableErrorsPerSec"`
+	ttl                        time.Duration
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
@@ -190,6 +197,18 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 		m.TimeoutInSec = defaultTimeoutInSec
 	}
 
+	if m.MinConnectionRecoveryInSec < 1 {
+		m.MinConnectionRecoveryInSec = defaultMinConnectionRecoveryInSec
+	}
+
+	if m.MaxConnectionRecoveryInSec < 1 {
+		m.MaxConnectionRecoveryInSec = defaultMaxConnectionRecoveryInSec
+	}
+
+	if m.MinConnectionRecoveryInSec > m.MaxConnectionRecoveryInSec {
+		return nil, errors.New("maxConnectionRecoveryInSec must be greater than minConnectionRecoveryInSec")
+	}
+
 	if m.MaxRetriableErrorsPerSec == nil {
 		m.MaxRetriableErrorsPerSec = to.Ptr(defaultMaxRetriableErrorsPerSec)
 	}
@@ -245,8 +264,14 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 }
 
 func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
-	for a.ctx.Err() == nil {
-		receiver := a.attemptConnectionForever()
+	// Reconnection backoff policy
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0
+	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
+	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+
+	for {
+		receiver, _ := a.attemptConnectionForever(a.ctx)
 		if receiver == nil {
 			a.logger.Errorf("Failed to connect to Azure Service Bus Queue.")
 			continue
@@ -258,8 +283,15 @@ func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
 			// Blocks until the connection is closed or the context is canceled
 			msgs, err := receiver.ReceiveMessages(a.ctx, 1, nil)
 			if err != nil {
-				a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+				if err != context.Canceled {
+					a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+				}
+				// Exit from the receive loop to force a reconnection
+				break
 			}
+
+			// If we got a message, reset the reconnection backoff
+			bo.Reset()
 
 			l := len(msgs)
 			if l == 0 {
@@ -316,6 +348,16 @@ func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
 			a.logger.Warnf("Error closing receiver of Azure Service Bus Queue binding: %s", err.Error())
 		}
 		cancel()
+
+		// Reconnect until context is canceled
+		if a.ctx.Err() != nil {
+			a.logger.Debug("Context canceled; will not reconnect")
+			break
+		}
+
+		wait := bo.NextBackOff()
+		a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", a.metadata.QueueName, wait)
+		time.Sleep(wait)
 	}
 	return nil
 }
@@ -338,14 +380,16 @@ func (a *AzureServiceBusQueues) abandonMessage(receiver *servicebus.Receiver, ms
 	a.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
 }
 
-func (a *AzureServiceBusQueues) attemptConnectionForever() (receiver *servicebus.Receiver) {
+// Attempts to connect to a Service Bus queue and blocks until it succeeds; it can retry forever (until the context is canceled)
+func (a *AzureServiceBusQueues) attemptConnectionForever(ctx context.Context) (receiver *servicebus.Receiver, err error) {
 	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
 	config := retry.DefaultConfig()
 	config.Policy = retry.PolicyExponential
 	config.MaxInterval = 5 * time.Minute
-	backoff := config.NewBackOffWithContext(a.ctx)
+	config.MaxElapsedTime = 0
+	backoff := config.NewBackOffWithContext(ctx)
 
-	retry.NotifyRecover(
+	err = retry.NotifyRecover(
 		func() error {
 			clientAttempt, err := a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
 			if err != nil {
@@ -363,7 +407,7 @@ func (a *AzureServiceBusQueues) attemptConnectionForever() (receiver *servicebus
 			backoff.Reset()
 		},
 	)
-	return receiver
+	return receiver, err
 }
 
 func (a *AzureServiceBusQueues) Close() (err error) {

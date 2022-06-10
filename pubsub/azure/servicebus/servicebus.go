@@ -239,10 +239,10 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 
 	/* Deprecated properties - show a warning. */
 	// TODO: Remove in the future
-	if _, ok := meta.Properties[connectionRecoveryInSec]; ok {
+	if _, ok := meta.Properties[connectionRecoveryInSec]; ok && logger != nil {
 		logger.Warn("pubsub.azure.servicebus: metadata property 'connectionRecoveryInSec' has been deprecated and is now ignored - use 'minConnectionRecoveryInSec' and 'maxConnectionRecoveryInSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus/")
 	}
-	if _, ok := meta.Properties[maxReconnectionAttempts]; ok {
+	if _, ok := meta.Properties[maxReconnectionAttempts]; ok && logger != nil {
 		logger.Warn("pubsub.azure.servicebus: metadata property 'maxReconnectionAttempts' has been deprecated and is now ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus/")
 	}
 

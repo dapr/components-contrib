@@ -31,6 +31,10 @@ spec:
       secretKeyRef:
         name: AzureCertificationSubscriptionId
         key: AzureCertificationSubscriptionId
+    - name: consumerGroup 
+      secretKeyRef:
+        name: AzureEventHubsBindingsConsumerGroup
+        value: AzureEventHubsBindingsConsumerGroup
     - name: storageAccountName
       secretKeyRef:
         name: AzureBlobStorageAccount

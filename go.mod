@@ -181,7 +181,6 @@ require (
 	github.com/apache/dubbo-getty v1.4.9-0.20220610031447-1bfc340ef6dc // indirect
 	github.com/appscode/go-querystring v0.0.0-20170504095604-0126cfb3f1dc // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
-	github.com/couchbaselabs/gojcbmock v1.0.5-0.20200218120103-6443c04a6ef0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/dubbogo/gost v1.11.25 // indirect
 	github.com/dubbogo/triple v1.1.8 // indirect

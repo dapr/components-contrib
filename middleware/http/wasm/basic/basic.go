@@ -36,7 +36,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		meta *middlewareMetadata
 		err  error
 	)
-	meta, err = m.getNativeetadata(metadata)
+	meta, err = m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse wasm basic metadata")
 	}

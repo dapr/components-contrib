@@ -10,7 +10,11 @@ spec:
     - name: eventHubNamespace
       secretKeyRef:
         name: AzureEventHubsBindingsNamespace
-        key: AzureEventHubsBindingsNamespace    
+        key: AzureEventHubsBindingsNamespace 
+    - name: connectionString
+      secretKeyRef:
+        name: AzureEventHubsBindingsConnectionString
+        value: AzureEventHubsBindingsConnectionString   
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId

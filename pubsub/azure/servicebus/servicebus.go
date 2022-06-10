@@ -390,7 +390,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 				handler,
 				a.metadata.LockRenewalInSec,
 				func() {
-					// Reset the backoff when the subscription is sucessful and we have received the first message
+					// Reset the backoff when the subscription is successful and we have received the first message
 					bo.Reset()
 				},
 			)
@@ -437,9 +437,9 @@ func (a *azureServiceBus) attemptConnectionForever(ctx context.Context, topicNam
 
 	err = retry.NotifyRecover(
 		func() error {
-			clientAttempt, err := a.client.NewReceiverForSubscription(topicName, subscriptionName, nil)
-			if err != nil {
-				return err
+			clientAttempt, innerErr := a.client.NewReceiverForSubscription(topicName, subscriptionName, nil)
+			if innerErr != nil {
+				return innerErr
 			}
 			receiver = clientAttempt
 			return nil

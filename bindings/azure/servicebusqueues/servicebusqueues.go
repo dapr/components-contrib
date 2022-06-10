@@ -391,9 +391,9 @@ func (a *AzureServiceBusQueues) attemptConnectionForever(ctx context.Context) (r
 
 	err = retry.NotifyRecover(
 		func() error {
-			clientAttempt, err := a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
-			if err != nil {
-				return err
+			clientAttempt, innerErr := a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
+			if innerErr != nil {
+				return innerErr
 			}
 			receiver = clientAttempt
 			return nil

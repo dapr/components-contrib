@@ -168,7 +168,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	if r.metadata.publishConfirm {
+	if r.metadata.publisherConfirm {
 		err = r.channel.Confirm(false)
 		if err != nil {
 			r.reset()

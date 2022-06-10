@@ -37,7 +37,7 @@ type metadata struct {
 	maxLen           int64
 	maxLenBytes      int64
 	exchangeKind     string
-	publishConfirm   bool
+	publisherConfirm bool
 	concurrency      pubsub.ConcurrencyMode
 }
 
@@ -55,7 +55,7 @@ const (
 	metadataMaxLenKey               = "maxLen"
 	metadataMaxLenBytesKey          = "maxLenBytes"
 	metadataExchangeKindKey         = "exchangeKind"
-	metadataPublishConfirmKey       = "publishConfirm"
+	metadataPublisherConfirmKey     = "publisherConfirm"
 
 	defaultReconnectWaitSeconds = 3
 )
@@ -68,7 +68,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		autoAck:          false,
 		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		exchangeKind:     fanoutExchangeKind,
-		publishConfirm:   false,
+		publisherConfirm: false,
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataHostKey]; found && val != "" {
@@ -152,9 +152,9 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataPublishConfirmKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataPublisherConfirmKey]; found && val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.publishConfirm = boolVal
+			result.publisherConfirm = boolVal
 		}
 	}
 

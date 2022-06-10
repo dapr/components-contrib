@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/Shopify/sarama v1.23.1
-	github.com/cenkalti/backoff/v4 v4.1.1
+	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/dapr/components-contrib v1.7.1-0.20220602220636-704f4dd7307d
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
 	github.com/dapr/dapr v1.7.4-0.20220603165529-7e7d81477a0d
@@ -47,7 +47,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/cel-go v0.9.0 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
-	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grandcat/zeroconf v0.0.0-20190424104450-85eadb44205c // indirect
@@ -70,7 +70,7 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
-	github.com/miekg/dns v1.1.35 // indirect
+	github.com/miekg/dns v1.1.43 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -85,7 +85,7 @@ require (
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/prometheus/statsd_exporter v0.22.3 // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
@@ -107,7 +107,7 @@ require (
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20211104193956-4c6863e31247 // indirect
+	google.golang.org/genproto v0.0.0-20220107163113-42d7afdf6368 // indirect
 	google.golang.org/grpc v1.47.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

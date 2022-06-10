@@ -60,6 +60,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, false, m.requeueInFailure)
 		assert.Equal(t, true, m.deleteWhenUnused)
 		assert.Equal(t, false, m.enableDeadLetter)
+		assert.Equal(t, false, m.publisherConfirm)
 		assert.Equal(t, uint8(0), m.deliveryMode)
 		assert.Equal(t, uint8(0), m.prefetchCount)
 		assert.Equal(t, int64(0), m.maxLen)
@@ -145,7 +146,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[metadataPrefetchCount] = "1"
+		fakeMetaData.Properties[metadataPrefetchCountKey] = "1"
 
 		// act
 		m, err := createMetadata(fakeMetaData)
@@ -163,8 +164,8 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[metadataMaxLen] = "1"
-		fakeMetaData.Properties[metadataMaxLenBytes] = "2000000"
+		fakeMetaData.Properties[metadataMaxLenKey] = "1"
+		fakeMetaData.Properties[metadataMaxLenBytesKey] = "2000000"
 
 		// act
 		m, err := createMetadata(fakeMetaData)
@@ -244,7 +245,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData := pubsub.Metadata{
 				Properties: fakeProperties,
 			}
-			fakeMetaData.Properties[metadataDurable] = tt.in
+			fakeMetaData.Properties[metadataDurableKey] = tt.in
 
 			// act
 			m, err := createMetadata(fakeMetaData)
@@ -258,13 +259,33 @@ func TestCreateMetadata(t *testing.T) {
 	}
 
 	for _, tt := range booleanFlagTests {
+		t.Run(fmt.Sprintf("publisherConfirm value=%s", tt.in), func(t *testing.T) {
+			fakeProperties := getFakeProperties()
+
+			fakeMetaData := pubsub.Metadata{
+				Properties: fakeProperties,
+			}
+			fakeMetaData.Properties[metadataPublisherConfirmKey] = tt.in
+
+			// act
+			m, err := createMetadata(fakeMetaData)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+			assert.Equal(t, tt.expected, m.publisherConfirm)
+		})
+	}
+
+	for _, tt := range booleanFlagTests {
 		t.Run(fmt.Sprintf("enableDeadLetter value=%s", tt.in), func(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
 				Properties: fakeProperties,
 			}
-			fakeMetaData.Properties[metadataEnableDeadLetter] = tt.in
+			fakeMetaData.Properties[metadataEnableDeadLetterKey] = tt.in
 
 			// act
 			m, err := createMetadata(fakeMetaData)
@@ -285,7 +306,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData := pubsub.Metadata{
 				Properties: fakeProperties,
 			}
-			fakeMetaData.Properties[metadataExchangeKind] = exchangeKind
+			fakeMetaData.Properties[metadataExchangeKindKey] = exchangeKind
 
 			// act
 			m, err := createMetadata(fakeMetaData)
@@ -304,7 +325,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Properties: fakeProperties,
 		}
-		fakeMetaData.Properties[metadataExchangeKind] = "invalid"
+		fakeMetaData.Properties[metadataExchangeKindKey] = "invalid"
 
 		// act
 		_, err := createMetadata(fakeMetaData)

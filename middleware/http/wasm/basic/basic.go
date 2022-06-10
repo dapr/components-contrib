@@ -123,7 +123,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 	}, nil
 }
 
-func (m *Middleware) getNativeetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
+func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {
 		return nil, err

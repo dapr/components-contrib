@@ -55,6 +55,8 @@ jobs:
         - pubsub.kafka
         - pubsub.rabbitmq
         - pubsub.mqtt
+        - state.redis
+        - state.postgresql
         - bindings.alicloud.dubbo
         - bindings.kafka
         EOF

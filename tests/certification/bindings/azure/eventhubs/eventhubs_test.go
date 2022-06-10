@@ -16,7 +16,7 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
-	"os"
+	//"os"
 	"os/exec"
 	"testing"
 	"time"

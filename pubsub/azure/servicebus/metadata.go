@@ -57,6 +57,10 @@ const (
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	namespaceName                   = "namespaceName"
 
+	// Deprecated keys.
+	maxReconnectionAttempts = "maxReconnectionAttempts"
+	connectionRecoveryInSec = "connectionRecoveryInSec"
+
 	// Defaults.
 	defaultTimeoutInSec             = 60
 	defaultHandlerTimeoutInSec      = 60

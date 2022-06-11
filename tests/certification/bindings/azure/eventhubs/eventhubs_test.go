@@ -131,7 +131,7 @@ func TestSinglePartition(t *testing.T) {
 		return err
 	}
 
-	iotHubName := os.Getenv(iotHubNameEnvKey)
+	/*iotHubName := os.Getenv(iotHubNameEnvKey)
 	consumerGroup3 := watcher.NewUnordered()
 	sendIOTDevice := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
@@ -160,7 +160,7 @@ func TestSinglePartition(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
-		Run()
+		Run()*/
 
 	deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
@@ -276,6 +276,75 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 		)).
 		Step("send and wait", sendAndReceive(metadata)).
 		Run()
+}
+
+func TestEventhubBindingIOTHub(t *testing.T) {
+	logger := logger.NewLogger("dapr.components")
+	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
+		return eventhubs.NewAzureEventHubs(logger)
+	})
+	in_component := bindings_loader.NewInput("azure.eventhubs", func() bindings.InputBinding {
+		return eventhubs.NewAzureEventHubs(logger)
+	})
+	secrets_components := secretstores_loader.New("local.env", func() secretstores.SecretStore {
+		return secretstore_env.NewEnvSecretStore(logger)
+	})
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	consumerGroup1 := watcher.NewUnordered()
+
+	// Application logic that tracks messages from eventhub.
+	application := func(ctx flow.Context, s common.Service) (err error) {
+		// Simulate periodic errors.
+		sim := simulate.PeriodicError(ctx, 100)
+		// Setup the binding endpoints
+		err = multierr.Combine(err,
+			s.AddBindingInvocationHandler("azure-eventhubs-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				consumerGroup1.Observe(string(in.Data))
+				if err := sim(); err != nil {
+					return nil, err
+				}
+				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
+				return []byte("{}"), nil
+			}))
+		return err
+	}
+
+	iotHubName := os.Getenv(iotHubNameEnvKey)
+	consumerGroup3 := watcher.NewUnordered()
+	sendIOTDevice := func(messages *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// Define what is expected
+			outputmsg := make([]string, numMessages)
+			for i := 0; i < numMessages; i++ {
+				outputmsg[i] = fmt.Sprintf("messages to test iothub: Message %03d", i)
+			}
+			messages.ExpectStrings(outputmsg...)
+
+			cmd := exec.Command("/bin/bash", "send-iot-device-events.sh")
+			cmd.Env = append(os.Environ(), fmt.Sprintf("IOT_HUB_NAME=%s", iotHubName))
+			cmd.CombinedOutput()
+			return nil
+		}
+	}
+	flow.New(t, "eventhubs binding IoTHub testing").
+		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("sidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/binding/iothub"),
+			runtime.WithSecretStores(secrets_components),
+			runtime.WithOutputBindings(out_component),
+			runtime.WithInputBindings(in_component),
+		)).
+		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
+		Run()
+
 }
 
 func TestEventhubBindingMultiplePartition(t *testing.T) {

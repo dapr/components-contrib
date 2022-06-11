@@ -256,6 +256,30 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
 }
 
+func TestSubscribeBindRoutingKeys(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{
+		Properties: map[string]string{
+			metadataHostKey:       "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}
+	err := pubsubRabbitMQ.Init(metadata)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, broker.connectCount)
+	assert.Equal(t, 0, broker.closeCount)
+
+	topic := "mytopic_routingkeys"
+
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return nil
+	}
+
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{"routingKey": "keya,keyb,"}}, handler)
+	assert.Nil(t, err)
+}
+
 func TestSubscribeReconnect(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)

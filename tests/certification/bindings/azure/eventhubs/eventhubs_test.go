@@ -311,7 +311,7 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
 		Run()
-
+}
 func TestEventhubBindingMultiplePartition(t *testing.T) {
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {

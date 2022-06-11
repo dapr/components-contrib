@@ -16,7 +16,7 @@ package eventhubs_test
 import (
 	"context"
 	"fmt"
-	//"os"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -131,7 +131,7 @@ func TestSinglePartition(t *testing.T) {
 		return err
 	}
 
-	/*iotHubName := os.Getenv(iotHubNameEnvKey)
+	iotHubName := os.Getenv(iotHubNameEnvKey)
 	consumerGroup3 := watcher.NewUnordered()
 	sendIOTDevice := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
@@ -160,7 +160,7 @@ func TestSinglePartition(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
-		Run()*/
+		Run()
 
 	deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()

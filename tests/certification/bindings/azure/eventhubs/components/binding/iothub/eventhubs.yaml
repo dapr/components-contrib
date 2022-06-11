@@ -8,7 +8,7 @@ spec:
   version: v1
   metadata:
     - name: consumerID
-      value: bindings-consumergroup
+      value: ehcertification1
     - name: connectionString
       secretKeyRef:
         name: AzureIotHubEventHubConnectionString
@@ -25,5 +25,7 @@ spec:
       secretKeyRef:
         name: AzureEventHubsBindingsContainer
         key: AzureEventHubsBindingsContainer
+    - name: PartitionID
+      value: 1
 auth:
   secretStore: envvar-secret-store

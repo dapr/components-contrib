@@ -130,38 +130,6 @@ func TestSinglePartition(t *testing.T) {
 			}))
 		return err
 	}
-
-	/*iotHubName := os.Getenv(iotHubNameEnvKey)
-	consumerGroup3 := watcher.NewUnordered()
-	sendIOTDevice := func(messages *watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// Define what is expected
-			outputmsg := make([]string, numMessages)
-			for i := 0; i < numMessages; i++ {
-				outputmsg[i] = fmt.Sprintf("messages to test iothub: Message %03d", i)
-			}
-			messages.ExpectStrings(outputmsg...)
-
-			cmd := exec.Command("/bin/bash", "send-iot-device-events.sh")
-			cmd.Env = append(os.Environ(), fmt.Sprintf("IOT_HUB_NAME=%s", iotHubName))
-			cmd.CombinedOutput()
-			return nil
-		}
-	}
-	flow.New(t, "eventhubs binding IoTHub testing").
-		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
-		Step(sidecar.Run("sidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/binding/iothub"),
-			runtime.WithSecretStores(secrets_components),
-			runtime.WithOutputBindings(out_component),
-			runtime.WithInputBindings(in_component),
-		)).
-		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
-		Run()*/
-
 	deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
 		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
@@ -169,7 +137,6 @@ func TestSinglePartition(t *testing.T) {
 	}
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using connection string single partition").
-		// Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -344,8 +311,6 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
 		Run()
-
-}
 
 func TestEventhubBindingMultiplePartition(t *testing.T) {
 	logger := logger.NewLogger("dapr.components")

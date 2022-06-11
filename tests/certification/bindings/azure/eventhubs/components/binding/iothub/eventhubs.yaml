@@ -13,6 +13,10 @@ spec:
       secretKeyRef:
         name: AzureIotHubEventHubConnectionString
         key: AzureIotHubEventHubConnectionString 
+    - name: consumerGroup
+      secretKeyRef:
+        name: AzureEventHubsBindingsConsumerGroup
+        value: AzureEventHubsBindingsConsumerGroup
     - name: storageAccountName
       secretKeyRef:
         name: AzureBlobStorageAccount

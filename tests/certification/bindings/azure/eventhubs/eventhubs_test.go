@@ -229,6 +229,11 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 		return err
 	}
 
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+		return nil
+	}
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
 	flow.New(t, "eventhubs binding authentication using service principal").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
@@ -242,6 +247,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("send and wait", sendAndReceive(metadata)).
+		Step("delete containers", deleteEventhub).
 		Run()
 }
 
@@ -298,6 +304,11 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 			return nil
 		}
 	}
+	deleteEventhub := func(ctx flow.Context) error {
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+		return nil
+	}
 	flow.New(t, "eventhubs binding IoTHub testing").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
@@ -310,6 +321,7 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 			runtime.WithInputBindings(in_component),
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
+		Step("delete containers", deleteEventhub).
 		Run()
 }
 func TestEventhubBindingMultiplePartition(t *testing.T) {

@@ -71,7 +71,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the Cron scheduler.
-func (b *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (b *Binding) Read(handler bindings.Handler) error {
 	c := cron.New(cron.WithParser(b.parser))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())

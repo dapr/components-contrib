@@ -57,11 +57,11 @@ const (
 
 // GCPPubSub type.
 type GCPPubSub struct {
-	client   *gcppubsub.Client
-	metadata *metadata
-	logger   logger.Logger
-	ctx      context.Context
-	cancel   context.CancelFunc
+	client        *gcppubsub.Client
+	metadata      *metadata
+	logger        logger.Logger
+	publishCtx    context.Context
+	publishCancel context.CancelFunc
 }
 
 type GCPAuthJSON struct {
@@ -183,8 +183,7 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 		return err
 	}
 
-	ctx := context.Background()
-	pubsubClient, err := g.getPubSubClient(ctx, metadata)
+	pubsubClient, err := g.getPubSubClient(context.Background(), metadata)
 	if err != nil {
 		return fmt.Errorf("%s error creating pubsub client: %w", errorMessagePrefix, err)
 	}
@@ -192,7 +191,7 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	g.client = pubsubClient
 	g.metadata = metadata
 
-	g.ctx, g.cancel = context.WithCancel(context.Background())
+	g.publishCtx, g.publishCancel = context.WithCancel(context.Background())
 
 	return nil
 }
@@ -236,31 +235,30 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 // Publish the topic to GCP Pubsub.
 func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
 	if !g.metadata.DisableEntityManagement {
-		err := g.ensureTopic(req.Topic)
+		err := g.ensureTopic(g.publishCtx, req.Topic)
 		if err != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
 		}
 	}
 
-	ctx := context.Background()
 	topic := g.getTopic(req.Topic)
 
-	_, err := topic.Publish(ctx, &gcppubsub.Message{
+	_, err := topic.Publish(g.publishCtx, &gcppubsub.Message{
 		Data: req.Data,
-	}).Get((ctx))
+	}).Get(g.publishCtx)
 
 	return err
 }
 
 // Subscribe to the GCP Pubsub topic.
-func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (g *GCPPubSub) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if !g.metadata.DisableEntityManagement {
-		topicErr := g.ensureTopic(req.Topic)
+		topicErr := g.ensureTopic(subscribeCtx, req.Topic)
 		if topicErr != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(g.metadata.consumerID, req.Topic)
+		subError := g.ensureSubscription(subscribeCtx, g.metadata.consumerID, req.Topic)
 		if subError != nil {
 			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
 		}
@@ -269,12 +267,12 @@ func (g *GCPPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handle
 	topic := g.getTopic(req.Topic)
 	sub := g.getSubscription(g.metadata.consumerID + "-" + req.Topic)
 
-	go g.handleSubscriptionMessages(topic, sub, handler)
+	go g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler)
 
 	return nil
 }
 
-func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {
+func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {
 	// Limit the number of attempted reconnects we make.
 	reconnAttempts := make(chan struct{}, g.metadata.MaxReconnectionAttempts)
 	for i := 0; i < g.metadata.MaxReconnectionAttempts; i++ {
@@ -286,10 +284,10 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 	// Periodically refill the reconnect attempts channel to avoid
 	// exhausting all the refill attempts due to intermittent issues
 	// occurring over a longer period of time.
-	reconnCtx, reconnCancel := context.WithCancel(g.ctx)
-	defer reconnCancel()
-
 	go func() {
+		reconnCtx, reconnCancel := context.WithCancel(parentCtx)
+		defer reconnCancel()
+
 		// Calculate refill interval relative to MaxReconnectionAttempts and ConnectionRecoveryInSec
 		// in order to allow reconnection attempts to be exhausted in case of a permanent issue (e.g. wrong subscription name).
 		refillInterval := time.Duration(2*g.metadata.MaxReconnectionAttempts*g.metadata.ConnectionRecoveryInSec) * time.Second
@@ -311,7 +309,7 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 	// Reconnect loop.
 	var receiveErr error = nil
 	for {
-		receiveErr = sub.Receive(g.ctx, func(ctx context.Context, m *gcppubsub.Message) {
+		receiveErr = sub.Receive(parentCtx, func(ctx context.Context, m *gcppubsub.Message) {
 			msg := &pubsub.NewMessage{
 				Data:  m.Data,
 				Topic: topic.ID(),
@@ -349,15 +347,15 @@ func (g *GCPPubSub) handleSubscriptionMessages(topic *gcppubsub.Topic, sub *gcpp
 	return receiveErr
 }
 
-func (g *GCPPubSub) ensureTopic(topic string) error {
+func (g *GCPPubSub) ensureTopic(parentCtx context.Context, topic string) error {
 	entity := g.getTopic(topic)
-	exists, err := entity.Exists(context.Background())
+	exists, err := entity.Exists(parentCtx)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
-		_, err = g.client.CreateTopic(context.Background(), topic)
+		_, err = g.client.CreateTopic(parentCtx, topic)
 		if status.Code(err) == codes.AlreadyExists {
 			return nil
 		}
@@ -372,18 +370,20 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 	return g.client.Topic(topic)
 }
 
-func (g *GCPPubSub) ensureSubscription(subscription string, topic string) error {
-	err := g.ensureTopic(topic)
+func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
+	err := g.ensureTopic(parentCtx, topic)
 	if err != nil {
 		return err
 	}
 
 	managedSubscription := subscription + "-" + topic
 	entity := g.getSubscription(managedSubscription)
-	exists, subErr := entity.Exists(context.Background())
+	exists, subErr := entity.Exists(parentCtx)
 	if !exists {
-		_, subErr = g.client.CreateSubscription(context.Background(), managedSubscription,
-			gcppubsub.SubscriptionConfig{Topic: g.getTopic(topic), EnableMessageOrdering: g.metadata.EnableMessageOrdering})
+		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, gcppubsub.SubscriptionConfig{
+			Topic:                 g.getTopic(topic),
+			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
+		})
 	}
 
 	return subErr
@@ -394,7 +394,7 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 }
 
 func (g *GCPPubSub) Close() error {
-	g.cancel()
+	g.publishCancel()
 	return g.client.Close()
 }
 

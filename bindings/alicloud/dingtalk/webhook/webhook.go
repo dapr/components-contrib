@@ -51,7 +51,7 @@ type webhookResult struct {
 }
 
 type outgoingWebhook struct {
-	handler func(context.Context, *bindings.ReadResponse) ([]byte, error)
+	handler bindings.Handler
 }
 
 var webhooks = struct { // nolint: gochecknoglobals
@@ -94,7 +94,7 @@ func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the outgoing webhook, not yet production ready.
-func (t *DingTalkWebhook) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (t *DingTalkWebhook) Read(handler bindings.Handler) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
 
 	webhooks.Lock()

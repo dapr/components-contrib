@@ -69,10 +69,6 @@ func (store *inMemoryStore) Close() error {
 	return nil
 }
 
-func (store *inMemoryStore) Ping() error {
-	return nil
-}
-
 func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }

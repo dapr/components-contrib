@@ -14,7 +14,7 @@ limitations under the License.
 package state
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/dapr/components-contrib/health"
 )
@@ -34,7 +34,7 @@ func Ping(store Store) error {
 	if storeWithPing, ok := store.(health.Pinger); ok {
 		return storeWithPing.Ping()
 	} else {
-		return errors.New("Ping is not implemented by this store")
+		return fmt.Errorf("Ping is not implemented by this store")
 	}
 }
 

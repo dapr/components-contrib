@@ -1,7 +1,8 @@
 github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b h1:WMhlIaJkDgEQSVJQM06YV+cYUl1r5OY5//ijMXJNqtA=
 github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b/go.mod h1:Tie46d3UWzXpj+Fh9+DQTyaUxEpFBPOLXrnx7nxlKRo=
-github.com/cenkalti/backoff/v4 v4.1.1 h1:G2HAfAmvm/GcKan2oOQpBXOd2tT2G57ZnZGWa1PxPBQ=
 github.com/cenkalti/backoff/v4 v4.1.1/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=
+github.com/cenkalti/backoff/v4 v4.1.2 h1:6Yo7N8UP2K6LWZnW94DLVSSrbobcWdVzAYOisuDPIFo=
+github.com/cenkalti/backoff/v4 v4.1.2/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=
 github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233 h1:M0dWIG8kUxEFU57IqTWeqptNqlBsfosFgsA5Ov7rJ8g=
 github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233/go.mod h1:y8r0VqUNKyd6xBXp7gQjwA59wlCLGfKzL5J8iJsN09w=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

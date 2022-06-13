@@ -38,23 +38,8 @@ const (
 	defaultDeadLetterExchangeFormat = "dlx-%s"
 	defaultDeadLetterQueueFormat    = "dlq-%s"
 
-	metadataHostKey              = "host"
-	metadataConsumerIDKey        = "consumerID"
-	metadataDurable              = "durable"
-	metadataDeleteWhenUnusedKey  = "deletedWhenUnused"
-	metadataAutoAckKey           = "autoAck"
-	metadataDeliveryModeKey      = "deliveryMode"
-	metadataRequeueInFailureKey  = "requeueInFailure"
-	metadataReconnectWaitSeconds = "reconnectWaitSeconds"
-	metadataEnableDeadLetter     = "enableDeadLetter"
-	metadataMaxLen               = "maxLen"
-	metadataMaxLenBytes          = "maxLenBytes"
-	metadataExchangeKind         = "exchangeKind"
-
-	defaultReconnectWaitSeconds = 3
-	publishMaxRetries           = 3
-	publishRetryWaitSeconds     = 2
-	metadataPrefetchCount       = "prefetchCount"
+	publishMaxRetries       = 3
+	publishRetryWaitSeconds = 2
 
 	argQueueMode          = "x-queue-mode"
 	argMaxLength          = "x-max-length"
@@ -84,6 +69,7 @@ type rabbitMQ struct {
 // interface used to allow unit testing.
 type rabbitMQChannelBroker interface {
 	Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
+	PublishWithDeferredConfirm(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error
 	Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
@@ -91,6 +77,7 @@ type rabbitMQChannelBroker interface {
 	Ack(tag uint64, multiple bool) error
 	ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error
 	Qos(prefetchCount, prefetchSize int, global bool) error
+	Confirm(noWait bool) error
 	Close() error
 	IsClosed() bool
 }
@@ -144,6 +131,7 @@ func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	r.metadata = meta
+
 	r.reconnect(0)
 	// We do not return error on reconnect because it can cause problems if init() happens
 	// right at the restart window for service. So, we try it now but there is logic in the
@@ -180,6 +168,15 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
+	if r.metadata.publisherConfirm {
+		err = r.channel.Confirm(false)
+		if err != nil {
+			r.reset()
+
+			return err
+		}
+	}
+
 	r.connectionCount++
 
 	r.logger.Infof("%s connected with connectionCount=%d", logMessagePrefix, r.connectionCount)
@@ -205,7 +202,7 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 		routingKey = val
 	}
 
-	err := r.channel.Publish(req.Topic, routingKey, false, false, amqp.Publishing{
+	confirm, err := r.channel.PublishWithDeferredConfirm(req.Topic, routingKey, false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
@@ -214,6 +211,16 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)
 
 		return r.channel, r.connectionCount, err
+	}
+
+	// confirm will be nil if are not requesting publish confirmations
+	if confirm != nil {
+		// Blocks until the server confirms
+		ok := confirm.Wait()
+		if !ok {
+			err = fmt.Errorf("did not receive confirmation of publishing")
+			r.logger.Errorf("%s publishing to %s failed: %v", logMessagePrefix, req.Topic, err)
+		}
 	}
 
 	return r.channel, r.connectionCount, nil
@@ -324,16 +331,20 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 	}
 
-	routingKey := ""
+	metadataRoutingKey := ""
 	if val, ok := req.Metadata[reqMetadataRoutingKey]; ok && val != "" {
-		routingKey = val
+		metadataRoutingKey = val
 	}
-	r.logger.Infof("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
-	err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
-	if err != nil {
-		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
+	routingKeys := strings.Split(metadataRoutingKey, ",")
+	for i := 0; i < len(routingKeys); i++ {
+		routingKey := routingKeys[i]
+		r.logger.Debugf("%s binding queue '%s' to exchange '%s' with routing key '%s'", logMessagePrefix, q.Name, req.Topic, routingKey)
+		err = channel.QueueBind(q.Name, routingKey, req.Topic, false, nil)
+		if err != nil {
+			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueBind: %v", logMessagePrefix, req.Topic, queueName, err)
 
-		return nil, err
+			return nil, err
+		}
 	}
 
 	return &q, nil

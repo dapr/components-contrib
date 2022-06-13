@@ -432,5 +432,9 @@ func (r *redisStreams) Features() []pubsub.Feature {
 }
 
 func (r *redisStreams) Ping() error {
+	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
+		return fmt.Errorf("redis pubsub: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+	}
+
 	return nil
 }

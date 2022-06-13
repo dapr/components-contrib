@@ -87,10 +87,6 @@ func (p *PubSub) Features() []pubsub.Feature {
 	return nil
 }
 
-func (k *PubSub) Ping() error {
-	return nil
-}
-
 func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
 	return func(ctx context.Context, event *kafka.NewEvent) error {
 		return handler(ctx, &pubsub.NewMessage{

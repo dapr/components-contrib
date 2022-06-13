@@ -567,10 +567,6 @@ func (r *rabbitMQ) Features() []pubsub.Feature {
 	return nil
 }
 
-func (r *rabbitMQ) Ping() error {
-	return nil
-}
-
 func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 	if channel == nil {
 		return true

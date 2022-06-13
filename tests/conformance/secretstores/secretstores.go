@@ -56,8 +56,12 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := store.Ping()
-		assert.Nil(t, err)
+		err := secretstores.Ping(store)
+		if err != nil {
+			assert.EqualError(t, err, "Ping is not implemented by this secret store")
+		} else {
+			assert.Nil(t, err)
+		}
 	})
 
 	// Get

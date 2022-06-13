@@ -59,7 +59,3 @@ func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 		Data: r,
 	}, nil
 }
-
-func (s *envSecretStore) Ping() error {
-	return nil
-}

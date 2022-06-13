@@ -185,10 +185,6 @@ func (js *jetstreamPubSub) Close() error {
 	return js.nc.Drain()
 }
 
-func (js *jetstreamPubSub) Ping() error {
-	return nil
-}
-
 // Handle nats signature request for challenge response authentication.
 func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 	kp, err := nkeys.FromSeed([]byte(seedKey))

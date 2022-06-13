@@ -227,8 +227,15 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := statestore.Ping()
-		assert.Nil(t, err)
+		err := state.Ping(statestore)
+		// TODO: Ideally, all stable components should implenment ping function,
+		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// implements ping in existing stable components
+		if err != nil {
+			assert.EqualError(t, err, "Ping is not implemented by this store")
+		} else {
+			assert.Nil(t, err)
+		}
 	})
 
 	if config.HasOperation("set") {

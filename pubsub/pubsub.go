@@ -15,13 +15,13 @@ package pubsub
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/dapr/components-contrib/health"
 )
 
 // PubSub is the interface for message buses.
 type PubSub interface {
-	health.Pinger
 	Init(metadata Metadata) error
 	Features() []Feature
 	Publish(req *PublishRequest) error
@@ -31,3 +31,12 @@ type PubSub interface {
 
 // Handler is the handler used to invoke the app handler.
 type Handler func(ctx context.Context, msg *NewMessage) error
+
+func Ping(pubsub PubSub) error {
+	// checks if this pubsub has the ping option then executes
+	if pubsubWithPing, ok := pubsub.(health.Pinger); ok {
+		return pubsubWithPing.Ping()
+	} else {
+		return fmt.Errorf("Ping is not implemented by this PubSub")
+	}
+}

@@ -149,10 +149,6 @@ func (r *rocketMQ) Features() []pubsub.Feature {
 	return nil
 }
 
-func (r *rocketMQ) Ping() error {
-	return nil
-}
-
 func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
 	msg := newRocketMQMessage(req)

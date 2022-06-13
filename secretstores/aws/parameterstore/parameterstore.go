@@ -154,7 +154,3 @@ func (s *ssmSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*
 
 	return &meta, nil
 }
-
-func (s *ssmSecretStore) Ping() error {
-	return nil
-}

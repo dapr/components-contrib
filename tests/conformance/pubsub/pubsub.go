@@ -100,8 +100,12 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := ps.Ping()
-		assert.Nil(t, err)
+		err := pubsub.Ping(ps)
+		if err != nil {
+			assert.EqualError(t, err, "Ping is not implemented by this pubsub")
+		} else {
+			assert.Nil(t, err)
+		}
 	})
 
 	// Generate a unique ID for this run to isolate messages to this test

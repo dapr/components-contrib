@@ -658,7 +658,3 @@ func (a *azureServiceBus) Close() (err error) {
 func (a *azureServiceBus) Features() []pubsub.Feature {
 	return a.features
 }
-
-func (a *azureServiceBus) Ping() error {
-	return nil
-}

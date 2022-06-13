@@ -198,7 +198,3 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 
 	return &meta, nil
 }
-
-func (s *Store) Ping() error {
-	return nil
-}

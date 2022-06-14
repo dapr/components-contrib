@@ -34,7 +34,7 @@ func Ping(store Store) error {
 	if storeWithPing, ok := store.(health.Pinger); ok {
 		return storeWithPing.Ping()
 	} else {
-		return fmt.Errorf("Ping is not implemented by this store")
+		return fmt.Errorf("Ping is not implemented by this state store")
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -37,6 +38,7 @@ import (
 const (
 	metadataDecodeBase64 = "decodeBase64"
 	metadataEncodeBase64 = "encodeBase64"
+	metadataFilePath     = "filePath"
 
 	metadataKey = "key"
 
@@ -64,6 +66,7 @@ type s3Metadata struct {
 	ForcePathStyle bool   `json:"forcePathStyle,string"`
 	DisableSSL     bool   `json:"disableSSL,string"`
 	InsecureSSL    bool   `json:"insecureSSL,string"`
+	FilePath       string
 }
 
 type createResponse struct {
@@ -156,7 +159,17 @@ func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		req.Data = decoded
 	}
 
-	r := bytes.NewReader(req.Data)
+	var data []byte
+	if metadata.FilePath != "" {
+		data, err = os.ReadFile(metadata.FilePath)
+		if err != nil {
+			return nil, fmt.Errorf("s3 file read error: %s", err)
+		}
+	} else {
+		data = req.Data
+	}
+
+	r := bytes.NewReader(data)
 
 	resultUpload, err := s.uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(metadata.Bucket),
@@ -326,6 +339,10 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 			return merged, err
 		}
 		merged.EncodeBase64 = valBool
+	}
+
+	if val, ok := req.Metadata[metadataFilePath]; ok && val != "" {
+		merged.FilePath = val
 	}
 
 	return merged, nil

@@ -3,7 +3,7 @@ module dubbo_test
 go 1.17
 
 require (
-	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610032651-3780d3e5b8d6
+	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/dapr/components-contrib v1.7.1-0.20220602220636-704f4dd7307d
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
@@ -26,7 +26,7 @@ require (
 	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
-	github.com/apache/dubbo-getty v1.4.9-0.20220610031447-1bfc340ef6dc // indirect
+	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/armon/go-metrics v0.3.9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect

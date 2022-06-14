@@ -18,7 +18,6 @@ param confTestTags object = {}
 var iotHubBindingsConsumerGroupName = '${iotHubName}/events/bindings-cg'
 var iotHubPubsubConsumerGroupName = '${iotHubName}/events/pubsub-cg'
 var iotHubPubsubEhCertificationConsumerGroupName = '${iotHubName}/events/pubsub-eh-certification-cg'
-var iotHubBindingsEhCertificationConsumerGroupName = '${iotHubName}/events/bindings-consumergroup'
 
 resource iotHub 'Microsoft.Devices/IotHubs@2021-03-31' = {
   name: iotHubName
@@ -62,16 +61,6 @@ resource iotHubPubsubEhCertificationConsumerGroup 'Microsoft.Devices/IotHubs/eve
   name: iotHubPubsubEhCertificationConsumerGroupName
   properties: {
     name: 'pubsub-eh-certification-cg'
-  }
-  dependsOn: [
-    iotHub
-  ]
-}
-
-resource iotHubBindingsEhCertificationConsumerGroup 'Microsoft.Devices/IotHubs/eventHubEndpoints/ConsumerGroups@2021-03-31' = {
-  name: iotHubBindingsEhCertificationConsumerGroupName
-  properties: {
-    name: 'bindings-consumergroup'
   }
   dependsOn: [
     iotHub

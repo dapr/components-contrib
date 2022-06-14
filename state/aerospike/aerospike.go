@@ -238,10 +238,6 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (aspike *Aerospike) Ping() error {
-	return nil
-}
-
 func parseHosts(hostsMeta string) ([]*as.Host, error) {
 	hostPorts := []*as.Host{}
 	for _, hostPort := range strings.Split(hostsMeta, ",") {

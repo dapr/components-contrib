@@ -128,10 +128,6 @@ func (s *Store1) Set(req *SetRequest) error {
 	return nil
 }
 
-func (s *Store1) Ping() error {
-	return nil
-}
-
 // example of store which supports bulk method.
 type Store2 struct {
 	// DefaultBulkStore
@@ -164,10 +160,6 @@ func (s *Store2) Get(req *GetRequest) (*GetResponse, error) {
 func (s *Store2) Set(req *SetRequest) error {
 	s.count++
 
-	return nil
-}
-
-func (s *Store2) Ping() error {
 	return nil
 }
 

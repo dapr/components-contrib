@@ -99,6 +99,18 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		err := pubsub.Ping(ps)
+		// TODO: Ideally, all stable components should implenment ping function,
+		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// implements ping in existing stable components
+		if err != nil {
+			assert.EqualError(t, err, "Ping is not implemented by this pubsub")
+		} else {
+			assert.Nil(t, err)
+		}
+	})
+
 	// Generate a unique ID for this run to isolate messages to this test
 	// and prevent messages still stored in a locally running broker
 	// from being considered as part of this test.

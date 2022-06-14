@@ -41,8 +41,8 @@ contrib.go.opencensus.io/exporter/prometheus v0.4.1/go.mod h1:t9wvfitlUjGXG2IXAZ
 contrib.go.opencensus.io/exporter/zipkin v0.1.1 h1:PR+1zWqY8ceXs1qDQQIlgXe+sdiwCf0n32bH4+Epk8g=
 contrib.go.opencensus.io/exporter/zipkin v0.1.1/go.mod h1:GMvdSl3eJ2gapOaLKzTKE3qDgUkJ86k9k3yY2eqwkzc=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610032651-3780d3e5b8d6 h1:CW4ak18pAuxnE+FIXWbS9YNz2USL/4Qwmu2mB+kNRkQ=
-dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610032651-3780d3e5b8d6/go.mod h1:mycfM/oZS0Zh67BNXozG/fQC+IQy81/Ja/E65g98o90=
+dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537 h1:NblXw7tbHBFZ0AWEH09fgM9MwQ3XNPUPHDFeBjM7HV4=
+dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537/go.mod h1:O7eTHAilCWlqBjEkG2MW9khZFImiARb/tSOE8PJas+g=
 github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a h1:XVdatQFSP2YhJGjqLLIfW8QBk4loz/SCe/PxkXDiW+s=
 github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a/go.mod h1:C0A1KeiVHs+trY6gUTPhhGammbrZ30ZfXRW/nuT7HLw=
 github.com/Azure/go-ansiterm v0.0.0-20210608223527-2377c96fe795/go.mod h1:LmzpDX56iTiv29bbRTIsUNlaFfuhWRQBWjQdVyAevI8=
@@ -98,8 +98,8 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f h1:0cEys61Sr2hUBEXfNV8eyQP01oZuBgoMeHunebPirK8=
 github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f/go.mod h1:T7PbCXFs94rrTttyxjbyT5+/1V8T2TYDejxUfHJjw1Y=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
-github.com/apache/dubbo-getty v1.4.9-0.20220610031447-1bfc340ef6dc h1:nES3082HmuVYM8amsFP+adEzmC+DtBhkQKKvJ5Lhuqw=
-github.com/apache/dubbo-getty v1.4.9-0.20220610031447-1bfc340ef6dc/go.mod h1:cPJlbcHUTNTpiboMQjMHhE9XBni11LiBiG8FdrDuVzk=
+github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc h1:NZRon3MDqT4vddR3UIRBnwbbhEerghAimCSBsiESs3g=
+github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc/go.mod h1:cPJlbcHUTNTpiboMQjMHhE9XBni11LiBiG8FdrDuVzk=
 github.com/apache/dubbo-go-hessian2 v1.9.1/go.mod h1:xQUjE7F8PX49nm80kChFvepA/AvqAZ0oh/UaB6+6pBE=
 github.com/apache/dubbo-go-hessian2 v1.9.3/go.mod h1:xQUjE7F8PX49nm80kChFvepA/AvqAZ0oh/UaB6+6pBE=
 github.com/apache/dubbo-go-hessian2 v1.11.0 h1:VTdT6NStuEqNmyT3AdSN2DLDBqhXvAAyAAAoh9hLavk=

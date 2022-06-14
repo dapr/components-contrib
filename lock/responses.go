@@ -15,12 +15,12 @@ package lock
 
 // Lock acquire request was successful or not.
 type TryLockResponse struct {
-	Success bool
+	Success bool `json:"success"`
 }
 
 // Status when releasing the lock.
 type UnlockResponse struct {
-	Status Status
+	Status Status `json:"status"`
 }
 
 type Status int32

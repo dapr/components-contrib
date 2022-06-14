@@ -47,10 +47,6 @@ func (p *PostgreSQL) Init(metadata state.Metadata) error {
 	return p.dbaccess.Init(metadata)
 }
 
-func (p *PostgreSQL) Ping() error {
-	return nil
-}
-
 // Features returns the features available in this state store.
 func (p *PostgreSQL) Features() []state.Feature {
 	return p.features

@@ -155,7 +155,7 @@ require (
 )
 
 require (
-	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610032651-3780d3e5b8d6
+	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v0.4.0
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
@@ -178,7 +178,7 @@ require (
 	github.com/Workiva/go-datastructures v1.0.52 // indirect
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
-	github.com/apache/dubbo-getty v1.4.9-0.20220610031447-1bfc340ef6dc // indirect
+	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/appscode/go-querystring v0.0.0-20170504095604-0126cfb3f1dc // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
@@ -321,6 +321,7 @@ require (
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/tetratelabs/wazero v0.0.0-20220425003459-ad61d9a6ff43
 	github.com/tidwall/match v1.0.3 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.6 // indirect

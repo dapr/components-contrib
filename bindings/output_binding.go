@@ -13,11 +13,25 @@ limitations under the License.
 
 package bindings
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/dapr/components-contrib/health"
+)
 
 // OutputBinding is the interface for an output binding, allowing users to invoke remote systems with optional payloads.
 type OutputBinding interface {
 	Init(metadata Metadata) error
 	Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind
+}
+
+func PingOutBinding(outputBinding OutputBinding) error {
+	// checks if this output binding has the ping option then executes
+	if outputBindingWithPing, ok := outputBinding.(health.Pinger); ok {
+		return outputBindingWithPing.Ping()
+	} else {
+		return fmt.Errorf("Ping is not implemented by this output binding")
+	}
 }

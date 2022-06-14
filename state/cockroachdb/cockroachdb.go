@@ -36,7 +36,7 @@ func New(logger logger.Logger) *CockroachDB {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func internalNew(logger logger.Logger, dba dbAccess) *CockroachDB {
 	return &CockroachDB{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
 		dbaccess: dba,
 	}

@@ -19,8 +19,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/agrea/ptr"
+	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
@@ -35,6 +37,7 @@ const (
 	connectionStringKey        = "connectionString"
 	errMissingConnectionString = "missing connection string"
 	tableName                  = "state"
+	connMaxIdleTimeKey         = "connMaxIdleTime"
 )
 
 // postgresDBAccess implements dbaccess.
@@ -79,6 +82,11 @@ func (p *postgresDBAccess) Init(metadata state.Metadata) error {
 	pingErr := db.Ping()
 	if pingErr != nil {
 		return pingErr
+	}
+
+	err = propertyToDuration(p.metadata.Properties, connMaxIdleTimeKey, p.db.SetConnMaxIdleTime)
+	if err != nil {
+		return err
 	}
 
 	err = p.ensureStateTable(tableName)
@@ -443,4 +451,16 @@ func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, erro
 	}
 
 	return delReq, nil
+}
+
+func propertyToDuration(props map[string]string, key string, setter func(time.Duration)) error {
+	if v, ok := props[key]; ok {
+		if d, err := time.ParseDuration(v); err == nil {
+			setter(d)
+		} else {
+			return errors.Wrapf(err, "error converitng %s:%s to time duration", key, v)
+		}
+	}
+
+	return nil
 }

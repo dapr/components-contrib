@@ -36,12 +36,14 @@ type SendGrid struct {
 
 // Our metadata holds standard email properties.
 type sendGridMetadata struct {
-	APIKey    string `json:"apiKey"`
-	EmailFrom string `json:"emailFrom"`
-	EmailTo   string `json:"emailTo"`
-	Subject   string `json:"subject"`
-	EmailCc   string `json:"emailCc"`
-	EmailBcc  string `json:"emailBcc"`
+	APIKey        string `json:"apiKey"`
+	EmailFrom     string `json:"emailFrom"`
+	EmailFromName string `json:"emailFromName"`
+	EmailTo       string `json:"emailTo"`
+	EmailToName   string `json:"emailToName"`
+	Subject       string `json:"subject"`
+	EmailCc       string `json:"emailCc"`
+	EmailBcc      string `json:"emailBcc"`
 }
 
 // Wrapper to help decode SendGrid API errors.
@@ -71,7 +73,9 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 
 	// Optional properties, these can be set on a per request basis
 	sgMeta.EmailTo = meta.Properties["emailTo"]
+	sgMeta.EmailToName = meta.Properties["emailToName"]
 	sgMeta.EmailFrom = meta.Properties["emailFrom"]
+	sgMeta.EmailFromName = meta.Properties["emailFromName"]
 	sgMeta.Subject = meta.Properties["subject"]
 	sgMeta.EmailCc = meta.Properties["emailCc"]
 	sgMeta.EmailBcc = meta.Properties["emailBcc"]
@@ -105,10 +109,22 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	// Build email from address, this is required
 	var fromAddress *mail.Email
 	if sg.metadata.EmailFrom != "" {
-		fromAddress = mail.NewEmail("", sg.metadata.EmailFrom)
+		// Optionally set the email from name
+		fromName := ""
+		if sg.metadata.EmailFromName != "" {
+			fromName = sg.metadata.EmailFromName
+		}
+
+		fromAddress = mail.NewEmail(fromName, sg.metadata.EmailFrom)
 	}
 	if req.Metadata["emailFrom"] != "" {
-		fromAddress = mail.NewEmail("", req.Metadata["emailFrom"])
+		// Optionally set the email from name
+		fromName := ""
+		if req.Metadata["emailFromName"] != "" {
+			fromName = req.Metadata["emailFromName"]
+		}
+
+		fromAddress = mail.NewEmail(fromName, req.Metadata["emailFrom"])
 	}
 	if fromAddress == nil {
 		return nil, fmt.Errorf("error SendGrid from email not supplied")
@@ -117,10 +133,22 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	// Build email to address, this is required
 	var toAddress *mail.Email
 	if sg.metadata.EmailTo != "" {
-		toAddress = mail.NewEmail("", sg.metadata.EmailTo)
+		// Optionally set the email to name
+		toName := ""
+		if sg.metadata.EmailToName != "" {
+			toName = sg.metadata.EmailToName
+		}
+
+		toAddress = mail.NewEmail(toName, sg.metadata.EmailTo)
 	}
 	if req.Metadata["emailTo"] != "" {
-		toAddress = mail.NewEmail("", req.Metadata["emailTo"])
+		// Optionally set the email to name
+		toName := ""
+		if req.Metadata["emailToName"] != "" {
+			toName = req.Metadata["emailToName"]
+		}
+
+		toAddress = mail.NewEmail(toName, req.Metadata["emailTo"])
 	}
 	if toAddress == nil {
 		return nil, fmt.Errorf("error SendGrid to email not supplied")

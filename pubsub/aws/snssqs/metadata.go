@@ -39,7 +39,7 @@ type snsSqsMetadata struct {
 	// if sqsDeadLettersQueueName is set to a value, then the messageReceiveLimit defines the number of times a message is received
 	// before it is moved to the dead-letters queue. This value must be smaller than messageRetryLimit.
 	messageReceiveLimit int64
-	// amount of time to await receipt of a message before making another request. Default: 1.
+	// amount of time to await receipt of a message before making another request. Default: 2.
 	messageWaitTimeSeconds int64
 	// maximum number of messages to receive from the queue at a time. Default: 10, Maximum: 10.
 	messageMaxNumber int64
@@ -49,7 +49,7 @@ type snsSqsMetadata struct {
 	assetsManagementTimeoutSeconds float64
 	// aws account ID. internally resolved if not given.
 	accountID string
-	// publish concurrency mode
+	// processing concurrency mode
 	concurrencyMode pubsub.ConcurrencyMode
 }
 
@@ -248,7 +248,7 @@ func (md *snsSqsMetadata) setMessageMaxNumber(props map[string]string) error {
 
 func (md *snsSqsMetadata) setMessageWaitTimeSeconds(props map[string]string) error {
 	if val, ok := props["messageWaitTimeSeconds"]; !ok {
-		md.messageWaitTimeSeconds = 1
+		md.messageWaitTimeSeconds = 2
 	} else {
 		waitTime, err := parseInt64(val, "messageWaitTimeSeconds")
 		if err != nil {

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"

@@ -13,6 +13,12 @@ limitations under the License.
 
 package state
 
+import (
+	"fmt"
+
+	"github.com/dapr/components-contrib/health"
+)
+
 // Store is an interface to perform operations on store.
 type Store interface {
 	BulkStore
@@ -21,7 +27,15 @@ type Store interface {
 	Delete(req *DeleteRequest) error
 	Get(req *GetRequest) (*GetResponse, error)
 	Set(req *SetRequest) error
-	Ping() error
+}
+
+func Ping(store Store) error {
+	// checks if this store has the ping option then executes
+	if storeWithPing, ok := store.(health.Pinger); ok {
+		return storeWithPing.Ping()
+	} else {
+		return fmt.Errorf("Ping is not implemented by this state store")
+	}
 }
 
 // BulkStore is an interface to perform bulk operations on store.

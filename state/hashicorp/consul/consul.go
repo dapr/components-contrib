@@ -146,10 +146,6 @@ func (c *Consul) Set(req *state.SetRequest) error {
 	return nil
 }
 
-func (c *Consul) Ping() error {
-	return nil
-}
-
 // Delete performes a Consul KV delete operation.
 func (c *Consul) Delete(req *state.DeleteRequest) error {
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)

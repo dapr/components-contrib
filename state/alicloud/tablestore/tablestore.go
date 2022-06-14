@@ -234,10 +234,6 @@ func (s *AliCloudTableStore) batchWrite(setReqs []state.SetRequest, deleteReqs [
 	return nil
 }
 
-func (s *AliCloudTableStore) Ping() error {
-	return nil
-}
-
 func (s *AliCloudTableStore) parse(metadata state.Metadata) (*tablestoreMetadata, error) {
 	b, err := json.Marshal(metadata.Properties)
 	if err != nil {

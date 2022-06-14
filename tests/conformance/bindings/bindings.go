@@ -141,6 +141,27 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		testLogger.Info("Init test done.")
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		errInp := bindings.PingInpBinding(inputBinding)
+		// TODO: Ideally, all stable components should implenment ping function,
+		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// implements ping in existing stable components
+		if errInp != nil {
+			assert.EqualError(t, errInp, "Ping is not implemented by this input binding")
+		} else {
+			assert.Nil(t, errInp)
+		}
+		errOut := bindings.PingOutBinding(outputBinding)
+		// TODO: Ideally, all stable components should implenment ping function,
+		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// implements ping in existing stable components
+		if errOut != nil {
+			assert.EqualError(t, errOut, "Ping is not implemented by this output binding")
+		} else {
+			assert.Nil(t, errOut)
+		}
+	})
+
 	// Operations
 	if config.HasOperation("operations") {
 		t.Run("operations", func(t *testing.T) {

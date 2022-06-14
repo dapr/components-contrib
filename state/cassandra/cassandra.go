@@ -308,10 +308,6 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).Exec()
 }
 
-func (c *Cassandra) Ping() error {
-	return nil
-}
-
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {
 	session, err := c.cluster.CreateSession()
 	if err != nil {

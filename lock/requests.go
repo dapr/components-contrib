@@ -13,15 +13,15 @@ limitations under the License.
 
 package lock
 
-// Lock acquire request.
+// TryLockRequest is a lock acquire request.
 type TryLockRequest struct {
-	ResourceID      string
-	LockOwner       string
-	ExpiryInSeconds int32
+	ResourceID      string `json:"resourceId"`
+	LockOwner       string `json:"lockOwner"`
+	ExpiryInSeconds int32  `json:"expiryInSeconds"`
 }
 
-// Lock release request.
+// UnlockRequest is a lock release request.
 type UnlockRequest struct {
-	ResourceID string
-	LockOwner  string
+	ResourceID string `json:"resourceId"`
+	LockOwner  string `json:"lockOwner"`
 }

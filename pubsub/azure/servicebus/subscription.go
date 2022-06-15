@@ -80,7 +80,10 @@ func newSubscription(
 }
 
 // ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic.
-func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec int) error {
+func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec int, onFirstSuccess func()) error {
+	ctx, cancel := context.WithCancel(s.ctx)
+	defer cancel()
+
 	// Lock renewal loop.
 	go func() {
 		shouldRenewLocks := lockRenewalInSec > 0
@@ -92,7 +95,7 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		defer t.Stop()
 		for {
 			select {
-			case <-s.ctx.Done():
+			case <-ctx.Done():
 				s.logger.Debugf("Lock renewal context for topic %s done", s.topic)
 				return
 			case <-t.C:
@@ -109,17 +112,27 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		// This blocks if there are too many active messages already
 		case s.activeMessagesChan <- struct{}{}:
 		// Return if context is canceled
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			s.logger.Debugf("Receive context for topic %s done", s.topic)
-			return s.ctx.Err()
+			return ctx.Err()
 		}
 
 		// This method blocks until we get a message or the context is canceled
 		msgs, err := s.receiver.ReceiveMessages(s.ctx, 1, nil)
 		if err != nil {
-			s.logger.Errorf("Error reading from topic %s. %s", s.topic, err.Error())
-			continue
+			if err != context.Canceled {
+				s.logger.Errorf("Error reading from topic %s. %s", s.topic, err.Error())
+			}
+			// Return the error. This will cause the Service Bus component to try and reconnect.
+			return err
 		}
+
+		// Invoke only once
+		if onFirstSuccess != nil {
+			onFirstSuccess()
+			onFirstSuccess = nil
+		}
+
 		l := len(msgs)
 		if l == 0 {
 			// We got no message, which is unusual too
@@ -142,13 +155,14 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 	}
 }
 
-func (s *subscription) close(ctx context.Context) {
+func (s *subscription) close(closeCtx context.Context) {
 	s.logger.Debugf("Closing subscription to topic %s", s.topic)
 
 	// Ensure subscription entity is closed.
-	if err := s.receiver.Close(ctx); err != nil {
+	if err := s.receiver.Close(closeCtx); err != nil {
 		s.logger.Warnf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
 	}
+	s.cancel()
 }
 
 func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error) {

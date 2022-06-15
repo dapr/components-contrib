@@ -23,7 +23,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -301,7 +301,7 @@ func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
 func InitTestProcess(
 	cmd *command.ZeebeCommand,
 	id string,
-	testWorker func(context.Context, *bindings.ReadResponse) ([]byte, error),
+	testWorker bindings.Handler,
 	additionalMetadata ...MetadataPair,
 ) error {
 	testJobType := id + "-test"

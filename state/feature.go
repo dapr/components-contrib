@@ -18,6 +18,8 @@ const (
 	FeatureETag Feature = "ETAG"
 	// FeatureTransactional is the feature that performs transactional operations.
 	FeatureTransactional Feature = "TRANSACTIONAL"
+	// FeatureQueryAPI is the feature that performs query operations.
+	FeatureQueryAPI Feature = "QUERY_API"
 )
 
 // Feature names a feature that can be implemented by PubSub components.

@@ -1,0 +1,7 @@
+version: "3.3"
+services:
+  redis:
+    image: 'redislabs/redisearch:latest'
+    ports:
+      - '6379:6379'
+    command: redis-server

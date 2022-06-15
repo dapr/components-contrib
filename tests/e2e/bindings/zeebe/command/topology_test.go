@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/tests/e2e/bindings/zeebe"

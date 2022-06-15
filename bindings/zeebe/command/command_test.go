@@ -18,7 +18,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

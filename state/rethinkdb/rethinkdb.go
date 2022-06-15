@@ -131,10 +131,6 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (s *RethinkDB) Ping() error {
-	return nil
-}
-
 // Features returns the features available in this state store.
 func (s *RethinkDB) Features() []state.Feature {
 	return s.features

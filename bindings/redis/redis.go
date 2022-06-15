@@ -57,6 +57,14 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 	return err
 }
 
+func (r *Redis) Ping() error {
+	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
+		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+	}
+
+	return nil
+}
+
 func (r *Redis) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }

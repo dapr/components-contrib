@@ -15,25 +15,27 @@ package servicebus
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"go.uber.org/ratelimit"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
-type subscription struct {
-	topic              string
+// HandlerFunc is the type for handlers that receive messages
+type HandlerFunc func(ctx context.Context, msg *azservicebus.ReceivedMessage) error
+
+// Subscription is an object that manages a subscription to an Azure Service Bus receiver, for a topic or queue.
+type Subscription struct {
+	entity             string
 	mu                 sync.RWMutex
 	activeMessages     map[string]*azservicebus.ReceivedMessage
 	activeMessagesChan chan struct{}
 	receiver           *azservicebus.Receiver
 	timeout            time.Duration
-	handlerTimeout     time.Duration
 	retriableErrLimit  ratelimit.Limiter
 	handleChan         chan struct{}
 	logger             logger.Logger
@@ -41,25 +43,23 @@ type subscription struct {
 	cancel             context.CancelFunc
 }
 
-func newSubscription(
+// NewSubscription returns a new Subscription object.
+// Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
+func NewSubscription(
 	parentCtx context.Context,
-	topic string,
-	receiver *azservicebus.Receiver,
 	maxActiveMessages int,
 	timeoutInSec int,
-	handlerTimeoutInSec int,
 	maxRetriableEPS int,
 	maxConcurrentHandlers *int,
+	entity string,
 	logger logger.Logger,
-) *subscription {
+) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
-	s := &subscription{
-		topic:              topic,
+	s := &Subscription{
+		entity:             entity,
 		activeMessages:     make(map[string]*azservicebus.ReceivedMessage),
 		activeMessagesChan: make(chan struct{}, maxActiveMessages),
-		receiver:           receiver,
 		timeout:            time.Duration(timeoutInSec) * time.Second,
-		handlerTimeout:     time.Duration(handlerTimeoutInSec) * time.Second,
 		logger:             logger,
 		ctx:                ctx,
 		cancel:             cancel,
@@ -72,15 +72,45 @@ func newSubscription(
 	}
 
 	if maxConcurrentHandlers != nil {
-		s.logger.Debugf("Subscription to topic %s is limited to %d message handler(s)", topic, *maxConcurrentHandlers)
+		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, *maxConcurrentHandlers)
 		s.handleChan = make(chan struct{}, *maxConcurrentHandlers)
 	}
 
 	return s
 }
 
-// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic.
-func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec int, onFirstSuccess func()) error {
+// Connect to a Service Bus topic or queue, blocking until it succeeds; it can retry forever (until the context is canceled).
+func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, error)) (err error) {
+	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
+	config := retry.DefaultConfig()
+	config.Policy = retry.PolicyExponential
+	config.MaxInterval = 5 * time.Minute
+	config.MaxElapsedTime = 0
+	backoff := config.NewBackOffWithContext(s.ctx)
+
+	err = retry.NotifyRecover(
+		func() error {
+			clientAttempt, innerErr := newReceiverFunc()
+			if innerErr != nil {
+				return innerErr
+			}
+			s.receiver = clientAttempt
+			return nil
+		},
+		backoff,
+		func(err error, d time.Duration) {
+			s.logger.Warnf("Failed to connect to Azure Service Bus %s; will retry in %s. Error: %s", s.entity, d, err.Error())
+		},
+		func() {
+			s.logger.Infof("Successfully reconnected to Azure Service Bus %s", s.entity)
+		},
+	)
+
+	return err
+}
+
+// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
+func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int, onFirstSuccess func()) error {
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
 
@@ -88,7 +118,7 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 	go func() {
 		shouldRenewLocks := lockRenewalInSec > 0
 		if !shouldRenewLocks {
-			s.logger.Debugf("Lock renewal for topic %s disabled", s.topic)
+			s.logger.Debugf("Lock renewal for %s disabled", s.entity)
 			return
 		}
 		t := time.NewTicker(time.Second * time.Duration(lockRenewalInSec))
@@ -96,15 +126,13 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		for {
 			select {
 			case <-ctx.Done():
-				s.logger.Debugf("Lock renewal context for topic %s done", s.topic)
+				s.logger.Debugf("Lock renewal context for %s done", s.entity)
 				return
 			case <-t.C:
 				s.tryRenewLocks()
 			}
 		}
 	}()
-
-	handlerFunc := s.getHandlerFunc(handler)
 
 	// Receiver loop
 	for {
@@ -113,7 +141,7 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		case s.activeMessagesChan <- struct{}{}:
 		// Return if context is canceled
 		case <-ctx.Done():
-			s.logger.Debugf("Receive context for topic %s done", s.topic)
+			s.logger.Debugf("Receive context for %s done", s.entity)
 			return ctx.Err()
 		}
 
@@ -121,7 +149,7 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		msgs, err := s.receiver.ReceiveMessages(s.ctx, 1, nil)
 		if err != nil {
 			if err != context.Canceled {
-				s.logger.Errorf("Error reading from topic %s. %s", s.topic, err.Error())
+				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())
 			}
 			// Return the error. This will cause the Service Bus component to try and reconnect.
 			return err
@@ -151,56 +179,22 @@ func (s *subscription) ReceiveAndBlock(handler pubsub.Handler, lockRenewalInSec 
 		s.addActiveMessage(msg)
 
 		s.logger.Debugf("Processing received message: %s", msg.MessageID)
-		s.handleAsync(s.ctx, msg, handlerFunc)
+		s.handleAsync(s.ctx, msg, handler)
 	}
 }
 
-func (s *subscription) close(closeCtx context.Context) {
-	s.logger.Debugf("Closing subscription to topic %s", s.topic)
+// Close the receiver and stops watching for new messages.
+func (s *Subscription) Close(closeCtx context.Context) {
+	s.logger.Debugf("Closing subscription to %s", s.entity)
 
 	// Ensure subscription entity is closed.
 	if err := s.receiver.Close(closeCtx); err != nil {
-		s.logger.Warnf("%s closing subscription entity for topic %s: %+v", errorMessagePrefix, s.topic, err)
+		s.logger.Warnf("Error closing subscription for %s: %+v", s.entity, err)
 	}
 	s.cancel()
 }
 
-func (s *subscription) getHandlerFunc(handler pubsub.Handler) func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error) {
-	handlerTimeout := s.handlerTimeout
-	timeout := s.timeout
-	return func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error) {
-		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, s.topic)
-		if err != nil {
-			return false, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
-		}
-
-		handleCtx, handleCancel := context.WithTimeout(ctx, handlerTimeout)
-		defer handleCancel()
-		s.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.MessageID, s.topic)
-		appErr := handler(handleCtx, pubsubMsg)
-
-		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), timeout)
-		defer finalizeCancel()
-
-		if appErr != nil {
-			s.logger.Warnf("Error in app's handler: %+v", appErr)
-			if abandonErr := s.abandonMessage(finalizeCtx, asbMsg); abandonErr != nil {
-				return true, fmt.Errorf("failed to abandon: %+v", abandonErr)
-			}
-
-			return true, nil
-		}
-		if completeErr := s.completeMessage(finalizeCtx, asbMsg); completeErr != nil {
-			return false, fmt.Errorf("failed to complete: %+v", completeErr)
-		}
-
-		return false, nil
-	}
-}
-
-func (s *subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handlerFunc func(ctx context.Context, asbMsg *azservicebus.ReceivedMessage) (consumeToken bool, err error)) {
+func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handler HandlerFunc) {
 	go func() {
 		var consumeToken bool
 		var err error
@@ -211,7 +205,7 @@ func (s *subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 			// Release a handler if needed
 			if limitConcurrentHandlers {
 				<-s.handleChan
-				s.logger.Debugf("Released message handle for %s on topic %s", msg.MessageID, s.topic)
+				s.logger.Debugf("Released message handle for %s on %s", msg.MessageID, s.entity)
 			}
 
 			// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
@@ -231,27 +225,39 @@ func (s *subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 		}()
 
 		if limitConcurrentHandlers {
-			s.logger.Debugf("Taking message handle for %s on topic %s", msg.MessageID, s.topic)
+			s.logger.Debugf("Taking message handle for %s on %s", msg.MessageID, s.entity)
 			select {
 			// Context is done, so we will stop waiting
 			case <-ctx.Done():
-				s.logger.Debugf("Message context done for %s on topic %s", msg.MessageID, s.topic)
+				s.logger.Debugf("Message context done for %s on %s", msg.MessageID, s.entity)
 				return
 			// Blocks until we have a handler available
 			case s.handleChan <- struct{}{}:
-				s.logger.Debugf("Taken message handle for %s on topic %s", msg.MessageID, s.topic)
+				s.logger.Debugf("Taken message handle for %s on %s", msg.MessageID, s.entity)
 			}
 		}
 
-		consumeToken, err = handlerFunc(ctx, msg)
+		// Invoke the handler to process the message
+		err = handler(ctx, msg)
+
+		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+		// This uses a background context in case ctx has been canceled already.
+		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+		defer finalizeCancel()
+
 		if err != nil {
 			// Log the error only, as we're running asynchronously
-			s.logger.Errorf("%s error handling message %s on topic '%s', %s", errorMessagePrefix, msg.MessageID, s.topic, err)
+			s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
+			s.AbandonMessage(finalizeCtx, msg)
+			return
 		}
+
+		s.CompleteMessage(finalizeCtx, msg)
 	}()
 }
 
-func (s *subscription) tryRenewLocks() {
+func (s *Subscription) tryRenewLocks() {
 	// Snapshot the messages to try to renew locks for.
 	msgs := make([]*azservicebus.ReceivedMessage, 0)
 	s.mu.RLock()
@@ -260,12 +266,12 @@ func (s *subscription) tryRenewLocks() {
 	}
 	s.mu.RUnlock()
 	if len(msgs) == 0 {
-		s.logger.Debugf("No active messages require lock renewal for topic %s", s.topic)
+		s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
 		return
 	}
 
 	// Lock renewal is best effort and not guaranteed to succeed, warnings are expected.
-	s.logger.Debugf("Trying to renew %d active message lock(s) for topic %s", len(msgs), s.topic)
+	s.logger.Debugf("Trying to renew %d active message lock(s) for %s", len(msgs), s.entity)
 	var err error
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -273,31 +279,52 @@ func (s *subscription) tryRenewLocks() {
 		ctx, cancel = context.WithTimeout(context.Background(), s.timeout)
 		err = s.receiver.RenewMessageLock(ctx, msg, nil)
 		if err != nil {
-			s.logger.Debugf("Couldn't renew all active message lock(s) for topic %s, ", s.topic, err)
+			s.logger.Debugf("Couldn't renew all active message lock(s) for %s, ", s.entity, err)
 		}
 		cancel()
 	}
 }
 
-func (s *subscription) abandonMessage(ctx context.Context, m *azservicebus.ReceivedMessage) error {
-	s.logger.Debugf("Abandoning message %s on topic %s", m.MessageID, s.topic)
-	return s.receiver.AbandonMessage(ctx, m, nil)
+// AbandonMessage marks a messsage as abandoned.
+func (s *Subscription) AbandonMessage(ctx context.Context, m *azservicebus.ReceivedMessage) {
+	s.logger.Debugf("Abandoning message %s on %s", m.MessageID, s.entity)
+
+	// Use a background context in case a.ctx has been canceled already
+	err := s.receiver.AbandonMessage(ctx, m, nil)
+	if err != nil {
+		// Log only
+		s.logger.Warnf("Error abandoning message %s on %s: %s", m.MessageID, s.entity, err.Error())
+	}
+
+	// If we're here, it means we got a retriable error, so we need to consume a retriable error token before this (synchronous) method returns
+	// If there have been too many retriable errors per second, this method slows the consumer down
+	s.logger.Debugf("Taking a retriable error token")
+	before := time.Now()
+	_ = s.retriableErrLimit.Take()
+	s.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
 }
 
-func (s *subscription) completeMessage(ctx context.Context, m *azservicebus.ReceivedMessage) error {
-	s.logger.Debugf("Completing message %s on topic %s", m.MessageID, s.topic)
-	return s.receiver.CompleteMessage(ctx, m, nil)
+// CompleteMessage marks a message as complete.
+func (s *Subscription) CompleteMessage(ctx context.Context, m *azservicebus.ReceivedMessage) {
+	s.logger.Debugf("Completing message %s on %s", m.MessageID, s.entity)
+
+	// Use a background context in case a.ctx has been canceled already
+	err := s.receiver.CompleteMessage(ctx, m, nil)
+	if err != nil {
+		// Log only
+		s.logger.Warnf("Error completing message %s on %s: %s", m.MessageID, s.entity, err.Error())
+	}
 }
 
-func (s *subscription) addActiveMessage(m *azservicebus.ReceivedMessage) {
-	s.logger.Debugf("Adding message %s to active messages on topic %s", m.MessageID, s.topic)
+func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) {
+	s.logger.Debugf("Adding message %s to active messages on %s", m.MessageID, s.entity)
 	s.mu.Lock()
 	s.activeMessages[m.MessageID] = m
 	s.mu.Unlock()
 }
 
-func (s *subscription) removeActiveMessage(messageID string) {
-	s.logger.Debugf("Removing message %s from active messages on topic %s", messageID, s.topic)
+func (s *Subscription) removeActiveMessage(messageID string) {
+	s.logger.Debugf("Removing message %s from active messages on %s", messageID, s.entity)
 	s.mu.Lock()
 	delete(s.activeMessages, messageID)
 	s.mu.Unlock()

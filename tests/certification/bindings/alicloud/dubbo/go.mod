@@ -45,7 +45,7 @@ require (
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
-	github.com/go-ole/go-ole v1.2.5 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
@@ -104,7 +104,7 @@ require (
 	github.com/prometheus/statsd_exporter v0.22.3 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/savsgio/gotils v0.0.0-20210217112953-d4a072536008 // indirect
-	github.com/shirou/gopsutil v3.20.11+incompatible // indirect
+	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/shirou/gopsutil/v3 v3.21.6 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
@@ -115,6 +115,7 @@ require (
 	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel v1.7.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect

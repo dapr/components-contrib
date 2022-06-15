@@ -36,7 +36,7 @@ func NewPostgreSQLStateStore(logger logger.Logger) *PostgreSQL {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
 		dbaccess: dba,
 	}
@@ -45,10 +45,6 @@ func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 // Init initializes the SQL server state store.
 func (p *PostgreSQL) Init(metadata state.Metadata) error {
 	return p.dbaccess.Init(metadata)
-}
-
-func (p *PostgreSQL) Ping() error {
-	return nil
 }
 
 // Features returns the features available in this state store.

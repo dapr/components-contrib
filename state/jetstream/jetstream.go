@@ -92,10 +92,6 @@ func (js *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (js *StateStore) Ping() error {
-	return nil
-}
-
 func (js *StateStore) Features() []state.Feature {
 	return nil
 }

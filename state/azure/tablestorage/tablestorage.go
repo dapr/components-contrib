@@ -275,10 +275,6 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	return entity.Delete(true, nil)
 }
 
-func (r *StateStore) Ping() error {
-	return nil
-}
-
 func getPartitionAndRowKey(key string) (string, string) {
 	pr := strings.Split(key, keyDelimiter)
 	if len(pr) != 2 {

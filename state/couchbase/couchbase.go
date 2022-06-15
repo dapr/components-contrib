@@ -236,10 +236,6 @@ func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (cbs *Couchbase) Ping() error {
-	return nil
-}
-
 // converts string etag sent by the application into a gocb.Cas object, which can then be used for optimistic locking for set and delete operations.
 func eTagToCas(eTag string) (gocb.Cas, error) {
 	var cas gocb.Cas = 0

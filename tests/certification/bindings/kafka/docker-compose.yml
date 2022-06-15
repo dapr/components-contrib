@@ -1,0 +1,191 @@
+version: "3.7"
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:5.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  kafka1:
+    image: quay.io/strimzi/kafka:0.26.0-kafka-3.0.0
+    hostname: kafka-1
+    container_name: kafka-1
+    read_only: false
+    entrypoint: 
+      /bin/bash -c "mkdir -p /var/opt/kafka && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka && su kafka -p -c '/opt/kafka/kafka_run.sh'"
+    user: root
+    depends_on:
+      - zookeeper
+    ports:
+      - "19094:19094"
+      - "19093:19093"
+      - "19092:19092"
+    volumes:
+      - type: bind
+        source: ./strimzi-ca-certs
+        target: /opt/kafka/cluster-ca-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-broker-certs
+        target: /opt/kafka/broker-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-client-ca
+        target: /opt/kafka/client-ca-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/custom-mtls-9094-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/custom-oauth-9093-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/oauth-oauth-9093-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-kafka1-config
+        target: /opt/kafka/custom-config
+        read_only: true
+      - type: volume
+        source: kafka1-data
+        target: /var/lib/kafka/data
+    environment:
+      KAFKA_METRICS_ENABLED: "false"
+      STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
+      KAFKA_HEAP_OPTS: "-Xms128M"
+
+  kafka2:
+    image: quay.io/strimzi/kafka:0.26.0-kafka-3.0.0
+    hostname: kafka-2
+    container_name: kafka-2
+    read_only: false
+    entrypoint: 
+      /bin/bash -c "mkdir -p /var/opt/kafka && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka && su kafka -p -c '/opt/kafka/kafka_run.sh'"
+    user: root
+    depends_on:
+      - zookeeper
+    ports:
+      - "29094:29094"
+      - "29093:29093"
+      - "29092:29092"
+    volumes:
+      - type: bind
+        source: ./strimzi-ca-certs
+        target: /opt/kafka/cluster-ca-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-broker-certs
+        target: /opt/kafka/broker-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-client-ca
+        target: /opt/kafka/client-ca-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/custom-mtls-9094-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/custom-oauth-9093-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/oauth-oauth-9093-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-kafka2-config
+        target: /opt/kafka/custom-config
+        read_only: true
+      - type: volume
+        source: kafka2-data
+        target: /var/lib/kafka/data
+    environment:
+      KAFKA_METRICS_ENABLED: "false"
+      STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
+      KAFKA_HEAP_OPTS: "-Xms128M"
+
+  kafka3:
+    image: quay.io/strimzi/kafka:0.26.0-kafka-3.0.0
+    hostname: kafka-3
+    container_name: kafka-3
+    read_only: false
+    entrypoint: 
+      /bin/bash -c "mkdir -p /var/opt/kafka && chown -R kafka:0 /var/lib/kafka/data /var/opt/kafka && su kafka -p -c '/opt/kafka/kafka_run.sh'"
+    user: root
+    depends_on:
+      - zookeeper
+    ports:
+      - "39094:39094"
+      - "39093:39093"
+      - "39092:39092"
+    volumes:
+      - type: bind
+        source: ./strimzi-ca-certs
+        target: /opt/kafka/cluster-ca-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-broker-certs
+        target: /opt/kafka/broker-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-client-ca
+        target: /opt/kafka/client-ca-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/custom-mtls-9094-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/custom-oauth-9093-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-listener-certs
+        target: /opt/kafka/certificates/oauth-oauth-9093-certs
+        read_only: true
+      - type: bind
+        source: ./strimzi-kafka3-config
+        target: /opt/kafka/custom-config
+        read_only: true
+      - type: volume
+        source: kafka3-data
+        target: /var/lib/kafka/data
+    environment:
+      KAFKA_METRICS_ENABLED: "false"
+      STRIMZI_KAFKA_GC_LOG_ENABLED: "false"
+      KAFKA_HEAP_OPTS: "-Xms128M"
+  hydra:
+    image: oryd/hydra:v1.10.6-sqlite
+    hostname: hydra
+    container_name: hydra
+    ports:
+      - "4443:4443"
+      - "4444:4444"
+    read_only: false
+    entrypoint: hydra serve all -c /config/config.yaml --sqa-opt-out
+    volumes:
+      - type: bind
+        source: ./oauth-config
+        target: /config
+        read_only: true
+  hydra-config: 
+    image: oryd/hydra:v1.10.6-sqlite
+    hostname: hydra-config
+    container_name: hydra-config
+    depends_on:
+      - hydra
+    entrypoint: |
+      /bin/sh -c "sleep 20;hydra clients create --skip-tls-verify -g client_credentials --id dapr -n dapr -r token -a openid,kafka --secret dapr-test; hydra clients create --skip-tls-verify -g client_credentials --id kafka -n kafka -r token -a openid --secret dapr-test"
+    environment:
+      HYDRA_ADMIN_URL: https://hydra:4444  
+volumes:
+  kafka1-data: {}
+  kafka2-data: {}
+  kafka3-data: {}

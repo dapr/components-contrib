@@ -42,7 +42,8 @@ func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) e
 	if k.producer == nil {
 		return errors.New("component is closed")
 	}
-	k.logger.Debugf("Publishing topic %v with data: %v", topic, data)
+	// k.logger.Debugf("Publishing topic %v with data: %v", topic, string(data))
+	k.logger.Debugf("Publishing on topic %v", topic)
 
 	msg := &sarama.ProducerMessage{
 		Topic: topic,

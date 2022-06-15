@@ -1,6 +1,6 @@
 # Developing new component
 
-This document describes how to build and test new component. The Dapr runtime and all of its components are written in [Go](https://golang.org/). If you are completely new to the language you can [take a tour of its features](https://tour.golang.org/). For building your first component, using an existing one as a template is as a great way to get started.
+This document describes how to build and test new components. The Dapr runtime and all of its components are written in [Go](https://golang.org/). If you are completely new to the language you can [take a tour of its features](https://tour.golang.org/). For building your first component, using an existing one as a template is as a great way to get started.
 
 ## Prerequisites
 

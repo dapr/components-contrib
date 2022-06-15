@@ -13,12 +13,29 @@ limitations under the License.
 
 package bindings
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/dapr/components-contrib/health"
+)
 
 // InputBinding is the interface to define a binding that triggers on incoming events.
 type InputBinding interface {
 	// Init passes connection and properties metadata to the binding implementation
 	Init(metadata Metadata) error
 	// Read is a blocking method that triggers the callback function whenever an event arrives
-	Read(handler func(context.Context, *ReadResponse) ([]byte, error)) error
+	Read(handler Handler) error
+}
+
+// Handler is the handler used to invoke the app handler.
+type Handler func(context.Context, *ReadResponse) ([]byte, error)
+
+func PingInpBinding(inputBinding InputBinding) error {
+	// checks if this input binding has the ping option then executes
+	if inputBindingWithPing, ok := inputBinding.(health.Pinger); ok {
+		return inputBindingWithPing.Ping()
+	} else {
+		return fmt.Errorf("Ping is not implemented by this input binding")
+	}
 }

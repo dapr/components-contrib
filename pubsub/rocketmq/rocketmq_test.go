@@ -80,7 +80,7 @@ func TestParseRocketMQMetadata(t *testing.T) {
 		handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 			return nil
 		}
-		err = r.Subscribe(req, handler)
+		err = r.Subscribe(context.Background(), req, handler)
 		assert.NotNil(t, err)
 	})
 }

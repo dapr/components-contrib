@@ -13,7 +13,11 @@ limitations under the License.
 
 package natsstreaming
 
-import "time"
+import (
+	"time"
+
+	"github.com/dapr/components-contrib/pubsub"
+)
 
 type metadata struct {
 	natsURL                 string
@@ -30,4 +34,5 @@ type metadata struct {
 	startAtTimeFormat       string
 	ackWaitTime             time.Duration
 	maxInFlight             uint64
+	concurrencyMode         pubsub.ConcurrencyMode
 }

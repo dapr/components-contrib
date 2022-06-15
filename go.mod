@@ -58,8 +58,8 @@ require (
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-errors/errors v1.4.0 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556
@@ -209,7 +209,6 @@ require (
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
-	github.com/shirou/gopsutil v3.20.11+incompatible // indirect
 	github.com/spf13/viper v1.10.0 // indirect
 	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect

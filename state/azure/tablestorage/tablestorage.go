@@ -38,7 +38,7 @@ Concurrency is supported with ETags according to https://docs.microsoft.com/en-u
 package tablestorage
 
 import (
-	ctx "context"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -61,7 +61,7 @@ const (
 	tableNameKey    = "tableName"
 	cosmosDbModeKey = "cosmosDbmode"
 	serviceURLKey   = "serviceURL"
-	timeout         = 15 // in seconds
+	timeout         = 15 * time.Second
 )
 
 type StateStore struct {
@@ -108,7 +108,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	createContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	createContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	_, err = client.CreateTable(createContext, meta.tableName, nil)
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
-	getContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	getContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	resp, err := r.client.GetEntity(getContext, pk, rk, nil)
 	if err != nil {
@@ -234,7 +234,7 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 		return err
 	}
 
-	writeContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	writeContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence
 	// and then use Update to update the key if it exists with the specified ETag
@@ -243,7 +243,7 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	if err != nil {
 		// If Insert failed because item already exists, try to Update instead per Upsert semantics
 		if isEntityAlreadyExistsError(err) {
-			updateContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+			updateContext, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			// Always Update using the etag when provided even if Concurrency != FirstWrite.
 			// Today the presence of etag takes precedence over Concurrency.
@@ -313,7 +313,7 @@ func isTableAlreadyExistsError(err error) bool {
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
 
-	deleteContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	deleteContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	if req.ETag != nil {

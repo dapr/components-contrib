@@ -56,10 +56,9 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	accountNameKey   = "accountName"
-	accountKeyKey    = "accountKey"
-	tableNameKey     = "tableName"
-	emptyRowKeyValue = "_dapr_empty_row_key_"
+	accountNameKey = "accountName"
+	accountKeyKey  = "accountKey"
+	tableNameKey   = "tableName"
 )
 
 type StateStore struct {
@@ -286,7 +285,7 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 func getPartitionAndRowKey(key string) (string, string) {
 	pr := strings.Split(key, keyDelimiter)
 	if len(pr) != 2 {
-		return pr[0], emptyRowKeyValue
+		return pr[0], ""
 	}
 
 	return pr[0], pr[1]

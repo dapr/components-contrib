@@ -157,7 +157,7 @@ require (
 require (
 	cloud.google.com/go/secretmanager v1.4.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
-	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1-0.20220616165250-2c418c5498eb
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.0.1
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible

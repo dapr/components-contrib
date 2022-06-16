@@ -56,24 +56,27 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	accountNameKey = "accountName"
-	accountKeyKey  = "accountKey"
-	tableNameKey   = "tableName"
+	accountNameKey  = "accountName"
+	accountKeyKey   = "accountKey"
+	tableNameKey    = "tableName"
+	cosmosDBmodeKey = "cosmosDBmode"
 )
 
 type StateStore struct {
 	state.DefaultBulkStore
-	client *aztables.Client
-	json   jsoniter.API
+	client       *aztables.Client
+	json         jsoniter.API
+	cosmosDBmode bool
 
 	features []state.Feature
 	logger   logger.Logger
 }
 
 type tablesMetadata struct {
-	accountName string
-	accountKey  string
-	tableName   string
+	accountName  string
+	accountKey   string
+	tableName    string
+	cosmosDBmode bool
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
@@ -87,7 +90,15 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-	serviceURL := fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
+	r.cosmosDBmode = meta.cosmosDBmode
+	var serviceURL string
+	if r.cosmosDBmode {
+		serviceURL = fmt.Sprintf("https://%s.table.cosmos.azure.com", meta.accountName)
+	} else {
+		serviceURL = fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
+	}
+	fmt.Println(serviceURL)
+
 	client, err := aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
 	if err != nil {
 		return err
@@ -132,7 +143,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
-	pk, rk := getPartitionAndRowKey(req.Key)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBmode)
 	resp, err := r.client.GetEntity(ctx.Background(), pk, rk, nil)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -187,6 +198,12 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 		meta.tableName = val
 	} else {
 		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", tableNameKey))
+	}
+
+	if val, ok := metadata[cosmosDBmodeKey]; ok && val != "" {
+		meta.cosmosDBmode = val == "true"
+	} else {
+		meta.cosmosDBmode = false
 	}
 
 	return &meta, nil
@@ -270,7 +287,7 @@ func isTableAlreadyExistsError(err error) bool {
 }
 
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
-	pk, rk := getPartitionAndRowKey(req.Key)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBmode)
 
 	if req.ETag != nil {
 		azcoreETag := azcore.ETag(*req.ETag)
@@ -282,10 +299,14 @@ func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
 	return err
 }
 
-func getPartitionAndRowKey(key string) (string, string) {
+func getPartitionAndRowKey(key string, cosmosDBmode bool) (string, string) {
 	pr := strings.Split(key, keyDelimiter)
 	if len(pr) != 2 {
-		return pr[0], ""
+		if cosmosDBmode {
+			return pr[0], "_dapr_empty_row_key_value_"
+		} else {
+			return pr[0], ""
+		}
 	}
 
 	return pr[0], pr[1]
@@ -300,7 +321,7 @@ func (r *StateStore) marshal(req *state.SetRequest) ([]byte, error) {
 		value, _ = jsoniter.MarshalToString(req.Value)
 	}
 
-	pk, rk := getPartitionAndRowKey(req.Key)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBmode)
 
 	entity := aztables.EDMEntity{
 		Entity: aztables.Entity{

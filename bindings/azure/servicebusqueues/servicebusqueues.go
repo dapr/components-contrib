@@ -305,13 +305,6 @@ func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
 
 			msg := msgs[0]
 
-			body, err := msg.Body()
-			if err != nil {
-				a.logger.Warnf("Error reading message body: %s", err.Error())
-				a.abandonMessage(receiver, msg)
-				continue
-			}
-
 			metadata := make(map[string]string)
 			metadata[id] = msg.MessageID
 			if msg.CorrelationID != nil {
@@ -322,7 +315,7 @@ func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
 			}
 
 			_, err = handler(a.ctx, &bindings.ReadResponse{
-				Data:     body,
+				Data:     msg.Body,
 				Metadata: metadata,
 			})
 			if err != nil {

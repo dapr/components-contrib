@@ -86,12 +86,12 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	cred, err := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	serviceURL := fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
 	client, err := aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	_, err = client.CreateTable(ctx.Background(), meta.tableName, nil)
@@ -196,7 +196,7 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 func (r *StateStore) writeRow(req *state.SetRequest) error {
 	marshalledEntity, err := r.marshal(req)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence

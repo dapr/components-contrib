@@ -12,3 +12,5 @@ spec:
     value: ${{AzureCosmosDBTableAPIMasterKey}}
   - name: tableName
     value: TestTable
+  - name: cosmosDbMode
+    value: "true"

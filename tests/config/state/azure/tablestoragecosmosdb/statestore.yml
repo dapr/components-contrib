@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.azure.tablestorage
+  version: v1
+  metadata:
+  - name: accountName
+    value: ${{AzureCosmosDBTableAPI}}
+  - name: accountKey
+    value: ${{AzureCosmosDBTableAPIMasterKey}}
+  - name: tableName
+    value: TestTable

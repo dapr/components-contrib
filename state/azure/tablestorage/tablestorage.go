@@ -59,7 +59,7 @@ const (
 	accountNameKey  = "accountName"
 	accountKeyKey   = "accountKey"
 	tableNameKey    = "tableName"
-	cosmosDbModeKey = "cosmosDbmode"
+	cosmosDbModeKey = "cosmosDbMode"
 	serviceURLKey   = "serviceURL"
 	timeout         = 15 * time.Second
 )

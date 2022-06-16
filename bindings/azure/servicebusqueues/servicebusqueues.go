@@ -16,7 +16,6 @@ package servicebusqueues
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -253,11 +252,6 @@ func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
 
 func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFunc {
 	return func(ctx context.Context, msg *servicebus.ReceivedMessage) error {
-		body, err := msg.Body()
-		if err != nil {
-			return fmt.Errorf("Error reading message body: %v", err)
-		}
-
 		metadata := make(map[string]string)
 		metadata[id] = msg.MessageID
 		if msg.CorrelationID != nil {
@@ -267,8 +261,8 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 			metadata[label] = *msg.Subject
 		}
 
-		_, err = handler(a.ctx, &bindings.ReadResponse{
-			Data:     body,
+		_, err := handler(a.ctx, &bindings.ReadResponse{
+			Data:     msg.Body,
 			Metadata: metadata,
 		})
 		return err

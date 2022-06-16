@@ -41,10 +41,10 @@ import (
 	ctx "context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
-	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 
@@ -59,14 +59,16 @@ const (
 	accountNameKey  = "accountName"
 	accountKeyKey   = "accountKey"
 	tableNameKey    = "tableName"
-	cosmosDBmodeKey = "cosmosDBmode"
+	cosmosDbModeKey = "cosmosDbmode"
+	serviceURLKey   = "serviceURL"
+	timeout         = 15 // in seconds
 )
 
 type StateStore struct {
 	state.DefaultBulkStore
 	client       *aztables.Client
 	json         jsoniter.API
-	cosmosDBmode bool
+	cosmosDbMode bool
 
 	features []state.Feature
 	logger   logger.Logger
@@ -76,7 +78,8 @@ type tablesMetadata struct {
 	accountName  string
 	accountKey   string
 	tableName    string
-	cosmosDBmode bool
+	cosmosDbMode bool
+	serviceURL   string
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
@@ -90,12 +93,14 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-	r.cosmosDBmode = meta.cosmosDBmode
-	var serviceURL string
-	if r.cosmosDBmode {
-		serviceURL = fmt.Sprintf("https://%s.table.cosmos.azure.com", meta.accountName)
-	} else {
-		serviceURL = fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
+	r.cosmosDbMode = meta.cosmosDbMode
+	serviceURL := meta.serviceURL
+	if serviceURL == "" {
+		if r.cosmosDbMode {
+			serviceURL = fmt.Sprintf("https://%s.table.cosmos.azure.com", meta.accountName)
+		} else {
+			serviceURL = fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
+		}
 	}
 	fmt.Println(serviceURL)
 
@@ -104,7 +109,9 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	_, err = client.CreateTable(ctx.Background(), meta.tableName, nil)
+	createContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	defer cancel()
+	_, err = client.CreateTable(createContext, meta.tableName, nil)
 	if err != nil {
 		if isTableAlreadyExistsError(err) {
 			// error creating table, but it already exists so we're fine
@@ -143,8 +150,10 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
-	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBmode)
-	resp, err := r.client.GetEntity(ctx.Background(), pk, rk, nil)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
+	getContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	defer cancel()
+	resp, err := r.client.GetEntity(getContext, pk, rk, nil)
 	if err != nil {
 		if isNotFoundError(err) {
 			return &state.GetResponse{}, nil
@@ -200,10 +209,21 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", tableNameKey))
 	}
 
-	if val, ok := metadata[cosmosDBmodeKey]; ok && val != "" {
-		meta.cosmosDBmode = val == "true"
+	if val, ok := metadata[cosmosDbModeKey]; ok && val != "" {
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "y", "yes", "true", "t", "on", "1":
+			meta.cosmosDbMode = true
+		default:
+			meta.cosmosDbMode = false
+		}
 	} else {
-		meta.cosmosDBmode = false
+		meta.cosmosDbMode = false
+	}
+
+	if val, ok := metadata[serviceURLKey]; ok && val != "" {
+		meta.serviceURL = val
+	} else {
+		meta.serviceURL = ""
 	}
 
 	return &meta, nil
@@ -215,19 +235,24 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 		return err
 	}
 
+	writeContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	defer cancel()
 	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence
 	// and then use Update to update the key if it exists with the specified ETag
-	_, err = r.client.AddEntity(ctx.Background(), marshalledEntity, nil)
+	_, err = r.client.AddEntity(writeContext, marshalledEntity, nil)
 
 	if err != nil {
 		// If Insert failed because item already exists, try to Update instead per Upsert semantics
 		if isEntityAlreadyExistsError(err) {
+			updateContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+			defer cancel()
 			// Always Update using the etag when provided even if Concurrency != FirstWrite.
 			// Today the presence of etag takes precedence over Concurrency.
 			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
-				_, uerr := r.client.UpdateEntity(ctx.Background(), marshalledEntity, &aztables.UpdateEntityOptions{
+
+				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
 					IfMatch:    &etag,
 					UpdateMode: aztables.UpdateModeReplace,
 				})
@@ -245,7 +270,7 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 				return state.NewETagError(state.ETagMismatch, errors.New("update with Concurrency.FirstWrite without ETag"))
 			} else {
 				// Finally, last write semantics without ETag should always perform a force update.
-				_, uerr := r.client.UpdateEntity(ctx.Background(), marshalledEntity, &aztables.UpdateEntityOptions{
+				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
 					IfMatch:    nil, // this is the same as "*" matching all ETags
 					UpdateMode: aztables.UpdateModeReplace,
 				})
@@ -287,15 +312,18 @@ func isTableAlreadyExistsError(err error) bool {
 }
 
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
-	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBmode)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
+
+	deleteContext, cancel := ctx.WithTimeout(ctx.Background(), timeout*time.Second)
+	defer cancel()
 
 	if req.ETag != nil {
 		azcoreETag := azcore.ETag(*req.ETag)
-		_, err := r.client.DeleteEntity(ctx.Background(), pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
+		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
 		return err
 	}
 	all := azcore.ETagAny
-	_, err := r.client.DeleteEntity(ctx.Background(), pk, rk, &aztables.DeleteEntityOptions{IfMatch: &all})
+	_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &all})
 	return err
 }
 
@@ -321,7 +349,7 @@ func (r *StateStore) marshal(req *state.SetRequest) ([]byte, error) {
 		value, _ = jsoniter.MarshalToString(req.Value)
 	}
 
-	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBmode)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
 
 	entity := aztables.EDMEntity{
 		Entity: aztables.Entity{
@@ -333,11 +361,9 @@ func (r *StateStore) marshal(req *state.SetRequest) ([]byte, error) {
 		},
 	}
 
-	var etag string
 	if req.ETag != nil {
-		etag = *req.ETag
+		entity.ETag = *req.ETag
 	}
-	entity.ETag = etag
 
 	marshalled, err := jsoniter.Marshal(entity)
 	return marshalled, err
@@ -364,7 +390,5 @@ func (r *StateStore) unmarshal(row *aztables.GetEntityResponse) ([]byte, *string
 	}
 
 	// use native ETag
-	etag := myEntity.ETag
-
-	return []byte(sv), ptr.String(etag), nil
+	return []byte(sv), &myEntity.ETag, nil
 }

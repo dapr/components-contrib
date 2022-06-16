@@ -105,37 +105,35 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	if meta.accountKey != "" {
 		// use shared key authentication
-		cred, err := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
-		if err != nil {
-			return err
+		cred, innerErr := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
+		if innerErr != nil {
+			return innerErr
 		}
 
-		client, err = aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
-		if err != nil {
-			return err
+		client, innerErr = aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
+		if innerErr != nil {
+			return innerErr
 		}
 	} else {
 		// fallback to azure AD authentication
 		var settings azauth.EnvironmentSettings
+		var innerErr error
 		if r.cosmosDbMode {
-			settings, err = azauth.NewEnvironmentSettings("cosmosdb", metadata.Properties)
-			if err != nil {
-				return err
-			}
+			settings, innerErr = azauth.NewEnvironmentSettings("cosmosdb", metadata.Properties)
 		} else {
-			settings, err = azauth.NewEnvironmentSettings("storage", metadata.Properties)
-			if err != nil {
-				return err
-			}
+			settings, innerErr = azauth.NewEnvironmentSettings("storage", metadata.Properties)
+		}
+		if innerErr != nil {
+			return innerErr
 		}
 
 		token, innerErr := settings.GetTokenCredential()
 		if innerErr != nil {
 			return innerErr
 		}
-		client, err = aztables.NewServiceClient(serviceURL, token, nil)
+		client, innerErr = aztables.NewServiceClient(serviceURL, token, nil)
 		if err != nil {
-			return err
+			return innerErr
 		}
 	}
 

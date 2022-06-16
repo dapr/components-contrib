@@ -19,10 +19,10 @@ components:
   - component: mysql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
-  - component: azure.tablestorage
+  - component: azure.tablestorage.storage
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
-  - component: azure.tablestoragecosmosdb
+  - component: azure.tablestorage.cosmosdb
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
   - component: cassandra

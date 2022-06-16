@@ -265,7 +265,7 @@ func isEntityAlreadyExistsError(err error) bool {
 func isTableAlreadyExistsError(err error) bool {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
-		return (*respErr).ErrorCode == string(aztables.TableAlreadyExists)
+		return respErr.ErrorCode == string(aztables.TableAlreadyExists)
 	}
 	return false
 }

@@ -48,6 +48,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 
+	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -89,12 +90,11 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	cred, err := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
-	if err != nil {
-		return err
-	}
+	var client *aztables.ServiceClient
+
 	r.cosmosDbMode = meta.cosmosDbMode
 	serviceURL := meta.serviceURL
+
 	if serviceURL == "" {
 		if r.cosmosDbMode {
 			serviceURL = fmt.Sprintf("https://%s.table.cosmos.azure.com", meta.accountName)
@@ -103,9 +103,40 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		}
 	}
 
-	client, err := aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
-	if err != nil {
-		return err
+	if meta.accountKey != "" {
+		// use shared key authentication
+		cred, err := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
+		if err != nil {
+			return err
+		}
+
+		client, err = aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
+		if err != nil {
+			return err
+		}
+	} else {
+		// fallback to azure AD authentication
+		var settings azauth.EnvironmentSettings
+		if r.cosmosDbMode {
+			settings, err = azauth.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+			if err != nil {
+				return err
+			}
+		} else {
+			settings, err = azauth.NewEnvironmentSettings("storage", metadata.Properties)
+			if err != nil {
+				return err
+			}
+		}
+
+		token, innerErr := settings.GetTokenCredential()
+		if innerErr != nil {
+			return innerErr
+		}
+		client, err = aztables.NewServiceClient(serviceURL, token, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	createContext, cancel := context.WithTimeout(context.Background(), timeout)

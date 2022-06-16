@@ -102,7 +102,6 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 			serviceURL = fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
 		}
 	}
-	fmt.Println(serviceURL)
 
 	client, err := aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
 	if err != nil {

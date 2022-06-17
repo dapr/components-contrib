@@ -57,12 +57,13 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	accountNameKey  = "accountName"
-	accountKeyKey   = "accountKey"
-	tableNameKey    = "tableName"
-	cosmosDbModeKey = "cosmosDbMode"
-	serviceURLKey   = "serviceURL"
-	timeout         = 15 * time.Second
+	accountNameKey     = "accountName"
+	accountKeyKey      = "accountKey"
+	tableNameKey       = "tableName"
+	cosmosDbModeKey    = "cosmosDbMode"
+	serviceURLKey      = "serviceURL"
+	skipCreateTableKey = "skipCreateTable"
+	timeout            = 15 * time.Second
 )
 
 type StateStore struct {
@@ -76,11 +77,12 @@ type StateStore struct {
 }
 
 type tablesMetadata struct {
-	accountName  string
-	accountKey   string
-	tableName    string
-	cosmosDbMode bool
-	serviceURL   string
+	accountName     string
+	accountKey      string // optional, if not provided, will use Azure AD authentication
+	tableName       string
+	cosmosDbMode    bool   // if true, use CosmosDB Table API, otherwise use Azure Table Storage
+	serviceURL      string // optional, if not provided, will use default Azure service URL
+	skipCreateTable bool   // skip attempt to create table - useful for fine grained AAD roles
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
@@ -137,20 +139,22 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		}
 	}
 
-	createContext, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	_, err = client.CreateTable(createContext, meta.tableName, nil)
-	if err != nil {
-		if isTableAlreadyExistsError(err) {
-			// error creating table, but it already exists so we're fine
-			r.logger.Debugf("table already exists")
-		} else {
-			return err
+	if !meta.skipCreateTable {
+		createContext, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		_, innerErr := client.CreateTable(createContext, meta.tableName, nil)
+		if innerErr != nil {
+			if isTableAlreadyExistsError(innerErr) {
+				// error creating table, but it already exists so we're fine
+				r.logger.Debugf("table already exists")
+			} else {
+				return innerErr
+			}
 		}
 	}
 	r.client = client.NewClient(meta.tableName)
 
-	r.logger.Debugf("table initialised, account: %s, table: %s", meta.accountName, meta.tableName)
+	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %s, table: %s", meta.accountName, meta.cosmosDbMode, meta.tableName)
 
 	return nil
 }
@@ -252,6 +256,17 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 		meta.serviceURL = val
 	} else {
 		meta.serviceURL = ""
+	}
+
+	if val, ok := metadata[skipCreateTableKey]; ok && val != "" {
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "y", "yes", "true", "t", "on", "1":
+			meta.skipCreateTable = true
+		default:
+			meta.skipCreateTable = false
+		}
+	} else {
+		meta.skipCreateTable = false
 	}
 
 	return &meta, nil

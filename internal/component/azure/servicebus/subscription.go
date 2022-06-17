@@ -173,8 +173,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 
 		msg := msgs[0]
 		s.logger.Debugf("Received message: %s; current active message usage: %d/%d", msg.MessageID, len(s.activeMessagesChan), cap(s.activeMessagesChan))
-		// body, _ := msg.Body()
-		// s.logger.Debugf("Message body: %s", string(body))
+		// s.logger.Debugf("Message body: %s", string(msg.Body))
 
 		s.addActiveMessage(msg)
 

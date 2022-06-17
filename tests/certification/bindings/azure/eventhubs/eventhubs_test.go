@@ -379,6 +379,9 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			// Assert the observed messages
 			consumerGroup1.Assert(ctx, time.Minute)
 
+			output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+			assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
+
 			// Define what is expected
 			outputmsg2 := make([]string, 50)
 			for i := 0; i < 50; i++ {

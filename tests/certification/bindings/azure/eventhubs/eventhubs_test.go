@@ -53,7 +53,8 @@ const (
 	numMessages      = 100
 	messageKey       = "partitionKey"
 	iotHubNameEnvKey = "AzureIotHubName"
-	partitionID      = "1"
+	partition0       = "0"
+	partition1       = "1"
 )
 
 func TestSinglePartition(t *testing.T) {
@@ -346,11 +347,14 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
-	metadata := map[string]string{
-		messageKey: partitionID,
+	metadata0 := map[string]string{
+		messageKey: partition0,
 	}
 
-	sendAndReceive := func(metadata map[string]string) flow.Runnable {
+	metadata1 := map[string]string{
+		messageKey: partition1,
+	}
+	sendAndReceive := func(metadata0 map[string]string, metadata1 map[string]string) flow.Runnable {
 		return func(ctx flow.Context) error {
 			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
 			require.NoError(t, err, "dapr init failed")
@@ -358,7 +362,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			// Define what is expected
 			outputmsg := make([]string, 50)
 			for i := 0; i < 50; i++ {
-				outputmsg[i] = fmt.Sprintf("output binding: Message %d", i)
+				outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i, metadata0[messageKey])
 			}
 			consumerGroup1.ExpectStrings(outputmsg...)
 			time.Sleep(40 * time.Second)
@@ -372,6 +376,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 						Name:      "azure-partition0-binding",
 						Operation: "create",
 						Data:      []byte(msg),
+						Metadata:  metadata0,
 					})
 				require.NoError(ctx, err, "error publishing message")
 			}
@@ -385,7 +390,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			// Define what is expected
 			outputmsg2 := make([]string, 50)
 			for i := 0; i < 50; i++ {
-				outputmsg2[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i+50, metadata[messageKey])
+				outputmsg2[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i+50, metadata1[messageKey])
 			}
 			consumerGroup2.ExpectStrings(outputmsg2...)
 			time.Sleep(120 * time.Second)
@@ -399,7 +404,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 						Name:      "azure-partition1-binding",
 						Operation: "create",
 						Data:      []byte(msg2),
-						Metadata:  metadata,
+						Metadata:  metadata1,
 					})
 				require.NoError(ctx, err, "error publishing message")
 			}
@@ -453,7 +458,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("send and wait", sendAndReceive(metadata)).
+		Step("send and wait", sendAndReceive(metadata0, metadata1)).
 		Step("delete containers", deleteEventhub).
 		Run()
 }

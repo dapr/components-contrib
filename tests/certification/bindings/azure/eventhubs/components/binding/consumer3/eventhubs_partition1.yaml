@@ -29,6 +29,8 @@ spec:
     secretKeyRef:
       name: AzureEventHubsBindingsContainer
       value: AzureEventHubsBindingsContainer
+  - name: partitionID
+    value: 1
 auth:
   secretStore: envvar-secret-store
   

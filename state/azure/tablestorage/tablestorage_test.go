@@ -43,13 +43,13 @@ func TestGetTableStorageMetadata(t *testing.T) {
 
 func TestPartitionAndRowKey(t *testing.T) {
 	t.Run("Valid composite key", func(t *testing.T) {
-		pk, rk := getPartitionAndRowKey("pk||rk")
+		pk, rk := getPartitionAndRowKey("pk||rk", false)
 		assert.Equal(t, "pk", pk)
 		assert.Equal(t, "rk", rk)
 	})
 
 	t.Run("No delimiter present", func(t *testing.T) {
-		pk, rk := getPartitionAndRowKey("pk_rk")
+		pk, rk := getPartitionAndRowKey("pk_rk", false)
 		assert.Equal(t, "pk_rk", pk)
 		assert.Equal(t, "", rk)
 	})

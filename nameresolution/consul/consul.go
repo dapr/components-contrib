@@ -243,7 +243,7 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	} else if _, err := strconv.ParseUint(httpPort, 10, 0); err != nil {
 		return nil, fmt.Errorf("error parsing %s: %w", nr.DaprHTTPPort, err)
 	}
-	ID := appID + "-" + host
+	ID := appID + "-" + host + "-" + httpPort
 	// if no health checks configured add dapr sidecar health check by default
 	if len(cfg.Checks) == 0 {
 		cfg.Checks = []*consul.AgentServiceCheck{

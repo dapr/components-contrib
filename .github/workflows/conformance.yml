@@ -109,8 +109,10 @@ jobs:
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: state.azure.sql
           required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
-        - component: state.azure.tablestorage
+        - component: state.azure.tablestorage.storage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: state.azure.tablestorage.cosmosdb
+          required-secrets: AzureCosmosDBTableAPI,AzureCosmosDBTableAPIMasterKey
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubNamespaceConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus

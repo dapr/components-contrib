@@ -172,6 +172,9 @@ COSMOS_DB_VAR_NAME="AzureCosmosDB"
 COSMOS_DB_COLLECTION_VAR_NAME="AzureCosmosDBCollection"
 COSMOS_DB_MASTER_KEY_VAR_NAME="AzureCosmosDBMasterKey"
 COSMOS_DB_URL_VAR_NAME="AzureCosmosDBUrl"
+COSMOS_DB_TABLE_API_VAR_NAME="AzureCosmosDBTableAPI"
+COSMOS_DB_TABLE_API_URL_VAR_NAME="AzureCosmosDBTableAPIUrl"
+COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME="AzureCosmosDBTableAPIMasterKey"
 
 EVENT_GRID_ACCESS_KEY_VAR_NAME="AzureEventGridAccessKey"
 EVENT_GRID_CLIENT_ID_VAR_NAME="AzureEventGridClientId"
@@ -296,6 +299,8 @@ COSMOS_DB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "proper
 echo "INFO: COSMOS_DB_NAME=${COSMOS_DB_NAME}"
 COSMOS_DB_SQL_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlName.value" --output tsv)"
 echo "INFO: COSMOS_DB_SQL_NAME=${COSMOS_DB_SQL_NAME}"
+COSMOS_DB_TABLE_API_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbTableAPIName.value" --output tsv)"
+echo "INFO: COSMOS_DB_TABLE_API_NAME=${COSMOS_DB_TABLE_API_NAME}"
 COSMOS_DB_CONTAINER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlContainerName.value" --output tsv)"
 echo "INFO: COSMOS_DB_CONTAINER_NAME=${COSMOS_DB_CONTAINER_NAME}"
 EVENT_GRID_TOPIC_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventGridTopicName.value" --output tsv)"
@@ -547,6 +552,23 @@ az keyvault secret set --name "${COSMOS_DB_URL_VAR_NAME}" --vault-name "${KEYVAU
 COSMOS_DB_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryMasterKey" --output tsv)"
 echo export ${COSMOS_DB_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${COSMOS_DB_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_MASTER_KEY}"
+
+# --------------------------------
+# Populate CosmosDB test settings
+# --------------------------------
+echo "Configuring CosmosDB Table API test settings ..."
+
+echo export ${COSMOS_DB_TABLE_API_VAR_NAME}=\"${COSMOS_DB_TABLE_API_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_NAME}"
+
+COSMOS_DB_TABLE_API_URL="$(az cosmosdb list --query "[?name=='${COSMOS_DB_TABLE_API_NAME}'].documentEndpoint" --output tsv)"
+echo export ${COSMOS_DB_TABLE_API_URL_VAR_NAME}=\"${COSMOS_DB_TABLE_API_URL}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_URL_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_URL}"
+
+COSMOS_DB_TABLE_API_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_TABLE_API_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryMasterKey" --output tsv)"
+echo export ${COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_TABLE_API_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_MASTER_KEY}"
+
 
 # ----------------------------------
 # Populate Event Grid test settings

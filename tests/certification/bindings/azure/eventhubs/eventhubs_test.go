@@ -53,6 +53,7 @@ const (
 	numMessages      = 100
 	messageKey       = "partitionKey"
 	iotHubNameEnvKey = "AzureIotHubName"
+	partitionID      = "1"
 )
 
 func TestSinglePartition(t *testing.T) {
@@ -324,6 +325,7 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 		Step("delete containers", deleteEventhub).
 		Run()
 }
+
 func TestEventhubBindingMultiplePartition(t *testing.T) {
 	logger := logger.NewLogger("dapr.components")
 	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
@@ -344,61 +346,66 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
-	sendAndReceive := func(ctx flow.Context) error {
-
-		client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "dapr init failed")
-
-		// Define what is expected
-		outputmsg := make([]string, numMessages)
-		for i := 0; i < numMessages; i++ {
-			outputmsg[i] = fmt.Sprintf("output binding: Message %03d", i)
-		}
-		consumerGroup1.ExpectStrings(outputmsg...)
-		time.Sleep(40 * time.Second)
-
-		// Send events from output binding
-		for _, msg := range outputmsg {
-			ctx.Logf("Sending eventhub message: %q", msg)
-
-			err := client.InvokeOutputBinding(
-				ctx, &dapr.InvokeBindingRequest{
-					Name:      "azure-partition0-binding",
-					Operation: "create",
-					Data:      []byte(msg),
-				})
-			require.NoError(ctx, err, "error publishing message")
-		}
-
-		// Assert the observed messages
-		consumerGroup1.Assert(ctx, time.Minute)
-
-		// Define what is expected
-		outputmsg2 := make([]string, numMessages)
-		for i := 0; i < numMessages; i++ {
-			outputmsg2[i] = fmt.Sprintf("output binding: Message %03d", i)
-		}
-		consumerGroup2.ExpectStrings(outputmsg2...)
-		time.Sleep(120 * time.Second)
-
-		// Send events from output binding
-		for _, msg2 := range outputmsg2 {
-			ctx.Logf("Sending eventhub message: %q", msg2)
-
-			err := client.InvokeOutputBinding(
-				ctx, &dapr.InvokeBindingRequest{
-					Name:      "azure-partition1-binding",
-					Operation: "create",
-					Data:      []byte(msg2),
-				})
-			require.NoError(ctx, err, "error publishing message")
-		}
-
-		// Assert the observed messages
-		consumerGroup2.Assert(ctx, time.Minute)
-		return nil
+	metadata := map[string]string{
+		messageKey: partitionID,
 	}
 
+	sendAndReceive := func(metadata map[string]string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+			require.NoError(t, err, "dapr init failed")
+
+			// Define what is expected
+			outputmsg := make([]string, 50)
+			for i := 0; i < 50; i++ {
+				outputmsg[i] = fmt.Sprintf("output binding: Message %d", i)
+			}
+			consumerGroup1.ExpectStrings(outputmsg...)
+			time.Sleep(40 * time.Second)
+
+			// Send events from output binding
+			for _, msg := range outputmsg {
+				ctx.Logf("Sending eventhub message: %q", msg)
+
+				err := client.InvokeOutputBinding(
+					ctx, &dapr.InvokeBindingRequest{
+						Name:      "azure-partition0-binding",
+						Operation: "create",
+						Data:      []byte(msg),
+					})
+				require.NoError(ctx, err, "error publishing message")
+			}
+
+			// Assert the observed messages
+			consumerGroup1.Assert(ctx, time.Minute)
+
+			// Define what is expected
+			outputmsg2 := make([]string, 50)
+			for i := 0; i < 50; i++ {
+				outputmsg2[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i+50, metadata[messageKey])
+			}
+			consumerGroup2.ExpectStrings(outputmsg2...)
+			time.Sleep(120 * time.Second)
+
+			// Send events from output binding
+			for _, msg2 := range outputmsg2 {
+				ctx.Logf("Sending eventhub message: %q", msg2)
+
+				err := client.InvokeOutputBinding(
+					ctx, &dapr.InvokeBindingRequest{
+						Name:      "azure-partition1-binding",
+						Operation: "create",
+						Data:      []byte(msg2),
+						Metadata:  metadata,
+					})
+				require.NoError(ctx, err, "error publishing message")
+			}
+
+			// Assert the observed messages
+			consumerGroup2.Assert(ctx, time.Minute)
+			return nil
+		}
+	}
 	// Application logic that tracks messages from eventhub.
 	application := func(ctx flow.Context, s common.Service) (err error) {
 		// Simulate periodic errors.
@@ -443,7 +450,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			runtime.WithOutputBindings(out_component),
 			runtime.WithInputBindings(in_component),
 		)).
-		Step("send and wait", sendAndReceive).
+		Step("send and wait", sendAndReceive(metadata)).
 		Step("delete containers", deleteEventhub).
 		Run()
 }

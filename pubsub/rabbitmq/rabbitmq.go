@@ -26,7 +26,6 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -62,8 +61,7 @@ type rabbitMQ struct {
 
 	connectionDial func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 
-	logger        logger.Logger
-	backOffConfig retry.Config
+	logger logger.Logger
 }
 
 // interface used to allow unit testing.
@@ -115,16 +113,6 @@ func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) 
 func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata)
 	if err != nil {
-		return err
-	}
-
-	// Default retry configuration is used if no backOff properties are set.
-	// backOff max retry config is set to 0, which means not to retry by default.
-	r.backOffConfig = retry.DefaultConfigWithNoRetry()
-	if err := retry.DecodeConfigWithPrefix(
-		&r.backOffConfig,
-		metadata.Properties,
-		"backOff"); err != nil {
 		return err
 	}
 
@@ -465,30 +453,25 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 		Topic: topic,
 	}
 
-	b := r.backOffConfig.NewBackOffWithContext(ctx)
-	err := retry.NotifyRecover(func() error {
-		return handler(ctx, pubsubMsg)
-	}, b, func(err error, d time.Duration) {
-		r.logger.Errorf("%s error handling message from topic '%s', %s", logMessagePrefix, topic, err)
-	}, func() {
-		r.logger.Infof("%s successfully processed message after it previously failed from topic '%s'", logMessagePrefix, topic)
-	})
+	err := handler(ctx, pubsubMsg)
 
-	//nolint:nestif
-	// if message is not auto acked we need to ack/nack
-	if !r.metadata.autoAck {
-		if err != nil {
+	if err != nil {
+		r.logger.Errorf("%s handling message from topic '%s', %s", errorMessagePrefix, topic, err)
+
+		if !r.metadata.autoAck {
+			// if message is not auto acked we need to ack/nack
 			requeue := r.metadata.requeueInFailure && !d.Redelivered
 
 			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
 			if err = d.Nack(false, requeue); err != nil {
 				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
-		} else {
-			r.logger.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
-			if err = d.Ack(false); err != nil {
-				r.logger.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
-			}
+		}
+	} else if !r.metadata.autoAck {
+		// if message is not auto acked we need to ack/nack
+		r.logger.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
+		if err = d.Ack(false); err != nil {
+			r.logger.Errorf("%s error acking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 		}
 	}
 

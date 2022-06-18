@@ -26,7 +26,6 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -69,7 +68,6 @@ type Pulsar struct {
 
 	publishCtx    context.Context
 	publishCancel context.CancelFunc
-	backOffConfig retry.Config
 	cache         *lru.Cache
 }
 
@@ -189,15 +187,6 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	p.client = client
 	p.metadata = *m
 
-	// Default retry configuration is used if no
-	// backOff properties are set.
-	if err := retry.DecodeConfigWithPrefix(
-		&p.backOffConfig,
-		metadata.Properties,
-		"backOff"); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -308,21 +297,15 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 		Metadata: msg.Properties(),
 	}
 
-	b := p.backOffConfig.NewBackOffWithContext(ctx)
-
-	return retry.NotifyRecover(func() error {
-		p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
-		err := handler(ctx, &pubsubMsg)
-		if err == nil {
-			msg.Ack(msg.Message)
-		}
-
+	p.logger.Debugf("Processing Pulsar message %s/%#v", msg.Topic(), msg.ID())
+	err := handler(ctx, &pubsubMsg)
+	if err != nil {
+		msg.Nack(msg.Message)
 		return err
-	}, b, func(err error, d time.Duration) {
-		p.logger.Errorf("Error processing Pulsar message: %s/%#v [key=%s]. Retrying...", msg.Topic(), msg.ID(), msg.Key())
-	}, func() {
-		p.logger.Infof("Successfully processed Pulsar message after it previously failed: %s/%#v [key=%s]", msg.Topic(), msg.ID(), msg.Key())
-	})
+	}
+
+	msg.Ack(msg.Message)
+	return nil
 }
 
 func (p *Pulsar) Close() error {

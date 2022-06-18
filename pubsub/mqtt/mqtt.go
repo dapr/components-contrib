@@ -24,25 +24,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 const (
 	// Keys.
-	mqttURL               = "url"
-	mqttQOS               = "qos"
-	mqttRetain            = "retain"
-	mqttClientID          = "consumerID"
-	mqttCleanSession      = "cleanSession"
-	mqttCACert            = "caCert"
-	mqttClientCert        = "clientCert"
-	mqttClientKey         = "clientKey"
-	mqttBackOffMaxRetries = "backOffMaxRetries"
+	mqttURL          = "url"
+	mqttQOS          = "qos"
+	mqttRetain       = "retain"
+	mqttClientID     = "consumerID"
+	mqttCleanSession = "cleanSession"
+	mqttCACert       = "caCert"
+	mqttClientCert   = "clientCert"
+	mqttClientKey    = "clientKey"
 
 	// errors.
 	errorMsgPrefix = "mqtt pub sub error:"
@@ -81,7 +78,7 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
+func (p *mqttPubSub) parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 	m := metadata{}
 
 	// required configuration settings
@@ -144,12 +141,10 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 		m.tlsCfg.clientKey = val
 	}
 
-	if val, ok := md.Properties[mqttBackOffMaxRetries]; ok && val != "" {
-		backOffMaxRetriesInt, err := strconv.Atoi(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid backOffMaxRetries %s, %s", errorMsgPrefix, val, err)
-		}
-		m.backOffMaxRetries = backOffMaxRetriesInt
+	// Deprecated config option
+	// TODO: Remove in the future
+	if _, ok := md.Properties["backOffMaxRetries"]; ok {
+		p.logger.Warnf("Metadata property 'backOffMaxRetries' for component pubsub.mqtt has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
 	}
 
 	return &m, nil
@@ -157,7 +152,7 @@ func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
 
 // Init parses metadata and creates a new Pub Sub client.
 func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
-	mqttMeta, err := parseMQTTMetaData(metadata)
+	mqttMeta, err := m.parseMQTTMetaData(metadata)
 	if err != nil {
 		return err
 	}
@@ -316,29 +311,14 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 			return
 		}
 
-		// TODO: Make the backoff configurable for constant or exponential
-		var b backoff.BackOff = backoff.NewConstantBackOff(5 * time.Second)
-		b = backoff.WithContext(b, ctx)
-		if m.metadata.backOffMaxRetries >= 0 {
-			b = backoff.WithMaxRetries(b, uint64(m.metadata.backOffMaxRetries))
+		m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+		err := topicHandler(ctx, &msg)
+		if err != nil {
+			m.logger.Errorf("Failed processing MQTT message %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+			return
 		}
-		if err := retry.NotifyRecover(func() error {
-			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
 
-			if err := topicHandler(ctx, &msg); err != nil {
-				return err
-			}
-
-			mqttMsg.Ack()
-
-			return nil
-		}, b, func(err error, d time.Duration) {
-			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
-		}, func() {
-			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-		}); err != nil {
-			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
-		}
+		mqttMsg.Ack()
 	}
 }
 

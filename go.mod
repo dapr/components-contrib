@@ -367,3 +367,5 @@ replace go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
 
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
+
+replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1

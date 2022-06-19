@@ -381,12 +381,6 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 				require.NoError(ctx, err, "error publishing message")
 			}
 
-			// Assert the observed messages
-			consumerGroup1.Assert(ctx, time.Minute)
-
-			output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
-			assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
-
 			// Define what is expected
 			outputmsg2 := make([]string, 50)
 			for i := 0; i < 50; i++ {
@@ -410,6 +404,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			}
 
 			// Assert the observed messages
+			consumerGroup1.Assert(ctx, time.Minute)
 			consumerGroup2.Assert(ctx, time.Minute)
 			return nil
 		}
@@ -425,6 +420,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				consumerGroup1.FailIfNotExpected(t, string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}),
@@ -434,6 +430,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				consumerGroup2.FailIfNotExpected(t, string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))

@@ -78,12 +78,7 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic 
 		Topic: topic,
 	}
 
-	body, err := asbMsg.Body()
-	if err != nil {
-		return nil, err
-	}
-
-	pubsubMsg.Data = body
+	pubsubMsg.Data = asbMsg.Body
 
 	addToMetadata := func(msg *pubsub.NewMessage, key, value string) {
 		if msg.Metadata == nil {

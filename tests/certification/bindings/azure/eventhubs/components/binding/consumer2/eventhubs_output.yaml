@@ -7,6 +7,8 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
+  - name: consumerID
+    value: ehcertification2
   - name: connectionString      # Azure EventHubs connection string
     secretKeyRef:
       name: AzureEventHubsBindingsConnectionString

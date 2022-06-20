@@ -303,10 +303,6 @@ func (s *StateStore) BulkSet(reqs []state.SetRequest) error {
 	}
 }
 
-func (s *StateStore) Ping() error {
-	return nil
-}
-
 func (s *StateStore) newCreateRequest(req *zk.SetDataRequest) *zk.CreateRequest {
 	return &zk.CreateRequest{Path: req.Path, Data: req.Data}
 }

@@ -419,7 +419,9 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
-	case "azure.tablestorage":
+	case "azure.tablestorage.storage":
+		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "azure.tablestorage.cosmosdb":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "cassandra":
 		store = s_cassandra.NewCassandraStateStore(testLogger)

@@ -294,7 +294,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
-		Step("send and wait", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
+		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
 		//
 		// Run the third application.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
@@ -312,7 +312,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Send messages with random keys to test message consumption
 		// across more than one consumer group and consumers per group.
-		Step("send and wait", sendRecvTest(map[string]string{}, consumerGroup2)).
+		Step("send and wait(no-order)", sendRecvTest(map[string]string{}, consumerGroup2)).
 		//
 		// Gradually stop each broker.
 		// This tests the components ability to handle reconnections
@@ -336,7 +336,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("assert messages(Component reconnect)", assertMessages(consumerGroup1, consumerGroup2)).
 		//
 		// Simulate a network interruption.
 		// This tests the components ability to handle reconnections
@@ -351,7 +351,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("assert messages(network interruption)", assertMessages(consumerGroup1, consumerGroup2)).
 		//
 		// Reset and test that all messages are received during a
 		// consumer rebalance.
@@ -363,6 +363,6 @@ func TestKafka(t *testing.T) {
 		Step("wait", flow.Sleep(3*time.Second)).
 		Step("stop app 2", app.Stop(appID2)).
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup2)).
+		Step("assert messages(consumer rebalance)", assertMessages(consumerGroup2)).
 		Run()
 }

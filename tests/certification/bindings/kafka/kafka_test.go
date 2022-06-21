@@ -143,7 +143,6 @@ func TestKafka(t *testing.T) {
 			// Send events that the application above will observe.
 			ctx.Log("Sending messages!")
 			for _, msg := range msgs {
-				ctx.Logf("Sending: %q", msg)
 				err := client.InvokeOutputBinding(ctx, &dapr.InvokeBindingRequest{
 					Name:      bindingName,
 					Operation: string(bindings.CreateOperation),

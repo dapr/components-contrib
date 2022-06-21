@@ -208,7 +208,7 @@ jobs:
         git diff --exit-code ./go.sum
 
     - name: Run tests
-      continue-on-error: true
+      continue-on-error: false
       working-directory: ${{ env.TEST_PATH }}
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "

@@ -14,11 +14,11 @@ limitations under the License.
 package snssqs
 
 type arnEquals struct {
-	AwsSourceArn string `json:"aws:SourceArn"`
+	AwsSourceArn []string `json:"aws:SourceArn"`
 }
 
 type condition struct {
-	ArnEquals arnEquals
+	ForAllValuesArnEquals arnEquals `json:"ForAllValues:ArnEquals"`
 }
 
 type principal struct {
@@ -38,20 +38,33 @@ type policy struct {
 	Statement []statement
 }
 
-func (p *policy) statementExists(other *statement) bool {
+func (p *policy) tryInsertCondition(sqsArn string, snsArn string) bool {
 	for _, s := range p.Statement {
-		if s.Effect == other.Effect &&
-			s.Principal.Service == other.Principal.Service &&
-			s.Action == other.Action &&
-			s.Resource == other.Resource &&
-			s.Condition.ArnEquals.AwsSourceArn == other.Condition.ArnEquals.AwsSourceArn {
-			return true
+		// if there is a statement for sqsArn
+		if s.Resource == sqsArn {
+			// check if the snsArn already exists
+			for _, a := range s.Condition.ForAllValuesArnEquals.AwsSourceArn {
+				if a == snsArn {
+					return true
+				}
+			}
+			// insert it if it does not exist
+			s.Condition.ForAllValuesArnEquals.AwsSourceArn = append(s.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArn)
+			return false
 		}
 	}
-
+	// insert a new statement if no statement for the sqsArn
+	newStatement := &statement{
+		Effect:    "Allow",
+		Principal: principal{Service: "sns.amazonaws.com"},
+		Action:    "sqs:SendMessage",
+		Resource:  sqsArn,
+		Condition: condition{
+			ForAllValuesArnEquals: arnEquals{
+				AwsSourceArn: []string{snsArn},
+			},
+		},
+	}
+	p.Statement = append(p.Statement, *newStatement)
 	return false
-}
-
-func (p *policy) addStatement(other *statement) {
-	p.Statement = append(p.Statement, *other)
 }

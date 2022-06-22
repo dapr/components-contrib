@@ -48,10 +48,10 @@ const (
 	errorMsgPrefix = "mqtt pub sub error:"
 
 	// Defaults.
-	defaultQOS          = 0
-	defaultRetain       = false
+	defaultQOS          = 1
+	defaultRetain       = true
 	defaultWait         = 30 * time.Second
-	defaultCleanSession = true
+	defaultCleanSession = false
 )
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.

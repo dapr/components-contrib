@@ -14,5 +14,6 @@ limitations under the License.
 package hazelcast
 
 type metadata struct {
-	hazelcastServers string
+	hazelcastServers  string
+	backOffMaxRetries int
 }

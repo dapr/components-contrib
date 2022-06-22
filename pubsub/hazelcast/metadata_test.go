@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 )
 
 func TestValidateMetadata(t *testing.T) {
@@ -30,10 +29,7 @@ func TestValidateMetadata(t *testing.T) {
 			},
 		}
 
-		obj := Hazelcast{
-			logger: logger.NewLogger("test"),
-		}
-		m, err := obj.parseHazelcastMetadata(fakeMetaData)
+		m, err := parseHazelcastMetadata(fakeMetaData)
 
 		// assert
 		assert.Error(t, err)

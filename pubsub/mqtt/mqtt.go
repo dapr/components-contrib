@@ -46,7 +46,7 @@ const (
 
 	// Defaults.
 	defaultQOS          = 1
-	defaultRetain       = true
+	defaultRetain       = false
 	defaultWait         = 30 * time.Second
 	defaultCleanSession = false
 )

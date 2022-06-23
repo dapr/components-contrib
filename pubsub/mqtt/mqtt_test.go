@@ -92,7 +92,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
 		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, true, m.retain)
+		assert.Equal(t, false, m.retain)
 	})
 
 	t.Run("invalid clean session field", func(t *testing.T) {

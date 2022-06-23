@@ -63,6 +63,10 @@ func (r *StandaloneRedisLock) InitLockStore(metadata lock.Metadata) error {
 		return err
 	}
 	r.metadata = m
+	// must have `redisHost`
+	if metadata.Properties["redisHost"] == "" {
+		return fmt.Errorf("[standaloneRedisLock]: InitLockStore error. redisHost is empty")
+	}
 	// no failover
 	if needFailover(metadata.Properties) {
 		return fmt.Errorf("[standaloneRedisLock]: InitLockStore error. Failover is not supported")

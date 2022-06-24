@@ -179,7 +179,3 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 func (m *Memcached) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
 }
-
-func (m *Memcached) Ping() error {
-	return nil
-}

@@ -256,7 +256,7 @@ func (c CredentialsConfig) GetTokenCredential() (token azcore.TokenCredential, e
 	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, &azidentity.ClientSecretCredentialOptions{
 		ClientOptions: azcore.ClientOptions{
 			Cloud: cloud.Configuration{
-				LoginEndpoint: c.AADEndpoint,
+				ActiveDirectoryAuthorityHost: c.AADEndpoint,
 			},
 		},
 	})
@@ -341,7 +341,7 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 	opts := &azidentity.ClientCertificateCredentialOptions{
 		ClientOptions: azcore.ClientOptions{
 			Cloud: cloud.Configuration{
-				LoginEndpoint: c.AADEndpoint,
+				ActiveDirectoryAuthorityHost: c.AADEndpoint,
 			},
 		},
 	}

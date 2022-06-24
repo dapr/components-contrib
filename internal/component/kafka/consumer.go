@@ -48,7 +48,9 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			}
 		} else {
 			err := consumer.doCallback(session, message)
-			consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+			if err != nil {
+				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+			}
 		}
 	}
 

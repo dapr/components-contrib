@@ -307,12 +307,12 @@ func TestPing(t *testing.T) {
 		clientSettings: &rediscomponent.Settings{},
 	}
 
-	err := ss.Ping()
+	err := state.Ping(ss)
 	assert.NoError(t, err)
 
 	s.Close()
 
-	err = ss.Ping()
+	err = state.Ping(ss)
 	assert.Error(t, err)
 }
 

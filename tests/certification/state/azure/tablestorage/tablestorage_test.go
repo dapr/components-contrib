@@ -49,71 +49,29 @@ func TestAzureTableStorage(t *testing.T) {
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
 
-	basicTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		if err != nil {
-			panic(err)
+	basicTest := func(savestore string, getstore string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			// save state, default options: strong, last-write
+			err = client.SaveState(ctx, savestore, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
+			assert.NoError(t, err)
+
+			// get state
+			item, err := client.GetState(ctx, getstore, certificationTestPrefix+"key1", nil)
+			assert.NoError(t, err)
+			assert.Equal(t, "certificationdata", string(item.Value))
+
+			// delete state
+			err = client.DeleteState(ctx, savestore, certificationTestPrefix+"key1", nil)
+			assert.NoError(t, err)
+
+			return nil
 		}
-		defer client.Close()
-
-		// save state, default options: strong, last-write
-		err = client.SaveState(ctx, "statestore-basic", certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		assert.NoError(t, err)
-
-		// get state
-		item, err := client.GetState(ctx, "statestore-basic", certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "certificationdata", string(item.Value))
-
-		// delete state
-		err = client.DeleteState(ctx, "statestore-basic", certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-
-		return nil
-	}
-
-	NonExistingTableTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		if err != nil {
-			panic(err)
-		}
-		defer client.Close()
-
-		// save state, default options: strong, last-write
-		err = client.SaveState(ctx, "statestore-newtable", certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		assert.NoError(t, err)
-
-		// get state
-		item, err := client.GetState(ctx, "statestore-newtable", certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "certificationdata", string(item.Value))
-
-		// delete state
-		err = client.DeleteState(ctx, "statestore-newtable", certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-
-		exec.Command("/bin/bash", "az storage table delete --account-name ${AzureBlobStorageAccount} --name NewTable")
-
-		return nil
-	}
-
-	authTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		if err != nil {
-			panic(err)
-		}
-		defer client.Close()
-
-		// save state with go sdk with existing table
-		err = client.SaveState(ctx, "statestore-key", certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		assert.NoError(t, err)
-
-		// Get data using AAD
-		item, err := client.GetState(ctx, "statestore-aad", certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "certificationdata", string(item.Value))
-
-		return nil
 	}
 
 	flow.New(t, "Test basic operations, save/get/delete using existing table").
@@ -133,7 +91,7 @@ func TestAzureTableStorage(t *testing.T) {
 					return table.NewAzureTablesStateStore(log)
 				}),
 			))).
-		Step("Run basic test with existing table", basicTest).
+		Step("Run basic test with existing table", basicTest("statestore-basic", "statestore-basic")).
 		Run()
 
 	flow.New(t, "Test basic operations, save/get/delete with new table").
@@ -153,7 +111,8 @@ func TestAzureTableStorage(t *testing.T) {
 					return table.NewAzureTablesStateStore(log)
 				}),
 			))).
-		Step("Run basic test with new table", NonExistingTableTest).
+		Step("Run basic test with new table", NonExistingTableTest("statestore-newtable", "statestore-newtable")).
+		Step("Delete the New Table", exec.Command("/bin/bash", "az storage table delete --account-name ${AzureBlobStorageAccount} --name NewTable")).
 		Run()
 
 	flow.New(t, "Test for authentication using Azure Auth layer").
@@ -173,6 +132,6 @@ func TestAzureTableStorage(t *testing.T) {
 					return table.NewAzureTablesStateStore(log)
 				}),
 			))).
-		Step("Run AAD test", authTest).
+		Step("Run AAD test", authTest("statestore-key", "statestore-aad")).
 		Run()
 }

@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification
+module github.com/dapr/components-contrib/tests/certification/state/azure/tablestorage
 
 go 1.18
 

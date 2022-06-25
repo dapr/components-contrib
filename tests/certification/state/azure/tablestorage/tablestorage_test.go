@@ -92,7 +92,7 @@ func TestAzureTableStorage(t *testing.T) {
 		err = client.DeleteState(ctx, "statestore-newtable", certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 
-		exec.Command("/bin/bash", "az storage table delete --account-name dapr3ctstorage --name NewTable")
+		exec.Command("/bin/bash", "az storage table delete --account-name ${AzureBlobStorageAccount} --name NewTable")
 
 		return nil
 	}

@@ -1,0 +1,21 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-aad
+spec:
+  type: state.azure.tablestorage
+  metadata:
+  - name: accountName
+    value: "${{AzureBlobStorageAccount}}"
+  - name: azureTenantId
+    value: "${{AzureCertificationTenantId}}"
+  - name: azureClientId
+    value: "${{AzureCertificationServicePrincipalClientId}}"
+  - name: azureClientSecret
+    value: "${{AzureCertificationServicePrincipalClientSecret}}"
+  - name: tableName
+    value: "certificationTable"
+  - name: skipCreateTable
+    value: true
+auth:
+  secretStore: envvar-secret-store

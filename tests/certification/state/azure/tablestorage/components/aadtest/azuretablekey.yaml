@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-key
+spec:
+  type: state.azure.tablestorage
+  metadata:
+  - name: accountName
+    value: "${{AzureBlobStorageAccount}}"
+  - name: accountKey
+    value: "${{AzureBlobStorageAccessKey}}"
+  - name: tableName
+    value: "certificationTable"
+  - name: serviceURL
+    value: https://dapr3ctstorage.table.core.windows.net
+auth:
+  secretStore: envvar-secret-store

@@ -12,6 +12,6 @@ spec:
   - name: tableName
     value: "certificationTable"
   - name: serviceURL
-    value: https://dapr3ctstorage.table.core.windows.net
+    value: "https://dapr3ctstorage.table.core.windows.net"
 auth:
   secretStore: envvar-secret-store

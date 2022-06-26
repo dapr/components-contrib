@@ -15,6 +15,7 @@ package tablestorage_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -74,6 +75,12 @@ func TestAzureTableStorage(t *testing.T) {
 		}
 	}
 
+	deleteTable := func(ctx flow.Context) error {
+		output, err := exec.Command("az", "storage", "table", "delete", "--account-name", os.Getenv("AzureBlobStorageAccount"), "--account-key", os.Getenv("AzureBlobStorageAccessKey"), "--name", "NewTable").CombinedOutput()
+		assert.Nil(t, err, "Error while deleting the table.:\n%s", string(output))
+		return nil
+	}
+
 	flow.New(t, "Test basic operations, save/get/delete using existing table").
 		// Run the Dapr sidecar with azure table storage.
 		Step(sidecar.Run(sidecarNamePrefix,
@@ -111,8 +118,8 @@ func TestAzureTableStorage(t *testing.T) {
 					return table.NewAzureTablesStateStore(log)
 				}),
 			))).
-		Step("Run basic test with new table", NonExistingTableTest("statestore-newtable", "statestore-newtable")).
-		Step("Delete the New Table", exec.Command("/bin/bash", "az storage table delete --account-name ${AzureBlobStorageAccount} --name NewTable")).
+		Step("Run basic test with new table", basicTest("statestore-newtable", "statestore-newtable")).
+		Step("Delete the New Table", deleteTable).
 		Run()
 
 	flow.New(t, "Test for authentication using Azure Auth layer").
@@ -132,6 +139,6 @@ func TestAzureTableStorage(t *testing.T) {
 					return table.NewAzureTablesStateStore(log)
 				}),
 			))).
-		Step("Run AAD test", authTest("statestore-key", "statestore-aad")).
+		Step("Run AAD test", basicTest("statestore-key", "statestore-aad")).
 		Run()
 }

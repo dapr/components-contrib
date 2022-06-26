@@ -5,17 +5,25 @@ metadata:
 spec:
   type: state.azure.tablestorage
   metadata:
-  - name: accountName
-    value: "${{AzureBlobStorageAccount}}"
-  - name: azureTenantId
-    value: "${{AzureCertificationTenantId}}"
-  - name: azureClientId
-    value: "${{AzureCertificationServicePrincipalClientId}}"
-  - name: azureClientSecret
-    value: "${{AzureCertificationServicePrincipalClientSecret}}"
-  - name: tableName
-    value: "certificationTable"
-  - name: skipCreateTable
-    value: true
+    - name: accountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: accountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: azureClientId
+      secretKeyRef:
+        name: AzureCertificationServicePrincipalClientId
+        key: AzureCertificationServicePrincipalClientId
+    - name: azureClientSecret
+      secretKeyRef:
+        name: AzureCertificationServicePrincipalClientSecret
+        key: AzureCertificationServicePrincipalClientSecret
+    - name: tableName
+      value: "certificationTable"
+    - name: skipCreateTable
+      value: true
 auth:
   secretStore: envvar-secret-store

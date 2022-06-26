@@ -5,11 +5,15 @@ metadata:
 spec:
   type: state.azure.tablestorage
   metadata:
-  - name: accountName
-    value: "${{AzureBlobStorageAccount}}"
-  - name: accountKey
-    value: "${{AzureBlobStorageAccessKey}}"
-  - name : tableName
-    value: "NewTable"
+    - name: accountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: accountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: tableName
+      value: "NewTable"
 auth:
-  secretStore: envvar-secret-store
+  secretstore: envvar-secret-store

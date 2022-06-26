@@ -13,6 +13,10 @@ spec:
       secretKeyRef:
         name: AzureBlobStorageAccessKey
         key: AzureBlobStorageAccessKey
+    - name: azureTenantId
+      secretKeyRef:
+        name: AzureCertificationTenantId
+        key: AzureCertificationTenantId
     - name: azureClientId
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientId

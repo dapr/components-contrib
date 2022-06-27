@@ -11,4 +11,4 @@ spec:
   - name: consumerID
     value: myConsumerID
   - name: redeliveryDelay
-    value: 500ms
+    value: 200ms

@@ -287,12 +287,13 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 func (p *Pulsar) listenMessage(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
+	var err error
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			if err := p.handleMessage(ctx, originTopic, msg, handler); err != nil && !errors.Is(err, context.Canceled) {
-				p.logger.Errorf("Error processing message and retries are exhausted: %s/%#v [key=%s]. Closing consumer.", msg.Topic(), msg.ID(), msg.Key())
-				return
+			err = p.handleMessage(ctx, originTopic, msg, handler)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				p.logger.Errorf("Error processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
 			}
 
 		case <-ctx.Done():

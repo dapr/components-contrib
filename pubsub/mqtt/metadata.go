@@ -13,17 +13,128 @@ limitations under the License.
 
 package mqtt
 
+import (
+	"fmt"
+	"strconv"
+	"time"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
+)
+
 type metadata struct {
 	tlsCfg
-	url          string
-	clientID     string
-	qos          byte
-	retain       bool
-	cleanSession bool
+	url                      string
+	clientID                 string
+	qos                      byte
+	retain                   bool
+	cleanSession             bool
+	maxRetriableErrorsPerSec int
 }
 
 type tlsCfg struct {
 	caCert     string
 	clientCert string
 	clientKey  string
+}
+
+const (
+	// Keys
+	mqttURL                      = "url"
+	mqttQOS                      = "qos"
+	mqttRetain                   = "retain"
+	mqttClientID                 = "consumerID"
+	mqttCleanSession             = "cleanSession"
+	mqttCACert                   = "caCert"
+	mqttClientCert               = "clientCert"
+	mqttClientKey                = "clientKey"
+	mqttMaxRetriableErrorsPerSec = "maxRetriableErrorsPerSec"
+
+	// Defaults
+	defaultQOS                      = 1
+	defaultRetain                   = false
+	defaultWait                     = 30 * time.Second
+	defaultCleanSession             = false
+	defaultMaxRetriableErrorsPerSec = 10
+)
+
+func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
+	m := metadata{}
+
+	// required configuration settings
+	if val, ok := md.Properties[mqttURL]; ok && val != "" {
+		m.url = val
+	} else {
+		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
+	}
+
+	// optional configuration settings
+	m.qos = defaultQOS
+	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
+		qosInt, err := strconv.Atoi(val)
+		if err != nil {
+			return &m, fmt.Errorf("%s invalid qos %s, %s", errorMsgPrefix, val, err)
+		}
+		m.qos = byte(qosInt)
+	}
+
+	m.retain = defaultRetain
+	if val, ok := md.Properties[mqttRetain]; ok && val != "" {
+		var err error
+		m.retain, err = strconv.ParseBool(val)
+		if err != nil {
+			return &m, fmt.Errorf("%s invalid retain %s, %s", errorMsgPrefix, val, err)
+		}
+	}
+
+	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
+		m.clientID = val
+	} else {
+		return &m, fmt.Errorf("%s missing consumerID", errorMsgPrefix)
+	}
+
+	m.cleanSession = defaultCleanSession
+	if val, ok := md.Properties[mqttCleanSession]; ok && val != "" {
+		var err error
+		m.cleanSession, err = strconv.ParseBool(val)
+		if err != nil {
+			return &m, fmt.Errorf("%s invalid cleanSession %s, %s", errorMsgPrefix, val, err)
+		}
+	}
+
+	m.maxRetriableErrorsPerSec = defaultMaxRetriableErrorsPerSec
+	if val, ok := md.Properties[mqttMaxRetriableErrorsPerSec]; ok && val != "" {
+		var err error
+		m.maxRetriableErrorsPerSec, err = strconv.Atoi(val)
+		if err != nil {
+			return &m, fmt.Errorf("%s invalid maxRetriableErrorsPerSec %s, %s", errorMsgPrefix, val, err)
+		}
+	}
+
+	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid caCert", errorMsgPrefix)
+		}
+		m.tlsCfg.caCert = val
+	}
+	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid clientCert", errorMsgPrefix)
+		}
+		m.tlsCfg.clientCert = val
+	}
+	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
+		if !isValidPEM(val) {
+			return &m, fmt.Errorf("%s invalid clientKey", errorMsgPrefix)
+		}
+		m.tlsCfg.clientKey = val
+	}
+
+	// Deprecated config option
+	// TODO: Remove in the future
+	if _, ok := md.Properties["backOffMaxRetries"]; ok {
+		log.Warnf("Metadata property 'backOffMaxRetries' for component pubsub.mqtt has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
+	}
+
+	return &m, nil
 }

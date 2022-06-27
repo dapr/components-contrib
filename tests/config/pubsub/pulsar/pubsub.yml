@@ -10,3 +10,5 @@ spec:
     value: "localhost:6650"
   - name: consumerID
     value: myConsumerID
+  - name: redeliveryDelay
+    value: 1s

@@ -41,6 +41,7 @@ const (
 	tenant                  = "tenant"
 	namespace               = "namespace"
 	persistent              = "persistent"
+	redeliveryDelay         = "redeliveryDelay"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -59,6 +60,8 @@ const (
 	defaultMaxMessages = 1000
 	// defaultMaxBatchSize init default for maximum number of bytes per batch.
 	defaultMaxBatchSize = 128 * 1024
+	// defaultRedeliveryDelay init default for redelivery delay.
+	defaultRedeliveryDelay = 30 * time.Second
 )
 
 type Pulsar struct {
@@ -123,6 +126,14 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 			return nil, errors.New("pulsar error: invalid value for batchingMaxSize")
 		}
 		m.BatchingMaxSize = uint(batchingMaxSize)
+	}
+	m.RedeliveryDelay = defaultRedeliveryDelay
+	if val, ok := meta.Properties[redeliveryDelay]; ok {
+		redeliveryDelay, err := formatDuration(val)
+		if err != nil {
+			return nil, errors.New("pulsar error: invalid value for redeliveryDelay")
+		}
+		m.RedeliveryDelay = redeliveryDelay
 	}
 	if val, ok := meta.Properties[persistent]; ok && val != "" {
 		per, err := strconv.ParseBool(val)
@@ -255,10 +266,11 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 	topic := p.formatTopic(req.Topic)
 	options := pulsar.ConsumerOptions{
-		Topic:            topic,
-		SubscriptionName: p.metadata.ConsumerID,
-		Type:             pulsar.Shared,
-		MessageChannel:   channel,
+		Topic:               topic,
+		SubscriptionName:    p.metadata.ConsumerID,
+		Type:                pulsar.Shared,
+		MessageChannel:      channel,
+		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
 
 	consumer, err := p.client.Subscribe(options)

@@ -460,10 +460,8 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 
 		if !r.metadata.autoAck {
 			// if message is not auto acked we need to ack/nack
-			requeue := r.metadata.requeueInFailure && !d.Redelivered
-
-			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, requeue)
-			if err = d.Nack(false, requeue); err != nil {
+			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, r.metadata.requeueInFailure)
+			if err = d.Nack(false, r.metadata.requeueInFailure); err != nil {
 				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		}

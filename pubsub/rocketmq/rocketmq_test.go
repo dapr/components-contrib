@@ -25,13 +25,11 @@ import (
 
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"nameServer":         "127.0.0.1:9876",
-		"consumerGroup":      "dapr.rocketmq.producer",
-		"accessKey":          "RocketMQ",
-		"secretKey":          "12345",
-		"consumerBatchSize":  "1",
-		"consumerThreadNums": "2",
-		"retries":            "2",
+		"nameServer":    "127.0.0.1:9876",
+		"consumerGroup": "dapr.rocketmq.producer",
+		"accessKey":     "RocketMQ",
+		"secretKey":     "12345",
+		"retries":       "2",
 	}
 }
 

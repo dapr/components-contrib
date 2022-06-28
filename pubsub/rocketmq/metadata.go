@@ -38,9 +38,11 @@ const (
 
 type rocketMQMetaData struct {
 	// rocketmq Credentials
-	AccessKey     string `mapstructure:"accessKey"`
-	SecretKey     string `mapstructure:"secretKey"`
-	NameServer    string `mapstructure:"nameServer"`
+	AccessKey  string `mapstructure:"accessKey"`
+	SecretKey  string `mapstructure:"secretKey"`
+	NameServer string `mapstructure:"nameServer"`
+	// deprecated: use ProducerGroup instead.
+	GroupName     string `mapstructure:"groupName"`
 	ProducerGroup string `mapstructure:"producerGroup"`
 	NameSpace     string `mapstructure:"nameSpace"`
 	// consumer group rocketmq's subscribers
@@ -60,6 +62,7 @@ func getDefaultRocketMQMetaData() *rocketMQMetaData {
 		AccessKey:        "",
 		SecretKey:        "",
 		NameServer:       "",
+		GroupName:        "",
 		ProducerGroup:    "",
 		NameSpace:        "",
 		ConsumerGroup:    "",

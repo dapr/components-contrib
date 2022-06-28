@@ -115,6 +115,9 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	if r.metadata.Retries != 0 {
 		opts = append(opts, mqp.WithRetry(r.metadata.Retries))
 	}
+	if r.metadata.GroupName != "" {
+		opts = append(opts, mqp.WithGroupName(r.metadata.GroupName))
+	}
 	if r.metadata.ProducerGroup != "" {
 		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroup))
 	}

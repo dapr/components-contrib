@@ -89,6 +89,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	if r.metadata.ConsumerGroup != "" {
 		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroup))
 	}
+	if r.metadata.ConsumerBatchSize != 0 {
+		opts = append(opts, mqc.WithPullBatchSize(int32(r.metadata.ConsumerBatchSize)))
+	}
 	if r.metadata.NameSpace != "" {
 		opts = append(opts, mqc.WithNamespace(r.metadata.NameSpace))
 	}

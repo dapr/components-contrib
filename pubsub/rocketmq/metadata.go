@@ -46,7 +46,8 @@ type rocketMQMetaData struct {
 	ProducerGroup string `mapstructure:"producerGroup"`
 	NameSpace     string `mapstructure:"nameSpace"`
 	// consumer group rocketmq's subscribers
-	ConsumerGroup string `mapstructure:"consumerGroup"`
+	ConsumerGroup     string `mapstructure:"consumerGroup"`
+	ConsumerBatchSize int    `mapstructure:"consumerBatchSize"`
 	// rocketmq's name server domain
 	NameServerDomain string `mapstructure:"nameServerDomain"`
 	// msg's content-type
@@ -59,17 +60,18 @@ type rocketMQMetaData struct {
 
 func getDefaultRocketMQMetaData() *rocketMQMetaData {
 	return &rocketMQMetaData{
-		AccessKey:        "",
-		SecretKey:        "",
-		NameServer:       "",
-		GroupName:        "",
-		ProducerGroup:    "",
-		NameSpace:        "",
-		ConsumerGroup:    "",
-		NameServerDomain: "",
-		ContentType:      pubsub.DefaultCloudEventDataContentType,
-		Retries:          3,
-		SendTimeOut:      10,
+		AccessKey:         "",
+		SecretKey:         "",
+		NameServer:        "",
+		GroupName:         "",
+		ProducerGroup:     "",
+		NameSpace:         "",
+		ConsumerGroup:     "",
+		ConsumerBatchSize: 0,
+		NameServerDomain:  "",
+		ContentType:       pubsub.DefaultCloudEventDataContentType,
+		Retries:           3,
+		SendTimeOut:       10,
 	}
 }
 

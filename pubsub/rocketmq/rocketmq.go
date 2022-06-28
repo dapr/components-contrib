@@ -176,7 +176,7 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 				}
 			}
 
-			ctx, cancel := context.WithTimeout(r.ctx, time.Duration(r.metadata.SendTimeOut))
+			ctx, cancel := context.WithTimeout(r.ctx, time.Duration(r.metadata.SendTimeOut)*time.Second)
 			defer cancel()
 			result, err := producer.SendSync(ctx, msg)
 			if err != nil {

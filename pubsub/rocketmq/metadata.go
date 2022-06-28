@@ -50,7 +50,8 @@ type rocketMQMetaData struct {
 	// msg's content-type
 	ContentType string `mapstructure:"content-type"`
 	// retry times to connect rocketmq's broker
-	Retries     int `mapstructure:"retries"`
+	Retries int `mapstructure:"retries"`
+	// send msg timeout to connect rocketmq's broker, seconds
 	SendTimeOut int `mapstructure:"sendTimeOut"`
 }
 

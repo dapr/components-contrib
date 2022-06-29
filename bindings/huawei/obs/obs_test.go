@@ -176,7 +176,7 @@ func TestCreateOperation(t *testing.T) {
 			Data: []byte(`"Hello OBS"`),
 		}
 
-		out, err := mo.create(context.TODO(), req)
+		out, err := mo.create(context.Background(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -207,7 +207,7 @@ func TestCreateOperation(t *testing.T) {
 			Data:      []byte(`"Hello OBS"`),
 		}
 
-		out, err := mo.create(context.TODO(), req)
+		out, err := mo.create(context.Background(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -240,7 +240,7 @@ func TestCreateOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.create(context.TODO(), req)
+		_, err := mo.create(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -265,7 +265,7 @@ func TestCreateOperation(t *testing.T) {
 			Data: []byte(`"Hello OBS"`),
 		}
 
-		_, err := mo.create(context.TODO(), req)
+		_, err := mo.create(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -296,7 +296,7 @@ func TestUploadOperation(t *testing.T) {
 			Data: []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		out, err := mo.upload(context.TODO(), req)
+		out, err := mo.upload(context.Background(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -327,7 +327,7 @@ func TestUploadOperation(t *testing.T) {
 			Data:      []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		out, err := mo.upload(context.TODO(), req)
+		out, err := mo.upload(context.Background(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -357,7 +357,7 @@ func TestUploadOperation(t *testing.T) {
 			Data: []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		_, err := mo.upload(context.TODO(), req)
+		_, err := mo.upload(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -391,7 +391,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(context.TODO(), req)
+		_, err := mo.get(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -408,7 +408,7 @@ func TestGetOperation(t *testing.T) {
 			Operation: "get",
 		}
 
-		_, err := mo.get(context.TODO(), req)
+		_, err := mo.get(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 
@@ -432,7 +432,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(context.TODO(), req)
+		_, err := mo.get(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 
@@ -464,7 +464,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(context.TODO(), req)
+		_, err := mo.get(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -494,7 +494,7 @@ func TestDeleteOperation(t *testing.T) {
 			},
 		}
 
-		out, err := mo.delete(context.TODO(), req)
+		out, err := mo.delete(context.Background(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -516,7 +516,7 @@ func TestDeleteOperation(t *testing.T) {
 			Operation: "delete",
 		}
 
-		_, err := mo.delete(context.TODO(), req)
+		_, err := mo.delete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 
@@ -540,7 +540,7 @@ func TestDeleteOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.delete(context.TODO(), req)
+		_, err := mo.delete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -571,7 +571,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.list(context.TODO(), req)
+		_, err := mo.list(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -596,7 +596,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.list(context.TODO(), req)
+		_, err := mo.list(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 
@@ -625,7 +625,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"key\": \"value\"}"),
 		}
 
-		_, err := mo.list(context.TODO(), req)
+		_, err := mo.list(context.Background(), req)
 		assert.Nil(t, err)
 	})
 }
@@ -652,7 +652,7 @@ func TestInvoke(t *testing.T) {
 			Operation: "create",
 		}
 
-		_, err := mo.Invoke(context.TODO(), req)
+		_, err := mo.Invoke(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -684,7 +684,7 @@ func TestInvoke(t *testing.T) {
 			},
 		}
 
-		_, err := mo.Invoke(context.TODO(), req)
+		_, err := mo.Invoke(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -712,7 +712,7 @@ func TestInvoke(t *testing.T) {
 			},
 		}
 
-		_, err := mo.Invoke(context.TODO(), req)
+		_, err := mo.Invoke(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -741,7 +741,7 @@ func TestInvoke(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.Invoke(context.TODO(), req)
+		_, err := mo.Invoke(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -758,7 +758,7 @@ func TestInvoke(t *testing.T) {
 			Operation: "unknown",
 		}
 
-		_, err := mo.Invoke(context.TODO(), req)
+		_, err := mo.Invoke(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }

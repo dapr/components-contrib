@@ -91,7 +91,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 		return nil, nil
 	}
 
-	err = d.Read(context.Background(), handler)
+	err = d.Read(handler)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation, Metadata: map[string]string{}}

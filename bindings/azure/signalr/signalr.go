@@ -131,8 +131,8 @@ func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 	return url, nil
 }
 
-func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) error {
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewBuffer(data))
+func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token string, data []byte) error {
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 		return nil, err
 	}
 
-	err = s.sendMessageToSignalR(url, token, req.Data)
+	err = s.sendMessageToSignalR(ctx, url, token, req.Data)
 	if err != nil {
 		return nil, err
 	}

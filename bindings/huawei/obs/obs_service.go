@@ -36,21 +36,21 @@ type HuaweiOBSService struct {
 }
 
 func (s *HuaweiOBSService) PutObject(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
-	return s.client.PutObject(input)
+	return s.client.PutObject(input, obs.WithRequestContext(ctx))
 }
 
 func (s *HuaweiOBSService) PutFile(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
-	return s.client.PutFile(input)
+	return s.client.PutFile(input, obs.WithRequestContext(ctx))
 }
 
 func (s *HuaweiOBSService) GetObject(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
-	return s.client.GetObject(input)
+	return s.client.GetObject(input, obs.WithRequestContext(ctx))
 }
 
 func (s *HuaweiOBSService) DeleteObject(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
-	return s.client.DeleteObject(input)
+	return s.client.DeleteObject(input, obs.WithRequestContext(ctx))
 }
 
 func (s *HuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
-	return s.client.ListObjects(input)
+	return s.client.ListObjects(input, obs.WithRequestContext(ctx))
 }

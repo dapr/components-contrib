@@ -108,8 +108,9 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
 		assert.NotNil(t, mergedMeta)
+		assert.False(t, mergedMeta.DecodeBase64)
 	})
 
 	t.Run("Has invalid merged metadata encodeBase64", func(t *testing.T) {
@@ -135,8 +136,9 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
 		assert.NotNil(t, mergedMeta)
+		assert.False(t, mergedMeta.EncodeBase64)
 	})
 }
 

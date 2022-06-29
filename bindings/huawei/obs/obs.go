@@ -130,7 +130,7 @@ func (o *HuaweiOBS) Operations() []bindings.OperationKind {
 	}
 }
 
-func (o *HuaweiOBS) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (o *HuaweiOBS) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	d, err := strconv.Unquote(string(req.Data))
 	if err == nil {
 		req.Data = []byte(d)
@@ -151,7 +151,7 @@ func (o *HuaweiOBS) create(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	input.Bucket = o.metadata.Bucket
 	input.Body = r
 
-	out, err := o.service.PutObject(input)
+	out, err := o.service.PutObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. putobject: %w", err)
 	}
@@ -169,7 +169,7 @@ func (o *HuaweiOBS) create(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	}, nil
 }
 
-func (o *HuaweiOBS) upload(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (o *HuaweiOBS) upload(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload uploadPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -189,7 +189,7 @@ func (o *HuaweiOBS) upload(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	input.Bucket = o.metadata.Bucket
 	input.SourceFile = payload.SourceFile
 
-	out, err := o.service.PutFile(input)
+	out, err := o.service.PutFile(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. putfile: %w", err)
 	}
@@ -207,7 +207,7 @@ func (o *HuaweiOBS) upload(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	}, nil
 }
 
-func (o *HuaweiOBS) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (o *HuaweiOBS) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
@@ -219,7 +219,7 @@ func (o *HuaweiOBS) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	input.Bucket = o.metadata.Bucket
 	input.Key = key
 
-	out, err := o.service.GetObject(input)
+	out, err := o.service.GetObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. error getting obs object: %w", err)
 	}
@@ -243,7 +243,7 @@ func (o *HuaweiOBS) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	}, nil
 }
 
-func (o *HuaweiOBS) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (o *HuaweiOBS) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
@@ -255,7 +255,7 @@ func (o *HuaweiOBS) delete(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	input.Bucket = o.metadata.Bucket
 	input.Key = key
 
-	out, err := o.service.DeleteObject(input)
+	out, err := o.service.DeleteObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. error deleting obs object: %w", err)
 	}
@@ -273,7 +273,7 @@ func (o *HuaweiOBS) delete(req *bindings.InvokeRequest) (*bindings.InvokeRespons
 	}, nil
 }
 
-func (o *HuaweiOBS) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (o *HuaweiOBS) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload listPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -292,7 +292,7 @@ func (o *HuaweiOBS) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 	input.Prefix = payload.Prefix
 	input.Delimiter = payload.Delimiter
 
-	out, err := o.service.ListObjects(input)
+	out, err := o.service.ListObjects(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. error listing obs objects: %w", err)
 	}
@@ -310,15 +310,15 @@ func (o *HuaweiOBS) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse,
 func (o *HuaweiOBS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return o.create(req)
+		return o.create(ctx, req)
 	case UploadOperation:
-		return o.upload(req)
+		return o.upload(ctx, req)
 	case bindings.GetOperation:
-		return o.get(req)
+		return o.get(ctx, req)
 	case bindings.DeleteOperation:
-		return o.delete(req)
+		return o.delete(ctx, req)
 	case bindings.ListOperation:
-		return o.list(req)
+		return o.list(ctx, req)
 	default:
 		return nil, fmt.Errorf("obs binding error. unsupported operation %s", req.Operation)
 	}

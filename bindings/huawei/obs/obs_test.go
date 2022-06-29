@@ -33,31 +33,31 @@ import (
 // MockHuaweiOBSService is a mock service layer which mimics the OBS API functions
 // and it implements the HuaweiOBSAPI through stubs.
 type MockHuaweiOBSService struct {
-	PutObjectFn    func(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error)
-	PutFileFn      func(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error)
-	GetObjectFn    func(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error)
-	DeleteObjectFn func(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error)
-	ListObjectsFn  func(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error)
+	PutObjectFn    func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error)
+	PutFileFn      func(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error)
+	GetObjectFn    func(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error)
+	DeleteObjectFn func(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error)
+	ListObjectsFn  func(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error)
 }
 
-func (m *MockHuaweiOBSService) PutObject(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
-	return m.PutObjectFn(input)
+func (m *MockHuaweiOBSService) PutObject(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+	return m.PutObjectFn(ctx, input)
 }
 
-func (m *MockHuaweiOBSService) PutFile(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
-	return m.PutFileFn(input)
+func (m *MockHuaweiOBSService) PutFile(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
+	return m.PutFileFn(ctx, input)
 }
 
-func (m *MockHuaweiOBSService) GetObject(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
-	return m.GetObjectFn(input)
+func (m *MockHuaweiOBSService) GetObject(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
+	return m.GetObjectFn(ctx, input)
 }
 
-func (m *MockHuaweiOBSService) DeleteObject(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
-	return m.DeleteObjectFn(input)
+func (m *MockHuaweiOBSService) DeleteObject(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
+	return m.DeleteObjectFn(ctx, input)
 }
 
-func (m *MockHuaweiOBSService) ListObjects(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
-	return m.ListObjectsFn(input)
+func (m *MockHuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
+	return m.ListObjectsFn(ctx, input)
 }
 
 func TestParseMetadata(t *testing.T) {
@@ -154,7 +154,7 @@ func TestCreateOperation(t *testing.T) {
 	t.Run("Successfully create object with key", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutObjectFn: func(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+				PutObjectFn: func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
 					return &obs.PutObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -176,7 +176,7 @@ func TestCreateOperation(t *testing.T) {
 			Data: []byte(`"Hello OBS"`),
 		}
 
-		out, err := mo.create(req)
+		out, err := mo.create(context.TODO(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -188,7 +188,7 @@ func TestCreateOperation(t *testing.T) {
 	t.Run("Successfully create object with uuid", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutObjectFn: func(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+				PutObjectFn: func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
 					return &obs.PutObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -207,7 +207,7 @@ func TestCreateOperation(t *testing.T) {
 			Data:      []byte(`"Hello OBS"`),
 		}
 
-		out, err := mo.create(req)
+		out, err := mo.create(context.TODO(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -219,7 +219,7 @@ func TestCreateOperation(t *testing.T) {
 	t.Run("Successfully create null object with no data", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutObjectFn: func(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+				PutObjectFn: func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
 					return &obs.PutObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -240,14 +240,14 @@ func TestCreateOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.create(req)
+		_, err := mo.create(context.TODO(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Fail create object with obs internal error", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutObjectFn: func(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+				PutObjectFn: func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
 					return nil, fmt.Errorf("error while creating object")
 				},
 			},
@@ -265,7 +265,7 @@ func TestCreateOperation(t *testing.T) {
 			Data: []byte(`"Hello OBS"`),
 		}
 
-		_, err := mo.create(req)
+		_, err := mo.create(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -274,7 +274,7 @@ func TestUploadOperation(t *testing.T) {
 	t.Run("Successfully upload object with key", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutFileFn: func(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
+				PutFileFn: func(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
 					return &obs.PutObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -296,7 +296,7 @@ func TestUploadOperation(t *testing.T) {
 			Data: []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		out, err := mo.upload(req)
+		out, err := mo.upload(context.TODO(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -308,7 +308,7 @@ func TestUploadOperation(t *testing.T) {
 	t.Run("Successfully upload object with uuid", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutFileFn: func(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
+				PutFileFn: func(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
 					return &obs.PutObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -327,7 +327,7 @@ func TestUploadOperation(t *testing.T) {
 			Data:      []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		out, err := mo.upload(req)
+		out, err := mo.upload(context.TODO(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -339,7 +339,7 @@ func TestUploadOperation(t *testing.T) {
 	t.Run("Fail upload object with obs internal error", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutFileFn: func(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
+				PutFileFn: func(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
 					return nil, fmt.Errorf("error while creating object")
 				},
 			},
@@ -357,7 +357,7 @@ func TestUploadOperation(t *testing.T) {
 			Data: []byte(`{"sourceFile": "dummy-path"}`),
 		}
 
-		_, err := mo.upload(req)
+		_, err := mo.upload(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -366,7 +366,7 @@ func TestGetOperation(t *testing.T) {
 	t.Run("Successfully get object", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				GetObjectFn: func(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
+				GetObjectFn: func(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
 					return &obs.GetObjectOutput{
 						GetObjectMetadataOutput: obs.GetObjectMetadataOutput{
 							BaseModel: obs.BaseModel{
@@ -391,7 +391,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(req)
+		_, err := mo.get(context.TODO(), req)
 		assert.Nil(t, err)
 	})
 
@@ -408,14 +408,14 @@ func TestGetOperation(t *testing.T) {
 			Operation: "get",
 		}
 
-		_, err := mo.get(req)
+		_, err := mo.get(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("Fail get object with obs internal error", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				GetObjectFn: func(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
+				GetObjectFn: func(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
 					return nil, fmt.Errorf("error while getting object")
 				},
 			},
@@ -432,14 +432,14 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(req)
+		_, err := mo.get(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("Fail get object with no response data", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				GetObjectFn: func(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
+				GetObjectFn: func(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
 					return &obs.GetObjectOutput{
 						GetObjectMetadataOutput: obs.GetObjectMetadataOutput{
 							BaseModel: obs.BaseModel{
@@ -464,7 +464,7 @@ func TestGetOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.get(req)
+		_, err := mo.get(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -473,7 +473,7 @@ func TestDeleteOperation(t *testing.T) {
 	t.Run("Successfully delete object", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				DeleteObjectFn: func(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
+				DeleteObjectFn: func(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
 					return &obs.DeleteObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -494,7 +494,7 @@ func TestDeleteOperation(t *testing.T) {
 			},
 		}
 
-		out, err := mo.delete(req)
+		out, err := mo.delete(context.TODO(), req)
 		assert.Nil(t, err)
 
 		var data createResponse
@@ -516,14 +516,14 @@ func TestDeleteOperation(t *testing.T) {
 			Operation: "delete",
 		}
 
-		_, err := mo.delete(req)
+		_, err := mo.delete(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("Fail delete object with obs internal error", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				DeleteObjectFn: func(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
+				DeleteObjectFn: func(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
 					return nil, fmt.Errorf("error while deleting object")
 				},
 			},
@@ -540,7 +540,7 @@ func TestDeleteOperation(t *testing.T) {
 			},
 		}
 
-		_, err := mo.delete(req)
+		_, err := mo.delete(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -549,7 +549,7 @@ func TestListOperation(t *testing.T) {
 	t.Run("Successfully list objects", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				ListObjectsFn: func(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
+				ListObjectsFn: func(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
 					return &obs.ListObjectsOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -571,14 +571,14 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.list(req)
+		_, err := mo.list(context.TODO(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Fail list objects with obs internal error", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				ListObjectsFn: func(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
+				ListObjectsFn: func(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
 					return nil, fmt.Errorf("error while listing objects")
 				},
 			},
@@ -596,14 +596,14 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"maxResults\": 10}"),
 		}
 
-		_, err := mo.list(req)
+		_, err := mo.list(context.TODO(), req)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("Successfully list objects with default maxResults", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				ListObjectsFn: func(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
+				ListObjectsFn: func(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
 					return &obs.ListObjectsOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -625,7 +625,7 @@ func TestListOperation(t *testing.T) {
 			Data: []byte("{\"key\": \"value\"}"),
 		}
 
-		_, err := mo.list(req)
+		_, err := mo.list(context.TODO(), req)
 		assert.Nil(t, err)
 	})
 }
@@ -634,7 +634,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("Successfully invoke create", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				PutObjectFn: func(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+				PutObjectFn: func(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
 					return &obs.PutObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,
@@ -659,7 +659,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("Successfully invoke get", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				GetObjectFn: func(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
+				GetObjectFn: func(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
 					return &obs.GetObjectOutput{
 						GetObjectMetadataOutput: obs.GetObjectMetadataOutput{
 							BaseModel: obs.BaseModel{
@@ -691,7 +691,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("Successfully invoke delete", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				DeleteObjectFn: func(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
+				DeleteObjectFn: func(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
 					return &obs.DeleteObjectOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 204,
@@ -719,7 +719,7 @@ func TestInvoke(t *testing.T) {
 	t.Run("Successfully invoke list", func(t *testing.T) {
 		mo := &HuaweiOBS{
 			service: &MockHuaweiOBSService{
-				ListObjectsFn: func(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
+				ListObjectsFn: func(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
 					return &obs.ListObjectsOutput{
 						BaseModel: obs.BaseModel{
 							StatusCode: 200,

@@ -13,16 +13,20 @@ limitations under the License.
 
 package obs
 
-import "github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
+import (
+	"context"
+
+	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
+)
 
 // HuaweiOBSAPI holds only the necessary API functions from the OBS SDK
 // The interface can also provide a way to implement stubs for the purpose of unit testing.
 type HuaweiOBSAPI interface {
-	PutObject(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error)
-	PutFile(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error)
-	GetObject(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error)
-	DeleteObject(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error)
-	ListObjects(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error)
+	PutObject(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error)
+	PutFile(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error)
+	GetObject(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error)
+	DeleteObject(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error)
+	ListObjects(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error)
 }
 
 // HuaweiOBSService is a service layer which wraps the actual OBS SDK client to provide the API functions
@@ -31,22 +35,22 @@ type HuaweiOBSService struct {
 	client *obs.ObsClient
 }
 
-func (s *HuaweiOBSService) PutObject(input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
+func (s *HuaweiOBSService) PutObject(ctx context.Context, input *obs.PutObjectInput) (output *obs.PutObjectOutput, err error) {
 	return s.client.PutObject(input)
 }
 
-func (s *HuaweiOBSService) PutFile(input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
+func (s *HuaweiOBSService) PutFile(ctx context.Context, input *obs.PutFileInput) (output *obs.PutObjectOutput, err error) {
 	return s.client.PutFile(input)
 }
 
-func (s *HuaweiOBSService) GetObject(input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
+func (s *HuaweiOBSService) GetObject(ctx context.Context, input *obs.GetObjectInput) (output *obs.GetObjectOutput, err error) {
 	return s.client.GetObject(input)
 }
 
-func (s *HuaweiOBSService) DeleteObject(input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
+func (s *HuaweiOBSService) DeleteObject(ctx context.Context, input *obs.DeleteObjectInput) (output *obs.DeleteObjectOutput, err error) {
 	return s.client.DeleteObject(input)
 }
 
-func (s *HuaweiOBSService) ListObjects(input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
+func (s *HuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListObjectsInput) (output *obs.ListObjectsOutput, err error) {
 	return s.client.ListObjects(input)
 }

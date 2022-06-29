@@ -14,6 +14,7 @@ limitations under the License.
 package s3
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,7 +63,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
-			"decodeBase64": "true",
+			"decodeBase64": "yes",
 			"encodeBase64": "false",
 			"filePath":     "/usr/vader.darth",
 		}
@@ -145,7 +146,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.get(&r)
+		_, err := s3.get(context.Background(), &r)
 		assert.Error(t, err)
 	})
 }
@@ -156,7 +157,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.delete(&r)
+		_, err := s3.delete(context.Background(), &r)
 		assert.Error(t, err)
 	})
 }

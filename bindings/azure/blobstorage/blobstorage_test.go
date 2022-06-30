@@ -78,7 +78,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.get(context.TODO(), &r)
+		_, err := blobStorage.get(context.Background(), &r)
 		if assert.Error(t, err) {
 			assert.Equal(t, ErrMissingBlobName, err)
 		}
@@ -90,7 +90,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.delete(context.TODO(), &r)
+		_, err := blobStorage.delete(context.Background(), &r)
 		if assert.Error(t, err) {
 			assert.Equal(t, ErrMissingBlobName, err)
 		}
@@ -102,7 +102,7 @@ func TestDeleteOption(t *testing.T) {
 			"blobName":        "foo",
 			"deleteSnapshots": "invalid",
 		}
-		_, err := blobStorage.delete(context.TODO(), &r)
+		_, err := blobStorage.delete(context.Background(), &r)
 		assert.Error(t, err)
 	})
 }

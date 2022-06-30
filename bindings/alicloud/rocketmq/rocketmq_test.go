@@ -14,6 +14,7 @@ limitations under the License.
 package rocketmq
 
 import (
+	"context"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"

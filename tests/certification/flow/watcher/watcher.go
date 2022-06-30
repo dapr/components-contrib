@@ -384,10 +384,9 @@ func (w *Watcher) Assert(t TestingT, timeout time.Duration) bool {
 	select {
 	case <-time.After(timeout):
 		w.mu.Lock()
-		remainingCount := len(w.remaining)
-		w.mu.Unlock()
+		defer w.mu.Unlock()
 
-		t.Errorf("Timed out with %d items remaining", remainingCount)
+		t.Errorf("Timed out with %d items remaining: %v", len(w.remaining), w.remaining)
 
 		return false
 	case <-w.finished:

@@ -206,7 +206,7 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	// Send the email
 	client := sendgrid.NewSendClient(sg.metadata.APIKey)
-	resp, err := client.Send(email)
+	resp, err := client.SendWithContext(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("error from SendGrid, sending email failed: %+v", err)
 	}

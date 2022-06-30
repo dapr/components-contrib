@@ -177,9 +177,10 @@ type mockedObjectStoreClient struct {
 	putIsCalled        bool
 	deleteIsCalled     bool
 	pingBucketIsCalled bool
+	logger             logger.Logger
 }
 
-func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error) {
+func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error) {
 	c.getIsCalled = true
 	etagString := "etag"
 	contentString := "Hello World"
@@ -210,7 +211,7 @@ func (c *mockedObjectStoreClient) deleteObject(ctx context.Context, objectname s
 	return nil
 }
 
-func (c *mockedObjectStoreClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string, logger logger.Logger) error {
+func (c *mockedObjectStoreClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string) error {
 	c.putIsCalled = true
 	if etag != nil && *etag == "notTheCorrectETag" {
 		return fmt.Errorf("failed to delete object because of incorrect etag-value ")
@@ -221,11 +222,11 @@ func (c *mockedObjectStoreClient) putObject(ctx context.Context, objectname stri
 	return nil
 }
 
-func (c *mockedObjectStoreClient) initStorageBucket(logger logger.Logger) error {
+func (c *mockedObjectStoreClient) initStorageBucket() error {
 	return nil
 }
 
-func (c *mockedObjectStoreClient) pingBucket(logger logger.Logger) error {
+func (c *mockedObjectStoreClient) pingBucket() error {
 	c.pingBucketIsCalled = true
 	return nil
 }

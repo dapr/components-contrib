@@ -15,6 +15,7 @@ package inmemory
 
 import (
 	"context"
+	"time"
 
 	"github.com/asaskevich/EventBus"
 
@@ -54,6 +55,7 @@ func (a *bus) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	// For this component we allow built-in retries because it is backed by memory
 	retryHandler := func(data []byte) {
 		for i := 0; i < 10; i++ {
 			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: req.Metadata})
@@ -61,6 +63,7 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 				break
 			}
 			a.log.Error(handleErr)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)

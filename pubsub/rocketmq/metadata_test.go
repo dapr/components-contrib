@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 func TestMetaDataDecode(t *testing.T) {
@@ -31,7 +32,7 @@ func TestMetaDataDecode(t *testing.T) {
 		"nameSpace":     "defaultNamespace",
 	}
 	pubsubMeta := pubsub.Metadata{Properties: props}
-	metaData, err := parseRocketMQMetaData(pubsubMeta)
+	metaData, err := parseRocketMQMetaData(pubsubMeta, logger.NewLogger("test"))
 	require.NoError(t, err)
 	assert.Equal(t, "**", metaData.AccessKey)
 	assert.Equal(t, "***", metaData.SecretKey)

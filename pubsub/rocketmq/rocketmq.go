@@ -68,7 +68,7 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 
 func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 	var err error
-	r.metadata, err = parseRocketMQMetaData(metadata)
+	r.metadata, err = parseRocketMQMetaData(metadata, r.logger)
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,8 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 				}
 			}
 
-			ctx, cancel := context.WithTimeout(r.ctx, time.Duration(r.metadata.SendTimeOut)*time.Second)
+			sendTimeOut := time.Duration(r.metadata.SendTimeOutSec) * time.Second
+			ctx, cancel := context.WithTimeout(r.ctx, sendTimeOut)
 			defer cancel()
 			result, err := producer.SendSync(ctx, msg)
 			if err != nil {

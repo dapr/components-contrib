@@ -36,7 +36,7 @@ func getTestMetadata() map[string]string {
 func TestParseRocketMQMetadata(t *testing.T) {
 	t.Run("correct metadata", func(t *testing.T) {
 		meta := getTestMetadata()
-		_, err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta})
+		_, err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta}, logger.NewLogger("test"))
 		assert.Nil(t, err)
 	})
 

@@ -19,6 +19,7 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/config"
+	"github.com/dapr/kit/logger"
 )
 
 var (
@@ -54,8 +55,10 @@ type rocketMQMetaData struct {
 	ContentType string `mapstructure:"content-type"`
 	// retry times to connect rocketmq's broker
 	Retries int `mapstructure:"retries"`
-	// send msg timeout to connect rocketmq's broker, seconds
+	// deprecated: send msg timeout to connect rocketmq's broker, nanoseconds
 	SendTimeOut int `mapstructure:"sendTimeOut"`
+	// send msg timeout to connect rocketmq's broker, seconds
+	SendTimeOutSec int `mapstructure:"sendTimeOutSec"`
 }
 
 func getDefaultRocketMQMetaData() *rocketMQMetaData {
@@ -71,7 +74,7 @@ func getDefaultRocketMQMetaData() *rocketMQMetaData {
 		NameServerDomain:  "",
 		ContentType:       pubsub.DefaultCloudEventDataContentType,
 		Retries:           3,
-		SendTimeOut:       10,
+		SendTimeOutSec:    60,
 	}
 }
 
@@ -82,7 +85,7 @@ func (s *rocketMQMetaData) Decode(in interface{}) error {
 	return nil
 }
 
-func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) {
+func parseRocketMQMetaData(metadata pubsub.Metadata, logger logger.Logger) (*rocketMQMetaData, error) {
 	rMetaData := getDefaultRocketMQMetaData()
 	if metadata.Properties != nil {
 		err := rMetaData.Decode(metadata.Properties)
@@ -90,5 +93,10 @@ func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) 
 			return nil, fmt.Errorf("rocketmq configuration error: %w", err)
 		}
 	}
+
+	if rMetaData.SendTimeOut != 0 {
+		logger.Warn("pubsub.rocketmq: metadata property 'sendTimeOut' has been deprecated and is now ignored - use 'sendTimeOutSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
+	}
+
 	return rMetaData, nil
 }

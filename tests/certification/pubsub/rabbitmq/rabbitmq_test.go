@@ -161,15 +161,16 @@ func TestRabbitMQ(t *testing.T) {
 			}(topic)
 		}
 		wg.Wait()
+		log.Debugf("All messages sent - start receiving messages")
 
 		// Do the messages we observed match what we expect?
 		wg.Add(len(consumers) * len(pubTopics))
 		for _, topic := range pubTopics {
 			for _, consumer := range consumers {
-				go func(topic string) {
+				go func(topic string, consumer *Consumer) {
 					defer wg.Done()
 					consumer.messages[topic].Assert(ctx, 3*time.Minute)
-				}(topic)
+				}(topic, consumer)
 			}
 		}
 		wg.Wait()
@@ -193,6 +194,7 @@ func TestRabbitMQ(t *testing.T) {
 						Route:      fmt.Sprintf("/%s-%d", topic, routeIndex),
 					}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 						if err := sim(); err != nil {
+							log.Debugf("Simulated error - consumer: %s, pubsub: %s, topic: %s, id: %s, data: %s", consumer.pubsub, e.PubsubName, e.Topic, e.ID, e.Data)
 							return true, err
 						}
 

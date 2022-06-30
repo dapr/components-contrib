@@ -88,8 +88,8 @@ func (d *dubboContext) Init() error {
 	return nil
 }
 
-func (d *dubboContext) Invoke(body []byte) (interface{}, error) {
-	return d.client.Invoke(context.Background(), d.method, []string{}, []hessian.Object{body})
+func (d *dubboContext) Invoke(ctx context.Context, body []byte) (interface{}, error) {
+	return d.client.Invoke(ctx, d.method, []string{}, []hessian.Object{body})
 }
 
 func (d *dubboContext) String() string {

@@ -99,7 +99,10 @@ func parseRocketMQMetaData(metadata pubsub.Metadata, logger logger.Logger) (*roc
 	}
 
 	if rMetaData.SendTimeOut != 0 {
-		logger.Warn("pubsub.rocketmq: metadata property 'sendTimeOut' has been deprecated and is now ignored - use 'sendTimeOutSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
+		logger.Warn("pubsub.rocketmq: metadata property 'sendTimeOut' has been deprecated - use 'sendTimeOutSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
+		if rMetaData.SendTimeOutSec == 0 {
+			rMetaData.SendTimeOutSec = rMetaData.SendTimeOut / 1000000
+		}
 	}
 
 	return rMetaData, nil

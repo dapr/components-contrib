@@ -49,6 +49,7 @@ import (
 	"github.com/pkg/errors"
 
 	azauth "github.com/dapr/components-contrib/authentication/azure"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -57,9 +58,6 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	accountNameKey     = "accountName"
-	accountKeyKey      = "accountKey"
-	tableNameKey       = "tableName"
 	cosmosDbModeKey    = "cosmosDbMode"
 	serviceURLKey      = "serviceURL"
 	skipCreateTableKey = "skipCreateTable"
@@ -223,22 +221,19 @@ func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
 func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	meta := tablesMetadata{}
 
-	if val, ok := metadata[accountNameKey]; ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageAccountNameKeys...); ok && val != "" {
 		meta.accountName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", accountNameKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0]))
 	}
 
-	if val, ok := metadata[accountKeyKey]; ok && val != "" {
-		meta.accountKey = val
-	} else {
-		meta.accountKey = ""
-	}
+	// Can be empty (such as when using Azure AD for auth)
+	meta.accountKey, _ = mdutils.GetMetadataProperty(metadata, azauth.StorageAccountKeyKeys...)
 
-	if val, ok := metadata[tableNameKey]; ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageTableNameKeys...); ok && val != "" {
 		meta.tableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", tableNameKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0]))
 	}
 
 	if val, ok := metadata[cosmosDbModeKey]; ok && val != "" {

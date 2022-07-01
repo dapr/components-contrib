@@ -49,15 +49,13 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	azauth "github.com/dapr/components-contrib/authentication/azure"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
 
 const (
 	keyDelimiter       = "||"
-	accountNameKey     = "accountName"
-	containerNameKey   = "containerName"
-	endpointKey        = "endpoint"
 	contentType        = "ContentType"
 	contentMD5         = "ContentMD5"
 	contentEncoding    = "ContentEncoding"
@@ -100,7 +98,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	p := azblob.NewPipeline(credential, options)
 
 	var URL *url.URL
-	customEndpoint, ok := metadata.Properties[endpointKey]
+	customEndpoint, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...)
 	if ok && customEndpoint != "" {
 		URL, err = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
 	} else {
@@ -191,16 +189,16 @@ func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
 func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, error) {
 	meta := blobStorageMetadata{}
 
-	if val, ok := metadata[accountNameKey]; ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageAccountNameKeys...); ok && val != "" {
 		meta.accountName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", accountNameKey)
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
-	if val, ok := metadata[containerNameKey]; ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageContainerNameKeys...); ok && val != "" {
 		meta.containerName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", containerNameKey)
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
 	}
 
 	return &meta, nil

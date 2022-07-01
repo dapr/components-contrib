@@ -113,3 +113,14 @@ func TryGetQueryIndexName(props map[string]string) (string, bool) {
 
 	return "", false
 }
+
+// GetMetadataProperty returns a property from the metadata map, with support for aliases
+func GetMetadataProperty(props map[string]string, keys ...string) (val string, ok bool) {
+	for _, k := range keys {
+		val, ok = props[k]
+		if ok {
+			return val, true
+		}
+	}
+	return "", false
+}

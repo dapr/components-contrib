@@ -66,7 +66,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
 	h.client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   time.Second * 30,
 		Transport: netTransport,
 	}
 
@@ -115,11 +115,10 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
 	}
 
-	request, err := http.NewRequest(method, u, body)
+	request, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
 		return nil, err
 	}
-	request = request.WithContext(ctx)
 
 	// Set default values for Content-Type and Accept headers.
 	if body != nil {

@@ -104,8 +104,8 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/russross/blackfriday v2.0.0+incompatible // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/sendgrid/rest v2.6.3+incompatible // indirect
-	github.com/sendgrid/sendgrid-go v3.5.0+incompatible
+	github.com/sendgrid/rest v2.6.9+incompatible // indirect
+	github.com/sendgrid/sendgrid-go v3.11.1+incompatible
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/stretchr/testify v1.7.1
 	github.com/supplyon/gremcos v0.1.0

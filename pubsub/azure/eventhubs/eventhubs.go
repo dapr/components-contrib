@@ -132,7 +132,6 @@ type AzureEventHubs struct {
 	logger             logger.Logger
 	publishCtx         context.Context
 	publishCancel      context.CancelFunc
-	backOffConfig      retry.Config
 	hubClients         map[string]*eventhub.Hub
 	eventProcessors    map[string]*eph.EventProcessorHost
 	hubManager         *eventhub.HubManager
@@ -533,14 +532,6 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 
 	aeh.publishCtx, aeh.publishCancel = context.WithCancel(context.Background())
 
-	// Default retry configuration is used if no backOff properties are set.
-	if err := retry.DecodeConfigWithPrefix(
-		&aeh.backOffConfig,
-		metadata.Properties,
-		"backOff"); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -592,17 +583,8 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	aeh.logger.Debugf("registering handler for topic %s", req.Topic)
 	_, err = processor.RegisterHandler(subscribeCtx,
 		func(_ context.Context, e *eventhub.Event) error {
-			b := aeh.backOffConfig.NewBackOffWithContext(subscribeCtx)
-
-			return retry.NotifyRecover(func() error {
-				aeh.logger.Debugf("Processing EventHubs event %s/%s", req.Topic, e.ID)
-
-				return subscribeHandler(subscribeCtx, req.Topic, e, handler)
-			}, b, func(_ error, _ time.Duration) {
-				aeh.logger.Errorf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
-			}, func() {
-				aeh.logger.Errorf("Successfully processed EventHubs event after it previously failed: %s/%s", req.Topic, e.ID)
-			})
+			aeh.logger.Debugf("Processing EventHubs event %s/%s", req.Topic, e.ID)
+			return subscribeHandler(subscribeCtx, req.Topic, e, handler)
 		})
 	if err != nil {
 		return err

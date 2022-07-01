@@ -26,9 +26,10 @@ import (
 
 var (
 	StorageAccountNameKeys   = []string{"accountName", "storageAccount", "storageAccountName"}
-	StorageAccountKeyKeys    = []string{"accountKey", "storageAccessKey", "storageAccountKey"}
+	StorageAccountKeyKeys    = []string{"accountKey", "accessKey", "storageAccessKey", "storageAccountKey"}
 	StorageContainerNameKeys = []string{"containerName", "container", "storageAccountContainer"}
-	StorageEndpointKeys      = []string{"endpoint", "storageEndpoint", "storageAccountEndpoint"}
+	StorageQueueNameKeys     = []string{"queueName", "queue", "storageAccountQueue"}
+	StorageEndpointKeys      = []string{"endpoint", "storageEndpoint", "storageAccountEndpoint", "queueEndpointUrl"}
 )
 
 // GetAzureStorageCredentials returns a azblob.Credential object that can be used to authenticate an Azure Blob Storage SDK pipeline.

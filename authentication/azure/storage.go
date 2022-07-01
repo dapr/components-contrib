@@ -29,6 +29,7 @@ var (
 	StorageAccountKeyKeys    = []string{"accountKey", "accessKey", "storageAccessKey", "storageAccountKey"}
 	StorageContainerNameKeys = []string{"containerName", "container", "storageAccountContainer"}
 	StorageQueueNameKeys     = []string{"queueName", "queue", "storageAccountQueue"}
+	StorageTableNameKeys     = []string{"tableName", "table", "storageAccountTable"}
 	StorageEndpointKeys      = []string{"endpoint", "storageEndpoint", "storageAccountEndpoint", "queueEndpointUrl"}
 )
 

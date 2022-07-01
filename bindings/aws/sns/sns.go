@@ -107,13 +107,11 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	msg := fmt.Sprintf("%v", payload.Message)
 	subject := fmt.Sprintf("%v", payload.Subject)
 
-	input := &sns.PublishInput{
+	_, err = a.client.PublishWithContext(ctx, &sns.PublishInput{
 		Message:  &msg,
 		Subject:  &subject,
 		TopicArn: &a.topicARN,
-	}
-
-	_, err = a.client.Publish(input)
+	})
 	if err != nil {
 		return nil, err
 	}

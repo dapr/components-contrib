@@ -2,54 +2,9 @@
 
 State Stores provide a common way to interact with different data store implementations, and allow users to opt-in to advanced capabilities using defined metadata.
 
-Currently supported state stores are:
-
-* Aerospike
-* Alibaba Cloud Tablestore
-* AWS DynamoDB
-* Azure Blob Storage
-* Azure CosmosDB
-* Azure Table Storage
-* Cassandra
-* Cloud Firestore (Datastore mode)
-* Couchbase
-* Etcd
-* HashiCorp Consul
-* Hazelcast
-* Memcached
-* MongoDB
-* MySQL
-* PostgreSQL
-* Redis
-* RethinkDB
-* SQL Server
-* Zookeeper
-
 ## Implementing a new State Store
 
-A compliant state store needs to implement one or more interfaces: `Store` and `TransactionalStore`.
-
-The interface for Store:
-
-```go
-type Store interface {
-	Init(metadata Metadata) error
-	Delete(req *DeleteRequest) error
-	BulkDelete(req []DeleteRequest) error
-	Get(req *GetRequest) (*GetResponse, error)
-	Set(req *SetRequest) error
-	BulkSet(req []SetRequest) error
-}
-```
-
-The interface for TransactionalStore:
-
-```go
-type TransactionalStore interface {
-	Init(metadata Metadata) error
-	Multi(reqs []TransactionalRequest) error
-}
-```
+A compliant state store needs to implement one or more interfaces: `Store` and `TransactionalStore`, defined in the [`store.go`](store.go) file.
 
 See the [documentation site](https://docs.dapr.io/developing-applications/building-blocks/state-management/) for examples.  
 
@@ -67,6 +22,7 @@ type Querier interface {
 ```
 
 Below are the definitions of structures (including nested) for `QueryRequest` and `QueryResponse`.
+
 ```go
 // QueryResponse is the request object for querying the state.
 type QueryRequest struct {
@@ -166,6 +122,7 @@ func (h *QueryBuilder) BuildQuery(mq *MidQuery) error {...}
 ```
 
 The last part is to implement `Querier` interface in the component:
+
 ```go
 type Querier interface {
 	Query(req *QueryRequest) (*QueryResponse, error)
@@ -173,6 +130,7 @@ type Querier interface {
 ```
 
 A sample implementation might look like that:
+
 ```go
 func (m *MyComponent) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

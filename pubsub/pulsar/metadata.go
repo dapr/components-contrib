@@ -27,4 +27,5 @@ type pulsarMetadata struct {
 	Namespace               string        `json:"namespace"`
 	Persistent              bool          `json:"persistent"`
 	Token                   string        `json:"token"`
+	RedeliveryDelay         time.Duration `json:"redeliveryDelay"`
 }

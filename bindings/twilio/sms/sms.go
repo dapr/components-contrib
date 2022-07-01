@@ -51,8 +51,10 @@ type twilioMetadata struct {
 
 func NewSMS(logger logger.Logger) *SMS {
 	return &SMS{
-		logger:     logger,
-		httpClient: &http.Client{},
+		logger: logger,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 

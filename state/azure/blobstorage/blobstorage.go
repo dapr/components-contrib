@@ -242,10 +242,8 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		r.logger.Debugf("write file %s, err %s", req.Key, err)
 
 		// Check if the error is due to ETag conflict
-		if isETagConflictError(err) {
-			if req.ETag != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
+		if req.ETag != nil && isETagConflictError(err) {
+			return state.NewETagError(state.ETagMismatch, err)
 		}
 
 		return err
@@ -307,7 +305,7 @@ func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) e
 	if err != nil {
 		r.logger.Debugf("delete file %s, err %s", req.Key, err)
 
-		if req.ETag != nil {
+		if req.ETag != nil && isETagConflictError(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		} else if isNotFoundError(err) {
 			// deleting an item that doesn't exist without specifying an ETAG is a noop

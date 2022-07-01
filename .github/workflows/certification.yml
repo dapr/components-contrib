@@ -18,7 +18,7 @@ on:
     types: [certification-test]
   workflow_dispatch:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '5 */12 * * *'
   pull_request:
     branches:
       - master
@@ -105,6 +105,8 @@ jobs:
           required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
+        - component: state.azure.tablestorage
+          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
@@ -208,21 +210,21 @@ jobs:
         git diff --exit-code ./go.sum
 
     - name: Run tests
-      continue-on-error: true
+      continue-on-error: false
       working-directory: ${{ env.TEST_PATH }}
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
-          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
           -count=1 -timeout=15m
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then
           echo "Setting CERTIFICATION_FAILURE"
-          echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
+          export CERTIFICATION_FAILURE=true
         fi
         set -e
 
@@ -232,11 +234,6 @@ jobs:
           exit -1
         fi
 
-    # Delete any certs downloaded locally
-    - name: Clean up certs
-      if: matrix.required-certs != ''
-      working-directory: ${{ env.TEST_PATH }}
-      run: |
         for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
           CERT_FILE=$(printenv $CERT_NAME)
 
@@ -244,10 +241,6 @@ jobs:
           rm $CERT_FILE
         done
 
-    - name: Check certification test passed
-      continue-on-error: false
-      run: |
-        echo "CERTIFICATION_FAILURE=$CERTIFICATION_FAILURE"
         if [[ -v CERTIFICATION_FAILURE ]]; then
           exit 1
         fi

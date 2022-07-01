@@ -244,12 +244,13 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 		return nil, fmt.Errorf("error parsing %s: %w", nr.DaprHTTPPort, err)
 	}
 
+	id := appID + "-" + host + "-" + httpPort
 	// if no health checks configured add dapr sidecar health check by default
 	if len(cfg.Checks) == 0 {
 		cfg.Checks = []*consul.AgentServiceCheck{
 			{
 				Name:     "Dapr Health Status",
-				CheckID:  fmt.Sprintf("daprHealth:%s", appID),
+				CheckID:  fmt.Sprintf("daprHealth:%s", id),
 				Interval: "15s",
 				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort),
 			},
@@ -262,6 +263,7 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	}
 
 	return &consul.AgentServiceRegistration{
+		ID:      id,
 		Name:    appID,
 		Address: host,
 		Port:    appPortInt,

@@ -592,6 +592,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	aeh.logger.Debugf("registering handler for topic %s", req.Topic)
 	_, err = processor.RegisterHandler(subscribeCtx,
 		func(_ context.Context, e *eventhub.Event) error {
+			// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
 			b := aeh.backOffConfig.NewBackOffWithContext(subscribeCtx)
 
 			return retry.NotifyRecover(func() error {

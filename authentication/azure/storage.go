@@ -20,11 +20,17 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	storageAccountKeyKey = "accountKey"
+var (
+	StorageAccountNameKeys   = []string{"accountName", "storageAccount", "storageAccountName"}
+	StorageAccountKeyKeys    = []string{"accountKey", "accessKey", "storageAccessKey", "storageAccountKey"}
+	StorageContainerNameKeys = []string{"containerName", "container", "storageAccountContainer"}
+	StorageQueueNameKeys     = []string{"queueName", "queue", "storageAccountQueue"}
+	StorageTableNameKeys     = []string{"tableName", "table", "storageAccountTable"}
+	StorageEndpointKeys      = []string{"endpoint", "storageEndpoint", "storageAccountEndpoint", "queueEndpointUrl"}
 )
 
 // GetAzureStorageCredentials returns a azblob.Credential object that can be used to authenticate an Azure Blob Storage SDK pipeline.
@@ -36,7 +42,7 @@ func GetAzureStorageCredentials(log logger.Logger, accountName string, metadata 
 	}
 
 	// Try using shared key credentials first
-	accountKey, ok := metadata[storageAccountKeyKey]
+	accountKey, ok := mdutils.GetMetadataProperty(metadata, StorageAccountKeyKeys...)
 	if ok && accountKey != "" {
 		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(accountName, accountKey)
 		if err != nil {

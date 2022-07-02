@@ -161,7 +161,8 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		Topic: l.topicName,
 	}
 
-	// TODO: Make the backoff configurable for constant or exponential
+	// TODO: See https://github.com/dapr/components-contrib/issues/1808
+	// This component has built-in retries because Hazelcast doesn't support N/ACK for pubsub (it delivers messages "once" and not "at least once")
 	var b backoff.BackOff = backoff.NewConstantBackOff(5 * time.Second)
 	b = backoff.WithContext(b, l.ctx)
 	if l.p.metadata.backOffMaxRetries >= 0 {

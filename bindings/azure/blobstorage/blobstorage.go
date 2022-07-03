@@ -63,8 +63,7 @@ const (
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
-	maxResults  = 5000
-	endpointKey = "endpoint"
+	maxResults = 5000
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -118,7 +117,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	}
 	a.metadata = m
 
-	credential, env, err := azauth.GetAzureStorageCredentials(a.logger, m.AccountName, metadata.Properties)
+	credential, env, err := azauth.GetAzureStorageBlobCredentials(a.logger, m.AccountName, metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
@@ -130,7 +129,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	p := azblob.NewPipeline(credential, options)
 
 	var containerURL azblob.ContainerURL
-	customEndpoint, ok := metadata.Properties[endpointKey]
+	customEndpoint, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...)
 	if ok && customEndpoint != "" {
 		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.AccountName, m.Container))
 		if parseErr != nil {

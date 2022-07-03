@@ -86,7 +86,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	credential, env, err := azauth.GetAzureStorageCredentials(r.logger, meta.accountName, metadata.Properties)
+	credential, env, err := azauth.GetAzureStorageBlobCredentials(r.logger, meta.accountName, metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}

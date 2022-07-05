@@ -52,8 +52,6 @@ type GraphQL struct {
 	logger logger.Logger
 }
 
-var _ = bindings.OutputBinding(&GraphQL{})
-
 // NewGraphQL returns a new GraphQL binding instance.
 func NewGraphQL(logger logger.Logger) *GraphQL {
 	return &GraphQL{logger: logger}
@@ -102,7 +100,7 @@ func (gql *GraphQL) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 	gql.logger.Debugf("operation: %v", req.Operation)
 
-	startTime := time.Now().UTC()
+	startTime := time.Now()
 
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
@@ -116,12 +114,12 @@ func (gql *GraphQL) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	switch req.Operation { // nolint: exhaustive
 	case QueryOperation:
-		if err := gql.runRequest(commandQuery, req, &graphqlResponse); err != nil {
+		if err := gql.runRequest(ctx, commandQuery, req, &graphqlResponse); err != nil {
 			return nil, err
 		}
 
 	case MutationOperation:
-		if err := gql.runRequest(commandMutation, req, &graphqlResponse); err != nil {
+		if err := gql.runRequest(ctx, commandMutation, req, &graphqlResponse); err != nil {
 			return nil, err
 		}
 
@@ -137,14 +135,14 @@ func (gql *GraphQL) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	resp.Data = b
 
-	endTime := time.Now().UTC()
+	endTime := time.Now()
 	resp.Metadata[respEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 
 	return resp, nil
 }
 
-func (gql *GraphQL) runRequest(requestKey string, req *bindings.InvokeRequest, response interface{}) error {
+func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bindings.InvokeRequest, response interface{}) error {
 	requestString, ok := req.Metadata[requestKey]
 	if !ok || requestString == "" {
 		return fmt.Errorf("GraphQL Error: required %q not set", requestKey)
@@ -170,7 +168,7 @@ func (gql *GraphQL) runRequest(requestKey string, req *bindings.InvokeRequest, r
 		}
 	}
 
-	if err := gql.client.Run(context.Background(), request, response); err != nil {
+	if err := gql.client.Run(ctx, request, response); err != nil {
 		return fmt.Errorf("GraphQL Error: %w", err)
 	}
 

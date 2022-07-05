@@ -39,8 +39,8 @@ func TestParseMetadata(t *testing.T) {
 		meta, err := blobStorage.parseMetadata(m)
 		assert.Nil(t, err)
 		assert.Equal(t, "test", meta.Container)
-		assert.Equal(t, "account", meta.StorageAccount)
-		assert.Equal(t, "key", meta.StorageAccessKey)
+		assert.Equal(t, "account", meta.AccountName)
+		// storageAccessKey is parsed in the azauth package
 		assert.Equal(t, true, meta.DecodeBase64)
 		assert.Equal(t, 5, meta.GetBlobRetryCount)
 		assert.Equal(t, azblob.PublicAccessNone, meta.PublicAccessLevel)
@@ -48,6 +48,9 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("parse metadata with publicAccessLevel = blob", func(t *testing.T) {
 		m.Properties = map[string]string{
+			"storageAccount":    "account",
+			"storageAccessKey":  "key",
+			"container":         "test",
 			"publicAccessLevel": "blob",
 		}
 		meta, err := blobStorage.parseMetadata(m)
@@ -57,6 +60,9 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("parse metadata with publicAccessLevel = container", func(t *testing.T) {
 		m.Properties = map[string]string{
+			"storageAccount":    "account",
+			"storageAccessKey":  "key",
+			"container":         "test",
 			"publicAccessLevel": "container",
 		}
 		meta, err := blobStorage.parseMetadata(m)
@@ -66,6 +72,9 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("parse metadata with invalid publicAccessLevel", func(t *testing.T) {
 		m.Properties = map[string]string{
+			"storageAccount":    "account",
+			"storageAccessKey":  "key",
+			"container":         "test",
 			"publicAccessLevel": "invalid",
 		}
 		_, err := blobStorage.parseMetadata(m)

@@ -16,11 +16,11 @@ param rgLocation string = resourceGroup().location
 param confTestTags object = {}
 
 var eventHubsNamespacePolicy = '${eventHubsNamespaceName}-namespace-policy'
-var eventHubBindingsName = '${eventHubsNamespaceName}-bindings-topic'
+var eventHubBindingsName = 'eventhubs-bindings-topic'
 var eventHubBindingsPolicyName = '${eventHubBindingsName}-policy'
 var eventHubBindingsConsumerGroupName = '${eventHubBindingsName}-cg'
 
-var eventHubPubsubName = '${eventHubsNamespaceName}-pubsub-topic'
+var eventHubPubsubName = 'eventhubs-pubsub-topic'
 var eventHubPubsubPolicyName = '${eventHubPubsubName}-policy'
 var eventHubPubsubConsumerGroupName = '${eventHubPubsubName}-cg'
 

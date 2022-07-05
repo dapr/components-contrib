@@ -13,8 +13,43 @@ limitations under the License.
 
 package snssqs
 
+import (
+	"encoding/json"
+	"reflect"
+)
+
 type arnEquals struct {
-	AwsSourceArn []string `json:"aws:SourceArn"`
+	AwsSourceArn awsSourceArn `json:"aws:SourceArn"`
+}
+
+type awsSourceArn []string
+
+// UnmarshalJSON This is a custom unmarshaler for awsSourceArn for handling a special case
+// where aws flatten awsSourceArn into a string when it only contains one element
+func (a *awsSourceArn) UnmarshalJSON(data []byte) error {
+	var i interface{}
+	err := json.Unmarshal(data, &i)
+	if err != nil {
+		return err
+	}
+
+	items := reflect.ValueOf(i)
+	switch items.Kind() {
+	case reflect.String:
+		*a = append(*a, items.String())
+	case reflect.Slice:
+		*a = make([]string, 0, items.Len())
+		for i := 0; i < items.Len(); i++ {
+			item := items.Index(i)
+			switch item.Kind() {
+			case reflect.String:
+				*a = append(*a, item.String())
+			case reflect.Interface:
+				*a = append(*a, item.Interface().(string))
+			}
+		}
+	}
+	return nil
 }
 
 type condition struct {
@@ -39,7 +74,7 @@ type policy struct {
 }
 
 func (p *policy) tryInsertCondition(sqsArn string, snsArn string) bool {
-	for _, s := range p.Statement {
+	for i, s := range p.Statement {
 		// if there is a statement for sqsArn
 		if s.Resource == sqsArn {
 			// check if the snsArn already exists
@@ -49,7 +84,7 @@ func (p *policy) tryInsertCondition(sqsArn string, snsArn string) bool {
 				}
 			}
 			// insert it if it does not exist
-			s.Condition.ForAllValuesArnEquals.AwsSourceArn = append(s.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArn)
+			p.Statement[i].Condition.ForAllValuesArnEquals.AwsSourceArn = append(s.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArn)
 			return false
 		}
 	}

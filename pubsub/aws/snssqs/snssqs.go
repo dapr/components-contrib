@@ -737,10 +737,10 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 		if err = json.Unmarshal([]byte(*policyStr), policy); err != nil {
 			return fmt.Errorf("error unmarshalling sqs policy: %w", err)
 		}
-		conditionExists := policy.tryInsertCondition(sqsQueueInfo.arn, snsARN)
-		if conditionExists {
-			return nil
-		}
+	}
+	conditionExists := policy.tryInsertCondition(sqsQueueInfo.arn, snsARN)
+	if conditionExists {
+		return nil
 	}
 
 	b, uerr := json.Marshal(policy)

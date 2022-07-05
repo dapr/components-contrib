@@ -20,50 +20,32 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"go.uber.org/ratelimit"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 const (
-	// Keys.
-	mqttURL               = "url"
-	mqttQOS               = "qos"
-	mqttRetain            = "retain"
-	mqttClientID          = "consumerID"
-	mqttCleanSession      = "cleanSession"
-	mqttCACert            = "caCert"
-	mqttClientCert        = "clientCert"
-	mqttClientKey         = "clientKey"
-	mqttBackOffMaxRetries = "backOffMaxRetries"
-
 	// errors.
 	errorMsgPrefix = "mqtt pub sub error:"
-
-	// Defaults.
-	defaultQOS          = 0
-	defaultRetain       = false
-	defaultWait         = 30 * time.Second
-	defaultCleanSession = true
 )
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
 type mqttPubSub struct {
-	producer        mqtt.Client
-	consumer        mqtt.Client
-	metadata        *metadata
-	logger          logger.Logger
-	topics          map[string]pubsub.Handler
-	subscribingLock sync.Mutex
-	ctx             context.Context
-	cancel          context.CancelFunc
+	producer          mqtt.Client
+	consumer          mqtt.Client
+	metadata          *metadata
+	logger            logger.Logger
+	topics            map[string]pubsub.Handler
+	retriableErrLimit ratelimit.Limiter
+	subscribingLock   sync.Mutex
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 // NewMQTTPubSub returns a new mqttPubSub instance.
@@ -81,87 +63,19 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-func parseMQTTMetaData(md pubsub.Metadata) (*metadata, error) {
-	m := metadata{}
-
-	// required configuration settings
-	if val, ok := md.Properties[mqttURL]; ok && val != "" {
-		m.url = val
-	} else {
-		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
-	}
-
-	// optional configuration settings
-	m.qos = defaultQOS
-	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
-		qosInt, err := strconv.Atoi(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid qos %s, %s", errorMsgPrefix, val, err)
-		}
-		m.qos = byte(qosInt)
-	}
-
-	m.retain = defaultRetain
-	if val, ok := md.Properties[mqttRetain]; ok && val != "" {
-		var err error
-		m.retain, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid retain %s, %s", errorMsgPrefix, val, err)
-		}
-	}
-
-	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
-		m.clientID = val
-	} else {
-		return &m, fmt.Errorf("%s missing consumerID", errorMsgPrefix)
-	}
-
-	m.cleanSession = defaultCleanSession
-	if val, ok := md.Properties[mqttCleanSession]; ok && val != "" {
-		var err error
-		m.cleanSession, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid clean session %s, %s", errorMsgPrefix, val, err)
-		}
-	}
-
-	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return &m, fmt.Errorf("%s invalid ca certificate", errorMsgPrefix)
-		}
-		m.tlsCfg.caCert = val
-	}
-	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return &m, fmt.Errorf("%s invalid client certificate", errorMsgPrefix)
-		}
-		m.tlsCfg.clientCert = val
-	}
-	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
-		if !isValidPEM(val) {
-			return &m, fmt.Errorf("%s invalid client certificate key", errorMsgPrefix)
-		}
-		m.tlsCfg.clientKey = val
-	}
-
-	if val, ok := md.Properties[mqttBackOffMaxRetries]; ok && val != "" {
-		backOffMaxRetriesInt, err := strconv.Atoi(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid backOffMaxRetries %s, %s", errorMsgPrefix, val, err)
-		}
-		m.backOffMaxRetries = backOffMaxRetriesInt
-	}
-
-	return &m, nil
-}
-
 // Init parses metadata and creates a new Pub Sub client.
 func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
-	mqttMeta, err := parseMQTTMetaData(metadata)
+	mqttMeta, err := parseMQTTMetaData(metadata, m.logger)
 	if err != nil {
 		return err
 	}
 	m.metadata = mqttMeta
+
+	if m.metadata.maxRetriableErrorsPerSec > 0 {
+		m.retriableErrLimit = ratelimit.New(m.metadata.maxRetriableErrorsPerSec)
+	} else {
+		m.retriableErrLimit = ratelimit.NewUnlimited()
+	}
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
@@ -221,12 +135,13 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
-	// Start the subscription
-	// When the connection is ready, add the topic
+	// Reset subscription if active
+	m.resetSubscription()
+
+	// Add the topic then start the subscription
+	m.topics[req.Topic] = handler
 	// Use the global context here to maintain the connection
-	m.startSubscription(m.ctx, func() {
-		m.topics[req.Topic] = handler
-	})
+	m.startSubscription(m.ctx)
 
 	// Listen for context cancelation to remove the subscription
 	go func() {
@@ -239,31 +154,37 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 
 		// If this is the last subscription or if the global context is done, close the connection entirely
 		if len(m.topics) <= 1 || m.ctx.Err() != nil {
-			m.consumer.Disconnect(5)
-			m.consumer = nil
+			m.closeSubscription()
 			delete(m.topics, req.Topic)
 			return
 		}
 
 		// Reconnect with one less topic
-		m.startSubscription(m.ctx, func() {
-			delete(m.topics, req.Topic)
-		})
+		m.resetSubscription()
+		delete(m.topics, req.Topic)
+		m.startSubscription(m.ctx)
 	}()
 
 	return nil
 }
 
-func (m *mqttPubSub) startSubscription(ctx context.Context, onConnRready func()) error {
-	// reset synchronization
+func (m *mqttPubSub) closeSubscription() {
+	m.consumer.Disconnect(5)
+	m.consumer = nil
+}
+
+// resetSubscription closes the subscription if it's currently active
+func (m *mqttPubSub) resetSubscription() {
 	if m.consumer != nil && m.consumer.IsConnectionOpen() {
 		m.logger.Infof("re-initializing the subscriber")
-		m.consumer.Disconnect(5)
-		m.consumer = nil
+		m.closeSubscription()
 	} else {
 		m.logger.Infof("initializing the subscriber")
 	}
+}
 
+// startSubscription connects to the server and begins receiving messages
+func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 	// mqtt broker allows only one connection at a given time from a clientID.
 	consumerClientID := fmt.Sprintf("%s-consumer", m.metadata.clientID)
 	connCtx, connCancel := context.WithTimeout(ctx, defaultWait)
@@ -273,9 +194,6 @@ func (m *mqttPubSub) startSubscription(ctx context.Context, onConnRready func())
 		return err
 	}
 	m.consumer = c
-
-	// Invoke onConnReady so changes to the topics can be made safely
-	onConnRready()
 
 	subscribeTopics := make(map[string]byte, len(m.topics))
 	for k := range m.topics {
@@ -304,7 +222,42 @@ func (m *mqttPubSub) startSubscription(ctx context.Context, onConnRready func())
 // onMessage returns the callback to be invoked when there's a new message from a topic
 func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
+		// Turn off auto-ACK
 		mqttMsg.AutoAckOff()
+
+		ack := false
+		defer func() {
+			// Do not send N/ACKs on retained messages
+			if mqttMsg.Retained() {
+				return
+			}
+
+			// MQTT does not support NACK's, so in case of error we need to re-enqueue the message and then send a positive ACK for this message
+			// Note that if the connection drops before the message is explicitly ACK'd below, then it's automatically re-sent (assuming QoS is 1 or greater, which is the default). So we do not risk losing messages.
+			// Problem with this approach is that if the service crashes between the time the message is re-enqueued and when the ACK is sent, the message may be delivered twice
+			if !ack {
+				m.logger.Debugf("Re-publishing message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+				publishErr := m.Publish(&pubsub.PublishRequest{
+					Topic: mqttMsg.Topic(),
+					Data:  mqttMsg.Payload(),
+				})
+				if publishErr != nil {
+					m.logger.Errorf("Failed to re-publish message %s/%d. Error: %v", mqttMsg.Topic(), mqttMsg.MessageID(), publishErr)
+					// Return so Ack() isn't invoked
+					return
+				}
+			}
+			mqttMsg.Ack()
+
+			// If we re-published the message, consume a retriable error token
+			if !ack {
+				m.logger.Debugf("Taking a retriable error token")
+				before := time.Now()
+				_ = m.retriableErrLimit.Take()
+				m.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
+			}
+		}()
+
 		msg := pubsub.NewMessage{
 			Topic: mqttMsg.Topic(),
 			Data:  mqttMsg.Payload(),
@@ -316,29 +269,15 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 			return
 		}
 
-		// TODO: Make the backoff configurable for constant or exponential
-		var b backoff.BackOff = backoff.NewConstantBackOff(5 * time.Second)
-		b = backoff.WithContext(b, ctx)
-		if m.metadata.backOffMaxRetries >= 0 {
-			b = backoff.WithMaxRetries(b, uint64(m.metadata.backOffMaxRetries))
+		m.logger.Debugf("Processing MQTT message %s/%d (retained=%v)", mqttMsg.Topic(), mqttMsg.MessageID(), mqttMsg.Retained())
+		err := topicHandler(ctx, &msg)
+		if err != nil {
+			m.logger.Errorf("Failed processing MQTT message %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+			return
 		}
-		if err := retry.NotifyRecover(func() error {
-			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
 
-			if err := topicHandler(ctx, &msg); err != nil {
-				return err
-			}
-
-			mqttMsg.Ack()
-
-			return nil
-		}, b, func(err error, d time.Duration) {
-			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
-		}, func() {
-			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-		}); err != nil {
-			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
-		}
+		m.logger.Debugf("Done processing MQTT message %s/%d; sending ACK", mqttMsg.Topic(), mqttMsg.MessageID())
+		ack = true
 	}
 }
 
@@ -349,6 +288,13 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client,
 	}
 	opts := m.createClientOptions(uri, clientID)
 	client := mqtt.NewClient(opts)
+
+	// Add all routes before we connect to catch messages that may be delivered before client.Subscribe is invoked
+	// The routes will be overwritten later
+	for topic := range m.topics {
+		client.AddRoute(topic, m.onMessage(ctx))
+	}
+
 	token := client.Connect()
 	select {
 	case <-token.Done():

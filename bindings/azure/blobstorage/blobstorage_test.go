@@ -39,8 +39,8 @@ func TestParseMetadata(t *testing.T) {
 		meta, err := blobStorage.parseMetadata(m)
 		assert.Nil(t, err)
 		assert.Equal(t, "test", meta.Container)
-		assert.Equal(t, "account", meta.StorageAccount)
-		assert.Equal(t, "key", meta.StorageAccessKey)
+		assert.Equal(t, "account", meta.AccountName)
+		// storageAccessKey is parsed in the azauth package
 		assert.Equal(t, true, meta.DecodeBase64)
 		assert.Equal(t, 5, meta.GetBlobRetryCount)
 		assert.Equal(t, azblob.PublicAccessNone, meta.PublicAccessLevel)
@@ -48,6 +48,9 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("parse metadata with publicAccessLevel = blob", func(t *testing.T) {
 		m.Properties = map[string]string{
+			"storageAccount":    "account",
+			"storageAccessKey":  "key",
+			"container":         "test",
 			"publicAccessLevel": "blob",
 		}
 		meta, err := blobStorage.parseMetadata(m)
@@ -57,6 +60,9 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("parse metadata with publicAccessLevel = container", func(t *testing.T) {
 		m.Properties = map[string]string{
+			"storageAccount":    "account",
+			"storageAccessKey":  "key",
+			"container":         "test",
 			"publicAccessLevel": "container",
 		}
 		meta, err := blobStorage.parseMetadata(m)
@@ -66,6 +72,9 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("parse metadata with invalid publicAccessLevel", func(t *testing.T) {
 		m.Properties = map[string]string{
+			"storageAccount":    "account",
+			"storageAccessKey":  "key",
+			"container":         "test",
 			"publicAccessLevel": "invalid",
 		}
 		_, err := blobStorage.parseMetadata(m)
@@ -78,7 +87,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.get(context.TODO(), &r)
+		_, err := blobStorage.get(context.Background(), &r)
 		if assert.Error(t, err) {
 			assert.Equal(t, ErrMissingBlobName, err)
 		}
@@ -90,7 +99,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := blobStorage.delete(context.TODO(), &r)
+		_, err := blobStorage.delete(context.Background(), &r)
 		if assert.Error(t, err) {
 			assert.Equal(t, ErrMissingBlobName, err)
 		}
@@ -102,7 +111,7 @@ func TestDeleteOption(t *testing.T) {
 			"blobName":        "foo",
 			"deleteSnapshots": "invalid",
 		}
-		_, err := blobStorage.delete(context.TODO(), &r)
+		_, err := blobStorage.delete(context.Background(), &r)
 		assert.Error(t, err)
 	})
 }

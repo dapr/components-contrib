@@ -38,7 +38,7 @@ func TestQuery(t *testing.T) {
 			AddRow(3, "value-3", time.Now().Add(2000))
 
 		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < 4").WillReturnRows(rows)
-		ret, err := m.query(`SELECT * FROM foo WHERE id < 4`)
+		ret, err := m.query(context.Background(), `SELECT * FROM foo WHERE id < 4`)
 		assert.Nil(t, err)
 		t.Logf("query result: %s", ret)
 		assert.Contains(t, string(ret), "\"id\":1")
@@ -57,7 +57,7 @@ func TestQuery(t *testing.T) {
 			AddRow(2, 2.2, time.Now().Add(1000)).
 			AddRow(3, 3.3, time.Now().Add(2000))
 		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < 4").WillReturnRows(rows)
-		ret, err := m.query("SELECT * FROM foo WHERE id < 4")
+		ret, err := m.query(context.Background(), "SELECT * FROM foo WHERE id < 4")
 		assert.Nil(t, err)
 		t.Logf("query result: %s", ret)
 
@@ -84,7 +84,7 @@ func TestExec(t *testing.T) {
 	m, mock, _ := mockDatabase(t)
 	defer m.Close()
 	mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))
-	i, err := m.exec("INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')")
+	i, err := m.exec(context.Background(), "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')")
 	assert.Equal(t, int64(1), i)
 	assert.Nil(t, err)
 }
@@ -101,7 +101,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: execOperation,
 		}
-		resp, err := m.Invoke(context.TODO(), req)
+		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, "1", resp.Metadata[respRowsAffectedKey])
 	})
@@ -114,7 +114,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: execOperation,
 		}
-		resp, err := m.Invoke(context.TODO(), req)
+		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
 		assert.NotNil(t, err)
 	})
@@ -132,7 +132,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: queryOperation,
 		}
-		resp, err := m.Invoke(context.TODO(), req)
+		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, err)
 		var data []interface{}
 		err = json.Unmarshal(resp.Data, &data)
@@ -148,7 +148,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  metadata,
 			Operation: queryOperation,
 		}
-		resp, err := m.Invoke(context.TODO(), req)
+		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
 		assert.NotNil(t, err)
 	})
@@ -158,7 +158,7 @@ func TestInvoke(t *testing.T) {
 		req := &bindings.InvokeRequest{
 			Operation: closeOperation,
 		}
-		resp, _ := m.Invoke(context.TODO(), req)
+		resp, _ := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
 	})
 
@@ -168,7 +168,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  map[string]string{},
 			Operation: "unsupported",
 		}
-		resp, err := m.Invoke(context.TODO(), req)
+		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
 		assert.NotNil(t, err)
 	})

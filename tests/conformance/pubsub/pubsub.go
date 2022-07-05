@@ -162,12 +162,16 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 				counter++
 
-				if sequence < lastSequence {
-					outOfOrder = true
-					t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
-				}
+				// Only consider order when we receive a message for the first time
+				// Messages that fail and are re-queued will naturally come out of order
+				if errorCount == 0 {
+					if sequence < lastSequence {
+						outOfOrder = true
+						t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
+					}
 
-				lastSequence = sequence
+					lastSequence = sequence
+				}
 
 				// This behavior is standard to repro a failure of one message in a batch.
 				if errorCount < 2 || counter%5 == 0 {

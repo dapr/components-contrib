@@ -15,7 +15,6 @@ package envstore_test
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,8 +46,7 @@ func TestEnv(t *testing.T) {
 
 	log := logger.NewLogger("dapr.components")
 
-	os.Setenv("certtestsecret", "abcd")
-	defer os.Unsetenv("certtestsecret")
+	t.Setenv("certtestsecret", "abcd")
 
 	testGetKnownSecret := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))

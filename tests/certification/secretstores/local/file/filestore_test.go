@@ -93,7 +93,7 @@ func TestEnv(t *testing.T) {
 			))).
 		Step("Getting known secret", testGetKnownSecret).
 		Run()
-	
+
 	flow.New(t, "file secret store reads expected value with custom nested separator").
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),

@@ -51,48 +51,48 @@ var availableBackends = map[BackendType]bool{
 
 type keyringSecretStoreMetaData struct {
 	// BackendType is the type of the keyring secret store backend to use.
-	BackendType BackendType
+	BackendType BackendType `mapstructure:"backendType"`
 
 	// ServiceName is a generic service name that is used by backends that support the concept.
-	ServiceName string
+	ServiceName string `mapstructure:"serviceName"`
 
 	// MacOSKeychainNameKeychainName is the name of the macOS keychain that is used.
-	KeychainName string
+	KeychainName string `mapstructure:"keychainName"`
 	// KeychainTrustApplication is whether the calling application should be trusted by default by items.
-	KeychainTrustApplication bool
+	KeychainTrustApplication bool `mapstructure:"keychainTrustApplication"`
 	// KeychainSynchronizable is whether the item can be synchronized to iCloud.
-	KeychainSynchronizable bool
+	KeychainSynchronizable bool `mapstructure:"keychainSynchronizable"`
 	// KeychainAccessibleWhenUnlocked is whether the item is accessible when the device is locked.
-	KeychainAccessibleWhenUnlocked bool
+	KeychainAccessibleWhenUnlocked bool `mapstructure:"keychainAccessibleWhenUnlocked"`
 
 	// FileDir is the directory that keyring files are stored in, ~/ is resolved to the users' home dir.
-	FileDir string
+	FileDir string `mapstructure:"fileDir"`
 	// FileNeedPassword is whether the keyring file needs a password to be opened.
-	FileNeedPassword bool
+	FileNeedPassword bool `mapstructure:"fileNeedPassword"`
 
 	// KeyCtlScope is the scope of the kernel keyring (either "user", "session", "process" or "thread").
-	KeyCtlScope string
+	KeyCtlScope string `mapstructure:"keyCtlScope"`
 
 	// KeyCtlPerm is the permission mask to use for new keys.
-	KeyCtlPerm uint32
+	KeyCtlPerm uint32 `mapstructure:"keyCtlPerm"`
 
 	// KWalletAppID is the application id for KWallet.
-	KWalletAppID string
+	KWalletAppID string `mapstructure:"kWalletAppID"`
 	// KWalletFolder is the folder for KWallet.
-	KWalletFolder string
+	KWalletFolder string `mapstructure:"kWalletFolder"`
 
 	// LibSecretCollectionName is the name collection in secret-service.
-	LibSecretCollectionName string
+	LibSecretCollectionName string `mapstructure:"libSecretCollectionName"`
 
 	// PassDir is the pass password-store directory, ~/ is resolved to the users' home dir.
-	PassDir string
+	PassDir string `mapstructure:"passDir"`
 	// PassCmd is the name of the pass executable.
-	PassCmd string
+	PassCmd string `mapstructure:"passCmd"`
 	// PassPrefix is a string prefix to prepend to the item path stored in pass.
-	PassPrefix string
+	PassPrefix string `mapstructure:"passPrefix"`
 
 	// WinCredPrefix is a string prefix to prepend to the key name.
-	WinCredPrefix string
+	WinCredPrefix string `mapstructure:"winCredPrefix"`
 }
 
 type keyringSecretStore struct {
@@ -196,7 +196,7 @@ func (s *keyringSecretStore) getKeyringSecretStoreMetadata(spec secretstores.Met
 		return nil, errors.New("metadata serviceName is required for keychain backend")
 	}
 
-	// if backendType is file and fileDir is empty, just keyring.Keys will returns
+	// if backendType is file and fileDir is empty, keyring.Keys will returns
 	// error, No directory provided for file keyring.
 	if meta.BackendType == FileBackend && meta.FileDir == "" {
 		return nil, errors.New("metadata fileDir is required for file backend")

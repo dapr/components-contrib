@@ -31,12 +31,12 @@ import (
 
 func TestConfigurationValid(t *testing.T) {
 	tests := []struct {
-		name              string
-		properties        map[string]string
-		expectedEndpoint  string
-		expectedAccessKey string
-		expectedVersion   string
-		expectedHub       string
+		name               string
+		properties         map[string]string
+		expectedEndpoint   string
+		expectedAccessKey  string
+		expectedHub        string
+		additionalMetadata map[string]string
 	}{
 		{
 			"With all properties",
@@ -45,8 +45,8 @@ func TestConfigurationValid(t *testing.T) {
 			},
 			"https://fake.service.signalr.net",
 			"fakekey",
-			"1.0",
 			"",
+			nil,
 		},
 		{
 			"With missing version",
@@ -56,7 +56,7 @@ func TestConfigurationValid(t *testing.T) {
 			"https://fake.service.signalr.net",
 			"fakekey",
 			"",
-			"",
+			nil,
 		},
 		{
 			"With semicolon after access key",
@@ -66,40 +66,137 @@ func TestConfigurationValid(t *testing.T) {
 			"https://fake.service.signalr.net",
 			"fakekey",
 			"",
-			"",
+			nil,
 		},
 		{
 			"With trailing slash in endpoint",
 			map[string]string{
-				"connectionString": "Endpoint=https://fake.service.signalr.net/;AccessKey=fakekey;Version=1.1",
+				"connectionString": "Endpoint=https://fake.service.signalr.net/;AccessKey=fakekey;Version=1.0",
 			},
 			"https://fake.service.signalr.net",
 			"fakekey",
-			"1.1",
 			"",
+			nil,
 		},
 		{
 			"With hub",
 			map[string]string{
-				"connectionString": "Endpoint=https://fake.service.signalr.net/;AccessKey=fakekey;Version=1.1",
+				"connectionString": "Endpoint=https://fake.service.signalr.net/;AccessKey=fakekey;Version=1.0",
 				"hub":              "myhub",
 			},
 			"https://fake.service.signalr.net",
 			"fakekey",
-			"1.1",
 			"myhub",
+			nil,
+		},
+		{
+			"With AAD and no access key (system-assigned MSI)",
+			map[string]string{
+				"connectionString": "Endpoint=https://fake.service.signalr.net/;AuthType=aad;Version=1.0",
+			},
+			"https://fake.service.signalr.net",
+			"",
+			"",
+			nil,
+		},
+		{
+			"Add azureClientId to metadata map (user-assigned MSI)",
+			map[string]string{
+				"connectionString": "Endpoint=https://fake.service.signalr.net/;AuthType=aad;ClientId=b83aec5c-54a3-4e4a-8831-ba3f849b79a1;Version=1.0",
+			},
+			"https://fake.service.signalr.net",
+			"",
+			"",
+			map[string]string{
+				"azureClientId": "b83aec5c-54a3-4e4a-8831-ba3f849b79a1",
+			},
+		},
+		{
+			"Add Azure AD credentials to metadata map (Azure AD app)",
+			map[string]string{
+				"connectionString": "Endpoint=https://fake.service.signalr.net/;AuthType=aad;ClientId=b83aec5c-54a3-4e4a-8831-ba3f849b79a1;ClientSecret=fakesecret;TenantId=f0f4622e-e476-46b5-bd0c-1866d27117d4;Version=1.0",
+			},
+			"https://fake.service.signalr.net",
+			"",
+			"",
+			map[string]string{
+				"azureClientId":     "b83aec5c-54a3-4e4a-8831-ba3f849b79a1",
+				"azureClientSecret": "fakesecret",
+				"azureTenantId":     "f0f4622e-e476-46b5-bd0c-1866d27117d4",
+			},
+		},
+		{
+			"No connection string, access key",
+			map[string]string{
+				"endpoint":  "https://fake.service.signalr.net/",
+				"accessKey": "fakekey",
+			},
+			"https://fake.service.signalr.net",
+			"fakekey",
+			"",
+			nil,
+		},
+		{
+			"No connection string, access key and hub",
+			map[string]string{
+				"endpoint":  "https://fake.service.signalr.net/",
+				"accessKey": "fakekey",
+				"hub":       "myhub",
+			},
+			"https://fake.service.signalr.net",
+			"fakekey",
+			"myhub",
+			nil,
+		},
+		{
+			"No connection string, Azure AD",
+			map[string]string{
+				"endpoint":          "https://fake.service.signalr.net/",
+				"azureClientId":     "b83aec5c-54a3-4e4a-8831-ba3f849b79a1",
+				"azureClientSecret": "fakesecret",
+				"azureTenantId":     "f0f4622e-e476-46b5-bd0c-1866d27117d4",
+			},
+			"https://fake.service.signalr.net",
+			"",
+			"",
+			map[string]string{
+				"azureClientId":     "b83aec5c-54a3-4e4a-8831-ba3f849b79a1",
+				"azureClientSecret": "fakesecret",
+				"azureTenantId":     "f0f4622e-e476-46b5-bd0c-1866d27117d4",
+			},
+		},
+		{
+			"No connection string, Azure AD with aliased names",
+			map[string]string{
+				"endpoint":        "https://fake.service.signalr.net/",
+				"spnClientId":     "b83aec5c-54a3-4e4a-8831-ba3f849b79a1",
+				"spnClientSecret": "fakesecret",
+				"spnTenantId":     "f0f4622e-e476-46b5-bd0c-1866d27117d4",
+			},
+			"https://fake.service.signalr.net",
+			"",
+			"",
+			map[string]string{
+				"spnClientId":     "b83aec5c-54a3-4e4a-8831-ba3f849b79a1",
+				"spnClientSecret": "fakesecret",
+				"spnTenantId":     "f0f4622e-e476-46b5-bd0c-1866d27117d4",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test"))
-			err := s.Init(bindings.Metadata{Properties: tt.properties})
+			err := s.parseMetadata(tt.properties)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expectedEndpoint, s.endpoint)
 			assert.Equal(t, tt.expectedAccessKey, s.accessKey)
-			assert.Equal(t, tt.expectedVersion, s.version)
 			assert.Equal(t, tt.expectedHub, s.hub)
+			if len(tt.additionalMetadata) > 0 {
+				for k := range tt.additionalMetadata {
+					assert.Equal(t, tt.properties[k], tt.additionalMetadata[k])
+				}
+			}
 		})
 	}
 }
@@ -138,7 +235,7 @@ func TestInvalidConfigurations(t *testing.T) {
 			},
 		},
 		{
-			"Missing access key",
+			"Missing access key (no AAD)",
 			map[string]string{
 				"connectionString1": "Endpoint=https://fake.service.signalr.net;",
 			},
@@ -146,7 +243,13 @@ func TestInvalidConfigurations(t *testing.T) {
 		{
 			"With empty endpoint value",
 			map[string]string{
-				"connectionString": "Endpoint=;AccessKey=fakekey;Version=1.1",
+				"connectionString": "Endpoint=;AccessKey=fakekey;Version=1.0",
+			},
+		},
+		{
+			"With invalid version",
+			map[string]string{
+				"connectionString": "Endpoint=https://fake.service.signalr.net;AccessKey=fakekey;Version=2.0",
 			},
 		},
 	}
@@ -154,7 +257,7 @@ func TestInvalidConfigurations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test"))
-			err := s.Init(bindings.Metadata{Properties: tt.properties})
+			err := s.parseMetadata(tt.properties)
 			assert.NotNil(t, err)
 		})
 	}

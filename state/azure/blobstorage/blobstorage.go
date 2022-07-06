@@ -48,7 +48,7 @@ import (
 	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"

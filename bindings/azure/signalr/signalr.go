@@ -256,7 +256,7 @@ func (s *SignalR) getToken(ctx context.Context, url string) (token string, err e
 	if s.aadToken != nil {
 		var at azcore.AccessToken
 		at, err = s.aadToken.GetToken(ctx, policy.TokenRequestOptions{
-			Scopes: []string{"https://service.signalr.net/.default"},
+			Scopes: []string{"https://signalr.azure.com/.default"},
 		})
 		if err != nil {
 			return "", err

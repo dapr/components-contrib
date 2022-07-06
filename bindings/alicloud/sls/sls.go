@@ -27,7 +27,7 @@ type SlsLogstorageMetadata struct {
 	AccessKeySecret string `json:"accessKeySecret"`
 }
 
-//parse metadata field
+// parse metadata field
 func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	m, err := s.parseMeta(metadata)
 	if err != nil {
@@ -35,7 +35,7 @@ func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	}
 	s.metadata = *m
 	producerConfig := producer.GetDefaultProducerConfig()
-	//the config properties in the component yaml file
+	// the config properties in the component yaml file
 	producerConfig.Endpoint = m.Endpoint
 	producerConfig.AccessKeyID = m.AccessKeyID
 	producerConfig.AccessKeySecret = m.AccessKeySecret
@@ -52,8 +52,7 @@ func NewAliCloudSlsLogstorage(logger logger.Logger) *AliCloudSlsLogstorage {
 }
 
 func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-
-	//verify the metadata property
+	// verify the metadata property
 	if logProject := req.Metadata["project"]; logProject == "" {
 		return nil, fmt.Errorf("SLS binding error: project property not supplied")
 	}
@@ -88,17 +87,15 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 	return nil, err
 }
 
-//parse the log content
+// parse the log content
 func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log, error) {
-
 	var logInfo map[string]string
-
 	err := json.Unmarshal(req.Data, &logInfo)
 	if err != nil {
 		return nil, err
 	}
 	var logTime uint32
-	//if no timestamp , use current time
+	// if no timestamp , use current time
 	if logInfo["timestamp"] != "" {
 		t, _ := strconv.Atoi(logInfo["timestamp"])
 		logTime = uint32(t)

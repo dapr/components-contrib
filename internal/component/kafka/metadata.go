@@ -59,6 +59,7 @@ type kafkaMetadata struct {
 	ConsumeRetryEnabled  bool
 	ConsumeRetryInterval time.Duration
 	Version              sarama.KafkaVersion
+	ScramMechanism			 string
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -273,6 +274,11 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 		meta.Version = version
 	} else {
 		meta.Version = sarama.V2_0_0_0
+	}
+
+	if val, ok := metadata["ScramMechanism"]; ok && val != "" {
+		meta.ScramMechanism = val
+		k.logger.Debugf("Using %s as ScramMechanism", meta.ScramMechanism)
 	}
 
 	return &meta, nil

@@ -22,22 +22,19 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-func updatePasswordAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
-	config.Producer.Retry.Max = 1
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Producer.Return.Successes = true
-	config.Metadata.Full = true
-	config.Version = sarama.V0_10_0_0
-	config.ClientID = "sasl_scram_client"
-	config.Metadata.Full = true
-	config.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: SHA512} }
-	config.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+func updatePasswordAuthInfo(config *sarama.Config, metadata *kafkaMetadata, saslUsername, saslPassword string) {
 	config.Net.SASL.Enable = true
 	config.Net.SASL.User = saslUsername
 	config.Net.SASL.Password = saslPassword
-	config.Net.SASL.Handshake = true
-	config.Net.TLS.Enable = true
-	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
+	if metadata.ScramMechanism == "SHA-256" {
+		config.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: SHA256} }
+		config.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+	} else if metadata.ScramMechanism == "SHA-512" {
+		config.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: SHA512} }
+		config.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+	} else {
+		config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+	}
 }
 
 func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
@@ -64,13 +61,14 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 
 	// nolint: gosec
 	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify, MinVersion: tls.VersionTLS12}
+	config.Net.TLS.Enable = true
+
 	if metadata.TLSCaCert != "" {
 		caCertPool := x509.NewCertPool()
 		if ok := caCertPool.AppendCertsFromPEM([]byte(metadata.TLSCaCert)); !ok {
 			return errors.New("kafka error: unable to load ca certificate")
 		}
 		config.Net.TLS.Config.RootCAs = caCertPool
-		config.Net.TLS.Enable = true
 	}
 
 	return nil

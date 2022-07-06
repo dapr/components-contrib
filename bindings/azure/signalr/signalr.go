@@ -203,7 +203,7 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 	}
 
 	httpReq.Header.Set("Authorization", "Bearer "+token)
-	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json; charset=utf-8")
 	httpReq.Header.Set("User-Agent", s.userAgent)
 
 	resp, err := s.httpClient.Do(httpReq)
@@ -219,7 +219,7 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("%s azure signalr failed with  code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
+		return fmt.Errorf("%s azure signalr failed with code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
 	}
 
 	s.logger.Debugf("%s azure signalr call to '%s' completed with code %d", logPrefix, url, resp.StatusCode)

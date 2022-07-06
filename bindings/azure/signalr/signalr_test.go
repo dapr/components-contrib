@@ -368,12 +368,12 @@ func TestWriteShouldSucceed(t *testing.T) {
 		userID            string
 		expectedURL       string
 	}{
-		{"Broadcast receiving hub should call SignalR service", "testHub", "", "", "", "https://fake.service.signalr.net/api/v1/hubs/testHub"},
-		{"Broadcast with hub metadata should call SignalR service", "", "testHub", "", "", "https://fake.service.signalr.net/api/v1/hubs/testHub"},
-		{"Group receiving hub should call SignalR service", "testHub", "", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testHub/groups/mygroup"},
-		{"Group with hub metadata should call SignalR service", "", "testHub", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testHub/groups/mygroup"},
-		{"User receiving hub should call SignalR service", "testHub", "", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testHub/users/myuser"},
-		{"User with hub metadata should call SignalR service", "", "testHub", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testHub/users/myuser"},
+		{"Broadcast receiving hub should call SignalR service", "testHub", "", "", "", "https://fake.service.signalr.net/api/v1/hubs/testhub"},
+		{"Broadcast with hub metadata should call SignalR service", "", "testHub", "", "", "https://fake.service.signalr.net/api/v1/hubs/testhub"},
+		{"Group receiving hub should call SignalR service", "testHub", "", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testhub/groups/mygroup"},
+		{"Group with hub metadata should call SignalR service", "", "testHub", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testhub/groups/mygroup"},
+		{"User receiving hub should call SignalR service", "testHub", "", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testhub/users/myuser"},
+		{"User with hub metadata should call SignalR service", "", "testHub", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testhub/users/myuser"},
 	}
 
 	for _, tt := range tests {
@@ -394,7 +394,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 			assert.Equal(t, int32(1), httpTransport.requestCount)
 			assert.Equal(t, tt.expectedURL, httpTransport.request.URL.String())
 			assert.NotNil(t, httpTransport.request)
-			assert.Equal(t, "application/json", httpTransport.request.Header.Get("Content-Type"))
+			assert.Equal(t, "application/json; charset=utf-8", httpTransport.request.Header.Get("Content-Type"))
 		})
 	}
 }

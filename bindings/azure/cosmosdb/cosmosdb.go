@@ -23,8 +23,8 @@ import (
 	"github.com/a8m/documentdb"
 	backoff "github.com/cenkalti/backoff/v4"
 
-	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/logger"
 )
 

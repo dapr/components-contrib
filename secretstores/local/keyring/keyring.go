@@ -24,34 +24,20 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// BackendType is alias of keyring.BackendType.
-type BackendType = keyring.BackendType
-
-// All currently supported secure storage backends.
-const (
-	SecretServiceBackend BackendType = keyring.SecretServiceBackend // secret-service
-	KeychainBackend      BackendType = keyring.KeychainBackend      // keychain
-	KeyCtlBackend        BackendType = keyring.KeyCtlBackend        // keyctl
-	KWalletBackend       BackendType = keyring.KWalletBackend       // kwallet
-	WinCredBackend       BackendType = keyring.WinCredBackend       // wincred
-	FileBackend          BackendType = keyring.FileBackend          // file
-	PassBackend          BackendType = keyring.PassBackend          // pass
-)
-
 // availableBackends is a map of backends that keyring secret store are supported.
-var availableBackends = map[BackendType]bool{
-	SecretServiceBackend: true,
-	KeychainBackend:      true,
-	KeyCtlBackend:        true,
-	KWalletBackend:       true,
-	WinCredBackend:       true,
-	FileBackend:          true,
-	PassBackend:          true,
+var availableBackends = map[keyring.BackendType]bool{
+	keyring.SecretServiceBackend: true,
+	keyring.KeychainBackend:      true,
+	keyring.KeyCtlBackend:        true,
+	keyring.KWalletBackend:       true,
+	keyring.WinCredBackend:       true,
+	keyring.FileBackend:          true,
+	keyring.PassBackend:          true,
 }
 
 type keyringSecretStoreMetaData struct {
 	// BackendType is the type of the keyring secret store backend to use.
-	BackendType BackendType `mapstructure:"backendType"`
+	BackendType keyring.BackendType `mapstructure:"backendType"`
 
 	// ServiceName is a generic service name that is used by backends that support the concept.
 	ServiceName string `mapstructure:"serviceName"`
@@ -114,7 +100,7 @@ func (s *keyringSecretStore) Init(metadata secretstores.Metadata) error {
 	}
 
 	config := keyring.Config{
-		AllowedBackends:                []BackendType{meta.BackendType},
+		AllowedBackends:                []keyring.BackendType{meta.BackendType},
 		ServiceName:                    meta.ServiceName,
 		KeychainName:                   meta.KeychainName,
 		KeychainTrustApplication:       meta.KeychainTrustApplication,
@@ -132,7 +118,7 @@ func (s *keyringSecretStore) Init(metadata secretstores.Metadata) error {
 		WinCredPrefix:                  meta.WinCredPrefix,
 	}
 
-	if meta.BackendType == FileBackend && meta.FileNeedPassword {
+	if meta.BackendType == keyring.FileBackend && meta.FileNeedPassword {
 		config.FilePasswordFunc = keyring.TerminalPrompt
 	}
 
@@ -192,13 +178,13 @@ func (s *keyringSecretStore) getKeyringSecretStoreMetadata(spec secretstores.Met
 	}
 
 	// if backendType is keychain and serviceName is empty, keyring.Keys has bug.
-	if meta.BackendType == KeychainBackend && meta.ServiceName == "" {
+	if meta.BackendType == keyring.KeychainBackend && meta.ServiceName == "" {
 		return nil, errors.New("metadata serviceName is required for keychain backend")
 	}
 
 	// if backendType is file and fileDir is empty, keyring.Keys will returns
 	// error, No directory provided for file keyring.
-	if meta.BackendType == FileBackend && meta.FileDir == "" {
+	if meta.BackendType == keyring.FileBackend && meta.FileDir == "" {
 		return nil, errors.New("metadata fileDir is required for file backend")
 	}
 

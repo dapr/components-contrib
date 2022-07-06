@@ -41,7 +41,7 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with backendType is keychain and serviceName is empty", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"backendType": string(KeychainBackend),
+			"backendType": string(keyring.KeychainBackend),
 			"serviceName": "",
 		}
 		err := s.Init(m)
@@ -50,7 +50,7 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with backendType is file and fileDir is empty", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"backendType": string(FileBackend),
+			"backendType": string(keyring.FileBackend),
 			"fileDir":     "",
 		}
 		err := s.Init(m)
@@ -58,7 +58,7 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("Init with valid metadata", func(t *testing.T) {
-		backendType := FileBackend
+		backendType := keyring.FileBackend
 		m.Properties = map[string]string{
 			"backendType": string(backendType),
 			"fileDir":     "./",

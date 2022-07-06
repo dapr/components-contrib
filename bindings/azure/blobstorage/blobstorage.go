@@ -28,8 +28,8 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )

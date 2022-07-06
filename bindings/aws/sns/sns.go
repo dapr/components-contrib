@@ -20,8 +20,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/sns"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
+	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/kit/logger"
 )
 

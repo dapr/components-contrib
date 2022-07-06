@@ -45,6 +45,7 @@ type kafkaMetadata struct {
 	AuthType             string
 	SaslUsername         string
 	SaslPassword         string
+	SaslMechanism			 	 string
 	InitialOffset        int64
 	MaxMessageBytes      int
 	OidcTokenEndpoint    string
@@ -59,7 +60,6 @@ type kafkaMetadata struct {
 	ConsumeRetryEnabled  bool
 	ConsumeRetryInterval time.Duration
 	Version              sarama.KafkaVersion
-	ScramMechanism			 string
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -156,6 +156,13 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 		} else {
 			return nil, errors.New("kafka error: missing SASL Password for authType 'password'")
 		}
+
+
+		if val, ok := metadata["saslMechanism"]; ok && val != "" {
+			meta.SaslMechanism = val
+			k.logger.Debugf("Using %s as saslMechanism", meta.SaslMechanism)
+		}
+
 
 		k.logger.Debug("Configuring SASL password authentication.")
 	case oidcAuthType:
@@ -274,11 +281,6 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 		meta.Version = version
 	} else {
 		meta.Version = sarama.V2_0_0_0
-	}
-
-	if val, ok := metadata["ScramMechanism"]; ok && val != "" {
-		meta.ScramMechanism = val
-		k.logger.Debugf("Using %s as ScramMechanism", meta.ScramMechanism)
 	}
 
 	return &meta, nil

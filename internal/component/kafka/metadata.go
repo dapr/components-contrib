@@ -45,7 +45,7 @@ type kafkaMetadata struct {
 	AuthType             string
 	SaslUsername         string
 	SaslPassword         string
-	SaslMechanism			 	 string
+	SaslMechanism        string
 	InitialOffset        int64
 	MaxMessageBytes      int
 	OidcTokenEndpoint    string
@@ -157,12 +157,10 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 			return nil, errors.New("kafka error: missing SASL Password for authType 'password'")
 		}
 
-
 		if val, ok := metadata["saslMechanism"]; ok && val != "" {
 			meta.SaslMechanism = val
 			k.logger.Debugf("Using %s as saslMechanism", meta.SaslMechanism)
 		}
-
 
 		k.logger.Debug("Configuring SASL password authentication.")
 	case oidcAuthType:

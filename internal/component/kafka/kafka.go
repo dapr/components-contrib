@@ -83,10 +83,10 @@ func (k *Kafka) Init(metadata map[string]string) error {
 		config.ClientID = meta.ClientID
 	}
 
-	err = updateTLSConfig(config, meta)
-	if err != nil {
-		return err
-	}
+	// err = updateTLSConfig(config, meta)
+	// if err != nil {
+	// 	return err
+	// }
 
 	switch k.authType {
 	case oidcAuthType:

@@ -23,10 +23,21 @@ import (
 )
 
 func updatePasswordAuthInfo(config *sarama.Config, saslUsername, saslPassword string) {
+	config.Producer.Retry.Max = 1
+	config.Producer.RequiredAcks = sarama.WaitForAll
+	config.Producer.Return.Successes = true
+	config.Metadata.Full = true
+	config.Version = sarama.V0_10_0_0
+	config.ClientID = "sasl_scram_client"
+	config.Metadata.Full = true
+	config.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: SHA512} }
+	config.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
 	config.Net.SASL.Enable = true
 	config.Net.SASL.User = saslUsername
 	config.Net.SASL.Password = saslPassword
-	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+	config.Net.SASL.Handshake = true
+	config.Net.TLS.Enable = true
+	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
 }
 
 func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {

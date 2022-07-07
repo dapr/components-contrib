@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
@@ -318,14 +319,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					err := statestore.Delete(req)
-					assert.Nil(t, err)
+					assert.Nil(t, err, "no error expected while deleting %s", scenario.key)
 
 					t.Logf("Checking value absence for %s", scenario.key)
 					res, err := statestore.Get(&state.GetRequest{
 						Key: scenario.key,
 					})
-					assert.Nil(t, err)
-					assert.Nil(t, res.Data)
+					assert.Nil(t, err, "no error expected while checking for absence for %s", scenario.key)
+					assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
 				}
 			}
 		})
@@ -579,27 +580,27 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			// Check if eTag feature is listed
 			features := statestore.Features()
-			assert.True(t, state.FeatureETag.IsPresent(features))
+			require.True(t, state.FeatureETag.IsPresent(features))
 
 			// Delete any potential object, it's important to start from a clean slate.
 			err := statestore.Delete(&state.DeleteRequest{
 				Key: testKey,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			// Set an object.
 			err = statestore.Set(&state.SetRequest{
 				Key:   testKey,
 				Value: firstValue,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			// Validate the set.
 			res, err := statestore.Get(&state.GetRequest{
 				Key: testKey,
 			})
 
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			assertEquals(t, firstValue, res)
 			etag := res.ETag
 
@@ -609,7 +610,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value: secondValue,
 				ETag:  &fakeEtag,
 			})
-			assert.NotNil(t, err)
+			require.NotNil(t, err)
 
 			// Try and update with corect ETag, expect success.
 			err = statestore.Set(&state.SetRequest{
@@ -617,15 +618,15 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value: secondValue,
 				ETag:  etag,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			// Validate the set.
 			res, err = statestore.Get(&state.GetRequest{
 				Key: testKey,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			assertEquals(t, secondValue, res)
-			assert.NotEqual(t, etag, res.ETag)
+			require.NotEqual(t, etag, res.ETag)
 			etag = res.ETag
 
 			// Try and delete with wrong ETag, expect failure.
@@ -633,19 +634,19 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key:  testKey,
 				ETag: &fakeEtag,
 			})
-			assert.NotNil(t, err)
+			require.NotNil(t, err)
 
 			// Try and delete with correct ETag, expect success.
 			err = statestore.Delete(&state.DeleteRequest{
 				Key:  testKey,
 				ETag: etag,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 		})
 	} else {
 		// Check if eTag feature is NOT listed
 		features := statestore.Features()
-		assert.False(t, state.FeatureETag.IsPresent(features))
+		require.False(t, state.FeatureETag.IsPresent(features))
 	}
 
 	if config.HasOperation("first-write") {
@@ -692,26 +693,28 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}},
 			}
 
-			for _, requestSet := range requestSets {
-				// Delete any potential object, it's important to start from a clean slate.
-				err := statestore.Delete(&state.DeleteRequest{
-					Key: testKey,
+			for i, requestSet := range requestSets {
+				t.Run(fmt.Sprintf("request set %d", i), func(t *testing.T) {
+					// Delete any potential object, it's important to start from a clean slate.
+					err := statestore.Delete(&state.DeleteRequest{
+						Key: testKey,
+					})
+					require.Nil(t, err)
+
+					err = statestore.Set(requestSet[0])
+					require.Nil(t, err)
+
+					// Validate the set.
+					res, err := statestore.Get(&state.GetRequest{
+						Key: testKey,
+					})
+					require.Nil(t, err)
+					assertEquals(t, firstValue, res)
+
+					// Second write expect fail
+					err = statestore.Set(requestSet[1])
+					require.NotNil(t, err)
 				})
-				assert.Nil(t, err)
-
-				err = statestore.Set(requestSet[0])
-				assert.Nil(t, err)
-
-				// Validate the set.
-				res, err := statestore.Get(&state.GetRequest{
-					Key: testKey,
-				})
-				assert.Nil(t, err)
-				assertEquals(t, firstValue, res)
-
-				// Second write expect fail
-				err = statestore.Set(requestSet[1])
-				assert.NotNil(t, err)
 			}
 		})
 
@@ -729,16 +732,16 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			err := statestore.Delete(&state.DeleteRequest{
 				Key: testKey,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			err = statestore.Set(request)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			// Validate the set.
 			res, err := statestore.Get(&state.GetRequest{
 				Key: testKey,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			assertEquals(t, firstValue, res)
 
 			etag := res.ETag
@@ -753,21 +756,21 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				},
 			}
 			err = statestore.Set(request)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			// Validate the set.
 			res, err = statestore.Get(&state.GetRequest{
 				Key: testKey,
 			})
-			assert.Nil(t, err)
-			assert.NotEqual(t, etag, res.ETag)
+			require.Nil(t, err)
+			require.NotEqual(t, etag, res.ETag)
 			assertEquals(t, secondValue, res)
 
 			request.ETag = etag
 
 			// Second write expect fail
 			err = statestore.Set(request)
-			assert.NotNil(t, err)
+			require.NotNil(t, err)
 		})
 	}
 }

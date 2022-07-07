@@ -23,7 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
 
 	"github.com/aws/aws-sdk-go/service/ses"
 

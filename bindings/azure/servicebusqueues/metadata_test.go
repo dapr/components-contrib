@@ -28,32 +28,74 @@ func TestParseMetadata(t *testing.T) {
 	oneSecondDuration := time.Second
 
 	testCases := []struct {
-		name                     string
-		properties               map[string]string
-		expectedConnectionString string
-		expectedQueueName        string
-		expectedTTL              time.Duration
+		name                               string
+		properties                         map[string]string
+		expectedConnectionString           string
+		expectedQueueName                  string
+		expectedTTL                        time.Duration
+		expectedTimeoutInSec               int
+		expectedMaxConnectionRecoveryInSec int
+		expectedMinConnectionRecoveryInSec int
+		expectedMaxRetriableErrorsPerSec   int
+		expectedMaxActiveMessages          int
+		expectedLockRenewalInSec           int
+		expectedMaxConcurrentHandlers      int
 	}{
 		{
-			name:                     "ConnectionString and queue name",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1"},
-			expectedConnectionString: "connString",
-			expectedQueueName:        "queue1",
-			expectedTTL:              defaultMessageTimeToLive,
+			name:                               "ConnectionString and queue name",
+			properties:                         map[string]string{"connectionString": "connString", "queueName": "queue1"},
+			expectedConnectionString:           "connString",
+			expectedQueueName:                  "queue1",
+			expectedTTL:                        defaultMessageTimeToLive,
+			expectedTimeoutInSec:               defaultTimeoutInSec,
+			expectedMaxConnectionRecoveryInSec: defaultMaxConnectionRecoveryInSec,
+			expectedMinConnectionRecoveryInSec: defaultMinConnectionRecoveryInSec,
+			expectedMaxRetriableErrorsPerSec:   defaultMaxRetriableErrorsPerSec,
+			expectedMaxActiveMessages:          defaultMaxActiveMessages,
+			expectedLockRenewalInSec:           defaultLockRenewalInSec,
+			expectedMaxConcurrentHandlers:      defaultMaxConcurrentHandlers,
 		},
 		{
-			name:                     "Empty TTL",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: ""},
-			expectedConnectionString: "connString",
-			expectedQueueName:        "queue1",
-			expectedTTL:              defaultMessageTimeToLive,
+			name:                               "ConnectionString, queue name and all optional values",
+			properties:                         map[string]string{"connectionString": "connString", "queueName": "queue1", "timeoutInSec": "30", "minConnectionRecoveryInSec": "1", "maxConnectionRecoveryInSec": "200", "maxRetriableErrorsPerSec": "20", "maxActiveMessages": "10", "maxConcurrentHandlers": "2", "lockRenewalInSec": "30"},
+			expectedConnectionString:           "connString",
+			expectedQueueName:                  "queue1",
+			expectedTTL:                        defaultMessageTimeToLive,
+			expectedTimeoutInSec:               30,
+			expectedMaxConnectionRecoveryInSec: 200,
+			expectedMinConnectionRecoveryInSec: 1,
+			expectedMaxRetriableErrorsPerSec:   20,
+			expectedMaxActiveMessages:          10,
+			expectedMaxConcurrentHandlers:      2,
+			expectedLockRenewalInSec:           30,
 		},
 		{
-			name:                     "With TTL",
-			properties:               map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: "1"},
-			expectedConnectionString: "connString",
-			expectedQueueName:        "queue1",
-			expectedTTL:              oneSecondDuration,
+			name:                               "Empty TTL",
+			properties:                         map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: ""},
+			expectedConnectionString:           "connString",
+			expectedQueueName:                  "queue1",
+			expectedTTL:                        defaultMessageTimeToLive,
+			expectedTimeoutInSec:               defaultTimeoutInSec,
+			expectedMaxConnectionRecoveryInSec: defaultMaxConnectionRecoveryInSec,
+			expectedMinConnectionRecoveryInSec: defaultMinConnectionRecoveryInSec,
+			expectedMaxRetriableErrorsPerSec:   defaultMaxRetriableErrorsPerSec,
+			expectedMaxActiveMessages:          defaultMaxActiveMessages,
+			expectedLockRenewalInSec:           defaultLockRenewalInSec,
+			expectedMaxConcurrentHandlers:      defaultMaxConcurrentHandlers,
+		},
+		{
+			name:                               "With TTL",
+			properties:                         map[string]string{"connectionString": "connString", "queueName": "queue1", metadata.TTLMetadataKey: "1"},
+			expectedConnectionString:           "connString",
+			expectedQueueName:                  "queue1",
+			expectedTTL:                        oneSecondDuration,
+			expectedTimeoutInSec:               defaultTimeoutInSec,
+			expectedMaxConnectionRecoveryInSec: defaultMaxConnectionRecoveryInSec,
+			expectedMinConnectionRecoveryInSec: defaultMinConnectionRecoveryInSec,
+			expectedMaxRetriableErrorsPerSec:   defaultMaxRetriableErrorsPerSec,
+			expectedMaxActiveMessages:          defaultMaxActiveMessages,
+			expectedLockRenewalInSec:           defaultLockRenewalInSec,
+			expectedMaxConcurrentHandlers:      defaultMaxConcurrentHandlers,
 		},
 	}
 

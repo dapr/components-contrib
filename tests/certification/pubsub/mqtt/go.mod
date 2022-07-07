@@ -4,9 +4,9 @@ go 1.18
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/dapr/components-contrib v1.8.0-rc.4
+	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.8.0-rc.4
+	github.com/dapr/dapr v1.8.0
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/eclipse/paho.mqtt.golang v1.3.5
@@ -90,6 +90,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel v1.7.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/net v0.0.0-20220621193019-9d032be2e588 // indirect
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect

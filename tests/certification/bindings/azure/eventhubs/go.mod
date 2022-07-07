@@ -3,9 +3,9 @@ module servicebusqueue_test
 go 1.18
 
 require (
-	github.com/dapr/components-contrib v1.8.0-rc.4
+	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.8.0-rc.4
+	github.com/dapr/dapr v1.8.0
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0

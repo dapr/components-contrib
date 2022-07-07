@@ -62,6 +62,7 @@ import (
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
+	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
@@ -407,6 +408,8 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
+	case "azure.blobstorage":
+		store = s_blobstorage.NewAzureBlobStorageStore(testLogger)
 	case "azure.cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":

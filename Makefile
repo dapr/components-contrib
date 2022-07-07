@@ -22,38 +22,46 @@ export GOSUMDB ?= sum.golang.org
 GIT_COMMIT  = $(shell git rev-list -1 HEAD)
 GIT_VERSION = $(shell git describe --always --abbrev=7 --dirty)
 # By default, disable CGO_ENABLED. See the details on https://golang.org/cmd/cgo
-CGO         ?= 0
+CGO  ?= 0
+PWD  := $(shell pwd)
 
 LOCAL_ARCH := $(shell uname -m)
 ifeq ($(LOCAL_ARCH),x86_64)
-	TARGET_ARCH_LOCAL=amd64
+  TARGET_ARCH_LOCAL=amd64
 else ifeq ($(shell echo $(LOCAL_ARCH) | head -c 5),armv8)
-	TARGET_ARCH_LOCAL=arm64
+  TARGET_ARCH_LOCAL=arm64
 else ifeq ($(shell echo $(LOCAL_ARCH) | head -c 4),armv)
-	TARGET_ARCH_LOCAL=arm
+  TARGET_ARCH_LOCAL=arm
 else
-	TARGET_ARCH_LOCAL=amd64
+  TARGET_ARCH_LOCAL=amd64
 endif
 export GOARCH ?= $(TARGET_ARCH_LOCAL)
 
 LOCAL_OS := $(shell uname)
 ifeq ($(LOCAL_OS),Linux)
-   TARGET_OS_LOCAL = linux
+  TARGET_OS_LOCAL = linux
 else ifeq ($(LOCAL_OS),Darwin)
-   TARGET_OS_LOCAL = darwin
+  TARGET_OS_LOCAL = darwin
 else
-   TARGET_OS_LOCAL ?= windows
+  TARGET_OS_LOCAL ?= windows
 endif
 export GOOS ?= $(TARGET_OS_LOCAL)
 
-ifeq ($(GOOS),windows)
-BINARY_EXT_LOCAL:=.exe
-GOLANGCI_LINT:=golangci-lint.exe
-# Workaround for https://github.com/golang/go/issues/40795
-BUILDMODE:=-buildmode=exe
+# If docker is installed, use that for compatability with Github CI
+ifneq (, $(shell which docker))
+  GITHUB_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
+  BINARY_EXT_LOCAL:=
+  GOLANGCI_LINT:=docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:$(GITHUB_LINT_VERSION) golangci-lint
 else
-BINARY_EXT_LOCAL:=
-GOLANGCI_LINT:=golangci-lint
+  ifeq ($(GOOS),windows)
+    BINARY_EXT_LOCAL:=.exe
+    GOLANGCI_LINT:=golangci-lint.exe
+    # Workaround for https://github.com/golang/go/issues/40795
+    BUILDMODE:=-buildmode=exe
+  else
+    BINARY_EXT_LOCAL:=
+    GOLANGCI_LINT:=golangci-lint
+  endif
 endif
 
 ################################################################################

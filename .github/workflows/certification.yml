@@ -156,11 +156,13 @@ jobs:
         export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
-    - name: Configure certification test path
+    - name: Configure certification test and source path
       run: |
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
         export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
+        echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
       with:
@@ -201,6 +203,7 @@ jobs:
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
+        go install github.com/axw/gocov/gocov@985a38bc91b08298f246092a1b242b258a0331cf
 
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
@@ -217,8 +220,12 @@ jobs:
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
-          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -count=1 -timeout=15m
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-verbose -- \
+          -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
+
+        cover_report=$(gocov convert cover.out | gocov report)
+        export cover_per_only=$(echo $cover_report | grep -oP '(?<=Total Coverage:).*')
+        echo "cover_per_only=$cover_per_only" >> $GITHUB_ENV
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
@@ -245,6 +252,26 @@ jobs:
           exit 1
         fi
 
+    - name: Prepare Cert Coverage Info
+      run: |
+       mkdir -p path/to/cov_files
+       SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g')
+       echo "${{ env.cover_per_only }}" >> path/to/cov_files/$SOURCE_PATH_LINEAR.txt
+
+    - name: Upload Cert Coverage Info
+      uses: actions/upload-artifact@v3
+      with:
+        name: cert_cov
+        path: path/to/cov_files
+        retention-days: 1
+
+    - name: Discord notification
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DEEPANSHU_SERVER_GENERAL_DISCORD_WEBHOOK }}
+      uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+      with:
+        args: 'Cert Test Coverage for {{ SOURCE_PATH }} is {{ cover_per_only }}'
+
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
@@ -252,3 +279,38 @@ jobs:
       with:
         name: ${{ matrix.component }}_certification_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*
+
+  post_job:
+    name: Notify Total coverage
+    runs-on: ubuntu-latest
+    needs: certification
+    if: always()
+    steps:
+      - name: Download Certification Test Coverage Per Component
+        uses: actions/download-artifact@v3
+        id: download
+        with:
+          name: cert_cov
+          path: path/to/cov_files
+
+      - name: Calculate total coverage
+        run: |
+          ls "${{steps.download.outputs.download-path}}" | while read f; do
+          while read LINE;
+              do
+              ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
+              tempNumerator=$(echo $ratio | cut -d'/' -f1)
+              tempDenominator=$(echo $ratio | cut -d'/' -f2)
+              export numerator=$(($numerator+$tempNumerator))
+              export denominator=$(($denominator+$tempDenominator))
+              totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
+              echo "totalPer=$totalPer" >> $GITHUB_ENV
+            done < ${{steps.download.outputs.download-path}}/$f
+          done
+      
+      - name: Final Coverage Discord Notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DEEPANSHU_SERVER_GENERAL_DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+        with:
+          args: 'Total Coverage for Certification Tests is {{ totalPer }}%'

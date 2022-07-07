@@ -40,7 +40,7 @@ for pr in pulls:
         # Merge only one PR per run.
         print(f"Merging PR {pr.html_url}")
         try:
-            pr.merge(merge_method='squash')
+            pr.merge(merge_method='merge')
             merged = True
             break
         except:

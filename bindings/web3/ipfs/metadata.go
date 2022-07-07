@@ -86,6 +86,9 @@ func (m *ipfsMetadata) IPFSConfig() (*ipfs_config.Config, error) {
 	identity, err := ipfs_config.CreateIdentity(io.Discard, []ipfs_options.KeyGenerateOption{
 		ipfs_options.Key.Type(ipfs_options.Ed25519Key),
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	cfg, err := ipfs_config.InitWithIdentity(identity)
 	if err != nil {
@@ -97,6 +100,9 @@ func (m *ipfsMetadata) IPFSConfig() (*ipfs_config.Config, error) {
 		peers, err = ipfs_config.ParseBootstrapPeers(
 			strings.Split(m.BootstrapNodes, ","),
 		)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value for metadata property 'bootstrapNodes': %v", err)
+		}
 		cfg.SetBootstrapPeers(peers)
 	}
 

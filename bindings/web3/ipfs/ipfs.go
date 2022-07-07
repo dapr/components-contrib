@@ -25,6 +25,7 @@ import (
 	"time"
 
 	ipfs_httpclient "github.com/ipfs/go-ipfs-http-client"
+	ipfs_config "github.com/ipfs/go-ipfs/config"
 	ipfs_core "github.com/ipfs/go-ipfs/core"
 	ipfs_coreapi "github.com/ipfs/go-ipfs/core/coreapi"
 	ipfs_libp2p "github.com/ipfs/go-ipfs/core/node/libp2p"
@@ -138,10 +139,11 @@ func (b *IPFSBinding) Close() (err error) {
 	return nil
 }
 
-func (b *IPFSBinding) createNode() error {
+func (b *IPFSBinding) createNode() (err error) {
 	// Init the repo if needed
 	if !ipfs_fsrepo.IsInitialized(b.metadata.RepoPath) {
-		cfg, err := b.metadata.IPFSConfig()
+		var cfg *ipfs_config.Config
+		cfg, err = b.metadata.IPFSConfig()
 		if err != nil {
 			return err
 		}
@@ -151,7 +153,7 @@ func (b *IPFSBinding) createNode() error {
 		}
 		if b.metadata.SwarmKey != "" {
 			skPath := filepath.Join(b.metadata.RepoPath, swarmKeyFile)
-			err = os.WriteFile(skPath, []byte(b.metadata.SwarmKey), 0600)
+			err = os.WriteFile(skPath, []byte(b.metadata.SwarmKey), 0o600)
 			if err != nil {
 				return fmt.Errorf("error writing swarm key to file '%s': %v", skPath, err)
 			}

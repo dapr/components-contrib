@@ -43,7 +43,7 @@ func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func NewSlsLogstorage(logger logger.Logger) *AliCloudSlsLogstorage {
+func NewAliCloudSlsLogstorage(logger logger.Logger) *AliCloudSlsLogstorage {
 	logger.Debug("new a Slslog component object")
 	s := &AliCloudSlsLogstorage{
 		logger: logger,
@@ -120,4 +120,8 @@ func (s *AliCloudSlsLogstorage) parseMeta(metadata bindings.Metadata) (*SlsLogst
 	}
 
 	return &m, nil
+}
+
+func (s *AliCloudSlsLogstorage) Operations() []bindings.OperationKind {
+	return []bindings.OperationKind{bindings.CreateOperation}
 }

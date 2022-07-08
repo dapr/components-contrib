@@ -88,6 +88,7 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 	return nil, err
 }
 
+//parse the log content
 func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log, error) {
 
 	var logInfo map[string]string
@@ -97,6 +98,7 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 		return nil, err
 	}
 	var logTime uint32
+	//if no timestamp , use current time
 	if logInfo["timestamp"] != "" {
 		t, _ := strconv.Atoi(logInfo["timestamp"])
 		logTime = uint32(t)

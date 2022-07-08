@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+/**
+ * test the metadata in the yaml file
+ */
 func TestSlsLogstorageMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
@@ -25,6 +28,9 @@ func TestSlsLogstorageMetadata(t *testing.T) {
 	assert.Equal(t, "ACCESSKEYSECRET", meta.AccessKeySecret)
 }
 
+/*
+ * test the log content
+ */
 func TestParseLog(t *testing.T) {
 	aliCloudSlsLogstorage := AliCloudSlsLogstorage{}
 	d, _ := json.Marshal(map[string]string{

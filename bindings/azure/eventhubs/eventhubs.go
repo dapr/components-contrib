@@ -31,8 +31,8 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/logger"
 )
 
@@ -214,7 +214,7 @@ func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
 	if m.storageAccountKey != "" {
 		metadata.Properties["accountKey"] = m.storageAccountKey
 	}
-	a.storageCredential, a.azureEnvironment, err = azauth.GetAzureStorageCredentials(a.logger, m.storageAccountName, metadata.Properties)
+	a.storageCredential, a.azureEnvironment, err = azauth.GetAzureStorageBlobCredentials(a.logger, m.storageAccountName, metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %w", err)
 	}

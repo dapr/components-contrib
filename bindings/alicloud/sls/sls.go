@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	sls "github.com/aliyun/aliyun-log-go-sdk"
@@ -67,7 +68,7 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 	}
 
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Kill, os.Interrupt)
+	signal.Notify(ch, syscall.SIGTERM, os.Interrupt)
 
 	// Start producer instancce
 	s.producer.Start()

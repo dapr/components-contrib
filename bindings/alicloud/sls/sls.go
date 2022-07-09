@@ -66,7 +66,7 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 		return nil, fmt.Errorf("SLS binding error: source property not supplied")
 	}
 
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Kill, os.Interrupt)
 
 	// Start producer instancce

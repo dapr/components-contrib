@@ -55,5 +55,4 @@ func TestParseLog(t *testing.T) {
 			assert.Equal(t, "LOG2", *v.Value)
 		}
 	}
-
 }

@@ -62,7 +62,7 @@ endif
 # Install golangci_lint if not installed
 GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
 
-ifeq (, $(shell $(FINDBIN) $(GOLANGCI_LINT)))
+ifeq (, $(shell $(FINDBIN) golangci-lint))
   $(info [*] golangci_lint not installed)
   $(info [*] Installing now...)
   $(shell curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin $(GH_LINT_VERSION))

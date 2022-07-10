@@ -47,21 +47,33 @@ else
 endif
 export GOOS ?= $(TARGET_OS_LOCAL)
 
-# If docker is installed, use that for compatability with Github CI
-ifneq (, $(shell which docker))
-  GITHUB_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
-  BINARY_EXT_LOCAL:=
-  GOLANGCI_LINT:=docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:$(GITHUB_LINT_VERSION) golangci-lint
+ifeq ($(GOOS),windows)
+  FINDBIN := where
+  BINARY_EXT_LOCAL:=.exe
+  GOLANGCI_LINT:=golangci-lint.exe
+  # Workaround for https://github.com/golang/go/issues/40795
+  BUILDMODE:=-buildmode=exe
 else
-  ifeq ($(GOOS),windows)
-    BINARY_EXT_LOCAL:=.exe
-    GOLANGCI_LINT:=golangci-lint.exe
-    # Workaround for https://github.com/golang/go/issues/40795
-    BUILDMODE:=-buildmode=exe
-  else
-    BINARY_EXT_LOCAL:=
-    GOLANGCI_LINT:=golangci-lint
-  endif
+  FINDBIN := which
+  BINARY_EXT_LOCAL:=
+  GOLANGCI_LINT:=golangci-lint
+endif
+
+# Install golangci_lint if not installed
+GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
+
+ifeq (, $(shell $(FINDBIN) $(GOLANGCI_LINT)))
+  $(info [*] golangci_lint not installed)
+  $(info [*] Installing now...)
+  $(shell curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin $(GH_LINT_VERSION))
+endif
+
+# Check golangci-lint is the same as that defined in the Github CI Pipeline
+INSTALLED_LINT_VERSION := v$(shell golangci-lint --version | grep -Po '(\d+\.)+\d+' || "")
+ifneq ($(GH_LINT_VERSION), $(INSTALLED_LINT_VERSION))
+  $(info [!] Your locally installed version of golangci-lint is different from the pipeline)
+  $(info [!] This will likely cause linting issues for you locally)
+  $(info [!] Yours: $(INSTALLED_LINT_VERSION) Theirs: $(GH_LINT_VERSION))
 endif
 
 ################################################################################

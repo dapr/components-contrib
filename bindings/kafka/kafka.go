@@ -38,7 +38,7 @@ type Binding struct {
 	logger       logger.Logger
 }
 
-// NewKafka returns a new kafka pubsub instance.
+// NewKafka returns a new kafka binding instance.
 func NewKafka(logger logger.Logger) *Binding {
 	k := kafka.NewKafka(logger)
 	// in kafka binding component, disable consumer retry by default
@@ -70,6 +70,10 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 
 func (b *Binding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (p *Binding) Close() (err error) {
+	return p.kafka.Close()
 }
 
 func (b *Binding) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

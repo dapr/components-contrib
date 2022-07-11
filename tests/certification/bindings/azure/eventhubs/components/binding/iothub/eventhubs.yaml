@@ -7,10 +7,16 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
+    - name: consumerID
+      value: ehcertification1
     - name: connectionString
       secretKeyRef:
         name: AzureIotHubEventHubConnectionString
         key: AzureIotHubEventHubConnectionString 
+    - name: consumerGroup
+      secretKeyRef:
+        name: AzureEventHubsBindingsConsumerGroup
+        value: AzureEventHubsBindingsConsumerGroup
     - name: storageAccountName
       secretKeyRef:
         name: AzureBlobStorageAccount
@@ -23,13 +29,7 @@ spec:
       secretKeyRef:
         name: AzureEventHubsBindingsContainer
         key: AzureEventHubsBindingsContainer
-    - name: iotHub
-      secretKeyRef:
-        name: AzureIotHubName
-        key: AzureIotHubName
-    - name: consumerGroup
-      secretKeyRef:
-        name: AzureIotHubBindingsConsumerGroup
-        key: AzureIotHubBindingsConsumerGroup
+    - name: PartitionID
+      value: 0
 auth:
   secretStore: envvar-secret-store

@@ -11,6 +11,8 @@
 # limitations under the License.
 # ------------------------------------------------------------
 
-FROM daprio/dapr-dev:0.1.7
+# login to azure
+az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId
 
-VOLUME [ "/go/src/github.com/dapr/dapr" ]
+# delete container used by the consumer
+az storage container delete --account-key $AzureBlobStorageAccessKey --account-name $AzureBlobStorageAccount --name $AzureEventHubsBindingsContainer

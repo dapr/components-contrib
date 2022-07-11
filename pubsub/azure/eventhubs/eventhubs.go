@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -526,7 +526,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		metadata.Properties["accountKey"] = m.StorageAccountKey
 	}
 	var storageCredsErr error
-	aeh.storageCredential, aeh.azureEnvironment, storageCredsErr = azauth.GetAzureStorageCredentials(aeh.logger, m.StorageAccountName, metadata.Properties)
+	aeh.storageCredential, aeh.azureEnvironment, storageCredsErr = azauth.GetAzureStorageBlobCredentials(aeh.logger, m.StorageAccountName, metadata.Properties)
 	if storageCredsErr != nil {
 		return fmt.Errorf("invalid storage credentials with error: %w", storageCredsErr)
 	}
@@ -592,6 +592,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	aeh.logger.Debugf("registering handler for topic %s", req.Topic)
 	_, err = processor.RegisterHandler(subscribeCtx,
 		func(_ context.Context, e *eventhub.Event) error {
+			// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
 			b := aeh.backOffConfig.NewBackOffWithContext(subscribeCtx)
 
 			return retry.NotifyRecover(func() error {

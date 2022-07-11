@@ -271,6 +271,7 @@ jobs:
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
       uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+      continue-on-error: true
       with:
         args: 'Cert Test Coverage for {{ SOURCE_PATH }} is {{ cover_per_only }}'
 
@@ -314,5 +315,6 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+        continue-on-error: true
         with:
           args: 'Total Coverage for Certification Tests is {{ totalPer }}%'

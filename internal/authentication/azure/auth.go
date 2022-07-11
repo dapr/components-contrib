@@ -66,6 +66,9 @@ func NewEnvironmentSettings(resourceName string, values map[string]string) (Envi
 	case "signalr":
 		// Azure SignalR (data plane)
 		es.Resource = "https://signalr.azure.com"
+	case "appconfig":
+		// Azure App Configuration (data plane)
+		es.Resource = "https://azconfig.io"
 	default:
 		return es, errors.New("invalid resource name: " + resourceName)
 	}

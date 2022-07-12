@@ -20,6 +20,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 
@@ -121,7 +122,11 @@ func (a *APNS) sendPushNotification(ctx context.Context, req *bindings.InvokeReq
 		return nil, err
 	}
 
-	defer httpResponse.Body.Close()
+	defer func() {
+		// Drain before closing
+		_, _ = io.Copy(io.Discard, httpResponse.Body)
+		_ = httpResponse.Body.Close()
+	}()
 
 	if httpResponse.StatusCode == http.StatusOK {
 		return makeSuccessResponse(httpResponse)

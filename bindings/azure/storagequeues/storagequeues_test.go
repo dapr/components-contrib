@@ -15,8 +15,7 @@ package storagequeues
 
 import (
 	"context"
-	"os"
-	"syscall"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -30,20 +29,38 @@ import (
 
 type MockHelper struct {
 	mock.Mock
+	messages chan []byte
+	metadata *storageQueuesMetadata
 }
 
 func (m *MockHelper) Init(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
-	return parseMetadata(metadata)
+	m.messages = make(chan []byte, 10)
+	var err error
+	m.metadata, err = parseMetadata(metadata)
+	return m.metadata, err
 }
 
 func (m *MockHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
+	m.messages <- data
 	retvals := m.Called(data, ttl)
-
 	return retvals.Error(0)
 }
 
 func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
-	return nil
+	retvals := m.Called(ctx, consumer)
+
+	go func() {
+		for msg := range m.messages {
+			if m.metadata.DecodeBase64 {
+				msg, _ = base64.StdEncoding.DecodeString(string(msg))
+			}
+			go consumer.callback(ctx, &bindings.ReadResponse{
+				Data: msg,
+			})
+		}
+	}()
+
+	return retvals.Error(0)
 }
 
 func TestWriteQueue(t *testing.T) {
@@ -133,6 +150,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
+	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
 	m := bindings.Metadata{}
@@ -143,29 +161,36 @@ func TestReadQueue(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
-	_, err = a.Invoke(context.Background(), &r)
+	ctx, cancel := context.WithCancel(context.Background())
+	_, err = a.Invoke(ctx, &r)
 
 	assert.Nil(t, err)
 
+	received := 0
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
+		received++
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
+		cancel()
 
 		return nil, nil
 	}
 
-	go a.Read(handler)
-
-	time.Sleep(5 * time.Second)
-
-	pid := syscall.Getpid()
-	proc, _ := os.FindProcess(pid)
-	proc.Signal(os.Interrupt)
+	a.Read(ctx, handler)
+	select {
+	case <-ctx.Done():
+		// do nothing
+	case <-time.After(10 * time.Second):
+		cancel()
+		t.Fatal("Timeout waiting for messages")
+	}
+	assert.Equal(t, 1, received)
 }
 
 func TestReadQueueDecode(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
+	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
@@ -177,24 +202,30 @@ func TestReadQueueDecode(t *testing.T) {
 
 	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
 
-	_, err = a.Invoke(context.Background(), &r)
+	ctx, cancel := context.WithCancel(context.Background())
+	_, err = a.Invoke(ctx, &r)
 
 	assert.Nil(t, err)
 
+	received := 0
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
+		received++
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
+		cancel()
 
 		return nil, nil
 	}
 
-	go a.Read(handler)
-
-	time.Sleep(5 * time.Second)
-
-	pid := syscall.Getpid()
-	proc, _ := os.FindProcess(pid)
-	proc.Signal(os.Interrupt)
+	a.Read(ctx, handler)
+	select {
+	case <-ctx.Done():
+		// do nothing
+	case <-time.After(10 * time.Second):
+		cancel()
+		t.Fatal("Timeout waiting for messages")
+	}
+	assert.Equal(t, 1, received)
 }
 
 // Uncomment this function to test reding from local queue
@@ -229,6 +260,7 @@ func TestReadQueueDecode(t *testing.T) {
 func TestReadQueueNoMessage(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
+	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 
 	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
 
@@ -238,20 +270,20 @@ func TestReadQueueNoMessage(t *testing.T) {
 	err := a.Init(m)
 	assert.Nil(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	received := 0
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
+		received++
 		s := string(data.Data)
 		assert.Equal(t, s, "This is my message")
 
 		return nil, nil
 	}
 
-	go a.Read(handler)
-
-	time.Sleep(5 * time.Second)
-
-	pid := syscall.Getpid()
-	proc, _ := os.FindProcess(pid)
-	proc.Signal(os.Interrupt)
+	a.Read(ctx, handler)
+	time.Sleep(1 * time.Second)
+	cancel()
+	assert.Equal(t, 0, received)
 }
 
 func TestParseMetadata(t *testing.T) {

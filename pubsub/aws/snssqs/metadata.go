@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -51,17 +52,6 @@ type snsSqsMetadata struct {
 	accountID string
 	// processing concurrency mode
 	concurrencyMode pubsub.ConcurrencyMode
-}
-
-func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
-	props := metadata.Properties
-	for _, s := range aliases {
-		if val, ok := props[s]; ok {
-			return val, true
-		}
-	}
-
-	return "", false
 }
 
 func parseInt64(input string, propertyName string) (int64, error) {
@@ -170,15 +160,15 @@ func (md *snsSqsMetadata) hideDebugPrintedCredentials() string {
 }
 
 func (md *snsSqsMetadata) setCredsAndQueueNameConfig(metadata pubsub.Metadata) error {
-	if val, ok := getAliasedProperty([]string{"Endpoint", "endpoint"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "Endpoint", "endpoint"); ok {
 		md.Endpoint = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"awsAccountID", "accessKey"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsAccountID", "accessKey"); ok {
 		md.AccessKey = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"awsSecret", "secretKey"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsSecret", "secretKey"); ok {
 		md.SecretKey = val
 	}
 
@@ -186,7 +176,7 @@ func (md *snsSqsMetadata) setCredsAndQueueNameConfig(metadata pubsub.Metadata) e
 		md.SessionToken = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"awsRegion", "region"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsRegion", "region"); ok {
 		md.Region = val
 	}
 

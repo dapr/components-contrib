@@ -84,11 +84,13 @@ func (ct *Binding) Operations() []bindings.OperationKind {
 // Invoke is triggered from Dapr.
 func (ct *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var reqData Data
-	json.Unmarshal(req.Data, &reqData)
+	err := json.Unmarshal(req.Data, &reqData)
+	if err != nil {
+		return nil, err
+	}
 	query := reqData.Query
 
 	res := &bindings.InvokeResponse{Data: nil, Metadata: nil}
-	var err error
 
 	if len(reqData.CommercetoolsAPI) > 0 {
 		ct.logger.Infof("commercetoolsAPI: %s", reqData.CommercetoolsAPI)

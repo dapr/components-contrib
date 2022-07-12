@@ -218,12 +218,12 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 			if msg.Queue != nil {
 				metadata[metadataRocketmqBrokerName] = msg.Queue.BrokerName
 			}
-			newMessage := pubsub.NewMessage{
+			newMessage := &pubsub.NewMessage{
 				Topic:    topic,
 				Data:     dataBytes,
 				Metadata: metadata,
 			}
-			err = handler(ctx, &newMessage)
+			err = handler(ctx, newMessage)
 			if err != nil {
 				r.logger.Errorf("rocketmq error: fail to process message. topic:%s cloudEventsMap-length:%d err:%v.", newMessage.Topic, len(msg.Body), err)
 				success = false

@@ -26,6 +26,7 @@ import (
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/google/uuid"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -72,14 +73,8 @@ func (ls *LocalStorage) Init(metadata bindings.Metadata) error {
 }
 
 func (ls *LocalStorage) parseMetadata(metadata bindings.Metadata) (*Metadata, error) {
-	lsInfo := metadata.Properties
-	b, err := json.Marshal(lsInfo)
-	if err != nil {
-		return nil, err
-	}
-
 	var m Metadata
-	err = json.Unmarshal(b, &m)
+	err := mapstructure.WeakDecode(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +242,7 @@ func walkPath(root string) ([]string, error) {
 }
 
 // Invoke is called for output bindings.
-func (ls *LocalStorage) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (ls *LocalStorage) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	filename := ""
 	if val, ok := req.Metadata[fileNameMetadataKey]; ok && val != "" {
 		filename = val

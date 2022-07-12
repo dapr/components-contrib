@@ -69,8 +69,8 @@ func unmarshalPrecise(data []byte, v interface{}) error {
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
-	dataContentType string, data []byte, traceParent string, traceState string, actorType string,
-	actorId string) map[string]interface{} {
+	dataContentType string, data []byte, traceParent string, traceState string, actorType string, actorId string,
+) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -126,8 +126,8 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON.
-func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string,
-	actorType string, actorId string) (map[string]interface{}, error) {
+func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string, actorType string, actorId string,
+) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
@@ -159,8 +159,8 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 }
 
 // FromRawPayload returns a CloudEvent for a raw payload on subscriber's end.
-func FromRawPayload(data []byte, topic, pubsub string,
-	actorType string, actorId string) map[string]interface{} {
+func FromRawPayload(data []byte, topic, pubsub string, actorType string, actorId string,
+) map[string]interface{} {
 	// Limitations of generating the CloudEvent on the subscriber side based on raw payload:
 	// - The CloudEvent ID will be random, so the same message can be redelivered as a different ID.
 	// - TraceID is not useful since it is random and not from publisher side.

@@ -163,13 +163,13 @@ func TestCreateCloudEventsEnvelopeDefaults(t *testing.T) {
 
 	t.Run("actor type", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", []byte("data"), "1", "", "actortype", "")
-		assert.Equal(t, "actortype", envelope[ActorTypeField])
+			"mypubsub", "", []byte("data"), "1", "", "myactortype", "")
+		assert.Equal(t, "myactortype", envelope[ActorTypeField])
 	})
 
 	t.Run("actor id", func(t *testing.T) {
 		envelope := NewCloudEventsEnvelope("a", "source", "", "", "",
-			"mypubsub", "", []byte("data"), "1", "key=value", "", "1234")
+			"mypubsub", "", []byte("data"), "1", "", "", "1234")
 		assert.Equal(t, "1234", envelope[ActorIdField])
 	})
 }
@@ -261,7 +261,7 @@ func TestNewFromExisting(t *testing.T) {
 		}
 		b, _ := json.Marshal(&m)
 
-		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value", "actortype", "1234")
+		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value", "myactortype", "1234")
 		assert.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
@@ -269,7 +269,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "pubsub", n[PubsubField])
 		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
-		assert.Equal(t, "actortype", n[ActorTypeField])
+		assert.Equal(t, "myactortype", n[ActorTypeField])
 		assert.Equal(t, "1234", n[ActorIdField])
 		assert.Nil(t, n[DataField])
 		assert.Nil(t, n[DataBase64Field])
@@ -288,7 +288,7 @@ func TestNewFromExisting(t *testing.T) {
 		}
 		b, _ := json.Marshal(&m)
 
-		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value", "actortype", "1234")
+		n, err := FromCloudEvent(b, "b", "pubsub", "1", "key=value", "myactortype", "1234")
 		assert.NoError(t, err)
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "a", n["customfield"])
@@ -298,7 +298,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "key=value", n[TraceStateField])
 		assert.Nil(t, n[DataBase64Field])
 		assert.Equal(t, "hello world", n[DataField])
-		assert.Equal(t, "actortype", n[ActorTypeField])
+		assert.Equal(t, "myactortype", n[ActorTypeField])
 		assert.Equal(t, "1234", n[ActorIdField])
 	})
 
@@ -335,12 +335,12 @@ func TestCreateFromBinaryPayload(t *testing.T) {
 
 func TestNewFromRawPayload(t *testing.T) {
 	t.Run("string data", func(t *testing.T) {
-		n := FromRawPayload([]byte("hello world"), "mytopic", "mypubsub", "actortype", "1234")
+		n := FromRawPayload([]byte("hello world"), "mytopic", "mypubsub", "myactortype", "1234")
 		assert.NotNil(t, n[IDField])
 		assert.Equal(t, "1.0", n[SpecVersionField])
 		assert.Equal(t, "mytopic", n[TopicField])
 		assert.Equal(t, "mypubsub", n[PubsubField])
-		assert.Equal(t, "actortype", n[ActorTypeField])
+		assert.Equal(t, "myactortype", n[ActorTypeField])
 		assert.Equal(t, "1234", n[ActorIdField])
 		assert.Nil(t, n[TraceParentField])
 		assert.Nil(t, n[DataField])

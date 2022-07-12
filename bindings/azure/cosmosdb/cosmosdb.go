@@ -17,11 +17,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/a8m/documentdb"
-	backoff "github.com/cenkalti/backoff/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/authentication/azure"
@@ -30,8 +30,7 @@ import (
 
 // CosmosDB allows performing state operations on collections.
 type CosmosDB struct {
-	client       *documentdb.DocumentDB
-	collection   string
+	client       *azcosmos.ContainerClient
 	partitionKey string
 
 	logger logger.Logger
@@ -45,7 +44,8 @@ type cosmosDBCredentials struct {
 	PartitionKey string `json:"partitionKey"`
 }
 
-const statusTooManyRequests = "429" // RFC 6585, 4
+// Value used for timeout durations
+const timeoutValue = 30
 
 // NewCosmosDB returns a new CosmosDB instance.
 func NewCosmosDB(logger logger.Logger) *CosmosDB {
@@ -62,56 +62,51 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	c.partitionKey = m.PartitionKey
 
 	// Create the client; first, try authenticating with a master key, if present
-	var config *documentdb.Config
+	var client *azcosmos.Client
 	if m.MasterKey != "" {
-		config = documentdb.NewConfig(&documentdb.Key{
-			Key: m.MasterKey,
-		})
+		cred, keyErr := azcosmos.NewKeyCredential(m.MasterKey)
+		if keyErr != nil {
+			return keyErr
+		}
+		client, err = azcosmos.NewClientWithKey(m.URL, cred, nil)
+		if err != nil {
+			return err
+		}
 	} else {
 		// Fallback to using Azure AD
-		env, errB := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
-		if errB != nil {
-			return errB
+		env, errEnv := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+		if errEnv != nil {
+			return errEnv
 		}
-		spt, errB := env.GetServicePrincipalToken()
-		if errB != nil {
-			return errB
+		token, errToken := env.GetTokenCredential()
+		if errToken != nil {
+			return errToken
 		}
-		config = documentdb.NewConfigWithServicePrincipal(spt)
-	}
-	// disable the identification hydrator (which autogenerates IDs if missing from the request)
-	// so we aren't forced to use a struct by the upstream SDK
-	// this allows us to provide the most flexibility in the request document sent to this binding
-	config.IdentificationHydrator = nil
-	config.WithAppIdentifier("dapr-" + logger.DaprVersion)
-
-	c.client = documentdb.New(m.URL, config)
-
-	// Retries initializing the client if a TooManyRequests error is encountered
-	err = retryOperation(func() (err error) {
-		collLink := fmt.Sprintf("dbs/%s/colls/%s/", m.Database, m.Collection)
-		coll, err := c.client.ReadCollection(collLink)
+		client, err = azcosmos.NewClient(m.URL, token, nil)
 		if err != nil {
-			if isTooManyRequestsError(err) {
-				return err
-			}
-			return backoff.Permanent(err)
-		} else if coll == nil || coll.Self == "" {
-			return backoff.Permanent(
-				fmt.Errorf("collection %s in database %s for CosmosDB state store not found. This must be created before Dapr uses it", m.Collection, m.Database),
-			)
+			return err
 		}
+	}
 
-		c.collection = coll.Self
-
-		return nil
-	}, func(err error, d time.Duration) {
-		c.logger.Warnf("CosmosDB binding initialization failed: %v; retrying in %s", err, d)
-	}, 5*time.Minute)
+	// Create a container client
+	dbContainer, err := client.NewContainer(m.Database, m.Collection)
+	if err != nil {
+		return err
+	}
+	if dbContainer.ID() == "" {
+		return fmt.Errorf("container is non-existent")
+	}
+	c.client = dbContainer
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
+	containerRead, err := c.client.Read(ctx, nil)
+	cancel()
 	if err != nil {
 		return err
 	}
 
+	if containerRead.RawResponse.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("error when attempting to read client with error code: %v", containerRead.RawResponse.StatusCode)
+	}
 	return nil
 }
 
@@ -135,7 +130,7 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (c *CosmosDB) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		var obj interface{}
@@ -144,41 +139,34 @@ func (c *CosmosDB) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bind
 			return nil, err
 		}
 
-		val, err := c.getPartitionKeyValue(c.partitionKey, obj)
+		pkString, err := c.getPartitionKeyValue(c.partitionKey, obj)
 		if err != nil {
 			return nil, err
 		}
+		pk := azcosmos.NewPartitionKeyString(pkString)
 
-		err = retryOperation(func() error {
-			_, innerErr := c.client.CreateDocument(c.collection, obj, documentdb.PartitionKey(val))
-			if innerErr != nil {
-				if isTooManyRequestsError(innerErr) {
-					return innerErr
-				}
-				return backoff.Permanent(innerErr)
-			}
-			return nil
-		}, func(err error, d time.Duration) {
-			c.logger.Warnf("CosmosDB binding Invoke request failed: %v; retrying in %s", err, d)
-		}, 20*time.Second)
+		_, err = c.client.CreateItem(ctx, pk, req.Data, nil)
 		if err != nil {
 			return nil, err
 		}
-
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("operation kind %s not supported", req.Operation)
 	}
 }
 
-func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (interface{}, error) {
-	val, err := c.lookup(obj.(map[string]interface{}), strings.Split(key, "."))
+func (c *CosmosDB) getPartitionKeyValue(key string, obj interface{}) (string, error) {
+	valI, err := c.lookup(obj.(map[string]interface{}), strings.Split(key, "."))
 	if err != nil {
-		return nil, fmt.Errorf("missing partitionKey field %s from request body - %w", c.partitionKey, err)
+		return "", fmt.Errorf("missing partitionKey field %s from request body - %w", c.partitionKey, err)
+	}
+	val, ok := valI.(string)
+	if !ok {
+		return "", fmt.Errorf("partition key is not a string")
 	}
 
 	if val == "" {
-		return nil, fmt.Errorf("partitionKey field %s from request body is empty", c.partitionKey)
+		return "", fmt.Errorf("partitionKey field %s from request body is empty", c.partitionKey)
 	}
 
 	return val, nil
@@ -208,25 +196,4 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 	}
 
 	return c.lookup(m, ks[1:])
-}
-
-func retryOperation(operation backoff.Operation, notify backoff.Notify, maxElapsedTime time.Duration) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.InitialInterval = 2 * time.Second
-	bo.MaxElapsedTime = maxElapsedTime
-	return backoff.RetryNotify(operation, bo, notify)
-}
-
-func isTooManyRequestsError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if requestError, ok := err.(*documentdb.RequestError); ok {
-		if requestError.Code == statusTooManyRequests {
-			return true
-		}
-	}
-
-	return false
 }

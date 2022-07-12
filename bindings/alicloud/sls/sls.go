@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -28,6 +27,10 @@ type SlsLogstorageMetadata struct {
 	AccessKeySecret string `json:"accessKeySecret"`
 }
 
+type Callback struct {
+	s *AliCloudSlsLogstorage
+}
+
 // parse metadata field
 func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	m, err := s.parseMeta(metadata)
@@ -41,11 +44,20 @@ func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	producerConfig.AccessKeyID = m.AccessKeyID
 	producerConfig.AccessKeySecret = m.AccessKeySecret
 	s.producer = producer.InitProducer(producerConfig)
+
+	s.startSlsProducer()
 	return nil
 }
 
+func (s *AliCloudSlsLogstorage) startSlsProducer() {
+	notifyChan := make(chan os.Signal, 1)
+	signal.Notify(notifyChan, syscall.SIGTERM, os.Interrupt)
+	// Start producer instancce
+	s.producer.Start()
+}
+
 func NewAliCloudSlsLogstorage(logger logger.Logger) *AliCloudSlsLogstorage {
-	logger.Debug("new a Slslog component object")
+	logger.Debug("initialized Sls log storage binding component")
 	s := &AliCloudSlsLogstorage{
 		logger: logger,
 	}
@@ -67,11 +79,6 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 		return nil, fmt.Errorf("SLS binding error: source property not supplied")
 	}
 
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, os.Interrupt)
-
-	// Start producer instancce
-	s.producer.Start()
 	log, err := s.parseLog(req)
 	if err != nil {
 		s.logger.Info(err)
@@ -79,12 +86,12 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 	}
 
 	s.logger.Debug(log)
-	err = s.producer.SendLog(req.Metadata["project"], req.Metadata["logstore"], req.Metadata["topic"], req.Metadata["source"], log)
+	callBack := &Callback{}
+	err = s.producer.SendLogWithCallBack(req.Metadata["project"], req.Metadata["logstore"], req.Metadata["topic"], req.Metadata["source"], log, callBack)
 	if err != nil {
 		s.logger.Info(err)
 		return nil, err
 	}
-	s.producer.SafeClose()
 	return nil, err
 }
 
@@ -95,16 +102,7 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 	if err != nil {
 		return nil, err
 	}
-	var logTime uint32
-	// if no timestamp , use current time
-	if logInfo["timestamp"] != "" {
-		t, _ := strconv.Atoi(logInfo["timestamp"])
-		logTime = uint32(t)
-	} else {
-		logTime = uint32(time.Now().Unix())
-	}
-
-	return producer.GenerateLog(logTime, logInfo), nil
+	return producer.GenerateLog(uint32(time.Now().Unix()), logInfo), nil
 }
 
 func (s *AliCloudSlsLogstorage) parseMeta(metadata bindings.Metadata) (*SlsLogstorageMetadata, error) {
@@ -124,4 +122,19 @@ func (s *AliCloudSlsLogstorage) parseMeta(metadata bindings.Metadata) (*SlsLogst
 
 func (s *AliCloudSlsLogstorage) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (callback *Callback) Success(result *producer.Result) {
+}
+
+func (callback *Callback) Fail(result *producer.Result) {
+	msg := "unknown reason"
+	if result.GetErrorMessage() != "" {
+		msg = result.GetErrorMessage()
+	}
+	if result.GetErrorCode() != "" {
+		callback.s.logger.Debug("Failed error code:", result.GetErrorCode())
+	}
+
+	callback.s.logger.Info("Log storage failed:", msg)
 }

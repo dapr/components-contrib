@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -92,13 +93,8 @@ func (o *HuaweiOBS) Init(metadata bindings.Metadata) error {
 }
 
 func (o *HuaweiOBS) parseMetadata(metadata bindings.Metadata) (*obsMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var m obsMetadata
-	err = json.Unmarshal(b, &m)
+	err := mapstructure.WeakDecode(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

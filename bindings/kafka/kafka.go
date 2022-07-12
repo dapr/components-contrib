@@ -15,10 +15,7 @@ package kafka
 
 import (
 	"context"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/dapr/kit/logger"
 
@@ -32,10 +29,12 @@ const (
 )
 
 type Binding struct {
-	kafka        *kafka.Kafka
-	publishTopic string
-	topics       []string
-	logger       logger.Logger
+	kafka           *kafka.Kafka
+	publishTopic    string
+	topics          []string
+	logger          logger.Logger
+	subscribeCtx    context.Context
+	subscribeCancel context.CancelFunc
 }
 
 // NewKafka returns a new kafka binding instance.
@@ -50,6 +49,8 @@ func NewKafka(logger logger.Logger) *Binding {
 }
 
 func (b *Binding) Init(metadata bindings.Metadata) error {
+	b.subscribeCtx, b.subscribeCancel = context.WithCancel(context.Background())
+
 	err := b.kafka.Init(metadata.Properties)
 	if err != nil {
 		return err
@@ -72,8 +73,9 @@ func (b *Binding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (p *Binding) Close() (err error) {
-	return p.kafka.Close()
+func (b *Binding) Close() (err error) {
+	b.subscribeCancel()
+	return b.kafka.Close()
 }
 
 func (b *Binding) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -81,7 +83,7 @@ func (b *Binding) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindi
 	return nil, err
 }
 
-func (b *Binding) Read(handler bindings.Handler) error {
+func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	if len(b.topics) == 0 {
 		b.logger.Warnf("kafka binding: no topic defined, input bindings will not be started")
 		return nil
@@ -92,22 +94,30 @@ func (b *Binding) Read(handler bindings.Handler) error {
 		b.kafka.AddTopicHandler(t, ah)
 	}
 
-	// Subscribe, in a background goroutine
-	err := b.kafka.Subscribe(context.Background())
-	if err != nil {
-		return err
-	}
+	go func() {
+		// Wait for context cancelation
+		select {
+		case <-ctx.Done():
+		case <-b.subscribeCtx.Done():
+		}
 
-	// Wait until we exit
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh,
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
-	<-sigCh
+		// Remove the topic handler before restarting the subscriber
+		for _, t := range b.topics {
+			b.kafka.RemoveTopicHandler(t)
+		}
 
-	return nil
+		// If the component's context has been canceled, do not re-subscribe
+		if b.subscribeCtx.Err() != nil {
+			return
+		}
+
+		err := b.kafka.Subscribe(b.subscribeCtx)
+		if err != nil {
+			b.logger.Errorf("kafka binding: error re-subscribing: %v", err)
+		}
+	}()
+
+	return b.kafka.Subscribe(b.subscribeCtx)
 }
 
 func adaptHandler(handler bindings.Handler) kafka.EventHandler {

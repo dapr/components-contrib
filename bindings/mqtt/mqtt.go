@@ -20,16 +20,14 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/url"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
@@ -51,6 +49,7 @@ const (
 	errorMsgPrefix = "mqtt binding error:"
 
 	// Defaults.
+	// TODO: Change QOS and cleanSession defaults to 1 and false
 	defaultQOS          = 0
 	defaultRetain       = false
 	defaultWait         = 3 * time.Second
@@ -109,11 +108,7 @@ func parseMQTTMetaData(md bindings.Metadata) (*metadata, error) {
 
 	m.retain = defaultRetain
 	if val, ok := md.Properties[mqttRetain]; ok && val != "" {
-		var err error
-		m.retain, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid retain %s, %s", errorMsgPrefix, val, err)
-		}
+		m.retain = utils.IsTruthy(val)
 	}
 
 	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
@@ -124,11 +119,7 @@ func parseMQTTMetaData(md bindings.Metadata) (*metadata, error) {
 
 	m.cleanSession = defaultCleanSession
 	if val, ok := md.Properties[mqttCleanSession]; ok && val != "" {
-		var err error
-		m.cleanSession, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid clean session %s, %s", errorMsgPrefix, val, err)
-		}
+		m.cleanSession = utils.IsTruthy(val)
 	}
 
 	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
@@ -222,7 +213,7 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 	})
 }
 
-func (m *MQTT) handleMessage(handler bindings.Handler, mqttMsg mqtt.Message) error {
+func (m *MQTT) handleMessage(ctx context.Context, handler bindings.Handler, mqttMsg mqtt.Message) error {
 	msg := bindings.ReadResponse{
 		Data:     mqttMsg.Payload(),
 		Metadata: map[string]string{mqttTopic: mqttMsg.Topic()},
@@ -234,7 +225,7 @@ func (m *MQTT) handleMessage(handler bindings.Handler, mqttMsg mqtt.Message) err
 	ch := make(chan error)
 	go func(m *bindings.ReadResponse) {
 		defer close(ch)
-		_, err := handler(context.TODO(), m)
+		_, err := handler(ctx, m)
 		ch <- err
 	}(&msg)
 
@@ -251,14 +242,11 @@ func (m *MQTT) handleMessage(handler bindings.Handler, mqttMsg mqtt.Message) err
 	}
 }
 
-func (m *MQTT) Read(handler bindings.Handler) error {
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
-
+func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 	// reset synchronization
 	if m.consumer != nil {
 		m.logger.Warnf("re-initializing the subscriber")
-		m.consumer.Disconnect(0)
+		m.consumer.Disconnect(5)
 		m.consumer = nil
 	}
 
@@ -272,14 +260,14 @@ func (m *MQTT) Read(handler bindings.Handler) error {
 
 	m.logger.Debugf("mqtt subscribing to topic %s", m.metadata.topic)
 	token := m.consumer.Subscribe(m.metadata.topic, m.metadata.qos, func(client mqtt.Client, mqttMsg mqtt.Message) {
-		b := m.backOff
+		var b backoff.BackOff = backoff.WithContext(m.backOff, ctx)
 		if m.metadata.backOffMaxRetries >= 0 {
-			b = backoff.WithMaxRetries(m.backOff, uint64(m.metadata.backOffMaxRetries))
+			b = backoff.WithMaxRetries(b, uint64(m.metadata.backOffMaxRetries))
 		}
 
 		if err := retry.NotifyRecover(func() error {
 			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-			return m.handleMessage(handler, mqttMsg)
+			return m.handleMessage(ctx, handler, mqttMsg)
 		}, b, func(err error, d time.Duration) {
 			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
 		}, func() {
@@ -290,10 +278,8 @@ func (m *MQTT) Read(handler bindings.Handler) error {
 	})
 	if err := token.Error(); err != nil {
 		m.logger.Errorf("mqtt error from subscribe: %v", err)
-
 		return err
 	}
-	<-sigterm
 
 	return nil
 }
@@ -365,9 +351,9 @@ func (m *MQTT) Close() error {
 	m.cancel()
 
 	if m.consumer != nil {
-		m.consumer.Disconnect(1)
+		m.consumer.Disconnect(5)
 	}
-	m.producer.Disconnect(1)
+	m.producer.Disconnect(5)
 
 	return nil
 }

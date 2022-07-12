@@ -18,10 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -31,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -60,6 +58,7 @@ type jobWorkerMetadata struct {
 type jobHandler struct {
 	callback bindings.Handler
 	logger   logger.Logger
+	ctx      context.Context
 }
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
@@ -89,32 +88,29 @@ func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (z *ZeebeJobWorker) Read(handler bindings.Handler) error {
+func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) error {
 	h := jobHandler{
 		callback: handler,
 		logger:   z.logger,
+		ctx:      ctx,
 	}
 
 	jobWorker := z.getJobWorker(h)
 
-	exitChan := make(chan os.Signal, 1)
-	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
-	<-exitChan
+	go func() {
+		<-ctx.Done()
 
-	jobWorker.Close()
-	jobWorker.AwaitClose()
+		jobWorker.Close()
+		jobWorker.AwaitClose()
+		z.client.Close()
+	}()
 
-	return z.client.Close()
+	return nil
 }
 
 func (z *ZeebeJobWorker) parseMetadata(metadata bindings.Metadata) (*jobWorkerMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var m jobWorkerMetadata
-	err = json.Unmarshal(b, &m)
+	err := config.Decode(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +153,8 @@ func (z *ZeebeJobWorker) getJobWorker(handler jobHandler) worker.JobWorker {
 func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	headers, err := job.GetCustomHeadersAsMap()
 	if err != nil {
-		h.failJob(client, job, err)
-
+		// Use a background context because the subscription one may be canceled
+		h.failJob(context.Background(), client, job, err)
 		return
 	}
 
@@ -174,13 +170,13 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	headers["X-Zeebe-Retries"] = strconv.FormatInt(int64(job.Retries), 10)
 	headers["X-Zeebe-Deadline"] = strconv.FormatInt(job.Deadline, 10)
 
-	resultVariables, err := h.callback(context.TODO(), &bindings.ReadResponse{
+	resultVariables, err := h.callback(h.ctx, &bindings.ReadResponse{
 		Data:     []byte(job.Variables),
 		Metadata: headers,
 	})
 	if err != nil {
-		h.failJob(client, job, err)
-
+		// Use a background context because the subscription one may be canceled
+		h.failJob(context.Background(), client, job, err)
 		return
 	}
 
@@ -188,8 +184,8 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	if resultVariables != nil {
 		err = json.Unmarshal(resultVariables, &variablesMap)
 		if err != nil {
-			h.failJob(client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
-
+			// Use a background context because the subscription one may be canceled
+			h.failJob(context.Background(), client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
 			return
 		}
 	}
@@ -197,29 +193,27 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	jobKey := job.GetKey()
 	request, err := client.NewCompleteJobCommand().JobKey(jobKey).VariablesFromMap(variablesMap)
 	if err != nil {
-		h.failJob(client, job, err)
-
+		// Use a background context because the subscription one may be canceled
+		h.failJob(context.Background(), client, job, err)
 		return
 	}
 
 	h.logger.Debugf("Complete job `%d` of type `%s`", jobKey, job.Type)
 
-	ctx := context.Background()
-	_, err = request.Send(ctx)
+	// Use a background context because the subscription one may be canceled
+	_, err = request.Send(context.Background())
 	if err != nil {
 		h.logger.Errorf("Cannot complete job `%d` of type `%s`; got error: %s", jobKey, job.Type, err.Error())
-
 		return
 	}
 
 	h.logger.Debug("Successfully completed job")
 }
 
-func (h *jobHandler) failJob(client worker.JobClient, job entities.Job, reason error) {
+func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job entities.Job, reason error) {
 	reasonMsg := reason.Error()
 	h.logger.Errorf("Failed to complete job `%d` reason: %s", job.GetKey(), reasonMsg)
 
-	ctx := context.Background()
 	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).ErrorMessage(reasonMsg).Send(ctx)
 	if err != nil {
 		h.logger.Errorf("Cannot fail job `%d` of type `%s`; got error: %s", job.GetKey(), job.Type, err.Error())

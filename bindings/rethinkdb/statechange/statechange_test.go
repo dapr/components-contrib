@@ -73,20 +73,18 @@ func TestBinding(t *testing.T) {
 	err := b.Init(m)
 	assert.NoErrorf(t, err, "error initializing")
 
-	go func() {
-		err = b.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
-			assert.NotNil(t, res)
-			t.Logf("state change event:\n%s", string(res.Data))
+	ctx, cancel := context.WithCancel(context.Background())
+	err = b.Read(ctx, func(_ context.Context, res *bindings.ReadResponse) ([]byte, error) {
+		assert.NotNil(t, res)
+		t.Logf("state change event:\n%s", string(res.Data))
 
-			return nil, nil
-		})
-		assert.NoErrorf(t, err, "error on read")
-	}()
+		return nil, nil
+	})
+	assert.NoErrorf(t, err, "error on read")
 
 	testTimer := time.AfterFunc(testDuration, func() {
 		t.Log("done")
-		b.stopCh <- true
+		cancel()
 	})
 	defer testTimer.Stop()
-	<-b.stopCh
 }

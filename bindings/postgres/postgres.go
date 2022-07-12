@@ -42,8 +42,6 @@ type Postgres struct {
 	db     *pgxpool.Pool
 }
 
-var _ = bindings.OutputBinding(&Postgres{})
-
 // NewPostgres returns a new PostgreSQL output binding.
 func NewPostgres(logger logger.Logger) *Postgres {
 	return &Postgres{logger: logger}

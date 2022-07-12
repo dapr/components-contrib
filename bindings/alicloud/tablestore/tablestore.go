@@ -70,12 +70,12 @@ func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AliCloudTableStore) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AliCloudTableStore) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
 	}
 
-	startTime := time.Now().UTC()
+	startTime := time.Now()
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			invokeStartTimeKey: startTime.Format(time.RFC3339Nano),
@@ -108,7 +108,7 @@ func (s *AliCloudTableStore) Invoke(ctx context.Context, req *bindings.InvokeReq
 			req.Operation, bindings.GetOperation, bindings.ListOperation, bindings.CreateOperation, bindings.DeleteOperation)
 	}
 
-	endTime := time.Now().UTC()
+	endTime := time.Now()
 	resp.Metadata[invokeEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[invokeDurationKey] = endTime.Sub(startTime).String()
 

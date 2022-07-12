@@ -51,6 +51,8 @@ const (
 	SourceField          = "source"
 	IDField              = "id"
 	SubjectField         = "subject"
+	ActorTypeField       = "actortype"
+	ActorIdField         = "actorid"
 )
 
 // unmarshalPrecise is a wrapper around encoding/json's Decoder
@@ -67,8 +69,8 @@ func unmarshalPrecise(data []byte, v interface{}) error {
 
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
-	dataContentType string, data []byte, traceParent string, traceState string,
-) map[string]interface{} {
+	dataContentType string, data []byte, traceParent string, traceState string, actorType string,
+	actorId string) map[string]interface{} {
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -110,6 +112,8 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TraceIDField:         traceParent,
 		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
+		ActorTypeField:       actorType,
+		ActorIdField:         actorId,
 	}
 
 	ce[ceDataField] = ceData
@@ -122,7 +126,8 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 }
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON.
-func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string) (map[string]interface{}, error) {
+func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string,
+	actorType string, actorId string) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
@@ -134,6 +139,8 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 	m[TraceStateField] = traceState
 	m[TopicField] = topic
 	m[PubsubField] = pubsub
+	m[ActorTypeField] = actorType
+	m[ActorIdField] = actorId
 
 	// specify default value if it's unspecified from the original CloudEvent
 	if m[SourceField] == nil {
@@ -152,11 +159,13 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 }
 
 // FromRawPayload returns a CloudEvent for a raw payload on subscriber's end.
-func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
+func FromRawPayload(data []byte, topic, pubsub string,
+	actorType string, actorId string) map[string]interface{} {
 	// Limitations of generating the CloudEvent on the subscriber side based on raw payload:
 	// - The CloudEvent ID will be random, so the same message can be redelivered as a different ID.
 	// - TraceID is not useful since it is random and not from publisher side.
 	// - Data is always returned as `data_base64` since we don't know the actual content type.
+	// - ActorType and ActorId are optional fields used for Actor Pubsub.
 	return map[string]interface{}{
 		IDField:              uuid.New().String(),
 		SpecVersionField:     CloudEventsSpecVersion,
@@ -165,6 +174,8 @@ func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
 		TypeField:            DefaultCloudEventType,
 		TopicField:           topic,
 		PubsubField:          pubsub,
+		ActorTypeField:       actorType,
+		ActorIdField:         actorId,
 		DataBase64Field:      base64.StdEncoding.EncodeToString(data),
 	}
 }

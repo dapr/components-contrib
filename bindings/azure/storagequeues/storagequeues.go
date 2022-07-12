@@ -18,17 +18,14 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
-	"os"
-	"os/signal"
 	"strconv"
-	"sync"
-	"syscall"
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -125,7 +122,6 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	if res.NumMessages() == 0 {
 		// Queue was empty so back off by 10 seconds before trying again
 		time.Sleep(10 * time.Second)
-
 		return nil
 	}
 	mt := res.Message(0).Text
@@ -217,14 +213,7 @@ func parseMetadata(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
 		m.QueueEndpoint = val
 	}
 
-	m.DecodeBase64 = false
-	if val, ok := metadata.Properties["decodeBase64"]; ok {
-		n, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("invalid decodeBase64 field from metadata")
-		}
-		m.DecodeBase64 = n
-	}
+	m.DecodeBase64 = utils.IsTruthy(metadata.Properties["decodeBase64"])
 
 	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
 	if err != nil {
@@ -260,31 +249,20 @@ func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeReq
 	return nil, nil
 }
 
-func (a *AzureStorageQueues) Read(handler bindings.Handler) error {
+func (a *AzureStorageQueues) Read(ctx context.Context, handler bindings.Handler) error {
 	c := consumer{
 		callback: handler,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		for {
-			err := a.helper.Read(ctx, &c)
+		// Read until context is canceled
+		var err error
+		for ctx.Err() == nil {
+			err = a.helper.Read(ctx, &c)
 			if err != nil {
 				a.logger.Errorf("error from c: %s", err)
 			}
-			if ctx.Err() != nil {
-				return
-			}
 		}
 	}()
-
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-	<-sigterm
-	cancel()
-	wg.Wait()
 
 	return nil
 }

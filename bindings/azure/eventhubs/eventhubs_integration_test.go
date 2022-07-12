@@ -17,6 +17,7 @@ limitations under the License.
 package eventhubs
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -86,6 +87,9 @@ func createEventHubsBindingsAADMetadata() bindings.Metadata {
 }
 
 func testEventHubsBindingsAADAuthentication(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	logger := logger.NewLogger("bindings.azure.eventhubs.integration.test")
 	metadata := createEventHubsBindingsAADMetadata()
 	eventHubsBindings := NewAzureEventHubs(logger)
@@ -96,24 +100,24 @@ func testEventHubsBindingsAADAuthentication(t *testing.T) {
 	req := &bindings.InvokeRequest{
 		Data: []byte("Integration test message"),
 	}
-	_, err = eventHubsBindings.Invoke(req)
+	_, err = eventHubsBindings.Invoke(ctx, req)
 	assert.NoError(t, err)
 
 	// Setup Read binding to capture readResponses in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.
 	var readResponses []bindings.ReadResponse
-	handler := func(data *bindings.ReadResponse) ([]byte, error) {
+	var handler bindings.Handler = func(_ context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		readResponses = append(readResponses, *data)
 		return nil, nil
 	}
 
-	_, err = eventHubsBindings.Invoke(req)
+	_, err = eventHubsBindings.Invoke(ctx, req)
 	assert.NoError(t, err)
 
-	go eventHubsBindings.Read(handler)
+	eventHubsBindings.Read(ctx, handler)
 
 	time.Sleep(1 * time.Second)
-	_, err = eventHubsBindings.Invoke(req)
+	_, err = eventHubsBindings.Invoke(ctx, req)
 	assert.NoError(t, err)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s
@@ -130,6 +134,8 @@ func testEventHubsBindingsAADAuthentication(t *testing.T) {
 }
 
 func testReadIotHubEvents(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	logger := logger.NewLogger("bindings.azure.eventhubs.integration.test")
 	eh := NewAzureEventHubs(logger)
 	err := eh.Init(createIotHubBindingsMetadata())
@@ -145,12 +151,12 @@ func testReadIotHubEvents(t *testing.T) {
 	// Setup Read binding to capture readResponses in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.
 	var readResponses []bindings.ReadResponse
-	handler := func(data *bindings.ReadResponse) ([]byte, error) {
+	handler := func(_ context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		readResponses = append(readResponses, *data)
 		return nil, nil
 	}
 
-	go eh.Read(handler)
+	eh.Read(ctx, handler)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s
 	// Sleep long enough so that the azure event hubs SDK has time to persist updated checkpoints
@@ -175,6 +181,7 @@ func testReadIotHubEvents(t *testing.T) {
 		assert.Contains(t, r.Metadata, sysPropMessageID, "IoT device event missing: %s", sysPropMessageID)
 	}
 
+	cancel()
 	eh.Close()
 }
 

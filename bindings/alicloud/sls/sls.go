@@ -4,14 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	sls "github.com/aliyun/aliyun-log-go-sdk"
 	"github.com/aliyun/aliyun-log-go-sdk/producer"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -45,15 +43,8 @@ func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	producerConfig.AccessKeySecret = m.AccessKeySecret
 	s.producer = producer.InitProducer(producerConfig)
 
-	s.startSlsProducer()
-	return nil
-}
-
-func (s *AliCloudSlsLogstorage) startSlsProducer() {
-	notifyChan := make(chan os.Signal, 1)
-	signal.Notify(notifyChan, syscall.SIGTERM, os.Interrupt)
-	// Start producer instancce
 	s.producer.Start()
+	return nil
 }
 
 func NewAliCloudSlsLogstorage(logger logger.Logger) *AliCloudSlsLogstorage {
@@ -92,7 +83,7 @@ func (s *AliCloudSlsLogstorage) Invoke(ctx context.Context, req *bindings.Invoke
 		s.logger.Info(err)
 		return nil, err
 	}
-	return nil, err
+	return nil, nil
 }
 
 // parse the log content
@@ -106,13 +97,8 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 }
 
 func (s *AliCloudSlsLogstorage) parseMeta(metadata bindings.Metadata) (*SlsLogstorageMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var m SlsLogstorageMetadata
-	err = json.Unmarshal(b, &m)
+	err := config.Decode(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

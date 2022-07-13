@@ -49,6 +49,7 @@ import (
 	"github.com/pkg/errors"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -237,14 +238,7 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	}
 
 	if val, ok := metadata[cosmosDbModeKey]; ok && val != "" {
-		switch strings.ToLower(strings.TrimSpace(val)) {
-		case "y", "yes", "true", "t", "on", "1":
-			meta.cosmosDbMode = true
-		default:
-			meta.cosmosDbMode = false
-		}
-	} else {
-		meta.cosmosDbMode = false
+		meta.cosmosDbMode = utils.IsTruthy(val)
 	}
 
 	if val, ok := metadata[serviceURLKey]; ok && val != "" {
@@ -254,14 +248,7 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	}
 
 	if val, ok := metadata[skipCreateTableKey]; ok && val != "" {
-		switch strings.ToLower(strings.TrimSpace(val)) {
-		case "y", "yes", "true", "t", "on", "1":
-			meta.skipCreateTable = true
-		default:
-			meta.skipCreateTable = false
-		}
-	} else {
-		meta.skipCreateTable = false
+		meta.skipCreateTable = utils.IsTruthy(val)
 	}
 
 	return &meta, nil

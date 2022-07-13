@@ -93,7 +93,7 @@ func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the outgoing webhook, not yet production ready.
-func (t *DingTalkWebhook) Read(handler bindings.Handler) error {
+func (t *DingTalkWebhook) Read(ctx context.Context, handler bindings.Handler) error {
 	t.logger.Debugf("dingtalk webhook: start read input binding")
 
 	webhooks.Lock()
@@ -218,9 +218,7 @@ func getPostURL(urlPath, secret string) (string, error) {
 func sign(secret, timestamp string) (string, error) {
 	stringToSign := fmt.Sprintf("%s\n%s", timestamp, secret)
 	h := hmac.New(sha256.New, []byte(secret))
-	if _, err := io.WriteString(h, stringToSign); err != nil {
-		return "", fmt.Errorf("sign failed. %w", err)
-	}
-
-	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
+	_, _ = h.Write([]byte(stringToSign))
+	dgst := h.Sum(nil)
+	return base64.StdEncoding.EncodeToString(dgst), nil
 }

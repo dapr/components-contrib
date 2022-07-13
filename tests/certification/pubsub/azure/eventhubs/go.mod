@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.8.0
+	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/uuid v1.3.0
@@ -154,6 +154,3 @@ replace github.com/dapr/components-contrib => ../../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
-
-// TODO: TEMPORARY CHANGE UNTIL PR IS MERGED IN dapr/dapr
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20220712175237-1bdf5e5592eb

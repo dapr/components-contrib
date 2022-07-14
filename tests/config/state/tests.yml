@@ -7,6 +7,9 @@ components:
     allOperations: true
   - component: azure.cosmosdb
     allOperations: true
+  - component: azure.blobstorage
+    allOperations: false
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
   - component: azure.sql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]

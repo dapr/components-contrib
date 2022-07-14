@@ -17,6 +17,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -69,12 +70,12 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
 	testsNum := 3
 	i := 0
-	err := c.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
+	err := c.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
 		assert.LessOrEqualf(t, i, testsNum, "Invoke didn't stop the schedule")
 		i++
 		if i == testsNum {
-			resp, err := c.Invoke(context.TODO(), &bindings.InvokeRequest{
+			resp, err := c.Invoke(context.Background(), &bindings.InvokeRequest{
 				Operation: bindings.DeleteOperation,
 			})
 			assert.NoError(t, err)
@@ -85,6 +86,30 @@ func TestCronReadWithDeleteInvoke(t *testing.T) {
 
 		return nil, nil
 	})
+	time.Sleep(time.Duration(testsNum+3) * time.Second)
+	assert.Equal(t, testsNum, i)
+	assert.NoErrorf(t, err, "error on read")
+}
+
+func TestCronReadWithContextCancellation(t *testing.T) {
+	c := getNewCron()
+	schedule := "@every 1s"
+	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
+	testsNum := 3
+	i := 0
+	ctx, cancel := context.WithCancel(context.Background())
+	err := c.Read(ctx, func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
+		assert.NotNil(t, res)
+		assert.LessOrEqualf(t, i, testsNum, "Invoke didn't stop the schedule")
+		i++
+		if i == testsNum {
+			cancel()
+		}
+
+		return nil, nil
+	})
+	time.Sleep(time.Duration(testsNum+3) * time.Second)
+	assert.Equal(t, testsNum, i)
 	assert.NoErrorf(t, err, "error on read")
 }
 
@@ -92,7 +117,7 @@ func TestCronInvokeInvalidOperation(t *testing.T) {
 	c := getNewCron()
 	initErr := c.Init(getTestMetadata("@every 1s"))
 	assert.NoErrorf(t, initErr, "Error on Init")
-	_, err := c.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err := c.Invoke(context.Background(), &bindings.InvokeRequest{
 		Operation: bindings.CreateOperation,
 	})
 	assert.Error(t, err)

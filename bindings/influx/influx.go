@@ -20,6 +20,7 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/influxdata/influxdb-client-go/api"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -40,8 +41,6 @@ var (
 	ErrMetadataMissing         = errors.New("metadata required")
 	ErrMetadataRawNotFound     = errors.Errorf("required metadata not set: %s", rawQueryKey)
 )
-
-var _ bindings.OutputBinding = &Influx{}
 
 // Influx allows writing to InfluxDB.
 type Influx struct {
@@ -98,13 +97,8 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 
 // GetInfluxMetadata returns new Influx metadata.
 func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var iMetadata influxMetadata
-	err = json.Unmarshal(b, &iMetadata)
+	err := mapstructure.WeakDecode(metadata.Properties, &iMetadata)
 	if err != nil {
 		return nil, err
 	}

@@ -226,9 +226,8 @@ jobs:
         COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
         COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
         COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-        COVERAGE_KV=${{ matrix.component }}=$COVERAGE_PERCENTAGE
         echo "COMPONENT_COVERAGE=$COMPONENT_COVERAGE" >> $GITHUB_ENV
-        echo "COVERAGE_DATA=$COVERAGE_DATA:$COVERAGE_KV" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COMPONENT_PERCENTAGE" >> $GITHUB_ENV
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
@@ -254,14 +253,6 @@ jobs:
         if [[ -v CERTIFICATION_FAILURE ]]; then
           exit 1
         fi
-
-    - name: Notify via comment
-      uses: actions/github-script@v4
-      with:
-        github-token: ${{ secrets.DAPR_BOT_TOKEN }}
-        script: |
-          const utils = require('./.github/scripts/utils.js')
-          await utils.warnOnCertTestCoverage(github, context, ${{ env.COVERAGE_DATA }}, 80)
 
     - name: Prepare Cert Coverage Info
       run: |

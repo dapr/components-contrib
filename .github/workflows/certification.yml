@@ -291,6 +291,7 @@ jobs:
     steps:
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3
+        continue-on-error: true
         id: download
         with:
           name: certtest_cov

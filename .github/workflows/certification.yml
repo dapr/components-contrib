@@ -226,8 +226,8 @@ jobs:
         COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
         COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
         COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-        echo "COMPONENT_COVERAGE=$COMPONENT_COVERAGE" >> $GITHUB_ENV
-        echo "COMPONENT_PERCENTAGE=$COMPONENT_PERCENTAGE" >> $GITHUB_ENV
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
@@ -256,15 +256,15 @@ jobs:
 
     - name: Prepare Cert Coverage Info
       run: |
-       mkdir -p path/to/cov_files
+       mkdir -p tmp/cov_files
        SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g') # converts slashes to dots in this string, so that it doesn't consider them sub-folders
-       echo "${{ env.cover_per_only }}" >> path/to/cov_files/$SOURCE_PATH_LINEAR.txt
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/$SOURCE_PATH_LINEAR.txt
 
     - name: Upload Cert Coverage Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: cert_cov
-        path: path/to/cov_files
+        name: certtest_cov
+        path: tmp/cov_files
         retention-days: 1
 
     - name: Component Coverage Discord Notification 
@@ -273,7 +273,7 @@ jobs:
       uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
       continue-on-error: true
       with:
-        args: 'Cert Test Coverage for {{ SOURCE_PATH }} is {{ cover_per_only }}'
+        args: 'Cert Test Coverage for {{ SOURCE_PATH }} is {{ COVERAGE_LINE }}'
 
     # Upload logs for test analytics to consume
     - name: Upload test results
@@ -293,8 +293,8 @@ jobs:
         uses: actions/download-artifact@v3
         id: download
         with:
-          name: cert_cov
-          path: path/to/cov_files
+          name: certtest_cov
+          path: tmp/cov_files
 
       - name: Calculate total coverage
         run: |
@@ -310,6 +310,7 @@ jobs:
               echo "totalPer=$totalPer" >> $GITHUB_ENV
             done < ${{steps.download.outputs.download-path}}/$f
           done
+        continue-on-error: true
       
       - name: Final Coverage Discord Notification
         env:

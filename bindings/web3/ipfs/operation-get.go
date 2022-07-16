@@ -35,13 +35,13 @@ func (h *IPFSBinding) getOperation(ctx context.Context, req *bindings.InvokeRequ
 		return nil, err
 	}
 
-	if reqMetadata.Cid == "" {
-		return nil, errors.New("metadata property 'cid' is empty")
+	if reqMetadata.Path == "" {
+		return nil, errors.New("metadata property 'path' is empty")
 	}
-	p := ipfs_path.New(reqMetadata.Cid)
+	p := ipfs_path.New(reqMetadata.Path)
 	err = p.IsValid()
 	if err != nil {
-		return nil, fmt.Errorf("invalid value for metadata property 'cid': %v", err)
+		return nil, fmt.Errorf("invalid value for metadata property 'path': %v", err)
 	}
 
 	res, err := h.ipfsAPI.Unixfs().Get(ctx, p)
@@ -52,7 +52,7 @@ func (h *IPFSBinding) getOperation(ctx context.Context, req *bindings.InvokeRequ
 
 	f, ok := res.(ipfs_files.File)
 	if !ok {
-		return nil, errors.New("CID does not represent a file")
+		return nil, errors.New("path does not represent a file")
 	}
 
 	data, err := io.ReadAll(f)
@@ -67,7 +67,7 @@ func (h *IPFSBinding) getOperation(ctx context.Context, req *bindings.InvokeRequ
 }
 
 type getRequestMetadata struct {
-	Cid string `mapstructure:"cid"`
+	Path string `mapstructure:"path"`
 }
 
 func (m *getRequestMetadata) FromMap(mp map[string]string) (err error) {

@@ -34,13 +34,13 @@ func (h *IPFSBinding) pinAddOperation(ctx context.Context, req *bindings.InvokeR
 		return nil, err
 	}
 
-	if reqMetadata.Cid == "" {
-		return nil, errors.New("metadata property 'cid' is empty")
+	if reqMetadata.Path == "" {
+		return nil, errors.New("metadata property 'path' is empty")
 	}
-	p := ipfs_path.New(reqMetadata.Cid)
+	p := ipfs_path.New(reqMetadata.Path)
 	err = p.IsValid()
 	if err != nil {
-		return nil, fmt.Errorf("invalid value for metadata property 'cid': %v", err)
+		return nil, fmt.Errorf("invalid value for metadata property 'path': %v", err)
 	}
 
 	opts, err := reqMetadata.PinAddOptions()
@@ -59,7 +59,7 @@ func (h *IPFSBinding) pinAddOperation(ctx context.Context, req *bindings.InvokeR
 }
 
 type pinAddRequestMetadata struct {
-	Cid       string `mapstructure:"cid"`
+	Path      string `mapstructure:"path"`
 	Recursive *bool  `mapstructure:"recursive"`
 }
 

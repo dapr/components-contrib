@@ -52,7 +52,7 @@ func (h *IPFSBinding) addOperation(ctx context.Context, req *bindings.InvokeRequ
 	}
 
 	res := addOperationResponse{
-		Cid: resolved.Cid().String(),
+		Path: resolved.String(),
 	}
 	enc, err := json.Marshal(res)
 	if err != nil {
@@ -65,7 +65,7 @@ func (h *IPFSBinding) addOperation(ctx context.Context, req *bindings.InvokeRequ
 }
 
 type addOperationResponse struct {
-	Cid string `json:"cid"`
+	Path string `json:"path"`
 }
 
 type addRequestMetadata struct {

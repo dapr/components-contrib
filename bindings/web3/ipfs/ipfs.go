@@ -207,8 +207,10 @@ func (b *IPFSBinding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.GetOperation,
 		bindings.CreateOperation, // alias for "add"
+		bindings.ListOperation,   // alias for "ls"
 		bindings.DeleteOperation, // alias for "pin-rm"
 		"add",
+		"ls",
 		"pin-add",
 		"pin-rm",
 		"pin-ls",
@@ -222,6 +224,8 @@ func (b *IPFSBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (
 		return b.getOperation(ctx, req)
 	case "add", bindings.CreateOperation:
 		return b.addOperation(ctx, req)
+	case "ls", bindings.ListOperation:
+		return b.lsOperation(ctx, req)
 	case "pin-add":
 		return b.pinAddOperation(ctx, req)
 	case "pin-ls":

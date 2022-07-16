@@ -17,6 +17,7 @@ limitations under the License.
 package rabbitmq
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -95,7 +96,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	defer ch.Close()
 
 	const tooLateMsgContent = "too_late_msg"
-	_, err = r.Invoke(&bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -106,7 +107,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	_, err = r.Invoke(&bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -159,7 +160,7 @@ func TestPublishingWithTTL(t *testing.T) {
 		},
 	}
 
-	_, err = rabbitMQBinding1.Invoke(&writeRequest)
+	_, err = rabbitMQBinding1.Invoke(context.Backgound(), &writeRequest)
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -180,7 +181,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			contrib_metadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
 		},
 	}
-	_, err = rabbitMQBinding2.Invoke(&writeRequest)
+	_, err = rabbitMQBinding2.Invoke(context.Backgound(), &writeRequest)
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -280,7 +281,7 @@ func TestPublishWithPriority(t *testing.T) {
 	defer ch.Close()
 
 	const middlePriorityMsgContent = "middle"
-	_, err = r.Invoke(&bindings.InvokeRequest{
+	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contrib_metadata.PriorityMetadataKey: "5",
 		},
@@ -289,7 +290,7 @@ func TestPublishWithPriority(t *testing.T) {
 	assert.Nil(t, err)
 
 	const lowPriorityMsgContent = "low"
-	_, err = r.Invoke(&bindings.InvokeRequest{
+	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contrib_metadata.PriorityMetadataKey: "1",
 		},
@@ -298,7 +299,7 @@ func TestPublishWithPriority(t *testing.T) {
 	assert.Nil(t, err)
 
 	const highPriorityMsgContent = "high"
-	_, err = r.Invoke(&bindings.InvokeRequest{
+	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contrib_metadata.PriorityMetadataKey: "10",
 		},

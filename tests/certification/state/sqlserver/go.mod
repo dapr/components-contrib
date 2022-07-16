@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.8.0
+	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.4
@@ -50,7 +50,7 @@ require (
 	github.com/hashicorp/consul/api v1.11.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-hclog v1.0.0 // indirect
+	github.com/hashicorp/go-hclog v1.2.1 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect

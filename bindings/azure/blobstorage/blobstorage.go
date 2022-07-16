@@ -153,7 +153,6 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 
 func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStorageMetadata, error) {
 	var m blobStorageMetadata
-
 	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
 		m.AccountName = val
 	} else {

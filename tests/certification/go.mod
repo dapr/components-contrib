@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dapr/components-contrib v1.8.0-rc.6
-	github.com/dapr/dapr v1.8.0
+	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/google/go-cmp v0.5.8
@@ -21,7 +21,7 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/hashicorp/go-hclog v1.0.0 // indirect
+	github.com/hashicorp/go-hclog v1.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect

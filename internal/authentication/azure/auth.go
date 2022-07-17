@@ -28,6 +28,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"golang.org/x/crypto/pkcs12"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
@@ -61,6 +63,9 @@ func NewEnvironmentSettings(resourceName string, values map[string]string) (Envi
 		// The resource name to request a token is https://eventhubs.azure.net/, and it's the same for all clouds/tenants.
 		// Kafka connection does not factor in here.
 		es.Resource = "https://eventhubs.azure.net"
+	case "signalr":
+		// Azure SignalR (data plane)
+		es.Resource = "https://signalr.azure.com"
 	default:
 		return es, errors.New("invalid resource name: " + resourceName)
 	}
@@ -408,17 +413,6 @@ func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error
 }
 
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
-func (s EnvironmentSettings) GetEnvironment(key string) (string, bool) {
-	var (
-		val string
-		ok  bool
-	)
-	for _, k := range MetadataKeys[key] {
-		val, ok = s.Values[k]
-		if ok {
-			return val, true
-		}
-	}
-
-	return "", false
+func (s EnvironmentSettings) GetEnvironment(key string) (val string, ok bool) {
+	return metadata.GetMetadataProperty(s.Values, MetadataKeys[key]...)
 }

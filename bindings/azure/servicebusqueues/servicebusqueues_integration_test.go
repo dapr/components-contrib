@@ -120,6 +120,8 @@ func TestQueueWithTTL(t *testing.T) {
 }
 
 func TestPublishingWithTTL(t *testing.T) {
+	ctx := context.Background()
+
 	serviceBusConnectionString := getTestServiceBusConnectionString()
 	assert.NotEmpty(t, serviceBusConnectionString, fmt.Sprintf("Azure ServiceBus connection string must set in environment variable '%s'", testServiceBusEnvKey))
 
@@ -138,9 +140,9 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.Nil(t, err)
 
 	qmr := ns.NewQueueManager()
-	defer qmr.Delete(context.Background(), queueName)
+	defer qmr.Delete(ctx, queueName)
 
-	queueEntity, err := qmr.Get(context.Background(), queueName)
+	queueEntity, err := qmr.Get(ctx, queueName)
 	assert.Nil(t, err)
 	const defaultAzureServiceBusMessageTimeToLive = "P14D"
 	assert.Equal(t, defaultAzureServiceBusMessageTimeToLive, *queueEntity.DefaultMessageTimeToLive)
@@ -152,7 +154,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			metadata.TTLMetadataKey: fmt.Sprintf("%d", ttlInSeconds),
 		},
 	}
-	_, err = queueBinding1.Invoke(&writeRequest)
+	_, err = queueBinding1.Invoke(ctx, &writeRequest)
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second * (ttlInSeconds + 2))
@@ -175,7 +177,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			metadata.TTLMetadataKey: fmt.Sprintf("%d", ttlInSeconds),
 		},
 	}
-	_, err = queueBinding2.Invoke(&writeRequest)
+	_, err = queueBinding2.Invoke(ctx, &writeRequest)
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(queue, maxGetDuration)

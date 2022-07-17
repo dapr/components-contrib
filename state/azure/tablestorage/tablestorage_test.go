@@ -39,6 +39,19 @@ func TestGetTableStorageMetadata(t *testing.T) {
 		assert.Equal(t, "key", meta.accountKey)
 		assert.Equal(t, "dapr", meta.tableName)
 	})
+
+	t.Run("All parameters passed and parsed, using aliases", func(t *testing.T) {
+		m := make(map[string]string)
+		m["storageAccountName"] = "acc"
+		m["accessKey"] = "key"
+		m["table"] = "dapr"
+		meta, err := getTablesMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "acc", meta.accountName)
+		assert.Equal(t, "key", meta.accountKey)
+		assert.Equal(t, "dapr", meta.tableName)
+	})
 }
 
 func TestPartitionAndRowKey(t *testing.T) {

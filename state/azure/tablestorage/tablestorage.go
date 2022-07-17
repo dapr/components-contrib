@@ -48,7 +48,9 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -57,9 +59,6 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	accountNameKey     = "accountName"
-	accountKeyKey      = "accountKey"
-	tableNameKey       = "tableName"
 	cosmosDbModeKey    = "cosmosDbMode"
 	serviceURLKey      = "serviceURL"
 	skipCreateTableKey = "skipCreateTable"
@@ -223,33 +222,23 @@ func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
 func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	meta := tablesMetadata{}
 
-	if val, ok := metadata[accountNameKey]; ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageAccountNameKeys...); ok && val != "" {
 		meta.accountName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", accountNameKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0]))
 	}
 
-	if val, ok := metadata[accountKeyKey]; ok && val != "" {
-		meta.accountKey = val
-	} else {
-		meta.accountKey = ""
-	}
+	// Can be empty (such as when using Azure AD for auth)
+	meta.accountKey, _ = mdutils.GetMetadataProperty(metadata, azauth.StorageAccountKeyKeys...)
 
-	if val, ok := metadata[tableNameKey]; ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageTableNameKeys...); ok && val != "" {
 		meta.tableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", tableNameKey))
+		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0]))
 	}
 
 	if val, ok := metadata[cosmosDbModeKey]; ok && val != "" {
-		switch strings.ToLower(strings.TrimSpace(val)) {
-		case "y", "yes", "true", "t", "on", "1":
-			meta.cosmosDbMode = true
-		default:
-			meta.cosmosDbMode = false
-		}
-	} else {
-		meta.cosmosDbMode = false
+		meta.cosmosDbMode = utils.IsTruthy(val)
 	}
 
 	if val, ok := metadata[serviceURLKey]; ok && val != "" {
@@ -259,14 +248,7 @@ func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
 	}
 
 	if val, ok := metadata[skipCreateTableKey]; ok && val != "" {
-		switch strings.ToLower(strings.TrimSpace(val)) {
-		case "y", "yes", "true", "t", "on", "1":
-			meta.skipCreateTable = true
-		default:
-			meta.skipCreateTable = false
-		}
-	} else {
-		meta.skipCreateTable = false
+		meta.skipCreateTable = utils.IsTruthy(val)
 	}
 
 	return &meta, nil

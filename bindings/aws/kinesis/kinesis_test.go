@@ -24,14 +24,14 @@ import (
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"AccessKey":    "key",
-		"Region":       "region",
-		"SecretKey":    "secret",
-		"ConsumerName": "test",
-		"StreamName":   "stream",
-		"Mode":         "extended",
-		"Endpoint":     "endpoint",
-		"SessionToken": "token",
+		"accessKey":    "key",
+		"region":       "region",
+		"secretKey":    "secret",
+		"consumerName": "test",
+		"streamName":   "stream",
+		"mode":         "extended",
+		"endpoint":     "endpoint",
+		"sessionToken": "token",
 	}
 	kinesis := AWSKinesis{}
 	meta, err := kinesis.parseMetadata(m)
@@ -43,5 +43,5 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, "stream", meta.StreamName)
 	assert.Equal(t, "endpoint", meta.Endpoint)
 	assert.Equal(t, "token", meta.SessionToken)
-	assert.Equal(t, kinesisConsumerMode("extended"), meta.KinesisConsumerMode)
+	assert.Equal(t, "extended", meta.KinesisConsumerMode)
 }

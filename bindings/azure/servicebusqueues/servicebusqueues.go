@@ -25,8 +25,8 @@ import (
 	"github.com/Azure/go-amqp"
 	backoff "github.com/cenkalti/backoff/v4"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -138,8 +138,6 @@ func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
 
 func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var err error
-	ctx, cancel := context.WithTimeout(ctx, a.timeout)
-	defer cancel()
 
 	a.senderLock.RLock()
 	sender := a.sender
@@ -173,79 +171,82 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 		msg.TimeToLive = &ttl
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, a.timeout)
+	defer cancel()
+
 	return nil, sender.SendMessage(ctx, msg, nil)
 }
 
-func (a *AzureServiceBusQueues) Read(handler bindings.Handler) error {
-	subscribeCtx := context.Background()
-
+func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindings.Handler) error {
 	// Reconnection backoff policy
 	bo := backoff.NewExponentialBackOff()
 	bo.MaxElapsedTime = 0
 	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
 	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
 
-	// Reconnect loop.
-	for {
-		sub := impl.NewSubscription(
-			subscribeCtx,
-			a.metadata.MaxActiveMessages,
-			a.metadata.TimeoutInSec,
-			*a.metadata.MaxRetriableErrorsPerSec,
-			&a.metadata.MaxConcurrentHandlers,
-			"queue "+a.metadata.QueueName,
-			a.logger,
-		)
+	go func() {
+		// Reconnect loop.
+		for {
+			sub := impl.NewSubscription(
+				subscribeCtx,
+				a.metadata.MaxActiveMessages,
+				a.metadata.TimeoutInSec,
+				*a.metadata.MaxRetriableErrorsPerSec,
+				&a.metadata.MaxConcurrentHandlers,
+				"queue "+a.metadata.QueueName,
+				a.logger,
+			)
 
-		// Blocks until a successful connection (or until context is canceled)
-		err := sub.Connect(func() (*servicebus.Receiver, error) {
-			return a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
-		})
-		if err != nil {
-			// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-			if err != context.Canceled {
-				a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+			// Blocks until a successful connection (or until context is canceled)
+			err := sub.Connect(func() (*servicebus.Receiver, error) {
+				return a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
+			})
+			if err != nil {
+				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
+				if err != context.Canceled {
+					a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
+				}
+				return
 			}
-			break
-		}
 
-		// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
-		// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-		err = sub.ReceiveAndBlock(
-			a.getHandlerFunc(handler),
-			a.metadata.LockRenewalInSec,
-			func() {
-				// Reset the backoff when the subscription is successful and we have received the first message
-				bo.Reset()
-			},
-		)
-		if err != nil {
-			var detachError *amqp.DetachError
-			var amqpError *amqp.Error
-			if errors.Is(err, detachError) ||
-				(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
-				a.logger.Debug(err)
-			} else {
-				a.logger.Error(err)
+			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
+			err = sub.ReceiveAndBlock(
+				a.getHandlerFunc(handler),
+				a.metadata.LockRenewalInSec,
+				func() {
+					// Reset the backoff when the subscription is successful and we have received the first message
+					bo.Reset()
+				},
+			)
+			if err != nil {
+				var detachError *amqp.DetachError
+				var amqpError *amqp.Error
+				if errors.Is(err, detachError) ||
+					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(err)
+				} else {
+					a.logger.Error(err)
+				}
 			}
+
+			// Gracefully close the connection (in case it's not closed already)
+			// Use a background context here (with timeout) because ctx may be closed already
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+			sub.Close(closeCtx)
+			closeCancel()
+
+			// If context was canceled, do not attempt to reconnect
+			if subscribeCtx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			}
+
+			wait := bo.NextBackOff()
+			a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", a.metadata.QueueName, wait)
+			time.Sleep(wait)
 		}
-
-		// Gracefully close the connection (in case it's not closed already)
-		// Use a background context here (with timeout) because ctx may be closed already
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-		sub.Close(closeCtx)
-		closeCancel()
-
-		// If context was canceled, do not attempt to reconnect
-		if subscribeCtx.Err() != nil {
-			a.logger.Debug("Context canceled; will not reconnect")
-			break
-		}
-
-		wait := bo.NextBackOff()
-		a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", a.metadata.QueueName, wait)
-		time.Sleep(wait)
-	}
+	}()
 
 	return nil
 }

@@ -69,7 +69,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: data,
 	}
 
-	putInvokeResp, err := aliCloudTableStore.Invoke(context.TODO(), putRowReq)
+	putInvokeResp, err := aliCloudTableStore.Invoke(context.Background(), putRowReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, putInvokeResp)
@@ -80,7 +80,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		"column2": int64(2),
 	})
 
-	putInvokeResp, err = aliCloudTableStore.Invoke(context.TODO(), putRowReq)
+	putInvokeResp, err = aliCloudTableStore.Invoke(context.Background(), putRowReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, putInvokeResp)
@@ -100,7 +100,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: getData,
 	}
 
-	getInvokeResp, err := aliCloudTableStore.Invoke(context.TODO(), getInvokeReq)
+	getInvokeResp, err := aliCloudTableStore.Invoke(context.Background(), getInvokeReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, getInvokeResp)
@@ -134,7 +134,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: listData,
 	}
 
-	listResp, err := aliCloudTableStore.Invoke(context.TODO(), listReq)
+	listResp, err := aliCloudTableStore.Invoke(context.Background(), listReq)
 	assert.Nil(t, err)
 	assert.NotNil(t, listResp)
 
@@ -162,12 +162,12 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		Data: deleteData,
 	}
 
-	deleteResp, err := aliCloudTableStore.Invoke(context.TODO(), deleteReq)
+	deleteResp, err := aliCloudTableStore.Invoke(context.Background(), deleteReq)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, deleteResp)
 
-	getInvokeResp, err = aliCloudTableStore.Invoke(context.TODO(), getInvokeReq)
+	getInvokeResp, err = aliCloudTableStore.Invoke(context.Background(), getInvokeReq)
 
 	assert.Nil(t, err)
 	assert.Nil(t, getInvokeResp.Data)

@@ -51,7 +51,7 @@ func (h *IPFSBinding) pinLsOperation(ctx context.Context, req *bindings.InvokeRe
 		}
 		res = append(res, pinLsOperationResponseItem{
 			Type: e.Type(),
-			Path: e.Path().String(),
+			Cid:  e.Path().Cid().String(),
 		})
 	}
 
@@ -63,7 +63,7 @@ func (h *IPFSBinding) pinLsOperation(ctx context.Context, req *bindings.InvokeRe
 }
 
 type pinLsOperationResponseItem struct {
-	Path string `json:"path,omitempty"`
+	Cid  string `json:"cid,omitempty"`
 	Type string `json:"type,omitempty"`
 }
 

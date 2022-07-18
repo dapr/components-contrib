@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -182,4 +183,197 @@ func TestParseMetadata(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, m.tlsCfg.clientKey, "failed to parse valid client certificate key")
 	})
+}
+
+func Test_buildRegexForTopic(t *testing.T) {
+	type args struct {
+		topicName string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		regex      string
+		tryMatches map[string]bool
+	}{
+		{
+			name:  "no wildcard",
+			args:  args{topicName: "hello world"},
+			regex: "",
+		},
+		{
+			name:  "#",
+			args:  args{topicName: "#"},
+			regex: "^(.*)$",
+			tryMatches: map[string]bool{
+				"helloworld":     true,
+				"helloworld/":    true,
+				"helloworld/22":  true,
+				"/helloworld":    true,
+				"/helloworld/":   true,
+				"/helloworld/22": true,
+				"Ei fu. Siccome immobile, dato il mortal sospiro, stette la spoglia immemore.": true,
+				"🐶":         true,
+				"🐶/foo":     true,
+				"🐶/foo/bar": true,
+			},
+		},
+		{
+			// This should be forbidden by the specs, but apparently it works in brokers
+			name:  "#/foo",
+			args:  args{topicName: "#/foo"},
+			regex: "^(.*)/foo$",
+			tryMatches: map[string]bool{
+				"helloworld":          false,
+				"helloworld/":         false,
+				"helloworld/22":       false,
+				"helloworld/foo":      true,
+				"hello/world/foo":     true,
+				"helloworld/foo/bar":  false,
+				"/helloworld":         false,
+				"/helloworld/":        false,
+				"/helloworld/22":      false,
+				"/helloworld/foo":     true,
+				"/hello/world/foo":    true,
+				"/helloworld/foo/bar": false,
+				"🐶":                   false,
+				"🐶/foo":               true,
+				"🐶/😄/foo":             true,
+				"🐶/foo/bar":           false,
+				"🐶/😄":                 false,
+			},
+		},
+		{
+			name:  "+",
+			args:  args{topicName: "+"},
+			regex: `^([^\/]*)$`,
+			tryMatches: map[string]bool{
+				"helloworld":     true,
+				"helloworld/":    false,
+				"helloworld/22":  false,
+				"/helloworld":    false,
+				"/helloworld/":   false,
+				"/helloworld/22": false,
+				"Ei fu. Siccome immobile, dato il mortal sospiro, stette la spoglia immemore.": true,
+				"🐶":         true,
+				"🐶/foo":     false,
+				"🐶/foo/bar": false,
+			},
+		},
+		{
+			name:  "+/foo",
+			args:  args{topicName: "+/foo"},
+			regex: `^([^\/]*)/foo$`,
+			tryMatches: map[string]bool{
+				"helloworld":          false,
+				"helloworld/":         false,
+				"helloworld/22":       false,
+				"helloworld/foo":      true,
+				"hello/world/foo":     false,
+				"helloworld/foo/bar":  false,
+				"/helloworld":         false,
+				"/helloworld/":        false,
+				"/helloworld/22":      false,
+				"/helloworld/foo":     false,
+				"/hello/world/foo":    false,
+				"/helloworld/foo/bar": false,
+				"🐶":                   false,
+				"🐶/foo":               true,
+				"🐶/😄/foo":             false,
+				"🐶/foo/bar":           false,
+				"🐶/😄":                 false,
+			},
+		},
+		{
+			name:  "foo# (invalid)",
+			args:  args{topicName: "foo#"},
+			regex: "",
+		},
+		{
+			name:  "foo+ (invalid)",
+			args:  args{topicName: "foo+"},
+			regex: "",
+		},
+		{
+			name:  "foo/#",
+			args:  args{topicName: "foo/#"},
+			regex: "^foo(.*)$",
+			tryMatches: map[string]bool{
+				"helloworld":      false,
+				"foo":             true,
+				"foo/":            true,
+				"foo/bar":         true,
+				"/helloworld":     false,
+				"foo/helloworld":  true,
+				"foo/hello/world": true,
+				"hello/world":     false,
+				"🐶":               false,
+				"foo/🐶":           true,
+				"🐶/foo/bar":       false,
+				"foo/🐶/bar":       true,
+			},
+		},
+		{
+			// This should be forbidden by the specs, but apparently it works in brokers
+			name:  "foo/#/bar",
+			args:  args{topicName: "foo/#/bar"},
+			regex: "^foo/(.*)/bar$",
+			tryMatches: map[string]bool{
+				"helloworld":       false,
+				"foo/":             false,
+				"foo/bar":          false,
+				"foo/hi/bar":       true,
+				"foo/hi/hi/hi/bar": true,
+				"foo/hi/world":     false,
+			},
+		},
+		{
+			name:  "foo/+",
+			args:  args{topicName: "foo/+"},
+			regex: `^foo((\/|)[^\/]*)$`,
+			tryMatches: map[string]bool{
+				"helloworld":      false,
+				"foo":             true,
+				"foo/":            true,
+				"foo/bar":         true,
+				"/helloworld":     false,
+				"foo/helloworld":  true,
+				"foo/hello/world": false,
+				"hello/world":     false,
+				"🐶":               false,
+				"foo/🐶":           true,
+				"🐶/foo/bar":       false,
+				"foo/🐶/bar":       false,
+			},
+		},
+		{
+			name:  "foo/+/bar",
+			args:  args{topicName: "foo/+/bar"},
+			regex: `^foo/([^\/]*)/bar$`,
+			tryMatches: map[string]bool{
+				"helloworld":       false,
+				"foo/":             false,
+				"foo/bar":          false,
+				"foo/hi/bar":       true,
+				"foo/hi/hi/hi/bar": false,
+				"foo/hi/world":     false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildRegexForTopic(tt.args.topicName)
+			if got != tt.regex {
+				t.Errorf("buildRegexForTopic(%v) = %v, want %v", tt.args.topicName, got, tt.regex)
+				return
+			}
+			if len(tt.tryMatches) > 0 {
+				re := regexp.MustCompile(got)
+				for topic, match := range tt.tryMatches {
+					if matched := re.MatchString(topic); matched != match {
+						t.Errorf("buildRegexForTopic(%v) - match(%v) returned %v but expected %v", tt.args.topicName, topic, matched, match)
+					}
+				}
+			}
+		})
+	}
 }

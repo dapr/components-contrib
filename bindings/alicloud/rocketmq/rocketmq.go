@@ -121,7 +121,7 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 
 		innerErr := consumer.Shutdown()
 		if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
-			a.logger.Warnf("binding-rocketmq: error while shutting down consumer: %v", err)
+			a.logger.Warnf("binding-rocketmq: error while shutting down consumer: %v", innerErr)
 		}
 	}()
 

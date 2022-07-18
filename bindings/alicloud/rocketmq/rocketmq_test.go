@@ -29,6 +29,7 @@ import (
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	if !isLiveTest() {
+		t.Skip()
 		return
 	}
 	m := bindings.Metadata{} //nolint:exhaustivestruct
@@ -44,10 +45,8 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 
 		return nil, nil
 	}
-	go func() {
-		err = r.Read(handler)
-		require.NoError(t, err)
-	}()
+	err = r.Read(context.Background(), handler)
+	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)
 	atomic.StoreInt32(&count, 0)

@@ -98,7 +98,7 @@ func (c *CosmosDBGremlinAPI) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{queryOperation}
 }
 
-func (c *CosmosDBGremlinAPI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var jsonPoint map[string]interface{}
 	err := json.Unmarshal(req.Data, &jsonPoint)
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *CosmosDBGremlinAPI) Invoke(ctx context.Context, req *bindings.InvokeReq
 	if gq == "" {
 		return nil, errors.New("CosmosDBGremlinAPI Error: missing data - gremlin query not set")
 	}
-	startTime := time.Now().UTC()
+	startTime := time.Now()
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			respOpKey:        string(req.Operation),
@@ -125,7 +125,7 @@ func (c *CosmosDBGremlinAPI) Invoke(ctx context.Context, req *bindings.InvokeReq
 	if len(d) > 0 {
 		resp.Data = d[0].Result.Data
 	}
-	endTime := time.Now().UTC()
+	endTime := time.Now()
 	resp.Metadata[respEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 

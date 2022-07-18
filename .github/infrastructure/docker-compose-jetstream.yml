@@ -5,3 +5,8 @@ services:
     command: "-js"
     ports:
       - "4222:4222"
+
+# in another container on the same docker network we must run the following command
+# the problem is that there seems to be no ready made containers with the NATS CLI
+
+# nats -s localhost:4222 stream add myStream --subjects testTopic,multiTopic1,multiTopic2 --ack --max-msgs=-1 --max-bytes=-1 --max-age=1y --storage memory --retention limits --max-msg-size=-1 --discard=old --replicas=1 --max-msgs-per-subject=-1 --dupe-window=2m0s --no-allow-rollup --no-deny-delete --no-deny-purge

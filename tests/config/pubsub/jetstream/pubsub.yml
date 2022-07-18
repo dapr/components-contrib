@@ -11,4 +11,4 @@ spec:
   - name: name
     value: config-test
   - name: flowControl
-    value: true
+    value: false

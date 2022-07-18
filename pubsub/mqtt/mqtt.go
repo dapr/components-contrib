@@ -18,9 +18,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,17 +63,23 @@ type mqttPubSub struct {
 	consumer        mqtt.Client
 	metadata        *metadata
 	logger          logger.Logger
-	topics          map[string]pubsub.Handler
-	subscribingLock sync.Mutex
+	topics          map[string]mqttPubSubSubscription
+	subscribingLock sync.RWMutex
 	ctx             context.Context
 	cancel          context.CancelFunc
+}
+
+type mqttPubSubSubscription struct {
+	handler pubsub.Handler
+	alias   string
+	matcher func(topic string) bool
 }
 
 // NewMQTTPubSub returns a new mqttPubSub instance.
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{
 		logger:          logger,
-		subscribingLock: sync.Mutex{},
+		subscribingLock: sync.RWMutex{},
 	}
 }
 
@@ -175,7 +184,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	}
 
 	m.producer = p
-	m.topics = make(map[string]pubsub.Handler)
+	m.topics = make(map[string]mqttPubSubSubscription)
 
 	m.logger.Debug("mqtt message bus initialization complete")
 
@@ -184,6 +193,10 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 
 // Publish the topic to mqtt pub sub.
 func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
+	if req.Topic == "" {
+		return errors.New("topic name is empty")
+	}
+
 	// Note this can contain PII
 	// m.logger.Debugf("mqtt publishing topic %s with data: %v", req.Topic, req.Data)
 	m.logger.Debugf("mqtt publishing topic %s", req.Topic)
@@ -213,6 +226,10 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 
 // Subscribe to the mqtt pub sub topic.
 func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if req.Topic == "" {
+		return errors.New("topic name is empty")
+	}
+
 	if ctxErr := m.ctx.Err(); ctxErr != nil {
 		// If the global context has been canceled, we do not allow more subscriptions
 		return ctxErr
@@ -225,7 +242,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	// When the connection is ready, add the topic
 	// Use the global context here to maintain the connection
 	m.startSubscription(m.ctx, func() {
-		m.topics[req.Topic] = handler
+		m.addTopic(req.Topic, handler)
 	})
 
 	// Listen for context cancelation to remove the subscription
@@ -310,8 +327,8 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 			Data:  mqttMsg.Payload(),
 		}
 
-		topicHandler, ok := m.topics[msg.Topic]
-		if !ok || topicHandler == nil {
+		topicHandler := m.handlerForTopic(msg.Topic)
+		if topicHandler == nil {
 			m.logger.Errorf("no handler defined for topic %s", msg.Topic)
 			return
 		}
@@ -323,7 +340,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 			b = backoff.WithMaxRetries(b, uint64(m.metadata.backOffMaxRetries))
 		}
 		if err := retry.NotifyRecover(func() error {
-			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+			m.logger.Debugf("Processing MQTT message %s#%d (retained=%v)", mqttMsg.Topic(), mqttMsg.MessageID(), mqttMsg.Retained())
 
 			if err := topicHandler(ctx, &msg); err != nil {
 				return err
@@ -333,13 +350,37 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 
 			return nil
 		}, b, func(err error, d time.Duration) {
-			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
+			m.logger.Errorf("Error processing MQTT message: %s#%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
 		}, func() {
-			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s#%d", mqttMsg.Topic(), mqttMsg.MessageID())
 		}); err != nil {
-			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+			m.logger.Errorf("Failed processing MQTT message: %s#%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
 		}
 	}
+}
+
+// Returns the handler for a message sent to a given topic, supporting wildcards and other special syntaxes.
+func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
+	m.subscribingLock.RLock()
+	defer m.subscribingLock.RUnlock()
+
+	// First, try to see if we have a handler for the exact topic (no wildcards etc)
+	topicHandler, ok := m.topics[topic]
+	if ok && topicHandler.handler != nil {
+		return topicHandler.handler
+	}
+
+	// Iterate through the topics and run the matchers
+	for _, obj := range m.topics {
+		if obj.alias == topic {
+			return obj.handler
+		}
+		if obj.matcher != nil && obj.matcher(topic) {
+			return obj.handler
+		}
+	}
+
+	return nil
 }
 
 func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client, error) {
@@ -424,4 +465,75 @@ func (m *mqttPubSub) Close() error {
 
 func (m *mqttPubSub) Features() []pubsub.Feature {
 	return nil
+}
+
+var sharedSubscriptionMatch = regexp.MustCompile(`^\$share\/(.*?)\/.`)
+
+// Adds a topic to the list of subscriptions.
+func (m *mqttPubSub) addTopic(origTopicName string, handler pubsub.Handler) {
+	obj := mqttPubSubSubscription{
+		handler: handler,
+	}
+
+	// Shared subscriptions begin with "$share/GROUPID/" and we can remove that prefix
+	topicName := origTopicName
+	if found := sharedSubscriptionMatch.FindStringIndex(origTopicName); found != nil && found[0] == 0 {
+		topicName = topicName[(found[1] - 1):]
+		obj.alias = topicName
+	}
+
+	// If the topic name contains a wildcard, we need to add a matcher
+	regexStr := buildRegexForTopic(topicName)
+	if regexStr != "" {
+		// We built our own regex and this should never panic
+		match := regexp.MustCompile(regexStr)
+		obj.matcher = func(topic string) bool {
+			return match.MatchString(topic)
+		}
+	}
+
+	m.topics[origTopicName] = obj
+}
+
+// Returns a regular expression string that matches the topic, with support for wildcards.
+func buildRegexForTopic(topicName string) string {
+	// This is a bit more lax than the specs, which for example require "#" to be at the end of the string only:
+	// in practice, seems that (at least some) brokers are more flexible and allow "#" in the middle of a string too
+	var (
+		regexStr string
+		lastPos  int = -1
+		okPos    bool
+	)
+	if strings.ContainsAny(topicName, "#+") {
+		regexStr = "^"
+		// It's ok to iterate over bytes here (rather than codepoints) because all characters we're looking for are always single-byte
+		for i := 0; i < len(topicName); i++ {
+			// Wildcard chars must either be at the beginning of the string or must follow a /
+			okPos = (i == 0 || topicName[i-1] == '/')
+			if topicName[i] == '#' && okPos {
+				lastPos = i
+				if i > 0 && i == (len(topicName)-1) {
+					// Edge case: we're at the end of the string so we can allow omitting the preceding /
+					regexStr += regexp.QuoteMeta(topicName[0:(i-1)]) + "(.*)"
+				} else {
+					regexStr += regexp.QuoteMeta(topicName[0:i]) + "(.*)"
+				}
+			} else if topicName[i] == '+' && okPos {
+				lastPos = i
+				if i > 0 && i == (len(topicName)-1) {
+					// Edge case: we're at the end of the string so we can allow omitting the preceding /
+					regexStr += regexp.QuoteMeta(topicName[0:(i-1)]) + `((\/|)[^\/]*)`
+				} else {
+					regexStr += regexp.QuoteMeta(topicName[0:i]) + `([^\/]*)`
+				}
+			}
+		}
+		regexStr += regexp.QuoteMeta(topicName[(lastPos+1):]) + "$"
+	}
+
+	if lastPos == -1 {
+		return ""
+	}
+
+	return regexStr
 }

@@ -21,7 +21,6 @@ import (
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 type jetstreamPubSub struct {
@@ -29,8 +28,6 @@ type jetstreamPubSub struct {
 	jsc  nats.JetStreamContext
 	l    logger.Logger
 	meta metadata
-
-	backOffConfig retry.Config
 }
 
 func NewJetStream(logger logger.Logger) pubsub.PubSub {
@@ -64,14 +61,6 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 
 	js.jsc, err = js.nc.JetStream()
 	if err != nil {
-		return err
-	}
-
-	// Default retry configuration is used if no backOff properties are set.
-	if err := retry.DecodeConfigWithPrefix(
-		&js.backOffConfig,
-		metadata.Properties,
-		"backOff"); err != nil {
 		return err
 	}
 

@@ -93,10 +93,12 @@ require (
 	github.com/miekg/dns v1.1.43 // indirect
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moul/http2curl v1.0.0 // indirect
-	github.com/nats-io/nats-server/v2 v2.7.4
-	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
-	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
-	github.com/nats-io/stan.go v0.8.3
+	github.com/mrz1836/postmark v1.2.9
+	github.com/nats-io/nats-server/v2 v2.8.4
+	github.com/nats-io/nats-streaming-server v0.24.6 // indirect
+	github.com/nats-io/nats.go v1.16.0
+	github.com/nats-io/nkeys v0.3.0
+	github.com/nats-io/stan.go v0.10.2
 	github.com/open-policy-agent/opa v0.40.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
@@ -152,11 +154,6 @@ require (
 )
 
 require (
-	github.com/mrz1836/postmark v1.2.9
-	github.com/nats-io/nkeys v0.3.0
-)
-
-require (
 	cloud.google.com/go/secretmanager v1.4.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
 	github.com/apache/dubbo-go-hessian2 v1.11.0
@@ -193,12 +190,13 @@ require (
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
-	github.com/hashicorp/go-hclog v1.0.0 // indirect
+	github.com/hashicorp/go-hclog v1.1.0 // indirect
 	github.com/jinzhu/copier v0.3.5 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
 	github.com/knadh/koanf v1.4.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/lib/pq v1.10.4 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -306,7 +304,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
-	github.com/nats-io/jwt/v2 v2.2.1-0.20220113022732-58e87895b296 // indirect
+	github.com/nats-io/jwt/v2 v2.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect

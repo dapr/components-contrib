@@ -369,5 +369,5 @@ func (m *mqttPubSub) Close() error {
 }
 
 func (m *mqttPubSub) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureSubscribeWildcards}
 }

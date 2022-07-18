@@ -16,7 +16,10 @@ package aws
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+
+	"github.com/dapr/kit/logger"
 )
 
 func GetClient(accessKey string, secretKey string, sessionToken string, region string, endpoint string) (*session.Session, error) {
@@ -34,10 +37,19 @@ func GetClient(accessKey string, secretKey string, sessionToken string, region s
 		awsConfig = awsConfig.WithEndpoint(endpoint)
 	}
 
-	awsSession, err := session.NewSession(awsConfig)
+	awsSession, err := session.NewSessionWithOptions(session.Options{
+		Config:            *awsConfig,
+		SharedConfigState: session.SharedConfigEnable,
+	})
 	if err != nil {
 		return nil, err
 	}
+
+	userAgentHandler := request.NamedHandler{
+		Name: "UserAgentHandler",
+		Fn:   request.MakeAddToUserAgentHandler("dapr", logger.DaprVersion),
+	}
+	awsSession.Handlers.Build.PushBackNamed(userAgentHandler)
 
 	return awsSession, nil
 }

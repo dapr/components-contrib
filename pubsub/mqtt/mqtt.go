@@ -361,9 +361,6 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 
 // Returns the handler for a message sent to a given topic, supporting wildcards and other special syntaxes.
 func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
-	m.subscribingLock.RLock()
-	defer m.subscribingLock.RUnlock()
-
 	// First, try to see if we have a handler for the exact topic (no wildcards etc)
 	topicHandler, ok := m.topics[topic]
 	if ok && topicHandler.handler != nil {

@@ -8,11 +8,3 @@ spec:
   metadata:
   - name: url
     value: "tcp://localhost:1884"
-  - name: consumerID
-    value: "testConsumer1"
-  - name: retain
-    value: false
-  - name: qos
-    value: 1
-  - name: cleanSession
-    value: false

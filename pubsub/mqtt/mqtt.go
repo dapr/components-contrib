@@ -483,3 +483,74 @@ func buildRegexForTopic(topicName string) string {
 
 	return regexStr
 }
+
+var sharedSubscriptionMatch = regexp.MustCompile(`^\$share\/(.*?)\/.`)
+
+// Adds a topic to the list of subscriptions.
+func (m *mqttPubSub) addTopic(origTopicName string, handler pubsub.Handler) {
+	obj := mqttPubSubSubscription{
+		handler: handler,
+	}
+
+	// Shared subscriptions begin with "$share/GROUPID/" and we can remove that prefix
+	topicName := origTopicName
+	if found := sharedSubscriptionMatch.FindStringIndex(origTopicName); found != nil && found[0] == 0 {
+		topicName = topicName[(found[1] - 1):]
+		obj.alias = topicName
+	}
+
+	// If the topic name contains a wildcard, we need to add a matcher
+	regexStr := buildRegexForTopic(topicName)
+	if regexStr != "" {
+		// We built our own regex and this should never panic
+		match := regexp.MustCompile(regexStr)
+		obj.matcher = func(topic string) bool {
+			return match.MatchString(topic)
+		}
+	}
+
+	m.topics[origTopicName] = obj
+}
+
+// Returns a regular expression string that matches the topic, with support for wildcards.
+func buildRegexForTopic(topicName string) string {
+	// This is a bit more lax than the specs, which for example require "#" to be at the end of the string only:
+	// in practice, seems that (at least some) brokers are more flexible and allow "#" in the middle of a string too
+	var (
+		regexStr string
+		lastPos  int = -1
+		okPos    bool
+	)
+	if strings.ContainsAny(topicName, "#+") {
+		regexStr = "^"
+		// It's ok to iterate over bytes here (rather than codepoints) because all characters we're looking for are always single-byte
+		for i := 0; i < len(topicName); i++ {
+			// Wildcard chars must either be at the beginning of the string or must follow a /
+			okPos = (i == 0 || topicName[i-1] == '/')
+			if topicName[i] == '#' && okPos {
+				lastPos = i
+				if i > 0 && i == (len(topicName)-1) {
+					// Edge case: we're at the end of the string so we can allow omitting the preceding /
+					regexStr += regexp.QuoteMeta(topicName[0:(i-1)]) + "(.*)"
+				} else {
+					regexStr += regexp.QuoteMeta(topicName[0:i]) + "(.*)"
+				}
+			} else if topicName[i] == '+' && okPos {
+				lastPos = i
+				if i > 0 && i == (len(topicName)-1) {
+					// Edge case: we're at the end of the string so we can allow omitting the preceding /
+					regexStr += regexp.QuoteMeta(topicName[0:(i-1)]) + `((\/|)[^\/]*)`
+				} else {
+					regexStr += regexp.QuoteMeta(topicName[0:i]) + `([^\/]*)`
+				}
+			}
+		}
+		regexStr += regexp.QuoteMeta(topicName[(lastPos+1):]) + "$"
+	}
+
+	if lastPos == -1 {
+		return ""
+	}
+
+	return regexStr
+}

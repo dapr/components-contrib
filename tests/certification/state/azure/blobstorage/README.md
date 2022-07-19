@@ -1,4 +1,4 @@
-# Table storage certification testing
+# Azure Blob storage certification testing
 
 This project aims to test the Azure Blob storage State Store component under various conditions.
 
@@ -11,7 +11,7 @@ This project aims to test the Azure Blob storage State Store component under var
 ## Basic Test for non-existing container for CRUD operations:
 1. Able to create and test connection.
 2. Able to do set, fetch, delete data.
-3. Delete the table
+3. Delete the container
 
 ## Test for authentication using Azure Auth layer
-1. Save Data retrieve data using AAD credentials
+1. Save Data and retrieve data using AAD credentials

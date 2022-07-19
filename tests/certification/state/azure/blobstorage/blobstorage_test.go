@@ -82,7 +82,7 @@ func TestAzureBlobStorage(t *testing.T) {
 	}
 
 	flow.New(t, "Test basic operations, save/get/delete using existing container").
-		// Run the Dapr sidecar with azure table storage.
+		// Run the Dapr sidecar with azure blob storage.
 		Step(sidecar.Run(sidecarNamePrefix,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -102,7 +102,7 @@ func TestAzureBlobStorage(t *testing.T) {
 		Run()
 
 	flow.New(t, "Test basic operations, save/get/delete with new container").
-		// Run the Dapr sidecar with azure table storage.
+		// Run the Dapr sidecar with azure blob storage.
 		Step(sidecar.Run(sidecarNamePrefix,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -123,7 +123,7 @@ func TestAzureBlobStorage(t *testing.T) {
 		Run()
 
 	flow.New(t, "Test for authentication using Azure Auth layer").
-		// Run the Dapr sidecar with azure table storage.
+		// Run the Dapr sidecar with azure blob storage.
 		Step(sidecar.Run(sidecarNamePrefix,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),

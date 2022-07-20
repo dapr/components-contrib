@@ -121,18 +121,18 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	}
 
 	if m.connectionString != "" && m.host != "" {
-		return m, fmt.Errorf("azure store error: can't set both %s and %s fields in metadata", host, connectionString)
+		return m, fmt.Errorf("azure appconfig error: can't set both %s and %s fields in metadata", host, connectionString)
 	}
 
 	if m.connectionString == "" && m.host == "" {
-		return m, fmt.Errorf("azure store error: specify %s or %s field in metadata", host, connectionString)
+		return m, fmt.Errorf("azure appconfig error: specify %s or %s field in metadata", host, connectionString)
 	}
 
 	m.maxRetries = defaultMaxRetries
 	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure store error: can't parse maxRetries field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse maxRetries field: %s", err)
 		}
 		m.maxRetries = parsedVal
 	}
@@ -141,7 +141,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[maxRetryDelay]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure store error: can't parse maxRetryDelay field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse maxRetryDelay field: %s", err)
 		}
 		m.maxRetryDelay = time.Duration(parsedVal)
 	}
@@ -150,7 +150,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[retryDelay]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure store error: can't parse retryDelay field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse retryDelay field: %s", err)
 		}
 		m.retryDelay = time.Duration(parsedVal)
 	}

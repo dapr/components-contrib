@@ -94,7 +94,7 @@ func TestInit(t *testing.T) {
 }
 
 func Test_parseMetadata(t *testing.T) {
-	t.Run(fmt.Sprintf("parse metadatad with %s", host), func(t *testing.T) {
+	t.Run(fmt.Sprintf("parse metadata with %s", host), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
@@ -119,7 +119,7 @@ func Test_parseMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run(fmt.Sprintf("parse metadatad with %s", connectionString), func(t *testing.T) {
+	t.Run(fmt.Sprintf("parse metadata with %s", connectionString), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
@@ -144,7 +144,7 @@ func Test_parseMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run(fmt.Sprintf("can't set both %s and %s fields in metadata", host, connectionString), func(t *testing.T) {
+	t.Run(fmt.Sprintf("both %s and %s fields set in metadata", host, connectionString), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[connectionString] = "testConnectionString"
@@ -160,7 +160,7 @@ func Test_parseMetadata(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run(fmt.Sprintf("specify %s or %s field in metadata", host, connectionString), func(t *testing.T) {
+	t.Run(fmt.Sprintf("both %s and %s fields not set in metadata", host, connectionString), func(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = ""
 		testProperties[connectionString] = ""

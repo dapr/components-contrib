@@ -66,6 +66,11 @@ func NewEnvironmentSettings(resourceName string, values map[string]string) (Envi
 	case "signalr":
 		// Azure SignalR (data plane)
 		es.Resource = "https://signalr.azure.com"
+	case "appconfig":
+		// Azure App Configuration (data plane)
+		// For documentation https://docs.microsoft.com/en-us/azure/azure-app-configuration/rest-api-authentication-azure-ad#audience
+		// The resource name to request a token is https://azconfig.io
+		es.Resource = "https://azconfig.io"
 	default:
 		return es, errors.New("invalid resource name: " + resourceName)
 	}

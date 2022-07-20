@@ -258,7 +258,8 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 		return err
 	}
 
-	if err := r.client.XAck(msg.ctx, msg.message.Topic, r.metadata.consumerID, msg.messageID).Err(); err != nil {
+	// Use the background context in case subscriptionCtx is already closed
+	if err := r.client.XAck(context.Background(), msg.message.Topic, r.metadata.consumerID, msg.messageID).Err(); err != nil {
 		r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
 
 		return err
@@ -285,7 +286,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 			Block:    time.Duration(r.clientSettings.ReadTimeout),
 		}).Result()
 		if err != nil {
-			if !errors.Is(err, redis.Nil) {
+			if !errors.Is(err, redis.Nil) && err != context.Canceled {
 				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			}
 			continue
@@ -411,7 +412,7 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 		// Ack the message to remove it from the pending list.
 		if errors.Is(err, redis.Nil) {
 			// Use the background context in case subscriptionCtx is already closed
-			if err = r.client.XAck(ctx, stream, r.metadata.consumerID, pendingID).Err(); err != nil {
+			if err = r.client.XAck(context.Background(), stream, r.metadata.consumerID, pendingID).Err(); err != nil {
 				r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
 			}
 		} else {

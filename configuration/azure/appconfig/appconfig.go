@@ -74,6 +74,11 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		Telemetry: policy.TelemetryOptions{
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
+		Retry: policy.RetryOptions{
+			MaxRetries:    int32(m.maxRetries),
+			RetryDelay:    m.maxRetryDelay,
+			MaxRetryDelay: m.maxRetryDelay,
+		},
 	}
 
 	options := azappconfig.ClientOptions{

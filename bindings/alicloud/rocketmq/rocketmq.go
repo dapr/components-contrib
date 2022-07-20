@@ -90,11 +90,12 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 		if topicStr == "" {
 			continue
 		}
-		mqType, mqExpression, topic, err := parseTopic(topicStr)
-		if err != nil {
+
+		var mqType, mqExpression, topic string
+		if mqType, mqExpression, topic, err = parseTopic(topicStr); err != nil {
 			return err
 		}
-		if err := consumer.Subscribe(
+		if err = consumer.Subscribe(
 			topic,
 			mqc.MessageSelector{
 				Type:       mqc.ExpressionType(mqType),
@@ -106,7 +107,7 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 		}
 	}
 
-	if err := consumer.Start(); err != nil {
+	if err = consumer.Start(); err != nil {
 		return fmt.Errorf("binding-rocketmq: consumer start failed. %w", err)
 	}
 
@@ -121,7 +122,7 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 
 		innerErr := consumer.Shutdown()
 		if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
-			a.logger.Warnf("binding-rocketmq: error while shutting down consumer: %v")
+			a.logger.Warnf("binding-rocketmq: error while shutting down consumer: %v", innerErr)
 		}
 	}()
 

@@ -202,15 +202,6 @@ func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 	go func() {
 		var consumeToken bool
 		var err error
-		var messageKey int64
-
-		// We check for the existence of the sequence number again just in case
-		// it has been unset by some other goroutine and we cannot process the message.
-		if msg.SequenceNumber == nil {
-			s.logger.Errorf("Message has no sequence number: %s", msg.MessageID)
-			s.AbandonMessage(ctx, msg)
-		}
-		messageKey = *msg.SequenceNumber
 
 		// If handleChan is non-nil, we have a limit on how many handler we can process
 		limitConcurrentHandlers := cap(s.handleChan) > 0
@@ -231,7 +222,7 @@ func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 			}
 
 			// Remove the message from the map of active ones
-			s.removeActiveMessage(messageKey)
+			s.removeActiveMessage(*msg.SequenceNumber)
 
 			// Remove an entry from activeMessageChan to allow processing more messages
 			<-s.activeMessagesChan
@@ -330,10 +321,10 @@ func (s *Subscription) CompleteMessage(ctx context.Context, m *azservicebus.Rece
 }
 
 func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
-	s.logger.Debugf("Adding message %s to active messages on %s", m.MessageID, s.entity)
 	if m.SequenceNumber == nil {
 		return fmt.Errorf("message sequence number is nil")
 	}
+	s.logger.Debugf("Adding message with sequence number %d to active messages on %s", *m.SequenceNumber, s.entity)
 	s.mu.Lock()
 	s.activeMessages[*m.SequenceNumber] = m
 	s.mu.Unlock()
@@ -341,7 +332,7 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 }
 
 func (s *Subscription) removeActiveMessage(messageKey int64) {
-	s.logger.Debugf("Removing message %s from active messages on %s", messageKey, s.entity)
+	s.logger.Debugf("Removing message with sequence number %d from active messages on %s", messageKey, s.entity)
 	s.mu.Lock()
 	delete(s.activeMessages, messageKey)
 	s.mu.Unlock()

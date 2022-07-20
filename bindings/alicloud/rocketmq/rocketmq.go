@@ -90,9 +90,10 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 		if topicStr == "" {
 			continue
 		}
-		mqType, mqExpression, topic, err1 := parseTopic(topicStr)
-		if err != nil {
-			return err1
+
+		var mqType, mqExpression, topic string
+		if mqType, mqExpression, topic, err = parseTopic(topicStr); err != nil {
+			return err
 		}
 		if err = consumer.Subscribe(
 			topic,

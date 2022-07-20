@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
 	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/configuration"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -46,7 +45,6 @@ const (
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
 	client   *azappconfig.Client
-	json     jsoniter.API
 	metadata metadata
 
 	logger logger.Logger
@@ -55,7 +53,6 @@ type ConfigurationStore struct {
 // NewAzureAppConfigurationStore returns a new Azure App Configuration store.
 func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 	s := &ConfigurationStore{
-		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
 

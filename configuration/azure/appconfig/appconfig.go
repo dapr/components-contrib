@@ -23,7 +23,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
-	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/configuration"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -188,10 +187,9 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	subscribeID := uuid.New().String()
-	return subscribeID, nil
+	return "", fmt.Errorf("Subscribe is not implemented by this configuration store")
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	return nil
+	return fmt.Errorf("Unsubscribe is not implemented by this configuration store")
 }

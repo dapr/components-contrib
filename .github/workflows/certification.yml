@@ -25,17 +25,6 @@ on:
       - release-*
 
 jobs:
-  pre_job:
-    name: Skip Duplicate Actions
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v3.4.0
-        with:
-          cancel_others: 'true'
-          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the certification tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.

@@ -177,9 +177,11 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 		// s.logger.Debugf("Message body: %s", string(msg.Body))
 
 		if err = s.addActiveMessage(msg); err != nil {
-			// If we cannot add the message then it is invalid and we cannot process it.
+			// If we cannot add the message then sequence number is not set, this must
+			// be a bug in the Azure Service Bus SDK so we will log the error and not
+			// handle the message. The message will eventually be retried until fixed.
 			s.logger.Errorf("Error adding message: %s", err.Error())
-			s.AbandonMessage(ctx, msg)
+			continue
 		}
 
 		s.logger.Debugf("Processing received message: %s", msg.MessageID)
@@ -222,7 +224,7 @@ func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 			}
 
 			// Remove the message from the map of active ones
-			s.removeActiveMessage(*msg.SequenceNumber)
+			s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
 
 			// Remove an entry from activeMessageChan to allow processing more messages
 			<-s.activeMessagesChan
@@ -324,15 +326,15 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 	if m.SequenceNumber == nil {
 		return fmt.Errorf("message sequence number is nil")
 	}
-	s.logger.Debugf("Adding message with sequence number %d to active messages on %s", *m.SequenceNumber, s.entity)
+	s.logger.Debugf("Adding message %s with sequence number %d to active messages on %s", m.MessageID, *m.SequenceNumber, s.entity)
 	s.mu.Lock()
 	s.activeMessages[*m.SequenceNumber] = m
 	s.mu.Unlock()
 	return nil
 }
 
-func (s *Subscription) removeActiveMessage(messageKey int64) {
-	s.logger.Debugf("Removing message with sequence number %d from active messages on %s", messageKey, s.entity)
+func (s *Subscription) removeActiveMessage(messageID string, messageKey int64) {
+	s.logger.Debugf("Removing message %s with sequence number %d from active messages on %s", messageID, messageKey, s.entity)
 	s.mu.Lock()
 	delete(s.activeMessages, messageKey)
 	s.mu.Unlock()

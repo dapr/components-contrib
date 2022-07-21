@@ -30,8 +30,6 @@ jobs:
   # secrets to be executed on pull requests.
   generate-matrix:
     runs-on: ubuntu-latest
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
     steps:
     - name: Install yq
       run: |

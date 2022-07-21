@@ -448,6 +448,7 @@ func buildRegexForTopic(topicName string) string {
 	var (
 		regexStr string
 		lastPos  int = -1
+		start    int
 		okPos    bool
 	)
 	if strings.ContainsAny(topicName, "#+") {
@@ -460,18 +461,20 @@ func buildRegexForTopic(topicName string) string {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
 					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					regexStr += regexp.QuoteMeta(topicName[0:(i-1)]) + "(.*)"
+					regexStr += regexp.QuoteMeta(topicName[start:(i-1)]) + "(.*)"
 				} else {
-					regexStr += regexp.QuoteMeta(topicName[0:i]) + "(.*)"
+					regexStr += regexp.QuoteMeta(topicName[start:i]) + "(.*)"
 				}
+				start = i + 1
 			} else if topicName[i] == '+' && okPos {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
 					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					regexStr += regexp.QuoteMeta(topicName[0:(i-1)]) + `((\/|)[^\/]*)`
+					regexStr += regexp.QuoteMeta(topicName[start:(i-1)]) + `((\/|)[^\/]*)`
 				} else {
-					regexStr += regexp.QuoteMeta(topicName[0:i]) + `([^\/]*)`
+					regexStr += regexp.QuoteMeta(topicName[start:i]) + `([^\/]*)`
 				}
+				start = i + 1
 			}
 		}
 		regexStr += regexp.QuoteMeta(topicName[(lastPos+1):]) + "$"

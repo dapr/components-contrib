@@ -14,7 +14,7 @@ services:
       - "${ZEEBE_BROKER_GATEWAY_NETWORK_PORT}:${ZEEBE_BROKER_GATEWAY_NETWORK_PORT}"
 
   dapr:
-    image: daprio/dapr-dev:0.1.7
+    image: daprio/dapr-dev:0.1.8
     privileged: true
     init: true
     security_opt:

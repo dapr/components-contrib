@@ -46,6 +46,7 @@ import (
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
@@ -463,6 +464,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_influx.NewInflux(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
+	case "rabbitmq":
+		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}
@@ -486,6 +489,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
+	case "rabbitmq":
+		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}

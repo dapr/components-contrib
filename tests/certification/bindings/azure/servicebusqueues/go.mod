@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.8.0
+	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2-0.20210614175626-b9074b64d233
 	github.com/stretchr/testify v1.7.4
@@ -147,6 +147,3 @@ replace go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
-
-// TODO: TEMPORARY CHANGE UNTIL PR IS MERGED IN dapr/dapr
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20220712175237-1bdf5e5592eb

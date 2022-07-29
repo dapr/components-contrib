@@ -8,7 +8,7 @@ spec:
   version: v1
   metadata:
   - name: queueName
-    value: queue1
+    value: msgttlqueue
   - name: host
     value: "amqp://test:test@localhost:5672"
   - name: prefetchCount

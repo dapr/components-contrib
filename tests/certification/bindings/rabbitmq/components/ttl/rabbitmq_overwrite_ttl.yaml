@@ -1,14 +1,14 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: queue-ttl-binding
+  name: overwrite-ttl-binding
   namespace: default
 spec:
   type: bindings.rabbitmq
   version: v1
   metadata:
   - name: queueName
-    value: queue1
+    value: overwritettlqueue
   - name: host
     value: "amqp://test:test@localhost:5672"
   - name: prefetchCount

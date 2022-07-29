@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: options-binding
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+  - name: queueName
+    value: queue1
+  - name: host
+    value: "amqp://test:test@localhost:5672"
+  - name: durable
+    value: true
+  - name: deleteWhenUnused
+    value: true
+  - name: prefetchCount
+    value: 0
+  - name: exclusive
+    value: false
+  - name: maxPriority
+    value: 5
+  - name: contentType
+    value: "text/plain"

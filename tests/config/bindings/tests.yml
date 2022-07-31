@@ -53,3 +53,7 @@ components:
   - component: mqtt
     profile: vernemq
     operations: ["create", "operations", "read"]
+  - component: rabbitmq
+    operations: ["create", "operations", "read"]
+    config:
+      checkInOrderProcessing: false

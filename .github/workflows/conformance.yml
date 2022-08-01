@@ -68,6 +68,7 @@ jobs:
         - state.redis
         - state.sqlserver
         - state.cockroachdb
+        - workflows.temporal
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -220,6 +221,10 @@ jobs:
     - name: Start Redis
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
       if: contains(matrix.component, 'redis')
+
+    - name: Start Temporal
+      run: docker-compose -f ./.github/infrastructure/docker-compose-temporal.yml -p temporal up -d
+      if: contains(matrix.component, 'temporal')
 
     - name: Start MongoDB
       uses: supercharge/mongodb-github-action@1.3.0

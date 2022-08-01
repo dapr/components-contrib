@@ -33,6 +33,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
@@ -77,6 +78,8 @@ import (
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
+	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
+	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
 
 const (
@@ -343,6 +346,16 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 					break
 				}
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
+			case "workflows":
+				filepath := fmt.Sprintf("../config/workflows/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				wf := loadWorkflow(comp)
+				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
@@ -496,6 +509,19 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 	}
 
 	return binding
+}
+
+func loadWorkflow(tc TestComponent) workflows.Workflow {
+	var wf workflows.Workflow
+
+	switch tc.Component {
+	case "temporal":
+		wf = wf_temporal.NewTemporalWorkflow(testLogger)
+	default:
+		return nil
+	}
+
+	return wf
 }
 
 func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {

@@ -17,7 +17,10 @@ import (
 	"context"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/zouyx/agollo/v3/component/log"
+=======
+>>>>>>> Initial creation of workflows building block
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -36,7 +39,10 @@ func main() {
 	// Create the workflow client
 	clientTwo, err := client.Dial(cOpt)
 	if err != nil {
+<<<<<<< HEAD
 		log.Error("Unable to create client.")
+=======
+>>>>>>> Initial creation of workflows building block
 		return
 	}
 	wOpt := worker.Options{}
@@ -49,7 +55,10 @@ func main() {
 
 	err = w.Start()
 	if err != nil {
+<<<<<<< HEAD
 		log.Error("Unable to start worker.")
+=======
+>>>>>>> Initial creation of workflows building block
 		return
 	}
 	w.Run(worker.InterruptCh())
@@ -66,9 +75,15 @@ func TestWorkflow(ctx workflow.Context, runtimeSeconds int) error {
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, options)
+<<<<<<< HEAD
 	err := workflow.ExecuteActivity(ctx, ExampleActivity, runtimeSeconds).Get(ctx, nil)
 	if err != nil {
 		log.Error("Unable to execute activity.")
+=======
+	newCtx, _ := workflow.NewDisconnectedContext(ctx)
+	err := workflow.ExecuteActivity(newCtx, ExampleActivity, runtimeSeconds).Get(ctx, nil)
+	if err != nil {
+>>>>>>> Initial creation of workflows building block
 		return err
 	}
 

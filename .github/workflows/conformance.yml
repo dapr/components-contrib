@@ -84,6 +84,7 @@ jobs:
         - state.cockroachdb
         - workflows.temporal
         - state.rethinkdb
+        - workflows.temporal
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

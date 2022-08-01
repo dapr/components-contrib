@@ -154,8 +154,6 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 		a.senderLock.Unlock()
 	}
 
-	a.logger.Infof("Invoke Binding incoming metadata: %+v", req.Metadata)
-
 	msg := &servicebus.Message{
 		Body:                  req.Data,
 		ApplicationProperties: make(map[string]interface{}),
@@ -169,6 +167,10 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 
 	// Include incoming metadata in the message to be used when it is read.
 	for k, v := range req.Metadata {
+		// Don't include the values that are saved in MessageID or CorrelationID.
+		if k == id || k == correlationID {
+			continue
+		}
 		msg.ApplicationProperties[k] = v
 	}
 

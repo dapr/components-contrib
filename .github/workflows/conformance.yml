@@ -46,6 +46,7 @@ jobs:
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
         - bindings.redis
+        - bindings.rabbitmq
         - pubsub.aws.snssqs
         - pubsub.hazelcast
         - pubsub.in-memory

@@ -18,6 +18,8 @@ spec:
     value: 0
   - name: exclusive
     value: false
+  # - name: exclusive
+  #   value: true
   - name: maxPriority
     value: 5
   - name: contentType

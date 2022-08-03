@@ -7,6 +7,8 @@ import (
 
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
 
 type snsSqsMetadata struct {
@@ -20,6 +22,8 @@ type snsSqsMetadata struct {
 	SessionToken string
 	// aws region in which SNS/SQS should create resources.
 	Region string
+	// aws partition in which SNS/SQS should create resources.
+	Partition string
 	// name of the queue for this application. The is provided by the runtime as "consumerID".
 	sqsQueueName string
 	// name of the dead letter queue for this application.
@@ -178,6 +182,12 @@ func (md *snsSqsMetadata) setCredsAndQueueNameConfig(metadata pubsub.Metadata) e
 
 	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsRegion", "region"); ok {
 		md.Region = val
+
+		if partition, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), val); ok {
+			md.Partition = partition.ID()
+		} else {
+			md.Partition = "aws"
+		}
 	}
 
 	if val, ok := metadata.Properties["consumerID"]; ok {

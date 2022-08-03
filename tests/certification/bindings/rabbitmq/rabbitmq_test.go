@@ -35,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	// "github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
@@ -410,3 +411,85 @@ func TestRabbitMQRetriesOnError(t *testing.T) {
 		Step("send and wait", testRetry).
 		Run()
 }
+
+// func TestRabbitMQNetworkError(t *testing.T) {
+// 	log := logger.NewLogger("dapr-components")
+// 	messages := watcher.NewUnordered()
+
+// 	ports, _ := dapr_testing.GetFreePorts(3)
+// 	grpcPort := ports[0]
+// 	httpPort := ports[1]
+// 	appPort := ports[2]
+
+// 	test := func(ctx flow.Context) error {
+// 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+// 		require.NoError(t, err, "Could not initialize dapr client.")
+
+// 		// Declare the expected data.
+// 		msgs := make([]string, numOfMessages)
+
+// 		for i := 0; i < numOfMessages; i++ {
+// 			msgs[i] = fmt.Sprintf("standard-binding: Message %03d", i)
+// 		}
+
+// 		messages.ExpectStrings(msgs...)
+
+// 		metadata := make(map[string]string)
+
+// 		ctx.Log("Invoking binding!")
+// 		for _, msg := range msgs {
+// 			ctx.Logf("Sending: %q", msg)
+
+// 			req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "create", Data: []byte(msg), Metadata: metadata}
+// 			err := client.InvokeOutputBinding(ctx, req)
+// 			require.NoError(ctx, err, "error publishing message")
+// 		}
+
+// 		// Assertion on the data.
+// 		messages.Assert(ctx, time.Minute)
+
+// 		return nil
+// 	}
+
+// 	application := func(ctx flow.Context, s common.Service) (err error) {
+// 		// Setup the input binding endpoints.
+// 		err = multierr.Combine(err,
+// 			s.AddBindingInvocationHandler("standard-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+// 				messages.Observe(string(in.Data))
+// 				ctx.Logf("Got message: %s", string(in.Data))
+// 				return []byte("{}"), nil
+// 			}))
+// 		return err
+// 	}
+
+// 	flow.New(t, "rabbitmq certification").
+// 		// Run the application logic above.
+// 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+// 		Step("wait for rabbitmq readiness",
+// 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
+// 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
+// 		Step(sidecar.Run("standardSidecar",
+// 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+// 			embedded.WithDaprGRPCPort(grpcPort),
+// 			embedded.WithDaprHTTPPort(httpPort),
+// 			embedded.WithComponentsPath("./components/standard"),
+// 			runtime.WithOutputBindings(
+// 				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
+// 					return binding_rabbitmq.NewRabbitMQ(log)
+// 				}),
+// 			),
+// 			runtime.WithInputBindings(
+// 				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
+// 					return binding_rabbitmq.NewRabbitMQ(log)
+// 				}),
+// 			))).
+// 		Step("send and wait", test).
+// 		Step("wait", flow.Sleep(5*time.Second)).
+// 		//
+// 		// Errors will occurring here.
+// 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5672")).
+// 		//
+// 		// Component should recover at this point.
+// 		Step("wait", flow.Sleep(30*time.Second)).
+// 		Run()
+// }

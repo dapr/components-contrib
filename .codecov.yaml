@@ -11,5 +11,5 @@ coverage:
       # See https://docs.codecov.io/docs/commit-status#disabling-a-status.
       default: false
 comment:
-  # Delete old comment and post new one for new coverage information.
-  behavior: new
+  # Update old comment with new coverage information if the PR is changed. Avoids triggering multiple emails.
+  behavior: once

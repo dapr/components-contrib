@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+  namespace: default
+spec:
+  type: pubsub.azure.servicebus
+  version: v1
+  metadata:
+    - name: consumerID
+      value: ehcertification1
+    - name: connectionString
+      value: "Endpoint=sb://servicebustopicscerttests.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=b4T97bUSZQXd3Z1hBE+nyhtsU/ntdSKx/budbWoRbrA="
+auth:
+  secretstore: envvar-secret-store

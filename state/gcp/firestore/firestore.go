@@ -84,6 +84,14 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 	f.client = client
 	f.entityKind = meta.EntityKind
 
+	//Check datastore to validate component, ErrNoSuchEntity is suppressed
+	req := state.GetRequest{
+		Key: "initDaprTestKey",
+	}
+	_, err = f.Get(&req)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

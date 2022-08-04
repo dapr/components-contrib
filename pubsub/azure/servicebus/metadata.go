@@ -34,6 +34,7 @@ type metadata struct {
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName,omitempty"`
+	InitialTopic                    string `json:"initialTopic"`
 }
 
 const (
@@ -56,6 +57,7 @@ const (
 	publishMaxRetries               = "publishMaxRetries"
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	namespaceName                   = "namespaceName"
+	initialTopic                    = "initialTopic"
 
 	// Deprecated keys.
 	maxReconnectionAttempts = "maxReconnectionAttempts"

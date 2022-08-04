@@ -176,6 +176,10 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 		}
 	}
 
+	if val, ok := meta.Properties[initialTopic]; ok && val != "" {
+		m.InitialTopic = val
+	}
+
 	/* Nullable configuration settings - defaults will be set by the server. */
 	if val, ok := meta.Properties[maxDeliveryCount]; ok && val != "" {
 		valAsInt, err := strconv.Atoi(val)
@@ -294,6 +298,23 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 	}
 
 	a.publishCtx, a.publishCancel = context.WithCancel(context.Background())
+
+	if a.metadata.InitialTopic != "" {
+		notExist, err := a.shouldCreateTopic(context.Background(), a.metadata.InitialTopic)
+		if err != nil {
+			return err
+		}
+		if notExist {
+			if a.metadata.DisableEntityManagement {
+				return fmt.Errorf("%s error creating pubsub initial topic %s", errorMessagePrefix, a.metadata.InitialTopic)
+			} else {
+				err := a.createTopic(context.Background(), a.metadata.InitialTopic)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 
 	return nil
 }

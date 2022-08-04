@@ -49,6 +49,7 @@ const (
 	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
 	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
+	metadataInitialTopic               = "initialTopic"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
@@ -143,6 +144,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		result.PrivateKey = val
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataInitialTopic]; found && val != "" {
+		result.InitialTopic = val
+	}
+
 	if val, found := pubSubMetadata.Properties[metadataDisableEntityManagementKey]; found && val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			result.DisableEntityManagement = boolVal
@@ -192,6 +197,27 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	g.metadata = metadata
 
 	g.publishCtx, g.publishCancel = context.WithCancel(context.Background())
+
+	if g.metadata.InitialTopic != "" {
+		entity := g.getTopic(g.metadata.InitialTopic)
+		exists, err := entity.Exists(context.Background())
+		if err != nil {
+			return err
+		}
+		if !exists {
+			if g.metadata.DisableEntityManagement {
+				return fmt.Errorf("%s error creating pubsub initial topic %s", errorMessagePrefix, g.metadata.InitialTopic)
+			} else {
+				_, err = g.client.CreateTopic(context.Background(), g.metadata.InitialTopic)
+				if err != nil {
+					if status.Code(err) == codes.AlreadyExists {
+						return nil
+					}
+					return err
+				}
+			}
+		}
+	}
 
 	return nil
 }

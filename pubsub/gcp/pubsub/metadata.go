@@ -31,4 +31,5 @@ type metadata struct {
 	EnableMessageOrdering   bool
 	MaxReconnectionAttempts int
 	ConnectionRecoveryInSec int
+	InitialTopic            string
 }

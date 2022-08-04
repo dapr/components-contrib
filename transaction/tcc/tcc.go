@@ -4,8 +4,9 @@ import (
 	"github.com/dapr/components-contrib/transaction"
 	"github.com/dapr/kit/logger"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/go-redis/redis/v8"
+
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 )
 
 type Tcc struct {
@@ -25,7 +26,7 @@ func NewTccTransaction(logger logger.Logger) *Tcc {
 }
 
 func (t *Tcc) Init(metadata transaction.Metadata) {
-	transaction.InitTransactionstateStore(t.client, metadata)
+	_, t.client = transaction.InitTransactionStateStore(metadata)
 }
 
 func (t *Tcc) Try() {

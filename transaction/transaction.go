@@ -4,9 +4,7 @@ type Transaction interface {
 	// Init this component.
 	Init(metadata Metadata)
 
-	// begin a distribute transaction
-	Begin()
-
+	Try()
 	// commit a distribute transaction
 	Commit()
 

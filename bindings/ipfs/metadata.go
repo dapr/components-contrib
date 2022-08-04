@@ -18,9 +18,9 @@ import (
 	"io"
 	"strings"
 
-	ipfs_config "github.com/ipfs/go-ipfs/config"
-	ipfs_fsrepo "github.com/ipfs/go-ipfs/repo/fsrepo"
 	ipfs_options "github.com/ipfs/interface-go-ipfs-core/options"
+	ipfs_config "github.com/ipfs/kubo/config"
+	ipfs_fsrepo "github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/dapr/kit/config"
@@ -109,9 +109,9 @@ func (m *ipfsMetadata) IPFSConfig() (*ipfs_config.Config, error) {
 	r := strings.ToLower(m.Routing)
 	switch r {
 	case "dht", "dhtclient", "dhtserver", "none":
-		cfg.Routing.Type = r
+		cfg.Routing.Type = ipfs_config.NewOptionalString(r)
 	case "":
-		cfg.Routing.Type = "dht"
+		cfg.Routing.Type = ipfs_config.NewOptionalString("dht")
 	default:
 		return nil, fmt.Errorf("invalid value for metadata property 'routing'")
 	}

@@ -1,6 +1,8 @@
 package tcc
 
 import (
+	"time"
+
 	"github.com/dapr/components-contrib/transaction"
 	"github.com/dapr/kit/logger"
 
@@ -30,7 +32,7 @@ func (t *Tcc) Init(metadata transaction.Metadata) {
 }
 
 func (t *Tcc) Try() {
-	nx := t.client.Set("transaction::test", "test")
+	nx := t.client.Set("transaction::test", "test", time.Second*time.Duration(300))
 	if nx == nil {
 		t.logger.Debug("transaction store error")
 	}

@@ -1,6 +1,7 @@
 package tcc
 
 import (
+	"context"
 	"time"
 
 	"github.com/dapr/components-contrib/transaction"
@@ -17,6 +18,8 @@ type Tcc struct {
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
 	metadata       rediscomponent.Metadata
+	cancel         context.CancelFunc
+	ctx            context.Context
 }
 
 func NewTccTransaction(logger logger.Logger) *Tcc {
@@ -28,11 +31,11 @@ func NewTccTransaction(logger logger.Logger) *Tcc {
 }
 
 func (t *Tcc) Init(metadata transaction.Metadata) {
-	_, t.client = transaction.InitTransactionStateStore(metadata)
+	_, t.client, t.ctx, t.cancel = transaction.InitTransactionStateStore(metadata)
 }
 
 func (t *Tcc) Try() {
-	nx := t.client.Set("transaction::test", "test", time.Second*time.Duration(300))
+	nx := t.client.Set(t.ctx, "transaction::test", "test", time.Second*time.Duration(300))
 	if nx == nil {
 		t.logger.Debug("transaction store error")
 	}

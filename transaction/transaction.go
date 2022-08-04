@@ -25,7 +25,7 @@ func InitTransactionStateStore(metadata Metadata) (error, *redis.UniversalClient
 	// 1. parse config
 	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
-		return err, nil
+		return err, nil, nil, nil
 	}
 	// verify the  `redisHost`
 	if metadata.Properties["redisHost"] == "" {

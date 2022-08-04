@@ -21,7 +21,7 @@ type Transaction interface {
 	RollBack()
 }
 
-func InitTransactionStateStore(metadata Metadata) (error, *redis.UniversalClient, context.Context, context.CancelFunc) {
+func InitTransactionStateStore(metadata Metadata) (error, redis.UniversalClient, context.Context, context.CancelFunc) {
 	// 1. parse config
 	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
@@ -43,5 +43,5 @@ func InitTransactionStateStore(metadata Metadata) (error, *redis.UniversalClient
 	if _, err = client.Ping(ctx).Result(); err != nil {
 		return fmt.Errorf("InitTransactionstateStore error connecting to redis at %s: %s", clientSettings.Host, err), nil, nil, nil
 	}
-	return nil, &client, ctx, cancel
+	return nil, client, ctx, cancel
 }

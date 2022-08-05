@@ -3,7 +3,6 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.18
 
 require (
-	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
 	github.com/dapr/go-sdk v1.4.0
@@ -14,6 +13,7 @@ require (
 )
 
 require (
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
@@ -42,7 +42,7 @@ require (
 	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fasthttp/router v1.3.8 // indirect

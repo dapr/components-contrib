@@ -38,7 +38,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-	// "github.com/dapr/components-contrib/tests/certification/flow/simulate"
+	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
 
@@ -483,7 +483,7 @@ func TestRabbitMQNetworkError(t *testing.T) {
 					return binding_rabbitmq.NewRabbitMQ(log)
 				}),
 			))).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5672")).
 		Step("send and wait", test).
+		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5672")).
 		Run()
 }

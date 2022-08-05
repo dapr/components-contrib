@@ -16,7 +16,8 @@ package retry
 import (
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/kit/retry"
 )

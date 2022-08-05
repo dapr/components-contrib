@@ -41,7 +41,7 @@ require (
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/buger/jsonparser v1.1.1 // indirect
-	github.com/camunda/zeebe/clients/go/v8 v8.0.3
+	github.com/camunda/zeebe/clients/go/v8 v8.0.4
 	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.1.0+incompatible
@@ -370,3 +370,5 @@ replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
 
 replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+
+replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60

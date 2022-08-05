@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -35,12 +36,12 @@ func TestSetVariables(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Deploy process
-	deployment, err := zeebe.DeployProcess(cmd, zeebe.TestProcessFile, zeebe.ProcessIDModifier(id))
+	deployment, err := zeebe.DeployProcess(cmd, context.Background(), zeebe.TestProcessFile, zeebe.ProcessIDModifier(id))
 	assert.NoError(t, err)
 	assert.Equal(t, id, deployment.BpmnProcessId)
 
 	// Create instance
-	processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+	processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 		"bpmnProcessId": id,
 		"variables": map[string]interface{}{
 			"foo": "bar",
@@ -61,7 +62,7 @@ func TestSetVariables(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.SetVariablesOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		variableResponse := &pb.SetVariablesResponse{}
@@ -83,7 +84,7 @@ func TestSetVariables(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.SetVariablesOperation}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.Background(), req)
 		assert.Error(t, err)
 	})
 }

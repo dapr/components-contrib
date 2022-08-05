@@ -174,7 +174,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 				ctx,
 				key,
 				&azappconfig.GetSettingOptions{
-					Label: to.Ptr("label"),
+					Label: to.Ptr("*"),
 				})
 			if err != nil {
 				return &configuration.GetResponse{}, err
@@ -185,7 +185,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			}
 			item.Key = key
 			item.Value = *resp.Value
-			if resp.Value != nil {
+			if resp.Label != nil {
 				item.Metadata["label"] = *resp.Label
 			}
 
@@ -219,7 +219,7 @@ func (r *ConfigurationStore) getAll(ctx context.Context) ([]*configuration.Item,
 				}
 				item.Key = *setting.Key
 				item.Value = *setting.Value
-				if setting.Value != nil {
+				if setting.Label != nil {
 					item.Metadata["label"] = *setting.Label
 				}
 

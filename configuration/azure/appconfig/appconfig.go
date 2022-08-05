@@ -174,7 +174,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 				ctx,
 				key,
 				&azappconfig.GetSettingOptions{
-					Label: to.Ptr("label"),
+					Label: to.Ptr("*"),
 				})
 			if err != nil {
 				return &configuration.GetResponse{}, err

@@ -10,6 +10,8 @@ spec:
     - name: consumerID
       value: ehcertification2
     - name: connectionString
-      value: "Endpoint=sb://servicebustopicscerttests.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=b4T97bUSZQXd3Z1hBE+nyhtsU/ntdSKx/budbWoRbrA="
+      secretKeyRef:
+        name: AzureServiceBusConnectionString
+        key: AzureServiceBusConnectionString    
 auth:
   secretstore: envvar-secret-store

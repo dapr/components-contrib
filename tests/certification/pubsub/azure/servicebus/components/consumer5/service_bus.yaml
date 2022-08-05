@@ -10,7 +10,9 @@ spec:
     - name: consumerID
       value: optionscertification
     - name: connectionString
-      value: "Endpoint=sb://servicebustopicscerttests.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=b4T97bUSZQXd3Z1hBE+nyhtsU/ntdSKx/budbWoRbrA="
+      secretKeyRef:
+        name: AzureServiceBusConnectionString
+        key: AzureServiceBusConnectionString
     - name: timeoutInSec
       value: 60
     - name: handlerTimeoutInSec

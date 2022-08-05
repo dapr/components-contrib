@@ -101,6 +101,7 @@ jobs:
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
+          IPFS_TEST: "1"
         if: matrix.target_arch != 'arm' && steps.skip_check.outputs.should_skip != 'true'
         run: make test
       - name: Codecov

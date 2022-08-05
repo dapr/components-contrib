@@ -285,7 +285,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
 	}
-	err = r.client.putObject(ctx, objectName, objectLength, io.NopCloser(bytes.NewReader(content)), metadata, etag)
+	err = r.client.putObject(ctx, objectName, objectLength, io.NopCloser(bytes.NewReader(content)), metadata, etag, r.logger)
 	if err != nil {
 		r.logger.Debugf("error in writing object to OCI object storage  %s, err %s", req.Key, err)
 		return fmt.Errorf("failed to write object to OCI Object storage : %w", err)

@@ -149,15 +149,17 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 	defer resp.Body.Close()
 
 	// Read the body regardless to drain it and ensure the connection can be reused
+	// Read the body regardless to drain it and ensure the connection can be reused
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-		return fmt.Errorf("%s azure signalr returned code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("%s azure signalr failed with code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
 	}
 
-	s.logger.Debugf("%s azure signalr call to '%s' returned with status code %d", logPrefix, url, resp.StatusCode)
+	s.logger.Debugf("%s azure signalr call to '%s' completed with code %d", logPrefix, url, resp.StatusCode)
 
 	return nil
 }

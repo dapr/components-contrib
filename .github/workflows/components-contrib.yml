@@ -106,4 +106,4 @@ jobs:
         run: make test
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3

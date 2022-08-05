@@ -370,3 +370,5 @@ replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
 
 replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+
+replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60

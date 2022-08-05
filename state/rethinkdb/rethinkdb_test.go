@@ -229,7 +229,7 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 
 		// test multi
 		d2 := []byte("test")
-		req := state.TransactionalStateRequest{
+		req := &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				{
 					Operation: state.Upsert,

@@ -24,10 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-
-	// "github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 

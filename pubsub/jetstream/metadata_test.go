@@ -90,6 +90,42 @@ func TestParseMetadata(t *testing.T) {
 			want:      metadata{},
 			expectErr: true,
 		},
+		{
+			desc: "Invalid metadata with missing tls client key",
+			input: pubsub.Metadata{
+				Properties: map[string]string{
+					"natsURL":         "nats://localhost:4222",
+					"name":            "myName",
+					"durableName":     "myDurable",
+					"queueGroupName":  "myQueue",
+					"startSequence":   "1",
+					"startTime":       "1629328511",
+					"deliverAll":      "true",
+					"flowControl":     "true",
+					"tls_client_cert": "/path/to/tls.pem",
+				},
+			},
+			want:      metadata{},
+			expectErr: true,
+		},
+		{
+			desc: "Invalid metadata with missing tls client client",
+			input: pubsub.Metadata{
+				Properties: map[string]string{
+					"natsURL":        "nats://localhost:4222",
+					"name":           "myName",
+					"durableName":    "myDurable",
+					"queueGroupName": "myQueue",
+					"startSequence":  "1",
+					"startTime":      "1629328511",
+					"deliverAll":     "true",
+					"flowControl":    "true",
+					"tls_client_key": "/path/to/tls.key",
+				},
+			},
+			want:      metadata{},
+			expectErr: true,
+		},
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {

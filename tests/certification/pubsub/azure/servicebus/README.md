@@ -1,5 +1,5 @@
 # Azure Service Bus Pubsub Certification
-The purpose of this module is to provide tests that certify the Azure Service Bus Queue Input/Output Binding as a stable component.
+The purpose of this module is to provide tests that certify the Azure Service Bus Pubsub as a stable component.
 
 ## Test Plan
 ### Certification Tests

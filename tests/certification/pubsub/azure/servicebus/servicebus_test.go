@@ -41,6 +41,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -67,7 +68,6 @@ const (
 	topicActiveName  = "certification-pubsub-topic-active"
 	topicPassiveName = "certification-pubsub-topic-passive"
 	topicToBeCreated = "certification-topic-per-test-run"
-	iotHubNameEnvKey = "AzureIotHubName"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
 )
@@ -260,7 +260,8 @@ func TestServicebus(t *testing.T) {
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName5, topicToBeCreated, consumerGroup4)).
+		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
+		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
-		Step("wait", flow.Sleep(5*time.Second)).
 		Run()
 }

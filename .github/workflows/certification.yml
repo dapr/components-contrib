@@ -46,6 +46,8 @@ jobs:
         - state.postgresql
         - bindings.alicloud.dubbo
         - bindings.kafka
+        - secretstores.local.env
+        - secretstores.local.file
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

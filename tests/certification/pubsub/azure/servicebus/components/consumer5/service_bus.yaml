@@ -18,7 +18,7 @@ spec:
     - name: handlerTimeoutInSec
       value: 60
     - name: disableEntityManagement
-      value: "false"
+      value: "true"
     - name: maxDeliveryCount
       value: 3
     - name: lockDurationInSec

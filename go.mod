@@ -158,6 +158,7 @@ require (
 	cloud.google.com/go/secretmanager v1.4.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.4.0
+	github.com/aliyun/aliyun-log-go-sdk v0.1.37
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.87
@@ -221,6 +222,7 @@ require (
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/bindings"
 )
 
 /**

@@ -8,6 +8,7 @@ import (
 
 	sls "github.com/aliyun/aliyun-log-go-sdk"
 	"github.com/aliyun/aliyun-log-go-sdk/producer"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"

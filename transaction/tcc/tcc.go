@@ -1,44 +1,32 @@
 package tcc
 
 import (
-	"context"
-	"time"
-
 	"github.com/dapr/components-contrib/transaction"
 	"github.com/dapr/kit/logger"
-
-	"github.com/go-redis/redis/v8"
-
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 )
 
 type Tcc struct {
+	base   *transaction.TransactionStateStore
 	logger logger.Logger
-
-	client         redis.UniversalClient
-	clientSettings *rediscomponent.Settings
-	metadata       rediscomponent.Metadata
-	cancel         context.CancelFunc
-	ctx            context.Context
 }
 
 func NewTccTransaction(logger logger.Logger) *Tcc {
+	base := &transaction.TransactionStateStore{}
 	t := &Tcc{
 		logger: logger,
+		base:   base,
 	}
-
 	return t
 }
 
 func (t *Tcc) Init(metadata transaction.Metadata) {
-	_, t.client, t.ctx, t.cancel = transaction.InitTransactionStateStore(metadata)
+	t.logger.Debug("init tranaction: tcc")
+	t.base.InitTransactionStateStore(metadata)
 }
 
 func (t *Tcc) Try() {
-	nx := t.client.Set(t.ctx, "transaction::test", "test", time.Second*time.Duration(300))
-	if nx == nil {
-		t.logger.Debug("transaction store error")
-	}
+
+	t.base.SubTransactionStateStore()
 	t.logger.Debug("transaction store true")
 }
 

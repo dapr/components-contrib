@@ -157,11 +157,8 @@ require (
 require (
 	cloud.google.com/go/secretmanager v1.4.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
-<<<<<<< HEAD
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.4.0
-=======
 	github.com/aliyun/aliyun-log-go-sdk v0.1.37
->>>>>>> e94a9339 (new a bingding componet alicloud sls logstorage)
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.87
@@ -219,21 +216,16 @@ require (
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/dubbogo/gost v1.11.25 // indirect
 	github.com/dubbogo/triple v1.1.8 // indirect
-<<<<<<< HEAD
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/facebookgo/atomicfile v0.0.0-20151019160806-2de1f203e7d5 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-=======
-	github.com/go-kit/kit v0.10.0 // indirect
-	github.com/go-kit/log v0.1.0 // indirect
-	github.com/go-logfmt/logfmt v0.5.0 // indirect
->>>>>>> e94a9339 (new a bingding componet alicloud sls logstorage)
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
@@ -499,11 +491,7 @@ require (
 	github.com/nats-io/jwt/v2 v2.2.1-0.20220113022732-58e87895b296 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-<<<<<<< HEAD
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
-=======
-	github.com/pierrec/lz4 v2.6.0+incompatible // indirect
->>>>>>> e94a9339 (new a bingding componet alicloud sls logstorage)
 	github.com/pkg/browser v0.0.0-20210115035449-ce105d075bb4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.2 // indirect

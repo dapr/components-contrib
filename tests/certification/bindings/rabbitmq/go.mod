@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification/pubsub/rabbitmq
+module github.com/dapr/components-contrib/tests/certification/binding/rabbitmq
 
 go 1.18
 

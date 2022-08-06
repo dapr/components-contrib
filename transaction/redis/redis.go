@@ -3,21 +3,25 @@ package redis
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/dapr/components-contrib/transaction"
 	"github.com/dapr/kit/logger"
-
 	redis "github.com/go-redis/redis/v8"
+	uuid "github.com/satori/go.uuid"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 )
 
 const (
-	defaultStateStoreDuration = 300
-	initializationState       = 0
-	commitState               = 1
-	rollbackState             = -1
+	defaultStateStoreDuration    = 300
+	defaultTransactionIdPre      = "dapr::transaction::"
+	defaultBanchTransactionIdPre = "banch::"
+	initializationState          = 0
+	commitState                  = 1
+	rollbackState                = -1
 )
 
 type Tcc struct {
@@ -71,24 +75,56 @@ func (t *Tcc) InitTransactionStateStore(metadata transaction.Metadata) error {
 	return nil
 }
 
-func (t *Tcc) DisTransactionStateStore() error {
-	// hset
-	fmt.Printf("log SubTransactionStateStore")
-	nx := t.client.Set(t.ctx, "transaction::test", "test", time.Second*time.Duration(t.duration))
-	if nx == nil {
-		return fmt.Errorf("transaction store error")
+//
+func (t *Tcc) InitDisTransactionStateStore(transactionId string, branchTransactionIds map[string]interface{}) error {
+	if transactionId == "" || len(branchTransactionIds) == 0 {
+		t.logger.Debug("distribute transaction store initialize param error")
+		return fmt.Errorf("distribute transaction store initialize param error")
 	}
+	// persist the transactionID
+	IntCmd := t.client.HSet(t.ctx, transactionId, branchTransactionIds)
+	if IntCmd == nil {
+		return fmt.Errorf("transaction store persistence error")
+	}
+	t.client.Expire(t.ctx, transactionId, time.Second*time.Duration(t.duration))
 	return nil
 }
 
+func (t *Tcc) genDisTransactionId(xid string) string {
+	rand.Seed(time.Now().UnixNano())
+	return defaultTransactionIdPre + "::" + xid + "::" + strconv.Itoa(rand.Intn(100))
+}
+
+func (t *Tcc) genBanchTransactionId(index int) string {
+	return defaultBanchTransactionIdPre + "::" + strconv.Itoa(index)
+}
+
 func (t *Tcc) Init(metadata transaction.Metadata) {
-	t.logger.Debug("init tranaction: tcc")
+	t.logger.Debug("initialize tranaction component")
 	t.InitTransactionStateStore(metadata)
 }
 
-// persistence state of initialization
-func (t *Tcc) Begin() {
-	t.DisTransactionStateStore()
+// Begin a distribute transaction
+func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transaction.BeginResponse, error) {
+	if beginRequest.BanchTransactionNum <= 0 {
+		return &transaction.BeginResponse{}, fmt.Errorf("Must declare a positive number of banch transactions")
+	}
+	xid := uuid.Must(uuid.NewV4())
+	transactionId := t.genDisTransactionId(xid.String())
+	i := 1
+	var branchTransactionIds map[string]interface{}
+	for i <= beginRequest.BanchTransactionNum {
+		branchTransactionIds[t.genBanchTransactionId(i)] = initializationState
+		i++
+	}
+	err := t.InitDisTransactionStateStore(transactionId, branchTransactionIds)
+	if err != nil {
+		return &transaction.BeginResponse{}, err
+	}
+	return &transaction.BeginResponse{
+		TransactionId:        transactionId,
+		BranchTransactionIds: branchTransactionIds,
+	}, nil
 }
 
 func (t *Tcc) Try() {

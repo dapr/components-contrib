@@ -6,7 +6,7 @@ type Transaction interface {
 	Init(metadata Metadata)
 
 	// Begin a distribute transaction
-	Begin()
+	Begin(request BeginTransactionRequest) (*BeginResponse, error)
 
 	// try to lock the transaction resource
 	Try()

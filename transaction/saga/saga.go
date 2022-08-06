@@ -25,7 +25,16 @@ func (s *Saga) Begin() {
 	s.logger.Info("this is Saga, I received ")
 }
 
+// save the evey sub transaction state
+func (s *Saga) Try() {
+
+	s.logger.Info("this is Saga, I received ")
+
+}
+
+// commit the trasaction and release the state
 func (s *Saga) Commit(info string) {
+
 	s.logger.Info("this is Saga, I received ")
 }
 

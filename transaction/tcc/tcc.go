@@ -24,16 +24,22 @@ func (t *Tcc) Init(metadata transaction.Metadata) {
 	t.base.InitTransactionStateStore(metadata)
 }
 
-func (t *Tcc) Try() {
+// persistence state of initialization
+func (t *Tcc) Begin() {
+	t.base.DisTransactionStateStore()
+}
 
-	t.base.SubTransactionStateStore()
+func (t *Tcc) Try() {
 	t.logger.Debug("transaction store true")
 }
 
+// commit the trasaction and release the state
 func (t *Tcc) Commit() {
+
 	t.logger.Info("this is Tcc, I received ")
 }
 
+// commit the trasaction and release the state
 func (t *Tcc) RollBack() {
 	t.logger.Info("this is Tcc, I received ")
 }

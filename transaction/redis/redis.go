@@ -106,19 +106,21 @@ func (t *Tcc) Init(metadata transaction.Metadata) {
 
 // Begin a distribute transaction
 func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transaction.BeginResponse, error) {
+	t.logger.Debug("Begin a distribute transaction")
 	if beginRequest.BanchTransactionNum <= 0 {
 		return &transaction.BeginResponse{}, fmt.Errorf("Must declare a positive number of banch transactions")
 	}
 	xid := uuid.Must(uuid.NewV4())
 	transactionId := t.genDisTransactionId(xid.String())
 	i := 1
-	var branchTransactionIds map[string]interface{}
+	branchTransactionIds := make(map[string]interface{})
 	for i <= beginRequest.BanchTransactionNum {
 		branchTransactionIds[t.genBanchTransactionId(i)] = initializationState
 		i++
 	}
 	err := t.InitDisTransactionStateStore(transactionId, branchTransactionIds)
 	if err != nil {
+		t.logger.Debug("distribute transaction state store error! XID: %s", transactionId)
 		return &transaction.BeginResponse{}, err
 	}
 	return &transaction.BeginResponse{
@@ -131,13 +133,13 @@ func (t *Tcc) Try() {
 	t.logger.Debug("transaction store true")
 }
 
-// commit the trasaction and release the state
-func (t *Tcc) Commit() {
+// Confirm the trasaction and release the state
+func (t *Tcc) Confirm() {
 
 	t.logger.Info("this is Tcc, I received ")
 }
 
-// commit the trasaction and release the state
+// RollBack the trasaction and release the state
 func (t *Tcc) RollBack() {
 	t.logger.Info("this is Tcc, I received ")
 }

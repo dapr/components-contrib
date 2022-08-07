@@ -340,6 +340,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 
 				if errors.As(err, &expError) {
 					if expError.Code == "connlost" {
+						a.logger.Warn(expError.Error())
 						return expError // Retries.
 					}
 				}

@@ -9,7 +9,7 @@ type Transaction interface {
 	Begin(request BeginTransactionRequest) (*BeginResponse, error)
 
 	// try to lock the transaction resource
-	Try()
+	Try(transactionId string, bunchTransactionId string, statusCode int, tryRequest TryTransactionRequest)
 
 	// Confirm a distribute transaction
 	Confirm()

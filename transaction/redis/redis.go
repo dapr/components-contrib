@@ -18,10 +18,13 @@ import (
 const (
 	defaultStateStoreDuration    = 300
 	defaultTransactionIdPre      = "dapr::transaction::"
-	defaultBanchTransactionIdPre = "banch::"
-	initializationState          = 0
-	commitState                  = 1
-	rollbackState                = -1
+	defaultBunchTransactionIdPre = "bunch::"
+	defaultState                 = 0
+	stateForSuccess              = 1
+	stateForFailure              = -1
+	bunchTransactionTryState     = "state"
+	bunchTransacitonTryRequest   = "tryMethodRequest"
+	requestStatusOK              = 1
 )
 
 type Tcc struct {
@@ -41,7 +44,7 @@ func NewTccTransaction(logger logger.Logger) *Tcc {
 	return t
 }
 
-// initialize the banch transactions state store
+// initialize the bunch transactions state store
 func (t *Tcc) InitTransactionStateStore(metadata transaction.Metadata) error {
 	// state store parse config
 	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
@@ -75,14 +78,14 @@ func (t *Tcc) InitTransactionStateStore(metadata transaction.Metadata) error {
 	return nil
 }
 
-//
-func (t *Tcc) InitDisTransactionStateStore(transactionId string, branchTransactionIds map[string]interface{}) error {
-	if transactionId == "" || len(branchTransactionIds) == 0 {
+// store all of the distribute transaction id and bunch transaction id into a redis map
+func (t *Tcc) InitDisTransactionStateStore(transactionId string, bunchTransactionStateStores map[string]interface{}) error {
+	if transactionId == "" || len(bunchTransactionStateStores) == 0 {
 		t.logger.Debug("distribute transaction store initialize param error")
 		return fmt.Errorf("distribute transaction store initialize param error")
 	}
 	// persist the transactionID
-	IntCmd := t.client.HSet(t.ctx, transactionId, branchTransactionIds)
+	IntCmd := t.client.HSet(t.ctx, transactionId, bunchTransactionStateStores)
 	if IntCmd == nil {
 		return fmt.Errorf("transaction store persistence error")
 	}
@@ -90,13 +93,23 @@ func (t *Tcc) InitDisTransactionStateStore(transactionId string, branchTransacti
 	return nil
 }
 
-func (t *Tcc) genDisTransactionId(xid string) string {
-	rand.Seed(time.Now().UnixNano())
-	return defaultTransactionIdPre + "::" + xid + "::" + strconv.Itoa(rand.Intn(100))
+// update a bunch transaction state and requet param
+func (t *Tcc) modifyBunchTransactionState(transactionId string, bunchTransactionId string, bunchTransactionStateStore map[string]interface{}) error {
+
+	IntCmd := t.client.HSet(t.ctx, transactionId, bunchTransactionId, bunchTransactionStateStore)
+	if IntCmd == nil {
+		return fmt.Errorf("transaction store persistence error")
+	}
+	return nil
 }
 
-func (t *Tcc) genBanchTransactionId(index int) string {
-	return defaultBanchTransactionIdPre + "::" + strconv.Itoa(index)
+func (t *Tcc) genDisTransactionId(xid string) string {
+	rand.Seed(time.Now().UnixNano())
+	return defaultTransactionIdPre + xid + "::" + strconv.Itoa(rand.Intn(100))
+}
+
+func (t *Tcc) genBunchTransactionId(index int) string {
+	return defaultBunchTransactionIdPre + strconv.Itoa(index)
 }
 
 func (t *Tcc) Init(metadata transaction.Metadata) {
@@ -107,30 +120,60 @@ func (t *Tcc) Init(metadata transaction.Metadata) {
 // Begin a distribute transaction
 func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transaction.BeginResponse, error) {
 	t.logger.Debug("Begin a distribute transaction")
-	if beginRequest.BanchTransactionNum <= 0 {
-		return &transaction.BeginResponse{}, fmt.Errorf("Must declare a positive number of banch transactions")
+	if beginRequest.BunchTransactionNum <= 0 {
+		return &transaction.BeginResponse{}, fmt.Errorf("must declare a positive number of bunch transactions, but %d given", beginRequest.BunchTransactionNum)
 	}
 	xid := uuid.Must(uuid.NewV4())
 	transactionId := t.genDisTransactionId(xid.String())
 	i := 1
-	branchTransactionIds := make(map[string]interface{})
-	for i <= beginRequest.BanchTransactionNum {
-		branchTransactionIds[t.genBanchTransactionId(i)] = initializationState
+	bunchTransactionIds := []string{}
+	bunchTransactionStateStores := make(map[string]interface{})
+	for i <= beginRequest.BunchTransactionNum {
+		// allot a bunch transaction id
+		bunchTransactionId := t.genBunchTransactionId(i)
+
+		// set to a default state for nothing have happend and a empty request param
+		bunchTransactionStateStore := make(map[string]interface{})
+		bunchTransactionStateStore[bunchTransactionTryState] = defaultState
+		bunchTransactionStateStore[bunchTransacitonTryRequest] = &transaction.TryTransactionRequest{}
+		bunchTransactionStateStores[bunchTransactionId] = bunchTransactionStateStore
+
+		bunchTransactionIds = append(bunchTransactionIds, bunchTransactionId)
 		i++
 	}
-	err := t.InitDisTransactionStateStore(transactionId, branchTransactionIds)
+	err := t.InitDisTransactionStateStore(transactionId, bunchTransactionStateStores)
 	if err != nil {
 		t.logger.Debug("distribute transaction state store error! XID: %s", transactionId)
 		return &transaction.BeginResponse{}, err
 	}
 	return &transaction.BeginResponse{
-		TransactionId:        transactionId,
-		BranchTransactionIds: branchTransactionIds,
+		TransactionId:       transactionId,
+		BunchTransactionIds: bunchTransactionIds,
 	}, nil
 }
 
-func (t *Tcc) Try() {
-	t.logger.Debug("transaction store true")
+// Try to execute bunch transaction
+func (t *Tcc) Try(transactionId string, bunchTransactionId string, statusCode int, tryRequest transaction.TryTransactionRequest) error {
+	t.logger.Debug("Try to execute bunch transaction")
+	if transactionId == "" || bunchTransactionId == "" {
+		t.logger.Info("distribute transaction id or bunch transaction id missing")
+		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
+	}
+
+	bunchTransactionStateStore := make(map[string]interface{})
+	if statusCode == requestStatusOK {
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForSuccess
+	} else {
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForFailure
+	}
+	bunchTransactionStateStore[bunchTransacitonTryRequest] = &tryRequest
+
+	err := t.modifyBunchTransactionState(transactionId, bunchTransactionId, bunchTransactionStateStore)
+	if err != nil {
+		return fmt.Errorf("distribute transaction state store error")
+	}
+	t.logger.Debug("%s - %s bunch transaction state store success", transactionId, bunchTransactionId)
+	return nil
 }
 
 // Confirm the trasaction and release the state

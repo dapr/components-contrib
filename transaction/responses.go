@@ -1,6 +1,6 @@
 package transaction
 
 type BeginResponse struct {
-	TransactionId        string                 `json:"transactionId"`
-	BranchTransactionIds map[string]interface{} `json:"branchTransactionIds"`
+	TransactionId       string   `json:"transactionId"`
+	BunchTransactionIds []string `json:"bunchTransactionIds"`
 }

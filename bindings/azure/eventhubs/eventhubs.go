@@ -155,20 +155,20 @@ func validate(connectionString string) error {
 	return err
 }
 
-func (aeh *AzureEventHubs) getStoragePrefixString() (string, error) {
-	hubName, err := aeh.validateAndGetHubName()
+func (a *AzureEventHubs) getStoragePrefixString() (string, error) {
+	hubName, err := a.validateAndGetHubName()
 	if err != nil {
 		return "", err
 	}
 
 	// empty string in the end of slice to have a suffix "-".
-	return strings.Join([]string{"dapr", hubName, aeh.metadata.consumerGroup, ""}, "-"), nil
+	return strings.Join([]string{"dapr", hubName, a.metadata.consumerGroup, ""}, "-"), nil
 }
 
-func (aeh *AzureEventHubs) validateAndGetHubName() (string, error) {
-	hubName := aeh.metadata.eventHubName
+func (a *AzureEventHubs) validateAndGetHubName() (string, error) {
+	hubName := a.metadata.eventHubName
 	if hubName == "" {
-		parsed, err := conn.ParsedConnectionFromStr(aeh.metadata.connectionString)
+		parsed, err := conn.ParsedConnectionFromStr(a.metadata.connectionString)
 		if err != nil {
 			return "", err
 		}

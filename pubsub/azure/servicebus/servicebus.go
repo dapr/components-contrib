@@ -327,6 +327,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 			err = sender.SendMessage(ctx, msg, nil)
 			if err != nil {
 				var amqpError *amqp.Error
+				var expError *servicebus.Error
 				if errors.As(err, &amqpError) {
 					if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
 						return amqpError // Retries.
@@ -335,6 +336,12 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 
 				if errors.Is(err, amqp.ErrConnClosed) {
 					return err // Retries.
+				}
+
+				if errors.As(err, &expError) {
+					if expError.Code == "connlost" {
+						return expError // Retries.
+					}
 				}
 
 				return backoff.Permanent(err) // Does not retry.

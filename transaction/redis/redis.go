@@ -124,19 +124,17 @@ func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, er
 		t.logger.Debug("bunch transaction state info anti-serialization error", err)
 		return make(map[string]int), fmt.Errorf("bunch transaction state info anti-serialization error")
 	}
-	/*
-		if err := res.Scan(&bunchTransactionStatePersit); err != nil {
-			t.logger.Debug("bunch transaction state info anti-serialization error", err)
-			return make(map[string]int), fmt.Errorf("bunch transaction state info anti-serialization error")
-		}
-	*/
 
 	t.logger.Debug(bunchTransactionStatePersit)
 
 	bunchTransactionState := make(map[string]int)
 	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
-		t.logger.Debug(bunchTransactionId)
 		t.logger.Debug(stateInfo)
+		parse := t.parseStringToMap(stateInfo)
+		t.logger.Debug(parse)
+		for k, v := range parse {
+			t.logger.Debug(k, "  ", v)
+		}
 		bunchTransactionState[bunchTransactionId] = 1
 	}
 	return bunchTransactionState, nil

@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"testing"
@@ -40,7 +41,7 @@ func TestTopology(t *testing.T) {
 		t.Parallel()
 
 		req := &bindings.InvokeRequest{Operation: command.TopologyOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		topology := &pb.TopologyResponse{}

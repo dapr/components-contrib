@@ -88,7 +88,7 @@ func (t *Tcc) InitDisTransactionStateStore(transactionId string, bunchTransactio
 	// persist the transactionID
 	t.logger.Debug("start to persit init transaction state")
 	IntCmd := t.client.HSet(t.ctx, transactionId, bunchTransactionStateStores)
-	if IntCmd.Err() == nil {
+	if IntCmd.Err() != nil {
 		return fmt.Errorf("transaction store persistence error")
 	}
 	t.client.Expire(t.ctx, transactionId, time.Second*time.Duration(t.duration))

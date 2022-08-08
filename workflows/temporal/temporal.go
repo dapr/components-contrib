@@ -19,6 +19,7 @@ import (
 
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
+	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 )
 
@@ -31,8 +32,8 @@ type TemporalWF struct {
 }
 
 type temporalMetaData struct {
-	Identity string `json:"url"`
-	HostPort string `json:"masterKey"`
+	Identity string `json:"identity"`
+	HostPort string `json:"hostport"`
 }
 
 // NewTemporalWorkflow returns a new CosmosDB state store.
@@ -57,18 +58,23 @@ func (c *TemporalWF) Init(metadata workflows.Metadata) error {
 		cOpt.Identity = m.Identity
 	}
 	// Create the workflow client
-	client, err := client.Dial(cOpt)
+	newClient, err := client.Dial(cOpt)
 	if err != nil {
 		return err
 	}
-	c.client = client
+	c.client = newClient
 
 	return nil
 }
 
 func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*workflows.WorkflowStruct, error) {
 	c.logger.Debugf("starting workflow")
-	run, err := c.client.ExecuteWorkflow(ctx, req.Options, req.WorkflowName, req.Parameters)
+	if req.Options.TaskQueue == "" {
+		c.logger.Debugf("no task queue provided")
+		return &workflows.WorkflowStruct{}, nil
+	}
+	opt := client.StartWorkflowOptions{ID: req.Options.ID, TaskQueue: req.Options.TaskQueue}
+	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
 	if err != nil {
 		c.logger.Debugf("error when starting workflow")
 		return &workflows.WorkflowStruct{}, err
@@ -97,7 +103,7 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowStruct) (*w
 		WfInfo:    workflows.WorkflowStruct{WorkflowId: req.WorkflowId, WorkflowRunId: req.WorkflowRunId},
 		StartTime: resp.WorkflowExecutionInfo.StartTime.String(),
 		TaskQueue: resp.WorkflowExecutionInfo.GetTaskQueue(),
-		Status:    resp.WorkflowExecutionInfo.Status,
+		Status:    lookupStatus(resp.WorkflowExecutionInfo.Status),
 	}
 
 	return &outputStruct, nil
@@ -122,4 +128,27 @@ func (c *TemporalWF) parseMetadata(metadata workflows.Metadata) (*temporalMetaDa
 	}
 
 	return &creds, nil
+}
+
+func lookupStatus(status enums.WorkflowExecutionStatus) string {
+	switch status {
+	case 0:
+		return "Unspecified"
+	case 1:
+		return "Running"
+	case 2:
+		return "Completed"
+	case 3:
+		return "Failed"
+	case 4:
+		return "Canceled"
+	case 5:
+		return "Terminated"
+	case 6:
+		return "ContinuedAsNew"
+	case 7:
+		return "TimedOut"
+	default:
+		return "status unknown"
+	}
 }

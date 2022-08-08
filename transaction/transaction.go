@@ -9,11 +9,14 @@ type Transaction interface {
 	Begin(request BeginTransactionRequest) (*BeginResponse, error)
 
 	// try to lock the transaction resource
-	Try(transactionId string, bunchTransactionId string, statusCode int, tryRequest TryTransactionRequest)
+	Try(tryRequest BunchTransactionTryRequest) error
 
 	// Confirm a distribute transaction
 	Confirm()
 
 	// rooback a distribute transaction
 	RollBack()
+
+	// get all bunch transaction state of the distribute transaction
+	GetBunchTransactions(req GetBunchTransactionsRequest) (*TransactionStateResponse, error)
 }

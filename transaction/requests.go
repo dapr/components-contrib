@@ -9,8 +9,15 @@ type BeginTransactionRequest struct {
 	BunchTransactionNum int `json:"bunchTransactionNum"`
 }
 
-// The input params for try to lock a bunch transaction resource
-type TryTransactionRequest struct {
+type BunchTransactionTryRequest struct {
+	TransactionId      string                     `json:"transactionId"`
+	BunchTransactionId string                     `json:"bunchTransactionId"`
+	StatusCode         int                        `json:"statusCode"`
+	TryRequestParam    TransactionTryRequestParam `json:"tryRequestParam"`
+}
+
+// The request params of a bunch transaction
+type TransactionTryRequestParam struct {
 	TargetID         string                  `json:"targetID"`
 	InvokeMethodName string                  `json:"invokeMethodName"`
 	Verb             string                  `json:"verb"`
@@ -18,4 +25,8 @@ type TryTransactionRequest struct {
 	Data             []byte                  `json:"data"`
 	ContentType      string                  `json:"contentType"`
 	Header           *fasthttp.RequestHeader `json:"header"`
+}
+
+type GetBunchTransactionsRequest struct {
+	TransactionId string `json:"transactionId"`
 }

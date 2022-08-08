@@ -116,10 +116,12 @@ func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, er
 		return make(map[string]int), fmt.Errorf("read transaction from persistent store error")
 	}
 
-	var bunchTransactionStatePersit map[string]interface{}
+	var bunchTransactionStatePersit map[string]string
 	if err := res.Scan(&bunchTransactionStatePersit); err != nil {
 		return make(map[string]int), fmt.Errorf("bunch transaction state info anti-serialization error")
 	}
+
+	t.logger.Debug(bunchTransactionStatePersit)
 
 	bunchTransactionState := make(map[string]int)
 	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
@@ -189,8 +191,8 @@ func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transact
 		bunchTransactionIds = append(bunchTransactionIds, bunchTransactionId)
 		i++
 	}
+
 	t.logger.Debug("transaction id is :", transactionId)
-	t.logger.Debug("bunch transaction state id is :", bunchTransactionStateStores)
 	err := t.InitDisTransactionStateStore(transactionId, bunchTransactionStateStores)
 	if err != nil {
 		t.logger.Debug("distribute transaction state store error! XID: %s", transactionId)

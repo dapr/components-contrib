@@ -18,8 +18,8 @@ import (
 
 const (
 	defaultStateStoreDuration       = 300
-	defaultTransactionIdPre         = "dapr::transaction::"
-	defaultBunchTransactionIdPre    = "bunch::"
+	defaultTransactionIdPre         = "transaction-"
+	defaultBunchTransactionIdPre    = "bunch-"
 	defaultState                    = 0
 	stateForSuccess                 = 1
 	stateForFailure                 = -1
@@ -137,9 +137,10 @@ func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, er
 
 }
 
-func (t *Tcc) genDisTransactionId(xid string) string {
+func (t *Tcc) genDisTransactionId() string {
+	xid := uuid.Must(uuid.NewV4()).String()
 	rand.Seed(time.Now().UnixNano())
-	return defaultTransactionIdPre + xid + "::" + strconv.Itoa(rand.Intn(100))
+	return defaultTransactionIdPre + xid + "-" + strconv.Itoa(rand.Intn(10000))
 }
 
 func (t *Tcc) genBunchTransactionId(index int) string {
@@ -175,8 +176,7 @@ func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transact
 	if beginRequest.BunchTransactionNum <= 0 {
 		return &transaction.BeginResponse{}, fmt.Errorf("must declare a positive number of bunch transactions, but %d given", beginRequest.BunchTransactionNum)
 	}
-	xid := uuid.Must(uuid.NewV4())
-	transactionId := t.genDisTransactionId(xid.String())
+	transactionId := t.genDisTransactionId()
 
 	bunchTransactionIds := []string{}
 	bunchTransactionStateStores := make(map[string]interface{})

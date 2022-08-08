@@ -93,9 +93,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if dbContainer.ID() == "" {
-		return fmt.Errorf("container is non-existent")
-	}
+
 	c.client = dbContainer
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
 	containerRead, err := c.client.Read(ctx, nil)

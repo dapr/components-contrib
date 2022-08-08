@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -95,7 +96,7 @@ func (t *Tcc) InitDisTransactionStateStore(transactionId string, bunchTransactio
 }
 
 // update a bunch transaction state and requet param
-func (t *Tcc) modifyBunchTransactionState(transactionId string, bunchTransactionId string, bunchTransactionStateStore map[string]interface{}) error {
+func (t *Tcc) modifyBunchTransactionState(transactionId string, bunchTransactionId string, bunchTransactionStateStore string) error {
 	if transactionId == "" || bunchTransactionId == "" {
 		return fmt.Errorf("transaction id or bunch transaction id missing")
 	}
@@ -144,6 +145,24 @@ func (t *Tcc) Init(metadata transaction.Metadata) {
 	t.InitTransactionStateStore(metadata)
 }
 
+func (t *Tcc) parseMapToString(param map[string]interface{}) string {
+	parse, err := json.Marshal(param)
+	if err != nil {
+		t.logger.Info("param parse to string something error")
+		return ""
+	}
+	return string(parse)
+}
+
+func (t *Tcc) parseStringToMap(param string) map[string]interface{} {
+	var parse map[string]interface{}
+	err := json.Unmarshal([]byte(param), &parse)
+	if err != nil {
+		return make(map[string]interface{})
+	}
+	return parse
+}
+
 // Begin a distribute transaction
 func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transaction.BeginResponse, error) {
 	t.logger.Debug("Begin a distribute transaction")
@@ -152,9 +171,11 @@ func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transact
 	}
 	xid := uuid.Must(uuid.NewV4())
 	transactionId := t.genDisTransactionId(xid.String())
-	i := 1
+
 	bunchTransactionIds := []string{}
 	bunchTransactionStateStores := make(map[string]interface{})
+
+	i := 1
 	for i <= beginRequest.BunchTransactionNum {
 		// allot a bunch transaction id
 		bunchTransactionId := t.genBunchTransactionId(i)
@@ -163,7 +184,7 @@ func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transact
 		bunchTransactionStateStore := make(map[string]interface{})
 		bunchTransactionStateStore[bunchTransactionTryState] = defaultState
 		bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &transaction.TransactionTryRequestParam{}
-		bunchTransactionStateStores[bunchTransactionId] = bunchTransactionStateStore
+		bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
 
 		bunchTransactionIds = append(bunchTransactionIds, bunchTransactionId)
 		i++
@@ -197,7 +218,7 @@ func (t *Tcc) Try(tryRequest transaction.BunchTransactionTryRequest) error {
 	}
 	bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &tryRequest.TryRequestParam
 
-	err := t.modifyBunchTransactionState(tryRequest.TransactionId, tryRequest.BunchTransactionId, bunchTransactionStateStore)
+	err := t.modifyBunchTransactionState(tryRequest.TransactionId, tryRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}

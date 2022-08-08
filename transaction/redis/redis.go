@@ -249,12 +249,15 @@ func (t *Tcc) GetBunchTransactions(transactionReq transaction.GetBunchTransactio
 		t.logger.Info("distribute transaction id missing")
 		return &transaction.TransactionStateResponse{}, fmt.Errorf("distribute transaction id missing")
 	}
-	bunchTransactionState, err := t.getBunchTransactionState(transactionReq.TransactionId)
+	xid := transactionReq.TransactionId
+	t.logger.Debug("input :", transactionReq)
+	t.logger.Debug("distribute transaction id is ", xid)
+	bunchTransactionState, err := t.getBunchTransactionState(xid)
 	if err != nil {
 		return &transaction.TransactionStateResponse{}, err
 	}
 	return &transaction.TransactionStateResponse{
-		TransactionId:          transactionReq.TransactionId,
+		TransactionId:          xid,
 		BunchTransactionStates: bunchTransactionState,
 	}, nil
 }

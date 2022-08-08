@@ -111,13 +111,17 @@ func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, er
 	if transactionId == "" {
 		return make(map[string]int), fmt.Errorf("transaction id missing")
 	}
+	t.logger.Debug("try to get bunch transactions")
+
 	res := t.client.HGetAll(t.ctx, transactionId)
 	if res.Err() != nil {
+		t.logger.Debug("read transaction from persistent store error")
 		return make(map[string]int), fmt.Errorf("read transaction from persistent store error")
 	}
 
 	var bunchTransactionStatePersit map[string]string
 	if err := res.Scan(&bunchTransactionStatePersit); err != nil {
+		t.logger.Debug("bunch transaction state info anti-serialization error")
 		return make(map[string]int), fmt.Errorf("bunch transaction state info anti-serialization error")
 	}
 

@@ -129,13 +129,9 @@ func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, er
 
 	bunchTransactionState := make(map[string]int)
 	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
-		t.logger.Debug(stateInfo)
 		parse := t.parseStringToMap(stateInfo)
-		t.logger.Debug(parse)
-		for k, v := range parse {
-			t.logger.Debug(k, "  ", v)
-		}
-		bunchTransactionState[bunchTransactionId] = 1
+		stateCode, _ := parse[bunchTransactionTryState].(int)
+		bunchTransactionState[bunchTransactionId] = stateCode
 	}
 	return bunchTransactionState, nil
 

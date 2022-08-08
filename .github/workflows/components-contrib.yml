@@ -95,14 +95,16 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true
+          args: --timeout 15m
       - name: Run go mod tidy check diff
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         run: make modtidy-all check-diff
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
+          IPFS_TEST: "1"
         if: matrix.target_arch != 'arm' && steps.skip_check.outputs.should_skip != 'true'
         run: make test
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3

@@ -306,3 +306,7 @@ func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.
 		BunchTransactionStates: bunchTransactionState,
 	}, nil
 }
+
+func (t *DistributeTransaction) ReleaseTransactionResource(request transaction.ReleaseTransactionRequest) {
+
+}

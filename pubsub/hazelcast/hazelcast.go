@@ -39,10 +39,6 @@ type Hazelcast struct {
 	client   hazelcast.Client
 	logger   logger.Logger
 	metadata metadata
-
-	ctx     context.Context
-	cancel  context.CancelFunc
-	backOff backoff.BackOff
 }
 
 // NewHazelcastPubSub returns a new hazelcast pub-sub implementation.
@@ -86,12 +82,6 @@ func (p *Hazelcast) Init(metadata pubsub.Metadata) error {
 		return fmt.Errorf("hazelcast error: failed to create new client, %v", err)
 	}
 
-	p.ctx, p.cancel = context.WithCancel(context.Background())
-
-	// TODO: Make the backoff configurable for constant or exponential
-	b := backoff.NewConstantBackOff(5 * time.Second)
-	p.backOff = backoff.WithContext(b, p.ctx)
-
 	return nil
 }
 
@@ -108,22 +98,32 @@ func (p *Hazelcast) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
-func (p *Hazelcast) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (p *Hazelcast) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	topic, err := p.client.GetTopic(req.Topic)
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to get topic for %s", req.Topic)
 	}
 
-	_, err = topic.AddMessageListener(&hazelcastMessageListener{p, topic.Name(), handler})
+	listenerID, err := topic.AddMessageListener(&hazelcastMessageListener{
+		p:             p,
+		ctx:           subscribeCtx,
+		topicName:     topic.Name(),
+		pubsubHandler: handler,
+	})
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to add new listener, %v", err)
 	}
+
+	// Wait for context cancelation then remove the listener
+	go func() {
+		<-subscribeCtx.Done()
+		topic.RemoveMessageListener(listenerID)
+	}()
 
 	return nil
 }
 
 func (p *Hazelcast) Close() error {
-	p.cancel()
 	p.client.Shutdown()
 
 	return nil
@@ -135,6 +135,7 @@ func (p *Hazelcast) Features() []pubsub.Feature {
 
 type hazelcastMessageListener struct {
 	p             *Hazelcast
+	ctx           context.Context
 	topicName     string
 	pubsubHandler pubsub.Handler
 }
@@ -160,7 +161,10 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 		Topic: l.topicName,
 	}
 
-	b := l.p.backOff
+	// TODO: See https://github.com/dapr/components-contrib/issues/1808
+	// This component has built-in retries because Hazelcast doesn't support N/ACK for pubsub (it delivers messages "once" and not "at least once")
+	var b backoff.BackOff = backoff.NewConstantBackOff(5 * time.Second)
+	b = backoff.WithContext(b, l.ctx)
 	if l.p.metadata.backOffMaxRetries >= 0 {
 		b = backoff.WithMaxRetries(b, uint64(l.p.metadata.backOffMaxRetries))
 	}
@@ -168,7 +172,7 @@ func (l *hazelcastMessageListener) handleMessageObject(message []byte) error {
 	return retry.NotifyRecover(func() error {
 		l.p.logger.Debug("Processing Hazelcast message")
 
-		return l.pubsubHandler(l.p.ctx, &pubsubMsg)
+		return l.pubsubHandler(l.ctx, &pubsubMsg)
 	}, b, func(err error, d time.Duration) {
 		l.p.logger.Error("Error processing Hazelcast message. Retrying...")
 	}, func() {

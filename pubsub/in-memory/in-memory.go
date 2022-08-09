@@ -15,6 +15,7 @@ package inmemory
 
 import (
 	"context"
+	"time"
 
 	"github.com/asaskevich/EventBus"
 
@@ -24,7 +25,6 @@ import (
 
 type bus struct {
 	bus EventBus.Bus
-	ctx context.Context
 	log logger.Logger
 }
 
@@ -44,27 +44,41 @@ func (a *bus) Features() []pubsub.Feature {
 
 func (a *bus) Init(metadata pubsub.Metadata) error {
 	a.bus = EventBus.New()
-	a.ctx = context.Background()
 
 	return nil
 }
 
 func (a *bus) Publish(req *pubsub.PublishRequest) error {
-	a.bus.Publish(req.Topic, a.ctx, req.Data)
+	a.bus.Publish(req.Topic, req.Data)
 
 	return nil
 }
 
-func (a *bus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	return a.bus.Subscribe(req.Topic, func(ctx context.Context, data []byte) {
+func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	// For this component we allow built-in retries because it is backed by memory
+	retryHandler := func(data []byte) {
 		for i := 0; i < 10; i++ {
-			if err := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: req.Metadata}); err != nil {
-				a.log.Error(err)
-
-				continue
+			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: req.Metadata})
+			if handleErr == nil {
+				break
 			}
-
-			return
+			a.log.Error(handleErr)
+			time.Sleep(100 * time.Millisecond)
 		}
-	})
+	}
+	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)
+	if err != nil {
+		return err
+	}
+
+	// Unsubscribe when context is done
+	go func() {
+		<-ctx.Done()
+		err := a.bus.Unsubscribe(req.Topic, retryHandler)
+		if err != nil {
+			a.log.Errorf("error while unsubscribing from topic %s: %v", req.Topic, err)
+		}
+	}()
+
+	return nil
 }

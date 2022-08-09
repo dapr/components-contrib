@@ -14,10 +14,12 @@ limitations under the License.
 package bucket
 
 import (
+	"bytes"
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"strconv"
@@ -28,6 +30,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -161,17 +164,14 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 		req.Data = []byte(d)
 	}
 
+	var r io.Reader = bytes.NewReader(req.Data)
 	if metadata.DecodeBase64 {
-		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
-		if decodeError != nil {
-			return nil, fmt.Errorf("gcp bucket binding error. decode : %w", decodeError)
-		}
-		req.Data = decoded
+		r = b64.NewDecoder(b64.StdEncoding, r)
 	}
 
 	h := g.client.Bucket(g.metadata.Bucket).Object(name).NewWriter(ctx)
 	defer h.Close()
-	if _, err = h.Write(req.Data); err != nil {
+	if _, err = io.Copy(h, r); err != nil {
 		return nil, fmt.Errorf("gcp bucket binding error. Uploading: %w", err)
 	}
 
@@ -207,7 +207,8 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 		return nil, fmt.Errorf("gcp bucket binding error: can't read key value")
 	}
 
-	rc, err := g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(ctx)
+	var rc io.ReadCloser
+	rc, err = g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)
 	}
@@ -289,19 +290,11 @@ func (metadata gcpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest
 	merged := metadata
 
 	if val, ok := req.Metadata[metadataDecodeBase64]; ok && val != "" {
-		valBool, err := strconv.ParseBool(val)
-		if err != nil {
-			return merged, err
-		}
-		merged.DecodeBase64 = valBool
+		merged.DecodeBase64 = utils.IsTruthy(val)
 	}
 
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
-		valBool, err := strconv.ParseBool(val)
-		if err != nil {
-			return merged, err
-		}
-		merged.EncodeBase64 = valBool
+		merged.EncodeBase64 = utils.IsTruthy(val)
 	}
 
 	return merged, nil

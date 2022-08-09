@@ -28,7 +28,8 @@ import (
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	contrib_metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -62,8 +63,8 @@ type azureServiceBus struct {
 	topics      map[string]*servicebus.Sender
 	topicsLock  *sync.RWMutex
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	publishCtx    context.Context
+	publishCancel context.CancelFunc
 }
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
@@ -76,7 +77,7 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
+func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (metadata, error) {
 	m := metadata{}
 
 	/* Required configuration settings - no defaults. */
@@ -157,21 +158,21 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		}
 	}
 
-	m.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
-	if val, ok := meta.Properties[maxReconnectionAttempts]; ok && val != "" {
+	m.MinConnectionRecoveryInSec = defaultMinConnectionRecoveryInSec
+	if val, ok := meta.Properties[minConnectionRecoveryInSec]; ok && val != "" {
 		var err error
-		m.MaxReconnectionAttempts, err = strconv.Atoi(val)
+		m.MinConnectionRecoveryInSec, err = strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("%s invalid maxReconnectionAttempts %s, %s", errorMessagePrefix, val, err)
+			return m, fmt.Errorf("%s invalid minConnectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
-	m.ConnectionRecoveryInSec = defaultConnectionRecoveryInSec
-	if val, ok := meta.Properties[connectionRecoveryInSec]; ok && val != "" {
+	m.MaxConnectionRecoveryInSec = defaultMaxConnectionRecoveryInSec
+	if val, ok := meta.Properties[maxConnectionRecoveryInSec]; ok && val != "" {
 		var err error
-		m.ConnectionRecoveryInSec, err = strconv.Atoi(val)
+		m.MaxConnectionRecoveryInSec, err = strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("%s invalid connectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
+			return m, fmt.Errorf("%s invalid maxConnectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -237,11 +238,20 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata) (metadata, error) {
 		m.PublishInitialRetryIntervalInMs = valAsInt
 	}
 
+	/* Deprecated properties - show a warning. */
+	// TODO: Remove in the future
+	if _, ok := meta.Properties[connectionRecoveryInSec]; ok && logger != nil {
+		logger.Warn("pubsub.azure.servicebus: metadata property 'connectionRecoveryInSec' has been deprecated and is now ignored - use 'minConnectionRecoveryInSec' and 'maxConnectionRecoveryInSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus/")
+	}
+	if _, ok := meta.Properties[maxReconnectionAttempts]; ok && logger != nil {
+		logger.Warn("pubsub.azure.servicebus: metadata property 'maxReconnectionAttempts' has been deprecated and is now ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus/")
+	}
+
 	return m, nil
 }
 
 func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
-	a.metadata, err = parseAzureServiceBusMetadata(metadata)
+	a.metadata, err = parseAzureServiceBusMetadata(metadata, a.logger)
 	if err != nil {
 		return err
 	}
@@ -283,36 +293,15 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 		}
 	}
 
-	a.ctx, a.cancel = context.WithCancel(context.Background())
+	a.publishCtx, a.publishCancel = context.WithCancel(context.Background())
 
 	return nil
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	var sender *servicebus.Sender
-	var err error
-
-	a.topicsLock.RLock()
-	if topic, ok := a.topics[req.Topic]; ok {
-		sender = topic
-	}
-	a.topicsLock.RUnlock()
-
-	if sender == nil {
-		// Ensure the topic exists the first time it is referenced.
-		if !a.metadata.DisableEntityManagement {
-			if err = a.ensureTopic(req.Topic); err != nil {
-				return err
-			}
-		}
-		a.topicsLock.Lock()
-		sender, err = a.client.NewSender(req.Topic, nil)
-		a.topics[req.Topic] = sender
-		a.topicsLock.Unlock()
-
-		if err != nil {
-			return err
-		}
+	sender, err := a.senderForTopic(a.publishCtx, req.Topic)
+	if err != nil {
+		return err
 	}
 
 	// a.logger.Debugf("Creating message with body: %s", string(req.Data))
@@ -324,7 +313,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	ebo := backoff.NewExponentialBackOff()
 	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
-	bo = backoff.WithContext(bo, a.ctx)
+	bo = backoff.WithContext(bo, a.publishCtx)
 
 	msgID := "nil"
 	if msg.MessageID != nil {
@@ -332,7 +321,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	}
 	return retry.NotifyRecover(
 		func() (err error) {
-			ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+			ctx, cancel := context.WithTimeout(a.publishCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 			defer cancel()
 
 			err = sender.SendMessage(ctx, msg, nil)
@@ -362,118 +351,137 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	)
 }
 
-func (a *azureServiceBus) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
-		err := a.ensureSubscription(subID, req.Topic)
+		err := a.ensureSubscription(subscribeCtx, subID, req.Topic)
 		if err != nil {
 			return err
 		}
 	}
 
+	// Reconnection backoff policy
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0
+	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
+	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+
 	go func() {
-		// Limit the number of attempted reconnects we make.
-		reconnAttempts := make(chan struct{}, a.metadata.MaxReconnectionAttempts)
-		for i := 0; i < a.metadata.MaxReconnectionAttempts; i++ {
-			reconnAttempts <- struct{}{}
-		}
-
-		// len(reconnAttempts) should be considered stale but we can afford a little error here.
-		readAttemptsStale := func() int { return len(reconnAttempts) }
-
-		// Periodically refill the reconnect attempts channel to avoid
-		// exhausting all the refill attempts due to intermittent issues
-		// ocurring over a longer period of time.
-		reconnCtx, reconnCancel := context.WithCancel(a.ctx)
-		defer reconnCancel()
-		go func() {
-			for {
-				select {
-				case <-reconnCtx.Done():
-					a.logger.Debugf("Reconnect context for topic %s is done", req.Topic)
-					return
-				case <-time.After(2 * time.Minute):
-					attempts := readAttemptsStale()
-					if attempts < a.metadata.MaxReconnectionAttempts {
-						reconnAttempts <- struct{}{}
-					}
-					a.logger.Debugf("Number of reconnect attempts remaining for topic %s: %d", req.Topic, attempts)
-				}
-			}
-		}()
-
 		// Reconnect loop.
 		for {
-			subEntity, err := a.client.NewReceiverForSubscription(req.Topic, subID, nil)
-			if err != nil {
-				a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
-				return
-			}
-			sub := newSubscription(
-				a.ctx,
-				req.Topic,
-				subEntity,
+			sub := impl.NewSubscription(
+				subscribeCtx,
 				a.metadata.MaxActiveMessages,
 				a.metadata.TimeoutInSec,
-				a.metadata.HandlerTimeoutInSec,
 				a.metadata.MaxRetriableErrorsPerSec,
 				a.metadata.MaxConcurrentHandlers,
+				"topic "+req.Topic,
 				a.logger,
 			)
 
-			// ReceiveAndBlock will only return with an error
-			// that it cannot handle internally. The subscription
-			// connection is closed when this method returns.
-			// If that occurs, we will log the error and attempt
-			// to re-establish the subscription connection until
-			// we exhaust the number of reconnect attempts.
-			innerErr := sub.ReceiveAndBlock(
-				handler,
+			// Blocks until a successful connection (or until context is canceled)
+			err := sub.Connect(func() (*servicebus.Receiver, error) {
+				return a.client.NewReceiverForSubscription(req.Topic, subID, nil)
+			})
+			if err != nil {
+				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
+				if err != context.Canceled {
+					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+				}
+				return
+			}
+
+			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
+			err = sub.ReceiveAndBlock(
+				a.getHandlerFunc(req.Topic, handler),
 				a.metadata.LockRenewalInSec,
+				func() {
+					// Reset the backoff when the subscription is successful and we have received the first message
+					bo.Reset()
+				},
 			)
-			if innerErr != nil {
+			if err != nil {
 				var detachError *amqp.DetachError
 				var amqpError *amqp.Error
-				if errors.Is(innerErr, detachError) ||
-					(errors.As(innerErr, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
-					a.logger.Debug(innerErr)
+				if errors.Is(err, detachError) ||
+					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(err)
 				} else {
-					a.logger.Error(innerErr)
+					a.logger.Error(err)
 				}
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-			sub.close(ctx)
-			cancel()
+
+			// Gracefully close the connection (in case it's not closed already)
+			// Use a background context here (with timeout) because ctx may be closed already
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+			sub.Close(closeCtx)
+			closeCancel()
 
 			// If context was canceled, do not attempt to reconnect
-			if a.ctx.Err() != nil {
-				a.logger.Debug("Context canceled; will not try to reconnect")
+			if subscribeCtx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
 
-			attempts := readAttemptsStale()
-			if attempts == 0 {
-				a.logger.Errorf("Subscription to topic %s lost connection, unable to recover after %d attempts", sub.topic, a.metadata.MaxReconnectionAttempts)
-				return
-			}
-
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect... [%d/%d]", sub.topic, a.metadata.MaxReconnectionAttempts-attempts, a.metadata.MaxReconnectionAttempts)
-			time.Sleep(time.Second * time.Duration(a.metadata.ConnectionRecoveryInSec))
-			<-reconnAttempts
+			wait := bo.NextBackOff()
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
+			time.Sleep(wait)
 		}
 	}()
 
 	return nil
 }
 
-func (a *azureServiceBus) ensureTopic(topic string) error {
-	shouldCreate, err := a.shouldCreateTopic(topic)
+func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) impl.HandlerFunc {
+	return func(ctx context.Context, asbMsg *servicebus.ReceivedMessage) error {
+		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, topic)
+		if err != nil {
+			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+		}
+
+		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
+		defer handleCancel()
+		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.MessageID, topic)
+		return handler(handleCtx, pubsubMsg)
+	}
+}
+
+// senderForTopic returns the sender for a topic, or creates a new one if it doesn't exist
+func (a *azureServiceBus) senderForTopic(ctx context.Context, topic string) (*servicebus.Sender, error) {
+	a.topicsLock.RLock()
+	sender, ok := a.topics[topic]
+	a.topicsLock.RUnlock()
+	if ok && sender != nil {
+		return sender, nil
+	}
+
+	// Ensure the topic exists the first time it is referenced.
+	var err error
+	if !a.metadata.DisableEntityManagement {
+		if err = a.ensureTopic(ctx, topic); err != nil {
+			return nil, err
+		}
+	}
+	a.topicsLock.Lock()
+	defer a.topicsLock.Unlock()
+	sender, err = a.client.NewSender(topic, nil)
+	if err != nil {
+		return nil, err
+	}
+	a.topics[topic] = sender
+
+	return sender, nil
+}
+
+func (a *azureServiceBus) ensureTopic(ctx context.Context, topic string) error {
+	shouldCreate, err := a.shouldCreateTopic(ctx, topic)
 	if err != nil {
 		return err
 	}
 
 	if shouldCreate {
-		err = a.createTopic(topic)
+		err = a.createTopic(ctx, topic)
 		if err != nil {
 			return err
 		}
@@ -482,19 +490,19 @@ func (a *azureServiceBus) ensureTopic(topic string) error {
 	return nil
 }
 
-func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
-	err := a.ensureTopic(topic)
+func (a *azureServiceBus) ensureSubscription(ctx context.Context, name string, topic string) error {
+	err := a.ensureTopic(ctx, topic)
 	if err != nil {
 		return err
 	}
 
-	shouldCreate, err := a.shouldCreateSubscription(topic, name)
+	shouldCreate, err := a.shouldCreateSubscription(ctx, topic, name)
 	if err != nil {
 		return err
 	}
 
 	if shouldCreate {
-		err = a.createSubscription(topic, name)
+		err = a.createSubscription(ctx, topic, name)
 		if err != nil {
 			return err
 		}
@@ -503,10 +511,9 @@ func (a *azureServiceBus) ensureSubscription(name string, topic string) error {
 	return nil
 }
 
-func (a *azureServiceBus) shouldCreateTopic(topic string) (bool, error) {
-	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) shouldCreateTopic(parentCtx context.Context, topic string) (bool, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
-
 	if a.adminClient == nil {
 		return false, fmt.Errorf("%s init() has not been called", errorMessagePrefix)
 	}
@@ -522,8 +529,8 @@ func (a *azureServiceBus) shouldCreateTopic(topic string) (bool, error) {
 	return false, nil
 }
 
-func (a *azureServiceBus) createTopic(topic string) error {
-	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) createTopic(parentCtx context.Context, topic string) error {
+	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 	_, err := a.adminClient.CreateTopic(ctx, topic, nil)
 	if err != nil {
@@ -533,8 +540,8 @@ func (a *azureServiceBus) createTopic(topic string) error {
 	return nil
 }
 
-func (a *azureServiceBus) shouldCreateSubscription(topic, subscription string) (bool, error) {
-	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+func (a *azureServiceBus) shouldCreateSubscription(parentCtx context.Context, topic, subscription string) (bool, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 	res, err := a.adminClient.GetSubscription(ctx, topic, subscription, nil)
 	if err != nil {
@@ -548,13 +555,13 @@ func (a *azureServiceBus) shouldCreateSubscription(topic, subscription string) (
 	return false, nil
 }
 
-func (a *azureServiceBus) createSubscription(topic, subscription string) error {
+func (a *azureServiceBus) createSubscription(parentCtx context.Context, topic, subscription string) error {
 	props, err := a.createSubscriptionProperties()
 	if err != nil {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(a.ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 	defer cancel()
 	_, err = a.adminClient.CreateSubscription(ctx, topic, subscription, &sbadmin.CreateSubscriptionOptions{
 		Properties: props,
@@ -598,24 +605,34 @@ func (a *azureServiceBus) createSubscriptionProperties() (*sbadmin.SubscriptionP
 	return properties, nil
 }
 
-func (a *azureServiceBus) Close() error {
-	// Cancel the context which will stop all subscriptions too
-	a.cancel()
+func (a *azureServiceBus) Close() (err error) {
+	a.topicsLock.Lock()
+	defer a.topicsLock.Unlock()
 
-	// Close all topics
-	var ctx context.Context
-	var cancel context.CancelFunc
-	var err error
-	for _, t := range a.topics {
-		a.logger.Debugf("Closing topic %s", t)
-		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(a.metadata.TimeoutInSec)*time.Second)
-		err = t.Close(ctx)
-		if err != nil {
-			// Log only
-			a.logger.Warnf("%s closing topic %s: %+v", errorMessagePrefix, t, err)
-		}
-		cancel()
+	a.publishCancel()
+
+	// Close all topics, up to 3 in parallel
+	workersCh := make(chan bool, 3)
+	for k, t := range a.topics {
+		// Blocks if we have too many goroutines
+		workersCh <- true
+		go func(k string, t *servicebus.Sender) {
+			a.logger.Debugf("Closing topic %s", k)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.metadata.TimeoutInSec)*time.Second)
+			err = t.Close(ctx)
+			cancel()
+			if err != nil {
+				// Log only
+				a.logger.Warnf("%s closing topic %s: %+v", errorMessagePrefix, k, err)
+			}
+			<-workersCh
+		}(k, t)
 	}
+	for i := 0; i < cap(workersCh); i++ {
+		// Wait for all workers to be done
+		workersCh <- true
+	}
+	close(workersCh)
 
 	return nil
 }

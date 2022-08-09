@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -33,7 +34,6 @@ type Binding struct {
 	logger  logger.Logger
 	session *r.Session
 	config  StateConfig
-	stopCh  chan bool
 }
 
 // StateConfig is the binding config.
@@ -42,13 +42,10 @@ type StateConfig struct {
 	Table string `json:"table"`
 }
 
-var _ = bindings.InputBinding(&Binding{})
-
 // NewRethinkDBStateChangeBinding returns a new RethinkDB actor event input binding.
 func NewRethinkDBStateChangeBinding(logger logger.Logger) *Binding {
 	return &Binding{
 		logger: logger,
-		stopCh: make(chan bool),
 	}
 }
 
@@ -70,23 +67,27 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the RethinkDB scheduler.
-func (b *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	b.logger.Infof("subscribing to state changes in %s.%s...", b.config.Database, b.config.Table)
-	cursor, err := r.DB(b.config.Database).Table(b.config.Table).Changes(r.ChangesOpts{
-		IncludeTypes: true,
-	}).Run(b.session)
+	cursor, err := r.DB(b.config.Database).
+		Table(b.config.Table).
+		Changes(r.ChangesOpts{
+			IncludeTypes: true,
+		}).
+		Run(b.session, r.RunOpts{
+			Context: ctx,
+		})
 	if err != nil {
 		errors.Wrapf(err, "error connecting to table %s", b.config.Table)
 	}
 
 	go func() {
-		for {
+		for ctx.Err() == nil {
 			var change interface{}
 			ok := cursor.Next(&change)
 			if !ok {
 				b.logger.Errorf("error detecting change: %v", cursor.Err())
-
-				break
+				continue
 			}
 
 			data, err := json.Marshal(change)
@@ -104,17 +105,14 @@ func (b *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]
 				},
 			}
 
-			if _, err := handler(context.TODO(), resp); err != nil {
+			if _, err := handler(ctx, resp); err != nil {
 				b.logger.Errorf("error invoking change handler: %v", err)
-
 				continue
 			}
 		}
-	}()
 
-	done := <-b.stopCh
-	b.logger.Errorf("done: %b", done)
-	defer cursor.Close()
+		cursor.Close()
+	}()
 
 	return nil
 }
@@ -174,17 +172,9 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 			}
 			c.MaxOpen = i
 		case "discover_hosts": // bool
-			b, err := strconv.ParseBool(v)
-			if err != nil {
-				return c, errors.Wrapf(err, "invalid discover hosts format: %v", v)
-			}
-			c.DiscoverHosts = b
+			c.DiscoverHosts = utils.IsTruthy(v)
 		case "use-open-tracing": // bool
-			b, err := strconv.ParseBool(v)
-			if err != nil {
-				return c, errors.Wrapf(err, "invalid use open tracing format: %v", v)
-			}
-			c.UseOpentracing = b
+			c.UseOpentracing = utils.IsTruthy(v)
 		case "max_idle": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {

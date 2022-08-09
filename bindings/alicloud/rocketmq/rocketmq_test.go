@@ -14,6 +14,7 @@ limitations under the License.
 package rocketmq
 
 import (
+	"context"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -29,6 +29,7 @@ import (
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	if !isLiveTest() {
+		t.Skip()
 		return
 	}
 	m := bindings.Metadata{} //nolint:exhaustivestruct
@@ -44,10 +45,8 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 
 		return nil, nil
 	}
-	go func() {
-		err = r.Read(handler)
-		require.NoError(t, err)
-	}()
+	err = r.Read(context.Background(), handler)
+	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)
 	atomic.StoreInt32(&count, 0)

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	jwt "github.com/golang-jwt/jwt/v4"
 
 	"github.com/dapr/kit/logger"
 )

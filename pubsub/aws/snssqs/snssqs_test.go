@@ -105,7 +105,7 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal(pubsub.Parallel, md.concurrencyMode)
 	r.Equal(int64(10), md.messageVisibilityTimeout)
 	r.Equal(int64(10), md.messageRetryLimit)
-	r.Equal(int64(1), md.messageWaitTimeSeconds)
+	r.Equal(int64(2), md.messageWaitTimeSeconds)
 	r.Equal(int64(10), md.messageMaxNumber)
 	r.Equal(false, md.disableEntityManagement)
 	r.Equal(float64(5), md.assetsManagementTimeoutSeconds)
@@ -137,7 +137,7 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 	r.Equal("region", md.Region)
 	r.Equal(int64(10), md.messageVisibilityTimeout)
 	r.Equal(int64(10), md.messageRetryLimit)
-	r.Equal(int64(1), md.messageWaitTimeSeconds)
+	r.Equal(int64(2), md.messageWaitTimeSeconds)
 	r.Equal(int64(10), md.messageMaxNumber)
 }
 
@@ -399,4 +399,73 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_Trimmed(t *testing.T) {
 	v := nameToAWSSanitizedName(s, true)
 	r.Equal(80, len(v))
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
+}
+
+func Test_buildARN_DefaultPartition(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	l := logger.NewLogger("SnsSqs unit test")
+	l.SetOutputLevel(logger.DebugLevel)
+	ps := snsSqs{
+		logger: l,
+	}
+
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+		"consumerID": "c",
+		"accessKey":  "a",
+		"secretKey":  "s",
+		"region":     "r",
+	}})
+	r.NoError(err)
+	md.accountID = "123456789012"
+	ps.metadata = md
+
+	arn := ps.buildARN("sns", "myTopic")
+	r.Equal("arn:aws:sns:r:123456789012:myTopic", arn)
+}
+
+func Test_buildARN_StandardPartition(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	l := logger.NewLogger("SnsSqs unit test")
+	l.SetOutputLevel(logger.DebugLevel)
+	ps := snsSqs{
+		logger: l,
+	}
+
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+		"consumerID": "c",
+		"accessKey":  "a",
+		"secretKey":  "s",
+		"region":     "us-west-2",
+	}})
+	r.NoError(err)
+	md.accountID = "123456789012"
+	ps.metadata = md
+
+	arn := ps.buildARN("sns", "myTopic")
+	r.Equal("arn:aws:sns:us-west-2:123456789012:myTopic", arn)
+}
+
+func Test_buildARN_NonStandardPartition(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	l := logger.NewLogger("SnsSqs unit test")
+	l.SetOutputLevel(logger.DebugLevel)
+	ps := snsSqs{
+		logger: l,
+	}
+
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+		"consumerID": "c",
+		"accessKey":  "a",
+		"secretKey":  "s",
+		"region":     "cn-northwest-1",
+	}})
+	r.NoError(err)
+	md.accountID = "123456789012"
+	ps.metadata = md
+
+	arn := ps.buildARN("sns", "myTopic")
+	r.Equal("arn:aws-cn:sns:cn-northwest-1:123456789012:myTopic", arn)
 }

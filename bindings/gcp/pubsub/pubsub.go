@@ -84,24 +84,29 @@ func (g *GCPPubSub) Init(metadata bindings.Metadata) error {
 }
 
 func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
-	b, err := json.Marshal(metadata.Properties)
-
-	return b, err
+	return json.Marshal(metadata.Properties)
 }
 
-func (g *GCPPubSub) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
-	sub := g.client.Subscription(g.metadata.Subscription)
-	err := sub.Receive(context.Background(), func(ctx context.Context, m *pubsub.Message) {
-		_, err := handler(ctx, &bindings.ReadResponse{
-			Data:     m.Data,
-			Metadata: map[string]string{id: m.ID, publishTime: m.PublishTime.String()},
-		})
-		if err == nil {
+func (g *GCPPubSub) Read(ctx context.Context, handler bindings.Handler) error {
+	go func() {
+		sub := g.client.Subscription(g.metadata.Subscription)
+		err := sub.Receive(ctx, func(c context.Context, m *pubsub.Message) {
+			_, err := handler(c, &bindings.ReadResponse{
+				Data:     m.Data,
+				Metadata: map[string]string{id: m.ID, publishTime: m.PublishTime.String()},
+			})
+			if err != nil {
+				m.Nack()
+				return
+			}
 			m.Ack()
+		})
+		if err != nil {
+			g.logger.Errorf("error receiving messages: %v", err)
 		}
-	})
+	}()
 
-	return err
+	return nil
 }
 
 func (g *GCPPubSub) Operations() []bindings.OperationKind {

@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -39,13 +40,14 @@ func TestUpdateJobRetries(t *testing.T) {
 
 	deployment, err := zeebe.DeployProcess(
 		cmd,
+		context.Background(),
 		zeebe.TestProcessFile,
 		zeebe.ProcessIDModifier(id),
 		zeebe.JobTypeModifier("test", jobType))
 	assert.NoError(t, err)
 	assert.Equal(t, id, deployment.BpmnProcessId)
 
-	_, err = zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+	_, err = zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 		"bpmnProcessId": id,
 		"version":       1,
 		"variables": map[string]interface{}{
@@ -56,7 +58,7 @@ func TestUpdateJobRetries(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(5 * time.Second)
 
-	jobs, err := zeebe.ActicateJob(cmd, map[string]interface{}{
+	jobs, err := zeebe.ActicateJob(cmd, context.Background(), map[string]interface{}{
 		"jobType":           jobType,
 		"maxJobsToActivate": 100,
 		"timeout":           "10m",
@@ -78,7 +80,7 @@ func TestUpdateJobRetries(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.UpdateJobRetriesOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 		assert.Nil(t, res.Data)
 		assert.Nil(t, res.Metadata)
@@ -92,7 +94,7 @@ func TestUpdateJobRetries(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.UpdateJobRetriesOperation}
-		_, err = cmd.Invoke(req)
+		_, err = cmd.Invoke(context.Background(), req)
 		assert.Error(t, err)
 	})
 }

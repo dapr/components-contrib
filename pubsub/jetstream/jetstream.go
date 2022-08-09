@@ -15,8 +15,6 @@ package jetstream
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -32,8 +30,6 @@ type jetstreamPubSub struct {
 	l    logger.Logger
 	meta metadata
 
-	ctx           context.Context
-	ctxCancel     context.CancelFunc
 	backOffConfig retry.Config
 }
 
@@ -58,6 +54,9 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 		}, func(nonce []byte) ([]byte, error) {
 			return sigHandler(js.meta.seedKey, nonce)
 		}))
+	} else if js.meta.tls_client_cert != "" && js.meta.tls_client_key != "" {
+		js.l.Debug("Configure nats for tls client authentication")
+		opts = append(opts, nats.ClientCert(js.meta.tls_client_cert, js.meta.tls_client_key))
 	}
 
 	js.nc, err = nats.Connect(js.meta.natsURL, opts...)
@@ -70,8 +69,6 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-
-	js.ctx, js.ctxCancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no backOff properties are set.
 	if err := retry.DecodeConfigWithPrefix(
@@ -97,7 +94,7 @@ func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
 	return err
 }
 
-func (js *jetstreamPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	var opts []nats.SubOpt
 
 	if v := js.meta.durableName; v != "" {
@@ -128,55 +125,57 @@ func (js *jetstreamPubSub) Subscribe(req pubsub.SubscribeRequest, handler pubsub
 			return
 		}
 
-		operation := func() error {
-			js.l.Debugf("Processing JetStream message %s/%d", m.Subject,
-				jsm.Sequence)
-			opErr := handler(js.ctx, &pubsub.NewMessage{
-				Topic: req.Topic,
-				Data:  m.Data,
-				Metadata: map[string]string{
-					"Topic": m.Subject,
-				},
-			})
-			if opErr != nil {
-				return opErr
+		js.l.Debugf("Processing JetStream message %s/%d", m.Subject, jsm.Sequence)
+		err = handler(ctx, &pubsub.NewMessage{
+			Topic: req.Topic,
+			Data:  m.Data,
+			Metadata: map[string]string{
+				"Topic": m.Subject,
+			},
+		})
+		if err != nil {
+			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+
+			nakErr := m.Nak()
+			if nakErr != nil {
+				js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
 			}
 
-			return m.Ack()
+			return
 		}
-		notify := func(nerr error, d time.Duration) {
-			js.l.Errorf("Error processing JetStream message: %s/%d. Retrying...",
-				m.Subject, jsm.Sequence)
-		}
-		recovered := func() {
-			js.l.Infof("Successfully processed JetStream message after it previously failed: %s/%d",
-				m.Subject, jsm.Sequence)
-		}
-		backOff := js.backOffConfig.NewBackOffWithContext(js.ctx)
 
-		err = retry.NotifyRecover(operation, backOff, notify, recovered)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			js.l.Errorf("Error processing message and retries are exhausted:  %s/%d.",
-				m.Subject, jsm.Sequence)
+		err = m.Ack()
+		if err != nil {
+			js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 		}
 	}
 
 	var err error
+	var subscription *nats.Subscription
 	if queue := js.meta.queueGroupName; queue != "" {
 		js.l.Debugf("nats: subscribed to subject %s with queue group %s",
 			req.Topic, js.meta.queueGroupName)
-		_, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, opts...)
+		subscription, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, opts...)
 	} else {
 		js.l.Debugf("nats: subscribed to subject %s", req.Topic)
-		_, err = js.jsc.Subscribe(req.Topic, natsHandler, opts...)
+		subscription, err = js.jsc.Subscribe(req.Topic, natsHandler, opts...)
+	}
+	if err != nil {
+		return err
 	}
 
-	return err
+	go func() {
+		<-ctx.Done()
+		err := subscription.Unsubscribe()
+		if err != nil {
+			js.l.Warnf("nats: error while unsubscribing from topic %s: %v", req.Topic, err)
+		}
+	}()
+
+	return nil
 }
 
 func (js *jetstreamPubSub) Close() error {
-	js.ctxCancel()
-
 	return js.nc.Drain()
 }
 

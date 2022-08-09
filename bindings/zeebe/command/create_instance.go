@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/commands"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 
 	"github.com/dapr/components-contrib/bindings"
 )

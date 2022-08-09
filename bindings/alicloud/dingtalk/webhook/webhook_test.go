@@ -60,7 +60,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
-	_, err = d.Invoke(context.TODO(), req)
+	_, err = d.Invoke(context.Background(), req)
 	require.NoError(t, err)
 }
 
@@ -91,11 +91,11 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 		return nil, nil
 	}
 
-	err = d.Read(handler)
+	err = d.Read(context.Background(), handler)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.GetOperation, Metadata: map[string]string{}}
-	_, err = d.Invoke(context.TODO(), req)
+	_, err = d.Invoke(context.Background(), req)
 	require.NoError(t, err)
 
 	select {

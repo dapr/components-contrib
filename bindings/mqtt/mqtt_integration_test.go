@@ -88,7 +88,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	}()
 
 	// Test invoke with default topic configured for component.
-	_, err = r.Invoke(context.TODO(), &bindings.InvokeRequest{Data: dataDefault})
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: dataDefault})
 	assert.Nil(t, err)
 
 	m := <-msgCh
@@ -98,7 +98,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	assert.Equal(t, topicDefault, mqttMessage.Topic())
 
 	// Test invoke with customized topic.
-	_, err = r.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
 		Data: dataCustomized,
 		Metadata: map[string]string{
 			mqttTopic: topicCustomized,

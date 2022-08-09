@@ -17,10 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
@@ -37,8 +34,6 @@ type Binding struct {
 	query  string
 	logger logger.Logger
 }
-
-var _ = bindings.InputBinding(&Binding{})
 
 // NewTwitter returns a new Twitter event input binding.
 func NewTwitter(logger logger.Logger) *Binding {
@@ -86,9 +81,9 @@ func (t *Binding) Operations() []bindings.OperationKind {
 }
 
 // Read triggers the Twitter search and events on each result tweet.
-func (t *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]byte, error)) error {
+func (t *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	if t.query == "" {
-		return nil
+		return errors.New("metadata property 'query' is empty")
 	}
 
 	demux := twitter.NewSwitchDemux()
@@ -100,7 +95,7 @@ func (t *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]
 
 			return
 		}
-		handler(context.TODO(), &bindings.ReadResponse{
+		handler(ctx, &bindings.ReadResponse{
 			Data: data,
 			Metadata: map[string]string{
 				"query": t.query,
@@ -126,30 +121,15 @@ func (t *Binding) Read(handler func(context.Context, *bindings.ReadResponse) ([]
 	if err != nil {
 		return errors.Wrapf(err, "error executing stream filter: %+v", filterParams)
 	}
-	defer stream.Stop()
 
 	t.logger.Debug("starting handler...")
 	go demux.HandleChan(stream.Messages)
 
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan,
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
-
-	done := false
-	for !done {
-		s := <-signalChan
-		switch s {
-		case syscall.SIGHUP:
-			t.logger.Info("stopping, component hung up")
-			done = true
-		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-			t.logger.Info("stopping, component terminated")
-			done = true
-		}
-	}
+	go func() {
+		<-ctx.Done()
+		t.logger.Debug("stopping handler...")
+		stream.Stop()
+	}()
 
 	return nil
 }

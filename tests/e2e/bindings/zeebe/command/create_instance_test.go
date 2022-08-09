@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dapr/components-contrib/tests/e2e/bindings/zeebe"
@@ -35,7 +36,7 @@ func TestCreateInstance(t *testing.T) {
 	}
 
 	// Deploy version 1
-	firstDeployment, err := zeebe.DeployProcess(cmd, zeebe.TestProcessFile, zeebe.ProcessIDModifier(id))
+	firstDeployment, err := zeebe.DeployProcess(cmd, context.Background(), zeebe.TestProcessFile, zeebe.ProcessIDModifier(id))
 	assert.NoError(t, err)
 	assert.Equal(t, id, firstDeployment.BpmnProcessId)
 	assert.Equal(t, int32(1), firstDeployment.Version)
@@ -43,7 +44,7 @@ func TestCreateInstance(t *testing.T) {
 	// Deploy version 2
 	secondDeployment, err := zeebe.DeployProcess(
 		// changing the name results in a new version
-		cmd, zeebe.TestProcessFile, zeebe.ProcessIDModifier(id), zeebe.NameModifier(id))
+		cmd, context.Background(), zeebe.TestProcessFile, zeebe.ProcessIDModifier(id), zeebe.NameModifier(id))
 	assert.NoError(t, err)
 	assert.Equal(t, id, secondDeployment.BpmnProcessId)
 	assert.Equal(t, int32(2), secondDeployment.Version)
@@ -51,7 +52,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("create instance by BPMN process ID for version 1", func(t *testing.T) {
 		t.Parallel()
 
-		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"bpmnProcessId": id,
 			"version":       1,
 			"variables":     variables,
@@ -66,7 +67,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("create instance by BPMN process ID for latest version (version 2)", func(t *testing.T) {
 		t.Parallel()
 
-		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"bpmnProcessId": id,
 			"variables":     variables,
 		})
@@ -80,7 +81,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("return error for not existing BPMN process ID", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		_, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"bpmnProcessId": "not-existing",
 			"variables":     variables,
 		})
@@ -90,7 +91,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("create instance by process definition key (version 1)", func(t *testing.T) {
 		t.Parallel()
 
-		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"processDefinitionKey": firstDeployment.ProcessDefinitionKey,
 			"variables":            variables,
 		})
@@ -104,7 +105,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("create instance by process definition key (version 2)", func(t *testing.T) {
 		t.Parallel()
 
-		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"processDefinitionKey": secondDeployment.ProcessDefinitionKey,
 			"variables":            variables,
 		})
@@ -118,7 +119,7 @@ func TestCreateInstance(t *testing.T) {
 	t.Run("return error for not existing process definition key", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		_, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"processDefinitionKey": 0,
 			"variables":            variables,
 		})

@@ -96,16 +96,9 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 
 	c.client = dbContainer
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
-	containerRead, err := c.client.Read(ctx, nil)
+	_, err := c.client.Read(ctx, nil)
 	cancel()
-	if err != nil {
-		return err
-	}
-
-	if containerRead.RawResponse.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("error when attempting to read client with error code: %v", containerRead.RawResponse.StatusCode)
-	}
-	return nil
+	return err
 }
 
 func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentials, error) {

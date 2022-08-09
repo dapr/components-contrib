@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	defaultStateStoreDuration       = 300
+	//defaultStateStoreDuration       = 300
+	// set a test duration
+	defaultStateStoreDuration       = 3000
 	defaultTransactionIdPre         = "transaction-"
 	defaultBunchTransactionIdPre    = "bunch-"
 	defaultState                    = 0
@@ -250,8 +252,6 @@ func (t *Tcc) GetBunchTransactions(transactionReq transaction.GetBunchTransactio
 		return &transaction.TransactionStateResponse{}, fmt.Errorf("distribute transaction id missing")
 	}
 	xid := transactionReq.TransactionId
-	t.logger.Debug("input :", transactionReq)
-	t.logger.Debug("distribute transaction id is ", xid)
 	bunchTransactionState, err := t.getBunchTransactionState(xid)
 	if err != nil {
 		return &transaction.TransactionStateResponse{}, err

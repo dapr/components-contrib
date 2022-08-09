@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -96,7 +95,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 
 	c.client = dbContainer
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
-	_, err := c.client.Read(ctx, nil)
+	_, err = c.client.Read(ctx, nil)
 	cancel()
 	return err
 }

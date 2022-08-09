@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dapr/components-contrib/tests/e2e/bindings/zeebe"
@@ -29,7 +30,7 @@ func TestDeployProcess(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("deploy a new process", func(t *testing.T) {
-		deployment, err := zeebe.DeployProcess(cmd, zeebe.TestProcessFile, zeebe.ProcessIDModifier(id))
+		deployment, err := zeebe.DeployProcess(cmd, context.Background(), zeebe.TestProcessFile, zeebe.ProcessIDModifier(id))
 		assert.NoError(t, err)
 		assert.Equal(t, id, deployment.BpmnProcessId)
 		assert.Equal(t, int32(1), deployment.Version)
@@ -40,7 +41,7 @@ func TestDeployProcess(t *testing.T) {
 	t.Run("override an existing process with another version", func(t *testing.T) {
 		deployment, err := zeebe.DeployProcess(
 			// changing the name results in a new version
-			cmd, zeebe.TestProcessFile, zeebe.ProcessIDModifier(id), zeebe.NameModifier(id))
+			cmd, context.Background(), zeebe.TestProcessFile, zeebe.ProcessIDModifier(id), zeebe.NameModifier(id))
 		assert.NoError(t, err)
 		assert.Equal(t, id, deployment.BpmnProcessId)
 		assert.Equal(t, int32(2), deployment.Version)

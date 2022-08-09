@@ -172,6 +172,9 @@ COSMOS_DB_VAR_NAME="AzureCosmosDB"
 COSMOS_DB_COLLECTION_VAR_NAME="AzureCosmosDBCollection"
 COSMOS_DB_MASTER_KEY_VAR_NAME="AzureCosmosDBMasterKey"
 COSMOS_DB_URL_VAR_NAME="AzureCosmosDBUrl"
+COSMOS_DB_TABLE_API_VAR_NAME="AzureCosmosDBTableAPI"
+COSMOS_DB_TABLE_API_URL_VAR_NAME="AzureCosmosDBTableAPIUrl"
+COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME="AzureCosmosDBTableAPIMasterKey"
 
 EVENT_GRID_ACCESS_KEY_VAR_NAME="AzureEventGridAccessKey"
 EVENT_GRID_CLIENT_ID_VAR_NAME="AzureEventGridClientId"
@@ -194,6 +197,9 @@ EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME="AzureEventHubsPubsubNamespace"
 EVENT_HUBS_PUBSUB_HUB_VAR_NAME="AzureEventHubsPubsubHub"
 EVENT_HUBS_PUBSUB_NAMESPACE_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubNamespaceConnectionString"
 CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME="AzureEventHubsPubsubTopicActiveConnectionString"
+CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI1_VAR_NAME="AzureEventHubsPubsubTopicMulti1Name"
+CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI2_VAR_NAME="AzureEventHubsPubsubTopicMulti2Name"
+
 
 IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
 IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
@@ -293,6 +299,8 @@ COSMOS_DB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "proper
 echo "INFO: COSMOS_DB_NAME=${COSMOS_DB_NAME}"
 COSMOS_DB_SQL_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlName.value" --output tsv)"
 echo "INFO: COSMOS_DB_SQL_NAME=${COSMOS_DB_SQL_NAME}"
+COSMOS_DB_TABLE_API_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbTableAPIName.value" --output tsv)"
+echo "INFO: COSMOS_DB_TABLE_API_NAME=${COSMOS_DB_TABLE_API_NAME}"
 COSMOS_DB_CONTAINER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlContainerName.value" --output tsv)"
 echo "INFO: COSMOS_DB_CONTAINER_NAME=${COSMOS_DB_CONTAINER_NAME}"
 EVENT_GRID_TOPIC_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventGridTopicName.value" --output tsv)"
@@ -321,6 +329,11 @@ CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME="$(az deployment sub show --nam
 echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_NAME}"
 CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicActivePolicyName.value" --output tsv)"
 echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICACTIVE_POLICY_NAME}"
+
+CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI1_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicMulti1Name.value" --output tsv)"
+echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI1_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI1_NAME}"
+CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicMulti2Name.value" --output tsv)"
+echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME}"
 #end
 
 IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" --output tsv)"
@@ -540,6 +553,23 @@ COSMOS_DB_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_NAME}" --resou
 echo export ${COSMOS_DB_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${COSMOS_DB_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_MASTER_KEY}"
 
+# --------------------------------
+# Populate CosmosDB test settings
+# --------------------------------
+echo "Configuring CosmosDB Table API test settings ..."
+
+echo export ${COSMOS_DB_TABLE_API_VAR_NAME}=\"${COSMOS_DB_TABLE_API_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_NAME}"
+
+COSMOS_DB_TABLE_API_URL="$(az cosmosdb list --query "[?name=='${COSMOS_DB_TABLE_API_NAME}'].documentEndpoint" --output tsv)"
+echo export ${COSMOS_DB_TABLE_API_URL_VAR_NAME}=\"${COSMOS_DB_TABLE_API_URL}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_URL_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_URL}"
+
+COSMOS_DB_TABLE_API_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_TABLE_API_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryMasterKey" --output tsv)"
+echo export ${COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_TABLE_API_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_MASTER_KEY}"
+
+
 # ----------------------------------
 # Populate Event Grid test settings
 # ----------------------------------
@@ -639,6 +669,12 @@ CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING="$(az eventhubs ev
 echo export ${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME}=\"${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING}"
 
+echo export ${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI1_VAR_NAME}=\"${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI1_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI1_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI1_NAME}"
+
+echo export ${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI2_VAR_NAME}=\"${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI2_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME}"
+
 echo export ${EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME}=\"${EVENT_HUBS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_NAMESPACE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_NAMESPACE}"
 
@@ -684,6 +720,7 @@ CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFIC
 az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resource-group "${RESOURCE_GROUP_NAME}" --role-definition-name "Cosmos DB Built-in Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_DB_NAME}" --principal-id "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}"
 # Storage
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Table Data Reader" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
 # Event Hubs
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/${EVENT_HUBS_NAMESPACE}"
 # IOT hub used in eventhubs certification test

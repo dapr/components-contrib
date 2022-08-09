@@ -47,10 +47,8 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 		return nil, nil
 	}
 
-	go func() {
-		err = n.Read(handler)
-		require.NoError(t, err)
-	}()
+	err = n.Read(context.Background(), handler)
+	require.NoError(t, err)
 
 	select {
 	case <-ch:

@@ -55,6 +55,18 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
 
+	t.Run("ping", func(t *testing.T) {
+		err := secretstores.Ping(store)
+		// TODO: Ideally, all stable components should implenment ping function,
+		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// implements ping in existing stable components
+		if err != nil {
+			assert.EqualError(t, err, "Ping is not implemented by this secret store")
+		} else {
+			assert.Nil(t, err)
+		}
+	})
+
 	// Get
 	if config.HasOperation("get") {
 		getSecretRequest := secretstores.GetSecretRequest{

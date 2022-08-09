@@ -47,6 +47,7 @@ param sqlServerAdminPassword string
 
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
 var cosmosDbName = '${toLower(namePrefix)}-conf-test-db'
+var cosmosDbTableAPIName = '${toLower(namePrefix)}-conf-test-table'
 var eventGridTopicName = '${toLower(namePrefix)}-conf-test-eventgrid-topic'
 var eventHubsNamespaceName = '${toLower(namePrefix)}-conf-test-eventhubs'
 var iotHubName = '${toLower(namePrefix)}-conf-test-iothub'
@@ -71,6 +72,15 @@ module cosmosDb 'conf-test-azure-cosmosdb.bicep' = {
   params: {
     confTestTags: confTestTags
     cosmosDbName: cosmosDbName
+  }
+}
+
+module cosmosDbTable 'conf-test-azure-cosmosdb-table.bicep' = {
+  name: cosmosDbTableAPIName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    cosmosDbTableAPIName: cosmosDbTableAPIName
   }
 }
 
@@ -144,6 +154,7 @@ module storage 'conf-test-azure-storage.bicep' = {
 output confTestRgName string = confTestRg.name
 output cosmosDbName string = cosmosDb.name
 output cosmosDbSqlName string = cosmosDb.outputs.cosmosDbSqlName
+output cosmosDbTableAPIName string = cosmosDbTable.outputs.cosmosDbTableAPIName
 output cosmosDbSqlContainerName string = cosmosDb.outputs.cosmosDbSqlContainerName
 output eventGridTopicName string = eventGridTopic.name
 output eventHubsNamespace string = eventHubsNamespace.name
@@ -156,6 +167,8 @@ output eventHubPubsubConsumerGroupName string = eventHubsNamespace.outputs.event
 output eventHubsNamespacePolicyName string = eventHubsNamespace.outputs.eventHubsNamespacePolicyName
 output certificationEventHubPubsubTopicActiveName string = eventHubsNamespace.outputs.certificationEventHubPubsubTopicActiveName
 output certificationEventHubPubsubTopicActivePolicyName string = eventHubsNamespace.outputs.certificationEventHubPubsubTopicActivePolicyName
+output certificationEventHubPubsubTopicMulti1Name string = eventHubsNamespace.outputs.certificationEventHubPubsubTopicMulti1Name
+output certificationEventHubPubsubTopicMulti2Name string = eventHubsNamespace.outputs.certificationEventHubPubsubTopicMulti2Name
 output iotHubName string = iotHub.name
 output iotHubBindingsConsumerGroupName string = iotHub.outputs.iotHubBindingsConsumerGroupName
 output iotHubPubsubConsumerGroupName string = iotHub.outputs.iotHubPubsubConsumerGroupName

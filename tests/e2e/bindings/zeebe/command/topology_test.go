@@ -17,11 +17,12 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"testing"
 
-	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/tests/e2e/bindings/zeebe"
@@ -40,7 +41,7 @@ func TestTopology(t *testing.T) {
 		t.Parallel()
 
 		req := &bindings.InvokeRequest{Operation: command.TopologyOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		topology := &pb.TopologyResponse{}

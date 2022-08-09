@@ -16,5 +16,4 @@ spec:
     value: false
   - name: requeueInFailure
     value: true
-  - name: backOffMaxRetries
-    value: -1
+

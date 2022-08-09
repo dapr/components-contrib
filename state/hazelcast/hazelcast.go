@@ -137,10 +137,6 @@ func (store *Hazelcast) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-func (store *Hazelcast) Ping() error {
-	return nil
-}
-
 // Delete performs a delete operation.
 func (store *Hazelcast) Delete(req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)

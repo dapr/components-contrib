@@ -35,3 +35,15 @@ resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2021-02-01
     }
   }
 }
+
+resource tableServices 'Microsoft.Storage/storageAccounts/tableServices@2021-09-01' = {
+  parent: storageAccount
+  name: 'default'
+  properties: {}
+}
+
+resource certificationTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2021-09-01' = {
+  name: 'certificationTable'
+  parent: tableServices
+  properties: {}
+}

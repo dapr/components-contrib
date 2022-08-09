@@ -131,10 +131,6 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (s *RethinkDB) Ping() error {
-	return nil
-}
-
 // Features returns the features available in this state store.
 func (s *RethinkDB) Features() []state.Feature {
 	return s.features
@@ -286,7 +282,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs multiple operations.
-func (s *RethinkDB) Multi(req state.TransactionalStateRequest) error {
+func (s *RethinkDB) Multi(req *state.TransactionalStateRequest) error {
 	upserts := make([]state.SetRequest, 0)
 	deletes := make([]state.DeleteRequest, 0)
 

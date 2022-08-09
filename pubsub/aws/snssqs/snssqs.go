@@ -32,7 +32,7 @@ import (
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
+	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -206,7 +206,7 @@ func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
 }
 
 func (s *snsSqs) buildARN(serviceName, entityName string) string {
-	return fmt.Sprintf("arn:aws:%s:%s:%s:%s", serviceName, s.metadata.Region, s.metadata.accountID, entityName)
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.Partition, serviceName, s.metadata.Region, s.metadata.accountID, entityName)
 }
 
 func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, error) {

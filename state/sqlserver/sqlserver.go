@@ -332,10 +332,6 @@ func (s *SQLServer) getTable(metadata state.Metadata) error {
 	return nil
 }
 
-func (s *SQLServer) Ping() error {
-	return nil
-}
-
 // Features returns the features available in this state store.
 func (s *SQLServer) Features() []state.Feature {
 	return s.features

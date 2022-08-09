@@ -16,7 +16,6 @@ package rocketmq
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -51,9 +50,8 @@ type rocketMQ struct {
 	consumer     mq.PushConsumer
 	consumerLock sync.RWMutex
 
-	ctx           context.Context
-	cancel        context.CancelFunc
-	backOffConfig retry.Config
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
@@ -73,14 +71,7 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 	r.ctx, r.cancel = context.WithCancel(context.Background())
-	// Default retry configuration is used if no
-	// backOff properties are set.
-	if err = retry.DecodeConfigWithPrefix(
-		&r.backOffConfig,
-		metadata.Properties,
-		"backOff"); err != nil {
-		return fmt.Errorf("retry configuration error: %w", err)
-	}
+
 	return nil
 }
 
@@ -227,26 +218,15 @@ func (r *rocketMQ) adaptCallback(topic, consumerGroup, mqType, mqExpr string, ha
 			if msg.Queue != nil {
 				metadata[metadataRocketmqBrokerName] = msg.Queue.BrokerName
 			}
-			newMessage := pubsub.NewMessage{
+			newMessage := &pubsub.NewMessage{
 				Topic:    topic,
 				Data:     dataBytes,
 				Metadata: metadata,
 			}
-			b := r.backOffConfig.NewBackOffWithContext(ctx)
-			retError := retry.NotifyRecover(func() error {
-				herr := handler(ctx, &newMessage)
-				if herr != nil {
-					r.logger.Errorf("rocketmq error: fail to send message to dapr application. topic:%s cloudEventsMap-length:%d err:%newMessage ", newMessage.Topic, len(msg.Body), herr)
-					success = false
-				}
-				return herr
-			}, b, func(err error, d time.Duration) {
-				r.logger.Errorf("rocketmq error: fail to processing message. topic:%s cloudEventsMap-length:%d. Retrying...", newMessage.Topic, len(msg.Body))
-			}, func() {
-				r.logger.Infof("rocketmq successfully processed message after it previously failed. topic:%s cloudEventsMap-length:%d.", newMessage.Topic, len(msg.Body))
-			})
-			if retError != nil && !errors.Is(retError, context.Canceled) {
-				r.logger.Errorf("rocketmq error: processing message and retries are exhausted. topic:%s cloudEventsMap-length:%d.", newMessage.Topic, len(msg.Body))
+			err = handler(ctx, newMessage)
+			if err != nil {
+				r.logger.Errorf("rocketmq error: fail to process message. topic:%s cloudEventsMap-length:%d err:%v.", newMessage.Topic, len(msg.Body), err)
+				success = false
 			}
 		}
 		if !success {

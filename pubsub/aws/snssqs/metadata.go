@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"strconv"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
 
 type snsSqsMetadata struct {
@@ -19,6 +22,8 @@ type snsSqsMetadata struct {
 	SessionToken string
 	// aws region in which SNS/SQS should create resources.
 	Region string
+	// aws partition in which SNS/SQS should create resources.
+	Partition string
 	// name of the queue for this application. The is provided by the runtime as "consumerID".
 	sqsQueueName string
 	// name of the dead letter queue for this application.
@@ -51,17 +56,6 @@ type snsSqsMetadata struct {
 	accountID string
 	// processing concurrency mode
 	concurrencyMode pubsub.ConcurrencyMode
-}
-
-func getAliasedProperty(aliases []string, metadata pubsub.Metadata) (string, bool) {
-	props := metadata.Properties
-	for _, s := range aliases {
-		if val, ok := props[s]; ok {
-			return val, true
-		}
-	}
-
-	return "", false
 }
 
 func parseInt64(input string, propertyName string) (int64, error) {
@@ -170,15 +164,15 @@ func (md *snsSqsMetadata) hideDebugPrintedCredentials() string {
 }
 
 func (md *snsSqsMetadata) setCredsAndQueueNameConfig(metadata pubsub.Metadata) error {
-	if val, ok := getAliasedProperty([]string{"Endpoint", "endpoint"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "Endpoint", "endpoint"); ok {
 		md.Endpoint = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"awsAccountID", "accessKey"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsAccountID", "accessKey"); ok {
 		md.AccessKey = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"awsSecret", "secretKey"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsSecret", "secretKey"); ok {
 		md.SecretKey = val
 	}
 
@@ -186,8 +180,14 @@ func (md *snsSqsMetadata) setCredsAndQueueNameConfig(metadata pubsub.Metadata) e
 		md.SessionToken = val
 	}
 
-	if val, ok := getAliasedProperty([]string{"awsRegion", "region"}, metadata); ok {
+	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, "awsRegion", "region"); ok {
 		md.Region = val
+
+		if partition, ok := endpoints.PartitionForRegion(endpoints.DefaultPartitions(), val); ok {
+			md.Partition = partition.ID()
+		} else {
+			md.Partition = "aws"
+		}
 	}
 
 	if val, ok := metadata.Properties["consumerID"]; ok {

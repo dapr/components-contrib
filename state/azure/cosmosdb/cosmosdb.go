@@ -30,8 +30,8 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
+	"github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
@@ -106,7 +106,7 @@ const (
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
 	s := &StateStore{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)

@@ -27,16 +27,13 @@ import (
 
 // Binding represents Cron input binding.
 type Binding struct {
-	logger   logger.Logger
-	name     string
-	schedule string
-	parser   cron.Parser
+	logger        logger.Logger
+	name          string
+	schedule      string
+	parser        cron.Parser
+	runningCtx    context.Context
+	runningCancel context.CancelFunc
 }
-
-var (
-	_      = bindings.InputBinding(&Binding{})
-	stopCh = make(map[string]chan bool)
-)
 
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) *Binding {
@@ -53,9 +50,6 @@ func NewCron(logger logger.Logger) *Binding {
 //   "15 * * * * *" - Every 15 sec
 //   "0 30 * * * *" - Every 30 min
 func (b *Binding) Init(metadata bindings.Metadata) error {
-	if _, ok := stopCh[metadata.Name]; !ok {
-		stopCh[metadata.Name] = make(chan bool)
-	}
 	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]
 	if !f || s == "" {
@@ -67,15 +61,17 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 	}
 	b.schedule = s
 
+	b.resetContext()
+
 	return nil
 }
 
 // Read triggers the Cron scheduler.
-func (b *Binding) Read(handler bindings.Handler) error {
+func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	c := cron.New(cron.WithParser(b.parser))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
-		handler(context.TODO(), &bindings.ReadResponse{
+		handler(ctx, &bindings.ReadResponse{
 			Metadata: map[string]string{
 				"timeZone":    c.Location().String(),
 				"readTimeUTC": time.Now().UTC().String(),
@@ -87,9 +83,18 @@ func (b *Binding) Read(handler bindings.Handler) error {
 	}
 	c.Start()
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
-	<-stopCh[b.name]
-	b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
-	c.Stop()
+
+	go func() {
+		// Wait for a context to be canceled
+		select {
+		case <-b.runningCtx.Done():
+			// Do nothing
+		case <-ctx.Done():
+			b.resetContext()
+		}
+		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
+		c.Stop()
+	}()
 
 	return nil
 }
@@ -97,18 +102,20 @@ func (b *Binding) Read(handler bindings.Handler) error {
 // Invoke exposes way to stop previously started cron.
 func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	b.logger.Debugf("name: %s, operation: %v", b.name, req.Operation)
-	if req.Operation != bindings.DeleteOperation {
+
+	switch req.Operation {
+	case bindings.DeleteOperation:
+		b.resetContext()
+		return &bindings.InvokeResponse{
+			Metadata: map[string]string{
+				"schedule":    b.schedule,
+				"stopTimeUTC": time.Now().UTC().String(),
+			},
+		}, nil
+	default:
 		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
 			req.Operation, bindings.DeleteOperation)
 	}
-	stopCh[b.name] <- true
-
-	return &bindings.InvokeResponse{
-		Metadata: map[string]string{
-			"schedule":    b.schedule,
-			"stopTimeUTC": time.Now().UTC().String(),
-		},
-	}, nil
 }
 
 // Operations method returns the supported operations by this binding.
@@ -116,4 +123,12 @@ func (b *Binding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		bindings.DeleteOperation,
 	}
+}
+
+// Resets the runningCtx
+func (b *Binding) resetContext() {
+	if b.runningCancel != nil {
+		b.runningCancel()
+	}
+	b.runningCtx, b.runningCancel = context.WithCancel(context.Background())
 }

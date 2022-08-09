@@ -14,6 +14,7 @@ limitations under the License.
 package s3
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,8 +63,9 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
-			"decodeBase64": "true",
+			"decodeBase64": "yes",
 			"encodeBase64": "false",
+			"filePath":     "/usr/vader.darth",
 		}
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
@@ -80,6 +82,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, true, meta.ForcePathStyle)
 		assert.Equal(t, true, mergedMeta.DecodeBase64)
 		assert.Equal(t, false, mergedMeta.EncodeBase64)
+		assert.Equal(t, "/usr/vader.darth", mergedMeta.FilePath)
 	})
 
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {
@@ -105,8 +108,9 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
 		assert.NotNil(t, mergedMeta)
+		assert.False(t, mergedMeta.DecodeBase64)
 	})
 
 	t.Run("Has invalid merged metadata encodeBase64", func(t *testing.T) {
@@ -132,8 +136,9 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
 		assert.NotNil(t, mergedMeta)
+		assert.False(t, mergedMeta.EncodeBase64)
 	})
 }
 
@@ -143,7 +148,7 @@ func TestGetOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.get(&r)
+		_, err := s3.get(context.Background(), &r)
 		assert.Error(t, err)
 	})
 }
@@ -154,7 +159,7 @@ func TestDeleteOption(t *testing.T) {
 
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
-		_, err := s3.delete(&r)
+		_, err := s3.delete(context.Background(), &r)
 		assert.Error(t, err)
 	})
 }

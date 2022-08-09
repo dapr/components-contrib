@@ -17,9 +17,44 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
+
+var testLogger = logger.NewLogger("test")
+
+func TestGetStoragePrefixString(t *testing.T) {
+	props := map[string]string{"storageAccountName": "fake", "storageAccountKey": "fake", "consumerGroup": "default", "storageContainerName": "test", "eventHub": "hubName", "eventHubNamespace": "fake"}
+
+	metadata := bindings.Metadata{Properties: props}
+	m, err := parseMetadata(metadata)
+
+	require.NoError(t, err)
+
+	aeh := &AzureEventHubs{logger: testLogger, metadata: m}
+
+	actual, _ := aeh.getStoragePrefixString()
+
+	assert.Equal(t, "dapr-hubName-default-", actual)
+}
+
+func TestGetStoragePrefixStringWithHubNameFromConnectionString(t *testing.T) {
+	connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=hubName"
+	props := map[string]string{"storageAccountName": "fake", "storageAccountKey": "fake", "consumerGroup": "default", "storageContainerName": "test", "connectionString": connectionString}
+
+	metadata := bindings.Metadata{Properties: props}
+	m, err := parseMetadata(metadata)
+
+	require.NoError(t, err)
+
+	aeh := &AzureEventHubs{logger: testLogger, metadata: m}
+
+	actual, _ := aeh.getStoragePrefixString()
+
+	assert.Equal(t, "dapr-hubName-default-", actual)
+}
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {

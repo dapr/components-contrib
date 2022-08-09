@@ -23,8 +23,8 @@ import (
 	"github.com/a8m/documentdb"
 	backoff "github.com/cenkalti/backoff/v4"
 
-	"github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/logger"
 )
 
@@ -135,7 +135,7 @@ func (c *CosmosDB) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (c *CosmosDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (c *CosmosDB) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
 		var obj interface{}

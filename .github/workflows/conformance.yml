@@ -25,24 +25,11 @@ on:
       - release-*
 
 jobs:
-  pre_job:
-    name: Skip Duplicate Actions
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v3.4.0
-        with:
-          cancel_others: 'true'
-          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the conformance tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
     runs-on: ubuntu-latest
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
     steps:
     - name: Install yq
       run: |
@@ -59,6 +46,7 @@ jobs:
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
         - bindings.redis
+        - bindings.rabbitmq
         - pubsub.aws.snssqs
         - pubsub.hazelcast
         - pubsub.in-memory
@@ -105,18 +93,22 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - component: state.azure.blobstorage
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
         - component: state.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: state.azure.sql
           required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
-        - component: state.azure.tablestorage
+        - component: state.azure.tablestorage.storage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
+        - component: state.azure.tablestorage.cosmosdb
+          required-secrets: AzureCosmosDBTableAPI,AzureCosmosDBTableAPIMasterKey
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubNamespaceConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
         - component: pubsub.azure.servicebus
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageContainer
+          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
         - component: bindings.azure.eventgrid
           required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
         - component: bindings.azure.eventhubs

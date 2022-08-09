@@ -5,6 +5,9 @@ components:
     allOperations: true
   - component: mongodb
     allOperations: true
+  - component: memcached
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
   - component: azure.cosmosdb
     allOperations: true
   - component: azure.blobstorage

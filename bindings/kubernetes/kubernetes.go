@@ -17,10 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -28,8 +25,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	kubeclient "github.com/dapr/components-contrib/authentication/kubernetes"
 	"github.com/dapr/components-contrib/bindings"
+	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
 	"github.com/dapr/kit/logger"
 )
 
@@ -45,8 +42,6 @@ type EventResponse struct {
 	OldVal v1.Event `json:"oldVal"`
 	NewVal v1.Event `json:"newVal"`
 }
-
-var _ = bindings.InputBinding(&kubernetesInput{})
 
 // NewKubernetes returns a new Kubernetes event input binding.
 func NewKubernetes(logger logger.Logger) bindings.InputBinding {
@@ -82,12 +77,13 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (k *kubernetesInput) Read(handler bindings.Handler) error {
+func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) error {
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
 		k.namespace,
-		fields.Everything())
+		fields.Everything(),
+	)
 	var resultChan chan EventResponse = make(chan EventResponse)
 	_, controller := cache.NewInformer(
 		watchlist,
@@ -129,27 +125,35 @@ func (k *kubernetesInput) Read(handler bindings.Handler) error {
 			},
 		},
 	)
+
+	// Start the controller in backgound
 	stopCh := make(chan struct{})
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 	go controller.Run(stopCh)
-	done := false
-	for !done {
-		select {
-		case obj := <-resultChan:
-			data, err := json.Marshal(obj)
-			if err != nil {
-				k.logger.Errorf("Error marshalling event %w", err)
-			} else {
-				handler(context.TODO(), &bindings.ReadResponse{
-					Data: data,
-				})
+
+	// Watch for new messages and for context cancellation
+	go func() {
+		var (
+			obj  EventResponse
+			data []byte
+			err  error
+		)
+		for {
+			select {
+			case obj = <-resultChan:
+				data, err = json.Marshal(obj)
+				if err != nil {
+					k.logger.Errorf("Error marshalling event %w", err)
+				} else {
+					handler(ctx, &bindings.ReadResponse{
+						Data: data,
+					})
+				}
+			case <-ctx.Done():
+				close(stopCh)
+				return
 			}
-		case <-sigterm:
-			done = true
-			close(stopCh)
 		}
-	}
+	}()
 
 	return nil
 }

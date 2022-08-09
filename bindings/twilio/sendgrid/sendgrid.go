@@ -185,7 +185,11 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 
 	// Email body is held in req.Data, after we tidy it up a bit
-	emailBody, _ := strconv.Unquote(string(req.Data))
+	emailBody, err := strconv.Unquote(string(req.Data))
+	if err != nil {
+		// Unquote will error if the string is not quoted (not exactly graceful!), so fallback using the string as is
+		emailBody = string(req.Data)
+	}
 
 	// Construct email message
 	email := mail.NewV3Mail()

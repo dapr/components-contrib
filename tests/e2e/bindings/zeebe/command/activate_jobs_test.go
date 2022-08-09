@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ func TestActivateJobs(t *testing.T) {
 
 	deployment, err := zeebe.DeployProcess(
 		cmd,
+		context.Background(),
 		zeebe.TestProcessFile,
 		zeebe.ProcessIDModifier(id),
 		zeebe.JobTypeModifier("test", jobType))
@@ -43,7 +45,7 @@ func TestActivateJobs(t *testing.T) {
 	assert.Equal(t, id, deployment.BpmnProcessId)
 
 	t.Run("activate a job and fetch all variables", func(t *testing.T) {
-		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"bpmnProcessId": id,
 			"version":       1,
 			"variables": map[string]interface{}{
@@ -54,7 +56,7 @@ func TestActivateJobs(t *testing.T) {
 		assert.NoError(t, err)
 		time.Sleep(5 * time.Second)
 
-		jobs, err := zeebe.ActicateJob(cmd, map[string]interface{}{
+		jobs, err := zeebe.ActicateJob(cmd, context.Background(), map[string]interface{}{
 			"jobType":           jobType,
 			"maxJobsToActivate": 100,
 			"timeout":           "10m",
@@ -81,7 +83,7 @@ func TestActivateJobs(t *testing.T) {
 	})
 
 	t.Run("activate a job and fetch only the foo variable", func(t *testing.T) {
-		processInstance, err := zeebe.CreateProcessInstance(cmd, map[string]interface{}{
+		processInstance, err := zeebe.CreateProcessInstance(cmd, context.Background(), map[string]interface{}{
 			"bpmnProcessId": id,
 			"version":       1,
 			"variables": map[string]interface{}{
@@ -92,7 +94,7 @@ func TestActivateJobs(t *testing.T) {
 		assert.NoError(t, err)
 		time.Sleep(5 * time.Second)
 
-		jobs, err := zeebe.ActicateJob(cmd, map[string]interface{}{
+		jobs, err := zeebe.ActicateJob(cmd, context.Background(), map[string]interface{}{
 			"jobType":           jobType,
 			"maxJobsToActivate": 100,
 			"timeout":           "10m",

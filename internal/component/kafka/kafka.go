@@ -99,7 +99,7 @@ func (k *Kafka) Init(metadata map[string]string) error {
 		k.logger.Info("Configuring SASL Password authentication")
 		k.saslUsername = meta.SaslUsername
 		k.saslPassword = meta.SaslPassword
-		updatePasswordAuthInfo(config, k.saslUsername, k.saslPassword)
+		updatePasswordAuthInfo(config, meta, k.saslUsername, k.saslPassword)
 	case mtlsAuthType:
 		k.logger.Info("Configuring mTLS authentcation")
 		err = updateMTLSAuthInfo(config, meta)

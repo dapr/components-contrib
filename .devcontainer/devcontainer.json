@@ -1,6 +1,6 @@
 {
 	"name": "Dapr Components Contributor Environment",
-	"dockerFile": "Dockerfile",
+	"image": "ghcr.io/dapr/dapr-dev:0.1.8",
 	"containerEnv": {
 		// Uncomment to overwrite devcontainer .kube/config and .minikube certs with the localhost versions
 		// each time the devcontainer starts, if the respective .kube-localhost/config and .minikube-localhost
@@ -18,11 +18,6 @@
 		"ms-kubernetes-tools.vscode-kubernetes-tools"
 	],
 	"mounts": [
-		// Mount volume for clone of the dapr/dapr repo
-		"type=volume,source=dapr-repo,target=/go/src/github.com/dapr/dapr",
-		// Alternatively, uncomment and fill in <local_dapr_repo_path> to mount your existing dapr repo/fork
-		// "type=bind,source=<local_dapr_repo_path>,target=/go/src/github.com/dapr/dapr",
-
 		// Mount docker-in-docker library volume
 		"type=volume,source=dind-var-lib-docker,target=/var/lib/docker",
 

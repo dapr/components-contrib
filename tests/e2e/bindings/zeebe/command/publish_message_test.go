@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -42,7 +43,7 @@ func TestPublishMessage(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.PublishMessageOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
@@ -62,7 +63,7 @@ func TestPublishMessage(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.PublishMessageOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
@@ -82,7 +83,7 @@ func TestPublishMessage(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.PublishMessageOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
@@ -104,7 +105,7 @@ func TestPublishMessage(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.PublishMessageOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
@@ -128,7 +129,7 @@ func TestPublishMessage(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: command.PublishMessageOperation}
-		res, err := cmd.Invoke(req)
+		res, err := cmd.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}

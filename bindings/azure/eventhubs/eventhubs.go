@@ -17,10 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/aad"
@@ -31,8 +29,8 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
 	"github.com/dapr/components-contrib/bindings"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/logger"
 )
 
@@ -76,7 +74,7 @@ const (
 	sysPropMessageID                  = "message-id"
 )
 
-func readHandler(e *eventhub.Event, handler bindings.Handler) error {
+func readHandler(ctx context.Context, e *eventhub.Event, handler bindings.Handler) error {
 	res := bindings.ReadResponse{Data: e.Data, Metadata: map[string]string{}}
 	if e.SystemProperties.SequenceNumber != nil {
 		res.Metadata[sysPropSequenceNumber] = strconv.FormatInt(*e.SystemProperties.SequenceNumber, 10)
@@ -114,7 +112,7 @@ func readHandler(e *eventhub.Event, handler bindings.Handler) error {
 	if e.ID != "" {
 		res.Metadata[sysPropMessageID] = e.ID
 	}
-	_, err := handler(context.TODO(), &res)
+	_, err := handler(ctx, &res)
 
 	return err
 }
@@ -155,6 +153,28 @@ func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 func validate(connectionString string) error {
 	_, err := conn.ParsedConnectionFromStr(connectionString)
 	return err
+}
+
+func (a *AzureEventHubs) getStoragePrefixString() (string, error) {
+	hubName, err := a.validateAndGetHubName()
+	if err != nil {
+		return "", err
+	}
+
+	// empty string in the end of slice to have a suffix "-".
+	return strings.Join([]string{"dapr", hubName, a.metadata.consumerGroup, ""}, "-"), nil
+}
+
+func (a *AzureEventHubs) validateAndGetHubName() (string, error) {
+	hubName := a.metadata.eventHubName
+	if hubName == "" {
+		parsed, err := conn.ParsedConnectionFromStr(a.metadata.connectionString)
+		if err != nil {
+			return "", err
+		}
+		hubName = parsed.HubName
+	}
+	return hubName, nil
 }
 
 // Init performs metadata init.
@@ -304,43 +324,39 @@ func (a *AzureEventHubs) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	return nil, nil
 }
 
-// Read gets messages from eventhubs in a non-blocking fashion.
-func (a *AzureEventHubs) Read(handler bindings.Handler) error {
+// Read gets messages from eventhubs in a non-blocking way.
+func (a *AzureEventHubs) Read(ctx context.Context, handler bindings.Handler) error {
 	if !a.metadata.partitioned() {
-		if err := a.RegisterEventProcessor(handler); err != nil {
+		if err := a.RegisterEventProcessor(ctx, handler); err != nil {
 			return err
 		}
 	} else {
-		if err := a.RegisterPartitionedEventProcessor(handler); err != nil {
+		if err := a.RegisterPartitionedEventProcessor(ctx, handler); err != nil {
 			return err
 		}
 	}
 
-	// close Event Hubs when application exits.
-	exitChan := make(chan os.Signal, 1)
-	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM)
-	<-exitChan
-
-	a.Close()
+	go func() {
+		// Wait for context to be canceled then close the connection
+		<-ctx.Done()
+		a.Close()
+	}()
 
 	return nil
 }
 
 // RegisterPartitionedEventProcessor - receive eventhub messages by partitionID.
-func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler bindings.Handler) error {
-	ctx := context.Background()
-
+func (a *AzureEventHubs) RegisterPartitionedEventProcessor(ctx context.Context, handler bindings.Handler) error {
 	runtimeInfo, err := a.hub.GetRuntimeInformation(ctx)
 	if err != nil {
 		return err
 	}
 
 	callback := func(c context.Context, event *eventhub.Event) error {
-		if event != nil {
-			return readHandler(event, handler)
+		if event == nil {
+			return nil
 		}
-
-		return nil
+		return readHandler(c, event, handler)
 	}
 
 	ops := []eventhub.ReceiveOption{
@@ -364,6 +380,53 @@ func (a *AzureEventHubs) RegisterPartitionedEventProcessor(handler bindings.Hand
 	return nil
 }
 
+// RegisterEventProcessor - receive eventhub messages by eventprocessor
+// host by balancing partitions.
+func (a *AzureEventHubs) RegisterEventProcessor(ctx context.Context, handler bindings.Handler) error {
+	storagePrefix, err := a.getStoragePrefixString()
+	if err != nil {
+		return err
+	}
+
+	leaserPrefixOpt := storage.WithPrefixInBlobPath(storagePrefix)
+	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(a.storageCredential, a.metadata.storageAccountName, a.metadata.storageContainerName, *a.azureEnvironment, leaserPrefixOpt)
+	if err != nil {
+		return err
+	}
+
+	var processor *eph.EventProcessorHost
+	if a.metadata.connectionString != "" {
+		processor, err = eph.NewFromConnectionString(ctx, a.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
+		if err != nil {
+			return err
+		}
+	} else {
+		// AAD connection.
+		processor, err = eph.New(ctx, a.metadata.eventHubNamespaceName, a.metadata.eventHubName, a.tokenProvider, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
+		if err != nil {
+			return err
+		}
+		a.logger.Debugf("processor initialized via AAD for eventHubName %s", a.metadata.eventHubName)
+	}
+
+	_, err = processor.RegisterHandler(
+		ctx,
+		func(c context.Context, event *eventhub.Event) error {
+			return readHandler(c, event, handler)
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	err = processor.StartNonBlocking(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func contains(arr []string, str string) bool {
 	for _, a := range arr {
 		if a == str {
@@ -374,45 +437,10 @@ func contains(arr []string, str string) bool {
 	return false
 }
 
-// RegisterEventProcessor - receive eventhub messages by eventprocessor
-// host by balancing partitions.
-func (a *AzureEventHubs) RegisterEventProcessor(handler bindings.Handler) error {
-	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(a.storageCredential, a.metadata.storageAccountName, a.metadata.storageContainerName, *a.azureEnvironment)
-	if err != nil {
-		return err
-	}
-
-	var processor *eph.EventProcessorHost
-	if a.metadata.connectionString != "" {
-		processor, err = eph.NewFromConnectionString(context.Background(), a.metadata.connectionString, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
-		if err != nil {
-			return err
-		}
-	} else {
-		// AAD connection.
-		processor, err = eph.New(context.Background(), a.metadata.eventHubNamespaceName, a.metadata.eventHubName, a.tokenProvider, leaserCheckpointer, leaserCheckpointer, eph.WithNoBanner(), eph.WithConsumerGroup(a.metadata.consumerGroup))
-		if err != nil {
-			return err
-		}
-		a.logger.Debugf("processor initialized via AAD for eventHubName %s", a.metadata.eventHubName)
-	}
-
-	_, err = processor.RegisterHandler(context.Background(),
-		func(c context.Context, e *eventhub.Event) error {
-			return readHandler(e, handler)
-		})
-	if err != nil {
-		return err
-	}
-
-	err = processor.StartNonBlocking(context.Background())
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *AzureEventHubs) Close() error {
-	return a.hub.Close(context.Background())
+func (a *AzureEventHubs) Close() (err error) {
+	// Use a background context because the connection context may be canceled already
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err = a.hub.Close(ctx)
+	cancel()
+	return err
 }

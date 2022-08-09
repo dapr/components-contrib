@@ -45,7 +45,12 @@ jobs:
               "shubham1172",
               "skyao",
               "msfussell",
-              "Taction"
+              "Taction",
+              "RyanLettieri",
+              "DeepanshuA",
+              "yash-nisar,
+              "addjuarez",
+              "tmacam",
             ];
             const payload = context.payload;
             const issue = context.issue;

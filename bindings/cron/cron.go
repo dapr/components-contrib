@@ -85,12 +85,12 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
 
 	go func() {
-		// Wait for a context to be canceled or a message on the stopCh
+		// Wait for a context to be canceled
 		select {
 		case <-b.runningCtx.Done():
 			// Do nothing
 		case <-ctx.Done():
-			b.runningCancel()
+			b.resetContext()
 		}
 		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
 		c.Stop()

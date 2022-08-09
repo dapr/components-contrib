@@ -17,18 +17,24 @@ import (
 )
 
 const (
-	defaultStateStoreDuration       = 300
+	//defaultStateStoreDuration       = 300
+	defaultStateStoreDuration       = 3000
 	defaultTransactionIdPre         = "transaction-"
 	defaultBunchTransactionIdPre    = "bunch-"
 	defaultState                    = 0
-	stateForSuccess                 = 1
-	stateForFailure                 = -1
+	stateForTrySuccess              = 1
+	stateForTryFailure              = -1
+	stateForConfirmSuccess          = 2
+	stateForConfirmFailure          = -2
+	stateForRollBackSuccess         = 3
+	stateForRollBackFailure         = -3
 	bunchTransactionTryState        = "state"
 	bunchTransacitonTryRequestParam = "tryRequestParam"
 	requestStatusOK                 = 1
+	defaultTransactionSchema        = "tcc"
 )
 
-type Tcc struct {
+type DistributeTransaction struct {
 	logger         logger.Logger
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
@@ -36,17 +42,18 @@ type Tcc struct {
 	cancel         context.CancelFunc
 	ctx            context.Context
 	duration       int
+	schema         string
 }
 
-func NewTccTransaction(logger logger.Logger) *Tcc {
-	t := &Tcc{
+func NewDistributeTransaction(logger logger.Logger) *DistributeTransaction {
+	t := &DistributeTransaction{
 		logger: logger,
 	}
 	return t
 }
 
 // initialize the bunch transactions state store
-func (t *Tcc) InitTransactionStateStore(metadata transaction.Metadata) error {
+func (t *DistributeTransaction) InitTransactionStateStore(metadata transaction.Metadata) error {
 	// state store parse config
 	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
@@ -80,7 +87,7 @@ func (t *Tcc) InitTransactionStateStore(metadata transaction.Metadata) error {
 }
 
 // store all of the distribute transaction id and bunch transaction id into a redis map
-func (t *Tcc) InitDisTransactionStateStore(transactionId string, bunchTransactionStateStores map[string]interface{}) error {
+func (t *DistributeTransaction) InitDisTransactionStateStore(transactionId string, bunchTransactionStateStores map[string]interface{}) error {
 	if transactionId == "" || len(bunchTransactionStateStores) == 0 {
 		t.logger.Debug("distribute transaction store initialize param error")
 		return fmt.Errorf("distribute transaction store initialize param error")
@@ -96,7 +103,7 @@ func (t *Tcc) InitDisTransactionStateStore(transactionId string, bunchTransactio
 }
 
 // update a bunch transaction state and requet param
-func (t *Tcc) modifyBunchTransactionState(transactionId string, bunchTransactionId string, bunchTransactionStateStore string) error {
+func (t *DistributeTransaction) modifyBunchTransactionState(transactionId string, bunchTransactionId string, bunchTransactionStateStore string) error {
 	if transactionId == "" || bunchTransactionId == "" {
 		return fmt.Errorf("transaction id or bunch transaction id missing")
 	}
@@ -107,7 +114,7 @@ func (t *Tcc) modifyBunchTransactionState(transactionId string, bunchTransaction
 	return nil
 }
 
-func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, error) {
+func (t *DistributeTransaction) getBunchTransactionState(transactionId string) (map[string]int, error) {
 	if transactionId == "" {
 		return make(map[string]int), fmt.Errorf("transaction id missing")
 	}
@@ -137,22 +144,7 @@ func (t *Tcc) getBunchTransactionState(transactionId string) (map[string]int, er
 
 }
 
-func (t *Tcc) genDisTransactionId() string {
-	xid := uuid.Must(uuid.NewV4()).String()
-	rand.Seed(time.Now().UnixNano())
-	return defaultTransactionIdPre + xid + "-" + strconv.Itoa(rand.Intn(10000))
-}
-
-func (t *Tcc) genBunchTransactionId(index int) string {
-	return defaultBunchTransactionIdPre + strconv.Itoa(index)
-}
-
-func (t *Tcc) Init(metadata transaction.Metadata) {
-	t.logger.Debug("initialize tranaction component")
-	t.InitTransactionStateStore(metadata)
-}
-
-func (t *Tcc) parseMapToString(param map[string]interface{}) string {
+func (t *DistributeTransaction) parseMapToString(param map[string]interface{}) string {
 	parse, err := json.Marshal(param)
 	if err != nil {
 		t.logger.Info("param parse to string something error")
@@ -161,7 +153,7 @@ func (t *Tcc) parseMapToString(param map[string]interface{}) string {
 	return string(parse)
 }
 
-func (t *Tcc) parseStringToMap(param string) map[string]interface{} {
+func (t *DistributeTransaction) parseStringToMap(param string) map[string]interface{} {
 	var parse map[string]interface{}
 	err := json.Unmarshal([]byte(param), &parse)
 	if err != nil {
@@ -170,8 +162,28 @@ func (t *Tcc) parseStringToMap(param string) map[string]interface{} {
 	return parse
 }
 
+func (t *DistributeTransaction) genDisTransactionId() string {
+	xid := uuid.Must(uuid.NewV4()).String()
+	rand.Seed(time.Now().UnixNano())
+	return defaultTransactionIdPre + xid + "-" + strconv.Itoa(rand.Intn(10000))
+}
+
+func (t *DistributeTransaction) genBunchTransactionId(index int) string {
+	return defaultBunchTransactionIdPre + strconv.Itoa(index)
+}
+
+func (t *DistributeTransaction) Init(metadata transaction.Metadata) {
+	t.logger.Debug("initialize tranaction component")
+	if metadata.Properties["schema"] != "" {
+		t.schema = metadata.Properties["schema"]
+	} else {
+		t.schema = defaultTransactionSchema
+	}
+	t.InitTransactionStateStore(metadata)
+}
+
 // Begin a distribute transaction
-func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transaction.BeginResponse, error) {
+func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionRequest) (*transaction.BeginResponse, error) {
 	t.logger.Debug("Begin a distribute transaction")
 	if beginRequest.BunchTransactionNum <= 0 {
 		return &transaction.BeginResponse{}, fmt.Errorf("must declare a positive number of bunch transactions, but %d given", beginRequest.BunchTransactionNum)
@@ -209,7 +221,7 @@ func (t *Tcc) Begin(beginRequest transaction.BeginTransactionRequest) (*transact
 }
 
 // Try to execute bunch transaction
-func (t *Tcc) Try(tryRequest transaction.BunchTransactionTryRequest) error {
+func (t *DistributeTransaction) Try(tryRequest transaction.BunchTransactionTryRequest) error {
 	t.logger.Debug("Try to execute bunch transaction")
 	if tryRequest.TransactionId == "" || tryRequest.BunchTransactionId == "" {
 		t.logger.Info("distribute transaction id or bunch transaction id missing")
@@ -218,9 +230,9 @@ func (t *Tcc) Try(tryRequest transaction.BunchTransactionTryRequest) error {
 
 	bunchTransactionStateStore := make(map[string]interface{})
 	if tryRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore[bunchTransactionTryState] = stateForSuccess
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForTrySuccess
 	} else {
-		bunchTransactionStateStore[bunchTransactionTryState] = stateForFailure
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForTryFailure
 	}
 	bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &tryRequest.TryRequestParam
 
@@ -228,23 +240,56 @@ func (t *Tcc) Try(tryRequest transaction.BunchTransactionTryRequest) error {
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
-	t.logger.Debug("%s - %s bunch transaction state store success", tryRequest.TransactionId, tryRequest.BunchTransactionId)
+	t.logger.Debug(tryRequest.TransactionId, "bunch transaction state store success")
 	return nil
 }
 
-// Confirm the trasaction and release the state
-func (t *Tcc) Confirm() {
+// Confirm the trasaction
+func (t *DistributeTransaction) Confirm(confirmRequest transaction.BunchTransactionConfirmRequest) error {
+	t.logger.Debug("Confirm the bunch transaction")
+	if confirmRequest.TransactionId == "" || confirmRequest.BunchTransactionId == "" {
+		t.logger.Info("distribute transaction id or bunch transaction id missing")
+		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
+	}
+	bunchTransactionStateStore := make(map[string]interface{})
+	if confirmRequest.StatusCode == requestStatusOK {
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForConfirmSuccess
+	} else {
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForConfirmFailure
+	}
 
-	t.logger.Info("this is Tcc, I received ")
+	err := t.modifyBunchTransactionState(confirmRequest.TransactionId, confirmRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	if err != nil {
+		return fmt.Errorf("distribute transaction state store error")
+	}
+	t.logger.Debug(confirmRequest.TransactionId, "bunch transaction state store success")
+	return nil
 }
 
 // RollBack the trasaction and release the state
-func (t *Tcc) RollBack() {
-	t.logger.Info("this is Tcc, I received ")
+func (t *DistributeTransaction) RollBack(rollBackRequest transaction.BunchTransactionRollBackRequest) error {
+	t.logger.Debug("RollBack the bunch transaction")
+	if rollBackRequest.TransactionId == "" || rollBackRequest.BunchTransactionId == "" {
+		t.logger.Info("distribute transaction id or bunch transaction id missing")
+		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
+	}
+	bunchTransactionStateStore := make(map[string]interface{})
+	if rollBackRequest.StatusCode == requestStatusOK {
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForRollBackSuccess
+	} else {
+		bunchTransactionStateStore[bunchTransactionTryState] = stateForRollBackFailure
+	}
+
+	err := t.modifyBunchTransactionState(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	if err != nil {
+		return fmt.Errorf("distribute transaction state store error")
+	}
+	t.logger.Debug(rollBackRequest.TransactionId, "bunch transaction state store success")
+	return nil
 }
 
 // get all bunch transaction state of the distribute transaction
-func (t *Tcc) GetBunchTransactions(transactionReq transaction.GetBunchTransactionsRequest) (*transaction.TransactionStateResponse, error) {
+func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.GetBunchTransactionsRequest) (*transaction.TransactionStateResponse, error) {
 	if transactionReq.TransactionId == "" {
 		t.logger.Info("distribute transaction id missing")
 		return &transaction.TransactionStateResponse{}, fmt.Errorf("distribute transaction id missing")

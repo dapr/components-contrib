@@ -30,3 +30,15 @@ type TransactionTryRequestParam struct {
 type GetBunchTransactionsRequest struct {
 	TransactionId string `json:"transactionId"`
 }
+
+type BunchTransactionConfirmRequest struct {
+	TransactionId      string `json:"transactionId"`
+	BunchTransactionId string `json:"bunchTransactionId"`
+	StatusCode         int    `json:"statusCode"`
+}
+
+type BunchTransactionRollBackRequest struct {
+	TransactionId      string `json:"transactionId"`
+	BunchTransactionId string `json:"bunchTransactionId"`
+	StatusCode         int    `json:"statusCode"`
+}

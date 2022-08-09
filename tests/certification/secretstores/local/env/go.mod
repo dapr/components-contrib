@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.8.0
+	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/stretchr/testify v1.8.0

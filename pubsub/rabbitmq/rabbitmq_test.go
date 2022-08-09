@@ -386,7 +386,7 @@ func testParallelModeSubscribeReconnect(t *testing.T) {
 		return errors.New(errorChannelConnection)
 	}
 
-	err = pubsubRabbitMQ.Subscribe(pubsub.SubscribeRequest{Topic: topic}, handler)
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
 	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})

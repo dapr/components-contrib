@@ -456,13 +456,13 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 	}
 }
 
-func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgCh <-chan amqp.Delivery, topic string, handler pubsub.Handler) []error {
+func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBroker, msgCh <-chan amqp.Delivery, topic string, handler pubsub.Handler) []error {
 	switch r.metadata.concurrency {
 	case pubsub.Single:
 		for {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return []error{ctx.Err()}
 			case d, more := <-msgCh:
 				var errs []error
 				// Handle case of channel closed
@@ -470,7 +470,7 @@ func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgCh <-chan am
 					r.logger.Debugf("%s subscriber channel closed for topic %s", logMessagePrefix, topic)
 					return errs
 				}
-				if e := r.handleMessage(channel, d, topic, handler); e != nil {
+				if e := r.handleMessage(ctx, d, topic, handler); e != nil {
 					errs = append(errs, e)
 					if mustReconnect(channel, errs) {
 						return errs
@@ -490,11 +490,12 @@ func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgCh <-chan am
 				// Handle case of channel closed
 				if !more {
 					r.logger.Debugf("%s subscriber channel closed for topic %s", logMessagePrefix, topic)
-					return ec.GetErrors()
+					close(ec.ErrNotify)
+					break
 				}
 				wg.Add(1)
 				go func(d amqp.Delivery) {
-					if e := r.handleMessage(d); e != nil && mustReconnect(channel, []error{e}) {
+					if e := r.handleMessage(ctx, d, topic, handler); e != nil && mustReconnect(channel, []error{e}) {
 						ec.Append(e)
 					}
 					wg.Done()
@@ -502,6 +503,8 @@ func (r *rabbitMQ) listenMessages(channel rabbitMQChannelBroker, msgCh <-chan am
 			}
 		}
 	}
+
+	return []error{}
 }
 
 func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic string, handler pubsub.Handler) error {

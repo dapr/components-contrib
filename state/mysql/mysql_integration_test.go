@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -632,7 +631,7 @@ func connectToDB(t *testing.T) (*sql.DB, error) {
 	val := getPemPath()
 	if val != "" {
 		rootCertPool := x509.NewCertPool()
-		pem, readErr := ioutil.ReadFile(val)
+		pem, readErr := os.ReadFile(val)
 
 		assert.Nil(t, readErr, "Could not read PEM file")
 

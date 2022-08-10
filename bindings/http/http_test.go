@@ -15,7 +15,7 @@ package http_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,7 +53,7 @@ func TestInit(t *testing.T) {
 			input := req.Method
 			if req.Body != nil {
 				defer req.Body.Close()
-				b, _ := ioutil.ReadAll(req.Body)
+				b, _ := io.ReadAll(req.Body)
 				if len(b) > 0 {
 					input = string(b)
 				}

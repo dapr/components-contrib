@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -247,7 +246,7 @@ func (v *vaultSecretStore) getSecret(secret, version string) (*vaultKVResponse, 
 		}
 	} else {
 		// treat the secret as string
-		b, err := ioutil.ReadAll(httpresp.Body)
+		b, err := io.ReadAll(httpresp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't read response: %s", err)
 		}
@@ -394,7 +393,7 @@ func (v *vaultSecretStore) initVaultToken() error {
 		return nil
 	}
 
-	data, err := ioutil.ReadFile(v.vaultTokenMountPath)
+	data, err := os.ReadFile(v.vaultTokenMountPath)
 	if err != nil {
 		return fmt.Errorf("couldn't read vault token from mount path %s err: %s", v.vaultTokenMountPath, err)
 	}
@@ -477,7 +476,7 @@ func (v *vaultSecretStore) getRootCAsPools(vaultCAPem string, vaultCAPath string
 // readCertificateFile reads the certificate at given path.
 func readCertificateFile(certPool *x509.CertPool, path string) error {
 	// Read certificate file
-	pemFile, err := ioutil.ReadFile(path)
+	pemFile, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("couldn't read CA file from disk: %s", err)
 	}

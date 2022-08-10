@@ -54,7 +54,8 @@ func TestAuthentication(t *testing.T) {
 			}
 			err := js.Init(md)
 			if err != nil && !tC.expectError {
-				if strings.Contains(err.Error(), "network is unreachable") {
+				if strings.Contains(err.Error(), "network is unreachable") ||
+					strings.Contains(err.Error(), "no servers available for connection") {
 					log.Warn("jetstream server is unreachable")
 					return
 				}

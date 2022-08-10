@@ -12,10 +12,10 @@ type Transaction interface {
 	Try(tryRequest BunchTransactionTryRequest) error
 
 	// Confirm a distribute transaction
-	Confirm()
+	Confirm(confirmRequest BunchTransactionConfirmRequest) error
 
 	// rooback a distribute transaction
-	RollBack()
+	RollBack(rollBackRequest BunchTransactionRollBackRequest) error
 
 	// get all bunch transaction state of the distribute transaction
 	GetBunchTransactions(req GetBunchTransactionsRequest) (*TransactionStateResponse, error)

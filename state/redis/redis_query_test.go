@@ -15,7 +15,7 @@ package redis
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +47,7 @@ func TestMongoQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := ioutil.ReadFile(test.input)
+		data, err := os.ReadFile(test.input)
 		assert.NoError(t, err)
 		var qq query.Query
 		err = json.Unmarshal(data, &qq)

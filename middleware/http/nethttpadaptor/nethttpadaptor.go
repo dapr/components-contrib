@@ -29,7 +29,7 @@ func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := fasthttp.RequestCtx{}
 		remoteIP := net.ParseIP(r.RemoteAddr)
-		remoteAddr := net.IPAddr{remoteIP, ""} // nolint
+		remoteAddr := net.IPAddr{remoteIP, ""} //nolint
 		c.Init(&fasthttp.Request{}, &remoteAddr, nil)
 
 		if r.Body != nil {

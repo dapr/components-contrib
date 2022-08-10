@@ -15,7 +15,7 @@ package webhook
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -43,7 +43,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 			t.Errorf("Expected request to '/test', got '%s'", r.URL.EscapedPath())
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		require.Nil(t, err)
 		assert.Equal(t, msg, string(body))
 	}))

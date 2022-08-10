@@ -18,7 +18,7 @@ import (
 	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"strconv"
 
@@ -213,9 +213,9 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	}
 	defer rc.Close()
 
-	data, err := ioutil.ReadAll(rc)
+	data, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: ioutil.ReadAll: %v", err)
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: io.ReadAll: %v", err)
 	}
 
 	if metadata.EncodeBase64 {

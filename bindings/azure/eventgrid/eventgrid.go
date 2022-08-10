@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2021-12-01/eventgrid"
@@ -263,7 +263,7 @@ func (a *AzureEventGrid) createSubscription() error {
 	res := result.FutureAPI.Response()
 
 	if res.StatusCode != fasthttp.StatusCreated {
-		bodyBytes, err := ioutil.ReadAll(res.Body)
+		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
 			a.logger.Debugf("Failed reading error body when creating or updating Event Grid subscription: %v", err)
 

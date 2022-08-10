@@ -21,7 +21,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -265,7 +265,7 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 
 	if pemPath != "" {
 		rootCertPool := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(pemPath)
+		pem, err := os.ReadFile(pemPath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
 		}

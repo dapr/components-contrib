@@ -89,9 +89,9 @@ require (
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/matryer/is v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.7 // indirect
-	github.com/miekg/dns v1.1.43 // indirect
-	github.com/mitchellh/mapstructure v1.5.0
+	github.com/microcosm-cc/bluemonday v1.0.17 // indirect
+	github.com/miekg/dns v1.1.48 // indirect
+	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/nats-io/nats-server/v2 v2.7.4
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect

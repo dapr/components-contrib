@@ -18,7 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -232,7 +232,7 @@ func (o *HuaweiOBS) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 		}
 	}()
 
-	data, err := ioutil.ReadAll(out.Body)
+	data, err := io.ReadAll(out.Body)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. error reading obs object content: %w", err)
 	}

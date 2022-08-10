@@ -16,7 +16,7 @@ package sms
 import (
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -68,7 +68,7 @@ func TestParseDuration(t *testing.T) {
 
 func TestWriteShouldSucceed(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
@@ -105,7 +105,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 func TestWriteShouldFail(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{

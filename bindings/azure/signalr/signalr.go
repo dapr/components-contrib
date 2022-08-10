@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -148,11 +148,19 @@ func (s *SignalR) sendMessageToSignalR(url string, token string, data []byte) er
 
 	defer resp.Body.Close()
 
+<<<<<<< HEAD
 	if resp.StatusCode != 200 && resp.StatusCode != 202 {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
+=======
+	// Read the body regardless to drain it and ensure the connection can be reused
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+>>>>>>> 79a3cd99 (Removing the use of the ioutil package And Fix CVE-2021-42576 (#1954))
 
 		return fmt.Errorf("%s azure signalr returned code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
 	}

@@ -16,7 +16,7 @@ package apns
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -316,7 +316,7 @@ func TestInvoke(t *testing.T) {
 
 			return &http.Response{
 				StatusCode: http.StatusBadRequest,
-				Body:       ioutil.NopCloser(strings.NewReader(body)),
+				Body:       io.NopCloser(strings.NewReader(body)),
 			}
 		})
 		_, err := testBinding.Invoke(context.TODO(), successRequest)

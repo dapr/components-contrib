@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -213,7 +213,7 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 	defer resp.Body.Close()
 
 	// Read the body regardless to drain it and ensure the connection can be reused
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

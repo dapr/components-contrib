@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 	"testing"
@@ -47,6 +48,8 @@ const (
 	clusterName       = "rabbitmqcertification"
 	dockerComposeYAML = "docker-compose.yml"
 	numOfMessages     = 10
+	sidecarName1      = "dapr-1"
+	sidecarName2      = "dapr-2"
 )
 
 func amqpReady(url string) flow.Runnable {
@@ -485,5 +488,33 @@ func TestRabbitMQNetworkError(t *testing.T) {
 			))).
 		Step("send and wait", test).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5672")).
+		Run()
+}
+
+func TestRabbitMQExclusive(t *testing.T) {
+	log := logger.NewLogger("dapr-components")
+
+	test_output := func(ctx flow.Context) error {
+		s1 := sidecar.New(sidecarName1, embedded.WithComponentsPath("./components/output-exclusive"),
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			runtime.WithOutputBindings(
+				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
+					return binding_rabbitmq.NewRabbitMQ(log)
+				}),
+			))
+
+		err1 := s1.Start(ctx)
+
+		assert.NoError(t, err1)
+		return nil
+	}
+
+	flow.New(t, "rabbitmq certification").
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
+		Step("send and wait", test_output).
 		Run()
 }

@@ -19,4 +19,6 @@ type Transaction interface {
 
 	// get all bunch transaction state of the distribute transaction
 	GetBunchTransactions(req GetBunchTransactionsRequest) (*TransactionStateResponse, error)
+
+	ReleaseTransactionResource(request ReleaseTransactionRequest)
 }

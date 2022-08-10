@@ -1,7 +1,9 @@
+//go:build e2etests
+// +build e2etests
+
 package authentication_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -54,11 +56,6 @@ func TestAuthentication(t *testing.T) {
 			}
 			err := js.Init(md)
 			if err != nil && !tC.expectError {
-				if strings.Contains(err.Error(), "network is unreachable") ||
-					strings.Contains(err.Error(), "no servers available for connection") {
-					log.Warn("jetstream server is unreachable")
-					return
-				}
 				t.Fatal("Did not expect error during connect", err.Error())
 			}
 			if err == nil && tC.expectError {

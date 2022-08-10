@@ -62,6 +62,7 @@ jobs:
         - secretstores.localenv
         - secretstores.localfile
         - state.cassandra
+        - state.memcached
         - state.mongodb
         - state.mysql
         - state.postgresql
@@ -122,6 +123,8 @@ jobs:
           required-certs: AzureKeyVaultSecretStoreCert
         - component: secretstores.azure.keyvault.serviceprincipal
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
+        - component: bindings.azure.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
@@ -235,6 +238,10 @@ jobs:
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
       if: contains(matrix.component, 'kafka')
+    
+    - name: Start memcached
+      run: docker-compose -f ./.github/infrastructure/docker-compose-memcached.yml -p memcached up -d
+      if: contains(matrix.component, 'memcached')
 
     - name: Start natsstreaming
       run: docker-compose -f ./.github/infrastructure/docker-compose-natsstreaming.yml -p natsstreaming up -d

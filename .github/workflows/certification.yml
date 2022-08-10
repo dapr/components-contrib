@@ -48,6 +48,7 @@ jobs:
         - bindings.kafka
         - secretstores.local.env
         - secretstores.local.file
+        - bindings.rabbitmq
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

@@ -17,8 +17,8 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -45,7 +45,7 @@ func NewStandaloneComponents(componentPath string) *StandaloneComponents {
 // LoadComponents loads dapr components from a given directory.
 func (s *StandaloneComponents) LoadComponents() ([]Component, error) {
 	dir := s.componentsPath
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *StandaloneComponents) LoadComponents() ([]Component, error) {
 		if !file.IsDir() && s.isYaml(file.Name()) {
 			path := filepath.Join(dir, file.Name())
 
-			b, err := ioutil.ReadFile(path)
+			b, err := os.ReadFile(path)
 			if err != nil {
 				log.Printf("error reading file %s : %s", path, err)
 

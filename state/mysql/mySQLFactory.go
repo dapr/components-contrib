@@ -18,7 +18,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/go-sql-driver/mysql"
 
@@ -41,7 +41,7 @@ func (m *mySQLFactory) Open(connectionString string) (*sql.DB, error) {
 
 func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
 	rootCertPool := x509.NewCertPool()
-	pem, readErr := ioutil.ReadFile(pemPath)
+	pem, readErr := os.ReadFile(pemPath)
 
 	if readErr != nil {
 		m.logger.Errorf("Error reading PEM file from $s", pemPath)

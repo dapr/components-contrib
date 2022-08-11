@@ -15,7 +15,6 @@ package vault
 
 import (
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"testing"
@@ -35,7 +34,7 @@ const (
 func TestReadVaultToken(t *testing.T) {
 	t.Run("read correct token", func(t *testing.T) {
 		dir := os.TempDir()
-		f, err := ioutil.TempFile(dir, "vault-token")
+		f, err := os.CreateTemp(dir, "vault-token")
 		assert.NoError(t, err)
 		fileName := f.Name()
 		defer os.Remove(fileName)
@@ -55,7 +54,7 @@ func TestReadVaultToken(t *testing.T) {
 
 	t.Run("read incorrect token", func(t *testing.T) {
 		dir := os.TempDir()
-		f, err := ioutil.TempFile(dir, "vault-token")
+		f, err := os.CreateTemp(dir, "vault-token")
 		assert.NoError(t, err)
 		fileName := f.Name()
 		defer os.Remove(fileName)

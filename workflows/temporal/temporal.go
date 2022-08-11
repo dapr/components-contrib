@@ -79,13 +79,13 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 		c.logger.Debugf("error when starting workflow")
 		return &workflows.WorkflowStruct{}, err
 	}
-	wfStruct := workflows.WorkflowStruct{WorkflowId: run.GetID(), WorkflowRunId: run.GetRunID()}
+	wfStruct := workflows.WorkflowStruct{WorkflowId: run.GetID(), InstanceId: run.GetRunID()}
 	return &wfStruct, nil
 }
 
 func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowStruct) error {
 	c.logger.Debugf("terminating workflow")
-	err := c.client.TerminateWorkflow(ctx, req.WorkflowId, req.WorkflowRunId, "")
+	err := c.client.TerminateWorkflow(ctx, req.WorkflowId, req.InstanceId, "")
 	if err != nil {
 		return err
 	}
@@ -94,13 +94,13 @@ func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowStruc
 
 func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowStruct) (*workflows.StateResponse, error) {
 	c.logger.Debugf("getting workflow data")
-	resp, err := c.client.DescribeWorkflowExecution(ctx, req.WorkflowId, req.WorkflowRunId)
+	resp, err := c.client.DescribeWorkflowExecution(ctx, req.WorkflowId, req.InstanceId)
 	if err != nil {
 		return nil, err
 	}
 	// Build the output struct
 	outputStruct := workflows.StateResponse{
-		WfInfo:    workflows.WorkflowStruct{WorkflowId: req.WorkflowId, WorkflowRunId: req.WorkflowRunId},
+		WfInfo:    workflows.WorkflowStruct{WorkflowId: req.WorkflowId, InstanceId: req.InstanceId},
 		StartTime: resp.WorkflowExecutionInfo.StartTime.String(),
 		TaskQueue: resp.WorkflowExecutionInfo.GetTaskQueue(),
 		Status:    lookupStatus(resp.WorkflowExecutionInfo.Status),

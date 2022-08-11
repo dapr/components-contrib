@@ -12,8 +12,8 @@ type StartRequestOptions struct {
 }
 
 type WorkflowStruct struct {
-	WorkflowId    string `json:"workflow_id"`
-	WorkflowRunId string `json:"workflow_run_id"`
+	WorkflowId string `json:"workflow_id"`
+	InstanceId string `json:"instance_id"`
 }
 
 // StartRequest is the object describing a Start Workflow request.

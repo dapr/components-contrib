@@ -1,3 +1,6 @@
+//go:build e2etests
+// +build e2etests
+
 package authentication_test
 
 import (

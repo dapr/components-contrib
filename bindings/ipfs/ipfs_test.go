@@ -34,7 +34,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if utils.IsTruthy(os.Getenv("IPFS_TEST")) {
+	if !utils.IsTruthy(os.Getenv("IPFS_TEST")) {
 		log.Println("IPFS_TEST env var is not set to a truthy value; skipping tests")
 		os.Exit(0)
 	}

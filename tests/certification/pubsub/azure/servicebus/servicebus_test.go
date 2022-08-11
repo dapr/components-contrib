@@ -68,6 +68,7 @@ const (
 	topicActiveName  = "certification-pubsub-topic-active"
 	topicPassiveName = "certification-pubsub-topic-passive"
 	topicToBeCreated = "certification-topic-per-test-run"
+	topicDefaultName = "certification-topic-default"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
 )
@@ -248,7 +249,7 @@ func TestServicebus(t *testing.T) {
 		// Test : All optional attributes , Test processing with all optional attributes and single publisher/subscriber
 		// Run subscriberApplication app5
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*4),
-			subscriberApplication(appID5, topicToBeCreated, consumerGroup4))).
+			subscriberApplication(appID5, topicDefaultName, consumerGroup4))).
 
 		// Run the Dapr sidecar with the component
 		Step(sidecar.Run(sidecarName5,
@@ -259,7 +260,7 @@ func TestServicebus(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
-		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName5, topicToBeCreated, consumerGroup4)).
+		Step(fmt.Sprintf("publish messages to topicDefaultName: %s", topicDefaultName), publishMessages(metadata, sidecarName5, topicDefaultName, consumerGroup4)).
 		// Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("verify if app5 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 		Run()

@@ -14,7 +14,7 @@ limitations under the License.
 package nethttpadaptor
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -33,7 +33,7 @@ func NewNetHTTPHandlerFunc(logger logger.Logger, h fasthttp.RequestHandler) http
 		c.Init(&fasthttp.Request{}, &remoteAddr, nil)
 
 		if r.Body != nil {
-			reqBody, err := ioutil.ReadAll(r.Body)
+			reqBody, err := io.ReadAll(r.Body)
 			if err != nil {
 				logger.Errorf("error reading request body, %+v", err)
 

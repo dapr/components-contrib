@@ -15,7 +15,6 @@ package azure
 
 import (
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -60,7 +59,7 @@ func TestGetClientCert(t *testing.T) {
 func TestAuthorizorWithCertFile(t *testing.T) {
 	testCertFileName := "./.cert.pfx"
 	certBytes := getTestCert()
-	err := ioutil.WriteFile(testCertFileName, certBytes, 0o644)
+	err := os.WriteFile(testCertFileName, certBytes, 0o644)
 	assert.NoError(t, err)
 
 	settings, err := NewEnvironmentSettings(

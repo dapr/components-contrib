@@ -18,7 +18,9 @@ type Transaction interface {
 	RollBack(rollBackRequest BunchTransactionRollBackRequest) error
 
 	// get all bunch transaction state of the distribute transaction
-	GetBunchTransactions(req GetBunchTransactionsRequest) (*TransactionStateResponse, error)
+	GetBunchTransactionState(req GetBunchTransactionsRequest) (*TransactionStateResponse, error)
+
+	GetBunchTransactions(transactionReq GetBunchTransactionsRequest) (*BunchTransactionsResponse, error)
 
 	ReleaseTransactionResource(request ReleaseTransactionRequest)
 }

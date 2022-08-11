@@ -146,6 +146,32 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionId string) (
 
 }
 
+func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[string]map[string]interface{}, error) {
+	t.logger.Debug("read transaction state for ", transactionId)
+	if transactionId == "" {
+		return nil, fmt.Errorf("transaction id missing")
+	}
+
+	res := t.client.HGetAll(t.ctx, transactionId)
+	if res.Err() != nil {
+		t.logger.Debug("read transaction state error :", res.Err())
+		return nil, fmt.Errorf("read transaction error")
+	}
+
+	bunchTransactionStatePersit, err := res.Result()
+	if err != nil {
+		t.logger.Debug("bunch transaction state info anti-serialization error :", err)
+		return nil, fmt.Errorf("bunch transaction state info anti-serialization error")
+	}
+
+	bunchTransactions := make(map[string]map[string]interface{})
+	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
+		bunchTransactions[bunchTransactionId] = t.parseStringToMap(stateInfo)
+	}
+	return bunchTransactions, nil
+
+}
+
 func (t *DistributeTransaction) releaseBunchTransactionState(transactionId string) error {
 	if transactionId == "" {
 		return fmt.Errorf("transaction id missing")
@@ -307,7 +333,7 @@ func (t *DistributeTransaction) RollBack(rollBackRequest transaction.BunchTransa
 }
 
 // get all bunch transaction state of the distribute transaction
-func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.GetBunchTransactionsRequest) (*transaction.TransactionStateResponse, error) {
+func (t *DistributeTransaction) GetBunchTransactionState(transactionReq transaction.GetBunchTransactionsRequest) (*transaction.TransactionStateResponse, error) {
 	if transactionReq.TransactionId == "" {
 		t.logger.Debug("distribute transaction id missing")
 		return nil, fmt.Errorf("distribute transaction id missing")
@@ -320,6 +346,22 @@ func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.
 	return &transaction.TransactionStateResponse{
 		TransactionId:          transactionReq.TransactionId,
 		BunchTransactionStates: bunchTransactionState,
+	}, nil
+}
+
+func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.GetBunchTransactionsRequest) (*transaction.BunchTransactionsResponse, error) {
+	if transactionReq.TransactionId == "" {
+		t.logger.Debug("distribute transaction id missing")
+		return nil, fmt.Errorf("distribute transaction id missing")
+	}
+
+	bunchTransactions, err := t.getBunchTransactions(transactionReq.TransactionId)
+	if err != nil {
+		return nil, err
+	}
+	return &transaction.BunchTransactionsResponse{
+		TransactionId:     transactionReq.TransactionId,
+		BunchTransactions: bunchTransactions,
 	}, nil
 }
 

@@ -154,6 +154,9 @@ func (m *Memcached) setValue(req *state.SetRequest) error {
 func (m *Memcached) Delete(req *state.DeleteRequest) error {
 	err := m.client.Delete(req.Key)
 	if err != nil {
+		if err == memcache.ErrCacheMiss {
+			return nil
+		}
 		return err
 	}
 

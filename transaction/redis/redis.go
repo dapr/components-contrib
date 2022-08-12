@@ -179,6 +179,26 @@ func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[
 
 }
 
+func (t *DistributeTransaction) getBunchTransaction(transactionId string, bunchTransactionId string) (map[string]interface{}, error) {
+	t.logger.Debug("get transaction info for %s - %s", transactionId, bunchTransactionId)
+	if transactionId == "" || bunchTransactionId == "" {
+		return nil, fmt.Errorf("transaction id or bunch transaction id missing")
+	}
+
+	res := t.client.HGet(t.ctx, transactionId, bunchTransactionId)
+	if res.Err() == nil {
+		return nil, fmt.Errorf("transaction store persistence error")
+	}
+	bunchTransactionPersit, err := res.Result()
+	if err != nil {
+		t.logger.Debug("bunch transaction info anti-serialization error :", err)
+		return nil, fmt.Errorf("bunch transaction info anti-serialization error")
+	}
+	bunchTransaction := make(map[string]interface{})
+	bunchTransaction[bunchTransactionId] = t.parseStringToMap(bunchTransactionPersit)
+	return bunchTransaction, nil
+}
+
 func (t *DistributeTransaction) releaseBunchTransactionState(transactionId string) error {
 	if transactionId == "" {
 		return fmt.Errorf("transaction id missing")
@@ -252,6 +272,8 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 		bunchTransactionStateStore := make(map[string]interface{})
 		bunchTransactionStateStore[bunchTransactionStateParam] = defaultState
 		bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &transaction.TransactionTryRequestParam{}
+
+		t.logger.Debugf("init state info for %s is %s", bunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
 		bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
 
 		bunchTransactionIds = append(bunchTransactionIds, bunchTransactionId)
@@ -305,14 +327,18 @@ func (t *DistributeTransaction) Confirm(confirmRequest transaction.BunchTransact
 		t.logger.Debug("distribute transaction id or bunch transaction id missing")
 		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
 	}
-	bunchTransactionStateStore := make(map[string]interface{})
+	bunchTransactionStateStore, err := t.getBunchTransaction(confirmRequest.TransactionId, confirmRequest.BunchTransactionId)
+	if err != nil {
+		return fmt.Errorf("distribute transaction state store read error")
+		return err
+	}
 	if confirmRequest.StatusCode == requestStatusOK {
 		bunchTransactionStateStore[bunchTransactionStateParam] = stateForConfirmSuccess
 	} else {
 		bunchTransactionStateStore[bunchTransactionStateParam] = stateForConfirmFailure
 	}
 
-	err := t.modifyBunchTransactionState(confirmRequest.TransactionId, confirmRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(confirmRequest.TransactionId, confirmRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
@@ -327,14 +353,18 @@ func (t *DistributeTransaction) RollBack(rollBackRequest transaction.BunchTransa
 		t.logger.Info("distribute transaction id or bunch transaction id missing")
 		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
 	}
-	bunchTransactionStateStore := make(map[string]interface{})
+	bunchTransactionStateStore, err := t.getBunchTransaction(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId)
+	if err != nil {
+		return fmt.Errorf("distribute transaction state store read error")
+		return err
+	}
 	if rollBackRequest.StatusCode == requestStatusOK {
 		bunchTransactionStateStore[bunchTransactionStateParam] = stateForRollBackSuccess
 	} else {
 		bunchTransactionStateStore[bunchTransactionStateParam] = stateForRollBackFailure
 	}
 
-	err := t.modifyBunchTransactionState(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}

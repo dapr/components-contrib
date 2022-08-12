@@ -33,6 +33,7 @@ import (
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
@@ -41,7 +42,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
-	// "github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -53,12 +54,14 @@ const (
 	sidecarName3 = "dapr-3"
 	sidecarName4 = "dapr-4"
 	sidecarName5 = "dapr-5"
+	sidecarName6 = "dapr-6"
 
 	appID1 = "app-1"
 	appID2 = "app-2"
 	appID3 = "app-3"
 	appID4 = "app-4"
 	appID5 = "app-5"
+	appID6 = "app-6"
 
 	numMessages      = 10
 	appPort          = 8000
@@ -71,6 +74,8 @@ const (
 	topicDefaultName = "certification-topic-default"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
+
+	defaultTopicCreation = true
 )
 
 func TestServicebus(t *testing.T) {
@@ -83,19 +88,20 @@ func TestServicebus(t *testing.T) {
 		return secretstore_env.NewEnvSecretStore(log)
 	})
 
-	// consumerGroup1 := watcher.NewUnordered()
-	// consumerGroup2 := watcher.NewUnordered()
-	// consumerGroup3 := watcher.NewUnordered()
+	consumerGroup1 := watcher.NewUnordered()
+	consumerGroup2 := watcher.NewUnordered()
+	consumerGroup3 := watcher.NewUnordered()
 	consumerGroup4 := watcher.NewUnordered()
+	consumerGroup5 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
 	metadata := map[string]string{
 		messageKey: partition0,
 	}
 
-	// metadata1 := map[string]string{
-	// 	messageKey: partition1,
-	// }
+	metadata1 := map[string]string{
+		messageKey: partition1,
+	}
 
 	// subscriber of the given topic
 	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
@@ -122,7 +128,7 @@ func TestServicebus(t *testing.T) {
 		}
 	}
 
-	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, defaultTopicMgmt bool, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			// prepare the messages
 			messages := make([]string, numMessages)
@@ -156,11 +162,78 @@ func TestServicebus(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-
-				require.NoError(ctx, err, "error publishing message")
+				if defaultTopicMgmt == true {
+					require.NoError(ctx, err, "error publishing message")
+				} else {
+					require.Error(ctx, err, "error publishing message")
+				}
 			}
 			return nil
 		}
+	}
+
+	testTtlPublishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "error publishing message")
+			}
+			// Wait for double the TTL after sending the last message.
+			time.Sleep(time.Second * 20)
+			return nil
+		}
+	}
+
+	testDefault := func(ctx flow.Context) error {
+		ports, _ := dapr_testing.GetFreePorts(6)
+		grpcPortS1 := ports[0]
+		httpPortS1 := ports[1]
+		profilePortS1 := ports[2]
+		sidecar := sidecar.New(sidecarName5, embedded.WithComponentsPath("./components/consumer5"),
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(grpcPortS1),
+			embedded.WithDaprHTTPPort(httpPortS1),
+			embedded.WithProfilePort(profilePortS1),
+			runtime.WithPubSubs(
+				pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
+					return pubsub_servicebus.NewAzureServiceBus(log)
+				}),
+			),
+			runtime.WithSecretStores(secretstores_loader.New("local.env", func() secretstores.SecretStore {
+				return secretstore_env.NewEnvSecretStore(log)
+			})))
+		sidecar.Start(ctx)
+		return nil
 	}
 
 	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
@@ -176,92 +249,98 @@ func TestServicebus(t *testing.T) {
 
 	flow.New(t, "servicebus certification").
 
-		// // Test : single publisher, multiple subscriber with their own consumerID
-		// // Run subscriberApplication app1
-		// Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-		// 	subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+		// Test : single publisher, multiple subscriber with their own consumerID
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// // Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
-		// Step(sidecar.Run(sidecarName1,
-		// 	embedded.WithComponentsPath("./components/consumer1"),
-		// 	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-		// 	embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-		// 	embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-		// 	runtime.WithSecretStores(secretStoreComponent),
-		// 	runtime.WithPubSubs(component))).
-
-		// // Run subscriberApplication app2
-		// Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-		// 	subscriberApplication(appID2, topicActiveName, consumerGroup2))).
-
-		// // Run the Dapr sidecar with the component 2.
-		// Step(sidecar.Run(sidecarName2,
-		// 	embedded.WithComponentsPath("./components/consumer2"),
-		// 	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-		// 	embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-		// 	embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-		// 	embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-		// 	runtime.WithSecretStores(secretStoreComponent),
-		// 	runtime.WithPubSubs(component))).
-		// Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
-		// Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
-		// Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
-		// Step("verify if app2 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
-		// Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
-
-		// // Test : multiple publisher with different partitionkey, multiple subscriber with same consumer ID
-		// // Run subscriberApplication app3
-		// Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
-		// 	subscriberApplication(appID3, topicActiveName, consumerGroup2))).
-
-		// // Run the Dapr sidecar with the component 3.
-		// Step(sidecar.Run(sidecarName3,
-		// 	embedded.WithComponentsPath("./components/consumer3"),
-		// 	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
-		// 	embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-		// 	embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-		// 	embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-		// 	runtime.WithSecretStores(secretStoreComponent),
-		// 	runtime.WithPubSubs(component))).
-
-		// // publish message in topic1 from two publisher apps, however there are two subscriber apps (app2,app3) with same consumerID
-		// Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
-		// Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
-		// Step("verify if app2, app3 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
-
-		// // Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
-		// // Run subscriberApplication app4
-		// Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*3),
-		// 	subscriberApplication(appID4, topicToBeCreated, consumerGroup3))).
-
-		// // Run the Dapr sidecar with the component entitymanagement
-		// Step(sidecar.Run(sidecarName4,
-		// 	embedded.WithComponentsPath("./components/consumer4"),
-		// 	embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-		// 	embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-		// 	embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-		// 	embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-		// 	runtime.WithSecretStores(secretStoreComponent),
-		// 	runtime.WithPubSubs(component))).
-		// Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup3)).
-		// Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup3)).
-
-		// Test : All optional attributes , Test processing with all optional attributes and single publisher/subscriber
-		// Run subscriberApplication app5
-		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*4),
-			subscriberApplication(appID5, topicDefaultName, consumerGroup4))).
-
-		// Run the Dapr sidecar with the component
-		Step(sidecar.Run(sidecarName5,
-			embedded.WithComponentsPath("./components/consumer5"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
+		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/consumer1"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
-		Step(fmt.Sprintf("publish messages to topicDefaultName: %s", topicDefaultName), publishMessages(metadata, sidecarName5, topicDefaultName, consumerGroup4)).
-		// Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
-		Step("verify if app5 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
+
+		// Run subscriberApplication app2
+		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
+			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
+
+		// Run the Dapr sidecar with the component 2.
+		Step(sidecar.Run(sidecarName2,
+			embedded.WithComponentsPath("./components/consumer2"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			runtime.WithSecretStores(secretStoreComponent),
+			runtime.WithPubSubs(component))).
+		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, defaultTopicCreation, consumerGroup1, consumerGroup2)).
+		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName, defaultTopicCreation)).
+		Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app2 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
+		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+
+		// Test : multiple publisher with different partitionkey, multiple subscriber with same consumer ID
+		// Run subscriberApplication app3
+		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
+			subscriberApplication(appID3, topicActiveName, consumerGroup2))).
+
+		// Run the Dapr sidecar with the component 3.
+		Step(sidecar.Run(sidecarName3,
+			embedded.WithComponentsPath("./components/consumer3"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
+			runtime.WithSecretStores(secretStoreComponent),
+			runtime.WithPubSubs(component))).
+
+		// publish message in topic1 from two publisher apps, however there are two subscriber apps (app2,app3) with same consumerID
+		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, defaultTopicCreation, consumerGroup2)).
+		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, defaultTopicCreation, consumerGroup2)).
+		Step("verify if app2, app3 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
+
+		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
+		// Run subscriberApplication app4
+		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*3),
+			subscriberApplication(appID4, topicToBeCreated, consumerGroup3))).
+
+		// Run the Dapr sidecar with the component entitymanagement
+		Step(sidecar.Run(sidecarName4,
+			embedded.WithComponentsPath("./components/consumer4"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			runtime.WithSecretStores(secretStoreComponent),
+			runtime.WithPubSubs(component))).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, defaultTopicCreation, consumerGroup3)).
+		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup3)).
+
+		// Test : disableEntityManagement optional attribute , Test processing with all optional attributes and single publisher/subscriber
+		// Run subscriberApplication app5
+		Step("verify if app5 has recevied messages published to newly created topic", testDefault).
+		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName5, topicDefaultName, !defaultTopicCreation, consumerGroup4)).
+
+		// Test : defaultMessageTimeToLiveInSec optional attribute, in order processing with single publisher/subscriber
+		// Run subscriberApplication app6
+		Step(app.Run(appID6, fmt.Sprintf(":%d", appPort+portOffset*5),
+			subscriberApplication(appID6, topicActiveName, consumerGroup5))).
+
+		// Run the Dapr sidecar with the component entitymanagement
+		Step(sidecar.Run(sidecarName6,
+			embedded.WithComponentsPath("./components/consumer6"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*5),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*5),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*5),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*5),
+			runtime.WithSecretStores(secretStoreComponent),
+			runtime.WithPubSubs(component))).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, sidecarName6, topicActiveName, consumerGroup5)).
+		Step("verify if app6 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup5)).
 		Run()
 }

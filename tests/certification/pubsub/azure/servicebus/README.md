@@ -39,3 +39,13 @@ The purpose of this module is to provide tests that certify the Azure Service Bu
    - Subscriber is subscribed to 1 topic
    - Simulate network interruptions and verify that the component retires on error
    - Verify that all expected messages were received
+- Verify with an optional parameter `disableEntityManagement` set to true
+   - Run dapr application with 1 publisher
+   - Publisher tries to publish to 1 topic that is not present
+   - Verify that the topic and subscriptions do not get created
+   - Verify that the error is returned saying that the topic not present when publishing
+- Verify data with an optional parameter `defaultMessageTimeToLiveInSec` set
+   - Run dapr application with 1 publisher and 1 subscriber
+   - Subscriber is subscribed to 1 topic
+   - Publisher publishes to 1 topic, wait double the TTL seconds
+   - Verify the message is deleted/expired.

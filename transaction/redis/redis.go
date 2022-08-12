@@ -144,7 +144,7 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionId string) (
 		parse := t.parseStringToMap(stateInfo)
 		t.logger.Debug("state parse res: ", parse)
 		stateCode, err := parse[bunchTransactionStateParam].(int)
-		t.logger.Debug("%s state result is: %d", parse[bunchTransactionStateParam], stateCode)
+		t.logger.Debugf("%s state result is: %d", parse[bunchTransactionStateParam], stateCode)
 		if err {
 			t.logger.Debug(parse[bunchTransactionStateParam], "state parse error happend ")
 		}

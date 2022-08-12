@@ -23,12 +23,12 @@ const (
 	defaultTransactionIdPre         = "transaction-"
 	defaultBunchTransactionIdPre    = "bunch-"
 	defaultState                    = 0
-	stateForTrySuccess              = 1
-	stateForTryFailure              = -1
-	stateForConfirmSuccess          = 2
-	stateForConfirmFailure          = -2
-	stateForRollBackSuccess         = 3
-	stateForRollBackFailure         = -3
+	stateForTrySuccess              = 10
+	stateForTryFailure              = 1
+	stateForConfirmSuccess          = 20
+	stateForConfirmFailure          = 2
+	stateForRollBackSuccess         = 30
+	stateForRollBackFailure         = 3
 	bunchTransactionStateParam      = "state"
 	bunchTransacitonTryRequestParam = "tryRequestParam"
 	requestStatusOK                 = 1
@@ -110,6 +110,8 @@ func (t *DistributeTransaction) modifyBunchTransactionState(transactionId string
 	if transactionId == "" || bunchTransactionId == "" {
 		return fmt.Errorf("transaction id or bunch transaction id missing")
 	}
+
+	t.logger.Debugf("update transactionId: %s, bunchTransactionId %s set to %s ", transactionId, bunchTransactionId, bunchTransactionStateStore)
 	IntCmd := t.client.HSet(t.ctx, transactionId, bunchTransactionId, bunchTransactionStateStore)
 	if IntCmd.Err() == nil {
 		return fmt.Errorf("transaction store persistence error")
@@ -138,8 +140,13 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionId string) (
 
 	bunchTransactionState := make(map[string]int)
 	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
+		t.logger.Debugf("state of bunch transaction: %s is %s ", bunchTransactionId, stateInfo)
 		parse := t.parseStringToMap(stateInfo)
-		stateCode, _ := parse[bunchTransactionStateParam].(int)
+		t.logger.Debug("state parse res: ", parse)
+		stateCode, err := parse[bunchTransactionStateParam].(int)
+		if err {
+			t.logger.Debug(parse[bunchTransactionStateParam], "state parse error happend ")
+		}
 		bunchTransactionState[bunchTransactionId] = stateCode
 	}
 	return bunchTransactionState, nil
@@ -197,6 +204,7 @@ func (t *DistributeTransaction) parseStringToMap(param string) map[string]interf
 	var parse map[string]interface{}
 	err := json.Unmarshal([]byte(param), &parse)
 	if err != nil {
+		t.logger.Debug(err)
 		return nil
 	}
 	return parse
@@ -279,6 +287,8 @@ func (t *DistributeTransaction) Try(tryRequest transaction.BunchTransactionTryRe
 		bunchTransactionStateStore[bunchTransactionStateParam] = stateForTryFailure
 	}
 	bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &tryRequest.TryRequestParam
+
+	t.logger.Debug("bunch tranastion request param :", bunchTransactionStateStore)
 
 	err := t.modifyBunchTransactionState(tryRequest.TransactionId, tryRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
 	if err != nil {

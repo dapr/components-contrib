@@ -22,5 +22,5 @@ type Transaction interface {
 
 	GetBunchTransactions(transactionReq GetBunchTransactionsRequest) (*BunchTransactionsResponse, error)
 
-	ReleaseTransactionResource(request ReleaseTransactionRequest)
+	ReleaseTransactionResource(releaseRequest ReleaseTransactionRequest) error
 }

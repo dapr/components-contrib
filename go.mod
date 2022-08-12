@@ -37,7 +37,6 @@ require (
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	github.com/apache/thrift v0.16.0 // indirect
-	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/aws/aws-sdk-go v1.43.16
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b

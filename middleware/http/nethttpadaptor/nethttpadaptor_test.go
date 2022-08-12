@@ -15,7 +15,7 @@ package nethttpadaptor
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -422,7 +422,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
-				body, _ := ioutil.ReadAll(res.Body)
+				body, _ := io.ReadAll(res.Body)
 				assert.Equal(t, "test body!", string(body))
 			},
 		},

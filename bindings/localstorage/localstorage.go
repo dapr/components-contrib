@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -153,7 +153,7 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		ls.logger.Debugf("%s", err)
 

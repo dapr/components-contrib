@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -68,6 +67,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
@@ -224,7 +224,7 @@ func isYaml(fileName string) bool {
 }
 
 func readTestConfiguration(filePath string) ([]byte, error) {
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s", filePath)
 	}
@@ -431,6 +431,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_cassandra.NewCassandraStateStore(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
+	case "memcached":
+		store = s_memcached.NewMemCacheStateStore(testLogger)
 	default:
 		return nil
 	}

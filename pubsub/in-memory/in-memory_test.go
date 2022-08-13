@@ -57,6 +57,30 @@ func TestMultipleSubscribers(t *testing.T) {
 	assert.Equal(t, "ABCD", string(<-ch2))
 }
 
+func TestWildcards(t *testing.T) {
+	bus := New(logger.NewLogger("test"))
+	bus.Init(pubsub.Metadata{})
+
+	ch1 := make(chan []byte)
+	ch2 := make(chan []byte)
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "mytopic"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return publish(ch1, msg)
+	})
+
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "topic*"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return publish(ch2, msg)
+	})
+
+	bus.Publish(&pubsub.PublishRequest{Data: []byte("1"), Topic: "mytopic"})
+	assert.Equal(t, "1", string(<-ch1))
+
+	bus.Publish(&pubsub.PublishRequest{Data: []byte("2"), Topic: "topic1"})
+	assert.Equal(t, "2", string(<-ch2))
+
+	bus.Publish(&pubsub.PublishRequest{Data: []byte("3"), Topic: "topicX"})
+	assert.Equal(t, "3", string(<-ch2))
+}
+
 func TestRetry(t *testing.T) {
 	bus := New(logger.NewLogger("test"))
 	bus.Init(pubsub.Metadata{})

@@ -37,7 +37,6 @@ require (
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	github.com/apache/thrift v0.16.0 // indirect
-	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/aws/aws-sdk-go v1.43.16
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
@@ -521,7 +520,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/atomic v1.9.0
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect

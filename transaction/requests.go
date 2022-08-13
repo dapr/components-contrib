@@ -10,10 +10,10 @@ type BeginTransactionRequest struct {
 }
 
 type BunchTransactionTryRequest struct {
-	TransactionId      string                     `json:"transactionId"`
-	BunchTransactionId string                     `json:"bunchTransactionId"`
-	StatusCode         int                        `json:"statusCode"`
-	TryRequestParam    TransactionTryRequestParam `json:"tryRequestParam"`
+	TransactionId      string                      `json:"transactionId"`
+	BunchTransactionId string                      `json:"bunchTransactionId"`
+	StatusCode         int                         `json:"statusCode"`
+	TryRequestParam    *TransactionTryRequestParam `json:"tryRequestParam"`
 }
 
 // The request params of a bunch transaction
@@ -45,4 +45,9 @@ type BunchTransactionRollBackRequest struct {
 
 type ReleaseTransactionRequest struct {
 	TransactionId string `json:"transactionId"`
+}
+
+type DistributeTransactionState struct {
+	StatusCode      int                         `json:"statusCode"`
+	TryRequestParam *TransactionTryRequestParam `json:"tryRequestParam"`
 }

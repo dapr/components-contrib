@@ -88,12 +88,13 @@ func (t *DistributeTransaction) InitTransactionStateStore(metadata transaction.M
 }
 
 // persist bunch transactions into a redis map
-func (t *DistributeTransaction) initBunchTransactionState(transactionId string, bunchTransactionInitStates map[string]interface{}) error {
+func (t *DistributeTransaction) initBunchTransactionState(transactionId string, bunchTransactionInitStates []string) error {
 	t.logger.Debug("start to persit transaction state for ", transactionId)
 	if transactionId == "" || len(bunchTransactionInitStates) == 0 {
 		t.logger.Debug("transactionId or bunchTransactionInitStates is empty!")
 		return fmt.Errorf("distribute transaction store initialize param error")
 	}
+	t.logger.Debugf("bunch transaction state :%s", bunchTransactionInitStates)
 
 	IntCmd := t.client.HSet(t.ctx, transactionId, bunchTransactionInitStates)
 	if IntCmd.Err() != nil {
@@ -141,20 +142,21 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionId string) (
 	bunchTransactionState := make(map[string]int)
 	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
 		t.logger.Debugf("state of bunch transaction: %s is %s ", bunchTransactionId, stateInfo)
-		parse := t.parseStringToMap(stateInfo)
-		t.logger.Debug("state parse res: ", parse)
-		stateCode, err := parse[bunchTransactionStateParam].(int)
-		t.logger.Debugf("%s state result is: %d", parse[bunchTransactionStateParam], stateCode)
-		if err {
-			t.logger.Debug(parse[bunchTransactionStateParam], "state parse error happend ")
+		bunchTransaction := transaction.DistributeTransactionState{}
+		err = t.parseStringToStruct(stateInfo, &bunchTransaction)
+		if err != nil {
+			return nil, err
 		}
-		bunchTransactionState[bunchTransactionId] = stateCode
+		t.logger.Debug("state parse res: ", bunchTransaction)
+		t.logger.Debugf("state result is: %d", bunchTransaction.StatusCode)
+
+		bunchTransactionState[bunchTransactionId] = bunchTransaction.StatusCode
 	}
 	return bunchTransactionState, nil
 
 }
 
-func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[string]map[string]interface{}, error) {
+func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[string]transaction.DistributeTransactionState, error) {
 	t.logger.Debug("read transaction state for ", transactionId)
 	if transactionId == "" {
 		return nil, fmt.Errorf("transaction id missing")
@@ -172,32 +174,42 @@ func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[
 		return nil, fmt.Errorf("bunch transaction state info anti-serialization error")
 	}
 
-	bunchTransactions := make(map[string]map[string]interface{})
+	bunchTransactions := make(map[string]transaction.DistributeTransactionState)
 	for bunchTransactionId, stateInfo := range bunchTransactionStatePersit {
-		bunchTransactions[bunchTransactionId] = t.parseStringToMap(stateInfo)
+		transaction := transaction.DistributeTransactionState{}
+		err = t.parseStringToStruct(stateInfo, &transaction)
+		if err != nil {
+			continue
+		}
+		bunchTransactions[bunchTransactionId] = transaction
 	}
 	return bunchTransactions, nil
 
 }
 
-func (t *DistributeTransaction) getBunchTransaction(transactionId string, bunchTransactionId string) (map[string]interface{}, error) {
-	t.logger.Debug("get transaction info for %s - %s", transactionId, bunchTransactionId)
+func (t *DistributeTransaction) getBunchTransaction(transactionId string, bunchTransactionId string) (*transaction.DistributeTransactionState, error) {
+	t.logger.Debugf("get transaction info for %s - %s", transactionId, bunchTransactionId)
 	if transactionId == "" || bunchTransactionId == "" {
-		return nil, fmt.Errorf("transaction id or bunch transaction id missing")
+		return &transaction.DistributeTransactionState{}, fmt.Errorf("transaction id or bunch transaction id missing")
 	}
 
 	res := t.client.HGet(t.ctx, transactionId, bunchTransactionId)
-	if res.Err() == nil {
-		return nil, fmt.Errorf("transaction store persistence error")
+	if res.Err() != nil {
+		return &transaction.DistributeTransactionState{}, fmt.Errorf("transaction store persistence error")
 	}
 	bunchTransactionPersit, err := res.Result()
 	if err != nil {
 		t.logger.Debug("bunch transaction info anti-serialization error :", err)
-		return nil, fmt.Errorf("bunch transaction info anti-serialization error")
+		return &transaction.DistributeTransactionState{}, fmt.Errorf("bunch transaction info anti-serialization error")
 	}
-	bunchTransaction := make(map[string]interface{})
-	bunchTransaction[bunchTransactionId] = t.parseStringToMap(bunchTransactionPersit)
-	return bunchTransaction, nil
+	bunchTransaction := transaction.DistributeTransactionState{}
+	err = t.parseStringToStruct(bunchTransactionPersit, &bunchTransaction)
+	if err != nil {
+		t.logger.Debugf("bunchTransactionPersit parse error:", err)
+		return &transaction.DistributeTransactionState{}, err
+	}
+	t.logger.Debugf("state of %s is :", bunchTransactionId, bunchTransaction)
+	return &bunchTransaction, nil
 }
 
 func (t *DistributeTransaction) releaseBunchTransactionState(transactionId string) error {
@@ -212,23 +224,21 @@ func (t *DistributeTransaction) releaseBunchTransactionState(transactionId strin
 	return nil
 }
 
-func (t *DistributeTransaction) parseMapToString(param map[string]interface{}) string {
-	parse, err := json.Marshal(param)
+func (t *DistributeTransaction) parseStructToString(param any) string {
+	b, err := json.Marshal(param)
+
 	if err != nil {
-		t.logger.Info("param parse to string something error")
 		return ""
 	}
-	return string(parse)
+	return string(b)
 }
 
-func (t *DistributeTransaction) parseStringToMap(param string) map[string]interface{} {
-	var parse map[string]interface{}
-	err := json.Unmarshal([]byte(param), &parse)
+func (t *DistributeTransaction) parseStringToStruct(param string, dest any) error {
+	err := json.Unmarshal([]byte(param), dest)
 	if err != nil {
-		t.logger.Debug(err)
-		return nil
+		return err
 	}
-	return parse
+	return nil
 }
 
 // generate a distribute transaction id with uuid and random number
@@ -262,7 +272,8 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 	transactionId := t.genDisTransactionId()
 
 	bunchTransactionIds := []string{}
-	bunchTransactionStateStores := make(map[string]interface{})
+	//bunchTransactionStateStores := make(map[string]interface{})
+	bunchTransactionStateStores := []string{}
 
 	i := 1
 	for i <= beginRequest.BunchTransactionNum {
@@ -270,13 +281,18 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 		bunchTransactionId := t.genBunchTransactionId(i)
 
 		// set to a default state for nothing have happend and a empty request param
-		bunchTransactionStateStore := make(map[string]interface{})
-		bunchTransactionStateStore[bunchTransactionStateParam] = defaultState
-		bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &transaction.TransactionTryRequestParam{}
+		//bunchTransactionStateStore := make(map[string]interface{})
+		bunchTransactionStateStore := transaction.DistributeTransactionState{}
+		//bunchTransactionStateStore[bunchTransactionStateParam] = defaultState
+		//bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &transaction.TransactionTryRequestParam{}
+		bunchTransactionStateStore.StatusCode = defaultState
+		bunchTransactionStateStore.TryRequestParam = &transaction.TransactionTryRequestParam{}
 
-		t.logger.Debugf("init state info for %s is %s", bunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
-		bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
-
+		//t.logger.Debugf("init state info for %s is %s", bunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+		//bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
+		t.logger.Debugf("init state info for %s is %s", bunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
+		//bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
+		bunchTransactionStateStores = append(bunchTransactionStateStores, bunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
 		bunchTransactionIds = append(bunchTransactionIds, bunchTransactionId)
 		i++
 	}
@@ -285,7 +301,7 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 
 	err := t.initBunchTransactionState(transactionId, bunchTransactionStateStores)
 	if err != nil {
-		t.logger.Debug("distribute transaction state store error! XID: %s", transactionId)
+		t.logger.Debugf("distribute transaction state store error! XID: %s and error:%s", transactionId, err)
 		return nil, err
 	}
 	t.logger.Debug("a new distribute transaction start")
@@ -302,18 +318,21 @@ func (t *DistributeTransaction) Try(tryRequest transaction.BunchTransactionTryRe
 		t.logger.Info("distribute transaction id or bunch transaction id missing")
 		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
 	}
-
-	bunchTransactionStateStore := make(map[string]interface{})
-	if tryRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore[bunchTransactionStateParam] = stateForTrySuccess
-	} else {
-		bunchTransactionStateStore[bunchTransactionStateParam] = stateForTryFailure
+	bunchTransactionStateStore, err := t.getBunchTransaction(tryRequest.TransactionId, tryRequest.BunchTransactionId)
+	if err != nil {
+		return fmt.Errorf("distribute transaction does't found")
 	}
-	bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &tryRequest.TryRequestParam
+
+	if tryRequest.StatusCode == requestStatusOK {
+		bunchTransactionStateStore.StatusCode = stateForTrySuccess
+	} else {
+		bunchTransactionStateStore.StatusCode = stateForTryFailure
+	}
+	bunchTransactionStateStore.TryRequestParam = tryRequest.TryRequestParam
 
 	t.logger.Debug("bunch tranastion request param :", bunchTransactionStateStore)
 
-	err := t.modifyBunchTransactionState(tryRequest.TransactionId, tryRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(tryRequest.TransactionId, tryRequest.BunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
@@ -334,12 +353,12 @@ func (t *DistributeTransaction) Confirm(confirmRequest transaction.BunchTransact
 		return err
 	}
 	if confirmRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore[bunchTransactionStateParam] = stateForConfirmSuccess
+		bunchTransactionStateStore.StatusCode = stateForConfirmSuccess
 	} else {
-		bunchTransactionStateStore[bunchTransactionStateParam] = stateForConfirmFailure
+		bunchTransactionStateStore.StatusCode = stateForConfirmFailure
 	}
 
-	err = t.modifyBunchTransactionState(confirmRequest.TransactionId, confirmRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(confirmRequest.TransactionId, confirmRequest.BunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
@@ -360,12 +379,12 @@ func (t *DistributeTransaction) RollBack(rollBackRequest transaction.BunchTransa
 		return err
 	}
 	if rollBackRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore[bunchTransactionStateParam] = stateForRollBackSuccess
+		bunchTransactionStateStore.StatusCode = stateForRollBackSuccess
 	} else {
-		bunchTransactionStateStore[bunchTransactionStateParam] = stateForRollBackFailure
+		bunchTransactionStateStore.StatusCode = stateForRollBackFailure
 	}
 
-	err = t.modifyBunchTransactionState(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}

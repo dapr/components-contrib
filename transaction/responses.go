@@ -11,6 +11,6 @@ type TransactionStateResponse struct {
 }
 
 type BunchTransactionsResponse struct {
-	TransactionId     string                            `json:"transactionId"`
-	BunchTransactions map[string]map[string]interface{} `json:"bunchTransactions"`
+	TransactionId     string                                `json:"transactionId"`
+	BunchTransactions map[string]DistributeTransactionState `json:"bunchTransactions"`
 }

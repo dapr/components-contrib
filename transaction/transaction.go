@@ -23,4 +23,8 @@ type Transaction interface {
 	GetBunchTransactions(transactionReq GetBunchTransactionsRequest) (*BunchTransactionsResponse, error)
 
 	ReleaseTransactionResource(releaseRequest ReleaseTransactionRequest) error
+
+	GetRetryTimes() int
+
+	GetTransactionSchema() string
 }

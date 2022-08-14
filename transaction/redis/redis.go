@@ -19,20 +19,18 @@ import (
 const (
 	//defaultStateStoreDuration       = 300
 	// set a test duration
-	defaultStateStoreDuration       = 3000
-	defaultTransactionIdPre         = "transaction-"
-	defaultBunchTransactionIdPre    = "bunch-"
-	defaultState                    = 0
-	stateForTrySuccess              = 10
-	stateForTryFailure              = 1
-	stateForConfirmSuccess          = 20
-	stateForConfirmFailure          = 2
-	stateForRollBackSuccess         = 30
-	stateForRollBackFailure         = 3
-	bunchTransactionStateParam      = "state"
-	bunchTransacitonTryRequestParam = "tryRequestParam"
-	requestStatusOK                 = 1
-	defaultTransactionSchema        = "tcc"
+	defaultStateStoreDuration    = 3000
+	defaultTransactionIdPre      = "transaction-"
+	defaultBunchTransactionIdPre = "bunch-"
+	defaultState                 = 0
+	stateForTrySuccess           = 10
+	stateForTryFailure           = 1
+	stateForConfirmSuccess       = 20
+	stateForConfirmFailure       = 2
+	stateForRollBackSuccess      = 30
+	stateForRollBackFailure      = 3
+	requestStatusOK              = 1
+	defaultTransactionSchema     = "tcc"
 )
 
 type DistributeTransaction struct {
@@ -44,6 +42,7 @@ type DistributeTransaction struct {
 	ctx            context.Context
 	duration       int
 	schema         string
+	retryTimes     int
 }
 
 func NewDistributeTransaction(logger logger.Logger) *DistributeTransaction {
@@ -255,10 +254,18 @@ func (t *DistributeTransaction) genBunchTransactionId(index int) string {
 
 func (t *DistributeTransaction) Init(metadata transaction.Metadata) {
 	t.logger.Debug("initialize tranaction component")
+
+	// initialize distribute transaction schema, default use tcc
 	if metadata.Properties["schema"] != "" {
 		t.schema = metadata.Properties["schema"]
 	} else {
 		t.schema = defaultTransactionSchema
+	}
+
+	// initialize retryTimes for confirm and roll back action
+	t.retryTimes = 1
+	if retry, _ := strconv.Atoi(metadata.Properties["retryTimes"]); retry > 0 {
+		t.retryTimes = retry
 	}
 	t.InitTransactionStateStore(metadata)
 }
@@ -281,17 +288,11 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 		bunchTransactionId := t.genBunchTransactionId(i)
 
 		// set to a default state for nothing have happend and a empty request param
-		//bunchTransactionStateStore := make(map[string]interface{})
 		bunchTransactionStateStore := transaction.DistributeTransactionState{}
-		//bunchTransactionStateStore[bunchTransactionStateParam] = defaultState
-		//bunchTransactionStateStore[bunchTransacitonTryRequestParam] = &transaction.TransactionTryRequestParam{}
 		bunchTransactionStateStore.StatusCode = defaultState
 		bunchTransactionStateStore.TryRequestParam = &transaction.TransactionTryRequestParam{}
-
-		//t.logger.Debugf("init state info for %s is %s", bunchTransactionId, t.parseMapToString(bunchTransactionStateStore))
-		//bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
 		t.logger.Debugf("init state info for %s is %s", bunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
-		//bunchTransactionStateStores[bunchTransactionId] = t.parseMapToString(bunchTransactionStateStore)
+
 		bunchTransactionStateStores = append(bunchTransactionStateStores, bunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
 		bunchTransactionIds = append(bunchTransactionIds, bunchTransactionId)
 		i++
@@ -436,4 +437,8 @@ func (t *DistributeTransaction) ReleaseTransactionResource(releaseRequest transa
 		return err
 	}
 	return nil
+}
+
+func (t *DistributeTransaction) GetRetryTimes() int {
+	return t.retryTimes
 }

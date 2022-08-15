@@ -8,10 +8,12 @@ spec:
   version: v1
   metadata:
     - name: consumerID
-      value: ehcertification2
+      value: optionscertification
     - name: connectionString
       secretKeyRef:
         name: AzureServiceBusConnectionString
-        key: AzureServiceBusConnectionString    
+        key: AzureServiceBusConnectionString
+    - name: defaultMessageTimeToLiveInSec
+      value: 10
 auth:
   secretstore: envvar-secret-store

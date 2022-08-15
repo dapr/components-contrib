@@ -48,4 +48,9 @@ The purpose of this module is to provide tests that certify the Azure Service Bu
    - Run dapr application with 1 publisher and 1 subscriber
    - Subscriber is subscribed to 1 topic
    - Publisher publishes to 1 topic, wait double the TTL seconds
-   - Verify the message is deleted/expired.
+   - Verify the message is deleted/expired
+- Verify data with authentication
+   - Run dapr application with 1 publisher and 1 subscriber
+   - Publisher publishes to 1 topic
+   - Subscriber is subscribed to 1 topic
+   - Verify that all expected messages were received

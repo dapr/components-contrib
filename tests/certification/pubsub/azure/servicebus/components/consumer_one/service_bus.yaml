@@ -13,5 +13,7 @@ spec:
       secretKeyRef:
         name: AzureServiceBusConnectionString
         key: AzureServiceBusConnectionString
+    - name: disableEntityManagement
+      value: "false"
 auth:
   secretstore: envvar-secret-store

@@ -42,7 +42,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
-	// "github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -818,7 +818,7 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		// Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
+		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()

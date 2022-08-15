@@ -442,3 +442,7 @@ func (t *DistributeTransaction) ReleaseTransactionResource(releaseRequest transa
 func (t *DistributeTransaction) GetRetryTimes() int {
 	return t.retryTimes
 }
+
+func (t *DistributeTransaction) GetTransactionSchema() string {
+	return t.schema
+}

@@ -53,12 +53,14 @@ type jobWorkerMetadata struct {
 	PollInterval   metadata.Duration `json:"pollInterval"`
 	PollThreshold  float64           `json:"pollThreshold,string"`
 	FetchVariables string            `json:"fetchVariables"`
+	Autocomplete   *bool             `json:"autocomplete,omitempty"`
 }
 
 type jobHandler struct {
-	callback bindings.Handler
-	logger   logger.Logger
-	ctx      context.Context
+	callback     bindings.Handler
+	logger       logger.Logger
+	ctx          context.Context
+	autocomplete bool
 }
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
@@ -90,9 +92,10 @@ func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 
 func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) error {
 	h := jobHandler{
-		callback: handler,
-		logger:   z.logger,
-		ctx:      ctx,
+		callback:     handler,
+		logger:       z.logger,
+		ctx:          ctx,
+		autocomplete: z.metadata.Autocomplete == nil || *z.metadata.Autocomplete,
 	}
 
 	jobWorker := z.getJobWorker(h)
@@ -180,34 +183,38 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	variablesMap := make(map[string]interface{})
-	if resultVariables != nil {
-		err = json.Unmarshal(resultVariables, &variablesMap)
+	jobKey := job.GetKey()
+	if h.autocomplete {
+		variablesMap := make(map[string]interface{})
+		if resultVariables != nil {
+			err = json.Unmarshal(resultVariables, &variablesMap)
+			if err != nil {
+				// Use a background context because the subscription one may be canceled
+				h.failJob(context.Background(), client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
+				return
+			}
+		}
+
+		request, err := client.NewCompleteJobCommand().JobKey(jobKey).VariablesFromMap(variablesMap)
 		if err != nil {
 			// Use a background context because the subscription one may be canceled
-			h.failJob(context.Background(), client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
+			h.failJob(context.Background(), client, job, err)
 			return
 		}
-	}
 
-	jobKey := job.GetKey()
-	request, err := client.NewCompleteJobCommand().JobKey(jobKey).VariablesFromMap(variablesMap)
-	if err != nil {
+		h.logger.Debugf("Complete job `%d` of type `%s`", jobKey, job.Type)
+
 		// Use a background context because the subscription one may be canceled
-		h.failJob(context.Background(), client, job, err)
-		return
+		_, err = request.Send(context.Background())
+		if err != nil {
+			h.logger.Errorf("Cannot complete job `%d` of type `%s`; got error: %s", jobKey, job.Type, err.Error())
+			return
+		}
+
+		h.logger.Debugf("Successfully completed job `%d` of type `%s`", jobKey, job.Type)
+	} else {
+		h.logger.Debugf("Auto-completion for job `%d` of type `%s` is disabled. Use the job commands to complete the job from the worker", jobKey, job.Type)
 	}
-
-	h.logger.Debugf("Complete job `%d` of type `%s`", jobKey, job.Type)
-
-	// Use a background context because the subscription one may be canceled
-	_, err = request.Send(context.Background())
-	if err != nil {
-		h.logger.Errorf("Cannot complete job `%d` of type `%s`; got error: %s", jobKey, job.Type, err.Error())
-		return
-	}
-
-	h.logger.Debug("Successfully completed job")
 }
 
 func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job entities.Job, reason error) {

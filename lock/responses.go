@@ -27,8 +27,8 @@ type Status int32
 
 // lock status.
 const (
-	Success            Status = 0
-	LockUnexist        Status = 1
-	LockBelongToOthers Status = 2
-	InternalError      Status = 3
+	Success             Status = 0
+	LockDoesNotExist    Status = 1
+	LockBelongsToOthers Status = 2
+	InternalError       Status = 3
 )

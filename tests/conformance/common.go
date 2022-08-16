@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -45,6 +44,7 @@ import (
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
+	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
@@ -67,6 +67,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
@@ -223,7 +224,7 @@ func isYaml(fileName string) bool {
 }
 
 func readTestConfiguration(filePath string) ([]byte, error) {
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s", filePath)
 	}
@@ -430,6 +431,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_cassandra.NewCassandraStateStore(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
+	case "memcached":
+		store = s_memcached.NewMemCacheStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -463,6 +466,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_influx.NewInflux(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
+	case "rabbitmq":
+		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}
@@ -486,6 +491,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
+	case "rabbitmq":
+		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}

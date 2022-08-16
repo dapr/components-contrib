@@ -23,8 +23,12 @@ import (
 
 type metadata struct {
 	natsURL string
+
 	jwt     string
 	seedKey string
+
+	tls_client_cert string
+	tls_client_key  string
 
 	name           string
 	durableName    string
@@ -53,6 +57,17 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 
 	if m.jwt == "" && m.seedKey != "" {
 		return metadata{}, fmt.Errorf("missing jwt")
+	}
+
+	m.tls_client_cert = psm.Properties["tls_client_cert"]
+	m.tls_client_key = psm.Properties["tls_client_key"]
+
+	if m.tls_client_cert != "" && m.tls_client_key == "" {
+		return metadata{}, fmt.Errorf("missing tls client key")
+	}
+
+	if m.tls_client_cert == "" && m.tls_client_key != "" {
+		return metadata{}, fmt.Errorf("missing tls client cert")
 	}
 
 	if m.name = psm.Properties["name"]; m.name == "" {

@@ -31,6 +31,11 @@ The purpose of this module is to provide tests that certify the Azure Service Bu
    - Start an application that is guaranteed to fail
    - Ensure the binding continues to read incoming messages
    - Ensure the messages that are failed are retried
+- Verify Metadata flows through event
+   - Create an output/input binding
+   - Run dapr application with components
+   - Invoke the output binding providing metadata
+   - Receive the message and validate the metadata
 
 ### Future Tests
 1. Provide iterations around the different auth mechanisms supported by Azure Service Bus.

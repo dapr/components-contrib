@@ -155,7 +155,8 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 	}
 
 	msg := &servicebus.Message{
-		Body: req.Data,
+		Body:                  req.Data,
+		ApplicationProperties: make(map[string]interface{}),
 	}
 	if val, ok := req.Metadata[id]; ok && val != "" {
 		msg.MessageID = &val
@@ -163,6 +164,16 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 	if val, ok := req.Metadata[correlationID]; ok && val != "" {
 		msg.CorrelationID = &val
 	}
+
+	// Include incoming metadata in the message to be used when it is read.
+	for k, v := range req.Metadata {
+		// Don't include the values that are saved in MessageID or CorrelationID.
+		if k == id || k == correlationID {
+			continue
+		}
+		msg.ApplicationProperties[k] = v
+	}
+
 	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -260,6 +271,13 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 		}
 		if msg.Subject != nil {
 			metadata[label] = *msg.Subject
+		}
+
+		// Passthrough any custom metadata to the handler.
+		for key, val := range msg.ApplicationProperties {
+			if stringVal, ok := val.(string); ok {
+				metadata[key] = stringVal
+			}
 		}
 
 		_, err := handler(a.ctx, &bindings.ReadResponse{

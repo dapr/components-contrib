@@ -18,6 +18,7 @@ type BunchTransactionTryRequest struct {
 
 // The request params of a bunch transaction
 type TransactionTryRequestParam struct {
+	Type             string                  `json:"type"`
 	TargetID         string                  `json:"targetID"`
 	InvokeMethodName string                  `json:"invokeMethodName"`
 	Verb             string                  `json:"verb"`
@@ -25,6 +26,8 @@ type TransactionTryRequestParam struct {
 	Data             []byte                  `json:"data"`
 	ContentType      string                  `json:"contentType"`
 	Header           *fasthttp.RequestHeader `json:"header"`
+	ActorType        string                  `json:"actorType`
+	ActorID          string                  `json:"actorID`
 }
 
 type GetBunchTransactionsRequest struct {

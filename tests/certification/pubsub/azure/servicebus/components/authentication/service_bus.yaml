@@ -9,10 +9,8 @@ spec:
   metadata:
     - name: consumerID
       value: optionscertification
-    - name: connectionString
-      secretKeyRef:
-        name: AzureServiceBusConnectionString
-        key: AzureServiceBusConnectionString
+    - name: namespaceName
+      value: "servicebusnamespace.servicebus.windows.net"
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId

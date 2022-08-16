@@ -31,9 +31,7 @@ import (
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
-	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
-	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
@@ -159,7 +157,6 @@ func TestServicebus(t *testing.T) {
 
 	flow.New(t, "servicebus certification basic test").
 
-		// Test : single publisher, multiple subscriber with their own consumerID
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
@@ -294,7 +291,6 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 
 	flow.New(t, "servicebus certification - single publisher and multiple subscribers with same consumer IDs").
 
-		// Test : single publisher, multiple subscriber with their own consumerID
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
@@ -424,7 +420,6 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 	flow.New(t, "servicebus certification - single publisher and multiple subscribers with different consumer IDs").
 
-		// Test : single publisher, multiple subscriber with their own consumerID
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
@@ -557,7 +552,6 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 
 	flow.New(t, "servicebus certification - multiple publishers and multiple subscribers with different consumer IDs").
 
-		// Test : single publisher, multiple subscriber with their own consumerID
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
@@ -687,7 +681,6 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 
 	flow.New(t, "servicebus certification - non-existing topic").
 
-		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
 			subscriberApplication(appID1, topicToBeCreated, consumerGroup1))).
@@ -702,7 +695,6 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
-		// Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
@@ -803,18 +795,17 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 
 	flow.New(t, "servicebus certification - network interruption").
 
-		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
@@ -828,9 +819,35 @@ func TestServicebusEntityManagement(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	consumerGroup1 := watcher.NewUnordered()
 
+	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
+		return pubsub_servicebus.NewAzureServiceBus(log)
+	})
+
+	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
+		return secretstore_env.NewEnvSecretStore(log)
+	})
+
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
 	metadata := map[string]string{
 		messageKey: partition0,
+	}
+
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
 	}
 
 	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
@@ -867,39 +884,26 @@ func TestServicebusEntityManagement(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
+				//Error is expected as the topic does not exist
 				require.Error(ctx, err, "error publishing message")
 			}
 			return nil
 		}
 	}
 
-	testDefault := func(ctx flow.Context) error {
-		ports, _ := dapr_testing.GetFreePorts(6)
-		grpcPortS1 := ports[0]
-		httpPortS1 := ports[1]
-		profilePortS1 := ports[2]
-		sidecar := sidecar.New(sidecarName1, embedded.WithComponentsPath("./components/entity_mgnt"),
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPortS1),
-			embedded.WithDaprHTTPPort(httpPortS1),
-			embedded.WithProfilePort(profilePortS1),
-			runtime.WithPubSubs(
-				pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-					return pubsub_servicebus.NewAzureServiceBus(log)
-				}),
-			),
-			runtime.WithSecretStores(secretstores_loader.New("local.env", func() secretstores.SecretStore {
-				return secretstore_env.NewEnvSecretStore(log)
-			})))
-		sidecar.Start(ctx)
-		return nil
-	}
-
 	flow.New(t, "servicebus certification - entity management enabled").
 
-		// Test : disableEntityManagement optional attribute , Test processing with all optional attributes and single publisher/subscriber
 		// Run subscriberApplication app1
-		Step("verify if app1 has recevied messages published to newly created topic", testDefault).
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/entity_mgnt"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			runtime.WithSecretStores(secretStoreComponent),
+			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
 }
@@ -924,8 +928,6 @@ func TestServicebusDefaultTtl(t *testing.T) {
 	// subscriber of the given topic
 	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
-			// Simulate periodic errors.
-			sim := simulate.PeriodicError(ctx, 100)
 			// Setup the /orders event handler.
 			return multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{
@@ -933,13 +935,8 @@ func TestServicebusDefaultTtl(t *testing.T) {
 					Topic:      topicName,
 					Route:      "/orders",
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					if err := sim(); err != nil {
-						return true, err
-					}
-
-					// Track/Observe the data of the event.
-					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Got message: %s", e.Data)
+					messagesWatcher.FailIfNotExpected(t, e.Data)
 					return false, nil
 				}),
 			)
@@ -952,11 +949,6 @@ func TestServicebusDefaultTtl(t *testing.T) {
 			messages := make([]string, numMessages)
 			for i := range messages {
 				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
-			}
-
-			// add the messages as expectations to the watchers
-			for _, messageWatcher := range messageWatchers {
-				messageWatcher.ExpectStrings(messages...)
 			}
 
 			// get the sidecar (dapr) client
@@ -999,23 +991,23 @@ func TestServicebusDefaultTtl(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "servicebus certification").
+	flow.New(t, "servicebus certification - default ttl attribute").
 
-		// Test : defaultMessageTimeToLiveInSec optional attribute, in order processing with single publisher/subscriber
 		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*5),
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/default_ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*5),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*5),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*5),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*5),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("wait", flow.Sleep(20*time.Second)).
 		Step("verify if app6 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
@@ -1115,18 +1107,17 @@ func TestServicebusAuthentication(t *testing.T) {
 
 	flow.New(t, "servicebus certification - authentication").
 
-		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/authentication"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			runtime.WithSecretStores(secretStoreComponent),
 			runtime.WithPubSubs(component))).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).

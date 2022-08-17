@@ -147,7 +147,7 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 }
 
 func (s *ssmSecretStore) getSecretNames(ctx context.Context, offset *uint64) ([]string, error) {
-	var names = []string{}
+	names := []string{}
 	limit := pageLimit
 	// secret name is in Enabled state.
 	var state uint64 = 1

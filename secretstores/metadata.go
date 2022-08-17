@@ -20,3 +20,10 @@ const DefaultSecretRefKeyName = "_value"
 type Metadata struct {
 	Properties map[string]string `json:"properties,omitempty"`
 }
+
+type ParameterStoreMetaData struct {
+	Region       string `json:"region"`
+	AccessKey    string `json:"accessKey"`
+	SecretKey    string `json:"secretKey"`
+	SessionToken string `json:"sessionToken"`
+}

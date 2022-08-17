@@ -14,6 +14,7 @@ limitations under the License.
 package parameterstore
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -29,6 +30,10 @@ import (
 // Constant literals.
 const (
 	VersionID = "version_id"
+)
+
+var (
+	_ secretstores.SecretStore = (*ssmSecretStore)(nil)
 )
 
 // NewParameterStore returns a new ssm parameter store.
@@ -65,7 +70,7 @@ func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	name := req.Name
 
 	var versionID string
@@ -74,7 +79,7 @@ func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 		name = fmt.Sprintf("%s:%s", req.Name, versionID)
 	}
 
-	output, err := s.client.GetParameter(&ssm.GetParameterInput{
+	output, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 		Name:           aws.String(name),
 		WithDecryption: aws.Bool(true),
 	})
@@ -93,7 +98,7 @@ func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},
 	}
@@ -102,7 +107,7 @@ func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 	var nextToken *string = nil
 
 	for search {
-		output, err := s.client.DescribeParameters(&ssm.DescribeParametersInput{
+		output, err := s.client.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
 		})
@@ -111,7 +116,7 @@ func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 		}
 
 		for _, entry := range output.Parameters {
-			params, err := s.client.GetParameter(&ssm.GetParameterInput{
+			params, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 				Name:           entry.Name,
 				WithDecryption: aws.Bool(true),
 			})

@@ -13,11 +13,13 @@ limitations under the License.
 package parameterstore
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/stretchr/testify/assert"
@@ -29,17 +31,17 @@ import (
 const secretValue = "secret"
 
 type mockedSSM struct {
-	GetParameterFn       func(*ssm.GetParameterInput) (*ssm.GetParameterOutput, error)
-	DescribeParametersFn func(*ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error)
+	GetParameterFn       func(context.Context, *ssm.GetParameterInput, ...request.Option) (*ssm.GetParameterOutput, error)
+	DescribeParametersFn func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error)
 	ssmiface.SSMAPI
 }
 
-func (m *mockedSSM) GetParameter(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
-	return m.GetParameterFn(input)
+func (m *mockedSSM) GetParameterWithContext(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
+	return m.GetParameterFn(ctx, input, option...)
 }
 
-func (m *mockedSSM) DescribeParameters(input *ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error) {
-	return m.DescribeParametersFn(input)
+func (m *mockedSSM) DescribeParametersWithContext(ctx context.Context, input *ssm.DescribeParametersInput, option ...request.Option) (*ssm.DescribeParametersOutput, error) {
+	return m.DescribeParametersFn(ctx, input, option...)
 }
 
 func TestInit(t *testing.T) {
@@ -63,7 +65,7 @@ func TestGetSecret(t *testing.T) {
 		t.Run("with valid path", func(t *testing.T) {
 			s := ssmSecretStore{
 				client: &mockedSSM{
-					GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+					GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 						secret := secretValue
 
 						return &ssm.GetParameterOutput{
@@ -80,7 +82,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     "/aws/dev/secret",
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(req)
+			output, e := s.GetSecret(context.Background(), req)
 			assert.Nil(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
@@ -88,7 +90,7 @@ func TestGetSecret(t *testing.T) {
 		t.Run("with version id", func(t *testing.T) {
 			s := ssmSecretStore{
 				client: &mockedSSM{
-					GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+					GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 						secret := secretValue
 						keys := strings.Split(*input.Name, ":")
 						assert.NotNil(t, keys)
@@ -111,7 +113,7 @@ func TestGetSecret(t *testing.T) {
 					VersionID: "1",
 				},
 			}
-			output, e := s.GetSecret(req)
+			output, e := s.GetSecret(context.Background(), req)
 			assert.Nil(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -120,7 +122,7 @@ func TestGetSecret(t *testing.T) {
 	t.Run("unsuccessfully retrieve secret", func(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
-				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					return nil, fmt.Errorf("failed due to any reason")
 				},
 			},
@@ -129,7 +131,7 @@ func TestGetSecret(t *testing.T) {
 			Name:     "/aws/dev/secret",
 			Metadata: map[string]string{},
 		}
-		_, err := s.GetSecret(req)
+		_, err := s.GetSecret(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -138,7 +140,7 @@ func TestGetBulkSecrets(t *testing.T) {
 	t.Run("successfully retrieve bulk secrets", func(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
-				DescribeParametersFn: func(*ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error) {
+				DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 					return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
 						{
 							Name: aws.String("/aws/dev/secret1"),
@@ -148,7 +150,7 @@ func TestGetBulkSecrets(t *testing.T) {
 						},
 					}}, nil
 				},
-				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					secret := fmt.Sprintf("%s-%s", *input.Name, secretValue)
 
 					return &ssm.GetParameterOutput{
@@ -164,7 +166,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		output, e := s.BulkGetSecret(req)
+		output, e := s.BulkGetSecret(context.Background(), req)
 		assert.Nil(t, e)
 		assert.Contains(t, output.Data, "/aws/dev/secret1")
 		assert.Contains(t, output.Data, "/aws/dev/secret2")
@@ -173,7 +175,7 @@ func TestGetBulkSecrets(t *testing.T) {
 	t.Run("unsuccessfully retrieve bulk secrets on get parameter", func(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
-				DescribeParametersFn: func(*ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error) {
+				DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 					return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
 						{
 							Name: aws.String("/aws/dev/secret1"),
@@ -183,7 +185,7 @@ func TestGetBulkSecrets(t *testing.T) {
 						},
 					}}, nil
 				},
-				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					return nil, fmt.Errorf("failed due to any reason")
 				},
 			},
@@ -191,14 +193,14 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		_, err := s.BulkGetSecret(req)
+		_, err := s.BulkGetSecret(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("unsuccessfully retrieve bulk secrets on describe parameter", func(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
-				DescribeParametersFn: func(*ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error) {
+				DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 					return nil, fmt.Errorf("failed due to any reason")
 				},
 			},
@@ -206,7 +208,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		_, err := s.BulkGetSecret(req)
+		_, err := s.BulkGetSecret(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }

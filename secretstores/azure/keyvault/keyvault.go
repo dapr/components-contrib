@@ -107,13 +107,13 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (k *keyvaultSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	opts := &azsecrets.GetSecretOptions{}
 	if value, ok := req.Metadata[VersionID]; ok {
 		opts.Version = value
 	}
 
-	secretResp, err := k.vaultClient.GetSecret(context.TODO(), req.Name, opts)
+	secretResp, err := k.vaultClient.GetSecret(ctx, req.Name, opts)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}
@@ -131,7 +131,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (k *keyvaultSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	maxResults, err := k.getMaxResultsFromMetadata(req.Metadata)
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{}, err
@@ -147,7 +147,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 out:
 	for pager.More() {
-		pr, err := pager.NextPage(context.TODO())
+		pr, err := pager.NextPage(ctx)
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{}, err
 		}
@@ -158,7 +158,7 @@ out:
 			}
 
 			secretName := strings.TrimPrefix(*secret.ID, secretIDPrefix)
-			secretResp, err := k.vaultClient.GetSecret(context.TODO(), secretName, nil)
+			secretResp, err := k.vaultClient.GetSecret(ctx, secretName, nil)
 			if err != nil {
 				return secretstores.BulkGetSecretResponse{}, err
 			}

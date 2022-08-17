@@ -26,6 +26,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+var (
+	_ secretstores.SecretStore = (*kubernetesSecretStore)(nil)
+)
+
 type kubernetesSecretStore struct {
 	kubeClient kubernetes.Interface
 	logger     logger.Logger
@@ -48,7 +52,7 @@ func (k *kubernetesSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (k *kubernetesSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	resp := secretstores.GetSecretResponse{
 		Data: map[string]string{},
 	}
@@ -57,7 +61,7 @@ func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (se
 		return resp, err
 	}
 
-	secret, err := k.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), req.Name, meta_v1.GetOptions{})
+	secret, err := k.kubeClient.CoreV1().Secrets(namespace).Get(ctx, req.Name, meta_v1.GetOptions{})
 	if err != nil {
 		return resp, err
 	}
@@ -70,7 +74,7 @@ func (k *kubernetesSecretStore) GetSecret(req secretstores.GetSecretRequest) (se
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (k *kubernetesSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (k *kubernetesSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},
 	}
@@ -79,7 +83,7 @@ func (k *kubernetesSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequ
 		return resp, err
 	}
 
-	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(context.TODO(), meta_v1.ListOptions{})
+	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(ctx, meta_v1.ListOptions{})
 	if err != nil {
 		return resp, err
 	}

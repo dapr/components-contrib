@@ -14,6 +14,7 @@ limitations under the License.
 package secretmanager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -28,6 +29,10 @@ import (
 const (
 	VersionID    = "version_id"
 	VersionStage = "version_stage"
+)
+
+var (
+	_ secretstores.SecretStore = (*smSecretStore)(nil)
 )
 
 // NewSecretManager returns a new secret manager store.
@@ -64,7 +69,7 @@ func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (s *smSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	var versionID *string
 	if value, ok := req.Metadata[VersionID]; ok {
 		versionID = &value
@@ -74,7 +79,7 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 		versionStage = &value
 	}
 
-	output, err := s.client.GetSecretValue(&secretsmanager.GetSecretValueInput{
+	output, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId:     &req.Name,
 		VersionId:    versionID,
 		VersionStage: versionStage,
@@ -94,7 +99,7 @@ func (s *smSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstor
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	resp := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},
 	}
@@ -103,7 +108,7 @@ func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (se
 	var nextToken *string = nil
 
 	for search {
-		output, err := s.client.ListSecrets(&secretsmanager.ListSecretsInput{
+		output, err := s.client.ListSecretsWithContext(ctx, &secretsmanager.ListSecretsInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
 		})
@@ -112,7 +117,7 @@ func (s *smSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (se
 		}
 
 		for _, entry := range output.SecretList {
-			secrets, err := s.client.GetSecretValue(&secretsmanager.GetSecretValueInput{
+			secrets, err := s.client.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
 				SecretId: entry.Name,
 			})
 			if err != nil {

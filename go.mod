@@ -423,7 +423,7 @@ require (
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
 	github.com/alibabacloud-go/openapi-util v0.0.10 // indirect
-	github.com/alibabacloud-go/tea-utils v1.4.3 // indirect
+	github.com/alibabacloud-go/tea-utils v1.4.3
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect

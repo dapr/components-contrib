@@ -249,7 +249,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if items[0].IsBinary {
-		if items[0].Value == nil || len(items[0].Value.(string)) == 0 {
+		if items[0].Value == nil {
 			return &state.GetResponse{
 				Data: make([]byte, 0),
 				ETag: ptr.String(items[0].Etag),

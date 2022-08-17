@@ -13,6 +13,7 @@ limitations under the License.
 package env
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestInit(t *testing.T) {
 	t.Run("Test set and get", func(t *testing.T) {
 		err := s.Init(secretstores.Metadata{})
 		assert.Nil(t, err)
-		resp, err := s.GetSecret(secretstores.GetSecretRequest{Name: key})
+		resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: key})
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, secret, resp.Data[key])
@@ -48,7 +49,7 @@ func TestInit(t *testing.T) {
 	t.Run("Test bulk get", func(t *testing.T) {
 		err := s.Init(secretstores.Metadata{})
 		assert.Nil(t, err)
-		resp, err := s.BulkGetSecret(secretstores.BulkGetSecretRequest{})
+		resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, secret, resp.Data[key][key])

@@ -14,6 +14,7 @@ limitations under the License.
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,10 @@ type localSecretStoreMetaData struct {
 	NestedSeparator string `mapstructure:"nestedSeparator"`
 	MultiValued     bool   `mapstructure:"multiValued"`
 }
+
+var (
+	_ secretstores.SecretStore = (*localSecretStore)(nil)
+)
 
 type localSecretStore struct {
 	secretsFile     string
@@ -95,7 +100,7 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (j *localSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	secretValue, exists := j.secrets[req.Name]
 	if !exists {
 		return secretstores.GetSecretResponse{}, fmt.Errorf("secret %s not found", req.Name)
@@ -124,7 +129,7 @@ func (j *localSecretStore) GetSecret(req secretstores.GetSecretRequest) (secrets
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (j *localSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (j *localSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	r := map[string]map[string]string{}
 
 	for k, v := range j.secrets {

@@ -36,6 +36,10 @@ const (
 	secretItemIDPrefix = "/secrets/"
 )
 
+var (
+	_ secretstores.SecretStore = (*keyvaultSecretStore)(nil)
+)
+
 type keyvaultSecretStore struct {
 	vaultName      string
 	vaultClient    *azsecrets.Client

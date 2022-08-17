@@ -164,7 +164,6 @@ func (s *ssmSecretStore) getSecretNames(ctx context.Context, offset *uint64) ([]
 	var retLen uint64 = uint64(len(resp.SecretMetadatas))
 	if limit > retLen {
 		return names, nil
-
 	}
 
 	var newNames []string

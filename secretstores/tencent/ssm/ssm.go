@@ -46,9 +46,7 @@ type ssmSecretStore struct {
 	logger logger.Logger
 }
 
-var (
-	_ secretstores.SecretStore = (*ssmSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*ssmSecretStore)(nil)
 
 // NewSSM returns a new TencentCloud ssm secret store.
 func NewSSM(logger logger.Logger) secretstores.SecretStore {

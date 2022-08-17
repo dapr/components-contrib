@@ -73,8 +73,8 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 		c.logger.Debugf("no task queue provided")
 		return &workflows.WorkflowStruct{}, nil
 	}
-	opt := client.StartWorkflowOptions{ID: req.Options.ID, TaskQueue: req.Options.TaskQueue}
-	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
+	opt := client.StartWorkflowOptions{ID: req.WorkflowInfo.WorkflowId, TaskQueue: req.Options.TaskQueue}
+	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowInfo.WorkflowId, req.Parameters)
 	if err != nil {
 		c.logger.Debugf("error when starting workflow")
 		return &workflows.WorkflowStruct{}, err

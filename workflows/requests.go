@@ -7,7 +7,6 @@ import (
 )
 
 type StartRequestOptions struct {
-	ID        string `json:"id"`
 	TaskQueue string `json:"task_queue"`
 }
 
@@ -19,7 +18,7 @@ type WorkflowStruct struct {
 // StartRequest is the object describing a Start Workflow request.
 type StartRequest struct {
 	Options      StartRequestOptions `json:"workflow_options"`
-	WorkflowName string              `json:"workflow_name"`
+	WorkflowInfo WorkflowStruct      `json:"workflow_info"`
 	Parameters   interface{}         `json:"parameters"`
 }
 

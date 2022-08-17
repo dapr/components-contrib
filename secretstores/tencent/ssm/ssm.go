@@ -18,11 +18,12 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/kit/logger"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	ssm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm/v20190923"
+
+	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/kit/logger"
 )
 
 const (

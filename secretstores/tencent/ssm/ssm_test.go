@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/dapr/components-contrib/secretstores"
 	"github.com/stretchr/testify/assert"
 	ssm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm/v20190923"
+
+	"github.com/dapr/components-contrib/secretstores"
 )
 
 const (

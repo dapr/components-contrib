@@ -35,9 +35,7 @@ const (
 	Path      = "path"
 )
 
-var (
-	_ secretstores.SecretStore = (*oosSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*oosSecretStore)(nil)
 
 // NewParameterStore returns a new oos parameter store.
 func NewParameterStore(logger logger.Logger) secretstores.SecretStore {

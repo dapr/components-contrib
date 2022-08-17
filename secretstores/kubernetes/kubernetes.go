@@ -26,9 +26,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
-	_ secretstores.SecretStore = (*kubernetesSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*kubernetesSecretStore)(nil)
 
 type kubernetesSecretStore struct {
 	kubeClient kubernetes.Interface

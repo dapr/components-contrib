@@ -105,12 +105,16 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 			return response, err
 		}
 		val = string(bts)
-	}
-	if ssResponse.SecretString != nil {
+	} else if ssResponse.SecretString != nil {
 		val = *ssResponse.SecretString
 	}
-	response.Data[*ssResponse.SecretName] = val
-	response.Data[RequestID] = *ssResponse.RequestId
+
+	if ssResponse.SecretName != nil {
+		response.Data[*ssResponse.SecretName] = val
+	}
+	if ssResponse.RequestId != nil {
+		response.Data[RequestID] = *ssResponse.RequestId
+	}
 
 	return response, nil
 }

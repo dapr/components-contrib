@@ -22,9 +22,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
-	_ secretstores.SecretStore = (*envSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*envSecretStore)(nil)
 
 type envSecretStore struct {
 	logger logger.Logger

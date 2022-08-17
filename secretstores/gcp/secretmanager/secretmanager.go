@@ -46,9 +46,7 @@ type secretManagerMetadata struct {
 	gcpCredentials
 }
 
-var (
-	_ secretstores.SecretStore = (*Store)(nil)
-)
+var _ secretstores.SecretStore = (*Store)(nil)
 
 // Store contains and GCP secret manager client and project id.
 type Store struct {

@@ -31,9 +31,7 @@ const (
 	VersionStage = "version_stage"
 )
 
-var (
-	_ secretstores.SecretStore = (*smSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*smSecretStore)(nil)
 
 // NewSecretManager returns a new secret manager store.
 func NewSecretManager(logger logger.Logger) secretstores.SecretStore {

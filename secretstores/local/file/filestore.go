@@ -35,9 +35,7 @@ type localSecretStoreMetaData struct {
 	MultiValued     bool   `mapstructure:"multiValued"`
 }
 
-var (
-	_ secretstores.SecretStore = (*localSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*localSecretStore)(nil)
 
 type localSecretStore struct {
 	secretsFile     string

@@ -32,9 +32,7 @@ const (
 	VersionID = "version_id"
 )
 
-var (
-	_ secretstores.SecretStore = (*ssmSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*ssmSecretStore)(nil)
 
 // NewParameterStore returns a new ssm parameter store.
 func NewParameterStore(logger logger.Logger) secretstores.SecretStore {

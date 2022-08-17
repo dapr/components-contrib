@@ -39,9 +39,7 @@ type csmsClient interface {
 	ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error)
 }
 
-var (
-	_ secretstores.SecretStore = (*csmsSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*csmsSecretStore)(nil)
 
 type csmsSecretStore struct {
 	client csmsClient

@@ -65,9 +65,7 @@ const (
 	valueTypeText valueType = "text"
 )
 
-var (
-	_ secretstores.SecretStore = (*vaultSecretStore)(nil)
-)
+var _ secretstores.SecretStore = (*vaultSecretStore)(nil)
 
 func (v valueType) isMapType() bool {
 	return v == valueTypeMap

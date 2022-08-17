@@ -171,7 +171,7 @@ func (s *ssmSecretStore) getSecretNames(ctx context.Context, offset *uint64) ([]
 	}
 
 	var newNames []string
-	*offset = *offset + retLen
+	*offset += retLen
 	newNames, err = s.getSecretNames(ctx, offset)
 	if err != nil {
 		return nil, err

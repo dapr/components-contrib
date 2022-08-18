@@ -78,10 +78,10 @@ func TestInvoke(t *testing.T) {
 	// 3. invoke dapr dubbo output binding, get rsp bytes
 	rsp, err := output.Invoke(context.Background(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
-			metadataRpcProviderPort:     dubboPort,
-			metadataRpcProviderHostname: localhostIP,
-			metadataRpcMethodName:       methodName,
-			metadataRpcInterface:        providerInterfaceName,
+			metadataRPCProviderPort:     dubboPort,
+			metadataRPCProviderHostname: localhostIP,
+			metadataRPCMethodName:       methodName,
+			metadataRPCInterface:        providerInterfaceName,
 		},
 		Data:      reqData,
 		Operation: bindings.GetOperation,

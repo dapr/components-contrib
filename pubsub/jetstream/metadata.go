@@ -27,8 +27,8 @@ type metadata struct {
 	jwt     string
 	seedKey string
 
-	tls_client_cert string
-	tls_client_key  string
+	tlsClientCert string
+	tlsClientKey  string
 
 	name           string
 	durableName    string
@@ -59,14 +59,14 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		return metadata{}, fmt.Errorf("missing jwt")
 	}
 
-	m.tls_client_cert = psm.Properties["tls_client_cert"]
-	m.tls_client_key = psm.Properties["tls_client_key"]
+	m.tlsClientCert = psm.Properties["tls_client_cert"]
+	m.tlsClientKey = psm.Properties["tls_client_key"]
 
-	if m.tls_client_cert != "" && m.tls_client_key == "" {
+	if m.tlsClientCert != "" && m.tlsClientKey == "" {
 		return metadata{}, fmt.Errorf("missing tls client key")
 	}
 
-	if m.tls_client_cert == "" && m.tls_client_key != "" {
+	if m.tlsClientCert == "" && m.tlsClientKey != "" {
 		return metadata{}, fmt.Errorf("missing tls client cert")
 	}
 

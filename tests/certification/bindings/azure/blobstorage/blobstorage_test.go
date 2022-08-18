@@ -14,7 +14,7 @@ limitations under the License.
 package azureblobstoragebinding_test
 
 import (
-	"crypto/md5" // nolint:gosec
+	"crypto/md5" //nolint:gosec
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -217,7 +217,7 @@ func TestBlobStorage(t *testing.T) {
 		input := "some example content"
 		dataBytes := []byte(input)
 		wrongBytesForContentHash := []byte("wrong content to hash")
-		h := md5.New() // nolint:gosec
+		h := md5.New() //nolint:gosec
 		h.Write(wrongBytesForContentHash)
 		md5HashBase64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
@@ -318,7 +318,7 @@ func TestBlobStorage(t *testing.T) {
 
 			// verify the blob is public via http request.
 			url := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccountName, containerName, blobName)
-			resp, httpErr := http.Get(url) // nolint:gosec
+			resp, httpErr := http.Get(url) //nolint:gosec
 			assert.NoError(t, httpErr)
 			body, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
@@ -348,7 +348,7 @@ func TestBlobStorage(t *testing.T) {
 
 		input := "some example content"
 		dataBytes := []byte(input)
-		h := md5.New() // nolint:gosec
+		h := md5.New() //nolint:gosec
 		h.Write(dataBytes)
 		md5HashBase64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
@@ -563,11 +563,11 @@ func TestBlobStorage(t *testing.T) {
 		blobClient, _ := containerClient.NewBlockBlobClient("snapshotthis.txt")
 		uploadResp, uploadErr := blobClient.UploadBuffer(
 			ctx, []byte("some example content"),
-			azblob.UploadOption{}) // nolint: exhaustivestruct
+			azblob.UploadOption{}) //nolint:exhaustivestruct
 		assert.NoError(t, uploadErr)
 		uploadResp.Body.Close()
 		_, createSnapshotErr := blobClient.CreateSnapshot(
-			ctx, &azblob.BlobCreateSnapshotOptions{}) // nolint: exhaustivestruct
+			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, createSnapshotErr)
 
 		// list the contents of the container including snapshots for the specific blob only.
@@ -586,7 +586,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// create another snapshot.
 		_, createSnapshotErr2 := blobClient.CreateSnapshot(
-			ctx, &azblob.BlobCreateSnapshotOptions{}) // nolint: exhaustivestruct
+			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, createSnapshotErr2)
 
 		// delete base blob and snapshots all at once.

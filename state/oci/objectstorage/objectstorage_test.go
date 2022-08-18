@@ -177,7 +177,6 @@ type mockedObjectStoreClient struct {
 	putIsCalled        bool
 	deleteIsCalled     bool
 	pingBucketIsCalled bool
-	logger             logger.Logger
 }
 
 func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error) {

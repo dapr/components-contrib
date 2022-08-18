@@ -18,8 +18,8 @@ import (
 	"errors"
 	"fmt"
 
-	ipfs_options "github.com/ipfs/interface-go-ipfs-core/options"
-	ipfs_path "github.com/ipfs/interface-go-ipfs-core/path"
+	ipfsOptions "github.com/ipfs/interface-go-ipfs-core/options"
+	ipfsPath "github.com/ipfs/interface-go-ipfs-core/path"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -27,7 +27,7 @@ import (
 )
 
 // Handler for the "pin-rm" operation, which removes a pin
-func (h *IPFSBinding) pinRmOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *IPFSBinding) pinRmOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	reqMetadata := &pinRmRequestMetadata{}
 	err := reqMetadata.FromMap(req.Metadata)
 	if err != nil {
@@ -37,7 +37,7 @@ func (h *IPFSBinding) pinRmOperation(ctx context.Context, req *bindings.InvokeRe
 	if reqMetadata.Path == "" {
 		return nil, errors.New("metadata property 'path' is empty")
 	}
-	p := ipfs_path.New(reqMetadata.Path)
+	p := ipfsPath.New(reqMetadata.Path)
 	err = p.IsValid()
 	if err != nil {
 		return nil, fmt.Errorf("invalid value for metadata property 'path': %v", err)
@@ -47,7 +47,7 @@ func (h *IPFSBinding) pinRmOperation(ctx context.Context, req *bindings.InvokeRe
 	if err != nil {
 		return nil, err
 	}
-	err = h.ipfsAPI.Pin().Rm(ctx, p, opts...)
+	err = b.ipfsAPI.Pin().Rm(ctx, p, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,12 +73,12 @@ func (m *pinRmRequestMetadata) FromMap(mp map[string]string) (err error) {
 	return nil
 }
 
-func (m *pinRmRequestMetadata) PinRmOptions() ([]ipfs_options.PinRmOption, error) {
-	opts := []ipfs_options.PinRmOption{}
+func (m *pinRmRequestMetadata) PinRmOptions() ([]ipfsOptions.PinRmOption, error) {
+	opts := []ipfsOptions.PinRmOption{}
 	if m.Recursive != nil {
-		opts = append(opts, ipfs_options.Pin.RmRecursive(*m.Recursive))
+		opts = append(opts, ipfsOptions.Pin.RmRecursive(*m.Recursive))
 	} else {
-		opts = append(opts, ipfs_options.Pin.RmRecursive(true))
+		opts = append(opts, ipfsOptions.Pin.RmRecursive(true))
 	}
 	return opts, nil
 }

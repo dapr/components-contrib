@@ -10,7 +10,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/dapr/components-contrib/bindings"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 
 type serviceBusQueuesMetadata struct {
@@ -82,7 +82,7 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 		return nil, errors.New("connectionString and namespaceName are mutually exclusive")
 	}
 
-	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}

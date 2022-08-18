@@ -61,7 +61,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnError(expectedErr)
 
 	// Act
-	actualErr := m.mySQL.finishInit(m.mySQL.db, nil)
+	actualErr := m.mySQL.finishInit(m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, actualErr, "now error returned")
@@ -80,24 +80,11 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	m.mock1.ExpectExec("CREATE DATABASE").WillReturnError(expectedErr)
 
 	// Act
-	actualErr := m.mySQL.finishInit(m.mySQL.db, nil)
+	actualErr := m.mySQL.finishInit(m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, actualErr, "now error returned")
 	assert.Equal(t, "createDatabaseError", actualErr.Error(), "wrong error")
-}
-
-func TestFinishInitHandlesOpenError(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	// Act
-	err := m.mySQL.finishInit(m.mySQL.db, fmt.Errorf("failed to open database"))
-
-	// Assert
-	assert.NotNil(t, err, "now error returned")
-	assert.Equal(t, "failed to open database", err.Error(), "wrong error")
 }
 
 func TestFinishInitHandlesPingError(t *testing.T) {
@@ -117,7 +104,7 @@ func TestFinishInitHandlesPingError(t *testing.T) {
 	m.mock2.ExpectPing().WillReturnError(expectedErr)
 
 	// Act
-	actualErr := m.mySQL.finishInit(m.mySQL.db, nil)
+	actualErr := m.mySQL.finishInit(m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, actualErr, "now error returned")
@@ -145,7 +132,7 @@ func TestFinishInitHandlesTableExistsError(t *testing.T) {
 	m.mock2.ExpectQuery("SELECT EXISTS").WillReturnError(fmt.Errorf("tableExistsError"))
 
 	// Act
-	err := m.mySQL.finishInit(m.mySQL.db, nil)
+	err := m.mySQL.finishInit(m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, err, "no error returned")
@@ -667,6 +654,21 @@ func TestInitSetsTableName(t *testing.T) {
 	assert.Equal(t, "stateStore", m.mySQL.tableName, "table name did not default")
 }
 
+func TestInitInvalidTableName(t *testing.T) {
+	// Arrange
+	t.Parallel()
+	m, _ := mockDatabase(t)
+	metadata := &state.Metadata{
+		Properties: map[string]string{connectionStringKey: "", tableNameKey: "🙃"},
+	}
+
+	// Act
+	err := m.mySQL.Init(*metadata)
+
+	// Assert
+	assert.ErrorContains(t, err, "table name '🙃' is not valid")
+}
+
 func TestInitSetsSchemaName(t *testing.T) {
 	// Arrange
 	t.Parallel()
@@ -681,6 +683,21 @@ func TestInitSetsSchemaName(t *testing.T) {
 	// Assert
 	assert.NotNil(t, err)
 	assert.Equal(t, "stateStoreSchema", m.mySQL.schemaName, "table name did not default")
+}
+
+func TestInitInvalidSchemaName(t *testing.T) {
+	// Arrange
+	t.Parallel()
+	m, _ := mockDatabase(t)
+	metadata := &state.Metadata{
+		Properties: map[string]string{connectionStringKey: "", schemaNameKey: "?"},
+	}
+
+	// Act
+	err := m.mySQL.Init(*metadata)
+
+	// Assert
+	assert.ErrorContains(t, err, "schema name '?' is not valid")
 }
 
 // This state store does not support BulkGet so it must return false and
@@ -1017,4 +1034,26 @@ func (f *fakeMySQLFactory) Open(connectionString string) (*sql.DB, error) {
 
 func (f *fakeMySQLFactory) RegisterTLSConfig(pemPath string) error {
 	return f.registerErr
+}
+
+func TestValidIdentifier(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  string
+		want bool
+	}{
+		{name: "empty string", arg: "", want: false},
+		{name: "valid characters only", arg: "acz_039_AZS", want: true},
+		{name: "invalid ASCII characters 1", arg: "$", want: false},
+		{name: "invalid ASCII characters 2", arg: "*", want: false},
+		{name: "invalid ASCII characters 3", arg: "hello world", want: false},
+		{name: "non-ASCII characters", arg: "🙃", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := validIdentifier(tt.arg); got != tt.want {
+				t.Errorf("validIdentifier() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

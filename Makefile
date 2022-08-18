@@ -59,24 +59,37 @@ else
   GOLANGCI_LINT:=golangci-lint
 endif
 
-# Get linter version used on github
+# Get linter versions
+LINTER_BINARY := $(shell $(FINDBIN) $(GOLANGCI_LINT))
 GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
+INSTALLED_LINT_VERSION := v$(shell $(LINTER_BINARY) --version | grep -Eo '(\d+\.)+\d+' || "")
 
-ifeq (, $(shell $(FINDBIN) golangci-lint))
-  $(info [!] golangci_lint not installed)
-  $(info [!] You can install it from https://golangci-lint.run/usage/install/)
-  $(info [!]   or by running)
-  $(info [!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin)
-  $(error golangci-lint not installed)
-endif
+################################################################################
+# Target: verify-linter-installed                                              #
+################################################################################
+.PHONY: verify-linter-installed
+verify-linter-installed:
+	@if [ -z $(LINTER_BINARY) ]; then \
+	  echo "[!] golangci_lint not installed"; \
+		echo "[!] You can install it from https://golangci-lint.run/usage/install/)"; \
+		echo "[!]   or by running)"; \
+		echo "[!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin)"; \
+		exit 1; \
+	fi;
 
-# Check golangci-lint is the same as that defined in the Github CI Pipeline
-INSTALLED_LINT_VERSION := v$(shell golangci-lint --version | grep -Eo '(\d+\.)+\d+' || "")
-ifneq ($(GH_LINT_VERSION), $(INSTALLED_LINT_VERSION))
-  $(info [!] Your locally installed version of golangci-lint is different from the pipeline)
-  $(info [!] This will likely cause linting issues for you locally)
-  $(info [!] Yours: $(INSTALLED_LINT_VERSION) Theirs: $(GH_LINT_VERSION))
-endif
+################################################################################
+# Target: verify-linter-version                                                #
+################################################################################
+.PHONY: verify-linter-version
+verify-linter-version:
+	@if [ "$(GH_LINT_VERSION)" != "$(INSTALLED_LINT_VERSION)" ]; then \
+	  echo "[!] Your locally installed version of golangci-lint is different from the pipeline"; \
+	  echo "[!] This will likely cause linting issues for you locally"; \
+	  echo "[!] Yours:  $(INSTALLED_LINT_VERSION)"; \
+		echo "[!] Theirs: $(GH_LINT_VERSION)"; \
+	  sleep 3; \
+	fi;
+
 
 ################################################################################
 # Target: test                                                                 #
@@ -89,7 +102,7 @@ test:
 # Target: lint                                                                 #
 ################################################################################
 .PHONY: lint
-lint:
+lint: verify-linter-installed verify-linter-version
 	# Due to https://github.com/golangci/golangci-lint/issues/580, we need to add --fix for windows
 	$(GOLANGCI_LINT) run --timeout=20m
 

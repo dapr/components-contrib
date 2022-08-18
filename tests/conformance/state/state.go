@@ -233,7 +233,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this state store")
+			assert.EqualError(t, err, "ping is not implemented by this state store")
 		} else {
 			assert.Nil(t, err)
 		}

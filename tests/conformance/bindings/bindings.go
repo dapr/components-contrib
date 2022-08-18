@@ -147,7 +147,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if errInp != nil {
-			assert.EqualError(t, errInp, "Ping is not implemented by this input binding")
+			assert.EqualError(t, errInp, "ping is not implemented by this input binding")
 		} else {
 			assert.Nil(t, errInp)
 		}
@@ -156,7 +156,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if errOut != nil {
-			assert.EqualError(t, errOut, "Ping is not implemented by this output binding")
+			assert.EqualError(t, errOut, "ping is not implemented by this output binding")
 		} else {
 			assert.Nil(t, errOut)
 		}

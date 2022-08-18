@@ -563,11 +563,11 @@ func TestBlobStorage(t *testing.T) {
 		blobClient, _ := containerClient.NewBlockBlobClient("snapshotthis.txt")
 		uploadResp, uploadErr := blobClient.UploadBuffer(
 			ctx, []byte("some example content"),
-			azblob.UploadOption{}) //nolint: exhaustivestruct
+			azblob.UploadOption{}) //nolint:exhaustivestruct
 		assert.NoError(t, uploadErr)
 		uploadResp.Body.Close()
 		_, createSnapshotErr := blobClient.CreateSnapshot(
-			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint: exhaustivestruct
+			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, createSnapshotErr)
 
 		// list the contents of the container including snapshots for the specific blob only.
@@ -586,7 +586,7 @@ func TestBlobStorage(t *testing.T) {
 
 		// create another snapshot.
 		_, createSnapshotErr2 := blobClient.CreateSnapshot(
-			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint: exhaustivestruct
+			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, createSnapshotErr2)
 
 		// delete base blob and snapshots all at once.

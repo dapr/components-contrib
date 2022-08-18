@@ -53,7 +53,7 @@ type outgoingWebhook struct {
 	handler bindings.Handler
 }
 
-var webhooks = struct { //nolint: gochecknoglobals
+var webhooks = struct { //nolint:gochecknoglobals
 	sync.RWMutex
 	m map[string]*outgoingWebhook
 }{m: make(map[string]*outgoingWebhook)}

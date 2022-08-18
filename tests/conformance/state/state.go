@@ -386,7 +386,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	}
 
-	//nolint: nestif
+	//nolint:nestif
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
 			// Check if transactional feature is listed

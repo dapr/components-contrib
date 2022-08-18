@@ -107,7 +107,7 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		},
 	}
 
-	switch req.Operation { //nolint: exhaustive
+	switch req.Operation { //nolint:exhaustive
 	case execOperation:
 		r, err := p.exec(ctx, sql)
 		if err != nil {

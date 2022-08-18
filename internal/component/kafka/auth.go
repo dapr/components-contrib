@@ -59,7 +59,7 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 		return nil
 	}
 
-	//nolint: gosec
+	//nolint:gosec
 	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify, MinVersion: tls.VersionTLS12}
 	config.Net.TLS.Enable = true
 

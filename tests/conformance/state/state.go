@@ -425,7 +425,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 
-			transactionStore := statestore.(state.TransactionalStore)
+			transactionStore, ok := statestore.(state.TransactionalStore)
+			assert.True(t, ok)
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
@@ -547,7 +548,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// Act
-			transactionStore := statestore.(state.TransactionalStore)
+			transactionStore, ok := statestore.(state.TransactionalStore)
+			assert.True(t, ok)
 			err = transactionStore.Multi(&state.TransactionalStateRequest{
 				Operations: operations,
 				Metadata:   partitionMetadata,

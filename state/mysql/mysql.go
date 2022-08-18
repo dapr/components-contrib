@@ -245,6 +245,11 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// never need to pass it in.
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
+
+		// adding a basic precaution to ensure our SQL query is not hijacked
+		stateTableName = strings.Split(strings.Split(stateTableName, ";")[0], " ")[0]
+
+		//nolint:gosec
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,

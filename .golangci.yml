@@ -260,7 +260,6 @@ linters:
     - godot
     - cyclop
     - varnamelen
-    - gosec
     - errorlint
     - forcetypeassert
     - ifshort

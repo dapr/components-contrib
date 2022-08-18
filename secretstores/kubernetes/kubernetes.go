@@ -13,6 +13,7 @@ limitations under the License.
 
 package kubernetes
 
+//nolint:nosnakecase
 import (
 	"context"
 	"errors"
@@ -59,7 +60,7 @@ func (k *kubernetesSecretStore) GetSecret(ctx context.Context, req secretstores.
 		return resp, err
 	}
 
-	secret, err := k.kubeClient.CoreV1().Secrets(namespace).Get(ctx, req.Name, meta_v1.GetOptions{})
+	secret, err := k.kubeClient.CoreV1().Secrets(namespace).Get(ctx, req.Name, meta_v1.GetOptions{}) //nolint:nosnakecase
 	if err != nil {
 		return resp, err
 	}
@@ -81,7 +82,8 @@ func (k *kubernetesSecretStore) BulkGetSecret(ctx context.Context, req secretsto
 		return resp, err
 	}
 
-	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(ctx, meta_v1.ListOptions{})
+	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(ctx, meta_v1.ListOptions{}) //nolint:nosnakecase
+
 	if err != nil {
 		return resp, err
 	}

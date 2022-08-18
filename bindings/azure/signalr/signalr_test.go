@@ -284,7 +284,7 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestWriteShouldFail(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 
 	s := NewSignalR(logger.NewLogger("test"))
@@ -335,7 +335,7 @@ func TestWriteShouldFail(t *testing.T) {
 
 func TestWriteShouldSucceed(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 
 	s := NewSignalR(logger.NewLogger("test"))

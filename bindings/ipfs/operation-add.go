@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 
-	ipfs_files "github.com/ipfs/go-ipfs-files"
-	ipfs_options "github.com/ipfs/interface-go-ipfs-core/options"
+	ipfsFiles "github.com/ipfs/go-ipfs-files"
+	ipfsOptions "github.com/ipfs/interface-go-ipfs-core/options"
 
 	"github.com/multiformats/go-multihash"
 
@@ -30,7 +30,7 @@ import (
 )
 
 // Handler for the "add" operation, which adds a new file
-func (h *IPFSBinding) addOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *IPFSBinding) addOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if len(req.Data) == 0 {
 		return nil, errors.New("data is empty")
 	}
@@ -45,8 +45,8 @@ func (h *IPFSBinding) addOperation(ctx context.Context, req *bindings.InvokeRequ
 	if err != nil {
 		return nil, err
 	}
-	f := ipfs_files.NewBytesFile(req.Data)
-	resolved, err := h.ipfsAPI.Unixfs().Add(ctx, f, opts...)
+	f := ipfsFiles.NewBytesFile(req.Data)
+	resolved, err := b.ipfsAPI.Unixfs().Add(ctx, f, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,28 +86,28 @@ func (m *addRequestMetadata) FromMap(mp map[string]string) (err error) {
 	return nil
 }
 
-func (m *addRequestMetadata) UnixfsAddOptions() ([]ipfs_options.UnixfsAddOption, error) {
-	opts := []ipfs_options.UnixfsAddOption{}
+func (m *addRequestMetadata) UnixfsAddOptions() ([]ipfsOptions.UnixfsAddOption, error) {
+	opts := []ipfsOptions.UnixfsAddOption{}
 	if m.CidVersion != nil {
-		opts = append(opts, ipfs_options.Unixfs.CidVersion(*m.CidVersion))
+		opts = append(opts, ipfsOptions.Unixfs.CidVersion(*m.CidVersion))
 	}
 	if m.Pin != nil {
-		opts = append(opts, ipfs_options.Unixfs.Pin(*m.Pin))
+		opts = append(opts, ipfsOptions.Unixfs.Pin(*m.Pin))
 	} else {
-		opts = append(opts, ipfs_options.Unixfs.Pin(true))
+		opts = append(opts, ipfsOptions.Unixfs.Pin(true))
 	}
 	if m.Hash != nil {
 		hash, ok := multihash.Names[*m.Hash]
 		if !ok {
 			return nil, fmt.Errorf("invalid hash %s", *m.Hash)
 		}
-		opts = append(opts, ipfs_options.Unixfs.Hash(hash))
+		opts = append(opts, ipfsOptions.Unixfs.Hash(hash))
 	}
 	if m.Inline != nil {
-		opts = append(opts, ipfs_options.Unixfs.Inline(*m.Inline))
+		opts = append(opts, ipfsOptions.Unixfs.Inline(*m.Inline))
 	}
 	if m.InlineLimit != nil {
-		opts = append(opts, ipfs_options.Unixfs.InlineLimit(*m.InlineLimit))
+		opts = append(opts, ipfsOptions.Unixfs.InlineLimit(*m.InlineLimit))
 	}
 	return opts, nil
 }

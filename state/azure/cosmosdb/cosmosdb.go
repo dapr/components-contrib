@@ -249,7 +249,18 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if items[0].IsBinary {
-		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+		if items[0].Value == nil {
+			return &state.GetResponse{
+				Data: make([]byte, 0),
+				ETag: ptr.String(items[0].Etag),
+			}, nil
+		}
+
+		bytes, decodeErr := base64.StdEncoding.DecodeString(items[0].Value.(string))
+		if decodeErr != nil {
+			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
+			bytes = []byte(items[0].Value.(string))
+		}
 
 		return &state.GetResponse{
 			Data: bytes,
@@ -583,6 +594,9 @@ func (c *StateStore) findCollection() (*documentdb.Collection, error) {
 
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
 	byteArray, isBinary := req.Value.([]uint8)
+	if len(byteArray) == 0 {
+		isBinary = false
+	}
 
 	ttl, err := parseTTL(req.Metadata)
 	if err != nil {

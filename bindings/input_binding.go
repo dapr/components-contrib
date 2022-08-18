@@ -36,6 +36,6 @@ func PingInpBinding(inputBinding InputBinding) error {
 	if inputBindingWithPing, ok := inputBinding.(health.Pinger); ok {
 		return inputBindingWithPing.Ping()
 	} else {
-		return fmt.Errorf("ping is not implemented by this input binding") //nolint:stylecheck
+		return fmt.Errorf("ping is not implemented by this input binding")
 	}
 }

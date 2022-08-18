@@ -44,7 +44,7 @@ func (m *mySQLFactory) RegisterTLSConfig(pemPath string) error {
 	pem, readErr := os.ReadFile(pemPath)
 
 	if readErr != nil {
-		m.logger.Errorf("Error reading PEM file from $s", pemPath)
+		m.logger.Error("Error reading PEM file from " + pemPath)
 
 		return readErr
 	}

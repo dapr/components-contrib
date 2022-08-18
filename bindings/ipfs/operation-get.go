@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"io"
 
-	ipfs_files "github.com/ipfs/go-ipfs-files"
-	ipfs_path "github.com/ipfs/interface-go-ipfs-core/path"
+	ipfsFiles "github.com/ipfs/go-ipfs-files"
+	ipfsPath "github.com/ipfs/interface-go-ipfs-core/path"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -28,7 +28,7 @@ import (
 )
 
 // Handler for the "get" operation, which retrieves a document
-func (h *IPFSBinding) getOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *IPFSBinding) getOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	reqMetadata := &getRequestMetadata{}
 	err := reqMetadata.FromMap(req.Metadata)
 	if err != nil {
@@ -38,19 +38,19 @@ func (h *IPFSBinding) getOperation(ctx context.Context, req *bindings.InvokeRequ
 	if reqMetadata.Path == "" {
 		return nil, errors.New("metadata property 'path' is empty")
 	}
-	p := ipfs_path.New(reqMetadata.Path)
+	p := ipfsPath.New(reqMetadata.Path)
 	err = p.IsValid()
 	if err != nil {
 		return nil, fmt.Errorf("invalid value for metadata property 'path': %v", err)
 	}
 
-	res, err := h.ipfsAPI.Unixfs().Get(ctx, p)
+	res, err := b.ipfsAPI.Unixfs().Get(ctx, p)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
 
-	f, ok := res.(ipfs_files.File)
+	f, ok := res.(ipfsFiles.File)
 	if !ok {
 		return nil, errors.New("path does not represent a file")
 	}

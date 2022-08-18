@@ -81,7 +81,7 @@ func NewSubscription(
 }
 
 // Connect to a Service Bus topic or queue, blocking until it succeeds; it can retry forever (until the context is canceled).
-func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, error)) (err error) {
+func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, error)) error {
 	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
 	config := retry.DefaultConfig()
 	config.Policy = retry.PolicyExponential
@@ -89,7 +89,7 @@ func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, e
 	config.MaxElapsedTime = 0
 	backoff := config.NewBackOffWithContext(s.ctx)
 
-	err = retry.NotifyRecover(
+	err := retry.NotifyRecover(
 		func() error {
 			clientAttempt, innerErr := newReceiverFunc()
 			if innerErr != nil {

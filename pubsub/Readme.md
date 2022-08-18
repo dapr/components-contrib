@@ -15,13 +15,13 @@ If the pub sub component implementation can handle message TTL natively without 
 Example:
 
 ```go
-import contrib_metadata "github.com/dapr/components-contrib/metadata"
+import contribMetadata "github.com/dapr/components-contrib/metadata"
 
 //...
 
 func (c *MyComponent) Publish(req *pubsub.PublishRequest) error {
 	//...
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
+	ttl, hasTTL, _ := contribMetadata.TryGetTTL(req.Metadata)
 	if hasTTL {
 		//... handle ttl for component.
 	}

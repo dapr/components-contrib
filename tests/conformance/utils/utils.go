@@ -38,7 +38,7 @@ type server struct {
 	Data []byte
 }
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	s          server
 	testLogger = logger.NewLogger("utils")

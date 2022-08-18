@@ -24,15 +24,15 @@ import (
 	"sync"
 	"time"
 
-	ipfs_httpclient "github.com/ipfs/go-ipfs-http-client"
-	ipfs_icore "github.com/ipfs/interface-go-ipfs-core"
-	ipfs_config "github.com/ipfs/kubo/config"
-	ipfs_core "github.com/ipfs/kubo/core"
-	ipfs_coreapi "github.com/ipfs/kubo/core/coreapi"
-	ipfs_libp2p "github.com/ipfs/kubo/core/node/libp2p"
-	ipfs_loader "github.com/ipfs/kubo/plugin/loader"
-	ipfs_repo "github.com/ipfs/kubo/repo"
-	ipfs_fsrepo "github.com/ipfs/kubo/repo/fsrepo"
+	ipfsHttpclient "github.com/ipfs/go-ipfs-http-client"
+	ipfsIcore "github.com/ipfs/interface-go-ipfs-core"
+	ipfsConfig "github.com/ipfs/kubo/config"
+	ipfsCore "github.com/ipfs/kubo/core"
+	ipfsCoreapi "github.com/ipfs/kubo/core/coreapi"
+	ipfsLibp2p "github.com/ipfs/kubo/core/node/libp2p"
+	ipfsLoader "github.com/ipfs/kubo/plugin/loader"
+	ipfsRepo "github.com/ipfs/kubo/repo"
+	ipfsFsrepo "github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -59,9 +59,9 @@ func init() {
 // IPFSBinding is a binding for interacting with an IPFS network.
 type IPFSBinding struct {
 	metadata ipfsMetadata
-	ipfsAPI  ipfs_icore.CoreAPI
-	ipfsNode *ipfs_core.IpfsNode
-	ipfsRepo ipfs_repo.Repo
+	ipfsAPI  ipfsIcore.CoreAPI
+	ipfsNode *ipfsCore.IpfsNode
+	ipfsRepo ipfsRepo.Repo
 	ctx      context.Context
 	cancel   context.CancelFunc
 	logger   logger.Logger
@@ -103,9 +103,9 @@ func (b *IPFSBinding) Init(metadata bindings.Metadata) (err error) {
 			if err != nil {
 				return fmt.Errorf("failed to parse external API multiaddr: %v", err)
 			}
-			b.ipfsAPI, err = ipfs_httpclient.NewApiWithClient(maddr, httpClient)
+			b.ipfsAPI, err = ipfsHttpclient.NewApiWithClient(maddr, httpClient)
 		} else {
-			b.ipfsAPI, err = ipfs_httpclient.NewURLApiWithClient(b.metadata.ExternalAPI, httpClient)
+			b.ipfsAPI, err = ipfsHttpclient.NewURLApiWithClient(b.metadata.ExternalAPI, httpClient)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize external IPFS API: %v", err)
@@ -141,13 +141,13 @@ func (b *IPFSBinding) Close() (err error) {
 
 func (b *IPFSBinding) createNode() (err error) {
 	// Init the repo if needed
-	if !ipfs_fsrepo.IsInitialized(b.metadata.RepoPath) {
-		var cfg *ipfs_config.Config
+	if !ipfsFsrepo.IsInitialized(b.metadata.RepoPath) {
+		var cfg *ipfsConfig.Config
 		cfg, err = b.metadata.IPFSConfig()
 		if err != nil {
 			return err
 		}
-		err = ipfs_fsrepo.Init(b.metadata.RepoPath, cfg)
+		err = ipfsFsrepo.Init(b.metadata.RepoPath, cfg)
 		if err != nil {
 			return err
 		}
@@ -162,31 +162,31 @@ func (b *IPFSBinding) createNode() (err error) {
 	}
 
 	// Open the repo
-	repo, err := ipfs_fsrepo.Open(b.metadata.RepoPath)
+	repo, err := ipfsFsrepo.Open(b.metadata.RepoPath)
 	if err != nil {
 		return err
 	}
 	b.logger.Infof("Opened IPFS repo at path %s", b.metadata.RepoPath)
 
 	// Create the node
-	nodeOptions := &ipfs_core.BuildCfg{
+	nodeOptions := &ipfsCore.BuildCfg{
 		Online: true,
 		Repo:   repo,
 	}
 	r := strings.ToLower(b.metadata.Routing)
 	switch r {
 	case "", "dht":
-		nodeOptions.Routing = ipfs_libp2p.DHTOption
+		nodeOptions.Routing = ipfsLibp2p.DHTOption
 	case "dhtclient":
-		nodeOptions.Routing = ipfs_libp2p.DHTClientOption
+		nodeOptions.Routing = ipfsLibp2p.DHTClientOption
 	case "dhtserver":
-		nodeOptions.Routing = ipfs_libp2p.DHTServerOption
+		nodeOptions.Routing = ipfsLibp2p.DHTServerOption
 	case "none":
-		nodeOptions.Routing = ipfs_libp2p.NilRouterOption
+		nodeOptions.Routing = ipfsLibp2p.NilRouterOption
 	default:
 		return fmt.Errorf("invalid value for metadata property 'routing'")
 	}
-	b.ipfsNode, err = ipfs_core.NewNode(b.ctx, nodeOptions)
+	b.ipfsNode, err = ipfsCore.NewNode(b.ctx, nodeOptions)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (b *IPFSBinding) createNode() (err error) {
 	b.logger.Infof("Started IPFS node %s", b.ipfsNode.Identity)
 
 	// Init API
-	b.ipfsAPI, err = ipfs_coreapi.NewCoreAPI(b.ipfsNode)
+	b.ipfsAPI, err = ipfsCoreapi.NewCoreAPI(b.ipfsNode)
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func (b *IPFSBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (
 }
 
 func setupPlugins(externalPluginsPath string) error {
-	plugins, err := ipfs_loader.NewPluginLoader("")
+	plugins, err := ipfsLoader.NewPluginLoader("")
 	if err != nil {
 		return fmt.Errorf("error loading plugins: %s", err)
 	}

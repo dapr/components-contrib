@@ -244,6 +244,7 @@ linters:
     - nestif
     - nlreturn
     - exhaustive
+    - exhaustruct
     - noctx
     - gci
     - golint
@@ -259,7 +260,6 @@ linters:
     - godot
     - cyclop
     - varnamelen
-    - gosec
     - errorlint
     - forcetypeassert
     - ifshort
@@ -271,3 +271,8 @@ linters:
     - wastedassign
     - containedctx
     - gosimple
+    - nonamedreturns
+    - asasalint
+    - rowserrcheck
+    - sqlclosecheck
+    - structcheck

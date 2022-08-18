@@ -34,6 +34,6 @@ func Ping(secretStore SecretStore) error {
 	if secretStoreWithPing, ok := secretStore.(health.Pinger); ok {
 		return secretStoreWithPing.Ping()
 	} else {
-		return fmt.Errorf("Ping is not implemented by this secret store")
+		return fmt.Errorf("ping is not implemented by this secret store")
 	}
 }

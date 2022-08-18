@@ -105,7 +105,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this pubsub")
+			assert.EqualError(t, err, "ping is not implemented by this pubsub")
 		} else {
 			assert.Nil(t, err)
 		}
@@ -125,7 +125,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	ctx := context.Background()
 
 	// Subscribe
-	if config.HasOperation("subscribe") { // nolint: nestif
+	if config.HasOperation("subscribe") { //nolint:nestif
 		t.Run("subscribe", func(t *testing.T) {
 			var counter int
 			var lastSequence int

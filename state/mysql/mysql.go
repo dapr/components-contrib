@@ -202,9 +202,7 @@ func (m *MySQL) ensureStateSchema() error {
 	if !exists {
 		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
 
-		createTable := fmt.Sprintf("CREATE DATABASE %s;", m.schemaName)
-
-		_, err = m.db.Exec(createTable)
+		_, err = m.db.Exec(`CREATE DATABASE ?`, m.schemaName)
 
 		if err != nil {
 			return err
@@ -245,6 +243,8 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// never need to pass it in.
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
+
+		//nolint:gosec
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,

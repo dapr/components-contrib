@@ -60,7 +60,7 @@ endif
 
 # Get linter versions
 LINTER_BINARY := $(shell $(FINDBIN) $(GOLANGCI_LINT))
-GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
+export GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
 ifeq (,$(LINTER_BINARY))
   INSTALLED_LINT_VERSION := "v0.0.0"
 else
@@ -76,7 +76,7 @@ verify-linter-installed:
 	  echo "[!] golangci-lint not installed"; \
 		echo "[!] You can install it from https://golangci-lint.run/usage/install/"; \
 		echo "[!]   or by running"; \
-		echo "[!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin"; \
+		echo "[!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $(GH_LINT_VERSION)"; \
 		exit 1; \
 	fi;
 
@@ -90,6 +90,7 @@ verify-linter-version:
 	  echo "[!] This will likely cause linting issues for you locally"; \
 	  echo "[!] Yours:  $(INSTALLED_LINT_VERSION)"; \
 		echo "[!] Theirs: $(GH_LINT_VERSION)"; \
+		echo "[!] Upgrade: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $(GH_LINT_VERSION)"; \
 	  sleep 3; \
 	fi;
 

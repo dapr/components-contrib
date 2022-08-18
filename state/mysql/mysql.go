@@ -202,9 +202,7 @@ func (m *MySQL) ensureStateSchema() error {
 	if !exists {
 		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
 
-		createTable := fmt.Sprintf("CREATE DATABASE %s;", m.schemaName)
-
-		_, err = m.db.Exec(createTable)
+		_, err = m.db.Exec(`CREATE DATABASE ?`, m.schemaName)
 
 		if err != nil {
 			return err
@@ -247,7 +245,7 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// in on inserts and updates and is used for Optimistic Concurrency
 
 		_, err = m.db.Exec(
-			`CREATE TABLE $1 (
+			`CREATE TABLE ? (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,
 			isbinary BOOLEAN NOT NULL,

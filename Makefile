@@ -59,17 +59,19 @@ else
   GOLANGCI_LINT:=golangci-lint
 endif
 
-# Install golangci_lint if not installed
+# Get linter version used on github
 GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
 
 ifeq (, $(shell $(FINDBIN) golangci-lint))
-  $(info [*] golangci_lint not installed)
-  $(info [*] Installing now...)
-  $(shell curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin $(GH_LINT_VERSION))
+  $(info [!] golangci_lint not installed)
+  $(info [!] You can install it from https://golangci-lint.run/usage/install/)
+  $(info [!]   or by running)
+  $(info [!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin)
+  $(error golangci-lint not installed)
 endif
 
 # Check golangci-lint is the same as that defined in the Github CI Pipeline
-INSTALLED_LINT_VERSION := v$(shell golangci-lint --version | grep -Po '(\d+\.)+\d+' || "")
+INSTALLED_LINT_VERSION := v$(shell golangci-lint --version | grep -Eo '(\d+\.)+\d+' || "")
 ifneq ($(GH_LINT_VERSION), $(INSTALLED_LINT_VERSION))
   $(info [!] Your locally installed version of golangci-lint is different from the pipeline)
   $(info [!] This will likely cause linting issues for you locally)

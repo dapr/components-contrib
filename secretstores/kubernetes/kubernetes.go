@@ -83,7 +83,6 @@ func (k *kubernetesSecretStore) BulkGetSecret(ctx context.Context, req secretsto
 	}
 
 	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(ctx, meta_v1.ListOptions{}) //nolint:nosnakecase
-
 	if err != nil {
 		return resp, err
 	}

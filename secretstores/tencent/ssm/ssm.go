@@ -40,10 +40,10 @@ const (
 type SecretValueType uint16
 
 var (
-	// TEXT_SECRET_VALUE text secret.
-	TEXT_SECRET_VALUE SecretValueType = 10
-	// BINARY_SECRET_VALUE binary secret
-	BINARY_SECRET_VALUE SecretValueType = 20
+	// TextSecretValue text secret.
+	TextSecretValue SecretValueType = 10
+	// BinarySecretValue binary secret.
+	BinarySecretValue SecretValueType = 20
 )
 
 type ssmClient interface {
@@ -109,10 +109,10 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	var val string
 	ssResponse := ssResp.Response
 	if ssResponse.SecretBinary != nil {
-		response.Data[ValueType] = strconv.Itoa(int(BINARY_SECRET_VALUE))
+		response.Data[ValueType] = strconv.Itoa(int(BinarySecretValue))
 		val = *ssResponse.SecretBinary
 	} else if ssResponse.SecretString != nil {
-		response.Data[ValueType] = strconv.Itoa(int(TEXT_SECRET_VALUE))
+		response.Data[ValueType] = strconv.Itoa(int(TextSecretValue))
 		val = *ssResponse.SecretString
 	}
 
@@ -172,7 +172,7 @@ func (s *ssmSecretStore) getSecretNames(ctx context.Context, offset *uint64) ([]
 	for _, metadata := range resp.SecretMetadatas {
 		names = append(names, *metadata.SecretName)
 	}
-	var retLen uint64 = uint64(len(resp.SecretMetadatas))
+	var retLen = uint64(len(resp.SecretMetadatas))
 	if limit > retLen {
 		return names, nil
 	}

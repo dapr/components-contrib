@@ -61,7 +61,11 @@ endif
 # Get linter versions
 LINTER_BINARY := $(shell $(FINDBIN) $(GOLANGCI_LINT))
 GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
-INSTALLED_LINT_VERSION := v$(shell $(LINTER_BINARY) --version | grep -Eo '(\d+\.)+\d+' || "")
+ifeq (,$(LINTER_BINARY))
+  INSTALLED_LINT_VERSION := "v0.0.0"
+else
+	INSTALLED_LINT_VERSION := v$(shell $(LINTER_BINARY) --version | grep -Eo '(\d+\.)+\d+' || "")
+endif
 
 ################################################################################
 # Target: verify-linter-installed                                              #

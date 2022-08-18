@@ -40,7 +40,7 @@ type BunchTransactionConfirmRequest struct {
 	StatusCode         int    `json:"statusCode"`
 }
 
-type BunchTransactionRollBackRequest struct {
+type BunchTransactionRollbackRequest struct {
 	TransactionId      string `json:"transactionId"`
 	BunchTransactionId string `json:"bunchTransactionId"`
 	StatusCode         int    `json:"statusCode"`

@@ -27,8 +27,8 @@ const (
 	stateForTryFailure           = 1
 	stateForConfirmSuccess       = 20
 	stateForConfirmFailure       = 2
-	stateForRollBackSuccess      = 30
-	stateForRollBackFailure      = 3
+	stateForRollbackSuccess      = 30
+	stateForRollbackFailure      = 3
 	requestStatusOK              = 1
 	defaultTransactionSchema     = "tcc"
 )
@@ -367,29 +367,29 @@ func (t *DistributeTransaction) Confirm(confirmRequest transaction.BunchTransact
 	return nil
 }
 
-// RollBack the trasaction
-func (t *DistributeTransaction) RollBack(rollBackRequest transaction.BunchTransactionRollBackRequest) error {
-	t.logger.Debug("RollBack the bunch transaction")
-	if rollBackRequest.TransactionId == "" || rollBackRequest.BunchTransactionId == "" {
+// Rollback the trasaction
+func (t *DistributeTransaction) Rollback(rollbackRequest transaction.BunchTransactionRollbackRequest) error {
+	t.logger.Debug("Rollback the bunch transaction")
+	if rollbackRequest.TransactionId == "" || rollbackRequest.BunchTransactionId == "" {
 		t.logger.Info("distribute transaction id or bunch transaction id missing")
 		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
 	}
-	bunchTransactionStateStore, err := t.getBunchTransaction(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId)
+	bunchTransactionStateStore, err := t.getBunchTransaction(rollbackRequest.TransactionId, rollbackRequest.BunchTransactionId)
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store read error")
 		return err
 	}
-	if rollBackRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore.StatusCode = stateForRollBackSuccess
+	if rollbackRequest.StatusCode == requestStatusOK {
+		bunchTransactionStateStore.StatusCode = stateForRollbackSuccess
 	} else {
-		bunchTransactionStateStore.StatusCode = stateForRollBackFailure
+		bunchTransactionStateStore.StatusCode = stateForRollbackFailure
 	}
 
-	err = t.modifyBunchTransactionState(rollBackRequest.TransactionId, rollBackRequest.BunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(rollbackRequest.TransactionId, rollbackRequest.BunchTransactionId, t.parseStructToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
-	t.logger.Debug(rollBackRequest.TransactionId, "bunch transaction state store success")
+	t.logger.Debug(rollbackRequest.TransactionId, "bunch transaction state store success")
 	return nil
 }
 

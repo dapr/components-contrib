@@ -436,10 +436,8 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	case []uint8:
 		isBinary = true
 		v = base64.StdEncoding.EncodeToString(x)
-	case json.Marshaler:
-		v = x
 	default:
-		return errors.New("unsupported type for value: cannot be encoded as JSON")
+		v = x
 	}
 
 	encB, _ := json.Marshal(v)
@@ -449,23 +447,28 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	var result sql.Result
 	var maxRows int64 = 1
 
-	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-	// Other parameters use sql.DB parameter substitution.
-	if req.ETag == nil || *req.ETag == "" {
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
+		query := fmt.Sprintf(
+			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?);`,
+			m.tableName, // m.tableName is sanitized
+		)
+		result, err = m.db.Exec(query, enc, req.Key, eTag, isBinary)
+	} else if req.ETag != nil && *req.ETag != "" {
+		// When an eTag is provided do an update - not insert
+		query := fmt.Sprintf(
+			`UPDATE %s SET value = ?, eTag = ?, isbinary = ? WHERE id = ? AND eTag = ?;`,
+			m.tableName, // m.tableName is sanitized
+		)
+		result, err = m.db.Exec(query, enc, eTag, isBinary, req.Key, *req.ETag)
+	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
 		query := fmt.Sprintf(
 			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
-			m.tableName,
+			m.tableName, // m.tableName is sanitized
 		)
 		result, err = m.db.Exec(query, enc, req.Key, eTag, isBinary, enc, eTag, isBinary)
-	} else {
-		// When an eTag is provided do an update - not insert
-		query := fmt.Sprintf(
-			`UPDATE %s SET value = ?, eTag = ?, isbinary = ? WHERE id = ? AND eTag = ?;`,
-			m.tableName,
-		)
-		result, err = m.db.Exec(query, enc, eTag, isBinary, req.Key, *req.ETag)
 	}
 
 	if err != nil {

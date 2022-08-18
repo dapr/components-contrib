@@ -274,3 +274,6 @@ linters:
     - gosimple
     - nonamedreturns
     - asasalint
+    - rowserrcheck
+    - sqlclosecheck
+    - structcheck

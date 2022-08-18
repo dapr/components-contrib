@@ -244,17 +244,17 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
 
-		_, err = m.db.Exec(
-			`CREATE TABLE ? (
+		//nolint:gosec
+		createTable := fmt.Sprintf(`CREATE TABLE %s (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,
 			isbinary BOOLEAN NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			eTag VARCHAR(36) NOT NULL
-			);`,
-			stateTableName,
-		)
+			);`, stateTableName)
+
+		_, err = m.db.Exec(createTable)
 
 		if err != nil {
 			return err

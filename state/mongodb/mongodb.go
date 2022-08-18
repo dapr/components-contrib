@@ -66,7 +66,7 @@ const (
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 
 	// mongodb+srv://<username>:<password>@<server>/<params>
-	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s"
+	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s" //nolint:gosec
 )
 
 // MongoDB is a state store implementation for MongoDB.

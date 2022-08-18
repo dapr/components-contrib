@@ -16,7 +16,7 @@ package ssm
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
@@ -109,10 +109,10 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	var val string
 	ssResponse := ssResp.Response
 	if ssResponse.SecretBinary != nil {
-		response.Data[ValueType] = fmt.Sprintf("%d", BINARY_SECRET_VALUE)
+		response.Data[ValueType] = strconv.Itoa(int(BINARY_SECRET_VALUE))
 		val = *ssResponse.SecretBinary
 	} else if ssResponse.SecretString != nil {
-		response.Data[ValueType] = fmt.Sprintf("%d", TEXT_SECRET_VALUE)
+		response.Data[ValueType] = strconv.Itoa(int(TEXT_SECRET_VALUE))
 		val = *ssResponse.SecretString
 	}
 

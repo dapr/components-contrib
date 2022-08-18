@@ -139,6 +139,7 @@ func TestBulkGetSecret(t *testing.T) {
 			secretName: {
 				secretName: secretValue,
 				RequestID:  "requestid",
+				ValueType:  "10",
 			},
 		}
 		resp, e := c.BulkGetSecret(context.Background(), req)

@@ -27,14 +27,14 @@ import (
 )
 
 const (
-	SecretID               = "SecretID"
-	SecretKey              = "SecretKey"
-	Token                  = "Token"
-	Region                 = "Region"
-	VersionID              = "VersionID"
-	RequestID              = "RequestID"
-	SecretValueType        = "SecretValueType"
-	pageLimit       uint64 = 100
+	SecretID         = "SecretID"
+	SecretKey        = "SecretKey"
+	Token            = "Token"
+	Region           = "Region"
+	VersionID        = "VersionID"
+	RequestID        = "RequestID"
+	ValueType        = "SecretValueType"
+	pageLimit uint64 = 100
 )
 
 type SecretValueType uint16
@@ -109,10 +109,10 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	var val string
 	ssResponse := ssResp.Response
 	if ssResponse.SecretBinary != nil {
-		response.Data[SecretValueType] = fmt.Sprintf("%d", BINARY_SECRET_VALUE)
+		response.Data[ValueType] = fmt.Sprintf("%d", BINARY_SECRET_VALUE)
 		val = *ssResponse.SecretBinary
 	} else if ssResponse.SecretString != nil {
-		response.Data[SecretValueType] = fmt.Sprintf("%d", TEXT_SECRET_VALUE)
+		response.Data[ValueType] = fmt.Sprintf("%d", TEXT_SECRET_VALUE)
 		val = *ssResponse.SecretString
 	}
 

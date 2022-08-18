@@ -73,10 +73,10 @@ endif
 .PHONY: verify-linter-installed
 verify-linter-installed:
 	@if [ -z $(LINTER_BINARY) ]; then \
-	  echo "[!] golangci_lint not installed"; \
-		echo "[!] You can install it from https://golangci-lint.run/usage/install/)"; \
-		echo "[!]   or by running)"; \
-		echo "[!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin)"; \
+	  echo "[!] golangci-lint not installed"; \
+		echo "[!] You can install it from https://golangci-lint.run/usage/install/"; \
+		echo "[!]   or by running"; \
+		echo "[!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin"; \
 		exit 1; \
 	fi;
 

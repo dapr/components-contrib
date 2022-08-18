@@ -15,8 +15,8 @@ package ssm
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
+	"fmt"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
@@ -27,13 +27,23 @@ import (
 )
 
 const (
-	SecretID         = "SecretID"
-	SecretKey        = "SecretKey"
-	Token            = "Token"
-	Region           = "Region"
-	VersionID        = "VersionID"
-	RequestID        = "RequestID"
-	pageLimit uint64 = 100
+	SecretID               = "SecretID"
+	SecretKey              = "SecretKey"
+	Token                  = "Token"
+	Region                 = "Region"
+	VersionID              = "VersionID"
+	RequestID              = "RequestID"
+	SecretValueType        = "SecretValueType"
+	pageLimit       uint64 = 100
+)
+
+type SecretValueType uint16
+
+var (
+	// TEXT_SECRET_VALUE text secret.
+	TEXT_SECRET_VALUE SecretValueType = 10
+	// BINARY_SECRET_VALUE binary secret
+	BINARY_SECRET_VALUE SecretValueType = 20
 )
 
 type ssmClient interface {
@@ -99,12 +109,10 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	var val string
 	ssResponse := ssResp.Response
 	if ssResponse.SecretBinary != nil {
-		bts, err := base64.StdEncoding.DecodeString(*ssResponse.SecretBinary)
-		if err != nil {
-			return response, err
-		}
-		val = string(bts)
+		response.Data[SecretValueType] = fmt.Sprintf("%d", BINARY_SECRET_VALUE)
+		val = *ssResponse.SecretBinary
 	} else if ssResponse.SecretString != nil {
+		response.Data[SecretValueType] = fmt.Sprintf("%d", TEXT_SECRET_VALUE)
 		val = *ssResponse.SecretString
 	}
 

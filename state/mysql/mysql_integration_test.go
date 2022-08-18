@@ -44,6 +44,14 @@ type fakeItem struct {
 	Color string
 }
 
+func (f fakeItem) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Color)
+}
+
+func (f *fakeItem) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Color)
+}
+
 func TestMySQLIntegration(t *testing.T) {
 	t.Parallel()
 

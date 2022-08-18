@@ -30,7 +30,7 @@ import (
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -590,21 +590,21 @@ func (a *azureServiceBus) createSubscriptionProperties() (*sbadmin.SubscriptionP
 	}
 
 	if a.metadata.LockDurationInSec != nil {
-		lockDuration := contrib_metadata.Duration{
+		lockDuration := contribMetadata.Duration{
 			Duration: time.Duration(*a.metadata.LockDurationInSec) * time.Second,
 		}
 		properties.LockDuration = to.Ptr(lockDuration.ToISOString())
 	}
 
 	if a.metadata.DefaultMessageTimeToLiveInSec != nil {
-		defaultMessageTimeToLive := contrib_metadata.Duration{
+		defaultMessageTimeToLive := contribMetadata.Duration{
 			Duration: time.Duration(*a.metadata.DefaultMessageTimeToLiveInSec) * time.Second,
 		}
 		properties.DefaultMessageTimeToLive = to.Ptr(defaultMessageTimeToLive.ToISOString())
 	}
 
 	if a.metadata.AutoDeleteOnIdleInSec != nil {
-		autoDeleteOnIdle := contrib_metadata.Duration{
+		autoDeleteOnIdle := contribMetadata.Duration{
 			Duration: time.Duration(*a.metadata.AutoDeleteOnIdleInSec) * time.Second,
 		}
 		properties.AutoDeleteOnIdle = to.Ptr(autoDeleteOnIdle.ToISOString())

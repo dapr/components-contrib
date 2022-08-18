@@ -155,7 +155,7 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		},
 	}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation { //nolint: exhaustive
 	case execOperation:
 		r, err := m.exec(ctx, s)
 		if err != nil {

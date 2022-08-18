@@ -22,7 +22,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -145,7 +145,7 @@ func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.M
 	}
 
 	// Common properties.
-	ttl, ok, _ := contrib_metadata.TryGetTTL(req.Metadata)
+	ttl, ok, _ := contribMetadata.TryGetTTL(req.Metadata)
 	if ok {
 		asbMsg.TimeToLive = &ttl
 	}

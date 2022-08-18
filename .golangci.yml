@@ -244,6 +244,7 @@ linters:
     - nestif
     - nlreturn
     - exhaustive
+    - exhaustruct
     - noctx
     - gci
     - golint
@@ -271,3 +272,5 @@ linters:
     - wastedassign
     - containedctx
     - gosimple
+    - nonamedreturns
+    - asasalint

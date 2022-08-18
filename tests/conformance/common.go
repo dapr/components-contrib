@@ -11,6 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:nosnakecase
 package conformance
 
 import (
@@ -87,7 +88,7 @@ const (
 	generateUUID = "$((uuid))"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var testLogger = logger.NewLogger("testLogger")
 
 type TestConfiguration struct {

@@ -162,7 +162,7 @@ func (t *DingTalkWebhook) sendMessage(ctx context.Context, req *bindings.InvokeR
 	ctx, cancel := context.WithTimeout(ctx, defaultHTTPClientTimeout)
 	defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", postURL, bytes.NewReader(msg))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, postURL, bytes.NewReader(msg))
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: new request failed. %w", err)
 	}

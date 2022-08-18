@@ -38,7 +38,7 @@ const (
 	defaultOutputData = "[{\"eventType\":\"test\",\"eventTime\": \"2018-01-25T22:12:19.4556811Z\",\"subject\":\"dapr-conf-tests\",\"id\":\"A234-1234-1234\",\"data\":\"root/>\"}]"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	testLogger = logger.NewLogger("bindingsTest")
 

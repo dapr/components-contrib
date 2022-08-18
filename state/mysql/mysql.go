@@ -236,6 +236,8 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// never need to pass it in.
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
+		// Note that stateTableName is sanitized
+		//nolint:gosec
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,
@@ -361,9 +363,10 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		isBinary bool
 	)
 
+	//nolint:gosec
 	query := fmt.Sprintf(
 		`SELECT value, eTag, isbinary FROM %s WHERE id = ?`,
-		m.tableName,
+		m.tableName, // m.tableName is sanitized
 	)
 	err := m.db.QueryRow(query, req.Key).Scan(&value, &eTag, &isBinary)
 	if err != nil {
@@ -399,7 +402,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	return &state.GetResponse{
-		Data:     []byte(value),
+		Data:     value,
 		ETag:     ptr.Of(eTag),
 		Metadata: req.Metadata,
 	}, nil
@@ -449,6 +452,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
 		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
+		//nolint:gosec
 		query := fmt.Sprintf(
 			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?);`,
 			m.tableName, // m.tableName is sanitized
@@ -456,6 +460,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 		result, err = m.db.Exec(query, enc, req.Key, eTag, isBinary)
 	} else if req.ETag != nil && *req.ETag != "" {
 		// When an eTag is provided do an update - not insert
+		//nolint:gosec
 		query := fmt.Sprintf(
 			`UPDATE %s SET value = ?, eTag = ?, isbinary = ? WHERE id = ? AND eTag = ?;`,
 			m.tableName, // m.tableName is sanitized
@@ -464,6 +469,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
+		//nolint:gosec
 		query := fmt.Sprintf(
 			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
 			m.tableName, // m.tableName is sanitized

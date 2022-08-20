@@ -84,7 +84,7 @@ func (p *policy) tryInsertCondition(sqsArn string, snsArn string) bool {
 				}
 			}
 			// insert it if it does not exist
-			p.Statement[i].Condition.ForAllValuesArnEquals.AwsSourceArn = append(s.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArn)
+			p.Statement[i].Condition.ForAllValuesArnEquals.AwsSourceArn = append(p.Statement[i].Condition.ForAllValuesArnEquals.AwsSourceArn, snsArn)
 			return false
 		}
 	}

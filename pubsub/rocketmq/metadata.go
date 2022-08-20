@@ -42,7 +42,7 @@ type rocketMQMetaData struct {
 	AccessKey  string `mapstructure:"accessKey"`
 	SecretKey  string `mapstructure:"secretKey"`
 	NameServer string `mapstructure:"nameServer"`
-	// deprecated: use ProducerGroup instead.
+	// Deprecated: use ProducerGroup instead.
 	GroupName     string `mapstructure:"groupName"`
 	ProducerGroup string `mapstructure:"producerGroup"`
 	NameSpace     string `mapstructure:"nameSpace"`
@@ -55,7 +55,7 @@ type rocketMQMetaData struct {
 	ContentType string `mapstructure:"content-type"`
 	// retry times to connect rocketmq's broker
 	Retries int `mapstructure:"retries"`
-	// deprecated: send msg timeout to connect rocketmq's broker, nanoseconds
+	// Deprecated: send msg timeout to connect rocketmq's broker, nanoseconds
 	SendTimeOut int `mapstructure:"sendTimeOut"`
 	// send msg timeout to connect rocketmq's broker, seconds
 	SendTimeOutSec int `mapstructure:"sendTimeOutSec"`

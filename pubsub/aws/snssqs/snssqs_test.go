@@ -491,6 +491,7 @@ func Test_policy_compatible(t *testing.T) {
 	r.Equal(insertedStatement.Resource, sqsArn)
 	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
 	r.Equal(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], snsArn)
+}
 
 func Test_buildARN_DefaultPartition(t *testing.T) {
 	t.Parallel()

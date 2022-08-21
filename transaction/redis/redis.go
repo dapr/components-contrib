@@ -345,7 +345,6 @@ func (t *DistributeTransaction) Confirm(confirmRequest transaction.BunchTransact
 	bunchTransactionStateStore, err := t.getBunchTransaction(confirmRequest.TransactionID, confirmRequest.BunchTransactionID)
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store read error")
-		return err
 	}
 	if confirmRequest.StatusCode == requestStatusOK {
 		bunchTransactionStateStore.StatusCode = stateForConfirmSuccess
@@ -371,7 +370,6 @@ func (t *DistributeTransaction) Rollback(rollbackRequest transaction.BunchTransa
 	bunchTransactionStateStore, err := t.getBunchTransaction(rollbackRequest.TransactionID, rollbackRequest.BunchTransactionID)
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store read error")
-		return err
 	}
 	if rollbackRequest.StatusCode == requestStatusOK {
 		bunchTransactionStateStore.StatusCode = stateForRollbackSuccess

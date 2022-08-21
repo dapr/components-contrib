@@ -26,8 +26,8 @@ type TransactionTryRequestParam struct {
 	Data             []byte                  `json:"data"`
 	ContentType      string                  `json:"contentType"`
 	Header           *fasthttp.RequestHeader `json:"header"`
-	ActorType        string                  `json:"actorType`
-	ActorID          string                  `json:"actorID`
+	ActorType        string                  `json:"actorType"`
+	ActorID          string                  `json:"actorID"`
 }
 
 type GetBunchTransactionsRequest struct {

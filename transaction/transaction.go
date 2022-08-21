@@ -1,7 +1,6 @@
 package transaction
 
 type Transaction interface {
-
 	// Init this component.
 	Init(metadata Metadata)
 

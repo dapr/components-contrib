@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	//defaultStateStoreDuration       = 300
+	// defaultStateStoreDuration       = 300
 	// set a test duration
 	defaultStateStoreDuration    = 3000
 	defaultTransactionIdPre      = "transaction-"
@@ -152,7 +152,6 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionId string) (
 		bunchTransactionState[bunchTransactionId] = bunchTransaction.StatusCode
 	}
 	return bunchTransactionState, nil
-
 }
 
 func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[string]transaction.DistributeTransactionState, error) {
@@ -183,7 +182,6 @@ func (t *DistributeTransaction) getBunchTransactions(transactionId string) (map[
 		bunchTransactions[bunchTransactionId] = transaction
 	}
 	return bunchTransactions, nil
-
 }
 
 func (t *DistributeTransaction) getBunchTransaction(transactionId string, bunchTransactionId string) (*transaction.DistributeTransactionState, error) {
@@ -225,7 +223,6 @@ func (t *DistributeTransaction) releaseBunchTransactionState(transactionId strin
 
 func (t *DistributeTransaction) parseStructToString(param any) string {
 	b, err := json.Marshal(param)
-
 	if err != nil {
 		return ""
 	}
@@ -279,7 +276,6 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 	transactionId := t.genDisTransactionId()
 
 	bunchTransactionIds := []string{}
-	//bunchTransactionStateStores := make(map[string]interface{})
 	bunchTransactionStateStores := []string{}
 
 	i := 1

@@ -10,8 +10,8 @@ type BeginTransactionRequest struct {
 }
 
 type BunchTransactionTryRequest struct {
-	TransactionId      string                      `json:"transactionId"`
-	BunchTransactionId string                      `json:"bunchTransactionId"`
+	TransactionID      string                      `json:"transactionID"`
+	BunchTransactionID string                      `json:"bunchTransactionID"`
 	StatusCode         int                         `json:"statusCode"`
 	TryRequestParam    *TransactionTryRequestParam `json:"tryRequestParam"`
 }
@@ -31,23 +31,23 @@ type TransactionTryRequestParam struct {
 }
 
 type GetBunchTransactionsRequest struct {
-	TransactionId string `json:"transactionId"`
+	TransactionID string `json:"transactionID"`
 }
 
 type BunchTransactionConfirmRequest struct {
-	TransactionId      string `json:"transactionId"`
-	BunchTransactionId string `json:"bunchTransactionId"`
+	TransactionID      string `json:"transactionID"`
+	BunchTransactionID string `json:"bunchTransactionID"`
 	StatusCode         int    `json:"statusCode"`
 }
 
 type BunchTransactionRollbackRequest struct {
-	TransactionId      string `json:"transactionId"`
-	BunchTransactionId string `json:"bunchTransactionId"`
+	TransactionID      string `json:"transactionID"`
+	BunchTransactionID string `json:"bunchTransactionID"`
 	StatusCode         int    `json:"statusCode"`
 }
 
 type ReleaseTransactionRequest struct {
-	TransactionId string `json:"transactionId"`
+	TransactionID string `json:"transactionID"`
 }
 
 type DistributeTransactionState struct {

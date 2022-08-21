@@ -1,16 +1,16 @@
 package transaction
 
 type BeginResponse struct {
-	TransactionId       string   `json:"transactionId"`
-	BunchTransactionIds []string `json:"bunchTransactionIds"`
+	TransactionID       string   `json:"transactionID"`
+	BunchTransactionIDs []string `json:"bunchTransactionIDs"`
 }
 
 type TransactionStateResponse struct {
-	TransactionId          string         `json:"transactionId"`
+	TransactionID          string         `json:"transactionID"`
 	BunchTransactionStates map[string]int `json:"bunchTransactionStates"`
 }
 
 type BunchTransactionsResponse struct {
-	TransactionId     string                                `json:"transactionId"`
+	TransactionID     string                                `json:"transactionID"`
 	BunchTransactions map[string]DistributeTransactionState `json:"bunchTransactions"`
 }

@@ -54,7 +54,7 @@ type Nacos struct {
 	watches      []configParam
 	servers      []constant.ServerConfig
 	logger       logger.Logger
-	configClient config_client.IConfigClient
+	configClient config_client.IConfigClient //nolint:nosnakecase
 	readHandler  func(ctx context.Context, response *bindings.ReadResponse) ([]byte, error)
 }
 

@@ -294,7 +294,7 @@ func (n *natsStreamingPubSub) subscriptionOptions() ([]stan.SubscriptionOption, 
 
 	switch {
 	case n.metadata.deliverNew == deliverNewTrue:
-		options = append(options, stan.StartAt(pb.StartPosition_NewOnly))
+		options = append(options, stan.StartAt(pb.StartPosition_NewOnly)) //nolint:nosnakecase
 	case n.metadata.startAtSequence >= 1: // messages index start from 1, this is a valid check
 		options = append(options, stan.StartAtSequence(n.metadata.startAtSequence))
 	case n.metadata.startWithLastReceived == startWithLastReceivedTrue:

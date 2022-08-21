@@ -32,6 +32,7 @@ import (
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
+//
 //revive:disable-next-line
 type HTTPSource struct {
 	metadata httpMetadata

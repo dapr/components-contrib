@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	ipfs_options "github.com/ipfs/interface-go-ipfs-core/options"
+	ipfsOptions "github.com/ipfs/interface-go-ipfs-core/options"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -27,7 +27,7 @@ import (
 )
 
 // Handler for the "pin-ls" operation, which removes a pin
-func (h *IPFSBinding) pinLsOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *IPFSBinding) pinLsOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	reqMetadata := &pinLsRequestMetadata{}
 	err := reqMetadata.FromMap(req.Metadata)
 	if err != nil {
@@ -38,7 +38,7 @@ func (h *IPFSBinding) pinLsOperation(ctx context.Context, req *bindings.InvokeRe
 	if err != nil {
 		return nil, err
 	}
-	ls, err := h.ipfsAPI.Pin().Ls(ctx, opts...)
+	ls, err := b.ipfsAPI.Pin().Ls(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -83,23 +83,23 @@ func (m *pinLsRequestMetadata) FromMap(mp map[string]string) (err error) {
 	return nil
 }
 
-func (m *pinLsRequestMetadata) PinLsOptions() ([]ipfs_options.PinLsOption, error) {
-	opts := []ipfs_options.PinLsOption{}
+func (m *pinLsRequestMetadata) PinLsOptions() ([]ipfsOptions.PinLsOption, error) {
+	opts := []ipfsOptions.PinLsOption{}
 	if m.Type != nil {
 		switch strings.ToLower(*m.Type) {
 		case "direct":
-			opts = append(opts, ipfs_options.Pin.Ls.Direct())
+			opts = append(opts, ipfsOptions.Pin.Ls.Direct())
 		case "recursive":
-			opts = append(opts, ipfs_options.Pin.Ls.Recursive())
+			opts = append(opts, ipfsOptions.Pin.Ls.Recursive())
 		case "indirect":
-			opts = append(opts, ipfs_options.Pin.Ls.Indirect())
+			opts = append(opts, ipfsOptions.Pin.Ls.Indirect())
 		case "all":
-			opts = append(opts, ipfs_options.Pin.Ls.All())
+			opts = append(opts, ipfsOptions.Pin.Ls.All())
 		default:
 			return nil, fmt.Errorf("invalid value for metadata property 'type'")
 		}
 	} else {
-		opts = append(opts, ipfs_options.Pin.Ls.All())
+		opts = append(opts, ipfsOptions.Pin.Ls.All())
 	}
 	return opts, nil
 }

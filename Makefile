@@ -22,39 +22,78 @@ export GOSUMDB ?= sum.golang.org
 GIT_COMMIT  = $(shell git rev-list -1 HEAD)
 GIT_VERSION = $(shell git describe --always --abbrev=7 --dirty)
 # By default, disable CGO_ENABLED. See the details on https://golang.org/cmd/cgo
-CGO         ?= 0
+CGO ?= 0
 
 LOCAL_ARCH := $(shell uname -m)
 ifeq ($(LOCAL_ARCH),x86_64)
-	TARGET_ARCH_LOCAL=amd64
+  TARGET_ARCH_LOCAL=amd64
 else ifeq ($(shell echo $(LOCAL_ARCH) | head -c 5),armv8)
-	TARGET_ARCH_LOCAL=arm64
+  TARGET_ARCH_LOCAL=arm64
 else ifeq ($(shell echo $(LOCAL_ARCH) | head -c 4),armv)
-	TARGET_ARCH_LOCAL=arm
+  TARGET_ARCH_LOCAL=arm
 else
-	TARGET_ARCH_LOCAL=amd64
+  TARGET_ARCH_LOCAL=amd64
 endif
 export GOARCH ?= $(TARGET_ARCH_LOCAL)
 
 LOCAL_OS := $(shell uname)
 ifeq ($(LOCAL_OS),Linux)
-   TARGET_OS_LOCAL = linux
+  TARGET_OS_LOCAL = linux
 else ifeq ($(LOCAL_OS),Darwin)
-   TARGET_OS_LOCAL = darwin
+  TARGET_OS_LOCAL = darwin
 else
-   TARGET_OS_LOCAL ?= windows
+  TARGET_OS_LOCAL ?= windows
 endif
 export GOOS ?= $(TARGET_OS_LOCAL)
 
 ifeq ($(GOOS),windows)
-BINARY_EXT_LOCAL:=.exe
-GOLANGCI_LINT:=golangci-lint.exe
-# Workaround for https://github.com/golang/go/issues/40795
-BUILDMODE:=-buildmode=exe
+  FINDBIN := where
+  BINARY_EXT_LOCAL:=.exe
+  GOLANGCI_LINT:=golangci-lint.exe
+  # Workaround for https://github.com/golang/go/issues/40795
+  BUILDMODE:=-buildmode=exe
 else
-BINARY_EXT_LOCAL:=
-GOLANGCI_LINT:=golangci-lint
+  FINDBIN := which
+  BINARY_EXT_LOCAL:=
+  GOLANGCI_LINT:=golangci-lint
 endif
+
+# Get linter versions
+LINTER_BINARY := $(shell $(FINDBIN) $(GOLANGCI_LINT))
+export GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
+ifeq (,$(LINTER_BINARY))
+  INSTALLED_LINT_VERSION := "v0.0.0"
+else
+	INSTALLED_LINT_VERSION := v$(shell $(LINTER_BINARY) --version | grep -Eo '(\d+\.)+\d+' || "")
+endif
+
+################################################################################
+# Target: verify-linter-installed                                              #
+################################################################################
+.PHONY: verify-linter-installed
+verify-linter-installed:
+	@if [ -z $(LINTER_BINARY) ]; then \
+	  echo "[!] golangci-lint not installed"; \
+		echo "[!] You can install it from https://golangci-lint.run/usage/install/"; \
+		echo "[!]   or by running"; \
+		echo "[!]   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $(GH_LINT_VERSION)"; \
+		exit 1; \
+	fi;
+
+################################################################################
+# Target: verify-linter-version                                                #
+################################################################################
+.PHONY: verify-linter-version
+verify-linter-version:
+	@if [ "$(GH_LINT_VERSION)" != "$(INSTALLED_LINT_VERSION)" ]; then \
+	  echo "[!] Your locally installed version of golangci-lint is different from the pipeline"; \
+	  echo "[!] This will likely cause linting issues for you locally"; \
+	  echo "[!] Yours:  $(INSTALLED_LINT_VERSION)"; \
+		echo "[!] Theirs: $(GH_LINT_VERSION)"; \
+		echo "[!] Upgrade: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $(GH_LINT_VERSION)"; \
+	  sleep 3; \
+	fi;
+
 
 ################################################################################
 # Target: test                                                                 #
@@ -67,7 +106,7 @@ test:
 # Target: lint                                                                 #
 ################################################################################
 .PHONY: lint
-lint:
+lint: verify-linter-installed verify-linter-version
 	# Due to https://github.com/golangci/golangci-lint/issues/580, we need to add --fix for windows
 	$(GOLANGCI_LINT) run --timeout=20m
 
@@ -79,7 +118,7 @@ MODFILES := $(shell find . -name go.mod)
 define modtidy-target
 .PHONY: modtidy-$(1)
 modtidy-$(1):
-	cd $(shell dirname $(1)); go mod tidy -compat=1.18; cd -
+	cd $(shell dirname $(1)); go mod tidy -compat=1.19; cd -
 endef
 
 # Generate modtidy target action for each go.mod file

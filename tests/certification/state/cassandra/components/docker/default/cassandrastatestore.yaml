@@ -12,3 +12,5 @@ spec:
     value: cassandra
   - name: password
     value: cassandra
+  - name: port
+    value: "9044"

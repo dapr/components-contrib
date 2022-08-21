@@ -2,6 +2,7 @@ apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
   name: statestore
+  initTimeout: 20s
 spec:
   type: state.cassandra
   version: v1
@@ -12,3 +13,9 @@ spec:
     value: cassandra
   - name: password
     value: cassandra
+  - name: port
+    value: "9044"
+  - name: table
+    value: "daprTable"
+  - name: keyspace
+    value: "daprKeyspace"

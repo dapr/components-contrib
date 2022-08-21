@@ -1,10 +1,11 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: statestore
+  name: statestorecluster
 spec:
   type: state.cassandra
   version: v1
+  initTimeout: 20s
   metadata:
   - name: hosts
     value: localhost
@@ -12,3 +13,5 @@ spec:
     value: cassandra
   - name: password
     value: cassandra
+  - name: consistency
+    value: "Three"

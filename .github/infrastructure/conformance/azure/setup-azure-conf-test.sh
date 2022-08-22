@@ -616,6 +616,7 @@ echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
 SERVICE_BUS_NAMESPACE="${SERVICE_BUS_NAME}.servicebus.windows.net"
 echo export ${SERVICE_BUS_NAMESPACE_VAR_NAME}=\"${SERVICE_BUS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${SERVICE_BUS_NAMESPACE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_NAMESPACE}"
 
 # ----------------------------------
 # Populate SQL Server test settings

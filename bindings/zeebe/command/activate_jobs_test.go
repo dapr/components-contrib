@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -144,7 +144,7 @@ func TestActivateJobs(t *testing.T) {
 		payload := activateJobsPayload{
 			JobType:           "a",
 			MaxJobsToActivate: new(int32),
-			Timeout:           contrib_metadata.Duration{Duration: 1 * time.Second},
+			Timeout:           contribMetadata.Duration{Duration: 1 * time.Second},
 			WorkerName:        "b",
 			FetchVariables:    []string{"a", "b", "c"},
 		}

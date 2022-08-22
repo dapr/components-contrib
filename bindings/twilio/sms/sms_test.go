@@ -16,7 +16,7 @@ package sms
 import (
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -68,7 +68,7 @@ func TestParseDuration(t *testing.T) {
 
 func TestWriteShouldSucceed(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
@@ -84,7 +84,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 	t.Run("Should succeed with expected url and headers", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := tw.Invoke(context.TODO(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -105,7 +105,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 func TestWriteShouldFail(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
@@ -121,7 +121,7 @@ func TestWriteShouldFail(t *testing.T) {
 
 	t.Run("Missing 'to' should fail", func(t *testing.T) {
 		httpTransport.reset()
-		_, err := tw.Invoke(context.TODO(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
 			Data:     []byte("hello world"),
 			Metadata: map[string]string{},
 		})
@@ -133,7 +133,7 @@ func TestWriteShouldFail(t *testing.T) {
 		httpTransport.reset()
 		httpErr := errors.New("twilio fake error")
 		httpTransport.errToReturn = httpErr
-		_, err := tw.Invoke(context.TODO(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",
@@ -147,7 +147,7 @@ func TestWriteShouldFail(t *testing.T) {
 	t.Run("Twilio call returns status not >=200 and <300", func(t *testing.T) {
 		httpTransport.reset()
 		httpTransport.response.StatusCode = 401
-		_, err := tw.Invoke(context.TODO(), &bindings.InvokeRequest{
+		_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
 			Data: []byte("hello world"),
 			Metadata: map[string]string{
 				toNumber: "toNumber",

@@ -88,7 +88,7 @@ func TestKafka(t *testing.T) {
 	consumerGroup2 := watcher.NewUnordered()
 
 	// Application logic that tracks messages from a topic.
-	application := func(messages *watcher.Watcher) app.SetupFn {
+	application := func(appName string, watcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, 100)
@@ -103,9 +103,10 @@ func TestKafka(t *testing.T) {
 					if err := sim(); err != nil {
 						return true, err
 					}
+					ctx.Logf("======== %s received event: %s", appName, e.Data)
 
 					// Track/Observe the data of the event.
-					messages.Observe(e.Data)
+					watcher.Observe(e.Data)
 					return false, nil
 				}),
 			)
@@ -121,7 +122,7 @@ func TestKafka(t *testing.T) {
 
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
-	sendRecvTest := func(metadata map[string]string, messages ...*watcher.Watcher) flow.Runnable {
+	sendRecvTest := func(metadata map[string]string, watchers ...*watcher.Watcher) flow.Runnable {
 		_, hasKey := metadata[messageKey]
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName1)
@@ -132,7 +133,7 @@ func TestKafka(t *testing.T) {
 			for i := range msgs {
 				msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
 			}
-			for _, m := range messages {
+			for _, m := range watchers {
 				m.ExpectStrings(msgs...)
 			}
 			// If no key it provided, create a random one.
@@ -145,7 +146,6 @@ func TestKafka(t *testing.T) {
 			// Send events that the application above will observe.
 			ctx.Log("Sending messages!")
 			for _, msg := range msgs {
-				ctx.Logf("Sending: %q", msg)
 				err := client.PublishEvent(
 					ctx, pubsubName, topicName, msg,
 					dapr.PublishEventWithMetadata(metadata))
@@ -153,7 +153,7 @@ func TestKafka(t *testing.T) {
 			}
 
 			// Do the messages we observed match what we expect?
-			for _, m := range messages {
+			for _, m := range watchers {
 				m.Assert(ctx, time.Minute)
 			}
 
@@ -166,10 +166,10 @@ func TestKafka(t *testing.T) {
 	// messages reliably when infrastructure and network
 	// interruptions occur.
 	var task flow.AsyncTask
-	sendMessagesInBackground := func(messages ...*watcher.Watcher) flow.Runnable {
+	sendMessagesInBackground := func(watchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName1)
-			for _, m := range messages {
+			for _, m := range watchers {
 				m.Reset()
 			}
 
@@ -183,7 +183,7 @@ func TestKafka(t *testing.T) {
 					return nil
 				case <-t.C:
 					msg := fmt.Sprintf("Background message - %03d", counter)
-					for _, m := range messages {
+					for _, m := range watchers {
 						m.Prepare(msg) // Track for observation
 					}
 
@@ -199,12 +199,12 @@ func TestKafka(t *testing.T) {
 					}, bo, func(err error, t time.Duration) {
 						ctx.Logf("Error publishing message, retrying in %s", t)
 					}, func() {}); err == nil {
-						for _, m := range messages {
+						for _, m := range watchers {
 							m.Add(msg) // Success
 						}
 						counter++
 					} else {
-						for _, m := range messages {
+						for _, m := range watchers {
 							m.Remove(msg) // Remove from Tracking
 						}
 					}
@@ -212,11 +212,11 @@ func TestKafka(t *testing.T) {
 			}
 		}
 	}
-	assertMessages := func(messages ...*watcher.Watcher) flow.Runnable {
+	assertMessages := func(watchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			// Signal sendMessagesInBackground to stop and wait for it to complete.
 			task.CancelAndWait()
-			for _, m := range messages {
+			for _, m := range watchers {
 				m.Assert(ctx, 5*time.Minute)
 			}
 
@@ -269,7 +269,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			application(consumerGroup1))).
+			application(appID1, consumerGroup1))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName1,
@@ -281,7 +281,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the second application.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-			application(consumerGroup2))).
+			application(appID2, consumerGroup2))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
@@ -294,11 +294,11 @@ func TestKafka(t *testing.T) {
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
-		Step("send and wait", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
+		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup1, consumerGroup2)).
 		//
 		// Run the third application.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
-			application(consumerGroup2))).
+			application(appID3, consumerGroup2))).
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
@@ -312,7 +312,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Send messages with random keys to test message consumption
 		// across more than one consumer group and consumers per group.
-		Step("send and wait", sendRecvTest(map[string]string{}, consumerGroup2)).
+		Step("send and wait(no-order)", sendRecvTest(map[string]string{}, consumerGroup2)).
 		//
 		// Gradually stop each broker.
 		// This tests the components ability to handle reconnections
@@ -336,7 +336,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("assert messages(Component reconnect)", assertMessages(consumerGroup1, consumerGroup2)).
 		//
 		// Simulate a network interruption.
 		// This tests the components ability to handle reconnections
@@ -351,7 +351,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("assert messages(network interruption)", assertMessages(consumerGroup1, consumerGroup2)).
 		//
 		// Reset and test that all messages are received during a
 		// consumer rebalance.
@@ -363,6 +363,6 @@ func TestKafka(t *testing.T) {
 		Step("wait", flow.Sleep(3*time.Second)).
 		Step("stop app 2", app.Stop(appID2)).
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup2)).
+		Step("assert messages(consumer rebalance)", assertMessages(consumerGroup2)).
 		Run()
 }

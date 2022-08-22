@@ -17,14 +17,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/cenkalti/backoff/v4"
 	mqw "github.com/cinience/go_rocketmq"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -36,7 +34,6 @@ type AliCloudRocketMQ struct {
 	logger   logger.Logger
 	settings Settings
 	producer mqw.Producer
-	consumer mqw.PushConsumer
 
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -47,7 +44,6 @@ func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
 	return &AliCloudRocketMQ{ //nolint:exhaustivestruct
 		logger:   l,
 		producer: nil,
-		consumer: nil,
 	}
 }
 
@@ -78,11 +74,10 @@ func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the rocketmq subscription.
-func (a *AliCloudRocketMQ) Read(handler bindings.Handler) error {
+func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	a.logger.Debugf("binding rocketmq: start read input binding")
 
-	var err error
-	a.consumer, err = a.setupConsumer()
+	consumer, err := a.setupConsumer()
 	if err != nil {
 		return fmt.Errorf("binding-rocketmq error: %w", err)
 	}
@@ -95,11 +90,12 @@ func (a *AliCloudRocketMQ) Read(handler bindings.Handler) error {
 		if topicStr == "" {
 			continue
 		}
-		mqType, mqExpression, topic, err := parseTopic(topicStr)
-		if err != nil {
+
+		var mqType, mqExpression, topic string
+		if mqType, mqExpression, topic, err = parseTopic(topicStr); err != nil {
 			return err
 		}
-		if err := a.consumer.Subscribe(
+		if err = consumer.Subscribe(
 			topic,
 			mqc.MessageSelector{
 				Type:       mqc.ExpressionType(mqType),
@@ -111,14 +107,24 @@ func (a *AliCloudRocketMQ) Read(handler bindings.Handler) error {
 		}
 	}
 
-	if err := a.consumer.Start(); err != nil {
+	if err = consumer.Start(); err != nil {
 		return fmt.Errorf("binding-rocketmq: consumer start failed. %w", err)
 	}
 
-	exitChan := make(chan os.Signal, 1)
-	signal.Notify(exitChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
-	<-exitChan
-	a.logger.Info("binding-rocketmq: shutdown.")
+	a.logger.Debugf("binding-rocketmq: consumer started")
+
+	// Listen for context cancelation to stop the subscription
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-a.ctx.Done():
+		}
+
+		innerErr := consumer.Shutdown()
+		if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
+			a.logger.Warnf("binding-rocketmq: error while shutting down consumer: %v", innerErr)
+		}
+	}()
 
 	return nil
 }
@@ -126,10 +132,6 @@ func (a *AliCloudRocketMQ) Read(handler bindings.Handler) error {
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (a *AliCloudRocketMQ) Close() error {
 	a.cancel()
-
-	if a.consumer != nil {
-		_ = a.consumer.Shutdown()
-	}
 
 	return nil
 }
@@ -272,10 +274,14 @@ func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string
 				Metadata: metadata,
 			}
 
-			b := a.backOffConfig.NewBackOffWithContext(a.ctx)
+			b := a.backOffConfig.NewBackOffWithContext(ctx)
 
 			rerr := retry.NotifyRecover(func() error {
-				_, herr := handler(a.ctx, msg)
+				herr := ctx.Err()
+				if herr != nil {
+					return backoff.Permanent(herr)
+				}
+				_, herr = handler(ctx, msg)
 				if herr != nil {
 					a.logger.Errorf("rocketmq error: fail to send message to dapr application. topic:%s data-length:%d err:%v ", v.Topic, len(v.Body), herr)
 					success = false

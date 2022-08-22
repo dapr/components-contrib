@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/stretchr/testify/assert"
@@ -70,17 +71,18 @@ func TestReadError(t *testing.T) {
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 
-	tw.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
+	err = tw.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		t.Logf("result: %+v", res)
 		assert.NotNilf(t, err, "no error on read with invalid credentials")
 
 		return nil, nil
 	})
+	assert.Error(t, err)
 }
 
 // TestRead executes the Read method which calls Twiter API
-// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestReed ./bindings/twitter/.
-func TestReed(t *testing.T) {
+// env RUN_LIVE_TW_TEST=true go test -v -count=1 -run TestRead ./bindings/twitter/.
+func TestRead(t *testing.T) {
 	if os.Getenv("RUN_LIVE_TW_TEST") != "true" {
 		t.SkipNow() // skip this test until able to read credentials in test infra
 	}
@@ -93,18 +95,26 @@ func TestReed(t *testing.T) {
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing read")
 
+	ctx, cancel := context.WithCancel(context.Background())
 	counter := 0
-	err = tw.Read(func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
+	err = tw.Read(ctx, func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		counter++
 		t.Logf("tweet[%d]", counter)
 		var tweet twitter.Tweet
 		json.Unmarshal(res.Data, &tweet)
 		assert.NotEmpty(t, tweet.IDStr, "tweet should have an ID")
-		os.Exit(0)
+		cancel()
 
 		return nil, nil
 	})
 	assert.Nilf(t, err, "error on read")
+	select {
+	case <-ctx.Done():
+		// do nothing
+	case <-time.After(30 * time.Second):
+		cancel()
+		t.Fatal("Timeout waiting for messages")
+	}
 }
 
 // TestInvoke executes the Invoke method which calls Twiter API
@@ -127,7 +137,7 @@ func TestInvoke(t *testing.T) {
 		},
 	}
 
-	resp, err := tw.Invoke(context.TODO(), req)
+	resp, err := tw.Invoke(context.Background(), req)
 	assert.Nilf(t, err, "error on invoke")
 	assert.NotNil(t, resp)
 }

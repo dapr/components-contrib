@@ -22,10 +22,10 @@ import (
 
 // InputBinding is the interface to define a binding that triggers on incoming events.
 type InputBinding interface {
-	// Init passes connection and properties metadata to the binding implementation
+	// Init passes connection and properties metadata to the binding implementation.
 	Init(metadata Metadata) error
-	// Read is a blocking method that triggers the callback function whenever an event arrives
-	Read(handler Handler) error
+	// Read is a method that runs in background and triggers the callback function whenever an event arrives.
+	Read(ctx context.Context, handler Handler) error
 }
 
 // Handler is the handler used to invoke the app handler.
@@ -36,6 +36,6 @@ func PingInpBinding(inputBinding InputBinding) error {
 	if inputBindingWithPing, ok := inputBinding.(health.Pinger); ok {
 		return inputBindingWithPing.Ping()
 	} else {
-		return fmt.Errorf("Ping is not implemented by this input binding")
+		return fmt.Errorf("ping is not implemented by this input binding")
 	}
 }

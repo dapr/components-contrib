@@ -20,9 +20,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/mitchellh/mapstructure"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/kit/logger"
 )
 
@@ -81,12 +82,10 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		return nil, err
 	}
 
-	input := &dynamodb.PutItemInput{
+	_, err = d.client.PutItemWithContext(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(d.table),
-	}
-
-	_, err = d.client.PutItem(input)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -95,13 +94,8 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 }
 
 func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {
-	b, err := json.Marshal(spec.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var meta dynamoDBMetadata
-	err = json.Unmarshal(b, &meta)
+	err := mapstructure.WeakDecode(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +104,7 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 }
 
 func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

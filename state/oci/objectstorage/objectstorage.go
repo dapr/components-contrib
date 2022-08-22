@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -81,12 +80,12 @@ type Metadata struct {
 }
 
 type objectStoreClient interface {
-	getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error)
+	getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error)
 	deleteObject(ctx context.Context, objectname string, etag *string) (err error)
-	putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string, logger logger.Logger) error
-	initStorageBucket(logger logger.Logger) error
-	initOCIObjectStorageClient(logger logger.Logger) (*objectstorage.ObjectStorageClient, error)
-	pingBucket(logger logger.Logger) error
+	putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string) error
+	initStorageBucket() error
+	initOCIObjectStorageClient() (*objectstorage.ObjectStorageClient, error)
+	pingBucket() error
 }
 
 type objectStorageClient struct {
@@ -95,6 +94,7 @@ type objectStorageClient struct {
 
 type ociObjectStorageClient struct {
 	objectStorageClient
+	logger logger.Logger
 }
 
 /*********  Interface Implementations Init, Features, Get, Set, Delete and the instantiation function NewOCIObjectStorageStore. */
@@ -105,15 +105,20 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-	r.client = &ociObjectStorageClient{objectStorageClient{objectStorageMetadata: meta}}
+	r.client = &ociObjectStorageClient{
+		objectStorageClient: objectStorageClient{
+			objectStorageMetadata: meta,
+		},
+		logger: r.logger,
+	}
 
-	objectStorageClient, cerr := r.client.initOCIObjectStorageClient(r.logger)
+	objectStorageClient, cerr := r.client.initOCIObjectStorageClient()
 	if cerr != nil {
 		return fmt.Errorf("failed to initialize client or create bucket : %w", cerr)
 	}
 	meta.OCIObjectStorageClient = objectStorageClient
 
-	cerr = r.client.initStorageBucket(r.logger)
+	cerr = r.client.initStorageBucket()
 	if cerr != nil {
 		return fmt.Errorf("failed to create bucket : %w", cerr)
 	}
@@ -272,7 +277,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	}
 	metadata := (map[string]string{"category": daprStateStoreMetaLabel})
 
-	err := convertTTLtoExpiryTime(req, r.logger, metadata)
+	err := r.convertTTLtoExpiryTime(req, metadata)
 	if err != nil {
 		return fmt.Errorf("failed to process ttl meta data: %w", err)
 	}
@@ -286,7 +291,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
 	}
-	err = r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), metadata, etag, r.logger)
+	err = r.client.putObject(ctx, objectName, objectLength, io.NopCloser(bytes.NewReader(content)), metadata, etag)
 	if err != nil {
 		r.logger.Debugf("error in writing object to OCI object storage  %s, err %s", req.Key, err)
 		return fmt.Errorf("failed to write object to OCI Object storage : %w", err)
@@ -294,17 +299,17 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	return nil
 }
 
-func convertTTLtoExpiryTime(req *state.SetRequest, logger logger.Logger, metadata map[string]string) error {
+func (r *StateStore) convertTTLtoExpiryTime(req *state.SetRequest, metadata map[string]string) error {
 	ttl, ttlerr := parseTTL(req.Metadata)
 	if ttlerr != nil {
 		return fmt.Errorf("error in parsing TTL %w", ttlerr)
 	}
 	if ttl != nil {
 		if *ttl == -1 {
-			logger.Debugf("TTL is set to -1; this means: never expire. ")
+			r.logger.Debugf("TTL is set to -1; this means: never expire. ")
 		} else {
 			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
-			logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
+			r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
 		}
 	}
 	return nil
@@ -316,7 +321,7 @@ func (r *StateStore) readDocument(req *state.GetRequest) ([]byte, *string, error
 	}
 	objectName := getFileName(req.Key)
 	ctx := context.Background()
-	content, etag, meta, err := r.client.getObject(ctx, objectName, r.logger)
+	content, etag, meta, err := r.client.getObject(ctx, objectName)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
 		return nil, nil, fmt.Errorf("failed to read object from OCI Object storage : %w", err)
@@ -335,7 +340,7 @@ func (r *StateStore) readDocument(req *state.GetRequest) ([]byte, *string, error
 }
 
 func (r *StateStore) pingBucket() error {
-	err := r.client.pingBucket(r.logger)
+	err := r.client.pingBucket()
 	if err != nil {
 		r.logger.Debugf("ping bucket failed err %s", err)
 		return fmt.Errorf("failed to ping bucket on OCI Object storage : %w", err)
@@ -414,7 +419,7 @@ func getNamespace(ctx context.Context, client objectstorage.ObjectStorageClient)
 
 // bucketname needs to be unique within compartment. there is no concept of "child" buckets.
 // the value returned is the bucket's OCID.
-func ensureBucketExists(ctx context.Context, client objectstorage.ObjectStorageClient, namespace string, name string, compartmentOCID string, logger logger.Logger) error {
+func (c *ociObjectStorageClient) ensureBucketExists(ctx context.Context, client objectstorage.ObjectStorageClient, namespace string, name string, compartmentOCID string) error {
 	req := objectstorage.GetBucketRequest{
 		NamespaceName: &namespace,
 		BucketName:    &name,
@@ -425,7 +430,7 @@ func ensureBucketExists(ctx context.Context, client objectstorage.ObjectStorageC
 		if response.RawResponse.StatusCode == 404 {
 			err = createBucket(ctx, client, namespace, name, compartmentOCID)
 			if err == nil {
-				logger.Debugf("Created OCI Object Storage Bucket %s as State Store", name)
+				c.logger.Debugf("Created OCI Object Storage Bucket %s as State Store", name)
 			}
 			return err
 		}
@@ -452,8 +457,8 @@ func createBucket(ctx context.Context, client objectstorage.ObjectStorageClient,
 
 // *****  the functions that interact with OCI Object Storage AND constitute the objectStoreClient interface.
 
-func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string, logger logger.Logger) (content []byte, etag *string, metadata map[string]string, err error) {
-	logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.bucketName)
+func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error) {
+	c.logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.bucketName)
 	request := objectstorage.GetObjectRequest{
 		NamespaceName: &c.objectStorageMetadata.namespace,
 		BucketName:    &c.objectStorageMetadata.bucketName,
@@ -461,7 +466,7 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 	}
 	response, err := c.objectStorageMetadata.OCIObjectStorageClient.GetObject(ctx, request)
 	if err != nil {
-		logger.Debugf("Issue in OCI ObjectStorage with retrieving object %s, error:  %s", objectname, err)
+		c.logger.Debugf("Issue in OCI ObjectStorage with retrieving object %s, error:  %s", objectname, err)
 		if response.RawResponse.StatusCode == 404 {
 			return nil, nil, nil, nil
 		}
@@ -486,7 +491,7 @@ func (c *ociObjectStorageClient) deleteObject(ctx context.Context, objectname st
 	return nil
 }
 
-func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string, logger logger.Logger) error {
+func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string) error {
 	request := objectstorage.PutObjectRequest{
 		NamespaceName: &c.objectStorageMetadata.namespace,
 		BucketName:    &c.objectStorageMetadata.bucketName,
@@ -497,26 +502,26 @@ func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname strin
 		IfMatch:       etag,
 	}
 	_, err := c.objectStorageMetadata.OCIObjectStorageClient.PutObject(ctx, request)
-	logger.Debugf("Put object ", objectname, " in bucket ", &c.objectStorageMetadata.bucketName)
+	c.logger.Debugf("Put object ", objectname, " in bucket ", &c.objectStorageMetadata.bucketName)
 	if err != nil {
 		return fmt.Errorf("failed to put object on OCI : %w", err)
 	}
 	return nil
 }
 
-func (c *ociObjectStorageClient) initStorageBucket(logger logger.Logger) error {
+func (c *ociObjectStorageClient) initStorageBucket() error {
 	ctx := context.Background()
-	err := ensureBucketExists(ctx, *c.objectStorageMetadata.OCIObjectStorageClient, c.objectStorageMetadata.namespace, c.objectStorageMetadata.bucketName, c.objectStorageMetadata.compartmentOCID, logger)
+	err := c.ensureBucketExists(ctx, *c.objectStorageMetadata.OCIObjectStorageClient, c.objectStorageMetadata.namespace, c.objectStorageMetadata.bucketName, c.objectStorageMetadata.compartmentOCID)
 	if err != nil {
 		return fmt.Errorf("failed to read or create bucket : %w", err)
 	}
 	return nil
 }
 
-func (c *ociObjectStorageClient) initOCIObjectStorageClient(logger logger.Logger) (*objectstorage.ObjectStorageClient, error) {
+func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.ObjectStorageClient, error) {
 	var configurationProvider common.ConfigurationProvider
 	if c.objectStorageMetadata.instancePrincipalAuthentication {
-		logger.Debugf("instance principal authentication is used. ")
+		c.logger.Debugf("instance principal authentication is used. ")
 		var err error
 		configurationProvider, err = auth.InstancePrincipalConfigurationProvider()
 		if err != nil {
@@ -524,10 +529,10 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient(logger logger.Logger
 		}
 	} else {
 		if c.objectStorageMetadata.configFileAuthentication {
-			logger.Debugf("configuration file based authentication is used with configuration file path %s and configuration profile %s. ", c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
+			c.logger.Debugf("configuration file based authentication is used with configuration file path %s and configuration profile %s. ", c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
 			configurationProvider = common.CustomProfileConfigProvider(c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
 		} else {
-			logger.Debugf("identity authentication is used with configuration provided through Dapr component configuration ")
+			c.logger.Debugf("identity authentication is used with configuration provided through Dapr component configuration ")
 			configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
 		}
 	}
@@ -544,7 +549,7 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient(logger logger.Logger
 	return &objectStorageClient, nil
 }
 
-func (c *ociObjectStorageClient) pingBucket(logger logger.Logger) error {
+func (c *ociObjectStorageClient) pingBucket() error {
 	req := objectstorage.GetBucketRequest{
 		NamespaceName: &c.objectStorageMetadata.namespace,
 		BucketName:    &c.objectStorageMetadata.bucketName,

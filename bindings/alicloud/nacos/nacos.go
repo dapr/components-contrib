@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
@@ -49,16 +50,20 @@ type configParam struct {
 type Nacos struct {
 	settings     Settings
 	config       configParam
+	watchesLock  sync.Mutex
 	watches      []configParam
 	servers      []constant.ServerConfig
 	logger       logger.Logger
-	configClient config_client.IConfigClient
+	configClient config_client.IConfigClient //nolint:nosnakecase
 	readHandler  func(ctx context.Context, response *bindings.ReadResponse) ([]byte, error)
 }
 
 // NewNacos returns a new Nacos instance.
 func NewNacos(logger logger.Logger) *Nacos {
-	return &Nacos{logger: logger} //nolint:exhaustivestruct
+	return &Nacos{
+		logger:      logger,
+		watchesLock: sync.Mutex{},
+	}
 }
 
 // Init implements InputBinding/OutputBinding's Init method.
@@ -140,19 +145,27 @@ func (n *Nacos) createConfigClient() error {
 }
 
 // Read implements InputBinding's Read method.
-func (n *Nacos) Read(handler bindings.Handler) error {
+func (n *Nacos) Read(ctx context.Context, handler bindings.Handler) error {
 	n.readHandler = handler
 
+	n.watchesLock.Lock()
 	for _, watch := range n.watches {
-		go n.startListen(watch)
+		go n.startListen(ctx, watch)
 	}
+	n.watchesLock.Unlock()
+
+	go func() {
+		// Cancel all listeners when the context is done
+		<-ctx.Done()
+		n.cancelAllListeners()
+	}()
 
 	return nil
 }
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (n *Nacos) Close() error {
-	n.cancelListener()
+	n.cancelAllListeners()
 
 	return nil
 }
@@ -161,9 +174,9 @@ func (n *Nacos) Close() error {
 func (n *Nacos) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return n.publish(req)
+		return n.publish(ctx, req)
 	case bindings.GetOperation:
-		return n.fetch(req)
+		return n.fetch(ctx, req)
 	case bindings.DeleteOperation, bindings.ListOperation:
 		return nil, fmt.Errorf("nacos error: unsupported operation %s", req.Operation)
 	default:
@@ -176,12 +189,12 @@ func (n *Nacos) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation}
 }
 
-func (n *Nacos) startListen(config configParam) {
-	n.fetchAndNotify(config)
-	n.addListener(config)
+func (n *Nacos) startListen(ctx context.Context, config configParam) {
+	n.fetchAndNotify(ctx, config)
+	n.addListener(ctx, config)
 }
 
-func (n *Nacos) fetchAndNotify(config configParam) {
+func (n *Nacos) fetchAndNotify(ctx context.Context, config configParam) {
 	content, err := n.configClient.GetConfig(vo.ConfigParam{
 		DataId:   config.dataID,
 		Group:    config.group,
@@ -190,30 +203,31 @@ func (n *Nacos) fetchAndNotify(config configParam) {
 	})
 	if err != nil {
 		n.logger.Warnf("failed to receive nacos config %s:%s, error: %v", config.dataID, config.group, err)
-	} else {
-		n.notifyApp(config.group, config.dataID, content)
+		return
 	}
+	n.notifyApp(ctx, config.group, config.dataID, content)
 }
 
-func (n *Nacos) addListener(config configParam) {
+func (n *Nacos) addListener(ctx context.Context, config configParam) {
 	err := n.configClient.ListenConfig(vo.ConfigParam{
 		DataId:   config.dataID,
 		Group:    config.group,
 		Content:  "",
-		OnChange: n.listener,
+		OnChange: n.listener(ctx),
 	})
 	if err != nil {
 		n.logger.Warnf("failed to add nacos listener for %s:%s, error: %v", config.dataID, config.group, err)
+		return
 	}
 }
 
-func (n *Nacos) addListener4InputBinding(config configParam) {
+func (n *Nacos) addListenerFoInputBinding(ctx context.Context, config configParam) {
 	if n.addToWatches(config) {
-		go n.addListener(config)
+		go n.addListener(ctx, config)
 	}
 }
 
-func (n *Nacos) publish(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (n *Nacos) publish(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	nacosConfigParam, err := n.findConfig(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -231,7 +245,7 @@ func (n *Nacos) publish(req *bindings.InvokeRequest) (*bindings.InvokeResponse, 
 	return nil, nil
 }
 
-func (n *Nacos) fetch(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (n *Nacos) fetch(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	nacosConfigParam, err := n.findConfig(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -248,13 +262,15 @@ func (n *Nacos) fetch(req *bindings.InvokeRequest) (*bindings.InvokeResponse, er
 	}
 
 	if onchange := req.Metadata[metadataConfigOnchange]; strings.EqualFold(onchange, "true") {
-		n.addListener4InputBinding(*nacosConfigParam)
+		n.addListenerFoInputBinding(ctx, *nacosConfigParam)
 	}
 
 	return &bindings.InvokeResponse{Data: []byte(rst), Metadata: map[string]string{}}, nil
 }
 
 func (n *Nacos) addToWatches(c configParam) bool {
+	n.watchesLock.Lock()
+	defer n.watchesLock.Unlock()
 	if n.watches != nil {
 		for _, watch := range n.watches {
 			if c.dataID == watch.dataID && c.group == watch.group {
@@ -286,22 +302,30 @@ func (n *Nacos) findConfig(md map[string]string) (*configParam, error) {
 	return &nacosConfigParam, nil
 }
 
-func (n *Nacos) listener(_, group, dataID, data string) {
-	n.notifyApp(group, dataID, data)
+func (n *Nacos) listener(ctx context.Context) func(_, group, dataID, data string) {
+	return func(_, group, dataID, data string) {
+		n.notifyApp(ctx, group, dataID, data)
+	}
 }
 
-func (n *Nacos) cancelListener() {
+func (n *Nacos) cancelAllListeners() {
+	n.watchesLock.Lock()
+	defer n.watchesLock.Unlock()
 	for _, configParam := range n.watches {
-		if err := n.configClient.CancelListenConfig(vo.ConfigParam{ //nolint:exhaustivestruct
-			DataId: configParam.dataID,
-			Group:  configParam.group,
-		}); err != nil {
+		if err := n.cancelListener(configParam); err != nil {
 			n.logger.Warnf("nacos cancel listener failed err: %v", err)
 		}
 	}
 }
 
-func (n *Nacos) notifyApp(group, dataID, content string) {
+func (n *Nacos) cancelListener(configParam configParam) error {
+	return n.configClient.CancelListenConfig(vo.ConfigParam{
+		DataId: configParam.dataID,
+		Group:  configParam.group,
+	})
+}
+
+func (n *Nacos) notifyApp(ctx context.Context, group, dataID, content string) {
 	metadata := map[string]string{
 		metadataConfigID:    dataID,
 		metadataConfigGroup: group,
@@ -309,7 +333,7 @@ func (n *Nacos) notifyApp(group, dataID, content string) {
 	var err error
 	if n.readHandler != nil {
 		n.logger.Debugf("binding-nacos read content to app")
-		_, err = n.readHandler(context.TODO(), &bindings.ReadResponse{Data: []byte(content), Metadata: metadata})
+		_, err = n.readHandler(ctx, &bindings.ReadResponse{Data: []byte(content), Metadata: metadata})
 	} else {
 		err = errors.New("nacos error: the InputBinding.Read handler not init")
 	}
@@ -372,7 +396,7 @@ func convertServers(ss string) ([]constant.ServerConfig, error) {
 }
 
 func parseServerURL(s string) (*constant.ServerConfig, error) {
-	if !strings.HasPrefix(s, "http") {
+	if !strings.HasPrefix(s, "http://") {
 		s = "http://" + s
 	}
 	u, err := url.Parse(s)

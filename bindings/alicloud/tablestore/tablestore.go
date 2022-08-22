@@ -70,12 +70,12 @@ func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (s *AliCloudTableStore) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AliCloudTableStore) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
 		return nil, errors.Errorf("invoke request required")
 	}
 
-	startTime := time.Now().UTC()
+	startTime := time.Now()
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			invokeStartTimeKey: startTime.Format(time.RFC3339Nano),
@@ -108,7 +108,7 @@ func (s *AliCloudTableStore) Invoke(ctx context.Context, req *bindings.InvokeReq
 			req.Operation, bindings.GetOperation, bindings.ListOperation, bindings.CreateOperation, bindings.DeleteOperation)
 	}
 
-	endTime := time.Now().UTC()
+	endTime := time.Now()
 	resp.Metadata[invokeEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[invokeDurationKey] = endTime.Sub(startTime).String()
 
@@ -262,11 +262,11 @@ func (s *AliCloudTableStore) create(req *bindings.InvokeRequest, resp *bindings.
 		TableName:     s.getTableName(req.Metadata),
 		PrimaryKey:    &tablestore.PrimaryKey{PrimaryKeys: pks},
 		Columns:       columns,
-		ReturnType:    tablestore.ReturnType_RT_NONE,
+		ReturnType:    tablestore.ReturnType_RT_NONE, //nolint:nosnakecase
 		TransactionId: nil,
 	}
 
-	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
+	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE) //nolint:nosnakecase
 
 	putRequest := &tablestore.PutRowRequest{
 		PutRowChange: &change,
@@ -301,7 +301,7 @@ func (s *AliCloudTableStore) delete(req *bindings.InvokeRequest, resp *bindings.
 		TableName:  s.getTableName(req.Metadata),
 		PrimaryKey: &tablestore.PrimaryKey{PrimaryKeys: pks},
 	}
-	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
+	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE) //nolint:nosnakecase
 	deleteReq := &tablestore.DeleteRowRequest{DeleteRowChange: change}
 	_, err = s.client.DeleteRow(deleteReq)
 

@@ -1,30 +1,10 @@
 # Pub Sub
 
-Pub Subs provide a common way to interact with different message bus implementations to achieve reliable, high-scale scenarios based on event-driven async communications, while allowing users to opt-in to advanced capabilities using defined metadata.
-
-Currently supported pub-subs are:
-
-* Hazelcast
-* Redis Streams
-* NATS
-* Kafka
-* Azure Service Bus
-* RabbitMQ
-* Azure Event Hubs
-* GCP Pub/Sub
-* MQTT
+Pub Sub components provide a common way to interact with different message bus implementations to achieve reliable, high-scale scenarios based on event-driven async communications, while allowing users to opt-in to advanced capabilities using defined metadata.
 
 ## Implementing a new Pub Sub
 
-A compliant pub sub needs to implement the following interface:
-
-```go
-type PubSub interface {
-	Init(metadata Metadata) error
-	Publish(req *PublishRequest) error
-	Subscribe(req SubscribeRequest, handler func(msg *NewMessage) error) error
-}
-```
+A compliant pub sub needs to implement the `PubSub` inteface included in the [`pubsub.go`](pubsub.go) file.
 
 ### Message TTL (or Time To Live)
 
@@ -33,14 +13,15 @@ Message Time to live is implemented by default in Dapr. A publishing application
 If the pub sub component implementation can handle message TTL natively without relying on Dapr, consume the `ttlInSeconds` metadata in the component implementation for the Publish function. Also, implement the `Features()` function so the Dapr runtime knows that it should not add the `expiration` attribute to events.
 
 Example:
+
 ```go
-import contrib_metadata "github.com/dapr/components-contrib/metadata"
+import contribMetadata "github.com/dapr/components-contrib/metadata"
 
 //...
 
 func (c *MyComponent) Publish(req *pubsub.PublishRequest) error {
 	//...
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(req.Metadata)
+	ttl, hasTTL, _ := contribMetadata.TryGetTTL(req.Metadata)
 	if hasTTL {
 		//... handle ttl for component.
 	}
@@ -56,6 +37,7 @@ func (c *MyComponent) Features() []pubsub.Feature {
 ```
 
 For pub sub components that support TTL per topic or queue but not per message, there are some design choices:
+
  * Configure the TTL for the topic or queue as usual. Optionally, implement topic or queue provisioning in the Init() method, using the component configuration's metadata to determine the topic or queue TTL.
  * Let Dapr runtime handle `ttlInSeconds` for messages that want to expire earlier than the topic's or queue's TTL. So, applications can still benefit from TTL per message via Dapr for this scenario.
 

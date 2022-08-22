@@ -20,6 +20,7 @@ import (
 	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -30,8 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
-	aws_auth "github.com/dapr/components-contrib/authentication/aws"
 	"github.com/dapr/components-contrib/bindings"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -97,7 +99,9 @@ func (s *AWSS3) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
-	cfg := aws.NewConfig().WithS3ForcePathStyle(m.ForcePathStyle).WithDisableSSL(m.DisableSSL)
+	cfg := aws.NewConfig().
+		WithS3ForcePathStyle(m.ForcePathStyle).
+		WithDisableSSL(m.DisableSSL)
 
 	// Use a custom HTTP client to allow self-signed certs
 	if m.InsecureSSL {
@@ -133,7 +137,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 	}
 }
 
-func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
@@ -151,27 +155,21 @@ func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		req.Data = []byte(d)
 	}
 
-	if metadata.DecodeBase64 {
-		decoded, decodeError := b64.StdEncoding.DecodeString(string(req.Data))
-		if decodeError != nil {
-			return nil, fmt.Errorf("s3 binding error. decode : %w", decodeError)
-		}
-		req.Data = decoded
-	}
-
-	var data []byte
+	var r io.Reader
 	if metadata.FilePath != "" {
-		data, err = os.ReadFile(metadata.FilePath)
+		r, err = os.Open(metadata.FilePath)
 		if err != nil {
 			return nil, fmt.Errorf("s3 file read error: %s", err)
 		}
 	} else {
-		data = req.Data
+		r = bytes.NewReader(req.Data)
 	}
 
-	r := bytes.NewReader(data)
+	if metadata.DecodeBase64 {
+		r = b64.NewDecoder(b64.StdEncoding, r)
+	}
 
-	resultUpload, err := s.uploader.Upload(&s3manager.UploadInput{
+	resultUpload, err := s.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket: aws.String(metadata.Bucket),
 		Key:    aws.String(key),
 		Body:   r,
@@ -193,7 +191,7 @@ func (s *AWSS3) create(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 	}, nil
 }
 
-func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
@@ -208,11 +206,13 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 
 	buff := &aws.WriteAtBuffer{}
 
-	_, err = s.downloader.Download(buff,
+	_, err = s.downloader.DownloadWithContext(ctx,
+		buff,
 		&s3.GetObjectInput{
 			Bucket: aws.String(s.metadata.Bucket),
 			Key:    aws.String(key),
-		})
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
@@ -231,7 +231,7 @@ func (s *AWSS3) get(req *bindings.InvokeRequest) (*bindings.InvokeResponse, erro
 	}, nil
 }
 
-func (s *AWSS3) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
@@ -239,16 +239,18 @@ func (s *AWSS3) delete(req *bindings.InvokeRequest) (*bindings.InvokeResponse, e
 		return nil, fmt.Errorf("s3 binding error: can't read key value")
 	}
 
-	_, err := s.s3Client.DeleteObject(
+	_, err := s.s3Client.DeleteObjectWithContext(
+		ctx,
 		&s3.DeleteObjectInput{
 			Bucket: aws.String(s.metadata.Bucket),
 			Key:    aws.String(key),
-		})
+		},
+	)
 
 	return nil, err
 }
 
-func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	var payload listPayload
 	err := json.Unmarshal(req.Data, &payload)
 	if err != nil {
@@ -259,15 +261,13 @@ func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 		payload.MaxResults = maxResults
 	}
 
-	input := &s3.ListObjectsInput{
+	result, err := s.s3Client.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
 		Bucket:    aws.String(s.metadata.Bucket),
 		MaxKeys:   aws.Int64(int64(payload.MaxResults)),
 		Marker:    aws.String(payload.Marker),
 		Prefix:    aws.String(payload.Prefix),
 		Delimiter: aws.String(payload.Delimiter),
-	}
-
-	result, err := s.s3Client.ListObjects(input)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. list operation. cannot marshal blobs to json: %w", err)
 	}
@@ -285,13 +285,13 @@ func (s *AWSS3) list(req *bindings.InvokeRequest) (*bindings.InvokeResponse, err
 func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	switch req.Operation {
 	case bindings.CreateOperation:
-		return s.create(req)
+		return s.create(ctx, req)
 	case bindings.GetOperation:
-		return s.get(req)
+		return s.get(ctx, req)
 	case bindings.DeleteOperation:
-		return s.delete(req)
+		return s.delete(ctx, req)
 	case bindings.ListOperation:
-		return s.list(req)
+		return s.list(ctx, req)
 	default:
 		return nil, fmt.Errorf("s3 binding error. unsupported operation %s", req.Operation)
 	}
@@ -313,7 +313,7 @@ func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
 }
 
 func (s *AWSS3) getSession(metadata *s3Metadata) (*session.Session, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -326,19 +326,11 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 	merged := metadata
 
 	if val, ok := req.Metadata[metadataDecodeBase64]; ok && val != "" {
-		valBool, err := strconv.ParseBool(val)
-		if err != nil {
-			return merged, err
-		}
-		merged.DecodeBase64 = valBool
+		merged.DecodeBase64 = utils.IsTruthy(val)
 	}
 
 	if val, ok := req.Metadata[metadataEncodeBase64]; ok && val != "" {
-		valBool, err := strconv.ParseBool(val)
-		if err != nil {
-			return merged, err
-		}
-		merged.EncodeBase64 = valBool
+		merged.EncodeBase64 = utils.IsTruthy(val)
 	}
 
 	if val, ok := req.Metadata[metadataFilePath]; ok && val != "" {

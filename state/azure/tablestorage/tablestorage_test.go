@@ -39,17 +39,30 @@ func TestGetTableStorageMetadata(t *testing.T) {
 		assert.Equal(t, "key", meta.accountKey)
 		assert.Equal(t, "dapr", meta.tableName)
 	})
+
+	t.Run("All parameters passed and parsed, using aliases", func(t *testing.T) {
+		m := make(map[string]string)
+		m["storageAccountName"] = "acc"
+		m["accessKey"] = "key"
+		m["table"] = "dapr"
+		meta, err := getTablesMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "acc", meta.accountName)
+		assert.Equal(t, "key", meta.accountKey)
+		assert.Equal(t, "dapr", meta.tableName)
+	})
 }
 
 func TestPartitionAndRowKey(t *testing.T) {
 	t.Run("Valid composite key", func(t *testing.T) {
-		pk, rk := getPartitionAndRowKey("pk||rk")
+		pk, rk := getPartitionAndRowKey("pk||rk", false)
 		assert.Equal(t, "pk", pk)
 		assert.Equal(t, "rk", rk)
 	})
 
 	t.Run("No delimiter present", func(t *testing.T) {
-		pk, rk := getPartitionAndRowKey("pk_rk")
+		pk, rk := getPartitionAndRowKey("pk_rk", false)
 		assert.Equal(t, "pk_rk", pk)
 		assert.Equal(t, "", rk)
 	})

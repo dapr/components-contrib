@@ -15,15 +15,15 @@ package inmemory
 
 import (
 	"context"
+	"time"
 
-	"github.com/asaskevich/EventBus"
-
+	"github.com/dapr/components-contrib/internal/eventbus"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
 type bus struct {
-	bus EventBus.Bus
+	bus eventbus.Bus
 	log logger.Logger
 }
 
@@ -38,11 +38,11 @@ func (a *bus) Close() error {
 }
 
 func (a *bus) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureSubscribeWildcards}
 }
 
 func (a *bus) Init(metadata pubsub.Metadata) error {
-	a.bus = EventBus.New()
+	a.bus = eventbus.New(true)
 
 	return nil
 }
@@ -54,6 +54,7 @@ func (a *bus) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	// For this component we allow built-in retries because it is backed by memory
 	retryHandler := func(data []byte) {
 		for i := 0; i < 10; i++ {
 			handleErr := handler(ctx, &pubsub.NewMessage{Data: data, Topic: req.Topic, Metadata: req.Metadata})
@@ -61,6 +62,7 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 				break
 			}
 			a.log.Error(handleErr)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)

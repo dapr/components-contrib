@@ -11,13 +11,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:nosnakecase
 package conformance
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -45,6 +45,7 @@ import (
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
+	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
@@ -62,10 +63,12 @@ import (
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
+	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
@@ -85,7 +88,7 @@ const (
 	generateUUID = "$((uuid))"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var testLogger = logger.NewLogger("testLogger")
 
 type TestConfiguration struct {
@@ -222,7 +225,7 @@ func isYaml(fileName string) bool {
 }
 
 func readTestConfiguration(filePath string) ([]byte, error) {
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s", filePath)
 	}
@@ -407,6 +410,8 @@ func loadStateStore(tc TestComponent) state.Store {
 	switch tc.Component {
 	case redis:
 		store = s_redis.NewRedisStateStore(testLogger)
+	case "azure.blobstorage":
+		store = s_blobstorage.NewAzureBlobStorageStore(testLogger)
 	case "azure.cosmosdb":
 		store = s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":
@@ -419,12 +424,16 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
-	case "azure.tablestorage":
+	case "azure.tablestorage.storage":
+		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "azure.tablestorage.cosmosdb":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "cassandra":
 		store = s_cassandra.NewCassandraStateStore(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
+	case "memcached":
+		store = s_memcached.NewMemCacheStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -458,6 +467,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_influx.NewInflux(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
+	case "rabbitmq":
+		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}
@@ -481,6 +492,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case mqtt:
 		binding = b_mqtt.NewMQTT(testLogger)
+	case "rabbitmq":
+		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	default:
 		return nil
 	}

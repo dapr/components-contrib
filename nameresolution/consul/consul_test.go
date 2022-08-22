@@ -15,6 +15,7 @@ package consul
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"testing"
 
@@ -501,9 +502,9 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, 1, len(actual.Registration.Checks))
 				check := actual.Registration.Checks[0]
 				assert.Equal(t, "Dapr Health Status", check.Name)
-				assert.Equal(t, "daprHealth:test-app", check.CheckID)
+				assert.Equal(t, "daprHealth:test-app-"+metadata.Properties[nr.HostAddress]+"-"+metadata.Properties[nr.DaprHTTPPort], check.CheckID)
 				assert.Equal(t, "15s", check.Interval)
-				assert.Equal(t, fmt.Sprintf("http://%s:%s/v1.0/healthz", metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), check.HTTP)
+				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz", net.JoinHostPort(metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort])), check.HTTP)
 
 				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))

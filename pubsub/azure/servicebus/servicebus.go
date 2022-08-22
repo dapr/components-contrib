@@ -28,8 +28,9 @@ import (
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 
-	azauth "github.com/dapr/components-contrib/authentication/azure"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -326,6 +327,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 			err = sender.SendMessage(ctx, msg, nil)
 			if err != nil {
 				var amqpError *amqp.Error
+				var expError *servicebus.Error
 				if errors.As(err, &amqpError) {
 					if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
 						return amqpError // Retries.
@@ -334,6 +336,13 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 
 				if errors.Is(err, amqp.ErrConnClosed) {
 					return err // Retries.
+				}
+
+				if errors.As(err, &expError) {
+					if expError.Code == "connlost" {
+						a.logger.Warn(expError.Error())
+						return expError // Retries.
+					}
 				}
 
 				return backoff.Permanent(err) // Does not retry.
@@ -368,8 +377,20 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	go func() {
 		// Reconnect loop.
 		for {
+			sub := impl.NewSubscription(
+				subscribeCtx,
+				a.metadata.MaxActiveMessages,
+				a.metadata.TimeoutInSec,
+				a.metadata.MaxRetriableErrorsPerSec,
+				a.metadata.MaxConcurrentHandlers,
+				"topic "+req.Topic,
+				a.logger,
+			)
+
 			// Blocks until a successful connection (or until context is canceled)
-			receiver, err := a.attemptConnectionForever(subscribeCtx, req.Topic, subID)
+			err := sub.Connect(func() (*servicebus.Receiver, error) {
+				return a.client.NewReceiverForSubscription(req.Topic, subID, nil)
+			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if err != context.Canceled {
@@ -377,47 +398,32 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 				}
 				return
 			}
-			sub := newSubscription(
-				subscribeCtx,
-				req.Topic,
-				receiver,
-				a.metadata.MaxActiveMessages,
-				a.metadata.TimeoutInSec,
-				a.metadata.HandlerTimeoutInSec,
-				a.metadata.MaxRetriableErrorsPerSec,
-				a.metadata.MaxConcurrentHandlers,
-				a.logger,
-			)
 
-			// ReceiveAndBlock will only return with an error
-			// that it cannot handle internally. The subscription
-			// connection is closed when this method returns.
-			// If that occurs, we will log the error and attempt
-			// to re-establish the subscription connection until
-			// we exhaust the number of reconnect attempts.
-			innerErr := sub.ReceiveAndBlock(
-				handler,
+			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
+			err = sub.ReceiveAndBlock(
+				a.getHandlerFunc(req.Topic, handler),
 				a.metadata.LockRenewalInSec,
 				func() {
 					// Reset the backoff when the subscription is successful and we have received the first message
 					bo.Reset()
 				},
 			)
-			if innerErr != nil {
+			if err != nil {
 				var detachError *amqp.DetachError
 				var amqpError *amqp.Error
-				if errors.Is(innerErr, detachError) ||
-					(errors.As(innerErr, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
-					a.logger.Debug(innerErr)
+				if errors.Is(err, detachError) ||
+					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(err)
 				} else {
-					a.logger.Error(innerErr)
+					a.logger.Error(err)
 				}
 			}
 
 			// Gracefully close the connection (in case it's not closed already)
 			// Use a background context here (with timeout) because ctx may be closed already
 			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-			sub.close(closeCtx)
+			sub.Close(closeCtx)
 			closeCancel()
 
 			// If context was canceled, do not attempt to reconnect
@@ -427,7 +433,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			}
 
 			wait := bo.NextBackOff()
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", sub.topic, wait)
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
 			time.Sleep(wait)
 		}
 	}()
@@ -435,34 +441,18 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	return nil
 }
 
-// Attempts to connect to a Service Bus topic and blocks until it succeeds; it can retry forever (until the context is canceled)
-func (a *azureServiceBus) attemptConnectionForever(ctx context.Context, topicName string, subscriptionName string) (receiver *servicebus.Receiver, err error) {
-	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
-	config := retry.DefaultConfig()
-	config.Policy = retry.PolicyExponential
-	config.MaxInterval = 5 * time.Minute
-	config.MaxElapsedTime = 0
-	backoff := config.NewBackOffWithContext(ctx)
+func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) impl.HandlerFunc {
+	return func(ctx context.Context, asbMsg *servicebus.ReceivedMessage) error {
+		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, topic)
+		if err != nil {
+			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+		}
 
-	err = retry.NotifyRecover(
-		func() error {
-			clientAttempt, innerErr := a.client.NewReceiverForSubscription(topicName, subscriptionName, nil)
-			if innerErr != nil {
-				return innerErr
-			}
-			receiver = clientAttempt
-			return nil
-		},
-		backoff,
-		func(err error, d time.Duration) {
-			a.logger.Warnf("Failed to connect to Azure Service Bus topic %s; will retry in %s. Error: %s", topicName, d, err.Error())
-		},
-		func() {
-			a.logger.Infof("Successfully reconnected to Azure Service Bus topic %s", topicName)
-			backoff.Reset()
-		},
-	)
-	return receiver, err
+		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
+		defer handleCancel()
+		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.MessageID, topic)
+		return handler(handleCtx, pubsubMsg)
+	}
 }
 
 // senderForTopic returns the sender for a topic, or creates a new one if it doesn't exist
@@ -600,21 +590,21 @@ func (a *azureServiceBus) createSubscriptionProperties() (*sbadmin.SubscriptionP
 	}
 
 	if a.metadata.LockDurationInSec != nil {
-		lockDuration := contrib_metadata.Duration{
+		lockDuration := contribMetadata.Duration{
 			Duration: time.Duration(*a.metadata.LockDurationInSec) * time.Second,
 		}
 		properties.LockDuration = to.Ptr(lockDuration.ToISOString())
 	}
 
 	if a.metadata.DefaultMessageTimeToLiveInSec != nil {
-		defaultMessageTimeToLive := contrib_metadata.Duration{
+		defaultMessageTimeToLive := contribMetadata.Duration{
 			Duration: time.Duration(*a.metadata.DefaultMessageTimeToLiveInSec) * time.Second,
 		}
 		properties.DefaultMessageTimeToLive = to.Ptr(defaultMessageTimeToLive.ToISOString())
 	}
 
 	if a.metadata.AutoDeleteOnIdleInSec != nil {
-		autoDeleteOnIdle := contrib_metadata.Duration{
+		autoDeleteOnIdle := contribMetadata.Duration{
 			Duration: time.Duration(*a.metadata.AutoDeleteOnIdleInSec) * time.Second,
 		}
 		properties.AutoDeleteOnIdle = to.Ptr(autoDeleteOnIdle.ToISOString())

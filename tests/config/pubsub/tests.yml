@@ -13,7 +13,7 @@ components:
     allOperations: true
     config:
       pubsubName: azure-eventhubs
-      testTopicName: dapr3-conf-test-eventhubs-pubsub-topic
+      testTopicName: eventhubs-pubsub-topic
       testMultiTopic1Name: certification-pubsub-multi-topic1
       testMultiTopic2Name: certification-pubsub-multi-topic2
       ## with partition key set, inorder processing is guaranteed.

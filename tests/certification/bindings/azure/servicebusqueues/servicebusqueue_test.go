@@ -353,3 +353,72 @@ func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
 		Step("send and wait", test).
 		Run()
 }
+
+func TestServiceBusQueueMetadata(t *testing.T) {
+	log := logger.NewLogger("dapr.components")
+	messages := watcher.NewUnordered()
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	test := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		// Send events that the application above will observe.
+		ctx.Log("Invoking binding!")
+		req := &daprClient.InvokeBindingRequest{Name: "sb-binding-1", Operation: "create", Data: []byte("test msg"), Metadata: map[string]string{"TestMetadata": "Some Metadata"}}
+		err = client.InvokeOutputBinding(ctx, req)
+		require.NoError(ctx, err, "error publishing message")
+
+		// Do the messages we observed match what we expect?
+		messages.Assert(ctx, time.Minute)
+
+		return nil
+	}
+
+	// Application logic that tracks messages from a topic.
+	application := func(ctx flow.Context, s common.Service) (err error) {
+		// Setup the input binding endpoints
+		err = multierr.Combine(err,
+			s.AddBindingInvocationHandler("sb-binding-1", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				messages.Observe(string(in.Data))
+				ctx.Logf("Got message: %s - %+v", string(in.Data), in.Metadata)
+				require.NotEmpty(t, in.Metadata)
+				require.Contains(t, in.Metadata, "TestMetadata")
+				require.Equal(t, "Some Metadata", in.Metadata["TestMetadata"])
+
+				return []byte("{}"), nil
+			}))
+
+		return err
+	}
+
+	flow.New(t, "servicebusqueue certification").
+		// Run the application logic above.
+		Step(app.Run("metadataApp", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("metadataSidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/standard"),
+			runtime.WithOutputBindings(
+				binding_loader.NewOutput("azure.servicebusqueues", func() bindings.OutputBinding {
+					return binding_asb.NewAzureServiceBusQueues(log)
+				}),
+			),
+			runtime.WithInputBindings(
+				binding_loader.NewInput("azure.servicebusqueues", func() bindings.InputBinding {
+					return binding_asb.NewAzureServiceBusQueues(log)
+				}),
+			),
+			runtime.WithSecretStores(
+				secretstores_loader.New("local.env", func() secretstores.SecretStore {
+					return secretstore_env.NewEnvSecretStore(log)
+				}),
+			))).
+		Step("send and wait", test).
+		Run()
+}

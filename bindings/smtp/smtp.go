@@ -78,7 +78,7 @@ func (s *Mailer) Operations() []bindings.OperationKind {
 }
 
 // Invoke sends an email message.
-func (s *Mailer) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (s *Mailer) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// Merge config metadata with request metadata
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {

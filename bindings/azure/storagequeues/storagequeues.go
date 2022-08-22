@@ -16,20 +16,17 @@ package storagequeues
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
-	"os/signal"
 	"strconv"
-	"sync"
-	"syscall"
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
 
 	"github.com/dapr/components-contrib/bindings"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -43,64 +40,59 @@ type consumer struct {
 
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
-	Init(endpoint string, accountName string, accountKey string, queueName string, decodeBase64 bool) error
+	Init(metadata bindings.Metadata) (*storageQueuesMetadata, error)
 	Write(ctx context.Context, data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 }
 
 // AzureQueueHelper concrete impl of queue helper.
 type AzureQueueHelper struct {
-	credential   *azqueue.SharedKeyCredential
 	queueURL     azqueue.QueueURL
-	reqURI       string
 	logger       logger.Logger
 	decodeBase64 bool
 }
 
-func getEndpoint(endpoint, reqURI, accountName, queueName string) (*url.URL, error) {
-	if endpoint != "" {
-		u, err := url.Parse(endpoint)
-		if err != nil {
-			return nil, err
-		}
-
-		p, err := url.Parse(queueName)
-		if err != nil {
-			return nil, err
-		}
-
-		return u.ResolveReference(p), nil
-	}
-
-	return url.Parse(fmt.Sprintf(reqURI, accountName, queueName))
-}
-
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(endpoint string, accountName string, accountKey string, queueName string, decodeBase64 bool) error {
-	credential, err := azqueue.NewSharedKeyCredential(accountName, accountKey)
+func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
+	m, err := parseMetadata(metadata)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	d.credential = credential
-	d.decodeBase64 = decodeBase64
-	u, err := getEndpoint(endpoint, d.reqURI, accountName, queueName)
+
+	credential, env, err := azauth.GetAzureStorageQueueCredentials(d.logger, m.AccountName, metadata.Properties)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
+
 	userAgent := "dapr-" + logger.DaprVersion
 	pipelineOptions := azqueue.PipelineOptions{
 		Telemetry: azqueue.TelemetryOptions{
 			Value: userAgent,
 		},
 	}
-	d.queueURL = azqueue.NewQueueURL(*u, azqueue.NewPipeline(credential, pipelineOptions))
-	ctx := context.TODO()
-	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
-	if err != nil {
-		return err
+	p := azqueue.NewPipeline(credential, pipelineOptions)
+
+	d.decodeBase64 = m.DecodeBase64
+
+	if m.QueueEndpoint != "" {
+		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", m.QueueEndpoint, m.AccountName, m.QueueName))
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		d.queueURL = azqueue.NewQueueURL(*URL, p)
+	} else {
+		URL, _ := url.Parse(fmt.Sprintf("https://%s.queue.%s/%s", m.AccountName, env.StorageEndpointSuffix, m.QueueName))
+		d.queueURL = azqueue.NewQueueURL(*URL, p)
 	}
 
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
 }
 
 func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
@@ -129,7 +121,6 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	if res.NumMessages() == 0 {
 		// Queue was empty so back off by 10 seconds before trying again
 		time.Sleep(10 * time.Second)
-
 		return nil
 	}
 	mt := res.Message(0).Text
@@ -166,7 +157,6 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 // NewAzureQueueHelper creates new helper.
 func NewAzureQueueHelper(logger logger.Logger) QueueHelper {
 	return &AzureQueueHelper{
-		reqURI: "https://%s.queue.core.windows.net/%s",
 		logger: logger,
 	}
 }
@@ -180,11 +170,10 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	AccountKey    string `json:"storageAccessKey"`
-	QueueName     string `json:"queue"`
-	QueueEndpoint string `json:"queueEndpointUrl"`
-	AccountName   string `json:"storageAccount"`
-	DecodeBase64  string `json:"decodeBase64"`
+	QueueName     string
+	QueueEndpoint string
+	AccountName   string
+	DecodeBase64  bool
 	ttl           *time.Duration
 }
 
@@ -194,24 +183,8 @@ func NewAzureStorageQueues(logger logger.Logger) *AzureStorageQueues {
 }
 
 // Init parses connection properties and creates a new Storage Queue client.
-func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
-	meta, err := a.parseMetadata(metadata)
-	if err != nil {
-		return err
-	}
-	a.metadata = meta
-
-	decodeBase64 := false
-	if a.metadata.DecodeBase64 == "true" {
-		decodeBase64 = true
-	}
-
-	endpoint := ""
-	if a.metadata.QueueEndpoint != "" {
-		endpoint = a.metadata.QueueEndpoint
-	}
-
-	err = a.helper.Init(endpoint, a.metadata.AccountName, a.metadata.AccountKey, a.metadata.QueueName, decodeBase64)
+func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
+	a.metadata, err = a.helper.Init(metadata)
 	if err != nil {
 		return err
 	}
@@ -219,22 +192,32 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AzureStorageQueues) parseMetadata(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
+func parseMetadata(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
 	var m storageQueuesMetadata
-	err = json.Unmarshal(b, &m)
+	// AccountKey is parsed in azauth
+
+	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
+		m.AccountName = val
+	} else {
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
+	}
+
+	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageQueueNameKeys...); ok && val != "" {
+		m.QueueName = val
+	} else {
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageQueueNameKeys[0])
+	}
+
+	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
+		m.QueueEndpoint = val
+	}
+
+	m.DecodeBase64 = utils.IsTruthy(metadata.Properties["decodeBase64"])
+
+	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
-
-	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	if ok {
 		m.ttl = &ttl
 	}
@@ -248,7 +231,7 @@ func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
 
 func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	ttlToUse := a.metadata.ttl
-	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
+	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -265,31 +248,20 @@ func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeReq
 	return nil, nil
 }
 
-func (a *AzureStorageQueues) Read(handler bindings.Handler) error {
+func (a *AzureStorageQueues) Read(ctx context.Context, handler bindings.Handler) error {
 	c := consumer{
 		callback: handler,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		for {
-			err := a.helper.Read(ctx, &c)
+		// Read until context is canceled
+		var err error
+		for ctx.Err() == nil {
+			err = a.helper.Read(ctx, &c)
 			if err != nil {
 				a.logger.Errorf("error from c: %s", err)
 			}
-			if ctx.Err() != nil {
-				return
-			}
 		}
 	}()
-
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-	<-sigterm
-	cancel()
-	wg.Wait()
 
 	return nil
 }

@@ -21,7 +21,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -74,8 +74,6 @@ type Mysql struct {
 	db     *sql.DB
 	logger logger.Logger
 }
-
-var _ = bindings.OutputBinding(&Mysql{})
 
 // NewMysql returns a new MySQL output binding.
 func NewMysql(logger logger.Logger) *Mysql {
@@ -147,7 +145,7 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, errors.Errorf("required metadata not set: %s", commandSQLKey)
 	}
 
-	startTime := time.Now().UTC()
+	startTime := time.Now()
 
 	resp := &bindings.InvokeResponse{
 		Metadata: map[string]string{
@@ -157,16 +155,16 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		},
 	}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation { //nolint:exhaustive
 	case execOperation:
-		r, err := m.exec(s)
+		r, err := m.exec(ctx, s)
 		if err != nil {
 			return nil, err
 		}
 		resp.Metadata[respRowsAffectedKey] = strconv.FormatInt(r, 10)
 
 	case queryOperation:
-		d, err := m.query(s)
+		d, err := m.query(ctx, s)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +175,7 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			req.Operation, execOperation, queryOperation, closeOperation)
 	}
 
-	endTime := time.Now().UTC()
+	endTime := time.Now()
 	resp.Metadata[respEndTimeKey] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 
@@ -202,10 +200,10 @@ func (m *Mysql) Close() error {
 	return nil
 }
 
-func (m *Mysql) query(sql string) ([]byte, error) {
+func (m *Mysql) query(ctx context.Context, sql string) ([]byte, error) {
 	m.logger.Debugf("query: %s", sql)
 
-	rows, err := m.db.Query(sql)
+	rows, err := m.db.QueryContext(ctx, sql)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing %s", sql)
 	}
@@ -223,10 +221,10 @@ func (m *Mysql) query(sql string) ([]byte, error) {
 	return result, nil
 }
 
-func (m *Mysql) exec(sql string) (int64, error) {
+func (m *Mysql) exec(ctx context.Context, sql string) (int64, error) {
 	m.logger.Debugf("exec: %s", sql)
 
-	res, err := m.db.Exec(sql)
+	res, err := m.db.ExecContext(ctx, sql)
 	if err != nil {
 		return 0, errors.Wrapf(err, "error executing %s", sql)
 	}
@@ -265,7 +263,7 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 
 	if pemPath != "" {
 		rootCertPool := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(pemPath)
+		pem, err := os.ReadFile(pemPath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
 		}

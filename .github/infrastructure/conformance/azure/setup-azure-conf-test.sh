@@ -172,6 +172,9 @@ COSMOS_DB_VAR_NAME="AzureCosmosDB"
 COSMOS_DB_COLLECTION_VAR_NAME="AzureCosmosDBCollection"
 COSMOS_DB_MASTER_KEY_VAR_NAME="AzureCosmosDBMasterKey"
 COSMOS_DB_URL_VAR_NAME="AzureCosmosDBUrl"
+COSMOS_DB_TABLE_API_VAR_NAME="AzureCosmosDBTableAPI"
+COSMOS_DB_TABLE_API_URL_VAR_NAME="AzureCosmosDBTableAPIUrl"
+COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME="AzureCosmosDBTableAPIMasterKey"
 
 EVENT_GRID_ACCESS_KEY_VAR_NAME="AzureEventGridAccessKey"
 EVENT_GRID_CLIENT_ID_VAR_NAME="AzureEventGridClientId"
@@ -296,6 +299,8 @@ COSMOS_DB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "proper
 echo "INFO: COSMOS_DB_NAME=${COSMOS_DB_NAME}"
 COSMOS_DB_SQL_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlName.value" --output tsv)"
 echo "INFO: COSMOS_DB_SQL_NAME=${COSMOS_DB_SQL_NAME}"
+COSMOS_DB_TABLE_API_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbTableAPIName.value" --output tsv)"
+echo "INFO: COSMOS_DB_TABLE_API_NAME=${COSMOS_DB_TABLE_API_NAME}"
 COSMOS_DB_CONTAINER_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.cosmosDbSqlContainerName.value" --output tsv)"
 echo "INFO: COSMOS_DB_CONTAINER_NAME=${COSMOS_DB_CONTAINER_NAME}"
 EVENT_GRID_TOPIC_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.eventGridTopicName.value" --output tsv)"
@@ -548,6 +553,23 @@ COSMOS_DB_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_NAME}" --resou
 echo export ${COSMOS_DB_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${COSMOS_DB_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_MASTER_KEY}"
 
+# --------------------------------
+# Populate CosmosDB test settings
+# --------------------------------
+echo "Configuring CosmosDB Table API test settings ..."
+
+echo export ${COSMOS_DB_TABLE_API_VAR_NAME}=\"${COSMOS_DB_TABLE_API_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_NAME}"
+
+COSMOS_DB_TABLE_API_URL="$(az cosmosdb list --query "[?name=='${COSMOS_DB_TABLE_API_NAME}'].documentEndpoint" --output tsv)"
+echo export ${COSMOS_DB_TABLE_API_URL_VAR_NAME}=\"${COSMOS_DB_TABLE_API_URL}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_URL_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_URL}"
+
+COSMOS_DB_TABLE_API_MASTER_KEY="$(az cosmosdb keys list --name "${COSMOS_DB_TABLE_API_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryMasterKey" --output tsv)"
+echo export ${COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME}=\"${COSMOS_DB_TABLE_API_MASTER_KEY}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${COSMOS_DB_TABLE_API_MASTER_KEY_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${COSMOS_DB_TABLE_API_MASTER_KEY}"
+
+
 # ----------------------------------
 # Populate Event Grid test settings
 # ----------------------------------
@@ -698,6 +720,7 @@ CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFIC
 az cosmosdb sql role assignment create --account-name ${COSMOS_DB_NAME} --resource-group "${RESOURCE_GROUP_NAME}" --role-definition-name "Cosmos DB Built-in Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_DB_NAME}" --principal-id "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}"
 # Storage
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Blob Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Storage Table Data Reader" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
 # Event Hubs
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Event Hubs Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventHub/namespaces/${EVENT_HUBS_NAMESPACE}"
 # IOT hub used in eventhubs certification test

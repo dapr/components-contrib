@@ -51,8 +51,10 @@ type twilioMetadata struct {
 
 func NewSMS(logger logger.Logger) *SMS {
 	return &SMS{
-		logger:     logger,
-		httpClient: &http.Client{},
+		logger: logger,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -110,7 +112,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	vDr := *strings.NewReader(v.Encode())
 
 	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", twilioURL, &vDr)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, twilioURL, &vDr)
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,11 @@ spec:
     - name: eventHubNamespace
       secretKeyRef:
         name: AzureEventHubsBindingsNamespace
-        key: AzureEventHubsBindingsNamespace    
+        key: AzureEventHubsBindingsNamespace 
+    - name: connectionString
+      secretKeyRef:
+        name: AzureEventHubsBindingsConnectionString
+        value: AzureEventHubsBindingsConnectionString   
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId
@@ -31,6 +35,10 @@ spec:
       secretKeyRef:
         name: AzureCertificationSubscriptionId
         key: AzureCertificationSubscriptionId
+    - name: consumerGroup 
+      secretKeyRef:
+        name: AzureEventHubsBindingsConsumerGroup
+        value: AzureEventHubsBindingsConsumerGroup
     - name: storageAccountName
       secretKeyRef:
         name: AzureBlobStorageAccount
@@ -42,14 +50,8 @@ spec:
     - name: storageContainerName
       secretKeyRef:
         name: AzureEventHubsBindingsContainer
-        key: AzureEventHubsBindingsContainer
-    - name: eventHub
-      secretKeyRef:
-        name: AzureEventHubsBindingsHub
-        key: AzureEventHubsBindingsHub
-    - name: consumerGroup
-      secretKeyRef:
-        name: AzureEventHubsBindingsConsumerGroup
-        key: AzureEventHubsBindingsConsumerGroup
+        value: AzureEventHubsBindingsContainer
+    - name: partitionID
+      value: 0
 auth:
   secretStore: envvar-secret-store

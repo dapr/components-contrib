@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2021-12-01/eventgrid"
@@ -74,13 +74,13 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AzureEventGrid) Read(handler bindings.Handler) error {
+func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) error {
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err
 	}
 
-	err = a.createSubscription()
+	err = a.createSubscription(ctx)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (a *AzureEventGrid) Read(handler bindings.Handler) error {
 			case "POST":
 				bodyBytes := ctx.PostBody()
 
-				_, err = handler(context.TODO(), &bindings.ReadResponse{
+				_, err = handler(ctx, &bindings.ReadResponse{
 					Data: bodyBytes,
 				})
 				if err != nil {
@@ -110,11 +110,27 @@ func (a *AzureEventGrid) Read(handler bindings.Handler) error {
 		}
 	}
 
-	a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
-	err = fasthttp.ListenAndServe(fmt.Sprintf(":%s", a.metadata.HandshakePort), m)
-	if err != nil {
-		return err
+	srv := &fasthttp.Server{
+		Handler: m,
 	}
+
+	// Run the server in background
+	go func() {
+		a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
+		err := srv.ListenAndServe(fmt.Sprintf(":%s", a.metadata.HandshakePort))
+		if err != nil {
+			a.logger.Errorf("Error starting server: %v", err)
+		}
+	}()
+
+	// Close the server when context is canceled
+	go func() {
+		<-ctx.Done()
+		err := srv.Shutdown()
+		if err != nil {
+			a.logger.Errorf("Error shutting down server: %v", err)
+		}
+	}()
 
 	return nil
 }
@@ -229,7 +245,7 @@ func (a *AzureEventGrid) parseMetadata(metadata bindings.Metadata) (*azureEventG
 	return &eventGridMetadata, nil
 }
 
-func (a *AzureEventGrid) createSubscription() error {
+func (a *AzureEventGrid) createSubscription(ctx context.Context) error {
 	clientCredentialsConfig := auth.NewClientCredentialsConfig(a.metadata.ClientID, a.metadata.ClientSecret, a.metadata.TenantID)
 
 	subscriptionClient := eventgrid.NewEventSubscriptionsClient(a.metadata.SubscriptionID)
@@ -253,7 +269,7 @@ func (a *AzureEventGrid) createSubscription() error {
 	}
 
 	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
-	result, err := subscriptionClient.CreateOrUpdate(context.Background(), a.metadata.Scope, a.metadata.EventSubscriptionName, eventInfo)
+	result, err := subscriptionClient.CreateOrUpdate(ctx, a.metadata.Scope, a.metadata.EventSubscriptionName, eventInfo)
 	if err != nil {
 		a.logger.Debugf("Failed to create or update Event Grid subscription: %v", err)
 
@@ -263,7 +279,7 @@ func (a *AzureEventGrid) createSubscription() error {
 	res := result.FutureAPI.Response()
 
 	if res.StatusCode != fasthttp.StatusCreated {
-		bodyBytes, err := ioutil.ReadAll(res.Body)
+		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
 			a.logger.Debugf("Failed reading error body when creating or updating Event Grid subscription: %v", err)
 

@@ -105,7 +105,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this pubsub")
+			assert.EqualError(t, err, "ping is not implemented by this pubsub")
 		} else {
 			assert.Nil(t, err)
 		}
@@ -125,7 +125,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	ctx := context.Background()
 
 	// Subscribe
-	if config.HasOperation("subscribe") { // nolint: nestif
+	if config.HasOperation("subscribe") { //nolint:nestif
 		t.Run("subscribe", func(t *testing.T) {
 			var counter int
 			var lastSequence int
@@ -162,12 +162,16 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 				counter++
 
-				if sequence < lastSequence {
-					outOfOrder = true
-					t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
-				}
+				// Only consider order when we receive a message for the first time
+				// Messages that fail and are re-queued will naturally come out of order
+				if errorCount == 0 {
+					if sequence < lastSequence {
+						outOfOrder = true
+						t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
+					}
 
-				lastSequence = sequence
+					lastSequence = sequence
+				}
 
 				// This behavior is standard to repro a failure of one message in a batch.
 				if errorCount < 2 || counter%5 == 0 {

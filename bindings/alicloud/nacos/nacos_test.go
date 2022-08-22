@@ -47,10 +47,8 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 		return nil, nil
 	}
 
-	go func() {
-		err = n.Read(handler)
-		require.NoError(t, err)
-	}()
+	err = n.Read(context.Background(), handler)
+	require.NoError(t, err)
 
 	select {
 	case <-ch:
@@ -70,7 +68,7 @@ func getNacosLocalCacheMetadata() (map[string]string, error) {
 	}
 
 	cfgFile := path.Join(tmpDir, fmt.Sprintf("%s@@%s@@", dataID, group))
-	file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_CREATE, os.ModePerm) //nolint:nosnakecase
 	if err != nil || file == nil {
 		return nil, fmt.Errorf("open %s failed. %w", cfgFile, err)
 	}

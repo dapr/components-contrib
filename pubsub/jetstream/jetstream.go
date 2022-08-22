@@ -15,8 +15,6 @@ package jetstream
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -56,6 +54,9 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 		}, func(nonce []byte) ([]byte, error) {
 			return sigHandler(js.meta.seedKey, nonce)
 		}))
+	} else if js.meta.tlsClientCert != "" && js.meta.tlsClientKey != "" {
+		js.l.Debug("Configure nats for tls client authentication")
+		opts = append(opts, nats.ClientCert(js.meta.tlsClientCert, js.meta.tlsClientKey))
 	}
 
 	js.nc, err = nats.Connect(js.meta.natsURL, opts...)
@@ -124,35 +125,28 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 			return
 		}
 
-		operation := func() error {
-			js.l.Debugf("Processing JetStream message %s/%d", m.Subject, jsm.Sequence)
-			opErr := handler(ctx, &pubsub.NewMessage{
-				Topic: req.Topic,
-				Data:  m.Data,
-				Metadata: map[string]string{
-					"Topic": m.Subject,
-				},
-			})
-			if opErr != nil {
-				return opErr
+		js.l.Debugf("Processing JetStream message %s/%d", m.Subject, jsm.Sequence)
+		err = handler(ctx, &pubsub.NewMessage{
+			Topic: req.Topic,
+			Data:  m.Data,
+			Metadata: map[string]string{
+				"Topic": m.Subject,
+			},
+		})
+		if err != nil {
+			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+
+			nakErr := m.Nak()
+			if nakErr != nil {
+				js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
 			}
 
-			return m.Ack()
+			return
 		}
-		notify := func(nerr error, d time.Duration) {
-			js.l.Errorf("Error processing JetStream message: %s/%d. Retrying...",
-				m.Subject, jsm.Sequence)
-		}
-		recovered := func() {
-			js.l.Infof("Successfully processed JetStream message after it previously failed: %s/%d",
-				m.Subject, jsm.Sequence)
-		}
-		backOff := js.backOffConfig.NewBackOffWithContext(ctx)
 
-		err = retry.NotifyRecover(operation, backOff, notify, recovered)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			js.l.Errorf("Error processing message and retries are exhausted:  %s/%d.",
-				m.Subject, jsm.Sequence)
+		err = m.Ack()
+		if err != nil {
+			js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 		}
 	}
 

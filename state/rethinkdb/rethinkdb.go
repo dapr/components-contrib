@@ -15,7 +15,7 @@ package rethinkdb
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -66,7 +66,7 @@ func NewRethinkDBStateStore(logger logger.Logger) *RethinkDB {
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists.
 func (s *RethinkDB) Init(metadata state.Metadata) error {
-	r.Log.Out = ioutil.Discard
+	r.Log.Out = io.Discard
 	r.SetTags("rethinkdb", "json")
 	cfg, err := metadataToConfig(metadata.Properties, s.logger)
 	if err != nil {
@@ -282,7 +282,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs multiple operations.
-func (s *RethinkDB) Multi(req state.TransactionalStateRequest) error {
+func (s *RethinkDB) Multi(req *state.TransactionalStateRequest) error {
 	upserts := make([]state.SetRequest, 0)
 	deletes := make([]state.DeleteRequest, 0)
 

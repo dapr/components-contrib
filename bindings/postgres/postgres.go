@@ -107,7 +107,7 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		},
 	}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation { //nolint:exhaustive
 	case execOperation:
 		r, err := p.exec(ctx, sql)
 		if err != nil {
@@ -154,13 +154,13 @@ func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err er
 		return nil, errors.Wrapf(err, "error executing %s", sql)
 	}
 
-	rs := make([]interface{}, 0)
+	rs := make([]any, 0)
 	for rows.Next() {
 		val, rowErr := rows.Values()
 		if rowErr != nil {
 			return nil, errors.Wrapf(rowErr, "error parsing result: %v", rows.Err())
 		}
-		rs = append(rs, val)
+		rs = append(rs, val) //nolint:asasalint
 	}
 
 	if result, err = json.Marshal(rs); err != nil {

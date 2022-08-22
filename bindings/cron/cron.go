@@ -47,8 +47,9 @@ func NewCron(logger logger.Logger) *Binding {
 
 // Init initializes the Cron binding
 // Examples from https://godoc.org/github.com/robfig/cron:
-//   "15 * * * * *" - Every 15 sec
-//   "0 30 * * * *" - Every 30 min
+//
+//	"15 * * * * *" - Every 15 sec
+//	"0 30 * * * *" - Every 30 min
 func (b *Binding) Init(metadata bindings.Metadata) error {
 	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]

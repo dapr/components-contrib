@@ -23,10 +23,10 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var kubeconfig *string
 
-// nolint:gochecknoinits
+//nolint:gochecknoinits
 func init() {
 	if home := homedir.HomeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")

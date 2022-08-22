@@ -287,7 +287,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 }
 
 func TestParseMetadata(t *testing.T) {
-	var oneSecondDuration time.Duration = time.Second
+	oneSecondDuration := time.Second
 
 	testCases := []struct {
 		name       string
@@ -295,7 +295,7 @@ func TestParseMetadata(t *testing.T) {
 		// Account key is parsed in azauth
 		// expectedAccountKey       string
 		expectedQueueName        string
-		expectedQueueEndpointUrl string
+		expectedQueueEndpointURL string
 		expectedTTL              *time.Duration
 	}{
 		{
@@ -303,21 +303,21 @@ func TestParseMetadata(t *testing.T) {
 			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"},
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:        "queue1",
-			expectedQueueEndpointUrl: "",
+			expectedQueueEndpointURL: "",
 		},
 		{
 			name:       "Accout, key, and endpoint",
 			properties: map[string]string{"accountKey": "myKey", "queueName": "queue1", "storageAccount": "someAccount", "queueEndpointUrl": "https://foo.example.com:10001"},
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:        "queue1",
-			expectedQueueEndpointUrl: "https://foo.example.com:10001",
+			expectedQueueEndpointURL: "https://foo.example.com:10001",
 		},
 		{
 			name:       "Empty TTL",
 			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:        "queue1",
-			expectedQueueEndpointUrl: "",
+			expectedQueueEndpointURL: "",
 		},
 		{
 			name:       "With TTL",
@@ -325,7 +325,7 @@ func TestParseMetadata(t *testing.T) {
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:        "queue1",
 			expectedTTL:              &oneSecondDuration,
-			expectedQueueEndpointUrl: "",
+			expectedQueueEndpointURL: "",
 		},
 	}
 
@@ -340,7 +340,7 @@ func TestParseMetadata(t *testing.T) {
 			// assert.Equal(t, tt.expectedAccountKey, meta.AccountKey)
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
 			assert.Equal(t, tt.expectedTTL, meta.ttl)
-			assert.Equal(t, tt.expectedQueueEndpointUrl, meta.QueueEndpoint)
+			assert.Equal(t, tt.expectedQueueEndpointURL, meta.QueueEndpoint)
 		})
 	}
 }

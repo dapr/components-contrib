@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification/secretstores/azure/keyvault
+module github.com/dapr/components-contrib/tests/certification/state/sqlserver
 
 go 1.19
 
@@ -18,7 +18,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
+	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

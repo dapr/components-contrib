@@ -1,6 +1,6 @@
-module dubbo_test
+module github.com/dapr/components-contrib/tests/certification/bindings/alicloud/dubbo
 
-go 1.17
+go 1.18
 
 require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
@@ -24,7 +24,7 @@ require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5 // indirect
 	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
+	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

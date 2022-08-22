@@ -128,6 +128,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			contentType: contenttype.JSONContentType,
 		},
 		{
+			key:         fmt.Sprintf("%s-empty-string-as-bytes", key),
+			value:       []byte(""),
+			contentType: contenttype.JSONContentType,
+		},
+		{
 			key:         fmt.Sprintf("%s-to-be-deleted", key),
 			value:       "to be deleted",
 			toBeDeleted: true,

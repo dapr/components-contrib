@@ -76,7 +76,7 @@ type Mysql struct {
 }
 
 // NewMysql returns a new MySQL output binding.
-func NewMysql(logger logger.Logger) *Mysql {
+func NewMysql(logger logger.Logger) bindings.OutputBinding {
 	return &Mysql{logger: logger}
 }
 

@@ -208,7 +208,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return err
 }
 
-func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
+func NewAzureTablesStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},

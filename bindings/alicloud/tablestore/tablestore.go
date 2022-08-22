@@ -51,7 +51,7 @@ type AliCloudTableStore struct {
 	metadata tablestoreMetadata
 }
 
-func NewAliCloudTableStore(log logger.Logger) *AliCloudTableStore {
+func NewAliCloudTableStore(log logger.Logger) bindings.OutputBinding {
 	return &AliCloudTableStore{
 		logger: log,
 		client: nil,

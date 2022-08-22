@@ -52,7 +52,7 @@ type Couchbase struct {
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store.
-func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
+func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	s := &Couchbase{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},

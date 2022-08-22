@@ -70,7 +70,7 @@ type listPayload struct {
 }
 
 // NewHuaweiOBS returns a new Huawei OBS instance.
-func NewHuaweiOBS(logger logger.Logger) *HuaweiOBS {
+func NewHuaweiOBS(logger logger.Logger) bindings.OutputBinding {
 	return &HuaweiOBS{logger: logger}
 }
 

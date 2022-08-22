@@ -110,8 +110,10 @@ func TestInit(t *testing.T) {
 		},
 		{
 			"given SelfRegister true then register service",
-			nr.Metadata{Base: metadata.Base{
-				Properties: getTestPropsWithoutKey("")},
+			nr.Metadata{
+				Base: metadata.Base{
+					Properties: getTestPropsWithoutKey(""),
+				},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},

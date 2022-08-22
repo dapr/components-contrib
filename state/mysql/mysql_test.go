@@ -623,12 +623,14 @@ func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
 	m, _ := mockDatabase(t)
 	m.factory.registerErr = fmt.Errorf("registerTLSConfigError")
 
-	metadata := &state.Metadata{Base: metadata.Base{
-		Properties: map[string]string{
-			pemPathKey:          "./ssl.pem",
-			tableNameKey:        "stateStore",
-			connectionStringKey: fakeConnectionString,
-		}},
+	metadata := &state.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				pemPathKey:          "./ssl.pem",
+				tableNameKey:        "stateStore",
+				connectionStringKey: fakeConnectionString,
+			},
+		},
 	}
 
 	// Act

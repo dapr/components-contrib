@@ -1,10 +1,10 @@
 module github.com/dapr/components-contrib/tests/certification
 
-go 1.18
+go 1.19
 
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
-	github.com/dapr/dapr v1.8.0-rc.1.0.20220713223752-9c6ab20ec023
+	github.com/dapr/dapr v1.8.4-0.20220822154328-9797b4006e23
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/google/go-cmp v0.5.8
@@ -19,13 +19,23 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/hashicorp/go-hclog v1.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.7.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.7.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.7.0 // indirect
+	go.opentelemetry.io/otel/exporters/zipkin v1.7.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.7.0 // indirect
+	go.opentelemetry.io/otel/trace v1.7.0 // indirect
+	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/tools v0.1.11 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
@@ -36,7 +46,6 @@ require (
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.1 // indirect
-	contrib.go.opencensus.io/exporter/zipkin v0.1.1 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
@@ -117,7 +126,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-replace go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
 
 replace github.com/dapr/components-contrib => ../../

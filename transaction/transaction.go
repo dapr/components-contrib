@@ -7,14 +7,14 @@ type Transaction interface {
 	// Begin a distribute transaction
 	Begin(request BeginTransactionRequest) (*BeginResponse, error)
 
-	// try to lock the transaction resource
-	Try(tryRequest BunchTransactionTryRequest) error
-
-	// Confirm a distribute transaction
-	Confirm(confirmRequest BunchTransactionConfirmRequest) error
+	// Commit a distribute transaction
+	Commit(commitRequest BunchTransactionCommitRequest) error
 
 	// rooback a distribute transaction
 	Rollback(rollBackRequest BunchTransactionRollbackRequest) error
+
+	// store the state of bunch transaction
+	SaveBunchTransactionState(upRequest SaveBunchTransactionRequest) error
 
 	// get all bunch transaction state of the distribute transaction
 	GetBunchTransactionState(req GetBunchTransactionsRequest) (*TransactionStateResponse, error)

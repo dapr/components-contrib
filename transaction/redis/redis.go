@@ -21,10 +21,10 @@ const (
 	defaultTransactionIDPre      = "transaction-"
 	defaultBunchTransactionIDPre = "bunch-"
 	defaultState                 = 0
-	stateForTrySuccess           = 10
-	stateForTryFailure           = 1
-	stateForConfirmSuccess       = 20
-	stateForConfirmFailure       = 2
+	stateForRequestSuccess       = 10
+	stateForRequestFailure       = 1
+	stateForCommitSuccess        = 20
+	stateForCommitFailure        = 2
 	stateForRollbackSuccess      = 30
 	stateForRollbackFailure      = 3
 	requestStatusOK              = 1
@@ -97,7 +97,7 @@ func (t *DistributeTransaction) initBunchTransactionState(transactionID string, 
 	if IntCmd.Err() != nil {
 		return fmt.Errorf("transaction state store persistence error")
 	}
-	// update ttl for the map, it doesn't mater get a failed result as it will be deleted when the transaction confirmed or roll back.
+	// update ttl for the map, it doesn't mater get a failed result as it will be deleted when the transaction commited or roll back.
 	t.client.Expire(t.ctx, transactionID, time.Second*time.Duration(t.duration))
 	return nil
 }
@@ -211,9 +211,9 @@ func (t *DistributeTransaction) releaseBunchTransactionState(transactionID strin
 	if transactionID == "" {
 		return fmt.Errorf("transaction id missing")
 	}
-	res := t.client.HDel(t.ctx, transactionID)
+	res := t.client.Del(t.ctx, transactionID)
 	if res.Err() != nil {
-		t.logger.Debug("release transaction from persistent store error", res.Err())
+		t.logger.Debug("release transaction from persistent store error : ", res.Err())
 		return fmt.Errorf("release transaction from persistent store error")
 	}
 	return nil
@@ -257,7 +257,7 @@ func (t *DistributeTransaction) Init(metadata transaction.Metadata) {
 		t.schema = defaultTransactionSchema
 	}
 
-	// initialize retryTimes for confirm and roll back action
+	// initialize retryTimes for commit and roll back action
 	t.retryTimes = 1
 	if retry, _ := strconv.Atoi(metadata.Properties["retryTimes"]); retry > 0 {
 		t.retryTimes = retry
@@ -284,7 +284,7 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 		// set to a default state for nothing have happened and a empty request param
 		bunchTransactionStateStore := transaction.DistributeTransactionState{}
 		bunchTransactionStateStore.StatusCode = defaultState
-		bunchTransactionStateStore.TryRequestParam = &transaction.TransactionTryRequestParam{}
+		bunchTransactionStateStore.BunchTransactionRequestParam = &transaction.TransactionRequestParam{}
 		t.logger.Debugf("init state info for %s is %s", bunchTransactionID, t.parseStructToString(bunchTransactionStateStore))
 
 		bunchTransactionStateStores = append(bunchTransactionStateStores, bunchTransactionID, t.parseStructToString(bunchTransactionStateStore))
@@ -306,57 +306,57 @@ func (t *DistributeTransaction) Begin(beginRequest transaction.BeginTransactionR
 	}, nil
 }
 
-// Try to execute bunch transaction
-func (t *DistributeTransaction) Try(tryRequest transaction.BunchTransactionTryRequest) error {
+// store the state of bunch transaction
+func (t *DistributeTransaction) SaveBunchTransactionState(saveRequest transaction.SaveBunchTransactionRequest) error {
 	t.logger.Debug("Try to execute bunch transaction")
-	if tryRequest.TransactionID == "" || tryRequest.BunchTransactionID == "" {
+	if saveRequest.TransactionID == "" || saveRequest.BunchTransactionID == "" {
 		t.logger.Info("distribute transaction id or bunch transaction id missing")
 		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
 	}
-	bunchTransactionStateStore, err := t.getBunchTransaction(tryRequest.TransactionID, tryRequest.BunchTransactionID)
+	bunchTransactionStateStore, err := t.getBunchTransaction(saveRequest.TransactionID, saveRequest.BunchTransactionID)
 	if err != nil {
 		return fmt.Errorf("distribute transaction does't found")
 	}
 
-	if tryRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore.StatusCode = stateForTrySuccess
+	if saveRequest.StatusCode == requestStatusOK {
+		bunchTransactionStateStore.StatusCode = stateForRequestSuccess
 	} else {
-		bunchTransactionStateStore.StatusCode = stateForTryFailure
+		bunchTransactionStateStore.StatusCode = stateForRequestFailure
 	}
-	bunchTransactionStateStore.TryRequestParam = tryRequest.TryRequestParam
+	bunchTransactionStateStore.BunchTransactionRequestParam = saveRequest.BunchTransactionRequestParam
 
 	t.logger.Debug("bunch tranastion request param :", bunchTransactionStateStore)
 
-	err = t.modifyBunchTransactionState(tryRequest.TransactionID, tryRequest.BunchTransactionID, t.parseStructToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(saveRequest.TransactionID, saveRequest.BunchTransactionID, t.parseStructToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
-	t.logger.Debug(tryRequest.TransactionID, "bunch transaction state store success")
+	t.logger.Debug(saveRequest.TransactionID, "bunch transaction state store success")
 	return nil
 }
 
-// Confirm a bunch trasaction
-func (t *DistributeTransaction) Confirm(confirmRequest transaction.BunchTransactionConfirmRequest) error {
-	t.logger.Debug("Confirm the bunch transaction")
-	if confirmRequest.TransactionID == "" || confirmRequest.BunchTransactionID == "" {
+// Commit a bunch trasaction
+func (t *DistributeTransaction) Commit(commitRequest transaction.BunchTransactionCommitRequest) error {
+	t.logger.Debug("Commit the bunch transaction")
+	if commitRequest.TransactionID == "" || commitRequest.BunchTransactionID == "" {
 		t.logger.Debug("distribute transaction id or bunch transaction id missing")
 		return fmt.Errorf("distribute transaction id or bunch transaction id missing")
 	}
-	bunchTransactionStateStore, err := t.getBunchTransaction(confirmRequest.TransactionID, confirmRequest.BunchTransactionID)
+	bunchTransactionStateStore, err := t.getBunchTransaction(commitRequest.TransactionID, commitRequest.BunchTransactionID)
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store read error")
 	}
-	if confirmRequest.StatusCode == requestStatusOK {
-		bunchTransactionStateStore.StatusCode = stateForConfirmSuccess
+	if commitRequest.StatusCode == requestStatusOK {
+		bunchTransactionStateStore.StatusCode = stateForCommitSuccess
 	} else {
-		bunchTransactionStateStore.StatusCode = stateForConfirmFailure
+		bunchTransactionStateStore.StatusCode = stateForCommitFailure
 	}
 
-	err = t.modifyBunchTransactionState(confirmRequest.TransactionID, confirmRequest.BunchTransactionID, t.parseStructToString(bunchTransactionStateStore))
+	err = t.modifyBunchTransactionState(commitRequest.TransactionID, commitRequest.BunchTransactionID, t.parseStructToString(bunchTransactionStateStore))
 	if err != nil {
 		return fmt.Errorf("distribute transaction state store error")
 	}
-	t.logger.Debug(confirmRequest.TransactionID, "bunch transaction state store success")
+	t.logger.Debug(commitRequest.TransactionID, "bunch transaction state store success")
 	return nil
 }
 
@@ -418,7 +418,7 @@ func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.
 	}, nil
 }
 
-// release transaction state store when all of the bunch transaction confirmed or roll back
+// release transaction state store when all of the bunch transaction commited or rollback
 func (t *DistributeTransaction) ReleaseTransactionResource(releaseRequest transaction.ReleaseTransactionRequest) error {
 	if releaseRequest.TransactionID == "" {
 		t.logger.Info("distribute transaction id missing")

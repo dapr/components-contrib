@@ -9,15 +9,18 @@ type BeginTransactionRequest struct {
 	BunchTransactionNum int `json:"bunchTransactionNum"`
 }
 
-type BunchTransactionTryRequest struct {
-	TransactionID      string                      `json:"transactionID"`
-	BunchTransactionID string                      `json:"bunchTransactionID"`
-	StatusCode         int                         `json:"statusCode"`
-	TryRequestParam    *TransactionTryRequestParam `json:"tryRequestParam"`
+// type BunchTransactionTryRequest struct {
+type SaveBunchTransactionRequest struct {
+	TransactionID      string `json:"transactionID"`
+	BunchTransactionID string `json:"bunchTransactionID"`
+	StatusCode         int    `json:"statusCode"`
+	// TryRequestParam    *TransactionRequestParam `json:"tryRequestParam"`
+	BunchTransactionRequestParam *TransactionRequestParam `json:"bunchTransactionRequestParam"`
 }
 
 // The request params of a bunch transaction
-type TransactionTryRequestParam struct {
+// type TransactionTryRequestParam struct {
+type TransactionRequestParam struct {
 	Type             string                  `json:"type"`
 	TargetID         string                  `json:"targetID"`
 	InvokeMethodName string                  `json:"invokeMethodName"`
@@ -34,7 +37,8 @@ type GetBunchTransactionsRequest struct {
 	TransactionID string `json:"transactionID"`
 }
 
-type BunchTransactionConfirmRequest struct {
+// type BunchTransactionConfirmRequest struct {
+type BunchTransactionCommitRequest struct {
 	TransactionID      string `json:"transactionID"`
 	BunchTransactionID string `json:"bunchTransactionID"`
 	StatusCode         int    `json:"statusCode"`
@@ -51,6 +55,7 @@ type ReleaseTransactionRequest struct {
 }
 
 type DistributeTransactionState struct {
-	StatusCode      int                         `json:"statusCode"`
-	TryRequestParam *TransactionTryRequestParam `json:"tryRequestParam"`
+	StatusCode int `json:"statusCode"`
+	// TryRequestParam *TransactionRequestParam `json:"tryRequestParam"`
+	BunchTransactionRequestParam *TransactionRequestParam `json:"bunchTransactionRequestParam"`
 }

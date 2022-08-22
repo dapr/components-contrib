@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -74,7 +75,7 @@ func TestInitMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.missingProp+" is missing", func(t *testing.T) {
 			// act
-			err := resolver.Init(nr.Metadata{Properties: tt.props})
+			err := resolver.Init(nr.Metadata{Base: metadata.Base{Properties: tt.props}})
 
 			// assert
 			assert.Error(t, err)
@@ -86,11 +87,11 @@ func TestInitRegister(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
 	defer resolver.Close()
-	md := nr.Metadata{Properties: map[string]string{
+	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
-	}}
+	}}}
 
 	// act
 	err := resolver.Init(md)
@@ -101,16 +102,16 @@ func TestInitRegisterDuplicate(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
 	defer resolver.Close()
-	md := nr.Metadata{Properties: map[string]string{
+	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
-	}}
-	md2 := nr.Metadata{Properties: map[string]string{
+	}}}
+	md2 := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
-	}}
+	}}}
 
 	// act
 	err := resolver.Init(md)
@@ -124,11 +125,11 @@ func TestResolver(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
 	defer resolver.Close()
-	md := nr.Metadata{Properties: map[string]string{
+	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
-	}}
+	}}}
 
 	// act
 	err := resolver.Init(md)
@@ -145,11 +146,11 @@ func TestResolver(t *testing.T) {
 func TestResolverClose(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
-	md := nr.Metadata{Properties: map[string]string{
+	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
-	}}
+	}}}
 
 	// act
 	err := resolver.Init(md)
@@ -181,12 +182,12 @@ func TestResolverMultipleInstances(t *testing.T) {
 	instanceAPort := "1234"
 	instanceAPQDN := fmt.Sprintf("%s:%s", instanceAAddress, instanceAPort)
 
-	instanceA := nr.Metadata{Properties: map[string]string{
+	instanceA := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    instanceAName,
 		nr.MDNSInstanceAddress: instanceAAddress,
 		nr.MDNSInstancePort:    instanceAPort,
 		nr.MDNSInstanceID:      instanceAID,
-	}}
+	}}}
 	err1 := resolver.Init(instanceA)
 	require.NoError(t, err1)
 
@@ -197,12 +198,12 @@ func TestResolverMultipleInstances(t *testing.T) {
 	instanceBPort := "5678"
 	instanceBPQDN := fmt.Sprintf("%s:%s", instanceBAddress, instanceBPort)
 
-	instanceB := nr.Metadata{Properties: map[string]string{
+	instanceB := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    instanceBName,
 		nr.MDNSInstanceAddress: instanceBAddress,
 		nr.MDNSInstancePort:    instanceBPort,
 		nr.MDNSInstanceID:      instanceBID,
-	}}
+	}}}
 	err2 := resolver.Init(instanceB)
 	require.NoError(t, err2)
 
@@ -288,11 +289,11 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test"))
 	defer resolver.Close()
-	md := nr.Metadata{Properties: map[string]string{
+	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
 		nr.MDNSInstancePort:    "1234",
-	}}
+	}}}
 
 	// act
 	err := resolver.Init(md)
@@ -334,12 +335,12 @@ func ResolverConcurrencyFound(t *testing.T) {
 	appAPort := "1234"
 	appAPQDN := fmt.Sprintf("%s:%s", appAAddress, appAPort)
 
-	appA := nr.Metadata{Properties: map[string]string{
+	appA := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    appAName,
 		nr.MDNSInstanceAddress: appAAddress,
 		nr.MDNSInstancePort:    appAPort,
 		nr.MDNSInstanceID:      appAID,
-	}}
+	}}}
 	err1 := resolver.Init(appA)
 	require.NoError(t, err1)
 
@@ -350,12 +351,12 @@ func ResolverConcurrencyFound(t *testing.T) {
 	appBPort := "5678"
 	appBBPQDN := fmt.Sprintf("%s:%s", appBAddress, appBPort)
 
-	appB := nr.Metadata{Properties: map[string]string{
+	appB := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    appBName,
 		nr.MDNSInstanceAddress: appBAddress,
 		nr.MDNSInstancePort:    appBPort,
 		nr.MDNSInstanceID:      appBID,
-	}}
+	}}}
 	err2 := resolver.Init(appB)
 	require.NoError(t, err2)
 
@@ -366,12 +367,12 @@ func ResolverConcurrencyFound(t *testing.T) {
 	appCPort := "3456"
 	appCBPQDN := fmt.Sprintf("%s:%s", appCAddress, appCPort)
 
-	appC := nr.Metadata{Properties: map[string]string{
+	appC := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    appCName,
 		nr.MDNSInstanceAddress: appCAddress,
 		nr.MDNSInstancePort:    appCPort,
 		nr.MDNSInstanceID:      appCID,
-	}}
+	}}}
 	err3 := resolver.Init(appC)
 	require.NoError(t, err3)
 

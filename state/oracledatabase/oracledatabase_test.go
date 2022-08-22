@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -207,7 +208,7 @@ func createOracleDatabase(t *testing.T) *OracleDatabase {
 	assert.NotNil(t, odb)
 
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: fakeConnectionString},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
 	}
 
 	err := odb.Init(*metadata)

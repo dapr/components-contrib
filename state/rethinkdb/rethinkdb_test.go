@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -64,7 +65,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 		t.SkipNow()
 	}
 
-	m := state.Metadata{Properties: getTestMetadata()}
+	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
 	db := NewRethinkDBStateStore(logger.NewLogger("test"))
 
 	t.Run("With init", func(t *testing.T) {
@@ -153,7 +154,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 		t.SkipNow()
 	}
 
-	m := state.Metadata{Properties: getTestMetadata()}
+	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
 	db := NewRethinkDBStateStore(logger.NewLogger("test"))
 	if err := db.Init(m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
@@ -208,7 +209,7 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 		t.SkipNow()
 	}
 
-	m := state.Metadata{Properties: getTestMetadata()}
+	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
 	db := NewRethinkDBStateStore(logger.NewLogger("test"))
 	if err := db.Init(m); err != nil {
 		t.Fatalf("error initializing db: %v", err)

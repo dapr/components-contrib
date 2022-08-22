@@ -10,7 +10,9 @@ spec:
     - name: consumerID
       value: optionscertification
     - name: namespaceName
-      value: "servicebusnamespace.servicebus.windows.net"
+      secretKeyRef:
+        name: AzureServiceBusNamespace
+        key: AzureServiceBusNamespace
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId

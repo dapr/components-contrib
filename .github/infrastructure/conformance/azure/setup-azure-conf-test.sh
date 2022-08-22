@@ -216,6 +216,7 @@ KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
 
 SERVICE_BUS_CONNECTION_STRING_VAR_NAME="AzureServiceBusConnectionString"
+SERVICE_BUS_NAMESPACE_VAR_NAME="AzureServiceBusNamespace"
 
 SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
 SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
@@ -613,6 +614,8 @@ echo "Configuring Service Bus test settings ..."
 SERVICE_BUS_CONNECTION_STRING="$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name "${SERVICE_BUS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
 echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
+SERVICE_BUS_NAMESPACE="${SERVICE_BUS_NAME}.servicebus.windows.net"
+echo export ${SERVICE_BUS_NAMESPACE_VAR_NAME}=\"${SERVICE_BUS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
 
 # ----------------------------------
 # Populate SQL Server test settings

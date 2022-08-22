@@ -816,6 +816,7 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 }
 
 func TestServicebusEntityManagement(t *testing.T) {
+	//TODO: Modify it to looks for component init error in the sidecar itself.
 	log := logger.NewLogger("dapr.components")
 	consumerGroup1 := watcher.NewUnordered()
 
@@ -891,7 +892,7 @@ func TestServicebusEntityManagement(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "servicebus certification - entity management enabled").
+	flow.New(t, "servicebus certification - entity management disabled").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),

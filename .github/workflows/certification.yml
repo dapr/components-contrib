@@ -44,6 +44,7 @@ jobs:
         - pubsub.mqtt
         - state.redis
         - state.postgresql
+        - state.cassandra
         - bindings.alicloud.dubbo
         - bindings.kafka
         - secretstores.local.env

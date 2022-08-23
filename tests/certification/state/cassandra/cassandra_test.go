@@ -265,6 +265,7 @@ func TestCluster(t *testing.T) {
 					return stateStore
 				}),
 			))).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("Run fail test", failTest).
 		Run()
 

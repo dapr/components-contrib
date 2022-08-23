@@ -20,9 +20,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	"strconv"
-	"testing"
-	"time"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
@@ -31,6 +28,9 @@ import (
 	goclient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"strconv"
+	"testing"
+	"time"
 )
 
 const (
@@ -38,8 +38,9 @@ const (
 	dockerComposeYAMLCLUSTER = "docker-compose-cluster.yml"
 	dockerComposeYAML        = "docker-compose-single.yml"
 
-	stateStoreName    = "statestore"
-	stateStoreCluster = "statestorecluster"
+	stateStoreName        = "statestore"
+	stateStoreCluster     = "statestorecluster"
+	stateStoreClusterFail = "statestoreclusterfail"
 
 	certificationTestPrefix = "stable-certification-"
 	stateStoreNoConfigError = "error saving state: rpc error: code = FailedPrecondition desc = state store is not configured"
@@ -207,6 +208,7 @@ func TestCluster(t *testing.T) {
 
 		return nil
 	}
+
 	failTest := func(ctx flow.Context) error {
 		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort))
 		if err != nil {
@@ -214,11 +216,11 @@ func TestCluster(t *testing.T) {
 		}
 		defer client.Close()
 
-		err = client.SaveState(ctx, stateStoreCluster, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
+		err = client.SaveState(ctx, stateStoreClusterFail, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
 		assert.NoError(t, err)
 
 		// get state
-		_, err = client.GetStateWithConsistency(ctx, stateStoreCluster, certificationTestPrefix+"key1", nil, goclient.StateConsistencyUndefined)
+		_, err = client.GetStateWithConsistency(ctx, stateStoreClusterFail, certificationTestPrefix+"key1", nil, goclient.StateConsistencyUndefined)
 		assert.Error(t, err)
 
 		return nil
@@ -240,8 +242,8 @@ func TestCluster(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("reset dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
-		Step("wait", flow.Sleep(10*time.Second)).
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
+		Step("wait", flow.Sleep(20*time.Second)).
+		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),

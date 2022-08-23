@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: statestorecluster
+  name: statestoreclusterfail
 spec:
   type: state.cassandra
   version: v1

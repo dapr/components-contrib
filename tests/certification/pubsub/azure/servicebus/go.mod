@@ -1,4 +1,4 @@
-module servicebusqueue_test
+module servicebus_test
 
 go 1.19
 

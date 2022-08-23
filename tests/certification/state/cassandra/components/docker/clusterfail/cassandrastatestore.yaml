@@ -15,3 +15,5 @@ spec:
     value: cassandra
   - name: consistency
     value: "Three"
+  - name: replicationFactor
+    value: "2"

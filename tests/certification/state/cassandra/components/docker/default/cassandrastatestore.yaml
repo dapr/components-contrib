@@ -14,3 +14,7 @@ spec:
     value: cassandra
   - name: port
     value: "9044"
+  - name: table
+    value: "daprTable"
+  - name: keyspace
+    value: "daprKeyspace"

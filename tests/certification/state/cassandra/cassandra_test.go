@@ -157,29 +157,15 @@ func TestCassandra(t *testing.T) {
 			))).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run TTL related test", timeToLiveTest).
-		//Step("interrupt network",
-		//	network.InterruptNetwork(10*time.Second, nil, nil, "9042:9042")).
-		// Component should recover at this point.
-		//Step("wait", flow.Sleep(30*time.Second)).
+		Step("interrupt network",
+			network.InterruptNetwork(10*time.Second, nil, nil, "9044:9042")).
+		//Component should recover at this point.
+		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test again to verify reconnection occurred", basicTest).
 		Step("stop cassandra server", dockercompose.Stop("cassandra", dockerComposeYAML, "cassandra")).
 		Step("start cassandra server", dockercompose.Start("cassandra", dockerComposeYAML, "cassandra")).
 		Step("wait", flow.Sleep(60*time.Second)).
 		Step("Get Values Saved Earlier And Not Expired, after Cassandra restart", testGetAfterCassandraRestart).
-		Step("Run basic test", basicTest).
-		Step("reset dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
-		Step("wait", flow.Sleep(10*time.Second)).
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/createTables"),
-			runtime.WithStates(
-				state_loader.New("cassandra", func() state.Store {
-					return stateStore
-				}),
-			))).
-		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test", basicTest).
 		Run()
 
@@ -265,7 +251,7 @@ func TestCluster(t *testing.T) {
 					return stateStore
 				}),
 			))).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run fail test", failTest).
 		Run()
 

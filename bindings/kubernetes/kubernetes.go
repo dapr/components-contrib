@@ -31,10 +31,10 @@ import (
 )
 
 type kubernetesInput struct {
-	kubeClient        kubernetes.Interface
-	namespace         string
-	resyncPeriodInSec time.Duration
-	logger            logger.Logger
+	kubeClient   kubernetes.Interface
+	namespace    string
+	resyncPeriod time.Duration
+	logger       logger.Logger
 }
 
 type EventResponse struct {
@@ -68,9 +68,9 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 		intval, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
 			k.logger.Warnf("invalid resyncPeriodInSec %s; %v; defaulting to 10s", val, err)
-			k.resyncPeriodInSec = time.Second * 10
+			k.resyncPeriod = time.Second * 10
 		} else {
-			k.resyncPeriodInSec = time.Second * time.Duration(intval)
+			k.resyncPeriod = time.Second * time.Duration(intval)
 		}
 	}
 
@@ -84,11 +84,11 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		k.namespace,
 		fields.Everything(),
 	)
-	var resultChan chan EventResponse = make(chan EventResponse)
+	resultChan := make(chan EventResponse)
 	_, controller := cache.NewInformer(
 		watchlist,
 		&v1.Event{},
-		k.resyncPeriodInSec,
+		k.resyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				if obj != nil {

@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -151,7 +150,7 @@ func RetryModifier(jobType string, retries int) func(string) string {
 // GetTestFile loads the content of a BPMN process file. The function also accepts a list of
 // modifier functions which allows to manipulate the content of the returned BPMN file.
 func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, error) {
-	dataBytes, err := ioutil.ReadFile("../processes/" + fileName)
+	dataBytes, err := os.ReadFile("../processes/" + fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +185,8 @@ func DeployProcess(
 		return nil, err
 	}
 
-	deployment := &pb.DeployProcessResponse{}
+	// TODO: pb.DeployProcessResponse is deprecated and needs to be replaced eventually
+	deployment := &pb.DeployProcessResponse{} //nolint:staticcheck
 	err = json.Unmarshal(res.Data, deployment)
 	if err != nil {
 		return nil, err

@@ -262,11 +262,11 @@ func (s *AliCloudTableStore) create(req *bindings.InvokeRequest, resp *bindings.
 		TableName:     s.getTableName(req.Metadata),
 		PrimaryKey:    &tablestore.PrimaryKey{PrimaryKeys: pks},
 		Columns:       columns,
-		ReturnType:    tablestore.ReturnType_RT_NONE,
+		ReturnType:    tablestore.ReturnType_RT_NONE, //nolint:nosnakecase
 		TransactionId: nil,
 	}
 
-	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
+	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE) //nolint:nosnakecase
 
 	putRequest := &tablestore.PutRowRequest{
 		PutRowChange: &change,
@@ -301,7 +301,7 @@ func (s *AliCloudTableStore) delete(req *bindings.InvokeRequest, resp *bindings.
 		TableName:  s.getTableName(req.Metadata),
 		PrimaryKey: &tablestore.PrimaryKey{PrimaryKeys: pks},
 	}
-	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
+	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE) //nolint:nosnakecase
 	deleteReq := &tablestore.DeleteRowRequest{DeleteRowChange: change}
 	_, err = s.client.DeleteRow(deleteReq)
 

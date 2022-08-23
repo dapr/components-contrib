@@ -11,13 +11,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:nosnakecase
 package conformance
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -88,7 +88,7 @@ const (
 	generateUUID = "$((uuid))"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var testLogger = logger.NewLogger("testLogger")
 
 type TestConfiguration struct {
@@ -225,7 +225,7 @@ func isYaml(fileName string) bool {
 }
 
 func readTestConfiguration(filePath string) ([]byte, error) {
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s", filePath)
 	}

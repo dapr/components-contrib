@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	ipfs_path "github.com/ipfs/interface-go-ipfs-core/path"
+	ipfsPath "github.com/ipfs/interface-go-ipfs-core/path"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -27,7 +27,7 @@ import (
 )
 
 // Handler for the "ls" operation, which retrieves a document
-func (h *IPFSBinding) lsOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *IPFSBinding) lsOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	reqMetadata := &lsRequestMetadata{}
 	err := reqMetadata.FromMap(req.Metadata)
 	if err != nil {
@@ -37,13 +37,13 @@ func (h *IPFSBinding) lsOperation(ctx context.Context, req *bindings.InvokeReque
 	if reqMetadata.Path == "" {
 		return nil, errors.New("metadata property 'path' is empty")
 	}
-	p := ipfs_path.New(reqMetadata.Path)
+	p := ipfsPath.New(reqMetadata.Path)
 	err = p.IsValid()
 	if err != nil {
 		return nil, fmt.Errorf("invalid value for metadata property 'path': %v", err)
 	}
 
-	ls, err := h.ipfsAPI.Unixfs().Ls(ctx, p)
+	ls, err := b.ipfsAPI.Unixfs().Ls(ctx, p)
 	if err != nil {
 		return nil, err
 	}

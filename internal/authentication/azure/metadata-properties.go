@@ -14,7 +14,7 @@ limitations under the License.
 package azure
 
 // MetadataKeys : Keys for all metadata properties.
-var MetadataKeys = map[string][]string{ // nolint: gochecknoglobals
+var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
 
 	// Certificate contains the raw certificate data

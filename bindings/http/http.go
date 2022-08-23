@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -33,6 +32,7 @@ import (
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
+//
 //revive:disable-next-line
 type HTTPSource struct {
 	metadata httpMetadata
@@ -148,7 +148,7 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 
 	// Read the response body. For empty responses (e.g. 204 No Content)
 	// `b` will be an empty slice.
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

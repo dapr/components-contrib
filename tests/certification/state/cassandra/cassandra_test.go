@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
-	//"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"

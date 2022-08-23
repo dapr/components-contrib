@@ -247,7 +247,7 @@ func TestCluster(t *testing.T) {
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/clusterFail"),
+			embedded.WithComponentsPath("components/docker/cluster-fail"),
 			runtime.WithStates(
 				state_loader.New("cassandra", func() state.Store {
 					return stateStore

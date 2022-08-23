@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=none
+type: bindings
+name: http
+version: v1
+status: stable
+description: "HTTP"
+urls:
+  - name: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/http/
+binding:
+  output: true
+  input: false
+capabilities: []
+metadata:
+  - name: url
+    required: true
+    description: "The base URL of the HTTP endpoint to invoke"
+    example: '"http://host:port/path", "http://myservice:8000/customer"'
+    # If omitted, uses the same values as "<root>.binding"
+    binding:
+      output: true

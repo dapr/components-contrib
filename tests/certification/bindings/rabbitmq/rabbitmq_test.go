@@ -553,6 +553,7 @@ func TestRabbitMQExclusive(t *testing.T) {
 					return binding_rabbitmq.NewRabbitMQ(log)
 				}),
 			))).
+        // TODO: The following test function will always fail as expected because the sidecar didn't initialize the component (expected). This should be updated to look for a much more specific error signature however by reading the sidecar's stderr.
 		Step("send and wait", test).
 		Run()
 }

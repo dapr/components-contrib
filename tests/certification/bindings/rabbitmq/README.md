@@ -35,7 +35,7 @@ The purpose of this module is to provide tests that certify the RabbitMQ Binding
     * Create component spec with the field `maxPriority`.
     * Run dapr application with component.
     * Ensure that the priority queue is created.
-* Verify maxPriority attribute is regarded.
+* Verify exclusive attribute is regarded.
     * Create component spec with the field `exclusive`.
     * Run dapr application with component.
     * Ensure that the topic is exclusive.

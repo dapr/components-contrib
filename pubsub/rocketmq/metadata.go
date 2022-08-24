@@ -42,9 +42,7 @@ const (
 	DaprQueueSelector       QueueSelectorType = "dapr"
 )
 
-/**
-RocketMQ Go Client Options
-*/
+// RocketMQ Go Client Options
 type rocketMQMetaData struct {
 	InstanceName      string `mapstructure:"instanceName"`
 	ConsumerGroupName string `mapstructure:"consumerGroupName"`

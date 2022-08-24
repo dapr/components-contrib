@@ -69,23 +69,25 @@ func (c *TemporalWF) Init(metadata workflows.Metadata) error {
 
 func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*workflows.WorkflowStruct, error) {
 	c.logger.Debugf("starting workflow")
+
 	if req.Options.TaskQueue == "" {
 		c.logger.Debugf("no task queue provided")
 		return &workflows.WorkflowStruct{}, nil
 	}
-	opt := client.StartWorkflowOptions{ID: req.WorkflowInfo.WorkflowId, TaskQueue: req.Options.TaskQueue}
-	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowInfo.WorkflowId, req.Parameters)
+	opt := client.StartWorkflowOptions{ID: req.WorkflowInfo.InstanceId, TaskQueue: req.Options.TaskQueue}
+	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
 	if err != nil {
 		c.logger.Debugf("error when starting workflow")
 		return &workflows.WorkflowStruct{}, err
 	}
-	wfStruct := workflows.WorkflowStruct{WorkflowId: run.GetID(), InstanceId: run.GetRunID()}
+	wfStruct := workflows.WorkflowStruct{InstanceId: run.GetID()}
 	return &wfStruct, nil
 }
 
 func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowStruct) error {
 	c.logger.Debugf("terminating workflow")
-	err := c.client.TerminateWorkflow(ctx, req.WorkflowId, req.InstanceId, "")
+
+	err := c.client.TerminateWorkflow(ctx, req.InstanceId, "", "")
 	if err != nil {
 		return err
 	}
@@ -94,13 +96,13 @@ func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowStruc
 
 func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowStruct) (*workflows.StateResponse, error) {
 	c.logger.Debugf("getting workflow data")
-	resp, err := c.client.DescribeWorkflowExecution(ctx, req.WorkflowId, req.InstanceId)
+	resp, err := c.client.DescribeWorkflowExecution(ctx, req.InstanceId, "")
 	if err != nil {
 		return nil, err
 	}
 	// Build the output struct
 	outputStruct := workflows.StateResponse{
-		WfInfo:    workflows.WorkflowStruct{WorkflowId: req.WorkflowId, InstanceId: req.InstanceId},
+		WfInfo:    workflows.WorkflowStruct{InstanceId: req.InstanceId},
 		StartTime: resp.WorkflowExecutionInfo.StartTime.String(),
 		TaskQueue: resp.WorkflowExecutionInfo.GetTaskQueue(),
 		Status:    lookupStatus(resp.WorkflowExecutionInfo.Status),

@@ -61,7 +61,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 			req := &workflows.StartRequest{
 				Parameters: 10, // Time that the activity within the workflow runs for
 			}
-			req.WorkflowInfo.WorkflowId = "TestWorkflow"
+			req.WorkflowInfo.InstanceId = "TestWorkflow"
 			req.Options.TaskQueue = "TestTaskQueue"
 			wf, err := workflowItem.Start(context.Background(), req)
 			assert.Nil(t, err)

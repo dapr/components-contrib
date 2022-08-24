@@ -11,7 +11,6 @@ type StartRequestOptions struct {
 }
 
 type WorkflowStruct struct {
-	WorkflowId string `json:"workflow_id"`
 	InstanceId string `json:"instance_id"`
 }
 
@@ -19,6 +18,7 @@ type WorkflowStruct struct {
 type StartRequest struct {
 	Options      StartRequestOptions `json:"workflow_options"`
 	WorkflowInfo WorkflowStruct      `json:"workflow_info"`
+	WorkflowName string              `json:"function_name"`
 	Parameters   interface{}         `json:"parameters"`
 }
 

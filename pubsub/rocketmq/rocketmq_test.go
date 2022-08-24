@@ -193,6 +193,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 		},
 	}
 	err = r.Subscribe(context.Background(), req, handler)
+	assert.Nil(t, err)
 
 	req = pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",

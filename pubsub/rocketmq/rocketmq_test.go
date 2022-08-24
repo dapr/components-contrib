@@ -19,16 +19,14 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"nameServer":         "172.16.101.223:9876,172.16.101.224:9876",
+		"nameServer":         "127.0.0.1:9876",
 		"consumerGroup":      "dapr.rocketmq.producer",
 		"accessKey":          "RocketMQ",
 		"secretKey":          "12345",

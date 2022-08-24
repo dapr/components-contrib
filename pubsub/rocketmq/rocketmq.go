@@ -22,14 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/rlog"
-
 	mq "github.com/apache/rocketmq-client-go/v2"
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqp "github.com/apache/rocketmq-client-go/v2/producer"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/cenkalti/backoff/v4"
-
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"

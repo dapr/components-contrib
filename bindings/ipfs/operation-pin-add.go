@@ -18,8 +18,8 @@ import (
 	"errors"
 	"fmt"
 
-	ipfs_options "github.com/ipfs/interface-go-ipfs-core/options"
-	ipfs_path "github.com/ipfs/interface-go-ipfs-core/path"
+	ipfsOptions "github.com/ipfs/interface-go-ipfs-core/options"
+	ipfsPath "github.com/ipfs/interface-go-ipfs-core/path"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -27,7 +27,7 @@ import (
 )
 
 // Handler for the "pin-add" operation, which adds a new pin
-func (h *IPFSBinding) pinAddOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (b *IPFSBinding) pinAddOperation(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	reqMetadata := &pinAddRequestMetadata{}
 	err := reqMetadata.FromMap(req.Metadata)
 	if err != nil {
@@ -37,7 +37,7 @@ func (h *IPFSBinding) pinAddOperation(ctx context.Context, req *bindings.InvokeR
 	if reqMetadata.Path == "" {
 		return nil, errors.New("metadata property 'path' is empty")
 	}
-	p := ipfs_path.New(reqMetadata.Path)
+	p := ipfsPath.New(reqMetadata.Path)
 	err = p.IsValid()
 	if err != nil {
 		return nil, fmt.Errorf("invalid value for metadata property 'path': %v", err)
@@ -47,7 +47,7 @@ func (h *IPFSBinding) pinAddOperation(ctx context.Context, req *bindings.InvokeR
 	if err != nil {
 		return nil, err
 	}
-	err = h.ipfsAPI.Pin().Add(ctx, p, opts...)
+	err = b.ipfsAPI.Pin().Add(ctx, p, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,12 +73,12 @@ func (m *pinAddRequestMetadata) FromMap(mp map[string]string) (err error) {
 	return nil
 }
 
-func (m *pinAddRequestMetadata) PinAddOptions() ([]ipfs_options.PinAddOption, error) {
-	opts := []ipfs_options.PinAddOption{}
+func (m *pinAddRequestMetadata) PinAddOptions() ([]ipfsOptions.PinAddOption, error) {
+	opts := []ipfsOptions.PinAddOption{}
 	if m.Recursive != nil {
-		opts = append(opts, ipfs_options.Pin.Recursive(*m.Recursive))
+		opts = append(opts, ipfsOptions.Pin.Recursive(*m.Recursive))
 	} else {
-		opts = append(opts, ipfs_options.Pin.Recursive(true))
+		opts = append(opts, ipfsOptions.Pin.Recursive(true))
 	}
 	return opts, nil
 }

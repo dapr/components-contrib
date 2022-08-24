@@ -15,7 +15,9 @@ package rocketmq
 
 import (
 	"context"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -25,62 +27,184 @@ import (
 
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"nameServer":         "127.0.0.1:9876",
-		"consumerGroup":      "dapr.rocketmq.producer",
-		"accessKey":          "RocketMQ",
-		"secretKey":          "12345",
+		"nameServer":    "172.16.101.223:9876,172.16.101.224:9876",
+		"consumerGroup": "dapr.rocketmq.producer",
+		// "accessKey":          "RocketMQ",
+		// "secretKey":          "12345",
 		"consumerBatchSize":  "1",
 		"consumerThreadNums": "2",
 		"retries":            "2",
+		"sendMsgTimeout":     "30",
 	}
 }
 
 func TestParseRocketMQMetadata(t *testing.T) {
-	t.Run("correct metadata", func(t *testing.T) {
-		meta := getTestMetadata()
-		_, err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta})
-		assert.Nil(t, err)
-	})
+	meta := getTestMetadata()
+	_, err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta})
+	assert.Nil(t, err)
+}
 
-	t.Run("correct init", func(t *testing.T) {
-		meta := getTestMetadata()
-		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Properties: meta})
-		assert.Nil(t, err)
-	})
+func TestRocketMQ_Init(t *testing.T) {
+	meta := getTestMetadata()
+	r := NewRocketMQ(logger.NewLogger("test"))
+	err := r.Init(pubsub.Metadata{Properties: meta})
+	assert.Nil(t, err)
+}
 
-	t.Run("setup producer missing nameserver", func(t *testing.T) {
-		meta := getTestMetadata()
-		delete(meta, "nameServer")
-		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Properties: meta})
-		assert.Nil(t, err)
-		req := &pubsub.PublishRequest{
-			Data:       []byte("hello"),
-			PubsubName: "rocketmq",
-			Topic:      "test",
-			Metadata:   map[string]string{},
-		}
-		err = r.Publish(req)
-		assert.NotNil(t, err)
-	})
+func TestRocketMQ_Publish_Currently(t *testing.T) {
+	meta := getTestMetadata()
+	r := NewRocketMQ(logger.NewLogger("test"))
+	err := r.Init(pubsub.Metadata{Properties: meta})
+	assert.Nil(t, err)
+	req := &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 1, \"value\": \"1\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_test",
+		Metadata:   map[string]string{},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
 
-	t.Run("subscribe illegal type", func(t *testing.T) {
-		meta := getTestMetadata()
-		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Properties: meta})
-		assert.Nil(t, err)
+	req = &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 2, \"value\": \"2\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_test",
+		Metadata:   map[string]string{
+			"rocketmq-tag": "tag",
+			"rocketmq-key": "2",
+			"rocketmq-shardingkey": "key",
+			"traceId": "4a09073987b148348ae0420435cddf5e",
+		},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
 
-		req := pubsub.SubscribeRequest{
-			Topic: "test",
-			Metadata: map[string]string{
-				metadataRocketmqType: "incorrect type",
-			},
-		}
-		handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
-			return nil
-		}
-		err = r.Subscribe(context.Background(), req, handler)
-		assert.NotNil(t, err)
-	})
+	req = &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 3, \"value\": \"3\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_test",
+		Metadata:   map[string]string{
+			"rocketmq-tag": "tag",
+			"rocketmq-key": "3",
+			"rocketmq-shardingkey": "key",
+		},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
+
+	req = &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 4, \"value\": \"4\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_test",
+		Metadata:   map[string]string{
+			"rocketmq-tag": "tag",
+			"rocketmq-key": "4",
+			"rocketmq-shardingkey": "key",
+		},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
+}
+
+func TestRocketMQ_Publish_Orderly(t *testing.T) {
+	meta := getTestMetadata()
+	meta["consumeOrderly"] = "true"
+	r := NewRocketMQ(logger.NewLogger("test"))
+	err := r.Init(pubsub.Metadata{Properties: meta})
+	assert.Nil(t, err)
+	req := &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 1, \"value\": \"1\", \"sKey\": \"sKeyHello\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_ORDER_test",
+		Metadata:   map[string]string{
+			"rocketmq-tag": "tag",
+			"rocketmq-key": "1",
+			"rocketmq-shardingkey": "sKey",
+			"rocketmq-queue": "2",
+		},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
+
+	req = &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 2, \"value\": \"2\", \"sKey\": \"sKeyHello\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_ORDER_test",
+		Metadata:   map[string]string{
+			"rocketmq-tag": "tag",
+			"rocketmq-key": "2",
+			"rocketmq-shardingkey": "sKey",
+			"rocketmq-queue": "3",
+		},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
+	req = &pubsub.PublishRequest{
+		Data:       []byte("{\"key\": 3, \"value\": \"3\", \"sKey\": \"sKeyHello\"}"),
+		PubsubName: "rocketmq",
+		Topic:      "ZCY_ZHIXING_TEST_ORDER_test",
+		Metadata:   map[string]string{
+			"rocketmq-tag": "tag",
+			"rocketmq-key": "3",
+			"rocketmq-shardingkey": "sKey",
+		},
+	}
+	err = r.Publish(req)
+	assert.Nil(t, err)
+}
+
+func TestRocketMQ_Subscribe_Currently(t *testing.T) {
+	meta := getTestMetadata()
+	l := logger.NewLogger("test")
+	r := NewRocketMQ(l)
+	err := r.Init(pubsub.Metadata{Properties: meta})
+	assert.Nil(t, err)
+
+	req := pubsub.SubscribeRequest{
+		Topic: "ZCY_ZHIXING_TEST_test",
+		// Metadata: map[string]string{
+		//	 metadataRocketmqType: "tag",
+		//	 metadataRocketmqExpression: "*",
+		// },
+	}
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		l.Info(string(msg.Data))
+		return nil
+	}
+	err = r.Subscribe(context.Background(), req, handler)
+	assert.Nil(t, err)
+	time.Sleep(10 * time.Minute)
+}
+
+func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
+	rlog.SetLogLevel("warn")
+	meta := getTestMetadata()
+	l := logger.NewLogger("test")
+	r := NewRocketMQ(l)
+	err := r.Init(pubsub.Metadata{Properties: meta})
+	assert.Nil(t, err)
+
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		l.Info(msg.Topic, string(msg.Data))
+		return nil
+	}
+	req := pubsub.SubscribeRequest{
+		Topic: "ZCY_ZHIXING_TEST_ORDER_test",
+		// Metadata: map[string]string{
+		//	 metadataRocketmqType: "tag",
+		//	 metadataRocketmqExpression: "*",
+		// },
+	}
+	err = r.Subscribe(context.Background(), req, handler)
+
+	req = pubsub.SubscribeRequest{
+		Topic: "ZCY_ZHIXING_TEST_test",
+		Metadata: map[string]string{
+			metadataRocketmqType: "tag",
+			metadataRocketmqExpression: "*",
+		},
+	}
+	err = r.Subscribe(context.Background(), req, handler)
+	assert.Nil(t, err)
+	time.Sleep(10 * time.Minute)
 }

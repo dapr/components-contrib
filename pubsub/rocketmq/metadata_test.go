@@ -14,9 +14,10 @@ limitations under the License.
 package rocketmq
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	"github.com/dapr/components-contrib/pubsub"
 )

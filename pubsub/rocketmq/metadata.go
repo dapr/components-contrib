@@ -15,6 +15,7 @@ package rocketmq
 
 import (
 	"fmt"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/config"
 )
@@ -23,44 +24,44 @@ const (
 	metadataRocketmqTag           = "rocketmq-tag"
 	metadataRocketmqKey           = "rocketmq-key"
 	metadataRocketmqShardingKey   = "rocketmq-shardingkey"
-	metadataRocketmqQueue   	  = "rocketmq-queue"
+	metadataRocketmqQueue         = "rocketmq-queue"
 	metadataRocketmqConsumerGroup = "rocketmq-consumerGroup"
 	metadataRocketmqType          = "rocketmq-sub-type"
 	metadataRocketmqExpression    = "rocketmq-sub-expression"
 	metadataRocketmqBrokerName    = "rocketmq-broker-name"
-	metadataRocketmqQueueId       = "rocketmq-queue-id"
+	metadataRocketmqQueueID       = "rocketmq-queue-id"
 )
 
 type QueueSelectorType string
 
 const (
-	HashQueueSelector 		QueueSelectorType = "hash"
-	RandomQueueSelector 	QueueSelectorType = "random"
-	ManualQueueSelector 	QueueSelectorType = "manual"
+	HashQueueSelector       QueueSelectorType = "hash"
+	RandomQueueSelector     QueueSelectorType = "random"
+	ManualQueueSelector     QueueSelectorType = "manual"
 	RoundRobinQueueSelector QueueSelectorType = "roundRobin"
-	DaprQueueSelector 		QueueSelectorType = "dapr"
+	DaprQueueSelector       QueueSelectorType = "dapr"
 )
 
 /**
-	RocketMQ Go Client Options
- */
+RocketMQ Go Client Options
+*/
 type rocketMQMetaData struct {
-	InstanceName               string `mapstructure:"instanceName"`
-	ConsumerGroupName          string `mapstructure:"consumerGroupName"`
-	ProducerGroupName          string `mapstructure:"producerGroupName"`
-	NameSpace                  string `mapstructure:"nameSpace"`
-	NameServerDomain           string `mapstructure:"nameServerDomain"`
-	NameServer                 string `mapstructure:"nameServer"`
-	AccessKey                  string `mapstructure:"accessKey"`
-	SecretKey                  string `mapstructure:"secretKey"`
-	SecurityToken              string `mapstructure:"securityToken"`
-	Retries                    int    `mapstructure:"retries"`
+	InstanceName      string `mapstructure:"instanceName"`
+	ConsumerGroupName string `mapstructure:"consumerGroupName"`
+	ProducerGroupName string `mapstructure:"producerGroupName"`
+	NameSpace         string `mapstructure:"nameSpace"`
+	NameServerDomain  string `mapstructure:"nameServerDomain"`
+	NameServer        string `mapstructure:"nameServer"`
+	AccessKey         string `mapstructure:"accessKey"`
+	SecretKey         string `mapstructure:"secretKey"`
+	SecurityToken     string `mapstructure:"securityToken"`
+	Retries           int    `mapstructure:"retries"`
 
 	// Producer Queue selector
 	// There are five implementations of queue selector，Hash、Random、Manual、RoundRobin、Dapr，respectively
 	//
 	// Dapr Queue selector is design by dapr developers
-	ProducerQueueSelector	  QueueSelectorType `mapstructure:"producerQueueSelector"`
+	ProducerQueueSelector QueueSelectorType `mapstructure:"producerQueueSelector"`
 
 	// Message model defines the way how messages are delivered to each consumer clients
 	// 	RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
@@ -69,7 +70,7 @@ type rocketMQMetaData struct {
 	// 	separately.
 	//
 	// This field defaults to clustering.
-	ConsumerModel              string `mapstructure:"consumerModel"`
+	ConsumerModel string `mapstructure:"consumerModel"`
 
 	// Consuming point on consumer booting.
 	// There are three consuming points:
@@ -85,7 +86,7 @@ type rocketMQMetaData struct {
 	//   - CONSUME_FROM_FIRST_OFFSET: Consumer client will start from earliest messages available.
 	//   - CONSUME_FROM_TIMESTAMP: Consumer client will start from specified timestamp, which means messages born
 	//   prior to {@link #consumeTimestamp} will be ignored
-	FromWhere                  string `mapstructure:"fromWhere"`
+	FromWhere string `mapstructure:"fromWhere"`
 
 	/**
 	 * Backtracking consumption time with second precision. Time format is
@@ -95,45 +96,45 @@ type rocketMQMetaData struct {
 	 *
 	 * RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	 */
-	ConsumeTimestamp           string `mapstructure:"consumeTimestamp"`
+	ConsumeTimestamp string `mapstructure:"consumeTimestamp"`
 
 	// Whether it is an ordered message using FIFO order
 	//
 	// This field defaults to false.
-	ConsumeOrderly             string `mapstructure:"consumeOrderly"`
+	ConsumeOrderly string `mapstructure:"consumeOrderly"`
 
 	// Batch consumption size
-	ConsumeMessageBatchMaxSize int    `mapstructure:"consumeMessageBatchMaxSize"`
+	ConsumeMessageBatchMaxSize int `mapstructure:"consumeMessageBatchMaxSize"`
 
 	// Concurrently max span offset.it has no effect on sequential consumption
-	ConsumeConcurrentlyMaxSpan int    `mapstructure:"consumeConcurrentlyMaxSpan"`
+	ConsumeConcurrentlyMaxSpan int `mapstructure:"consumeConcurrentlyMaxSpan"`
 
 	// Max re-consume times. -1 means 16 times.
 	//
 	// If messages are re-consumed more than {@link #maxReconsumeTimes} before Success, it's be directed to a deletion
 	// queue waiting.
-	MaxReconsumeTimes          int32  `mapstructure:"maxReconsumeTimes"`
-	AutoCommit                 string `mapstructure:"autoCommit"`
+	MaxReconsumeTimes int32  `mapstructure:"maxReconsumeTimes"`
+	AutoCommit        string `mapstructure:"autoCommit"`
 
 	// Maximum amount of time a message may block the consuming thread.
 	//
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	ConsumeTimeout             int    `mapstructure:"consumeTimeout"`
+	ConsumeTimeout int `mapstructure:"consumeTimeout"`
 
 	// The socket timeout in milliseconds
-	ConsumerPullTimeout        int    `mapstructure:"consumerPullTimeout"`
+	ConsumerPullTimeout int `mapstructure:"consumerPullTimeout"`
 
 	// Message pull Interval
-	PullInterval               int    `mapstructure:"pullInterval"`
+	PullInterval int `mapstructure:"pullInterval"`
 
 	// Batch pull size
-	PullBatchSize              int32  `mapstructure:"pullBatchSize"`
+	PullBatchSize int32 `mapstructure:"pullBatchSize"`
 
 	// Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
 	// Consider the {PullBatchSize}, the instantaneous value may exceed the limit
 	//
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	PullThresholdForQueue      int64  `mapstructure:"pullThresholdForQueue"`
+	PullThresholdForQueue int64 `mapstructure:"pullThresholdForQueue"`
 
 	// Flow control threshold on topic level, default value is -1(Unlimited)
 	//
@@ -144,10 +145,10 @@ type rocketMQMetaData struct {
 	// then pullThresholdForQueue will be set to 100
 	//
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	PullThresholdForTopic      int64  `mapstructure:"pullThresholdForTopic"`
+	PullThresholdForTopic int64 `mapstructure:"pullThresholdForTopic"`
 
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	PullThresholdSizeForQueue  int    `mapstructure:"pullThresholdSizeForQueue"`
+	PullThresholdSizeForQueue int `mapstructure:"pullThresholdSizeForQueue"`
 
 	// Limit the cached message size on topic level, default value is -1 MiB(Unlimited)
 	//
@@ -158,14 +159,14 @@ type rocketMQMetaData struct {
 	// assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
 	//
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	PullThresholdSizeForTopic  int    `mapstructure:"pullThresholdSizeForTopic"`
-	ContentType                string `mapstructure:"content-type"`              // msg's content-type
-	SendMsgTimeout             int    `mapstructure:"sendMsgTimeout"`
-	LogLevel 				   string `mapstructure:"logLevel"`
+	PullThresholdSizeForTopic int    `mapstructure:"pullThresholdSizeForTopic"`
+	ContentType               string `mapstructure:"content-type"` // msg's content-type
+	SendMsgTimeout            int    `mapstructure:"sendMsgTimeout"`
+	LogLevel                  string `mapstructure:"logLevel"`
 
 	// The RocketMQ message properties in this collection are passed to the APP in Data
 	// Separate multiple properties with ","
-	MsgProperties			   string `mapstructure:"mspProperties"`
+	MsgProperties string `mapstructure:"mspProperties"`
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
@@ -177,10 +178,10 @@ func (s *rocketMQMetaData) Decode(in interface{}) error {
 
 func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) {
 	rMetaData := &rocketMQMetaData{
-		Retries: 			3,
-		SendMsgTimeout: 	30,
-		LogLevel: 			"warn",
-		PullInterval: 		100,
+		Retries:             3,
+		SendMsgTimeout:      30,
+		LogLevel:            "warn",
+		PullInterval:        100,
 		ConsumerPullTimeout: 30,
 	}
 	if metadata.Properties != nil {

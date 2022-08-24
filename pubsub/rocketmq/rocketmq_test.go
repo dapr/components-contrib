@@ -15,9 +15,10 @@ package rocketmq
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 
 	"github.com/stretchr/testify/assert"
 
@@ -27,10 +28,10 @@ import (
 
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"nameServer":    "172.16.101.223:9876,172.16.101.224:9876",
-		"consumerGroup": "dapr.rocketmq.producer",
-		// "accessKey":          "RocketMQ",
-		// "secretKey":          "12345",
+		"nameServer":         "172.16.101.223:9876,172.16.101.224:9876",
+		"consumerGroup":      "dapr.rocketmq.producer",
+		"accessKey":          "RocketMQ",
+		"secretKey":          "12345",
 		"consumerBatchSize":  "1",
 		"consumerThreadNums": "2",
 		"retries":            "2",
@@ -69,11 +70,11 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		Data:       []byte("{\"key\": 2, \"value\": \"2\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_test",
-		Metadata:   map[string]string{
-			"rocketmq-tag": "tag",
-			"rocketmq-key": "2",
+		Metadata: map[string]string{
+			"rocketmq-tag":         "tag",
+			"rocketmq-key":         "2",
 			"rocketmq-shardingkey": "key",
-			"traceId": "4a09073987b148348ae0420435cddf5e",
+			"traceId":              "4a09073987b148348ae0420435cddf5e",
 		},
 	}
 	err = r.Publish(req)
@@ -83,9 +84,9 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		Data:       []byte("{\"key\": 3, \"value\": \"3\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_test",
-		Metadata:   map[string]string{
-			"rocketmq-tag": "tag",
-			"rocketmq-key": "3",
+		Metadata: map[string]string{
+			"rocketmq-tag":         "tag",
+			"rocketmq-key":         "3",
 			"rocketmq-shardingkey": "key",
 		},
 	}
@@ -96,9 +97,9 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		Data:       []byte("{\"key\": 4, \"value\": \"4\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_test",
-		Metadata:   map[string]string{
-			"rocketmq-tag": "tag",
-			"rocketmq-key": "4",
+		Metadata: map[string]string{
+			"rocketmq-tag":         "tag",
+			"rocketmq-key":         "4",
 			"rocketmq-shardingkey": "key",
 		},
 	}
@@ -116,11 +117,11 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		Data:       []byte("{\"key\": 1, \"value\": \"1\", \"sKey\": \"sKeyHello\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_ORDER_test",
-		Metadata:   map[string]string{
-			"rocketmq-tag": "tag",
-			"rocketmq-key": "1",
+		Metadata: map[string]string{
+			"rocketmq-tag":         "tag",
+			"rocketmq-key":         "1",
 			"rocketmq-shardingkey": "sKey",
-			"rocketmq-queue": "2",
+			"rocketmq-queue":       "2",
 		},
 	}
 	err = r.Publish(req)
@@ -130,11 +131,11 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		Data:       []byte("{\"key\": 2, \"value\": \"2\", \"sKey\": \"sKeyHello\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_ORDER_test",
-		Metadata:   map[string]string{
-			"rocketmq-tag": "tag",
-			"rocketmq-key": "2",
+		Metadata: map[string]string{
+			"rocketmq-tag":         "tag",
+			"rocketmq-key":         "2",
 			"rocketmq-shardingkey": "sKey",
-			"rocketmq-queue": "3",
+			"rocketmq-queue":       "3",
 		},
 	}
 	err = r.Publish(req)
@@ -143,9 +144,9 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		Data:       []byte("{\"key\": 3, \"value\": \"3\", \"sKey\": \"sKeyHello\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_ORDER_test",
-		Metadata:   map[string]string{
-			"rocketmq-tag": "tag",
-			"rocketmq-key": "3",
+		Metadata: map[string]string{
+			"rocketmq-tag":         "tag",
+			"rocketmq-key":         "3",
 			"rocketmq-shardingkey": "sKey",
 		},
 	}
@@ -162,10 +163,6 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 
 	req := pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",
-		// Metadata: map[string]string{
-		//	 metadataRocketmqType: "tag",
-		//	 metadataRocketmqExpression: "*",
-		// },
 	}
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		l.Info(string(msg.Data))
@@ -190,17 +187,17 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	}
 	req := pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_ORDER_test",
-		// Metadata: map[string]string{
-		//	 metadataRocketmqType: "tag",
-		//	 metadataRocketmqExpression: "*",
-		// },
+		Metadata: map[string]string{
+			metadataRocketmqType:       "tag",
+			metadataRocketmqExpression: "*",
+		},
 	}
 	err = r.Subscribe(context.Background(), req, handler)
 
 	req = pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",
 		Metadata: map[string]string{
-			metadataRocketmqType: "tag",
+			metadataRocketmqType:       "tag",
 			metadataRocketmqExpression: "*",
 		},
 	}

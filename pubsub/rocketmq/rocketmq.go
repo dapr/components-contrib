@@ -17,11 +17,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 
 	mq "github.com/apache/rocketmq-client-go/v2"
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
@@ -161,9 +162,6 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 				"we will use default value [ConsumeFromLastOffset]", r.name, r.metadata.FromWhere)
 		}
 	}
-	// if r.metadata.ConsumeTimestamp != "" {
-	//	 opts = append(opts, mqc.WithConsumeTimestamp(r.metadata.ConsumeTimestamp))
-	// }
 	if r.metadata.ConsumeOrderly != "" {
 		if strings.EqualFold(r.metadata.ConsumeOrderly, "false") {
 			opts = append(opts, mqc.WithConsumerOrder(false))
@@ -183,9 +181,6 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	if r.metadata.ConsumeMessageBatchMaxSize > 0 {
 		opts = append(opts, mqc.WithConsumeMessageBatchMaxSize(r.metadata.ConsumeMessageBatchMaxSize))
 	}
-	// if r.metadata.ConsumeConcurrentlyMaxSpan > 0 {
-	//	 opts = append(opts, mqc.WithConsumeConcurrentlyMaxSpan(r.metadata.ConsumeConcurrentlyMaxSpan))
-	// }
 	if r.metadata.MaxReconsumeTimes > 0 {
 		opts = append(opts, mqc.WithMaxReconsumeTimes(r.metadata.MaxReconsumeTimes))
 	}
@@ -201,9 +196,6 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 				"expected [true, false], we will use default value [true]", r.name, r.metadata.FromWhere)
 		}
 	}
-	// if r.metadata.ConsumerPullTimeout > 0 {
-	//	 opts = append(opts, mqc.WithConsumerPullTimeout(time.Duration(r.metadata.ConsumerPullTimeout)*time.Second))
-	// }
 	if r.metadata.PullInterval > 0 {
 		opts = append(opts, mqc.WithPullInterval(time.Duration(r.metadata.PullInterval)*time.Millisecond))
 	}
@@ -340,7 +332,6 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-
 	selector, e := buildMessageSelector(req)
 	if e != nil {
 		r.logger.Warnf("rocketmq subscribe failed: ", e.Error())
@@ -436,7 +427,7 @@ func (r *rocketMQ) buildPubsubMessage(topic, mqType, mqExpr string, msg *primiti
 	}
 	if msg.Queue != nil {
 		metadata[metadataRocketmqBrokerName] = msg.Queue.BrokerName
-		metadata[metadataRocketmqQueueId] = strconv.Itoa(msg.Queue.QueueId)
+		metadata[metadataRocketmqQueueID] = strconv.Itoa(msg.Queue.QueueId)
 	}
 	return &pubsub.NewMessage{
 		Topic:    topic,

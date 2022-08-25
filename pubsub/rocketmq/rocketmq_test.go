@@ -26,7 +26,7 @@ import (
 
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"nameServer":         "127.0.0.1:9876",
+		"nameServer":         "172.16.101.223:9876,172.16.101.224:9876",
 		"consumerGroup":      "dapr.rocketmq.producer",
 		"accessKey":          "RocketMQ",
 		"secretKey":          "12345",
@@ -62,6 +62,9 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		Metadata:   map[string]string{},
 	}
 	err = r.Publish(req)
+	if err != nil {
+		return
+	}
 	assert.Nil(t, err)
 
 	req = &pubsub.PublishRequest{
@@ -123,6 +126,9 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 		},
 	}
 	err = r.Publish(req)
+	if err != nil {
+		return
+	}
 	assert.Nil(t, err)
 
 	req = &pubsub.PublishRequest{
@@ -138,6 +144,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 	}
 	err = r.Publish(req)
 	assert.Nil(t, err)
+
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 3, \"value\": \"3\", \"sKey\": \"sKeyHello\"}"),
 		PubsubName: "rocketmq",
@@ -167,8 +174,11 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 		return nil
 	}
 	err = r.Subscribe(context.Background(), req, handler)
+	if err != nil {
+		return
+	}
 	assert.Nil(t, err)
-	time.Sleep(10 * time.Minute)
+	time.Sleep(1 * time.Minute)
 }
 
 func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
@@ -190,6 +200,9 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 		},
 	}
 	err = r.Subscribe(context.Background(), req, handler)
+	if err != nil {
+		return
+	}
 	assert.Nil(t, err)
 
 	req = pubsub.SubscribeRequest{
@@ -201,5 +214,5 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	}
 	err = r.Subscribe(context.Background(), req, handler)
 	assert.Nil(t, err)
-	time.Sleep(10 * time.Minute)
+	time.Sleep(1 * time.Minute)
 }

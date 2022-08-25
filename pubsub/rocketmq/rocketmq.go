@@ -16,6 +16,7 @@ package rocketmq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,11 +28,9 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	mqp "github.com/apache/rocketmq-client-go/v2/producer"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 type daprQueueSelector struct {
@@ -283,6 +282,12 @@ func (r *rocketMQ) getProducer() (mq.Producer, error) {
 	return r.producer, nil
 }
 
+func (r *rocketMQ) resetProducer() {
+	r.producerLock.Lock()
+	defer r.producerLock.Unlock()
+	r.producer = nil
+}
+
 func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
 	msg := primitive.NewMessage(req.Topic, req.Data)
@@ -297,43 +302,27 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 			msg.WithProperty(k, v)
 		}
 	}
-	publishBo := backoff.NewExponentialBackOff()
-	publishBo.InitialInterval = 100 * time.Millisecond
-	bo := backoff.WithMaxRetries(publishBo, 3)
-	bo = backoff.WithContext(bo, r.ctx)
-	return retry.NotifyRecover(
-		func() error {
-			producer, e := r.getProducer()
-			if e != nil {
-				return fmt.Errorf("rocketmq message send fail because producer failed to initialize: %v", e)
-			}
-			ctx, cancel := context.WithTimeout(r.ctx, 3*time.Duration(r.metadata.SendMsgTimeout)*time.Second)
-			defer cancel()
-			result, e := producer.SendSync(ctx, msg)
-			if e != nil {
-				r.producerLock.Lock()
-				r.producer = nil
-				r.producerLock.Unlock()
-				r.logger.Errorf("rocketmq message send fail, topic[%s]: %v", req.Topic, e)
-				return fmt.Errorf("rocketmq message send fail, topic[%s]: %v", req.Topic, e)
-			}
-			r.logger.Debugf("rocketmq message send result: topic[%s], tag[%s], status[%v]", req.Topic, msg.GetTags(), result.Status)
-			return nil
-		},
-		bo,
-		func(err error, d time.Duration) {
-			r.logger.Errorf("rocketmq message send fail, topic[%s], error[%v], Retrying...", err, msg.Topic)
-		},
-		func() {
-			r.logger.Infof("rocketmq message sent successfully after it previously failed. topic:%s.", msg.Topic)
-		},
-	)
+	producer, e := r.getProducer()
+	if e != nil {
+		return fmt.Errorf("rocketmq message send fail because producer failed to initialize: %v", e)
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, 3*time.Duration(r.metadata.SendMsgTimeout)*time.Second)
+	defer cancel()
+	result, e := producer.SendSync(ctx, msg)
+	if e != nil {
+		r.resetProducer()
+		m := fmt.Sprintf("rocketmq message send fail, topic[%s]: %v", req.Topic, e)
+		r.logger.Error(m)
+		return errors.New(m)
+	}
+	r.logger.Debugf("rocketmq message send result: topic[%s], tag[%s], status[%v]", req.Topic, msg.GetTags(), result.Status)
+	return nil
 }
 
 func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	selector, e := buildMessageSelector(req)
 	if e != nil {
-		r.logger.Warnf("rocketmq subscribe failed: ", e.Error())
+		r.logger.Warnf("rocketmq subscribe failed: %v", e)
 		return e
 	}
 

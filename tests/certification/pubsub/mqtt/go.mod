@@ -137,7 +137,7 @@ replace github.com/dapr/components-contrib => ../../../../
 
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
 
-replace github.com/dapr/dapr => github.com/mcandeia/dapr v0.0.0-20220823172629-20b8dfbf115d
+replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825195559-b64502782b3f
 
 // Uncomment for local development for testing with changes
 // in the Dapr runtime. Don't commit with this uncommented!

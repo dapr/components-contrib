@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/couchbase/gocb.v1"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -30,7 +31,7 @@ func TestValidateMetadata(t *testing.T) {
 			password:     "secret",
 			bucketName:   "testbucket",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 
 		err := validateMetadata(metadata)
 		assert.Equal(t, nil, err)
@@ -44,7 +45,7 @@ func TestValidateMetadata(t *testing.T) {
 			numReplicasDurablePersistence: "1",
 			numReplicasDurableReplication: "2",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 
 		err := validateMetadata(metadata)
 		assert.Equal(t, nil, err)
@@ -55,7 +56,7 @@ func TestValidateMetadata(t *testing.T) {
 			password:   "secret",
 			bucketName: "testbucket",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		err := validateMetadata(metadata)
 		assert.NotNil(t, err)
 	})
@@ -65,7 +66,7 @@ func TestValidateMetadata(t *testing.T) {
 			password:     "secret",
 			bucketName:   "testbucket",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		err := validateMetadata(metadata)
 		assert.NotNil(t, err)
 	})
@@ -75,7 +76,7 @@ func TestValidateMetadata(t *testing.T) {
 			username:     "kehsihba",
 			bucketName:   "testbucket",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		err := validateMetadata(metadata)
 		assert.NotNil(t, err)
 	})
@@ -85,7 +86,7 @@ func TestValidateMetadata(t *testing.T) {
 			username:     "kehsihba",
 			password:     "secret",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		err := validateMetadata(metadata)
 		assert.NotNil(t, err)
 	})
@@ -96,7 +97,7 @@ func TestValidateMetadata(t *testing.T) {
 			password:                      "secret",
 			numReplicasDurableReplication: "junk",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		err := validateMetadata(metadata)
 		assert.NotNil(t, err)
 	})
@@ -107,7 +108,7 @@ func TestValidateMetadata(t *testing.T) {
 			password:                      "secret",
 			numReplicasDurablePersistence: "junk",
 		}
-		metadata := state.Metadata{Properties: props}
+		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		err := validateMetadata(metadata)
 		assert.NotNil(t, err)
 	})

@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -261,9 +262,9 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}{
 		{
 			args: args{
-				meta: configuration.Metadata{
+				meta: configuration.Metadata{Base: mdata.Base{
 					Properties: testProperties,
-				},
+				}},
 			},
 			want: metadata{
 				host:               "testHost",

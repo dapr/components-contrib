@@ -23,6 +23,7 @@ import (
 
 	"github.com/agrea/ptr"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
@@ -53,7 +54,7 @@ func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 	return &cockroachDBAccess{
 		logger: logger,
 		metadata: state.Metadata{
-			Properties: map[string]string{},
+			Base: metadata.Base{Properties: map[string]string{}},
 		},
 		db:               nil,
 		connectionString: "",

@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/bindings/zeebe/jobworker"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -68,14 +69,14 @@ func Command() (*command.ZeebeCommand, error) {
 	envVars := GetEnvVars()
 
 	cmd := command.NewZeebeCommand(testLogger)
-	err := cmd.Init(bindings.Metadata{
+	err := cmd.Init(bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
 			"gatewayKeepAlive":       "45s",
 			"usePlainTextConnection": "true",
 		},
-	})
+	}})
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,7 @@ func Command() (*command.ZeebeCommand, error) {
 func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.ZeebeJobWorker, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
-	metadata := bindings.Metadata{
+	metadata := bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
@@ -95,7 +96,7 @@ func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.Z
 			"usePlainTextConnection": "true",
 			"jobType":                jobType,
 		},
-	}
+	}}
 
 	for _, pair := range additionalMetadata {
 		metadata.Properties[pair.Key] = pair.Value

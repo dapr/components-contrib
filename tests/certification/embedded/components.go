@@ -27,6 +27,7 @@ import (
 
 func CommonComponents(log logger.Logger) []runtime.Option {
 	registry := nrLoader.NewRegistry()
+	registry.Logger = log
 	registry.RegisterComponent(nrMdns.NewResolver, "mdns")
 	registry.RegisterComponent(nrKubernetes.NewResolver, "kubernetes")
 	registry.RegisterComponent(nrConsul.NewResolver, "consul")

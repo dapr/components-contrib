@@ -92,12 +92,14 @@ func (s Sidecar) Start(ctx flow.Context) error {
 	opts = append(opts, rtembedded.CommonComponents(logContrib)...)
 
 	for _, o := range s.options {
-		if rto, ok := o.(rtembedded.Option); ok {
-			rtoptions = append(rtoptions, rto)
+		if rteo, ok := o.(rtembedded.Option); ok {
+			rtoptions = append(rtoptions, rteo)
 		} else if rto, ok := o.(runtime.Option); ok {
 			opts = append(opts, rto)
-		} else if rto, ok := o.(Option); ok {
-			rto(&options)
+		} else if rtos, ok := o.([]runtime.Option); ok {
+			opts = append(opts, rtos...)
+		} else if op, ok := o.(Option); ok {
+			op(&options)
 		}
 	}
 

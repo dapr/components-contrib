@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 func getTestMetadata() map[string]string {
@@ -172,7 +172,6 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 }
 
 func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
-	rlog.SetLogLevel("warn")
 	meta := getTestMetadata()
 	l := logger.NewLogger("test")
 	r := NewRocketMQ(l)

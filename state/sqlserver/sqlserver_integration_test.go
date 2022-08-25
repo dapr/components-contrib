@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -95,7 +96,7 @@ func getUniqueDBSchema() string {
 }
 
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
-	metadata := state.Metadata{
+	metadata := state.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
 			connectionStringKey: getMasterConnectionString(),
 			schemaKey:           schema,
@@ -103,7 +104,7 @@ func createMetadata(schema string, kt KeyType, indexedProperties string) state.M
 			keyTypeKey:          string(kt),
 			databaseNameKey:     "dapr_test",
 		},
-	}
+	}}
 
 	if indexedProperties != "" {
 		metadata.Properties[indexedPropertiesKey] = indexedProperties

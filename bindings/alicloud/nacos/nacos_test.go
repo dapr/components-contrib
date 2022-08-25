@@ -25,11 +25,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
-	m := bindings.Metadata{Name: "test", Properties: nil}
+	m := bindings.Metadata{Base: metadata.Base{Name: "test", Properties: nil}}
 	var err error
 	m.Properties, err = getNacosLocalCacheMetadata()
 	require.NoError(t, err)

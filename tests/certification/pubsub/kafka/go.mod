@@ -148,6 +148,8 @@ replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
 
+replace github.com/dapr/dapr => github.com/mcandeia/dapr v0.0.0-20220823172629-20b8dfbf115d
+
 // Uncomment for local development for testing with changes
 // in the Dapr runtime. Don't commit with this uncommented!
 //

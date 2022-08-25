@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -30,9 +31,9 @@ func (ro *RouterOutput) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
-	meta := middleware.Metadata{Properties: map[string]string{
+	meta := middleware.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"rule": "^[A-Za-z0-9/._-]+$",
-	}}
+	}}}
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)
 	handler, err := rchecker.GetHandler(meta)
@@ -49,9 +50,9 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 }
 
 func TestRequestHandlerWithLegalRouterRule(t *testing.T) {
-	meta := middleware.Metadata{Properties: map[string]string{
+	meta := middleware.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"rule": "^[A-Za-z0-9/._-]+$",
-	}}
+	}}}
 
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)

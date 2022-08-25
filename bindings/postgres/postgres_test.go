@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -62,7 +63,7 @@ func TestPostgresIntegration(t *testing.T) {
 
 	// live DB test
 	b := NewPostgres(logger.NewLogger("test"))
-	m := bindings.Metadata{Properties: map[string]string{connectionURLKey: url}}
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
 	if err := b.Init(m); err != nil {
 		t.Fatal(err)
 	}

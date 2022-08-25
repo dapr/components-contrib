@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -188,7 +189,7 @@ func TestValidConfiguration(t *testing.T) {
 			}
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := sqlStore.Init(metadata)
@@ -330,7 +331,7 @@ func TestInvalidConfiguration(t *testing.T) {
 			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := sqlStore.Init(metadata)
@@ -351,7 +352,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 	}
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"}},
 	}
 
 	err := sqlStore.Init(metadata)

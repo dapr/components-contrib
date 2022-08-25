@@ -128,7 +128,6 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		AppSSL:                       appSSL,
 		MaxRequestBodySize:           maxRequestBodySize,
 		ReadBufferSize:               runtime.DefaultReadBufferSize,
-		StreamRequestBody:            false,
 		GracefulShutdownDuration:     time.Second,
 		EnableAPILogging:             true,
 		DisableBuiltinK8sSecretStore: false,

@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -25,7 +26,7 @@ func TestValidateMetadata(t *testing.T) {
 	t.Run("without required configuration", func(t *testing.T) {
 		properties := map[string]string{}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		err := validateMetadata(m)
 		assert.NotNil(t, err)
@@ -36,7 +37,7 @@ func TestValidateMetadata(t *testing.T) {
 			"hazelcastMap": "foo-map",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		err := validateMetadata(m)
 		assert.NotNil(t, err)
@@ -47,7 +48,7 @@ func TestValidateMetadata(t *testing.T) {
 			"hazelcastServers": "hz1:5701",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		err := validateMetadata(m)
 		assert.NotNil(t, err)
@@ -59,7 +60,7 @@ func TestValidateMetadata(t *testing.T) {
 			"hazelcastMap":     "foo-map",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		err := validateMetadata(m)
 		assert.Nil(t, err)

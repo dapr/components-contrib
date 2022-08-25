@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
@@ -126,7 +127,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
 			err := outputBinding.Init(bindings.Metadata{
-				Properties: props,
+				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up output binding")
 		}
@@ -134,7 +135,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
 			err := inputBinding.Init(bindings.Metadata{
-				Properties: props,
+				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up input binding")
 		}

@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/lock"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -33,9 +34,9 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		comp := NewStandaloneRedisLock(logger.NewLogger("test"))
 		defer comp.Close()
 
-		cfg := lock.Metadata{
+		cfg := lock.Metadata{Base: metadata.Base{
 			Properties: make(map[string]string),
-		}
+		}}
 		cfg.Properties["redisHost"] = "127.0.0.1"
 		cfg.Properties["redisPassword"] = ""
 
@@ -49,9 +50,9 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		comp := NewStandaloneRedisLock(logger.NewLogger("test"))
 		defer comp.Close()
 
-		cfg := lock.Metadata{
+		cfg := lock.Metadata{Base: metadata.Base{
 			Properties: make(map[string]string),
-		}
+		}}
 		cfg.Properties["redisHost"] = ""
 		cfg.Properties["redisPassword"] = ""
 
@@ -65,9 +66,9 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		comp := NewStandaloneRedisLock(logger.NewLogger("test"))
 		defer comp.Close()
 
-		cfg := lock.Metadata{
+		cfg := lock.Metadata{Base: metadata.Base{
 			Properties: make(map[string]string),
-		}
+		}}
 		cfg.Properties["redisHost"] = "127.0.0.1"
 		cfg.Properties["redisPassword"] = ""
 		cfg.Properties["maxRetries"] = "1 "
@@ -88,9 +89,9 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	comp := NewStandaloneRedisLock(logger.NewLogger("test"))
 	defer comp.Close()
 
-	cfg := lock.Metadata{
+	cfg := lock.Metadata{Base: metadata.Base{
 		Properties: make(map[string]string),
-	}
+	}}
 	cfg.Properties["redisHost"] = s.Addr()
 	cfg.Properties["redisPassword"] = ""
 	// init

@@ -69,7 +69,7 @@ func TestInitMetadata(t *testing.T) {
 	}
 
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 
 	for _, tt := range tests {
@@ -85,7 +85,7 @@ func TestInitMetadata(t *testing.T) {
 
 func TestInitRegister(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
@@ -100,7 +100,7 @@ func TestInitRegister(t *testing.T) {
 
 func TestInitRegisterDuplicate(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
@@ -123,7 +123,7 @@ func TestInitRegisterDuplicate(t *testing.T) {
 
 func TestResolver(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
@@ -145,7 +145,7 @@ func TestResolver(t *testing.T) {
 
 func TestResolverClose(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
 		nr.MDNSInstanceAddress: localhost,
@@ -172,7 +172,7 @@ func TestResolverClose(t *testing.T) {
 
 func TestResolverMultipleInstances(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 
 	// register instance A
@@ -242,7 +242,7 @@ func TestResolverMultipleInstances(t *testing.T) {
 
 func TestResolverNotFound(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 
 	// act
@@ -287,7 +287,7 @@ func TestResolverConcurrency(t *testing.T) {
 // by the TestResolverConcurrency test function.
 func ResolverConcurrencySubsriberClear(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
 		nr.MDNSInstanceName:    "testAppID",
@@ -325,7 +325,7 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 // by the TestResolverConcurrency test function.
 func ResolverConcurrencyFound(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 
 	// register instance A
@@ -422,7 +422,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 // by the TestResolverConcurrency test function.
 func ResolverConcurrencyNotFound(t *testing.T) {
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
+	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 
 	// act...

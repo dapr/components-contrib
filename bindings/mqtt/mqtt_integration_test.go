@@ -63,7 +63,7 @@ func TestInvokeWithTopic(t *testing.T) {
 
 	logger := logger.NewLogger("test")
 
-	r := NewMQTT(logger)
+	r := NewMQTT(logger).(*MQTT)
 	err := r.Init(metadata)
 	assert.Nil(t, err)
 

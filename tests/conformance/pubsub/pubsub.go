@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/kit/config"
@@ -94,7 +95,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	// Init
 	t.Run("init", func(t *testing.T) {
 		err := ps.Init(pubsub.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})

@@ -222,7 +222,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	t.Run("init", func(t *testing.T) {
 		err := statestore.Init(state.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.Nil(t, err)
 	})

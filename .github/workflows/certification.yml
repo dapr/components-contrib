@@ -48,6 +48,7 @@ jobs:
         - bindings.kafka
         - secretstores.local.env
         - secretstores.local.file
+        - bindings.rabbitmq
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -90,6 +91,8 @@ jobs:
           required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        - component: pubsub.azure.servicebus
+          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.storagequeues

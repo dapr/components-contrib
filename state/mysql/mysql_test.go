@@ -25,6 +25,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -590,7 +591,7 @@ func TestInitReturnsErrorOnNoConnectionString(t *testing.T) {
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: ""},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: ""}},
 	}
 
 	// Act
@@ -606,7 +607,7 @@ func TestInitReturnsErrorOnFailOpen(t *testing.T) {
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: fakeConnectionString},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
 	}
 
 	// Act
@@ -623,10 +624,12 @@ func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
 	m.factory.registerErr = fmt.Errorf("registerTLSConfigError")
 
 	metadata := &state.Metadata{
-		Properties: map[string]string{
-			pemPathKey:          "./ssl.pem",
-			tableNameKey:        "stateStore",
-			connectionStringKey: fakeConnectionString,
+		Base: metadata.Base{
+			Properties: map[string]string{
+				pemPathKey:          "./ssl.pem",
+				tableNameKey:        "stateStore",
+				connectionStringKey: fakeConnectionString,
+			},
 		},
 	}
 
@@ -643,7 +646,7 @@ func TestInitSetsTableName(t *testing.T) {
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: "", tableNameKey: "stateStore"},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: "", tableNameKey: "stateStore"}},
 	}
 
 	// Act
@@ -659,7 +662,7 @@ func TestInitInvalidTableName(t *testing.T) {
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: "", tableNameKey: "🙃"},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: "", tableNameKey: "🙃"}},
 	}
 
 	// Act
@@ -674,7 +677,7 @@ func TestInitSetsSchemaName(t *testing.T) {
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: "", schemaNameKey: "stateStoreSchema"},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: "", schemaNameKey: "stateStoreSchema"}},
 	}
 
 	// Act
@@ -690,7 +693,7 @@ func TestInitInvalidSchemaName(t *testing.T) {
 	t.Parallel()
 	m, _ := mockDatabase(t)
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: "", schemaNameKey: "?"},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: "", schemaNameKey: "?"}},
 	}
 
 	// Act

@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -41,14 +42,14 @@ func TestInit(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 
 	t.Run("uses the development service", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				developmentKey: "true",
 				keyIDKey:       testKeyID,
 				teamIDKey:      testTeamID,
 				privateKeyKey:  testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Nil(t, err)
@@ -56,14 +57,14 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("uses the production service", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				developmentKey: "false",
 				keyIDKey:       testKeyID,
 				teamIDKey:      testTeamID,
 				privateKeyKey:  testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Nil(t, err)
@@ -71,13 +72,13 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("defaults to the production service", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				keyIDKey:      testKeyID,
 				teamIDKey:     testTeamID,
 				privateKeyKey: testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Nil(t, err)
@@ -85,39 +86,39 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("invalid development value", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				developmentKey: "True",
 				keyIDKey:       testKeyID,
 				teamIDKey:      testTeamID,
 				privateKeyKey:  testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Error(t, err, "invalid value for development parameter: True")
 	})
 
 	t.Run("the key ID is required", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				teamIDKey:     testTeamID,
 				privateKeyKey: testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Error(t, err, "the key-id parameter is required")
 	})
 
 	t.Run("valid key ID", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				keyIDKey:      testKeyID,
 				teamIDKey:     testTeamID,
 				privateKeyKey: testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Nil(t, err)
@@ -125,25 +126,25 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("the team ID is required", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				keyIDKey:      testKeyID,
 				privateKeyKey: testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Error(t, err, "the team-id parameter is required")
 	})
 
 	t.Run("valid team ID", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				keyIDKey:      testKeyID,
 				teamIDKey:     testTeamID,
 				privateKeyKey: testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Nil(t, err)
@@ -151,25 +152,25 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("the private key is required", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				keyIDKey:  testKeyID,
 				teamIDKey: testTeamID,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Error(t, err, "the private-key parameter is required")
 	})
 
 	t.Run("valid private key", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				keyIDKey:      testKeyID,
 				teamIDKey:     testTeamID,
 				privateKeyKey: testPrivateKey,
 			},
-		}
+		}}
 		binding := NewAPNS(testLogger)
 		err := binding.Init(metadata)
 		assert.Nil(t, err)
@@ -326,14 +327,14 @@ func TestInvoke(t *testing.T) {
 
 func makeTestBinding(t *testing.T, log logger.Logger) *APNS {
 	testBinding := NewAPNS(log)
-	bindingMetadata := bindings.Metadata{
+	bindingMetadata := bindings.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
 			developmentKey: "true",
 			keyIDKey:       testKeyID,
 			teamIDKey:      testTeamID,
 			privateKeyKey:  testPrivateKey,
 		},
-	}
+	}}
 	err := testBinding.Init(bindingMetadata)
 	assert.Nil(t, err)
 

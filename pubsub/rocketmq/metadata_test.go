@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -31,7 +32,7 @@ func TestMetaDataDecode(t *testing.T) {
 		"consumerGroup": "defaultGroup",
 		"nameSpace":     "defaultNamespace",
 	}
-	pubsubMeta := pubsub.Metadata{Properties: props}
+	pubsubMeta := pubsub.Metadata{Base: mdata.Base{Properties: props}}
 	metaData, err := parseRocketMQMetaData(pubsubMeta)
 	require.NoError(t, err)
 	assert.Equal(t, "http", metaData.AccessProto)

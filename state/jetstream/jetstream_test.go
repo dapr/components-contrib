@@ -23,6 +23,7 @@ import (
 	natsserver "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -96,10 +97,10 @@ func TestSetGetAndDelete(t *testing.T) {
 	store := NewJetstreamStateStore(nil)
 
 	err := store.Init(state.Metadata{
-		Properties: map[string]string{
+		Base: metadata.Base{Properties: map[string]string{
 			"natsURL": nats.DefaultURL,
 			"bucket":  "test",
-		},
+		}},
 	})
 	if err != nil {
 		t.Fatalf("Could not init: %v\n", err)

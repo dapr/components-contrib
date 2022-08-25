@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -52,7 +53,7 @@ func TestInflux_Init(t *testing.T) {
 	assert.Nil(t, influx.metadata)
 	assert.Nil(t, influx.client)
 
-	m := bindings.Metadata{Properties: map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}}
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}}}
 	err := influx.Init(m)
 	assert.Nil(t, err)
 

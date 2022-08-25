@@ -13,7 +13,9 @@ limitations under the License.
 
 package lock
 
+import "github.com/dapr/components-contrib/metadata"
+
 // Metadata contains a lock store specific set of metadata property.
 type Metadata struct {
-	Properties map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 }

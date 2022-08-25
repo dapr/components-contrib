@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -28,7 +29,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 			hosts: "127.0.0.1",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getCassandraMetadata(m)
@@ -55,7 +56,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 			password:          "password",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getCassandraMetadata(m)
@@ -83,7 +84,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 			password:          "password",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		_, err := getCassandraMetadata(m)
@@ -101,7 +102,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 			password:          "password",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		_, err := getCassandraMetadata(m)

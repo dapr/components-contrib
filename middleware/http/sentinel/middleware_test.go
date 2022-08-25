@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -32,7 +33,7 @@ func (c *counter) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func TestRequestHandlerWithFlowRules(t *testing.T) {
-	meta := middleware.Metadata{Properties: map[string]string{
+	meta := middleware.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"appName": "test-app",
 		"flowRules": `[
 	{
@@ -42,7 +43,7 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 		"controlBehavior": 0
 	}
 ]`,
-	}}
+	}}}
 
 	log := logger.NewLogger("sentinel.test")
 	sentinel := NewMiddleware(log)

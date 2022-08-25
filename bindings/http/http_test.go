@@ -26,6 +26,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	bindingHttp "github.com/dapr/components-contrib/bindings/http"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -71,11 +72,11 @@ func TestInit(t *testing.T) {
 	)
 	defer s.Close()
 
-	m := bindings.Metadata{
+	m := bindings.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
 			"url": s.URL,
 		},
-	}
+	}}
 	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	require.NoError(t, err)

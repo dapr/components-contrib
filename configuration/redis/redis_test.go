@@ -69,9 +69,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{
-					{
-						Key:      "testKey",
+				Items: map[string]*configuration.Item{
+					"testKey": {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
 					},
@@ -90,13 +89,12 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{
-					{
-						Key:      "testKey",
+				Items: map[string]*configuration.Item{
+					"testKey": {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
-					}, {
-						Key:      "testKey2",
+					},
+					"testKey2": {
 						Value:    "testValue2",
 						Metadata: make(map[string]string),
 					},
@@ -117,7 +115,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{},
+				Items: map[string]*configuration.Item{},
 			},
 			wantErr: true,
 		},
@@ -136,13 +134,12 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{
-					{
-						Key:      "testKey",
+				Items: map[string]*configuration.Item{
+					"testKey": {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
-					}, {
-						Key:      "testKey2",
+					},
+					"testKey2": {
 						Value:    "testValue2",
 						Metadata: make(map[string]string),
 					},

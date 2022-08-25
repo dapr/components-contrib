@@ -129,4 +129,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-replace github.com/dapr/dapr => github.com/mcandeia/dapr v0.0.0-20220823172629-20b8dfbf115d
+replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825195559-b64502782b3f

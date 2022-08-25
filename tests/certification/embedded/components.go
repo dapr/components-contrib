@@ -18,26 +18,19 @@ import (
 	"github.com/dapr/kit/logger"
 
 	// Name resolutions.
-	nr "github.com/dapr/components-contrib/nameresolution"
-	nr_consul "github.com/dapr/components-contrib/nameresolution/consul"
-	nr_kubernetes "github.com/dapr/components-contrib/nameresolution/kubernetes"
-	nr_mdns "github.com/dapr/components-contrib/nameresolution/mdns"
+	nrConsul "github.com/dapr/components-contrib/nameresolution/consul"
+	nrKubernetes "github.com/dapr/components-contrib/nameresolution/kubernetes"
+	nrMdns "github.com/dapr/components-contrib/nameresolution/mdns"
 
-	nr_loader "github.com/dapr/dapr/pkg/components/nameresolution"
+	nrLoader "github.com/dapr/dapr/pkg/components/nameresolution"
 )
 
 func CommonComponents(log logger.Logger) []runtime.Option {
+	registry := nrLoader.NewRegistry()
+	registry.RegisterComponent(nrMdns.NewResolver, "mdns")
+	registry.RegisterComponent(nrKubernetes.NewResolver, "kubernetes")
+	registry.RegisterComponent(nrConsul.NewResolver, "consul")
 	return []runtime.Option{
-		runtime.WithNameResolutions(
-			nr_loader.New("mdns", func() nr.Resolver {
-				return nr_mdns.NewResolver(log)
-			}),
-			nr_loader.New("kubernetes", func() nr.Resolver {
-				return nr_kubernetes.NewResolver(log)
-			}),
-			nr_loader.New("consul", func() nr.Resolver {
-				return nr_consul.NewResolver(log)
-			}),
-		),
+		runtime.WithNameResolutions(registry),
 	}
 }

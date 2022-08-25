@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 )
 
@@ -93,7 +94,7 @@ func TestVaultTLSConfig(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		tlsConfig := metadataToTLSConfig(m.Properties)
@@ -109,7 +110,7 @@ func TestVaultEnginePath(t *testing.T) {
 	t.Run("without engine path config", func(t *testing.T) {
 		v := vaultSecretStore{}
 
-		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}})
+		err := v.Init(secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
 		assert.Nil(t, err)
 		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
 	})
@@ -117,7 +118,7 @@ func TestVaultEnginePath(t *testing.T) {
 	t.Run("with engine path config", func(t *testing.T) {
 		v := vaultSecretStore{}
 
-		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}})
+		err := v.Init(secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
 		assert.Nil(t, err)
 		assert.Equal(t, v.vaultEnginePath, "kv")
 	})
@@ -130,7 +131,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -155,7 +156,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -180,7 +181,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -203,7 +204,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		properties := map[string]string{}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -225,7 +226,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -249,7 +250,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -274,7 +275,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -298,7 +299,7 @@ func TestDefaultVaultAddress(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -325,7 +326,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -346,7 +347,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -366,7 +367,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -387,7 +388,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{

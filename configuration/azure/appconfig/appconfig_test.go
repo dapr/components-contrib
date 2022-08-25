@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -57,9 +58,9 @@ func TestInit(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 
-		m := configuration.Metadata{
+		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
-		}
+		}}
 
 		err := s.Init(m)
 		assert.Nil(t, err)
@@ -78,9 +79,9 @@ func TestInit(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 
-		m := configuration.Metadata{
+		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
-		}
+		}}
 
 		err := s.Init(m)
 		assert.Nil(t, err)
@@ -101,9 +102,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 
-		meta := configuration.Metadata{
+		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
-		}
+		}}
 
 		want := metadata{
 			host:          "testHost",
@@ -126,9 +127,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 
-		meta := configuration.Metadata{
+		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
-		}
+		}}
 
 		want := metadata{
 			connectionString: "testConnectionString",
@@ -152,9 +153,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 
-		meta := configuration.Metadata{
+		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
-		}
+		}}
 
 		_, err := parseMetadata(meta)
 		assert.Error(t, err)
@@ -168,9 +169,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 
-		meta := configuration.Metadata{
+		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
-		}
+		}}
 
 		_, err := parseMetadata(meta)
 		assert.Error(t, err)

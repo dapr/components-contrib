@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -49,7 +50,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 	})
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: connectionString},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
 	}
 
 	pgs := New(logger.NewLogger("test"))
@@ -610,7 +611,7 @@ func testInitConfiguration(t *testing.T) {
 			defer cockroackDB.Close()
 
 			metadata := state.Metadata{
-				Properties: rowTest.props,
+				Base: metadata.Base{Properties: rowTest.props},
 			}
 
 			err := cockroackDB.Init(metadata)

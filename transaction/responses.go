@@ -6,8 +6,8 @@ type BeginResponse struct {
 }
 
 type TransactionStateResponse struct {
-	TransactionID          string         `json:"transactionID"`
-	BunchTransactionStates map[string]int `json:"bunchTransactionStates"`
+	TransactionID          string            `json:"transactionID"`
+	BunchTransactionStates map[string]string `json:"bunchTransactionStates"`
 }
 
 type BunchTransactionsResponse struct {

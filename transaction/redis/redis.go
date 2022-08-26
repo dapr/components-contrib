@@ -118,7 +118,7 @@ func (t *DistributeTransaction) modifyBunchTransactionState(transactionID string
 }
 
 // read all of the transaction state info,
-func (t *DistributeTransaction) getBunchTransactionState(transactionID string) (map[string]int, error) {
+func (t *DistributeTransaction) getBunchTransactionState(transactionID string) (map[string]string, error) {
 	t.logger.Debug("read transaction state for ", transactionID)
 	if transactionID == "" {
 		return nil, fmt.Errorf("transaction id missing")
@@ -136,7 +136,7 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionID string) (
 		return nil, fmt.Errorf("bunch transaction state info anti-serialization error")
 	}
 
-	bunchTransactionState := make(map[string]int)
+	bunchTransactionState := make(map[string]string)
 	for bunchTransactionID, stateInfo := range bunchTransactionStatePersit {
 		t.logger.Debugf("state of bunch transaction: %s is %s ", bunchTransactionID, stateInfo)
 		bunchTransaction := transaction.DistributeTransactionState{}
@@ -146,8 +146,24 @@ func (t *DistributeTransaction) getBunchTransactionState(transactionID string) (
 		}
 		t.logger.Debug("state parse res: ", bunchTransaction)
 		t.logger.Debugf("state result is: %d", bunchTransaction.StatusCode)
-
-		bunchTransactionState[bunchTransactionID] = bunchTransaction.StatusCode
+		var stateInfo string
+		switch bunchTransaction.StatusCode {
+		case defaultState:
+			stateInfo = "begin"
+		case stateForRequestSuccess:
+			stateInfo = "request-success"
+		case stateForRequestFailure:
+			stateInfo = "request-failure"
+		case stateForCommitSuccess:
+			stateInfo = "commit-success "
+		case stateForCommitFailure:
+			stateInfo = "commit-failure "
+		case stateForRollbackSuccess:
+			stateInfo = "rollback-success"
+		case stateForRollbackFailure:
+			stateInfo = "rollback-failure"
+		}
+		bunchTransactionState[bunchTransactionID] = stateInfo
 	}
 	return bunchTransactionState, nil
 }

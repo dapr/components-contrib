@@ -40,7 +40,7 @@ type ossMetadata struct {
 }
 
 // NewAliCloudOSS returns a new  instance.
-func NewAliCloudOSS(logger logger.Logger) *AliCloudOSS {
+func NewAliCloudOSS(logger logger.Logger) bindings.OutputBinding {
 	return &AliCloudOSS{logger: logger}
 }
 

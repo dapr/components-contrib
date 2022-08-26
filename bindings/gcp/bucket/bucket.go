@@ -78,7 +78,7 @@ type createResponse struct {
 }
 
 // NewGCPStorage returns a new GCP storage instance.
-func NewGCPStorage(logger logger.Logger) *GCPStorage {
+func NewGCPStorage(logger logger.Logger) bindings.OutputBinding {
 	return &GCPStorage{logger: logger}
 }
 

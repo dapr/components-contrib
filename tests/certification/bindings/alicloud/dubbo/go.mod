@@ -164,6 +164,6 @@ replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
 
-replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825195559-b64502782b3f
+replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825205949-5d389ea9a3bb
 
 replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.20220709114046-2f2dc4f9a684

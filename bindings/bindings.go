@@ -11,22 +11,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package localstorage
+package bindings
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/logger"
-)
-
-func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{}
-	m.Properties = map[string]string{"rootPath": "/files"}
-	localStorage := NewLocalStorage(logger.NewLogger("test")).(*LocalStorage)
-	meta, err := localStorage.parseMetadata(m)
-	assert.Nil(t, err)
-	assert.Equal(t, "/files", meta.RootPath)
+// InputOutputBinding is the interface for bindings that implement both input and output bindings.
+type InputOutputBinding interface {
+	InputBinding
+	OutputBinding
 }

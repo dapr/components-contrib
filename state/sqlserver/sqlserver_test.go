@@ -183,7 +183,7 @@ func TestValidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+			sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 			sqlStore.migratorFactory = func(s *SQLServer) migrator {
 				return &mockMigrator{}
 			}
@@ -328,7 +328,7 @@ func TestInvalidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+			sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 
 			metadata := state.Metadata{
 				Base: metadata.Base{Properties: tt.props},
@@ -346,7 +346,7 @@ func TestInvalidConfiguration(t *testing.T) {
 
 // Test that if the migration fails the error is reported.
 func TestExecuteMigrationFails(t *testing.T) {
-	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 	sqlStore.migratorFactory = func(s *SQLServer) migrator {
 		return &mockFailingMigrator{}
 	}
@@ -360,7 +360,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 }
 
 func TestSupportedFeatures(t *testing.T) {
-	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 
 	actual := sqlStore.Features()
 	assert.NotNil(t, actual)

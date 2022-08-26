@@ -56,7 +56,7 @@ type sesMetadata struct {
 }
 
 // NewAWSSES creates a new AWSSES binding instance.
-func NewAWSSES(logger logger.Logger) *AWSSES {
+func NewAWSSES(logger logger.Logger) bindings.OutputBinding {
 	return &AWSSES{logger: logger}
 }
 

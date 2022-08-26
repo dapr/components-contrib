@@ -158,7 +158,7 @@ func (r *StateStore) Ping() error {
 }
 
 // NewAzureBlobStorageStore instance.
-func NewAzureBlobStorageStore(logger logger.Logger) *StateStore {
+func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},

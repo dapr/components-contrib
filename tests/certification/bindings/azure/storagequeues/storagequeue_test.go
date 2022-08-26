@@ -3,7 +3,9 @@ Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,10 +26,9 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	binding_asq "github.com/dapr/components-contrib/bindings/azure/storagequeues"
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 
-	binding_loader "github.com/dapr/dapr/pkg/components/bindings"
+	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
@@ -51,7 +52,6 @@ const (
 )
 
 func TestStorageQueue(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	messagesFor1 := watcher.NewOrdered()
 	messagesFor2 := watcher.NewOrdered()
 
@@ -129,27 +129,13 @@ func TestStorageQueue(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/standard"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", test).
 		Run()
 }
 
 func TestAzureStorageQueueTTLs(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	ttlMessages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -222,21 +208,8 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/ttl"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send ttl messages", ttlTest).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
@@ -244,21 +217,8 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(freshPorts[0]),
 			embedded.WithDaprHTTPPort(freshPorts[1]),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			// Assertion on the data.
 			ttlMessages.Assert(t, time.Minute)
@@ -268,7 +228,6 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 }
 
 func TestAzureStorageQueueTTLsWithLessSleepTime(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	ttlMessages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -319,21 +278,8 @@ func TestAzureStorageQueueTTLsWithLessSleepTime(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/ttl"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send ttl messages", ttlTest).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
@@ -341,21 +287,8 @@ func TestAzureStorageQueueTTLsWithLessSleepTime(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(freshPorts[0]),
 			embedded.WithDaprHTTPPort(freshPorts[1]),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			// Assertion on the data.
 			ttlMessages.Assert(t, time.Minute)
@@ -365,7 +298,6 @@ func TestAzureStorageQueueTTLsWithLessSleepTime(t *testing.T) {
 }
 
 func TestAzureStorageQueueForDecode(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -421,27 +353,13 @@ func TestAzureStorageQueueForDecode(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/decode"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", testDecode).
 		Run()
 }
 
 func TestAzureStorageQueueRetriesOnError(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -506,22 +424,31 @@ func TestAzureStorageQueueRetriesOnError(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/retry"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.storagequeues", func() bindings.OutputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.storagequeues", func() bindings.InputBinding {
-					return binding_asq.NewAzureStorageQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "443")).
 		Step("send and wait", testRetry).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
+		return binding_asq.NewAzureStorageQueues(l)
+	}, "azure.storagequeues")
+	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
+		return binding_asq.NewAzureStorageQueues(l)
+	}, "azure.storagequeues")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

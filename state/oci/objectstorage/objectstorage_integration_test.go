@@ -286,7 +286,7 @@ func testDelete(t *testing.T, ociProperties map[string]string) {
 func testPing(t *testing.T, ociProperties map[string]string) {
 	m := state.Metadata{}
 	m.Properties = ociProperties
-	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Run("Ping", func(t *testing.T) {
 		err := s.Init(m)
 		assert.Nil(t, err)

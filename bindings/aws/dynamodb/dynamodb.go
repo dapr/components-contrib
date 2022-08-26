@@ -44,7 +44,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDB returns a new DynamoDB instance.
-func NewDynamoDB(logger logger.Logger) *DynamoDB {
+func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 	return &DynamoDB{logger: logger}
 }
 

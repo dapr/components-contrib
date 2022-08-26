@@ -68,7 +68,7 @@ type cassandraMetadata struct {
 }
 
 // NewCassandraStateStore returns a new cassandra state store.
-func NewCassandraStateStore(logger logger.Logger) *Cassandra {
+func NewCassandraStateStore(logger logger.Logger) state.Store {
 	s := &Cassandra{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 

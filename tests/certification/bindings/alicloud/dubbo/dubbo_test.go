@@ -15,15 +15,16 @@ package dubbobinding_test
 
 import (
 	"context"
+	"fmt"
+	"testing"
+	"time"
+
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
 	"dubbo.apache.org/dubbo-go/v3/config"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
-	"fmt"
 	hessian "github.com/apache/dubbo-go-hessian2"
 	"github.com/dapr/components-contrib/bindings/alicloud/dubbo"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 
 	"github.com/dapr/components-contrib/bindings"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
@@ -50,8 +51,6 @@ const (
 )
 
 func TestDubboBinding(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-
 	testDubboInvocation := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
@@ -114,13 +113,18 @@ func TestDubboBinding(t *testing.T) {
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("alicloud.dubbo", func() bindings.OutputBinding {
-					return dubbo.NewDubboOutput(log)
-				}),
-			))).
+			runtime.WithBindings(newBindingsRegistry()))).
 		Step("verify dubbo invocation", testDubboInvocation).
 		Run()
+}
+
+func newBindingsRegistry() *bindings_loader.Registry {
+	log := logger.NewLogger("dapr.components")
+
+	r := bindings_loader.NewRegistry()
+	r.Logger = log
+	r.RegisterOutputBinding(dubbo.NewDubboOutput, "alicloud.dubbo")
+	return r
 }
 
 func runDubboServer(stop chan struct{}) error {

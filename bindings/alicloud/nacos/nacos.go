@@ -59,7 +59,7 @@ type Nacos struct {
 }
 
 // NewNacos returns a new Nacos instance.
-func NewNacos(logger logger.Logger) *Nacos {
+func NewNacos(logger logger.Logger) bindings.OutputBinding {
 	return &Nacos{
 		logger:      logger,
 		watchesLock: sync.Mutex{},

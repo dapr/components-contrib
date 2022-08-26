@@ -25,7 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	binding_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
-	binding_loader "github.com/dapr/dapr/pkg/components/bindings"
+	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
@@ -71,7 +71,6 @@ func amqpReady(url string) flow.Runnable {
 }
 
 func TestRabbitMQ(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -131,22 +130,13 @@ func TestRabbitMQ(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/standard"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", test).
 		Run()
 }
 
 func TestRabbitMQForOptions(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -206,22 +196,13 @@ func TestRabbitMQForOptions(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/options"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", test).
 		Run()
 }
 
 func TestRabbitMQTTLs(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	ttlMessages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -297,16 +278,8 @@ func TestRabbitMQTTLs(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/ttl"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send ttl messages", ttlTest).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
@@ -314,16 +287,8 @@ func TestRabbitMQTTLs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(freshPorts[0]),
 			embedded.WithDaprHTTPPort(freshPorts[1]),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			// Assertion on the data.
 			ttlMessages.Assert(t, time.Minute)
@@ -333,7 +298,6 @@ func TestRabbitMQTTLs(t *testing.T) {
 }
 
 func TestRabbitMQRetriesOnError(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -401,22 +365,13 @@ func TestRabbitMQRetriesOnError(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/retry"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", testRetry).
 		Run()
 }
 
 func TestRabbitMQNetworkError(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -476,23 +431,14 @@ func TestRabbitMQNetworkError(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/standard"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("rabbitmq", func() bindings.OutputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", test).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5672")).
 		Run()
 }
 
 func TestRabbitMQExclusive(t *testing.T) {
-	log := logger.NewLogger("dapr-components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -548,12 +494,26 @@ func TestRabbitMQExclusive(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/exclusive"),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("rabbitmq", func() bindings.InputBinding {
-					return binding_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
-        // TODO: The following test function will always fail as expected because the sidecar didn't initialize the component (expected). This should be updated to look for a much more specific error signature however by reading the sidecar's stderr.
+			componentRuntimeOptions(),
+		)).
+		// TODO: The following test function will always fail as expected because the sidecar didn't initialize the component (expected). This should be updated to look for a much more specific error signature however by reading the sidecar's stderr.
 		Step("send and wait", test).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
+		return binding_rabbitmq.NewRabbitMQ(l)
+	}, "rabbitmq")
+	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
+		return binding_rabbitmq.NewRabbitMQ(l)
+	}, "rabbitmq")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+	}
 }

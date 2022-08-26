@@ -51,7 +51,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"))
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -492,7 +492,7 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger)
+			p := NewPostgreSQLStateStore(logger).(*PostgreSQL)
 			defer p.Close()
 
 			metadata := state.Metadata{

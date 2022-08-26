@@ -84,7 +84,7 @@ type listPayload struct {
 }
 
 // NewAWSS3 returns a new AWSS3 instance.
-func NewAWSS3(logger logger.Logger) *AWSS3 {
+func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 	return &AWSS3{logger: logger}
 }
 

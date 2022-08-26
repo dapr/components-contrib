@@ -42,7 +42,7 @@ func getNewRethinkActorBinding() *Binding {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
 
-	return NewRethinkDBStateChangeBinding(l)
+	return NewRethinkDBStateChangeBinding(l).(*Binding)
 }
 
 /*

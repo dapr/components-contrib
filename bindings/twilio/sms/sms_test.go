@@ -75,7 +75,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 		"toNumber": "toNumber", "fromNumber": "fromNumber",
 		"accountSid": "accountSid", "authToken": "authToken",
 	}
-	tw := NewSMS(logger.NewLogger("test"))
+	tw := NewSMS(logger.NewLogger("test")).(*SMS)
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
@@ -112,7 +112,7 @@ func TestWriteShouldFail(t *testing.T) {
 		"fromNumber": "fromNumber",
 		"accountSid": "accountSid", "authToken": "authToken",
 	}
-	tw := NewSMS(logger.NewLogger("test"))
+	tw := NewSMS(logger.NewLogger("test")).(*SMS)
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}

@@ -68,7 +68,7 @@ func Command() (*command.ZeebeCommand, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
 
-	cmd := command.NewZeebeCommand(testLogger)
+	cmd := command.NewZeebeCommand(testLogger).(*command.ZeebeCommand)
 	err := cmd.Init(bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
@@ -102,7 +102,7 @@ func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.Z
 		metadata.Properties[pair.Key] = pair.Value
 	}
 
-	cmd := jobworker.NewZeebeJobWorker(testLogger)
+	cmd := jobworker.NewZeebeJobWorker(testLogger).(*jobworker.ZeebeJobWorker)
 	if err := cmd.Init(metadata); err != nil {
 		return nil, err
 	}

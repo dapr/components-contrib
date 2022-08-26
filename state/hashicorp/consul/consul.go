@@ -42,7 +42,7 @@ type consulConfig struct {
 }
 
 // NewConsulStateStore returns a new consul state store.
-func NewConsulStateStore(logger logger.Logger) *Consul {
+func NewConsulStateStore(logger logger.Logger) state.Store {
 	s := &Consul{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 

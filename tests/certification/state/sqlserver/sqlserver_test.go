@@ -23,12 +23,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// State.
-	"github.com/dapr/components-contrib/state"
+
 	state_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
+	"github.com/dapr/kit/logger"
 
 	// Secret stores.
-	"github.com/dapr/components-contrib/secretstores"
+
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
@@ -36,7 +37,6 @@ import (
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
-	"github.com/dapr/kit/logger"
 
 	// Certification testing runnables
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -57,7 +57,6 @@ const (
 )
 
 func TestSqlServer(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -229,15 +228,8 @@ func TestSqlServer(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				})),
-			runtime.WithStates(
-				state_loader.New("sqlserver", func() state.Store {
-					return state_sqlserver.NewSQLServerStateStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Run basic test", basicTest).
 		// Introduce network interruption of 15 seconds
 		// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
@@ -269,11 +261,8 @@ func TestSqlServer(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/customschemawithindex"),
-			runtime.WithStates(
-				state_loader.New("sqlserver", func() state.Store {
-					return state_sqlserver.NewSQLServerStateStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Run indexed properties verification test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
 		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
 		Run()
@@ -291,15 +280,8 @@ func TestSqlServer(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/azure"),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				})),
-			runtime.WithStates(
-				state_loader.New("sqlserver", func() state.Store {
-					return state_sqlserver.NewSQLServerStateStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Run basic test", basicTest).
 		Step("interrupt network",
 			network.InterruptNetwork(40*time.Second, nil, nil, "1433", "1434")).
@@ -309,4 +291,21 @@ func TestSqlServer(t *testing.T) {
 		Step("Run basic test again to verify reconnection occurred", basicTest).
 		Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"azure")).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	stateRegistry := state_loader.NewRegistry()
+	stateRegistry.Logger = log
+	stateRegistry.RegisterComponent(state_sqlserver.NewSQLServerStateStore, "sqlserver")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithStates(stateRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

@@ -27,6 +27,7 @@ import (
 
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 // StateStore is a DynamoDB state store.
@@ -47,7 +48,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
-func NewDynamoDBStateStore() state.Store {
+func NewDynamoDBStateStore(_ logger.Logger) state.Store {
 	return &StateStore{}
 }
 

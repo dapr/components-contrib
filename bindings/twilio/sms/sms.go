@@ -49,7 +49,7 @@ type twilioMetadata struct {
 	timeout    time.Duration
 }
 
-func NewSMS(logger logger.Logger) *SMS {
+func NewSMS(logger logger.Logger) bindings.OutputBinding {
 	return &SMS{
 		logger: logger,
 		httpClient: &http.Client{

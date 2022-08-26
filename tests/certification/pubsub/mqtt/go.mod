@@ -137,7 +137,7 @@ replace github.com/dapr/components-contrib => ../../../../
 
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
 
-replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825195559-b64502782b3f
+replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825205949-5d389ea9a3bb
 
 replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.20220709114046-2f2dc4f9a684
 

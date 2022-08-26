@@ -73,7 +73,7 @@ func TestMysqlIntegration(t *testing.T) {
 		t.SkipNow()
 	}
 
-	b := NewMysql(logger.NewLogger("test"))
+	b := NewMysql(logger.NewLogger("test")).(*Mysql)
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
 	if err := b.Init(m); err != nil {
 		t.Fatal(err)

@@ -312,7 +312,7 @@ func TestServiceBusQueueMetadata(t *testing.T) {
 
 		// Send events that the application above will observe.
 		ctx.Log("Invoking binding!")
-		req := &daprClient.InvokeBindingRequest{Name: "sb-binding-1", Operation: "create", Data: []byte("test msg"), Metadata: map[string]string{"TestMetadata": "Some Metadata"}}
+		req := &daprClient.InvokeBindingRequest{Name: "sb-binding-1", Operation: "create", Data: []byte("test msg"), Metadata: map[string]string{"Testmetadata": "Some Metadata"}}
 		err = client.InvokeOutputBinding(ctx, req)
 		require.NoError(ctx, err, "error publishing message")
 
@@ -330,8 +330,8 @@ func TestServiceBusQueueMetadata(t *testing.T) {
 				messages.Observe(string(in.Data))
 				ctx.Logf("Got message: %s - %+v", string(in.Data), in.Metadata)
 				require.NotEmpty(t, in.Metadata)
-				require.Contains(t, in.Metadata, "TestMetadata")
-				require.Equal(t, "Some Metadata", in.Metadata["TestMetadata"])
+				require.Contains(t, in.Metadata, "Testmetadata")
+				require.Equal(t, "Some Metadata", in.Metadata["Testmetadata"])
 
 				return []byte("{}"), nil
 			}))
@@ -390,10 +390,10 @@ func componentRuntimeOptions() []runtime.Option {
 	bindingsRegistry.Logger = log
 	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
 		return binding_asb.NewAzureServiceBusQueues(l)
-	}, "azure.eventhubs")
+	}, "azure.servicebusqueues")
 	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
 		return binding_asb.NewAzureServiceBusQueues(l)
-	}, "azure.eventhubs")
+	}, "azure.servicebusqueues")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log

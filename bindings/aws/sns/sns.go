@@ -48,7 +48,7 @@ type dataPayload struct {
 }
 
 // NewAWSSNS creates a new AWSSNS binding instance.
-func NewAWSSNS(logger logger.Logger) *AWSSNS {
+func NewAWSSNS(logger logger.Logger) bindings.OutputBinding {
 	return &AWSSNS{logger: logger}
 }
 

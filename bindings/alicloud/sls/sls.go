@@ -48,7 +48,7 @@ func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func NewAliCloudSlsLogstorage(logger logger.Logger) *AliCloudSlsLogstorage {
+func NewAliCloudSlsLogstorage(logger logger.Logger) bindings.OutputBinding {
 	logger.Debug("initialized Sls log storage binding component")
 	s := &AliCloudSlsLogstorage{
 		logger: logger,

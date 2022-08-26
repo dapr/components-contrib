@@ -11,11 +11,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package configuration
+package metadata
 
-import "github.com/dapr/components-contrib/metadata"
-
-// Metadata contains a configuration store specific set of metadata property.
-type Metadata struct {
-	metadata.Base `json:",inline"`
+// Base is the common metadata across components.
+// All components-specific metadata should embed this.
+type Base struct {
+	// Name is the name of the component that's being used.
+	Name string
+	// Properties is the metadata properties.
+	Properties map[string]string `json:"properties,omitempty"`
 }

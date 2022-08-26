@@ -53,7 +53,7 @@ type GraphQL struct {
 }
 
 // NewGraphQL returns a new GraphQL binding instance.
-func NewGraphQL(logger logger.Logger) *GraphQL {
+func NewGraphQL(logger logger.Logger) bindings.OutputBinding {
 	return &GraphQL{logger: logger}
 }
 

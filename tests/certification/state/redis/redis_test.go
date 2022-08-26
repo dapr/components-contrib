@@ -46,9 +46,16 @@ const (
 
 func TestRedis(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	stateStore := state_redis.NewRedisStateStore(log)
+
+	stateStore := state_redis.NewRedisStateStore(log).(*state_redis.StateStore)
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
+
+	stateRegistry := state_loader.NewRegistry()
+	stateRegistry.Logger = log
+	stateRegistry.RegisterComponent(func(l logger.Logger) state.Store {
+		return stateStore
+	}, "redis")
 
 	// var rdb redis.Client
 	currentGrpcPort := ports[0]
@@ -290,11 +297,8 @@ func TestRedis(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(
-				state_loader.New("redis", func() state.Store {
-					return stateStore
-				}),
-			))).
+			runtime.WithStates(stateRegistry),
+		)).
 		Step("Run basic test", basicTest).
 		Step("Run TTL related test", timeToLiveTest).
 		Step("interrupt network",
@@ -318,11 +322,8 @@ func TestRedis(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/enableTLSConf"),
-			runtime.WithStates(
-				state_loader.New("redis", func() state.Store {
-					return stateStore
-				}),
-			))).
+			runtime.WithStates(stateRegistry),
+		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
 		Run()
 
@@ -334,11 +335,8 @@ func TestRedis(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/maxRetriesNonInt"),
-			runtime.WithStates(
-				state_loader.New("redis", func() state.Store {
-					return stateStore
-				}),
-			))).
+			runtime.WithStates(stateRegistry),
+		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
 		Run()
 }

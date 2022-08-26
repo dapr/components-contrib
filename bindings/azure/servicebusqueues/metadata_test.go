@@ -103,7 +103,7 @@ func TestParseMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := bindings.Metadata{}
 			m.Properties = tt.properties
-			a := NewAzureServiceBusQueues(logger.NewLogger("test"))
+			a := NewAzureServiceBusQueues(logger.NewLogger("test")).(*AzureServiceBusQueues)
 			meta, err := a.parseMetadata(m)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expectedConnectionString, meta.ConnectionString)
@@ -137,7 +137,7 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 			m := bindings.Metadata{}
 			m.Properties = tt.properties
 
-			a := NewAzureServiceBusQueues(logger.NewLogger("test"))
+			a := NewAzureServiceBusQueues(logger.NewLogger("test")).(*AzureServiceBusQueues)
 			_, err := a.parseMetadata(m)
 			assert.NotNil(t, err)
 		})
@@ -183,7 +183,7 @@ func TestParseMetadataConnectionStringAndNamespaceNameExclusivity(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			m := bindings.Metadata{}
 			m.Properties = tt.properties
-			a := NewAzureServiceBusQueues(logger.NewLogger("test"))
+			a := NewAzureServiceBusQueues(logger.NewLogger("test")).(*AzureServiceBusQueues)
 			meta, err := a.parseMetadata(m)
 			if tt.expectedErr {
 				assert.NotNil(t, err)

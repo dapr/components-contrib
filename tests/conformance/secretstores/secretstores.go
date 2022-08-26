@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -51,7 +52,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	// Init
 	t.Run("init", func(t *testing.T) {
 		err := store.Init(secretstores.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})

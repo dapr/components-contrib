@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -27,7 +28,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			host: "127.0.0.1",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getMongoDBMetaData(m)
@@ -46,7 +47,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			password:       "password",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getMongoDBMetaData(m)
@@ -64,7 +65,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			password: "password",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		_, err := getMongoDBMetaData(m)
@@ -80,7 +81,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			password:       "password",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getMongoDBMetaData(m)
@@ -99,7 +100,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			collectionName: "TestCollection",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getMongoDBMetaData(m)
@@ -121,7 +122,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			params:         "?ssl=true",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getMongoDBMetaData(m)
@@ -141,7 +142,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			params:         "?ssl=true",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := getMongoDBMetaData(m)
@@ -159,7 +160,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			collectionName: "TestCollection",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		_, err := getMongoDBMetaData(m)
@@ -177,7 +178,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			collectionName: "TestCollection",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		_, err := getMongoDBMetaData(m)

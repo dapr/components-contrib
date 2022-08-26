@@ -62,13 +62,13 @@ endif
 LINTER_BINARY := $(shell $(FINDBIN) $(GOLANGCI_LINT))
 export GH_LINT_VERSION := $(shell grep 'GOLANGCI_LINT_VER:' .github/workflows/components-contrib.yml | xargs | cut -d" " -f2)
 ifeq (,$(LINTER_BINARY))
-  INSTALLED_LINT_VERSION := "v0.0.0"
+    INSTALLED_LINT_VERSION := "v0.0.0"
 else
-	INSTALLED_LINT_VERSION := v$(shell $(LINTER_BINARY) --version | grep -Eo '(\d+\.)+\d+' || "")
+	INSTALLED_LINT_VERSION=v$(shell $(LINTER_BINARY) version | grep -Eo '([0-9]+\.)+[0-9]+' - || "")
 endif
 
 ################################################################################
-# Target: verify-linter-installed                                              #
+# Linter targets                                                               #
 ################################################################################
 .PHONY: verify-linter-installed
 verify-linter-installed:
@@ -80,9 +80,6 @@ verify-linter-installed:
 		exit 1; \
 	fi;
 
-################################################################################
-# Target: verify-linter-version                                                #
-################################################################################
 .PHONY: verify-linter-version
 verify-linter-version:
 	@if [ "$(GH_LINT_VERSION)" != "$(INSTALLED_LINT_VERSION)" ]; then \

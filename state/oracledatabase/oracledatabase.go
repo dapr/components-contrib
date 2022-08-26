@@ -28,7 +28,7 @@ type OracleDatabase struct {
 }
 
 // NewOracleDatabaseStateStore creates a new instance of OracleDatabase state store.
-func NewOracleDatabaseStateStore(logger logger.Logger) *OracleDatabase {
+func NewOracleDatabaseStateStore(logger logger.Logger) state.Store {
 	dba := newOracleDatabaseAccess(logger)
 
 	return newOracleDatabaseStateStore(logger, dba)

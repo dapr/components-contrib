@@ -27,7 +27,7 @@ import (
 	"go.uber.org/multierr"
 
 	// Pub/Sub.
-	"github.com/dapr/components-contrib/pubsub"
+
 	pubsub_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -279,11 +279,8 @@ func TestRabbitMQ(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			embedded.WithProfilePort(runtime.DefaultProfilePort),
-			runtime.WithPubSubs(
-				pubsub_loader.New("rabbitmq", func() pubsub.PubSub {
-					return pubsub_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		// Run the application2 logic above.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+2),
 			application(beta, 2))).
@@ -294,11 +291,8 @@ func TestRabbitMQ(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			runtime.WithPubSubs(
-				pubsub_loader.New("rabbitmq", func() pubsub.PubSub {
-					return pubsub_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		// Run the application3 logic above.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
 			application(beta, 3))).
@@ -309,11 +303,8 @@ func TestRabbitMQ(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+4),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
-			runtime.WithPubSubs(
-				pubsub_loader.New("rabbitmq", func() pubsub.PubSub {
-					return pubsub_rabbitmq.NewRabbitMQ(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("signal subscribed", flow.MustDo(func() {
 			close(subscribed)
@@ -332,4 +323,16 @@ func TestRabbitMQ(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages", assertMessages(alpha)).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	pubsubRegistry := pubsub_loader.NewRegistry()
+	pubsubRegistry.Logger = log
+	pubsubRegistry.RegisterComponent(pubsub_rabbitmq.NewRabbitMQ, "rabbitmq")
+
+	return []runtime.Option{
+		runtime.WithPubSubs(pubsubRegistry),
+	}
 }

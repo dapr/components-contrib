@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -105,11 +106,11 @@ func TestMySQLIntegration(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				p := NewMySQLStateStore(logger)
+				p := NewMySQLStateStore(logger).(*MySQL)
 				defer p.Close()
 
 				metadata := state.Metadata{
-					Properties: tt.props,
+					Base: metadata.Base{Properties: tt.props},
 				}
 
 				err := p.Init(metadata)
@@ -127,10 +128,10 @@ func TestMySQLIntegration(t *testing.T) {
 	pemPath := getPemPath()
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: connectionString, pemPathKey: pemPath},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString, pemPathKey: pemPath}},
 	}
 
-	mys := NewMySQLStateStore(logger.NewLogger("test"))
+	mys := NewMySQLStateStore(logger.NewLogger("test")).(*MySQL)
 	t.Cleanup(func() {
 		defer mys.Close()
 	})

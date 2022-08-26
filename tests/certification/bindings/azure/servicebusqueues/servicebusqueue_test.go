@@ -353,6 +353,36 @@ func TestServiceBusQueueMetadata(t *testing.T) {
 		Run()
 }
 
+func TestServiceBusQueueDisableEntityManagement(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(2)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+
+	testWithExpectedFailure := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		// Send events that the application above will observe.
+		ctx.Log("Invoking binding!")
+		req := &daprClient.InvokeBindingRequest{Name: "mgmt-binding", Operation: "create", Data: []byte("test msg"), Metadata: map[string]string{"TestMetadata": "Some Metadata"}}
+		err = client.InvokeOutputBinding(ctx, req)
+		require.Error(ctx, err, "error publishing message")
+		return nil
+	}
+
+	flow.New(t, "servicebus queues certification - entity management disabled").
+		// Run the application logic above.
+		Step(sidecar.Run("metadataSidecar",
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/disable_entity_mgmt"),
+			componentRuntimeOptions(),
+		)).
+		Step("send and wait", testWithExpectedFailure).
+		Run()
+}
+
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")
 

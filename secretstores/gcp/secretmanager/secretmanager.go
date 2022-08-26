@@ -55,7 +55,7 @@ type Store struct {
 }
 
 // NewSecreteManager returns new instance of  `SecretManagerStore`.
-func NewSecreteManager(logger logger.Logger) *Store {
+func NewSecreteManager(logger logger.Logger) secretstores.SecretStore {
 	return &Store{logger: logger}
 }
 

@@ -105,7 +105,7 @@ type listPayload struct {
 }
 
 // NewAzureBlobStorage returns a new Azure Blob Storage instance.
-func NewAzureBlobStorage(logger logger.Logger) *AzureBlobStorage {
+func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 	return &AzureBlobStorage{logger: logger}
 }
 

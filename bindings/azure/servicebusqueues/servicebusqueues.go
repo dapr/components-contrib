@@ -52,7 +52,7 @@ type AzureServiceBusQueues struct {
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
-func NewAzureServiceBusQueues(logger logger.Logger) *AzureServiceBusQueues {
+func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding {
 	return &AzureServiceBusQueues{
 		senderLock: sync.RWMutex{},
 		logger:     logger,

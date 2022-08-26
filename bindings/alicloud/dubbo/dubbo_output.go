@@ -37,7 +37,7 @@ type DubboOutputBinding struct {
 
 var dubboBinding *DubboOutputBinding
 
-func NewDubboOutput(logger logger.Logger) *DubboOutputBinding {
+func NewDubboOutput(logger logger.Logger) bindings.OutputBinding {
 	if dubboBinding == nil {
 		dubboBinding = &DubboOutputBinding{
 			ctxCache: make(map[string]*dubboContext),

@@ -43,7 +43,7 @@ type Postgres struct {
 }
 
 // NewPostgres returns a new PostgreSQL output binding.
-func NewPostgres(logger logger.Logger) *Postgres {
+func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 	return &Postgres{logger: logger}
 }
 

@@ -59,7 +59,7 @@ func TestSingleNodeGlobalNetwork(t *testing.T) {
 	sort.Strings(folderCids)
 
 	t.Run("init node", func(t *testing.T) {
-		b = NewIPFSBinding(logger.NewLogger("tests"))
+		b = NewIPFSBinding(logger.NewLogger("tests")).(*IPFSBinding)
 		err := b.Init(bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				"repoPath": repoPath,

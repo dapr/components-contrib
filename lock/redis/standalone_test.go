@@ -31,7 +31,7 @@ const resourceID = "resource_xxx"
 func TestStandaloneRedisLock_InitError(t *testing.T) {
 	t.Run("error when connection fail", func(t *testing.T) {
 		// construct component
-		comp := NewStandaloneRedisLock(logger.NewLogger("test"))
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
 		defer comp.Close()
 
 		cfg := lock.Metadata{Base: metadata.Base{
@@ -47,7 +47,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 
 	t.Run("error when no host", func(t *testing.T) {
 		// construct component
-		comp := NewStandaloneRedisLock(logger.NewLogger("test"))
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
 		defer comp.Close()
 
 		cfg := lock.Metadata{Base: metadata.Base{
@@ -63,7 +63,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 
 	t.Run("error when wrong MaxRetries", func(t *testing.T) {
 		// construct component
-		comp := NewStandaloneRedisLock(logger.NewLogger("test"))
+		comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
 		defer comp.Close()
 
 		cfg := lock.Metadata{Base: metadata.Base{
@@ -86,7 +86,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	assert.NoError(t, err)
 	defer s.Close()
 	// construct component
-	comp := NewStandaloneRedisLock(logger.NewLogger("test"))
+	comp := NewStandaloneRedisLock(logger.NewLogger("test")).(*StandaloneRedisLock)
 	defer comp.Close()
 
 	cfg := lock.Metadata{Base: metadata.Base{

@@ -171,7 +171,7 @@ func NewSubscriber() Subscriber {
 }
 
 // NewResolver creates the instance of mDNS name resolver.
-func NewResolver(logger logger.Logger) *Resolver {
+func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	r := &Resolver{
 		subs:             make(map[string]*SubscriberPool),
 		appAddressesIPv4: make(map[string]*addressList),

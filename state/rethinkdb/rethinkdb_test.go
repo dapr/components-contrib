@@ -66,7 +66,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 
 	t.Run("With init", func(t *testing.T) {
 		if err := db.Init(m); err != nil {
@@ -155,7 +155,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 	if err := db.Init(m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 	if err := db.Init(m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}

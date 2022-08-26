@@ -106,7 +106,7 @@ func TestMySQLIntegration(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				p := NewMySQLStateStore(logger)
+				p := NewMySQLStateStore(logger).(*MySQL)
 				defer p.Close()
 
 				metadata := state.Metadata{
@@ -131,7 +131,7 @@ func TestMySQLIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString, pemPathKey: pemPath}},
 	}
 
-	mys := NewMySQLStateStore(logger.NewLogger("test"))
+	mys := NewMySQLStateStore(logger.NewLogger("test")).(*MySQL)
 	t.Cleanup(func() {
 		defer mys.Close()
 	})

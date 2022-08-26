@@ -104,30 +104,31 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-	defer cancel()
-	getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
-	if err != nil {
-		return err
-	}
-	if getQueueRes == nil {
-		// Need to create the queue
-		ttlDur := contribMetadata.Duration{
-			Duration: a.metadata.ttl,
-		}
+	if !a.metadata.DisableEntityManagement {
 		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 		defer cancel()
-		_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
-			Properties: &sbadmin.QueueProperties{
-				DefaultMessageTimeToLive: to.Ptr(ttlDur.ToISOString()),
-			},
-		})
+		getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
 		if err != nil {
 			return err
 		}
+		if getQueueRes == nil {
+			// Need to create the queue
+			ttlDur := contribMetadata.Duration{
+				Duration: a.metadata.ttl,
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+			defer cancel()
+			_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
+				Properties: &sbadmin.QueueProperties{
+					DefaultMessageTimeToLive: to.Ptr(ttlDur.ToISOString()),
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
+		a.ctx, a.cancel = context.WithCancel(context.Background())
 	}
-
-	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	return nil
 }

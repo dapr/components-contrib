@@ -96,12 +96,12 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 
 	err = c.tryCreateKeyspace(meta.keyspace, meta.replicationFactor)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.table, err)
+		return fmt.Errorf("error creating keyspace %s: %s", meta.keyspace, err)
 	}
 
 	err = c.tryCreateTable(meta.table, meta.keyspace)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.table, err)
+		return fmt.Errorf("error creating table %s: %s", meta.table, err)
 	}
 
 	c.table = fmt.Sprintf("%s.%s", meta.keyspace, meta.table)

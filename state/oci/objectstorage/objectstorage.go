@@ -164,7 +164,7 @@ func (r *StateStore) Ping() error {
 	return r.pingBucket()
 }
 
-func NewOCIObjectStorageStore(logger logger.Logger) *StateStore {
+func NewOCIObjectStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},

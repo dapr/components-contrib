@@ -46,7 +46,7 @@ type httpMetadata struct {
 }
 
 // NewHTTP returns a new HTTPSource.
-func NewHTTP(logger logger.Logger) *HTTPSource {
+func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 	return &HTTPSource{logger: logger}
 }
 

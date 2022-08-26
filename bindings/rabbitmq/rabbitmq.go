@@ -65,7 +65,7 @@ type rabbitMQMetadata struct {
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
-func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
+func NewRabbitMQ(logger logger.Logger) bindings.InputOutputBinding {
 	return &RabbitMQ{logger: logger}
 }
 

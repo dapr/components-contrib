@@ -45,7 +45,7 @@ type tablestoreMetadata struct {
 	TableName    string `json:"tableName"`
 }
 
-func NewAliCloudTableStore(logger logger.Logger) *AliCloudTableStore {
+func NewAliCloudTableStore(logger logger.Logger) state.Store {
 	return &AliCloudTableStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,

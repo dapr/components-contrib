@@ -47,7 +47,7 @@ func TestOperations(t *testing.T) {
 }
 
 func TestInflux_Init(t *testing.T) {
-	influx := NewInflux(logger.NewLogger("test"))
+	influx := NewInflux(logger.NewLogger("test")).(*Influx)
 	assert.Nil(t, influx.queryAPI)
 	assert.Nil(t, influx.writeAPI)
 	assert.Nil(t, influx.metadata)

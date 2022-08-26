@@ -58,7 +58,7 @@ func init() {
 }
 
 // NewSignalR creates a new output binding for Azure SignalR.
-func NewSignalR(logger logger.Logger) *SignalR {
+func NewSignalR(logger logger.Logger) bindings.OutputBinding {
 	return &SignalR{
 		logger:     logger,
 		httpClient: httpClient,

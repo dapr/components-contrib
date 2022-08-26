@@ -53,7 +53,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
 	}
 
-	pgs := New(logger.NewLogger("test"))
+	pgs := New(logger.NewLogger("test")).(*CockroachDB)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -607,7 +607,7 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, rowTest := range tests {
 		t.Run(rowTest.name, func(t *testing.T) {
-			cockroackDB := New(logger)
+			cockroackDB := New(logger).(*CockroachDB)
 			defer cockroackDB.Close()
 
 			metadata := state.Metadata{

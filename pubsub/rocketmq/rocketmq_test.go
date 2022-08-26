@@ -40,21 +40,21 @@ func getTestMetadata() map[string]string {
 
 func TestParseRocketMQMetadata(t *testing.T) {
 	meta := getTestMetadata()
-	_, err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta})
+	_, err := parseRocketMQMetaData(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 }
 
 func TestRocketMQ_Init(t *testing.T) {
 	meta := getTestMetadata()
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Properties: meta})
+	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 }
 
 func TestRocketMQ_Publish_Currently(t *testing.T) {
 	meta := getTestMetadata()
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Properties: meta})
+	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 	req := &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 1, \"value\": \"1\"}"),
@@ -113,7 +113,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 	meta := getTestMetadata()
 	meta["consumeOrderly"] = "true"
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Properties: meta})
+	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 	req := &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 1, \"value\": \"1\", \"sKey\": \"sKeyHello\"}"),
@@ -164,7 +164,7 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 	meta := getTestMetadata()
 	l := logger.NewLogger("test")
 	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Properties: meta})
+	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 
 	req := pubsub.SubscribeRequest{
@@ -186,7 +186,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	meta := getTestMetadata()
 	l := logger.NewLogger("test")
 	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Properties: meta})
+	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
@@ -216,51 +216,4 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	err = r.Subscribe(context.Background(), req, handler)
 	assert.Nil(t, err)
 	time.Sleep(1 * time.Minute)
-	t.Run("correct metadata", func(t *testing.T) {
-		meta := getTestMetadata()
-		_, err := parseRocketMQMetaData(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-		assert.Nil(t, err)
-	})
-
-	t.Run("correct init", func(t *testing.T) {
-		meta := getTestMetadata()
-		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-		assert.Nil(t, err)
-	})
-
-	t.Run("setup producer missing nameserver", func(t *testing.T) {
-		meta := getTestMetadata()
-		delete(meta, "nameServer")
-		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-		assert.Nil(t, err)
-		req := &pubsub.PublishRequest{
-			Data:       []byte("hello"),
-			PubsubName: "rocketmq",
-			Topic:      "test",
-			Metadata:   map[string]string{},
-		}
-		err = r.Publish(req)
-		assert.NotNil(t, err)
-	})
-
-	t.Run("subscribe illegal type", func(t *testing.T) {
-		meta := getTestMetadata()
-		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-		assert.Nil(t, err)
-
-		req := pubsub.SubscribeRequest{
-			Topic: "test",
-			Metadata: map[string]string{
-				metadataRocketmqType: "incorrect type",
-			},
-		}
-		handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
-			return nil
-		}
-		err = r.Subscribe(context.Background(), req, handler)
-		assert.NotNil(t, err)
-	})
 }

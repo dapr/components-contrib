@@ -69,6 +69,7 @@ jobs:
         - state.redis
         - state.sqlserver
         - state.cockroachdb
+        - state.rethinkdb
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -305,6 +306,11 @@ jobs:
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
       if: contains(matrix.component, 'cockroachdb')
+
+    - name: Start rethinkdb
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
+      if: contains(matrix.component, 'rethinkdb')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')

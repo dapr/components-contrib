@@ -22,6 +22,7 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -91,10 +92,9 @@ func TestInit(t *testing.T) {
 	}{
 		{
 			"given no configuration don't register service just check agent",
-			nr.Metadata{
-				Properties:    getTestPropsWithoutKey(""),
-				Configuration: nil,
-			},
+			nr.Metadata{Base: metadata.Base{
+				Properties: getTestPropsWithoutKey(""),
+			}, Configuration: nil},
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
 
@@ -111,7 +111,9 @@ func TestInit(t *testing.T) {
 		{
 			"given SelfRegister true then register service",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
+				Base: metadata.Base{
+					Properties: getTestPropsWithoutKey(""),
+				},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
@@ -132,7 +134,7 @@ func TestInit(t *testing.T) {
 		{
 			"given AdvancedRegistraion then register service",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
 				Configuration: configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
 					QueryOptions:         &consul.QueryOptions{},
@@ -463,7 +465,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"empty configuration should only return Client, QueryOptions and DaprPortMetaKey",
 			nr.Metadata{
-				Properties:    getTestPropsWithoutKey(""),
+				Base:          metadata.Base{Properties: getTestPropsWithoutKey("")},
 				Configuration: nil,
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -487,7 +489,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"empty configuration with SelfRegister should default correctly",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
@@ -520,7 +522,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"DaprPortMetaKey should set registration meta and config used for resolve",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
 				Configuration: configSpec{
 					SelfRegister:    true,
 					DaprPortMetaKey: "random_key",
@@ -539,7 +541,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing AppID property should error when SelfRegister true",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(nr.AppID),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppID)},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
@@ -569,7 +571,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing AppPort property should error when SelfRegister true",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(nr.AppPort),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppPort)},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
@@ -599,7 +601,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing HostAddress property should error when SelfRegister true",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(nr.HostAddress),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.HostAddress)},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
@@ -629,7 +631,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing DaprHTTPPort property should error only when SelfRegister true",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(nr.DaprHTTPPort),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.DaprHTTPPort)},
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
@@ -659,7 +661,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing DaprPort property should always error",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(nr.DaprPort),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.DaprPort)},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				t.Helper()
@@ -692,7 +694,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"registration should configure correctly",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
 				Configuration: configSpec{
 					Checks: []*consul.AgentServiceCheck{
 						{
@@ -741,7 +743,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			"advanced registration should override/ignore other configs",
 			nr.Metadata{
-				Properties: getTestPropsWithoutKey(""),
+				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
 				Configuration: configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{
 						Name:    "random-app-id",

@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -49,11 +50,11 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	}))
 	defer ts.Close()
 
-	m := bindings.Metadata{Name: "test", Properties: map[string]string{
+	m := bindings.Metadata{Base: metadata.Base{Name: "test", Properties: map[string]string{
 		"url":    ts.URL + "/test",
 		"secret": "",
 		"id":     "x",
-	}}
+	}}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)
@@ -67,14 +68,14 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	msg := "{\"type\": \"text\",\"text\": {\"content\": \"hello\"}}"
 
-	m := bindings.Metadata{
+	m := bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"url":    "/test",
 			"secret": "",
 			"id":     "x",
 		},
-	}
+	}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)

@@ -24,17 +24,16 @@ import (
 	"go.uber.org/multierr"
 
 	// Pub-Sub.
-	"github.com/dapr/components-contrib/pubsub"
+
 	pubsub_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
-	"github.com/dapr/kit/logger"
 
 	// Certification testing runnables
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -67,15 +66,6 @@ const (
 )
 
 func TestServicebus(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -167,8 +157,8 @@ func TestServicebus(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -181,8 +171,8 @@ func TestServicebus(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
 		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -192,15 +182,6 @@ func TestServicebus(t *testing.T) {
 }
 
 func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -301,8 +282,8 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -315,8 +296,8 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
@@ -325,15 +306,6 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 }
 
 func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -430,8 +402,8 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -444,8 +416,8 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
@@ -453,15 +425,6 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 }
 
 func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -562,8 +525,8 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -576,8 +539,8 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
@@ -587,15 +550,6 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 }
 
 func TestServicebusNonexistingTopic(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -692,8 +646,8 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -701,15 +655,6 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 }
 
 func TestServicebusNetworkInterruption(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -806,8 +751,8 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -817,16 +762,7 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 
 func TestServicebusEntityManagement(t *testing.T) {
 	//TODO: Modify it to looks for component init error in the sidecar itself.
-	log := logger.NewLogger("dapr.components")
 	consumerGroup1 := watcher.NewUnordered()
-
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
 	metadata := map[string]string{
@@ -903,22 +839,13 @@ func TestServicebusEntityManagement(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
 }
 
 func TestServicebusDefaultTtl(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -1005,8 +932,8 @@ func TestServicebusDefaultTtl(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("wait", flow.Sleep(20*time.Second)).
 		Step("verify if app6 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
@@ -1014,15 +941,6 @@ func TestServicebusDefaultTtl(t *testing.T) {
 }
 
 func TestServicebusAuthentication(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("azure.servicebus", func() pubsub.PubSub {
-		return pubsub_servicebus.NewAzureServiceBus(log)
-	})
-
-	secretStoreComponent := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(log)
-	})
-
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -1119,10 +1037,27 @@ func TestServicebusAuthentication(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithSecretStores(secretStoreComponent),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	pubsubRegistry := pubsub_loader.NewRegistry()
+	pubsubRegistry.Logger = log
+	pubsubRegistry.RegisterComponent(pubsub_servicebus.NewAzureServiceBus, "azure.servicebus")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithPubSubs(pubsubRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

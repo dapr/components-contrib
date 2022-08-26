@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -30,7 +31,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test valid connectionString configuration", func(t *testing.T) {
 		props := map[string]string{"connectionString": "fake"}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata)
 
 		assert.NoError(t, err)
@@ -40,7 +41,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test namespace given", func(t *testing.T) {
 		props := map[string]string{"eventHubNamespace": "fake"}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata)
 
 		assert.NoError(t, err)
@@ -50,7 +51,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test both connectionString and eventHubNamespace given", func(t *testing.T) {
 		props := map[string]string{"connectionString": "fake", "eventHubNamespace": "fake"}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseEventHubsMetadata(metadata)
 
 		assert.Error(t, err)
@@ -60,7 +61,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test missing metadata", func(t *testing.T) {
 		props := map[string]string{}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseEventHubsMetadata(metadata)
 
 		assert.Error(t, err)
@@ -72,7 +73,7 @@ func TestValidateSubscriptionAttributes(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {
 		props := map[string]string{"connectionString": "fake", "consumerID": "fake", "storageAccountName": "account", "storageAccountKey": "key", "storageContainerName": "container"}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata)
 
 		assert.NoError(t, err)
@@ -118,7 +119,7 @@ func TestValidateSubscriptionAttributes(t *testing.T) {
 
 	for _, c := range invalidConfigTestCases {
 		t.Run(c.name, func(t *testing.T) {
-			metadata := pubsub.Metadata{Properties: c.config}
+			metadata := pubsub.Metadata{Base: metadata.Base{Properties: c.config}}
 			m, err := parseEventHubsMetadata(metadata)
 			aeh := &AzureEventHubs{logger: testLogger, metadata: m}
 			require.NoError(t, err)
@@ -133,7 +134,7 @@ func TestValidateEnitityManagementMetadata(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {
 		props := map[string]string{"eventHubNamespace": "fake", "messageRetentionInDays": "2", "partitionCount": "3", "resourceGroupName": "rg", "subscriptionID": "id"}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata)
 
 		require.NoError(t, err)
@@ -153,7 +154,7 @@ func TestValidateEnitityManagementMetadata(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {
 		props := map[string]string{"eventHubNamespace": "fake", "resourceGroupName": "rg", "subscriptionID": "id"}
 
-		metadata := pubsub.Metadata{Properties: props}
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata)
 
 		require.NoError(t, err)
@@ -224,7 +225,7 @@ func TestValidateEnitityManagementMetadata(t *testing.T) {
 
 	for _, c := range invalidConfigTestCases {
 		t.Run(c.name, func(t *testing.T) {
-			metadata := pubsub.Metadata{Properties: c.config}
+			metadata := pubsub.Metadata{Base: metadata.Base{Properties: c.config}}
 			m, err := parseEventHubsMetadata(metadata)
 			aeh := &AzureEventHubs{logger: testLogger, metadata: m}
 			require.NoError(t, err)
@@ -244,7 +245,7 @@ func TestValidateEnitityManagementMetadata(t *testing.T) {
 func TestGetStoragePrefixString(t *testing.T) {
 	props := map[string]string{"connectionString": "fake", "consumerID": "test"}
 
-	metadata := pubsub.Metadata{Properties: props}
+	metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 	m, err := parseEventHubsMetadata(metadata)
 
 	require.NoError(t, err)

@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 type mockedDynamoDB struct {
@@ -61,7 +62,7 @@ func (m *mockedDynamoDB) BatchWriteItem(input *dynamodb.BatchWriteItemInput) (*d
 
 func TestInit(t *testing.T) {
 	m := state.Metadata{}
-	s := NewDynamoDBStateStore()
+	s := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"AccessKey":        "a",

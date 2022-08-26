@@ -56,7 +56,7 @@ type StateEntity struct {
 	Value string
 }
 
-func NewFirestoreStateStore(logger logger.Logger) *Firestore {
+func NewFirestoreStateStore(logger logger.Logger) state.Store {
 	s := &Firestore{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 

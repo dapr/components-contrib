@@ -11,11 +11,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package configuration
+package bindings
 
-import "github.com/dapr/components-contrib/metadata"
-
-// Metadata contains a configuration store specific set of metadata property.
-type Metadata struct {
-	metadata.Base `json:",inline"`
+// InputOutputBinding is the interface for bindings that implement both input and output bindings.
+type InputOutputBinding interface {
+	InputBinding
+	OutputBinding
 }

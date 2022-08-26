@@ -180,7 +180,7 @@ func mockDatabase(t *testing.T) (*Mysql, sqlmock.Sqlmock, error) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 
-	m := NewMysql(logger.NewLogger("test"))
+	m := NewMysql(logger.NewLogger("test")).(*Mysql)
 	m.db = db
 
 	return m, mock, err

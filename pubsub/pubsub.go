@@ -54,8 +54,7 @@ type DefaultBatchPubSub struct {
 	p PubSub
 }
 
-// NewDefaultBulkStore build a default bulk store.
-func NewDefaultMultiPubsub(pubsub PubSub) DefaultBatchPubSub {
+func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatchPubSub {
 	defaultMultiPubsub := DefaultBatchPubSub{}
 	defaultMultiPubsub.p = pubsub
 

@@ -761,7 +761,7 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 }
 
 func TestServicebusEntityManagement(t *testing.T) {
-	//TODO: Modify it to looks for component init error in the sidecar itself.
+	// TODO: Modify it to looks for component init error in the sidecar itself.
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -821,7 +821,7 @@ func TestServicebusEntityManagement(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				//Error is expected as the topic does not exist
+				// Error is expected as the topic does not exist
 				require.Error(ctx, err, "error publishing message")
 			}
 			return nil
@@ -834,7 +834,7 @@ func TestServicebusEntityManagement(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/entity_mgnt"),
+			embedded.WithComponentsPath("./components/entity_mgmt"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),

@@ -76,9 +76,11 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 			return err
 		}
 
-		a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
-		if err != nil {
-			return err
+		if !a.metadata.DisableEntityManagement {
+			a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		settings, innerErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
@@ -98,36 +100,39 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 			return innerErr
 		}
 
-		a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
-		if innerErr != nil {
-			return innerErr
+		if !a.metadata.DisableEntityManagement {
+			a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
+			if innerErr != nil {
+				return innerErr
+			}
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-	defer cancel()
-	getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
-	if err != nil {
-		return err
-	}
-	if getQueueRes == nil {
-		// Need to create the queue
-		ttlDur := contribMetadata.Duration{
-			Duration: a.metadata.ttl,
-		}
+	if a.adminClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 		defer cancel()
-		_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
-			Properties: &sbadmin.QueueProperties{
-				DefaultMessageTimeToLive: to.Ptr(ttlDur.ToISOString()),
-			},
-		})
+		getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
 		if err != nil {
 			return err
 		}
+		if getQueueRes == nil {
+			// Need to create the queue
+			ttlDur := contribMetadata.Duration{
+				Duration: a.metadata.ttl,
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+			defer cancel()
+			_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
+				Properties: &sbadmin.QueueProperties{
+					DefaultMessageTimeToLive: to.Ptr(ttlDur.ToISOString()),
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
+		a.ctx, a.cancel = context.WithCancel(context.Background())
 	}
-
-	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	return nil
 }

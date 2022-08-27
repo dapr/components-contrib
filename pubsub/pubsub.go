@@ -62,7 +62,6 @@ func NewDefaultMultiPubsub(pubsub PubSub) DefaultBatchPubSub {
 	return defaultMultiPubsub
 }
 
-// TODO @mukundansundar implement BatchPublish and BatchSubscribe
 func (p *DefaultBatchPubSub) BatchPublish(req *BatchPublishRequest) error {
 	return nil
 }

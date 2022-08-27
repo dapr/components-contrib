@@ -39,4 +39,4 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
   - component: rethinkdb
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction"]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]

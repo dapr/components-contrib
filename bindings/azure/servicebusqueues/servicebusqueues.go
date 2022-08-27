@@ -76,9 +76,11 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 			return err
 		}
 
-		a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
-		if err != nil {
-			return err
+		if !a.metadata.DisableEntityManagement {
+			a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		settings, innerErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
@@ -98,13 +100,15 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 			return innerErr
 		}
 
-		a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
-		if innerErr != nil {
-			return innerErr
+		if !a.metadata.DisableEntityManagement {
+			a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
+			if innerErr != nil {
+				return innerErr
+			}
 		}
 	}
 
-	if !a.metadata.DisableEntityManagement {
+	if a.adminClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 		defer cancel()
 		getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)

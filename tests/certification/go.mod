@@ -13,11 +13,8 @@ require (
 )
 
 require (
-<<<<<<< HEAD
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-=======
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
->>>>>>> e41fd27e (fix package name & package version conflicts)
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect

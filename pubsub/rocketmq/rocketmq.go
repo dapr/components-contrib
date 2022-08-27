@@ -40,6 +40,7 @@ type topicData struct {
 }
 
 type rocketMQ struct {
+	pubsub.DefaultBatchPubSub
 	name     string
 	metadata *rocketMQMetaData
 

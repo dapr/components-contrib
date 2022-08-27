@@ -15,6 +15,7 @@ package rocketmq
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/config"
@@ -56,7 +57,7 @@ type rocketMQMetaData struct {
 	Retries           int    `mapstructure:"retries"`
 
 	// Producer Queue selector
-	// There are five implementations of queue selector，Hash、Random、Manual、RoundRobin、Dapr，respectively
+	// There are five implementations of queue selector，Hash, Random, Manual, RoundRobin, Dapr，respectively
 	//
 	// Dapr Queue selector is design by dapr developers
 	ProducerQueueSelector QueueSelectorType `mapstructure:"producerQueueSelector"`
@@ -204,6 +205,13 @@ func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) 
 		}
 		if rMetaData.ProducerQueueSelector == "" {
 			rMetaData.ProducerQueueSelector = QueueSelectorType(metadata.Properties["queueSelector"])
+		}
+		if _, ok := metadata.Properties["sendMsgTimeout"]; !ok {
+			if v, ok := metadata.Properties["sendTimeOut"]; ok {
+				if sendMsgTimeout, e := strconv.Atoi(v); e == nil {
+					rMetaData.SendMsgTimeout = sendMsgTimeout
+				}
+			}
 		}
 	}
 	return rMetaData, nil

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dapr/components-contrib/internal/utils"
 	"strconv"
 	"strings"
 	"sync"
@@ -134,11 +135,12 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithRetry(r.metadata.Retries))
 	}
 	if r.metadata.ConsumerModel != "" {
-		if strings.EqualFold(r.metadata.ConsumerModel, "BroadCasting") {
+		switch strings.ToLower(r.metadata.ConsumerModel) {
+		case "broadcasting":
 			opts = append(opts, mqc.WithConsumerModel(mqc.BroadCasting))
-		} else if strings.EqualFold(r.metadata.ConsumerModel, "Clustering") {
+		case "clustering":
 			opts = append(opts, mqc.WithConsumerModel(mqc.Clustering))
-		} else {
+		default:
 			r.metadata.ConsumerModel = "Clustering"
 			opts = append(opts, mqc.WithConsumerModel(mqc.Clustering))
 			r.logger.Warnf("%s Consumer Model[%s] is error, expected [BroadCasting, Clustering], "+
@@ -146,13 +148,14 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		}
 	}
 	if r.metadata.FromWhere != "" {
-		if strings.EqualFold(r.metadata.FromWhere, "ConsumeFromLastOffset") {
+		switch strings.ToLower(r.metadata.FromWhere) {
+		case "consumefromlastoffset":
 			opts = append(opts, mqc.WithConsumeFromWhere(mqc.ConsumeFromLastOffset))
-		} else if strings.EqualFold(r.metadata.FromWhere, "ConsumeFromFirstOffset") {
+		case "consumefromfirstoffset":
 			opts = append(opts, mqc.WithConsumeFromWhere(mqc.ConsumeFromFirstOffset))
-		} else if strings.EqualFold(r.metadata.FromWhere, "ConsumeFromTimestamp") {
+		case "consumefromtimestamp":
 			opts = append(opts, mqc.WithConsumeFromWhere(mqc.ConsumeFromTimestamp))
-		} else {
+		default:
 			r.metadata.FromWhere = "ConsumeFromLastOffset"
 			opts = append(opts, mqc.WithConsumeFromWhere(mqc.ConsumeFromLastOffset))
 			r.logger.Warnf("%s Consumer FromWhere[%s] is error, "+
@@ -161,19 +164,14 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		}
 	}
 	if r.metadata.ConsumeOrderly != "" {
-		if strings.EqualFold(r.metadata.ConsumeOrderly, "false") {
-			opts = append(opts, mqc.WithConsumerOrder(false))
-		} else if strings.EqualFold(r.metadata.ConsumeOrderly, "true") {
+		if utils.IsTruthy(r.metadata.ConsumeOrderly) {
 			opts = append(opts, mqc.WithConsumerOrder(true))
 			// in orderly message mode, if no value is set of MessageBatchMaxSize, the recommended value [1] is used
 			if r.metadata.ConsumeMessageBatchMaxSize <= 0 {
 				r.metadata.ConsumeMessageBatchMaxSize = 1
 			}
 		} else {
-			r.metadata.ConsumeOrderly = "false"
 			opts = append(opts, mqc.WithConsumerOrder(false))
-			r.logger.Warnf("%s Consumer Orderly[%s] is error, "+
-				"expected [true, false], we will use default value [false]", r.name, r.metadata.FromWhere)
 		}
 	}
 	if r.metadata.ConsumeMessageBatchMaxSize > 0 {
@@ -183,15 +181,10 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithMaxReconsumeTimes(r.metadata.MaxReconsumeTimes))
 	}
 	if r.metadata.AutoCommit != "" {
-		if strings.EqualFold(r.metadata.AutoCommit, "false") {
-			opts = append(opts, mqc.WithAutoCommit(false))
-		} else if strings.EqualFold(r.metadata.AutoCommit, "true") {
+		if utils.IsTruthy(r.metadata.AutoCommit) {
 			opts = append(opts, mqc.WithAutoCommit(true))
 		} else {
-			r.metadata.AutoCommit = "true"
-			opts = append(opts, mqc.WithAutoCommit(true))
-			r.logger.Warnf("%s Consumer AutoCommit[%s] is error, "+
-				"expected [true, false], we will use default value [true]", r.name, r.metadata.FromWhere)
+			opts = append(opts, mqc.WithAutoCommit(false))
 		}
 	}
 	if r.metadata.PullInterval > 0 {
@@ -237,15 +230,18 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	if r.metadata.SendMsgTimeout > 0 {
 		opts = append(opts, mqp.WithSendMsgTimeout(time.Duration(r.metadata.SendMsgTimeout)*time.Second))
 	}
-	if r.metadata.ProducerQueueSelector == HashQueueSelector {
+	switch r.metadata.ProducerQueueSelector {
+	case HashQueueSelector:
 		opts = append(opts, mqp.WithQueueSelector(mqp.NewHashQueueSelector()))
-	} else if r.metadata.ProducerQueueSelector == RandomQueueSelector {
+	case RandomQueueSelector:
 		opts = append(opts, mqp.WithQueueSelector(mqp.NewRandomQueueSelector()))
-	} else if r.metadata.ProducerQueueSelector == RoundRobinQueueSelector {
-		opts = append(opts, mqp.WithQueueSelector(mqp.NewRandomQueueSelector()))
-	} else if r.metadata.ProducerQueueSelector == ManualQueueSelector {
+	case RoundRobinQueueSelector:
+		opts = append(opts, mqp.WithQueueSelector(mqp.NewRoundRobinQueueSelector()))
+	case ManualQueueSelector:
 		opts = append(opts, mqp.WithQueueSelector(mqp.NewManualQueueSelector()))
-	} else {
+	case DaprQueueSelector:
+		opts = append(opts, mqp.WithQueueSelector(NewDaprQueueSelector()))
+	default:
 		opts = append(opts, mqp.WithQueueSelector(NewDaprQueueSelector()))
 	}
 
@@ -292,13 +288,14 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
 	msg := primitive.NewMessage(req.Topic, req.Data)
 	for k, v := range req.Metadata {
-		if strings.EqualFold(k, metadataRocketmqTag) {
+		switch strings.ToLower(k) {
+		case metadataRocketmqTag:
 			msg.WithTag(v)
-		} else if strings.EqualFold(k, metadataRocketmqKey) {
+		case metadataRocketmqKey:
 			msg.WithKeys(strings.Split(v, ","))
-		} else if strings.EqualFold(k, metadataRocketmqShardingKey) {
+		case metadataRocketmqShardingKey:
 			msg.WithShardingKey(v)
-		} else {
+		default:
 			msg.WithProperty(k, v)
 		}
 	}
@@ -330,7 +327,7 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	if r.metadata.ConsumeOrderly == "true" {
 		cb = r.consumeMessageOrderly(req.Topic, selector, handler)
 	} else {
-		cb = r.consumeMessageCurrently(req.Topic, selector, handler)
+		cb = r.consumeMessageConcurrently(req.Topic, selector, handler)
 	}
 
 	r.consumerLock.Lock()
@@ -442,7 +439,7 @@ func (r *rocketMQ) consumeMessageOrderly(topic string, selector *mqc.MessageSele
 	}
 }
 
-func (r *rocketMQ) consumeMessageCurrently(topic string, selector *mqc.MessageSelector, handler pubsub.Handler) func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
+func (r *rocketMQ) consumeMessageConcurrently(topic string, selector *mqc.MessageSelector, handler pubsub.Handler) func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		for _, msg := range msgs {
 			newMessage, e := r.buildPubsubMessage(topic, string(selector.Type), selector.Expression, msg)

@@ -40,6 +40,7 @@ const (
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
 type mqttPubSub struct {
+	pubsub.DefaultBatchPubSub
 	producer          mqtt.Client
 	consumer          mqtt.Client
 	metadata          *metadata

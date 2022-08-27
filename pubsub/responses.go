@@ -29,3 +29,12 @@ const (
 type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
 }
+
+type AppResponsePerId struct {
+	Id     string            `json:"id"`
+	Status AppResponseStatus `json:"status"`
+}
+
+type AppBatchResponse struct {
+	AppResponses []AppResponsePerId `json:"statuses"`
+}

@@ -22,6 +22,15 @@ type PublishRequest struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
+// BatchPublishRequest is the request to publish mutilple messages.
+type BatchPublishRequest struct {
+	Data        [][]byte          `json:"data"`
+	PubsubName  string            `json:"pubsubname"`
+	Topic       string            `json:"topic"`
+	Metadata    map[string]string `json:"metadata"`
+	ContentType *string           `json:"contentType,omitempty"`
+}
+
 // SubscribeRequest is the request to subscribe to a topic.
 type SubscribeRequest struct {
 	Topic    string            `json:"topic"`
@@ -34,4 +43,29 @@ type NewMessage struct {
 	Topic       string            `json:"topic"`
 	Metadata    map[string]string `json:"metadata"`
 	ContentType *string           `json:"contentType,omitempty"`
+}
+
+type NewBatchMessage struct {
+	Messages    []NewBatchLeafMessage `json:"messages"`
+	Topic       string                `json:"topic"`
+	Metadata    map[string]string     `json:"metadata"`
+	ContentType *string               `json:"contentType,omitempty"`
+}
+
+type NewBatchLeafMessage struct {
+	Data        []byte            `json:"data"`
+	ContentType *string           `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
+type NewBatchChildMessage struct {
+	Data        map[string]interface{} `json:"data"`
+	ContentType *string                `json:"contentType,omitempty"`
+	Metadata    map[string]string      `json:"metadata"`
+}
+
+type BatchSubscribeConfig struct {
+	MaxBatchCount            int `json:"maxBatchCount"`
+	MaxBatchLatencyInSeconds int `json:"maxBatchLatencyInSeconds"`
+	MaxBatchSizeInBytes      int `json:"maxBatchSizeInBytes"`
 }

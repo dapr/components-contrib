@@ -252,14 +252,12 @@ jobs:
        mkdir -p tmp/cov_files
        SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g') # converts slashes to dots in this string, so that it doesn't consider them sub-folders
        echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/$SOURCE_PATH_LINEAR.txt
-       echo  ~/.github/scripts/cov_files
-       echo $HOME
 
     - name: Upload Cert Coverage Artifact
       uses: actions/upload-artifact@v3
       with:
         name: certtest_cov
-        path: ${{ env.PROJECT_PATH }}/.github/scripts/cov_files
+        path: tmp/cov_files
         retention-days: 1
 
     - name: Component Coverage Discord Notification 
@@ -290,63 +288,29 @@ jobs:
         id: download
         with:
           name: certtest_cov
-          path: ./src/github.com/dapr/components-contrib/.github/scripts/cov_files
-          
+          path: tmp/cov_files
 
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          node-version: 14
-      # - run: npm ci
-      - name: 'Comment with Coverage Result'
-        uses: actions/github-script@v4
-        with:
-          github-token: ${{ secrets.DAPR_BOT_TOKEN }}
-          script: |
-            const Octokit = require('@octokit/core')
-            const {calculateTotalCoveragePercentage} = await Octokit(require('./.github/scripts/utils.js'))
-            await calculateTotalCoveragePercentage(github, context, "${{steps.download.outputs.download-path}}", "${{ secrets.DAPR_BOT_TOKEN }}") 
-          
-        #./.github/scripts/cov_files
-        # Here we define the inputs, which can be set
-        # from the workflow file and are consumed in our code
-        # inputs:
-        #   json_file:
-        #     description: 'Where to find the json output of the benchmark'
-        #     required: true
-        #     default: 'output.json'
-        #   comparison_json_file:
-        #     description: 'Where to find the json output of an old benchmark for comparison. Empty for no comparison.'
-        #     required: false
-        #     default: ''
-        #   # Remember we used ain input which was not defined in the
-        #   # workflow file? It's because the default is already
-        #   # fine for us, so no need to change it.
-        #   # As described above, the github token is a token to
-        #   # interact with the GitHub REST API and is created for
-        #   # you from GitHub automatically.
-        #   token:
-        #     description: 'GitHub token'
-        #     default: $
-        #     required: true
-        # # We specify the created dist/index.js file
-        # # as the entrypoint of our action
-        # runs:
-        #   using: 'node12'
-        #   main: 'dist/index.js'
       - name: Calculate total coverage
         run: |
-          echo ${{steps.download.outputs.download-path}} 
+          aboveThreshold=0
+          totalFiles=0
           ls "${{steps.download.outputs.download-path}}" | while read f; do
           while read LINE;
               do
               ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
+              prcnt=$(echo $LINE | cut -d "(" -f1 | cut -d ")" -f1)
+              tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
+              if [ $tempPrcnt \> 80.0 ]; then aboveThreshold=$(($aboveThreshold+1)); fi
+              totalFiles=$(($totalFiles+1))
               tempNumerator=$(echo $ratio | cut -d'/' -f1)
               tempDenominator=$(echo $ratio | cut -d'/' -f2)
               export numerator=$(($numerator+$tempNumerator))
               export denominator=$(($denominator+$tempDenominator))
+              export 
               totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
               echo "totalPer=$totalPer" >> $GITHUB_ENV
+              echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
+              echo "totalFiles=$totalFiles" >> $GITHUB_ENV
             done < ${{steps.download.outputs.download-path}}/$f
           done
         continue-on-error: true
@@ -357,4 +321,4 @@ jobs:
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
         continue-on-error: true
         with:
-          args: 'Total Coverage for Certification Tests is {{ totalPer }}%'
+          args: 'Total Coverage for Certification Tests is {{ totalPer }}%. {{ aboveThreshold }} out of {{ totalFiles }} have covergae greater than 80%'

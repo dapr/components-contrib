@@ -20,7 +20,7 @@ async function ls(path) {
     }
   }
 
-export async function warnOnCertTestCoverage(github, context, covDir, threshold) {
+async function calculateTotalCoveragePercentage(github, context, covDir, threshold) {
   // The github module has a member called "context",
   // which always includes information on the action workflow
   // we are currently running in.
@@ -100,3 +100,4 @@ export async function warnOnCertTestCoverage(github, context, covDir, threshold)
 }
 // Our main method: call the run() function and report any errors
 // run().catch(error => core.setFailed("Workflow failed! " + error.message));
+exports.calculateTotalCoveragePercentage = calculateTotalCoveragePercentage(certTest_covFiles);

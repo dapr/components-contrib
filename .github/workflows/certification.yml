@@ -290,6 +290,39 @@ jobs:
           name: certtest_cov
           path: tmp/cov_files
 
+      - name: 'Comment with Coverage Result'
+        uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.DAPR_BOT_TOKEN }}
+          script: |
+            const utils = require('./.github/scripts/index.js')
+            await utils.warnOnCertTestCoverage(github, context, ${{steps.download.outputs.download-path}}, 80)
+        # Here we define the inputs, which can be set
+        # from the workflow file and are consumed in our code
+        # inputs:
+        #   json_file:
+        #     description: 'Where to find the json output of the benchmark'
+        #     required: true
+        #     default: 'output.json'
+        #   comparison_json_file:
+        #     description: 'Where to find the json output of an old benchmark for comparison. Empty for no comparison.'
+        #     required: false
+        #     default: ''
+        #   # Remember we used ain input which was not defined in the
+        #   # workflow file? It's because the default is already
+        #   # fine for us, so no need to change it.
+        #   # As described above, the github token is a token to
+        #   # interact with the GitHub REST API and is created for
+        #   # you from GitHub automatically.
+        #   token:
+        #     description: 'GitHub token'
+        #     default: $
+        #     required: true
+        # # We specify the created dist/index.js file
+        # # as the entrypoint of our action
+        # runs:
+        #   using: 'node12'
+        #   main: 'dist/index.js'
       - name: Calculate total coverage
         run: |
           ls "${{steps.download.outputs.download-path}}" | while read f; do

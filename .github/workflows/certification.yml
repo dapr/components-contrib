@@ -252,12 +252,14 @@ jobs:
        mkdir -p tmp/cov_files
        SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g') # converts slashes to dots in this string, so that it doesn't consider them sub-folders
        echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/$SOURCE_PATH_LINEAR.txt
+       echo  ~/.github/scripts/cov_files
+       echo $HOME
 
     - name: Upload Cert Coverage Artifact
       uses: actions/upload-artifact@v3
       with:
         name: certtest_cov
-        path: ./.github/scripts/cov_files
+        path: ~/.github/scripts/cov_files
         retention-days: 1
 
     - name: Component Coverage Discord Notification 
@@ -288,7 +290,7 @@ jobs:
         id: download
         with:
           name: certtest_cov
-          path: ./.github/scripts/cov_files
+          path: ~/.github/scripts/cov_files
 
       - uses: actions/checkout@v2
       - name: 'Comment with Coverage Result'

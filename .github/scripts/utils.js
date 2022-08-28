@@ -3,8 +3,8 @@
 // for github actions.
 // You can find more information here:
 // https://github.com/actions/toolkit
-const core = require("@actions/core");
-const github = require("@actions/github");
+// const core = require("@actions/core");
+// const github = require("@actions/github");
 const fs = require('fs');
 
 // Main function of this action: read in the files and produce the comment.

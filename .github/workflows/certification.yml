@@ -290,7 +290,7 @@ jobs:
         id: download
         with:
           name: certtest_cov
-          path: ${{ env.PROJECT_PATH }}/.github/scripts/cov_files
+          path: ./src/github.com/dapr/components-contrib/.github/scripts/cov_files
 
       - uses: actions/checkout@v2
       - name: 'Comment with Coverage Result'
@@ -299,7 +299,7 @@ jobs:
           github-token: ${{ secrets.DAPR_BOT_TOKEN }}
           script: |
             const {calculateTotalCoveragePercentage} = require('./.github/scripts/utils.js')
-            await calculateTotalCoveragePercentage(github, context, "${{ env.PROJECT_PATH }}/.github/scripts/cov_files", 80)
+            await calculateTotalCoveragePercentage(github, context, "./src/github.com/dapr/components-contrib/.github/scripts/cov_files", 80)
         # Here we define the inputs, which can be set
         # from the workflow file and are consumed in our code
         # inputs:

@@ -100,4 +100,6 @@ async function calculateTotalCoveragePercentage(github, context, covDir, thresho
 }
 // Our main method: call the run() function and report any errors
 // run().catch(error => core.setFailed("Workflow failed! " + error.message));
-exports.calculateTotalCoveragePercentage = calculateTotalCoveragePercentage(certTest_covFiles);
+module.exports = {
+  calculateTotalCoveragePercentage
+};

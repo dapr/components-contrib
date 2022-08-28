@@ -99,8 +99,8 @@ jobs:
         #   required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
         # - component: state.azure.tablestorage
         #   required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        # - component: state.azure.blobstorage
-        #   required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: state.azure.blobstorage
+          required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
@@ -293,7 +293,7 @@ jobs:
       - name: 'Comment with Coverage Result'
         uses: actions/github-script@v4
         with:
-          github-token: ${{ secrets.DAPR_BOT_TOKEN }}
+          # github-token: ${{ secrets.DAPR_BOT_TOKEN }}
           script: |
             const utils = require('./.github/scripts/index.js')
             await utils.warnOnCertTestCoverage(github, context, ${{steps.download.outputs.download-path}}, 80)

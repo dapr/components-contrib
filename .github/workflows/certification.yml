@@ -257,7 +257,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: certtest_cov
-        path: tmp/cov_files
+        path: ./.github/scripts/cov_files
         retention-days: 1
 
     - name: Component Coverage Discord Notification 
@@ -288,7 +288,7 @@ jobs:
         id: download
         with:
           name: certtest_cov
-          path: tmp/cov_files
+          path: ./.github/scripts/cov_files
 
       - name: 'Comment with Coverage Result'
         uses: actions/github-script@v4
@@ -296,7 +296,7 @@ jobs:
           # github-token: ${{ secrets.DAPR_BOT_TOKEN }}
           script: |
             const utils = require('./.github/scripts/index.js')
-            await utils.warnOnCertTestCoverage(github, context, ${{steps.download.outputs.download-path}}, 80)
+            await utils.warnOnCertTestCoverage(github, context, './.github/scripts/cov_files', 80)
         # Here we define the inputs, which can be set
         # from the workflow file and are consumed in our code
         # inputs:

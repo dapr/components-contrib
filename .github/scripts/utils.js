@@ -5,6 +5,7 @@
 // https://github.com/actions/toolkit
 // const core = require("@actions/core");
 // const github = require("@actions/github");
+const { Octokit } = require("@octokit/core");
 const fs = require('fs');
 
 // Main function of this action: read in the files and produce the comment.
@@ -20,7 +21,7 @@ async function ls(path) {
     }
   }
 
-async function calculateTotalCoveragePercentage(github, context, covDir, threshold) {
+async function calculateTotalCoveragePercentage(github, context, covDir, token) {
   // The github module has a member called "context",
   // which always includes information on the action workflow
   // we are currently running in.
@@ -37,11 +38,17 @@ async function calculateTotalCoveragePercentage(github, context, covDir, thresho
 //   const githubToken = core.getInput("token");
   // const covDir = core.getInput("covDir");
 
-
-  const dir = await fs.promises.opendir(covDir)
-    for await (const dirent of dir) {
-      console.log(dirent.name)
-    }
+  const octokit = new Octokit({ auth: token });
+  const { data } = await octokit.request('GET /repos/DeepanshuA/components-contrib/actions/artifacts', {
+    owner: 'OWNER',
+    repo: 'REPO'
+  })
+  console.log(data)
+  
+  // const dir = await fs.promises.opendir(covDir)
+  //   for await (const dirent of dir) {
+  //     console.log(dirent.name)
+  //   }
 
 
 //   const oldBenchmarkFileName = core.getInput("comparison_json_file");

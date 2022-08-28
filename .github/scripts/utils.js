@@ -5,7 +5,7 @@
 // https://github.com/actions/toolkit
 // const core = require("@actions/core");
 // const github = require("@actions/github");
-const { Octokit } = require("@octokit/core");
+const { Octokit } = require('@octokit/core');
 const fs = require('fs');
 
 // Main function of this action: read in the files and produce the comment.

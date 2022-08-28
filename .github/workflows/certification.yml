@@ -39,16 +39,16 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - pubsub.kafka
-        - pubsub.rabbitmq
-        - pubsub.mqtt
+        # - pubsub.kafka
+        # - pubsub.rabbitmq
+        # - pubsub.mqtt
         - state.redis
-        - state.postgresql
+        # - state.postgresql
         - bindings.alicloud.dubbo
-        - bindings.kafka
-        - secretstores.local.env
-        - secretstores.local.file
-        - bindings.rabbitmq
+        # - bindings.kafka
+        # - secretstores.local.env
+        # - secretstores.local.file
+        # - bindings.rabbitmq
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -78,29 +78,29 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: secretstores.azure.keyvault
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName,AzureResourceGroupName
-          required-certs: AzureKeyVaultSecretStoreCert
-        - component: state.sqlserver
-          required-secrets: AzureSqlServerConnectionString
-        - component: bindings.azure.servicebusqueues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.cosmosdb
-          required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.eventhubs
-          required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
-        - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
-        - component: pubsub.azure.servicebus
-          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.blobstorage
-          required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.storagequeues
-          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
-        - component: state.azure.tablestorage
-          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        - component: state.azure.blobstorage
-          required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        # - component: secretstores.azure.keyvault
+        #   required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName,AzureResourceGroupName
+        #   required-certs: AzureKeyVaultSecretStoreCert
+        # - component: state.sqlserver
+        #   required-secrets: AzureSqlServerConnectionString
+        # - component: bindings.azure.servicebusqueues
+        #   required-secrets: AzureServiceBusConnectionString
+        # - component: bindings.azure.cosmosdb
+        #   required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
+        # - component: bindings.azure.eventhubs
+        #   required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
+        # - component: pubsub.azure.eventhubs
+        #   required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        # - component: pubsub.azure.servicebus
+        #   required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
+        # - component: bindings.azure.blobstorage
+        #   required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
+        # - component: bindings.azure.storagequeues
+        #   required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
+        # - component: state.azure.tablestorage
+        #   required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        # - component: state.azure.blobstorage
+        #   required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
@@ -262,7 +262,7 @@ jobs:
 
     - name: Component Coverage Discord Notification 
       env:
-        DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
+        DISCORD_WEBHOOK: ${{ secrets.DEEPANSHU_SERVER_GENERAL_DISCORD_WEBHOOK }}
       uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
       continue-on-error: true
       with:
@@ -308,7 +308,7 @@ jobs:
       
       - name: Final Coverage Discord Notification
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
+          DISCORD_WEBHOOK: ${{ secrets.DEEPANSHU_SERVER_GENERAL_DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
         continue-on-error: true
         with:

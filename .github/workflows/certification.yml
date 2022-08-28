@@ -321,4 +321,4 @@ jobs:
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
         continue-on-error: true
         with:
-          args: 'Total Coverage for Certification Tests is {{ totalPer }}%. {{ aboveThreshold }} out of {{ totalFiles }} have covergae greater than 80%'
+          args: 'Total Coverage for Certification Tests is {{ totalPer }}%.\n {{ aboveThreshold }} out of {{ totalFiles }} components contain certification tests with code coverage > 80%'

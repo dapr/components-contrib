@@ -362,10 +362,9 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	if e = r.consumer.Subscribe(req.Topic, *selector, cb); e != nil {
 		r.logger.Errorf("subscribe topic[%s] Group[%s] failed, error: %v", req.Topic, r.metadata.ConsumerGroupName, e)
 		return e
-	} else {
-		r.logger.Infof("subscribe topic[%s] success, Group[%s], Topics[%v]", req.Topic, r.metadata.ConsumerGroupName, r.topics)
 	}
 
+	r.logger.Infof("subscribe topic[%s] success, Group[%s], Topics[%v]", req.Topic, r.metadata.ConsumerGroupName, r.topics)
 	return nil
 }
 
@@ -377,7 +376,7 @@ func buildMessageSelector(req pubsub.SubscribeRequest) (*mqc.MessageSelector, er
 	mqType := req.Metadata[metadataRocketmqType]
 
 	var ExpressionType mqc.ExpressionType
-	switch mqType {
+	switch strings.ToUpper(mqType) {
 	case "", string(mqc.TAG):
 		ExpressionType = mqc.TAG
 	case string(mqc.SQL92):

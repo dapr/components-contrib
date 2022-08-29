@@ -181,6 +181,9 @@ func TestCluster(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
+	currentGrpcPort := ports[0]
+	currentHTTPPort := ports[1]
+
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
 	stateRegistry.RegisterComponent(func(l logger.Logger) state.Store {

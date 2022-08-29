@@ -15,10 +15,10 @@ package temporal_test
 
 import (
 	"fmt"
+	"github.com/dapr/components-contrib/workflows"
 	"strconv"
 	"testing"
 	"time"
-	// "github.com/dapr/components-contrib/workflows"
 )
 
 func TestTemporal(t *testing.T) {

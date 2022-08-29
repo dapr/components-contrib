@@ -23,18 +23,17 @@ import (
 	"dubbo.apache.org/dubbo-go/v3/config"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	hessian "github.com/apache/dubbo-go-hessian2"
-	"github.com/dapr/components-contrib/bindings/alicloud/dubbo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/bindings/alicloud/dubbo"
+	"github.com/dapr/components-contrib/tests/certification/embedded"
+	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	"github.com/dapr/dapr/pkg/runtime"
 	daprsdk "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-
-	"github.com/dapr/components-contrib/tests/certification/embedded"
-	"github.com/dapr/components-contrib/tests/certification/flow"
-	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 )
 
 const (

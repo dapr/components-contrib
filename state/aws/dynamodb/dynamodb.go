@@ -14,6 +14,8 @@ limitations under the License.
 package dynamodb
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -25,8 +27,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	jsoniterator "github.com/json-iterator/go"
 
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 // StateStore is a DynamoDB state store.
@@ -47,7 +50,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
-func NewDynamoDBStateStore() state.Store {
+func NewDynamoDBStateStore(_ logger.Logger) state.Store {
 	return &StateStore{}
 }
 
@@ -72,7 +75,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return nil
+	return []state.Feature{state.FeatureETag}
 }
 
 // Get retrieves a dynamoDB item.
@@ -114,9 +117,19 @@ func (d *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		}
 	}
 
-	return &state.GetResponse{
+	resp := &state.GetResponse{
 		Data: []byte(output),
-	}, nil
+	}
+
+	var etag string
+	if etagVal, ok := result.Item["etag"]; ok {
+		if err = dynamodbattribute.Unmarshal(etagVal, &etag); err != nil {
+			return nil, err
+		}
+		resp.ETag = &etag
+	}
+
+	return resp, nil
 }
 
 // BulkGet performs a bulk get operations.
@@ -127,38 +140,9 @@ func (d *StateStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetRespo
 
 // Set saves a dynamoDB item.
 func (d *StateStore) Set(req *state.SetRequest) error {
-	value, err := d.marshalToString(req.Value)
+	item, err := d.getItemFromReq(req)
 	if err != nil {
-		return fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
-	}
-
-	ttl, err := d.parseTTL(req)
-	if err != nil {
-		return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %s", err)
-	}
-
-	var item map[string]*dynamodb.AttributeValue
-	if ttl != nil {
-		item = map[string]*dynamodb.AttributeValue{
-			"key": {
-				S: aws.String(req.Key),
-			},
-			"value": {
-				S: aws.String(value),
-			},
-			d.ttlAttributeName: {
-				N: aws.String(strconv.FormatInt(*ttl, 10)),
-			},
-		}
-	} else {
-		item = map[string]*dynamodb.AttributeValue{
-			"key": {
-				S: aws.String(req.Key),
-			},
-			"value": {
-				S: aws.String(value),
-			},
-		}
+		return err
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -166,48 +150,45 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 		TableName: &d.table,
 	}
 
-	_, e := d.client.PutItem(input)
+	if req.ETag != nil && *req.ETag != "" {
+		condExpr := "etag = :etag"
+		input.ConditionExpression = &condExpr
+		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
+		exprAttrValues[":etag"] = &dynamodb.AttributeValue{
+			S: req.ETag,
+		}
+		input.ExpressionAttributeValues = exprAttrValues
+	}
 
-	return e
+	_, err = d.client.PutItem(input)
+	if err != nil {
+		switch cErr := err.(type) {
+		case *dynamodb.ConditionalCheckFailedException:
+			err = state.NewETagError(state.ETagMismatch, cErr)
+		}
+	}
+
+	return err
 }
 
 // BulkSet performs a bulk set operation.
 func (d *StateStore) BulkSet(req []state.SetRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
+	if len(req) == 1 {
+		return d.Set(&req[0])
+	}
+
 	for _, r := range req {
 		r := r // avoid G601.
-		value, err := d.marshalToString(r.Value)
-		if err != nil {
-			return fmt.Errorf("dynamodb error: failed to set key %s: %s", r.Key, err)
-		}
-		ttl, err := d.parseTTL(&r)
-		if err != nil {
-			return fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %s", err)
+
+		if r.ETag != nil && *r.ETag != "" {
+			return fmt.Errorf("dynamodb error: BulkSet() does not support etags; please use Set() instead")
 		}
 
-		var item map[string]*dynamodb.AttributeValue
-		if ttl != nil {
-			item = map[string]*dynamodb.AttributeValue{
-				"key": {
-					S: aws.String(r.Key),
-				},
-				"value": {
-					S: aws.String(value),
-				},
-				d.ttlAttributeName: {
-					N: aws.String(strconv.FormatInt(*ttl, 10)),
-				},
-			}
-		} else {
-			item = map[string]*dynamodb.AttributeValue{
-				"key": {
-					S: aws.String(r.Key),
-				},
-				"value": {
-					S: aws.String(value),
-				},
-			}
+		item, err := d.getItemFromReq(&r)
+		if err != nil {
+			return err
 		}
 
 		writeRequest := &dynamodb.WriteRequest{
@@ -239,7 +220,24 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 		},
 		TableName: aws.String(d.table),
 	}
+
+	if req.ETag != nil && *req.ETag != "" {
+		condExpr := "etag = :etag"
+		input.ConditionExpression = &condExpr
+		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
+		exprAttrValues[":etag"] = &dynamodb.AttributeValue{
+			S: req.ETag,
+		}
+		input.ExpressionAttributeValues = exprAttrValues
+	}
+
 	_, err := d.client.DeleteItem(input)
+	if err != nil {
+		switch cErr := err.(type) {
+		case *dynamodb.ConditionalCheckFailedException:
+			err = state.NewETagError(state.ETagMismatch, cErr)
+		}
+	}
 
 	return err
 }
@@ -248,7 +246,15 @@ func (d *StateStore) Delete(req *state.DeleteRequest) error {
 func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	writeRequests := []*dynamodb.WriteRequest{}
 
+	if len(req) == 1 {
+		return d.Delete(&req[0])
+	}
+
 	for _, r := range req {
+		if r.ETag != nil && *r.ETag != "" {
+			return fmt.Errorf("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
+		}
+
 		writeRequest := &dynamodb.WriteRequest{
 			DeleteRequest: &dynamodb.DeleteRequest{
 				Key: map[string]*dynamodb.AttributeValue{
@@ -290,13 +296,60 @@ func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMeta
 }
 
 func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 	c := dynamodb.New(sess)
 
 	return c, nil
+}
+
+// getItemFromReq converts a dapr state.SetRequest into an dynamodb item
+func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]*dynamodb.AttributeValue, error) {
+	value, err := d.marshalToString(req.Value)
+	if err != nil {
+		return nil, fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
+	}
+
+	ttl, err := d.parseTTL(req)
+	if err != nil {
+		return nil, fmt.Errorf("dynamodb error: failed to parse ttlInSeconds: %s", err)
+	}
+
+	newEtag, err := getRand64()
+	if err != nil {
+		return nil, fmt.Errorf("dynamodb error: failed to generate etag: %w", err)
+	}
+	item := map[string]*dynamodb.AttributeValue{
+		"key": {
+			S: aws.String(req.Key),
+		},
+		"value": {
+			S: aws.String(value),
+		},
+		"etag": {
+			S: aws.String(strconv.FormatUint(newEtag, 16)),
+		},
+	}
+
+	if ttl != nil {
+		item[d.ttlAttributeName] = &dynamodb.AttributeValue{
+			N: aws.String(strconv.FormatInt(*ttl, 10)),
+		}
+	}
+
+	return item, nil
+}
+
+func getRand64() (uint64, error) {
+	randBuf := make([]byte, 8)
+	_, err := rand.Read(randBuf)
+	if err != nil {
+		return 0, err
+	}
+
+	return binary.LittleEndian.Uint64(randBuf), nil
 }
 
 func (d *StateStore) marshalToString(v interface{}) (string, error) {

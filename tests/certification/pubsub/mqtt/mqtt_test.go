@@ -15,20 +15,22 @@ package mqtt_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	// "github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
 	// Pub/Sub.
 
-	"github.com/dapr/components-contrib/pubsub"
 	pubsub_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
@@ -54,8 +56,10 @@ import (
 const (
 	sidecarName1      = "dapr-1"
 	sidecarName2      = "dapr-2"
+	sidecarName3      = "dapr-3"
 	appID1            = "app-1"
 	appID2            = "app-2"
+	appID3            = "app-3"
 	clusterName       = "mqttcertification"
 	dockerComposeYAML = "docker-compose.yml"
 	numMessages       = 1000
@@ -64,8 +68,12 @@ const (
 	messageKey        = "partitionKey"
 	mqttURL           = "tcp://localhost:1884"
 
-	pubsubName = "messagebus"
-	topicName  = "neworder"
+	pubsubName             = "messagebus"
+	topicName              = "neworder"
+	wildcardTopicSubscribe = "orders/#"
+	wildcardTopicPublish   = "orders/%s"
+	sharedTopicSubscribe   = "$share/mygroup/mytopic/+/hello"
+	sharedTopicPublish     = "mytopic/%s/hello"
 )
 
 var brokers = []string{"localhost:1884"}
@@ -91,17 +99,18 @@ func mqttReady(url string) flow.Runnable {
 }
 
 func TestMQTT(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("mqtt", func() pubsub.PubSub {
-		return pubsub_mqtt.NewMQTTPubSub(log)
+	logger.ApplyOptionsToLoggers(&logger.Options{
+		OutputLevel: "debug",
 	})
 
 	// In-order processing not guaranteed
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
+	consumerGroupMultiWildcard := watcher.NewUnordered()
+	consumerGroupMultiShared := watcher.NewUnordered()
 
 	// Application logic that tracks messages from a topic.
-	application := func(messages *watcher.Watcher, appID string) app.SetupFn {
+	application := func(messages *watcher.Watcher, appID string, topicName string) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, 100)
@@ -126,9 +135,37 @@ func TestMQTT(t *testing.T) {
 		}
 	}
 
+	// Application logic that subscribes to multiple topics
+	applicationMultiTopic := func(appID string, subs ...topicSubscription) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) (err error) {
+			handlerGen := func(name string, messages *watcher.Watcher) func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				return func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					messages.Observe(e.Data)
+					ctx.Logf("%s/%s Event - pubsub: %s, topic: %s, id: %s, data: %s", appID, name,
+						e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}
+			}
+			for _, sub := range subs {
+				err = s.AddTopicEventHandler(
+					&common.Subscription{
+						PubsubName: pubsubName,
+						Topic:      sub.name,
+						Route:      sub.route,
+					}, handlerGen(sub.name, sub.messages),
+				)
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+	}
+
 	// Test logic that sends messages to a topic and
 	// verifies the application has received them.
-	test := func(messages ...*watcher.Watcher) flow.Runnable {
+	test := func(topicName string, messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName1)
 
@@ -136,7 +173,7 @@ func TestMQTT(t *testing.T) {
 			// that will satisfy the test.
 			msgs := make([]string, numMessages)
 			for i := range msgs {
-				msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
+				msgs[i] = fmt.Sprintf("Hello, Messages %s#%03d", topicName, i)
 			}
 			for _, m := range messages {
 				m.ExpectStrings(msgs...)
@@ -145,9 +182,13 @@ func TestMQTT(t *testing.T) {
 			// Send events that the application above will observe.
 			ctx.Log("Sending messages!")
 			for _, msg := range msgs {
-				ctx.Logf("Sending: %q", msg)
-				err := client.PublishEvent(
-					ctx, pubsubName, topicName, msg)
+				// If topicName has a %s, this will add some randomness (if not, it won't be changed)
+				tn := topicName
+				if strings.Contains(tn, "%s") {
+					tn = fmt.Sprintf(tn, randomStr())
+				}
+				ctx.Logf("Sending '%q' to topic '%s'", msg, tn)
+				err := client.PublishEvent(ctx, pubsubName, tn, msg)
 				require.NoError(ctx, err, "error publishing message")
 			}
 
@@ -160,11 +201,11 @@ func TestMQTT(t *testing.T) {
 		}
 	}
 
-	multiple_test := func(messages ...*watcher.Watcher) flow.Runnable {
+	multipleTest := func(messages ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			var wg sync.WaitGroup
 			wg.Add(2)
-			publish_msgs := func(sidecarName string) {
+			publishMsgs := func(sidecarName string) {
 				defer wg.Done()
 				client := sidecar.GetClient(ctx, sidecarName)
 				msgs := make([]string, numMessages/2)
@@ -182,8 +223,8 @@ func TestMQTT(t *testing.T) {
 					require.NoError(ctx, err, "error publishing message")
 				}
 			}
-			go publish_msgs(sidecarName1)
-			go publish_msgs(sidecarName2)
+			go publishMsgs(sidecarName1)
+			go publishMsgs(sidecarName2)
 
 			wg.Wait()
 			// Do the messages we observed match what we expect?
@@ -194,6 +235,7 @@ func TestMQTT(t *testing.T) {
 			return nil
 		}
 	}
+
 	// sendMessagesInBackground and assertMessages are
 	// Runnables for testing publishing and consuming
 	// messages reliably when infrastructure and network
@@ -267,22 +309,23 @@ func TestMQTT(t *testing.T) {
 		//
 		// Run the application logic above(App1)
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			application(consumerGroup1, appID1))).
+			application(consumerGroup1, appID1, topicName))).
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer1"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Send messages and test
-		Step("send and wait", test(consumerGroup1)).
+		Step("send and wait", test(topicName, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		//
 		//Run Second application App2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-			application(consumerGroup2, appID2))).
+			application(consumerGroup2, appID2, topicName))).
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer2"),
@@ -290,11 +333,35 @@ func TestMQTT(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Send messages and test
-		Step("multiple send and wait", multiple_test(consumerGroup1, consumerGroup2)).
+		Step("multiple send and wait", multipleTest(consumerGroup1, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		//
+		// Test multiple topics and wildcards
+		Step(
+			app.Run(
+				appID3,
+				fmt.Sprintf(":%d", appPort+(portOffset*3)),
+				applicationMultiTopic(
+					appID3,
+					topicSubscription{messages: consumerGroupMultiWildcard, name: wildcardTopicSubscribe, route: "/wildcard"},
+					topicSubscription{messages: consumerGroupMultiShared, name: sharedTopicSubscribe, route: "/shared"},
+				),
+			),
+		).
+		Step(sidecar.Run(sidecarName3,
+			embedded.WithComponentsPath("./components/consumer3"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+(portOffset*3)),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+(portOffset*3)),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+(portOffset*3)),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+(portOffset*3)),
+			componentRuntimeOptions(),
+		)).
+		Step("send and wait wildcard", test(wildcardTopicPublish, consumerGroupMultiWildcard)).
+		Step("send and wait shared", test(sharedTopicPublish, consumerGroupMultiShared)).
 		//
 		// Infra test
 		StepAsync("steady flow of messages to publish", &task,
@@ -310,14 +377,16 @@ func TestMQTT(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer1"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
@@ -337,4 +406,28 @@ func TestMQTT(t *testing.T) {
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
 		Run()
+}
+
+type topicSubscription struct {
+	messages *watcher.Watcher
+	name     string
+	route    string
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	pubsubRegistry := pubsub_loader.NewRegistry()
+	pubsubRegistry.Logger = log
+	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt")
+
+	return []runtime.Option{
+		runtime.WithPubSubs(pubsubRegistry),
+	}
+}
+
+func randomStr() string {
+	buf := make([]byte, 4)
+	_, _ = io.ReadFull(rand.Reader, buf)
+	return hex.EncodeToString(buf)
 }

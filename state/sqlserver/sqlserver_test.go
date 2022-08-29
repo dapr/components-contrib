@@ -3,7 +3,9 @@ Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -180,13 +183,13 @@ func TestValidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+			sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 			sqlStore.migratorFactory = func(s *SQLServer) migrator {
 				return &mockMigrator{}
 			}
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := sqlStore.Init(metadata)
@@ -325,10 +328,10 @@ func TestInvalidConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+			sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := sqlStore.Init(metadata)
@@ -343,13 +346,13 @@ func TestInvalidConfiguration(t *testing.T) {
 
 // Test that if the migration fails the error is reported.
 func TestExecuteMigrationFails(t *testing.T) {
-	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 	sqlStore.migratorFactory = func(s *SQLServer) migrator {
 		return &mockFailingMigrator{}
 	}
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"}},
 	}
 
 	err := sqlStore.Init(metadata)
@@ -357,7 +360,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 }
 
 func TestSupportedFeatures(t *testing.T) {
-	sqlStore := NewSQLServerStateStore(logger.NewLogger("test"))
+	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 
 	actual := sqlStore.Features()
 	assert.NotNil(t, actual)

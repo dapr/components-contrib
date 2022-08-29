@@ -68,7 +68,7 @@ type cassandraMetadata struct {
 }
 
 // NewCassandraStateStore returns a new cassandra state store.
-func NewCassandraStateStore(logger logger.Logger) *Cassandra {
+func NewCassandraStateStore(logger logger.Logger) state.Store {
 	s := &Cassandra{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -96,12 +96,12 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 
 	err = c.tryCreateKeyspace(meta.keyspace, meta.replicationFactor)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.table, err)
+		return fmt.Errorf("error creating keyspace %s: %s", meta.keyspace, err)
 	}
 
 	err = c.tryCreateTable(meta.table, meta.keyspace)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.table, err)
+		return fmt.Errorf("error creating table %s: %s", meta.table, err)
 	}
 
 	c.table = fmt.Sprintf("%s.%s", meta.keyspace, meta.table)

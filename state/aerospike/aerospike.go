@@ -130,14 +130,14 @@ func (aspike *Aerospike) Set(req *state.SetRequest) error {
 		}
 		// pass etag and fail writes is etag in DB is not same as passed by dapr (EXPECT_GEN_EQUAL)
 		writePolicy.Generation = gen
-		writePolicy.GenerationPolicy = as.EXPECT_GEN_EQUAL
+		writePolicy.GenerationPolicy = as.EXPECT_GEN_EQUAL //nolint:nosnakecase
 	}
 
 	if req.Options.Consistency == state.Strong {
 		// COMMIT_ALL indicates the server should wait until successfully committing master and all replicas.
-		writePolicy.CommitLevel = as.COMMIT_ALL
+		writePolicy.CommitLevel = as.COMMIT_ALL //nolint:nosnakecase
 	} else {
-		writePolicy.CommitLevel = as.COMMIT_MASTER
+		writePolicy.CommitLevel = as.COMMIT_MASTER //nolint:nosnakecase
 	}
 
 	data := make(map[string]interface{})
@@ -211,14 +211,14 @@ func (aspike *Aerospike) Delete(req *state.DeleteRequest) error {
 		}
 		// pass etag and fail writes is etag in DB is not same as passed by dapr (EXPECT_GEN_EQUAL)
 		writePolicy.Generation = gen
-		writePolicy.GenerationPolicy = as.EXPECT_GEN_EQUAL
+		writePolicy.GenerationPolicy = as.EXPECT_GEN_EQUAL //nolint:nosnakecase
 	}
 
 	if req.Options.Consistency == state.Strong {
 		// COMMIT_ALL indicates the server should wait until successfully committing master and all replicas.
-		writePolicy.CommitLevel = as.COMMIT_ALL
+		writePolicy.CommitLevel = as.COMMIT_ALL //nolint:nosnakecase
 	} else {
-		writePolicy.CommitLevel = as.COMMIT_MASTER
+		writePolicy.CommitLevel = as.COMMIT_MASTER //nolint:nosnakecase
 	}
 
 	asKey, err := as.NewKey(aspike.namespace, aspike.set, req.Key)

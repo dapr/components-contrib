@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -21,7 +22,7 @@ const (
 	//     listener 1883
 	//     allow_anonymous true
 	//   And run:
-	// nolint:misspell
+	//nolint:misspell
 	//     docker run -d -v mosquitto.conf:/mosquitto/config/mosquitto.conf --name test-mqtt -p 1883:1883 eclipse-mosquitto:2
 	// In that case the connection string will be: tcp://127.0.0.1:1883
 	testMQTTConnectionStringEnvKey = "DAPR_TEST_MQTT_URL"
@@ -47,7 +48,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	const msgCustomized = "hello from customized"
 	dataCustomized := []byte(msgCustomized)
 
-	metadata := bindings.Metadata{
+	metadata := bindings.Metadata{Base: mdata.Base{
 		Name: "testQueue",
 		Properties: map[string]string{
 			"consumerID":        uuid.NewString(),
@@ -58,11 +59,11 @@ func TestInvokeWithTopic(t *testing.T) {
 			"cleanSession":      "true",
 			"backOffMaxRetries": "0",
 		},
-	}
+	}}
 
 	logger := logger.NewLogger("test")
 
-	r := NewMQTT(logger)
+	r := NewMQTT(logger).(*MQTT)
 	err := r.Init(metadata)
 	assert.Nil(t, err)
 

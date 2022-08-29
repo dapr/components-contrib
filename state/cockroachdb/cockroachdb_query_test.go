@@ -15,7 +15,7 @@ package cockroachdb
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/agrea/ptr"
@@ -57,7 +57,7 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := ioutil.ReadFile(test.input)
+		data, err := os.ReadFile(test.input)
 		assert.NoError(t, err)
 		var storeQuery query.Query
 		err = json.Unmarshal(data, &storeQuery)

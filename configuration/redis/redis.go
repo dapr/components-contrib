@@ -233,7 +233,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		}
 	}
 
-	items := make([]*configuration.Item, 0, 16)
+	items := make(map[string]*configuration.Item, len(keys))
 
 	// query by keys
 	for _, redisKey := range keys {
@@ -250,12 +250,11 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", redisKey, err)
 		}
 		val, version := internal.GetRedisValueAndVersion(redisValue)
-		item.Key = redisKey
 		item.Version = version
 		item.Value = val
 
 		if item.Value != "" {
-			items = append(items, item)
+			items[redisKey] = item
 		}
 	}
 

@@ -15,7 +15,7 @@ package nethttpadaptor
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,73 +37,73 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Get method is handled",
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
-					assert.Equal(t, "GET", string(ctx.Method()))
+					assert.Equal(t, http.MethodGet, string(ctx.Method()))
 				}
 			},
 		},
 		{
 			"Post method is handled",
 			func() *http.Request {
-				return httptest.NewRequest("POST", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodPost, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
-					assert.Equal(t, "POST", string(ctx.Method()))
+					assert.Equal(t, http.MethodPost, string(ctx.Method()))
 				}
 			},
 		},
 		{
 			"Put method is handled",
 			func() *http.Request {
-				return httptest.NewRequest("PUT", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodPut, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
-					assert.Equal(t, "PUT", string(ctx.Method()))
+					assert.Equal(t, http.MethodPut, string(ctx.Method()))
 				}
 			},
 		},
 		{
 			"Options method is handled",
 			func() *http.Request {
-				return httptest.NewRequest("OPTIONS", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodOptions, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
-					assert.Equal(t, "OPTIONS", string(ctx.Method()))
+					assert.Equal(t, http.MethodOptions, string(ctx.Method()))
 				}
 			},
 		},
 		{
 			"Patch method is handled",
 			func() *http.Request {
-				return httptest.NewRequest("PATCH", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodPatch, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
-					assert.Equal(t, "PATCH", string(ctx.Method()))
+					assert.Equal(t, http.MethodPatch, string(ctx.Method()))
 				}
 			},
 		},
 		{
 			"Delete method is handled",
 			func() *http.Request {
-				return httptest.NewRequest("DELETE", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodDelete, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
-					assert.Equal(t, "DELETE", string(ctx.Method()))
+					assert.Equal(t, http.MethodDelete, string(ctx.Method()))
 				}
 			},
 		},
 		{
 			"Host is handled",
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
@@ -114,7 +114,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Path is handled",
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test/sub", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test/sub", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
@@ -127,7 +127,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 			func() *http.Request {
 				body := strings.NewReader("test body!")
 
-				return httptest.NewRequest("GET", "http://localhost:8080/test/sub", body)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test/sub", body)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
@@ -138,7 +138,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Querystring is handled",
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test/sub?alice=bob&version=0.1.2", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test/sub?alice=bob&version=0.1.2", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
@@ -149,7 +149,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Headers are handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "http://localhost:8080/test/sub?alice=bob&version=0.1.2", nil)
+				req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/test/sub?alice=bob&version=0.1.2", nil)
 				req.Header.Add("testHeaderKey1", "testHeaderValue1")
 				req.Header.Add("testHeaderKey2", "testHeaderValue2")
 				req.Header.Add("testHeaderKey3", "testHeaderValue3")
@@ -180,7 +180,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Duplicate headers are handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "http://localhost:8080/test/sub?alice=bob&version=0.1.2", nil)
+				req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/test/sub?alice=bob&version=0.1.2", nil)
 				req.Header.Add("testHeaderKey1", "testHeaderValue1")
 				req.Header.Add("testHeaderKey1", "testHeaderValue2")
 				req.Header.Add("testHeaderKey1", "testHeaderValue3")
@@ -213,7 +213,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Scheme is handled",
 			func() *http.Request {
-				return httptest.NewRequest("GET", "https://localhost:8080", nil)
+				return httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 			},
 			func(t *testing.T) func(ctx *fasthttp.RequestCtx) {
 				return func(ctx *fasthttp.RequestCtx) {
@@ -224,7 +224,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Content-Type is handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req := httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 				req.Header.Add("Content-Type", "application/json")
 
 				return req
@@ -238,7 +238,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Content-Type with boundary is handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req := httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 				req.Header.Add("Content-Type", "multipart/form-data; boundary=test-boundary")
 
 				return req
@@ -252,7 +252,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"User-Agent is handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req := httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 				req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36")
 
 				return req
@@ -266,7 +266,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"Referer is handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req := httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 				req.Header.Add("Referer", "testReferer")
 
 				return req
@@ -280,7 +280,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"BasicAuth is handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req := httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 				req.Header.Add("Authorization", "Basic YWxhZGRpbjpvcGVuc2VzYW1l") // b64(aladdin:opensesame)
 
 				return req
@@ -300,7 +300,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"RemoteAddr is handled",
 			func() *http.Request {
-				req := httptest.NewRequest("GET", "https://localhost:8080", nil)
+				req := httptest.NewRequest(http.MethodGet, "https://localhost:8080", nil)
 				req.RemoteAddr = "1.1.1.1"
 
 				return req
@@ -314,7 +314,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"nil body is handled",
 			func() *http.Request {
-				req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://localhost:8080", nil)
+				req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://localhost:8080", nil)
 
 				return req
 			},
@@ -327,7 +327,7 @@ func TestNewNetHTTPHandlerFuncRequests(t *testing.T) {
 		{
 			"proto headers are handled",
 			func() *http.Request {
-				req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://localhost:8080", nil)
+				req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://localhost:8080", nil)
 
 				return req
 			},
@@ -377,7 +377,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				}
 			},
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
 				assert.Equal(t, 200, res.StatusCode)
@@ -391,7 +391,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				}
 			},
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
 				assert.Equal(t, 500, res.StatusCode)
@@ -405,7 +405,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				}
 			},
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
 				assert.Equal(t, 400, res.StatusCode)
@@ -419,10 +419,10 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				}
 			},
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
-				body, _ := ioutil.ReadAll(res.Body)
+				body, _ := io.ReadAll(res.Body)
 				assert.Equal(t, "test body!", string(body))
 			},
 		},
@@ -434,7 +434,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				}
 			},
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
 				key := res.Header.Get("Content-Type")
@@ -452,7 +452,7 @@ func TestNewNetHTTPHandlerFuncResponses(t *testing.T) {
 				}
 			},
 			func() *http.Request {
-				return httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+				return httptest.NewRequest(http.MethodGet, "http://localhost:8080/test", nil)
 			},
 			func(t *testing.T, res *http.Response) {
 				encodings := res.TransferEncoding // TODO: How to set this property?

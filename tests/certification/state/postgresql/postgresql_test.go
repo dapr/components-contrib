@@ -44,9 +44,16 @@ const (
 
 func TestPostgreSQL(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	stateStore := state_postgres.NewPostgreSQLStateStore(log)
+
+	stateStore := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
+
+	stateRegistry := state_loader.NewRegistry()
+	stateRegistry.Logger = log
+	stateRegistry.RegisterComponent(func(l logger.Logger) state.Store {
+		return stateStore
+	}, "postgresql")
 
 	currentGrpcPort := ports[0]
 
@@ -231,11 +238,8 @@ func TestPostgreSQL(t *testing.T) {
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(
-				state_loader.New("postgresql", func() state.Store {
-					return stateStore
-				}),
-			))).
+			runtime.WithStates(stateRegistry),
+		)).
 		Step("Run CRUD test", basicTest).
 		Step("Run eTag test", eTagTest).
 		Step("Run transactions test", transactionsTest).

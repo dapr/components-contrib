@@ -17,15 +17,51 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
+
+var testLogger = logger.NewLogger("test")
+
+func TestGetStoragePrefixString(t *testing.T) {
+	props := map[string]string{"storageAccountName": "fake", "storageAccountKey": "fake", "consumerGroup": "default", "storageContainerName": "test", "eventHub": "hubName", "eventHubNamespace": "fake"}
+
+	metadata := bindings.Metadata{Base: metadata.Base{Properties: props}}
+	m, err := parseMetadata(metadata)
+
+	require.NoError(t, err)
+
+	aeh := &AzureEventHubs{logger: testLogger, metadata: m}
+
+	actual, _ := aeh.getStoragePrefixString()
+
+	assert.Equal(t, "dapr-hubName-default-", actual)
+}
+
+func TestGetStoragePrefixStringWithHubNameFromConnectionString(t *testing.T) {
+	connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=hubName"
+	props := map[string]string{"storageAccountName": "fake", "storageAccountKey": "fake", "consumerGroup": "default", "storageContainerName": "test", "connectionString": connectionString}
+
+	metadata := bindings.Metadata{Base: metadata.Base{Properties: props}}
+	m, err := parseMetadata(metadata)
+
+	require.NoError(t, err)
+
+	aeh := &AzureEventHubs{logger: testLogger, metadata: m}
+
+	actual, _ := aeh.getStoragePrefixString()
+
+	assert.Equal(t, "dapr-hubName-default-", actual)
+}
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("test valid configuration", func(t *testing.T) {
 		props := map[string]string{connectionString: "fake", consumerGroup: "mygroup", storageAccountName: "account", storageAccountKey: "key", storageContainerName: "container"}
 
-		bindingsMetadata := bindings.Metadata{Properties: props}
+		bindingsMetadata := bindings.Metadata{Base: metadata.Base{Properties: props}}
 
 		m, err := parseMetadata(bindingsMetadata)
 
@@ -77,7 +113,7 @@ func TestParseMetadata(t *testing.T) {
 
 	for _, c := range invalidConfigTestCases {
 		t.Run(c.name, func(t *testing.T) {
-			bindingsMetadata := bindings.Metadata{Properties: c.config}
+			bindingsMetadata := bindings.Metadata{Base: metadata.Base{Properties: c.config}}
 			_, err := parseMetadata(bindingsMetadata)
 			assert.Error(t, err)
 			assert.Equal(t, err.Error(), c.errMsg)

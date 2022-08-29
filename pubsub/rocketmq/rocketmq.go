@@ -215,7 +215,13 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroupName))
 	}
 	if r.metadata.NameServer != "" {
-		opts = append(opts, mqp.WithNameServer(strings.Split(r.metadata.NameServer, ",")))
+		if strings.Contains(r.metadata.NameServer, ",") {
+			opts = append(opts, mqp.WithNameServer(strings.Split(r.metadata.NameServer, ",")))
+		} else if strings.Contains(r.metadata.NameServer, ";") {
+			opts = append(opts, mqp.WithNameServer(strings.Split(r.metadata.NameServer, ";")))
+		} else {
+			opts = append(opts, mqp.WithNameServer([]string{r.metadata.NameServer}))
+		}
 	}
 	if r.metadata.NameSpace != "" {
 		opts = append(opts, mqp.WithNamespace(r.metadata.NameSpace))
@@ -328,7 +334,7 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	}
 
 	var cb func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
-	if r.metadata.ConsumeOrderly == "true" {
+	if utils.IsTruthy(r.metadata.ConsumeOrderly) {
 		cb = r.consumeMessageOrderly(req.Topic, selector, handler)
 	} else {
 		cb = r.consumeMessageConcurrently(req.Topic, selector, handler)

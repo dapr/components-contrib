@@ -52,21 +52,21 @@ func TestRocketMQ_Init(t *testing.T) {
 }
 
 func TestRocketMQ_Publish_Currently(t *testing.T) {
-	meta := getTestMetadata()
-	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-	assert.Nil(t, err)
+	l, r, e := BuildRocketMQ()
+	assert.Nil(t, e)
+
 	req := &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 1, \"value\": \"1\"}"),
 		PubsubName: "rocketmq",
 		Topic:      "ZCY_ZHIXING_TEST_test",
 		Metadata:   map[string]string{},
 	}
-	err = r.Publish(req)
-	if err != nil {
+	e = r.Publish(req)
+	if e != nil {
+		l.Error(e)
 		return
 	}
-	assert.Nil(t, err)
+	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 2, \"value\": \"2\"}"),
@@ -79,8 +79,8 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"traceId":              "4a09073987b148348ae0420435cddf5e",
 		},
 	}
-	err = r.Publish(req)
-	assert.Nil(t, err)
+	e = r.Publish(req)
+	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 3, \"value\": \"3\"}"),
@@ -92,8 +92,8 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"rocketmq-shardingkey": "key",
 		},
 	}
-	err = r.Publish(req)
-	assert.Nil(t, err)
+	e = r.Publish(req)
+	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 4, \"value\": \"4\"}"),
@@ -105,16 +105,14 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"rocketmq-shardingkey": "key",
 		},
 	}
-	err = r.Publish(req)
-	assert.Nil(t, err)
+	e = r.Publish(req)
+	assert.Nil(t, e)
 }
 
 func TestRocketMQ_Publish_Orderly(t *testing.T) {
-	meta := getTestMetadata()
-	meta["consumeOrderly"] = "true"
-	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-	assert.Nil(t, err)
+	l, r, e := BuildRocketMQ()
+	assert.Nil(t, e)
+
 	req := &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 1, \"value\": \"1\", \"sKey\": \"sKeyHello\"}"),
 		PubsubName: "rocketmq",
@@ -126,11 +124,12 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-queue":       "2",
 		},
 	}
-	err = r.Publish(req)
-	if err != nil {
+	e = r.Publish(req)
+	if e != nil {
+		l.Error(e)
 		return
 	}
-	assert.Nil(t, err)
+	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 2, \"value\": \"2\", \"sKey\": \"sKeyHello\"}"),
@@ -143,8 +142,8 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-queue":       "3",
 		},
 	}
-	err = r.Publish(req)
-	assert.Nil(t, err)
+	e = r.Publish(req)
+	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
 		Data:       []byte("{\"key\": 3, \"value\": \"3\", \"sKey\": \"sKeyHello\"}"),
@@ -156,16 +155,13 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-shardingkey": "sKey",
 		},
 	}
-	err = r.Publish(req)
-	assert.Nil(t, err)
+	e = r.Publish(req)
+	assert.Nil(t, e)
 }
 
 func TestRocketMQ_Subscribe_Currently(t *testing.T) {
-	meta := getTestMetadata()
-	l := logger.NewLogger("test")
-	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-	assert.Nil(t, err)
+	l, r, e := BuildRocketMQ()
+	assert.Nil(t, e)
 
 	req := pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",
@@ -174,21 +170,18 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 		l.Info(string(msg.Data))
 		return nil
 	}
-	err = r.Subscribe(context.Background(), req, handler)
-	if err != nil {
-		l.Error(err)
+	e = r.Subscribe(context.Background(), req, handler)
+	if e != nil {
+		l.Error(e)
 		return
 	}
-	assert.Nil(t, err)
-	time.Sleep(1 * time.Minute)
+	assert.Nil(t, e)
+	time.Sleep(30 * time.Second)
 }
 
 func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
-	meta := getTestMetadata()
-	l := logger.NewLogger("test")
-	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
-	assert.Nil(t, err)
+	l, r, e := BuildRocketMQ()
+	assert.Nil(t, e)
 
 	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
 		l.Info(msg.Topic, string(msg.Data))
@@ -201,12 +194,12 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 			metadataRocketmqExpression: "*",
 		},
 	}
-	err = r.Subscribe(context.Background(), req, handler)
-	if err != nil {
-		l.Error(err)
+	e = r.Subscribe(context.Background(), req, handler)
+	if e != nil {
+		l.Error(e)
 		return
 	}
-	assert.Nil(t, err)
+	assert.Nil(t, e)
 
 	req = pubsub.SubscribeRequest{
 		Topic: "ZCY_ZHIXING_TEST_test",
@@ -215,7 +208,15 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 			metadataRocketmqExpression: "*",
 		},
 	}
-	err = r.Subscribe(context.Background(), req, handler)
-	assert.Nil(t, err)
-	time.Sleep(1 * time.Minute)
+	e = r.Subscribe(context.Background(), req, handler)
+	assert.Nil(t, e)
+	time.Sleep(30 * time.Second)
+}
+
+func BuildRocketMQ() (logger.Logger, pubsub.PubSub, error) {
+	meta := getTestMetadata()
+	l := logger.NewLogger("test")
+	r := NewRocketMQ(l)
+	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	return l, r, err
 }

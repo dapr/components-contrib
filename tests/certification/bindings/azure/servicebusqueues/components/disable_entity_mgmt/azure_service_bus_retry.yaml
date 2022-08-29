@@ -1,0 +1,21 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mgmt-binding
+  namespace: default
+spec:
+  type: bindings.azure.servicebusqueues
+  version: v1
+  metadata:
+  - name: connectionString
+    secretKeyRef:
+      name: AzureServiceBusConnectionString
+      key: AzureServiceBusConnectionString
+  - name: queueName
+    value: mgmtqueue
+  - name: disableEntityManagement
+    value: true
+  - name: ttlInSeconds
+    value: 300 # ttl is just for cleanup in case the test goes bad.
+auth:
+  secretStore: envvar-secret-store

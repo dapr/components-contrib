@@ -192,8 +192,8 @@ github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ3
 github.com/creack/pty v1.1.11/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/creasty/defaults v1.5.2 h1:/VfB6uxpyp6h0fr7SPp7n8WJBoV8jfxQXPCnkVSjyls=
 github.com/creasty/defaults v1.5.2/go.mod h1:FPZ+Y0WNrbqOVw+c6av63eyHUAl6pMHZwqLPvXUZGfY=
-github.com/dapr/dapr v1.8.4-0.20220826162650-683a436ff136 h1:5yAplnLL9k2rACIMz+pgdLdd/8jx2hTj8yxHY6e2Ee8=
-github.com/dapr/dapr v1.8.4-0.20220826162650-683a436ff136/go.mod h1:geQLXDPvlDSJqUefIjnkyRVpwHhNXw+3u3tx3bDPsSw=
+github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c h1:WmpDH/Ts/WYoJM8CJgY9WZWZVj5i8iUeSd1bS/aqlIs=
+github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c/go.mod h1:id6jlg9wW4fuvsCnJMqPKllBZFpb6Baqn0CbnDrEbPg=
 github.com/dapr/kit v0.0.2 h1:VNg6RWrBMOdtY0/ZLztyAa/RjyFLaskdO9wt2HIREwk=
 github.com/dapr/kit v0.0.2/go.mod h1:Q4TWm9+vcPZFGehaJUZt2hvA805wJm7FIuoArytWJ8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

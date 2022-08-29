@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/bindings/alicloud/nacos
 
-go 1.18
+go 1.19
 
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6

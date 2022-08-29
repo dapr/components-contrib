@@ -18,7 +18,7 @@ on:
     types: [conformance-test]
   workflow_dispatch:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 */8 * * *'
   pull_request:
     branches:
       - master

@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -47,10 +48,10 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	})
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: connectionString},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"))
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -491,11 +492,11 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger)
+			p := NewPostgreSQLStateStore(logger).(*PostgreSQL)
 			defer p.Close()
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := p.Init(metadata)

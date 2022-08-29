@@ -52,7 +52,7 @@ type createResponse struct {
 }
 
 // NewLocalStorage returns a new LocalStorage instance.
-func NewLocalStorage(logger logger.Logger) *LocalStorage {
+func NewLocalStorage(logger logger.Logger) bindings.OutputBinding {
 	return &LocalStorage{logger: logger}
 }
 

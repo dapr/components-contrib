@@ -38,7 +38,7 @@ type Binding struct {
 }
 
 // NewKafka returns a new kafka binding instance.
-func NewKafka(logger logger.Logger) *Binding {
+func NewKafka(logger logger.Logger) bindings.InputOutputBinding {
 	k := kafka.NewKafka(logger)
 	// in kafka binding component, disable consumer retry by default
 	k.DefaultConsumeRetryEnabled = false

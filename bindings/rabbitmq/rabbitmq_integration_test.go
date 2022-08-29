@@ -82,7 +82,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 	logger := logger.NewLogger("test")
 
-	r := NewRabbitMQ(logger)
+	r := NewRabbitMQ(logger).(*RabbitMQ)
 	err := r.Init(metadata)
 	assert.Nil(t, err)
 
@@ -139,7 +139,7 @@ func TestPublishingWithTTL(t *testing.T) {
 
 	logger := logger.NewLogger("test")
 
-	rabbitMQBinding1 := NewRabbitMQ(logger)
+	rabbitMQBinding1 := NewRabbitMQ(logger).(*RabbitMQ)
 	err := rabbitMQBinding1.Init(metadata)
 	assert.Nil(t, err)
 
@@ -170,7 +170,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.False(t, ok)
 
 	// Getting before it is expired, should return it
-	rabbitMQBinding2 := NewRabbitMQ(logger)
+	rabbitMQBinding2 := NewRabbitMQ(logger).(*RabbitMQ)
 	err = rabbitMQBinding2.Init(metadata)
 	assert.Nil(t, err)
 
@@ -215,7 +215,7 @@ func TestExclusiveQueue(t *testing.T) {
 
 	logger := logger.NewLogger("test")
 
-	r := NewRabbitMQ(logger)
+	r := NewRabbitMQ(logger).(*RabbitMQ)
 	err := r.Init(metadata)
 	assert.Nil(t, err)
 
@@ -267,7 +267,7 @@ func TestPublishWithPriority(t *testing.T) {
 
 	logger := logger.NewLogger("test")
 
-	r := NewRabbitMQ(logger)
+	r := NewRabbitMQ(logger).(*RabbitMQ)
 	err := r.Init(metadata)
 	assert.Nil(t, err)
 

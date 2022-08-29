@@ -84,7 +84,7 @@ type MySQL struct {
 }
 
 // NewMySQLStateStore creates a new instance of MySQL state store.
-func NewMySQLStateStore(logger logger.Logger) *MySQL {
+func NewMySQLStateStore(logger logger.Logger) state.Store {
 	factory := newMySQLFactory(logger)
 
 	// Store the provided logger and return the object. The rest of the

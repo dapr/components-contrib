@@ -104,7 +104,7 @@ const (
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
-func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
+func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,

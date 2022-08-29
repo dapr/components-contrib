@@ -176,6 +176,7 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 	}
 	err = r.Subscribe(context.Background(), req, handler)
 	if err != nil {
+		l.Error(err)
 		return
 	}
 	assert.Nil(t, err)
@@ -202,6 +203,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	}
 	err = r.Subscribe(context.Background(), req, handler)
 	if err != nil {
+		l.Error(err)
 		return
 	}
 	assert.Nil(t, err)

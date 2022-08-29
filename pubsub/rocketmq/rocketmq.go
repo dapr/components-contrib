@@ -116,7 +116,13 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroupName))
 	}
 	if r.metadata.NameServer != "" {
-		opts = append(opts, mqc.WithNameServer(strings.Split(r.metadata.NameServer, ",")))
+		if strings.Contains(r.metadata.NameServer, ",") {
+			opts = append(opts, mqc.WithNameServer(strings.Split(r.metadata.NameServer, ",")))
+		} else if strings.Contains(r.metadata.NameServer, ";") {
+			opts = append(opts, mqc.WithNameServer(strings.Split(r.metadata.NameServer, ";")))
+		} else {
+			opts = append(opts, mqc.WithNameServer([]string{r.metadata.NameServer}))
+		}
 	}
 	if r.metadata.NameSpace != "" {
 		opts = append(opts, mqc.WithNamespace(r.metadata.NameSpace))
@@ -303,9 +309,7 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	if e != nil {
 		return fmt.Errorf("rocketmq message send fail because producer failed to initialize: %v", e)
 	}
-	ctx, cancel := context.WithTimeout(r.ctx, 3*time.Duration(r.metadata.SendMsgTimeout)*time.Second)
-	defer cancel()
-	result, e := producer.SendSync(ctx, msg)
+	result, e := producer.SendSync(r.ctx, msg)
 	if e != nil {
 		r.resetProducer()
 		m := fmt.Sprintf("rocketmq message send fail, topic[%s]: %v", req.Topic, e)
@@ -373,11 +377,12 @@ func buildMessageSelector(req pubsub.SubscribeRequest) (*mqc.MessageSelector, er
 	mqType := req.Metadata[metadataRocketmqType]
 
 	var ExpressionType mqc.ExpressionType
-	if mqType == "" || strings.EqualFold(mqType, string(mqc.TAG)) {
+	switch mqType {
+	case "", string(mqc.TAG):
 		ExpressionType = mqc.TAG
-	} else if strings.EqualFold(mqType, string(mqc.SQL92)) {
+	case string(mqc.SQL92):
 		ExpressionType = mqc.SQL92
-	} else {
+	default:
 		return nil, fmt.Errorf("rocketmq msg type invalid: %s, expected value is 'tag' or 'sql92' or ''", mqType)
 	}
 

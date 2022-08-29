@@ -40,8 +40,6 @@ const (
 )
 
 func TestLocalStorage(t *testing.T) {
-	logger := logger.NewLogger("dapr.components")
-
 	invokeCreateWithConfig := func(ctx flow.Context, config map[string]string) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
@@ -178,11 +176,8 @@ func TestLocalStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("localstorage", func() bindings.OutputBinding {
-					return bindings_localstorage.NewLocalStorage(logger)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("create file and get data success", testInvokeCreateAndGet).
 		Step("get error when file not exists", testInvokeGetFileNotExists).
 		Step("delete file success", testInvokeDeleteFile).
@@ -192,4 +187,16 @@ func TestLocalStorage(t *testing.T) {
 
 func clear() error {
 	return os.RemoveAll(dir)
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterOutputBinding(bindings_localstorage.NewLocalStorage, "localstorage")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+	}
 }

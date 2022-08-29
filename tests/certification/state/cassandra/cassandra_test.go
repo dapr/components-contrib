@@ -48,7 +48,7 @@ const (
 
 func TestCassandra(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.StateStore)
+	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.Cassandra)
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -177,12 +177,15 @@ func TestCassandra(t *testing.T) {
 
 func TestCluster(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
-	stateStore := state_cassandra.NewCassandraStateStore(log)
+	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.Cassandra)
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
-	currentGrpcPort := ports[0]
-	currentHTTPPort := ports[1]
+	stateRegistry := state_loader.NewRegistry()
+	stateRegistry.Logger = log
+	stateRegistry.RegisterComponent(func(l logger.Logger) state.Store {
+		return stateStore
+	}, "cassandra")
 
 	basicTest := func(ctx flow.Context) error {
 		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort))
@@ -248,11 +251,8 @@ func TestCluster(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/cluster-fail"),
-			runtime.WithStates(
-				state_loader.New("cassandra", func() state.Store {
-					return stateStore
-				}),
-			))).
+			runtime.WithStates(stateRegistry),
+		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run fail test", failTest).
 		Run()

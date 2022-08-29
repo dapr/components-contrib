@@ -36,7 +36,7 @@ type Binding struct {
 }
 
 // NewCron returns a new Cron event input binding.
-func NewCron(logger logger.Logger) *Binding {
+func NewCron(logger logger.Logger) bindings.InputOutputBinding {
 	return &Binding{
 		logger: logger,
 		parser: cron.NewParser(
@@ -47,8 +47,9 @@ func NewCron(logger logger.Logger) *Binding {
 
 // Init initializes the Cron binding
 // Examples from https://godoc.org/github.com/robfig/cron:
-//   "15 * * * * *" - Every 15 sec
-//   "0 30 * * * *" - Every 30 min
+//
+//	"15 * * * * *" - Every 15 sec
+//	"0 30 * * * *" - Every 30 min
 func (b *Binding) Init(metadata bindings.Metadata) error {
 	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]
@@ -85,12 +86,12 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
 
 	go func() {
-		// Wait for a context to be canceled or a message on the stopCh
+		// Wait for a context to be canceled
 		select {
 		case <-b.runningCtx.Done():
 			// Do nothing
 		case <-ctx.Done():
-			b.runningCancel()
+			b.resetContext()
 		}
 		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
 		c.Stop()

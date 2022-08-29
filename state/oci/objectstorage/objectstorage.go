@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -165,7 +164,7 @@ func (r *StateStore) Ping() error {
 	return r.pingBucket()
 }
 
-func NewOCIObjectStorageStore(logger logger.Logger) *StateStore {
+func NewOCIObjectStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
@@ -292,7 +291,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
 	}
-	err = r.client.putObject(ctx, objectName, objectLength, ioutil.NopCloser(bytes.NewReader(content)), metadata, etag)
+	err = r.client.putObject(ctx, objectName, objectLength, io.NopCloser(bytes.NewReader(content)), metadata, etag)
 	if err != nil {
 		r.logger.Debugf("error in writing object to OCI object storage  %s, err %s", req.Key, err)
 		return fmt.Errorf("failed to write object to OCI Object storage : %w", err)

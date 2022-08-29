@@ -15,7 +15,7 @@ package http_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,12 +25,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	binding_http "github.com/dapr/components-contrib/bindings/http"
+	bindingHttp "github.com/dapr/components-contrib/bindings/http"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestOperations(t *testing.T) {
-	opers := (*binding_http.HTTPSource)(nil).Operations()
+	opers := (*bindingHttp.HTTPSource)(nil).Operations()
 	assert.Equal(t, []bindings.OperationKind{
 		bindings.CreateOperation,
 		"get",
@@ -53,7 +54,7 @@ func TestInit(t *testing.T) {
 			input := req.Method
 			if req.Body != nil {
 				defer req.Body.Close()
-				b, _ := ioutil.ReadAll(req.Body)
+				b, _ := io.ReadAll(req.Body)
 				if len(b) > 0 {
 					input = string(b)
 				}
@@ -64,19 +65,19 @@ func TestInit(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "text/plain")
 			if input == "internal server error" {
-				w.WriteHeader(500)
+				w.WriteHeader(http.StatusInternalServerError)
 			}
 			w.Write([]byte(strings.ToUpper(input)))
 		}),
 	)
 	defer s.Close()
 
-	m := bindings.Metadata{
+	m := bindings.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
 			"url": s.URL,
 		},
-	}
-	hs := binding_http.NewHTTP(logger.NewLogger("test"))
+	}}
+	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	require.NoError(t, err)
 

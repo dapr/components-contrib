@@ -19,13 +19,12 @@ import (
 	"os/exec"
 	"testing"
 
-	state "github.com/dapr/components-contrib/state"
 	table "github.com/dapr/components-contrib/state/azure/tablestorage"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
+	"github.com/dapr/kit/logger"
 
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
@@ -33,7 +32,6 @@ import (
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,7 +41,6 @@ const (
 )
 
 func TestAzureTableStorage(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -88,16 +85,8 @@ func TestAzureTableStorage(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("./components/basictest"),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithStates(
-				state_loader.New("azure.tablestorage", func() state.Store {
-					return table.NewAzureTablesStateStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Run basic test with existing table", basicTest("statestore-basic", "statestore-basic")).
 		Run()
 
@@ -108,16 +97,8 @@ func TestAzureTableStorage(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("./components/nonexistingtabletest"),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithStates(
-				state_loader.New("azure.tablestorage", func() state.Store {
-					return table.NewAzureTablesStateStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Run basic test with new table", basicTest("statestore-newtable", "statestore-newtable")).
 		Step("Delete the New Table", deleteTable).
 		Run()
@@ -129,16 +110,25 @@ func TestAzureTableStorage(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("./components/aadtest"),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithStates(
-				state_loader.New("azure.tablestorage", func() state.Store {
-					return table.NewAzureTablesStateStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Run AAD test", basicTest("statestore-key", "statestore-aad")).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	stateRegistry := state_loader.NewRegistry()
+	stateRegistry.Logger = log
+	stateRegistry.RegisterComponent(table.NewAzureTablesStateStore, "azure.tablestorage")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithStates(stateRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

@@ -25,12 +25,12 @@ import (
 )
 
 const (
-	metadataRpcGroup            = "group"
-	metadataRpcVersion          = "version"
-	metadataRpcInterface        = "interfaceName"
-	metadataRpcMethodName       = "methodName"
-	metadataRpcProviderHostname = "providerHostname"
-	metadataRpcProviderPort     = "providerPort"
+	metadataRPCGroup            = "group"
+	metadataRPCVersion          = "version"
+	metadataRPCInterface        = "interfaceName"
+	metadataRPCMethodName       = "methodName"
+	metadataRPCProviderHostname = "providerHostname"
+	metadataRPCProviderPort     = "providerPort"
 )
 
 type dubboContext struct {
@@ -47,12 +47,12 @@ type dubboContext struct {
 
 func newDubboContext(metadata map[string]string) *dubboContext {
 	dubboMetadata := &dubboContext{}
-	dubboMetadata.group = metadata[metadataRpcGroup]
-	dubboMetadata.interfaceName = metadata[metadataRpcInterface]
-	dubboMetadata.version = metadata[metadataRpcVersion]
-	dubboMetadata.method = metadata[metadataRpcMethodName]
-	dubboMetadata.hostname = metadata[metadataRpcProviderHostname]
-	dubboMetadata.port = metadata[metadataRpcProviderPort]
+	dubboMetadata.group = metadata[metadataRPCGroup]
+	dubboMetadata.interfaceName = metadata[metadataRPCInterface]
+	dubboMetadata.version = metadata[metadataRPCVersion]
+	dubboMetadata.method = metadata[metadataRPCMethodName]
+	dubboMetadata.hostname = metadata[metadataRPCProviderHostname]
+	dubboMetadata.port = metadata[metadataRPCProviderPort]
 	dubboMetadata.inited = false
 	return dubboMetadata
 }

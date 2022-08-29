@@ -16,7 +16,7 @@ package sms
 import (
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -68,14 +68,14 @@ func TestParseDuration(t *testing.T) {
 
 func TestWriteShouldSucceed(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
 		"toNumber": "toNumber", "fromNumber": "fromNumber",
 		"accountSid": "accountSid", "authToken": "authToken",
 	}
-	tw := NewSMS(logger.NewLogger("test"))
+	tw := NewSMS(logger.NewLogger("test")).(*SMS)
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
@@ -105,14 +105,14 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 func TestWriteShouldFail(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
 		"fromNumber": "fromNumber",
 		"accountSid": "accountSid", "authToken": "authToken",
 	}
-	tw := NewSMS(logger.NewLogger("test"))
+	tw := NewSMS(logger.NewLogger("test")).(*SMS)
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}

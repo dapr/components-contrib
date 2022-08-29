@@ -18,10 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/google/uuid"
@@ -29,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/bindings/zeebe/jobworker"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -52,16 +51,6 @@ type MetadataPair struct {
 	Key, Value string
 }
 
-type CalcVariables struct {
-	Operator      string  `json:"operator"`
-	FirstOperand  float64 `json:"firstOperand"`
-	SecondOperand float64 `json:"secondOperand"`
-}
-
-type CalcResult struct {
-	Result float64 `json:"result"`
-}
-
 // GetEnvVars returns the Zeebe environment vars.
 func GetEnvVars() EnvVars {
 	return EnvVars{
@@ -79,15 +68,15 @@ func Command() (*command.ZeebeCommand, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
 
-	cmd := command.NewZeebeCommand(testLogger)
-	err := cmd.Init(bindings.Metadata{
+	cmd := command.NewZeebeCommand(testLogger).(*command.ZeebeCommand)
+	err := cmd.Init(bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
 			"gatewayKeepAlive":       "45s",
 			"usePlainTextConnection": "true",
 		},
-	})
+	}})
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +88,7 @@ func Command() (*command.ZeebeCommand, error) {
 func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.ZeebeJobWorker, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
-	metadata := bindings.Metadata{
+	metadata := bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
@@ -107,13 +96,13 @@ func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.Z
 			"usePlainTextConnection": "true",
 			"jobType":                jobType,
 		},
-	}
+	}}
 
 	for _, pair := range additionalMetadata {
 		metadata.Properties[pair.Key] = pair.Value
 	}
 
-	cmd := jobworker.NewZeebeJobWorker(testLogger)
+	cmd := jobworker.NewZeebeJobWorker(testLogger).(*jobworker.ZeebeJobWorker)
 	if err := cmd.Init(metadata); err != nil {
 		return nil, err
 	}
@@ -162,7 +151,7 @@ func RetryModifier(jobType string, retries int) func(string) string {
 // GetTestFile loads the content of a BPMN process file. The function also accepts a list of
 // modifier functions which allows to manipulate the content of the returned BPMN file.
 func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, error) {
-	dataBytes, err := ioutil.ReadFile("../processes/" + fileName)
+	dataBytes, err := os.ReadFile("../processes/" + fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +170,7 @@ func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, err
 // a JSON with the deployment information.
 func DeployProcess(
 	cmd *command.ZeebeCommand,
+	ctx context.Context,
 	fileName string,
 	modifiers ...func(string) string,
 ) (*pb.ProcessMetadata, error) {
@@ -191,12 +181,13 @@ func DeployProcess(
 
 	metadata := map[string]string{"fileName": fileName}
 	req := &bindings.InvokeRequest{Data: data, Metadata: metadata, Operation: command.DeployProcessOperation}
-	res, err := cmd.Invoke(context.Background(), req)
+	res, err := cmd.Invoke(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	deployment := &pb.DeployProcessResponse{}
+	// TODO: pb.DeployProcessResponse is deprecated and needs to be replaced eventually
+	deployment := &pb.DeployProcessResponse{} //nolint:staticcheck
 	err = json.Unmarshal(res.Data, deployment)
 	if err != nil {
 		return nil, err
@@ -221,6 +212,7 @@ func DeployProcess(
 // CreateProcessInstance creates a process instance and returns the process instance data.
 func CreateProcessInstance(
 	cmd *command.ZeebeCommand,
+	ctx context.Context,
 	payload map[string]interface{},
 ) (*pb.CreateProcessInstanceResponse, error) {
 	data, err := json.Marshal(payload)
@@ -229,7 +221,7 @@ func CreateProcessInstance(
 	}
 
 	req := &bindings.InvokeRequest{Data: data, Operation: command.CreateInstanceOperation}
-	res, err := cmd.Invoke(context.Background(), req)
+	res, err := cmd.Invoke(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +237,7 @@ func CreateProcessInstance(
 
 func ActicateJob(
 	cmd *command.ZeebeCommand,
+	ctx context.Context,
 	payload map[string]interface{},
 ) (*[]pb.ActivatedJob, error) {
 	data, err := json.Marshal(payload)
@@ -253,7 +246,7 @@ func ActicateJob(
 	}
 
 	req := &bindings.InvokeRequest{Data: data, Operation: command.ActivateJobsOperation}
-	res, err := cmd.Invoke(context.Background(), req)
+	res, err := cmd.Invoke(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -267,39 +260,10 @@ func ActicateJob(
 	return activatedJobs, nil
 }
 
-// CalcWorker is a simple calculation worker.
-func CalcWorker(request *bindings.ReadResponse) ([]byte, error) {
-	variables := &CalcVariables{}
-	err := json.Unmarshal(request.Data, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	result := CalcResult{}
-	switch variables.Operator {
-	case "+":
-		result.Result = variables.FirstOperand + variables.SecondOperand
-	case "-":
-		result.Result = variables.FirstOperand - variables.SecondOperand
-	case "/":
-		result.Result = variables.FirstOperand / variables.SecondOperand
-	case "*":
-		result.Result = variables.FirstOperand * variables.SecondOperand
-	default:
-		return nil, fmt.Errorf("unexpected operator: %s", variables.Operator)
-	}
-
-	response, err := json.Marshal(result)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
-}
-
 // InitTestProcess initializes a test process.
 func InitTestProcess(
 	cmd *command.ZeebeCommand,
+	ctx context.Context,
 	id string,
 	testWorker bindings.Handler,
 	additionalMetadata ...MetadataPair,
@@ -308,6 +272,7 @@ func InitTestProcess(
 
 	_, err := DeployProcess(
 		cmd,
+		ctx,
 		TestProcessFile,
 		ProcessIDModifier(id),
 		RetryModifier("test", 3),
@@ -321,14 +286,7 @@ func InitTestProcess(
 		return err
 	}
 
-	ackJob.Read(context.Background(), testWorker)
+	ackJob.Read(ctx, testWorker)
 
 	return nil
-}
-
-// InterruptProcess interrupts a process.
-func InterruptProcess() {
-	pid := syscall.Getpid()
-	proc, _ := os.FindProcess(pid)
-	proc.Signal(os.Interrupt)
 }

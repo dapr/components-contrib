@@ -37,6 +37,6 @@ func Ping(pubsub PubSub) error {
 	if pubsubWithPing, ok := pubsub.(health.Pinger); ok {
 		return pubsubWithPing.Ping()
 	} else {
-		return fmt.Errorf("Ping is not implemented by this pubsub")
+		return fmt.Errorf("ping is not implemented by this pubsub")
 	}
 }

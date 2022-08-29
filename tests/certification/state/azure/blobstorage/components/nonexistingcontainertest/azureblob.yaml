@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-newcontainer
+spec:
+  type: state.azure.blobstorage
+  metadata:
+    - name: accountName
+      secretKeyRef:
+        name: AzureBlobStorageAccount
+        key: AzureBlobStorageAccount
+    - name: accountKey
+      secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key: AzureBlobStorageAccessKey
+    - name: containerName
+      value: "nonexistingblob"
+auth:
+  secretstore: envvar-secret-store

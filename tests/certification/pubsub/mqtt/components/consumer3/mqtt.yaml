@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.mqtt
+  version: v1
+  metadata:
+  - name: url
+    value: "tcp://localhost:1884"

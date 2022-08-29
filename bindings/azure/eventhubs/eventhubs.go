@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/aad"
@@ -145,13 +146,35 @@ func (m azureEventHubsMetadata) partitioned() bool {
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
-func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
+func NewAzureEventHubs(logger logger.Logger) bindings.InputOutputBinding {
 	return &AzureEventHubs{logger: logger}
 }
 
 func validate(connectionString string) error {
 	_, err := conn.ParsedConnectionFromStr(connectionString)
 	return err
+}
+
+func (a *AzureEventHubs) getStoragePrefixString() (string, error) {
+	hubName, err := a.validateAndGetHubName()
+	if err != nil {
+		return "", err
+	}
+
+	// empty string in the end of slice to have a suffix "-".
+	return strings.Join([]string{"dapr", hubName, a.metadata.consumerGroup, ""}, "-"), nil
+}
+
+func (a *AzureEventHubs) validateAndGetHubName() (string, error) {
+	hubName := a.metadata.eventHubName
+	if hubName == "" {
+		parsed, err := conn.ParsedConnectionFromStr(a.metadata.connectionString)
+		if err != nil {
+			return "", err
+		}
+		hubName = parsed.HubName
+	}
+	return hubName, nil
 }
 
 // Init performs metadata init.
@@ -360,7 +383,13 @@ func (a *AzureEventHubs) RegisterPartitionedEventProcessor(ctx context.Context, 
 // RegisterEventProcessor - receive eventhub messages by eventprocessor
 // host by balancing partitions.
 func (a *AzureEventHubs) RegisterEventProcessor(ctx context.Context, handler bindings.Handler) error {
-	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(a.storageCredential, a.metadata.storageAccountName, a.metadata.storageContainerName, *a.azureEnvironment)
+	storagePrefix, err := a.getStoragePrefixString()
+	if err != nil {
+		return err
+	}
+
+	leaserPrefixOpt := storage.WithPrefixInBlobPath(storagePrefix)
+	leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(a.storageCredential, a.metadata.storageAccountName, a.metadata.storageContainerName, *a.azureEnvironment, leaserPrefixOpt)
 	if err != nil {
 		return err
 	}

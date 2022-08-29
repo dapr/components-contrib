@@ -25,24 +25,11 @@ on:
       - release-*
 
 jobs:
-  pre_job:
-    name: Skip Duplicate Actions
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v3.4.0
-        with:
-          cancel_others: 'true'
-          paths_ignore: '["**.md", ".codecov.yaml", ".github/workflows/dapr-automerge.yml"]'
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the certification tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
     runs-on: ubuntu-latest
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true' || github.event_name == 'repository_dispatch'
     steps:
     - name: Install yq
       run: |
@@ -59,6 +46,9 @@ jobs:
         - state.postgresql
         - bindings.alicloud.dubbo
         - bindings.kafka
+        - secretstores.local.env
+        - secretstores.local.file
+        - bindings.rabbitmq
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -101,12 +91,16 @@ jobs:
           required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        - component: pubsub.azure.servicebus
+          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
         - component: state.azure.tablestorage
           required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: state.azure.blobstorage
+          required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
@@ -156,11 +150,13 @@ jobs:
         export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
-    - name: Configure certification test path
+    - name: Configure certification test and source path
       run: |
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
         export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
+        echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
       with:
@@ -194,18 +190,19 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.18'
+        go-version: '^1.19'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
+        go install github.com/axw/gocov/gocov@v1.1.0
 
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=1.18
+        go mod tidy -compat=1.19
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 
@@ -218,8 +215,7 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -count=1 -timeout=15m
-
+          -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then
@@ -227,6 +223,12 @@ jobs:
           export CERTIFICATION_FAILURE=true
         fi
         set -e
+
+        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
+        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
         # Fail the step if we found no test to run
         if grep -q "\[no test files\]" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json ; then
@@ -245,6 +247,27 @@ jobs:
           exit 1
         fi
 
+    - name: Prepare Cert Coverage Info
+      run: |
+       mkdir -p tmp/cov_files
+       SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g') # converts slashes to dots in this string, so that it doesn't consider them sub-folders
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/$SOURCE_PATH_LINEAR.txt
+
+    - name: Upload Cert Coverage Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: certtest_cov
+        path: tmp/cov_files
+        retention-days: 1
+
+    - name: Component Coverage Discord Notification 
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
+      uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+      continue-on-error: true
+      with:
+        args: 'Cert Test Coverage for {{ SOURCE_PATH }} is {{ COVERAGE_LINE }}'
+
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
@@ -252,3 +275,41 @@ jobs:
       with:
         name: ${{ matrix.component }}_certification_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*
+
+  post_job:
+    name: Notify Total coverage
+    runs-on: ubuntu-latest
+    needs: certification
+    if: always()
+    steps:
+      - name: Download Cert Coverage Artifact
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        id: download
+        with:
+          name: certtest_cov
+          path: tmp/cov_files
+
+      - name: Calculate total coverage
+        run: |
+          ls "${{steps.download.outputs.download-path}}" | while read f; do
+          while read LINE;
+              do
+              ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
+              tempNumerator=$(echo $ratio | cut -d'/' -f1)
+              tempDenominator=$(echo $ratio | cut -d'/' -f2)
+              export numerator=$(($numerator+$tempNumerator))
+              export denominator=$(($denominator+$tempDenominator))
+              totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
+              echo "totalPer=$totalPer" >> $GITHUB_ENV
+            done < ${{steps.download.outputs.download-path}}/$f
+          done
+        continue-on-error: true
+      
+      - name: Final Coverage Discord Notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
+        uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+        continue-on-error: true
+        with:
+          args: 'Total Coverage for Certification Tests is {{ totalPer }}%'

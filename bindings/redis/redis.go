@@ -36,7 +36,7 @@ type Redis struct {
 }
 
 // NewRedis returns a new redis bindings instance.
-func NewRedis(logger logger.Logger) *Redis {
+func NewRedis(logger logger.Logger) bindings.OutputBinding {
 	return &Redis{logger: logger}
 }
 

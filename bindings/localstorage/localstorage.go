@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -52,7 +52,7 @@ type createResponse struct {
 }
 
 // NewLocalStorage returns a new LocalStorage instance.
-func NewLocalStorage(logger logger.Logger) *LocalStorage {
+func NewLocalStorage(logger logger.Logger) bindings.OutputBinding {
 	return &LocalStorage{logger: logger}
 }
 
@@ -153,7 +153,7 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		ls.logger.Debugf("%s", err)
 

@@ -61,6 +61,7 @@ jobs:
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
+        - secretstores.hashicorp.vault
         - state.cassandra
         - state.memcached
         - state.mongodb
@@ -306,6 +307,11 @@ jobs:
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
       if: contains(matrix.component, 'cockroachdb')
+    
+    - name: Start vault
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-hashicorp-vault.yml -p vault up -d
+      if: contains(matrix.component, 'hashicorp.vault')
 
     - name: Start rethinkdb
       run: |

@@ -45,6 +45,7 @@ import (
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
+	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
@@ -475,6 +476,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_mqtt.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
+	case "postgres":
+		binding = b_postgres.NewPostgres(testLogger)
 	default:
 		return nil
 	}

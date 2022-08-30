@@ -7,4 +7,4 @@ spec:
   version: v1
   metadata:
   - name: url # Required
-    value: host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test
+    value: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"

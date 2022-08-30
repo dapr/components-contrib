@@ -14,20 +14,26 @@ limitations under the License.
 package cosmosdb
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/a8m/documentdb"
-	"github.com/agrea/ptr"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 )
 
+// Internal query object is created here since azcosmos has no notion of a query object
+type InternalQuery struct {
+	query      string
+	parameters []azcosmos.QueryParameter
+}
 type Query struct {
-	query documentdb.Query
+	query InternalQuery
 	limit int
 	token string
 }
@@ -122,7 +128,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 		}
 		orderBy = fmt.Sprintf(" ORDER BY %s", strings.Join(order, ", "))
 	}
-	q.query.Query = fmt.Sprintf("SELECT * FROM c%s%s", filter, orderBy)
+	q.query.query = fmt.Sprintf("SELECT * FROM c%s%s", filter, orderBy)
 	q.limit = qq.Page.Limit
 	q.token = qq.Page.Token
 
@@ -130,37 +136,51 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 }
 
 func (q *Query) setNextParameter(val string) string {
-	pname := fmt.Sprintf("@__param__%d__", len(q.query.Parameters))
-	q.query.Parameters = append(q.query.Parameters, documentdb.Parameter{Name: pname, Value: val})
+	pname := fmt.Sprintf("@__param__%d__", len(q.query.parameters))
+	q.query.parameters = append(q.query.parameters, azcosmos.QueryParameter{Name: pname, Value: val})
 
 	return pname
 }
 
-func (q *Query) execute(client *documentdb.DocumentDB, collection string) ([]state.QueryItem, string, error) {
-	opts := []documentdb.CallOption{documentdb.CrossPartition()}
+func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, string, error) {
+	opts := &azcosmos.QueryOptions{}
+
 	if q.limit != 0 {
-		opts = append(opts, documentdb.Limit(q.limit))
+		opts.PageSizeHint = int32(q.limit)
 	}
 	if len(q.token) != 0 {
-		opts = append(opts, documentdb.Continuation(q.token))
+		opts.ContinuationToken = q.token
 	}
+
 	items := []CosmosItem{}
-	resp, err := client.QueryDocuments(collection, &q.query, &items, opts...)
-	if err != nil {
-		return nil, "", err
+
+	pk := azcosmos.NewPartitionKeyBool(true)
+	queryPager := client.NewQueryItemsPager(q.query.query, pk, opts)
+
+	token := ""
+	for queryPager.More() {
+		queryResponse, innerErr := queryPager.NextPage(context.Background())
+		if innerErr != nil {
+			return nil, "", innerErr
+		}
+
+		token = queryResponse.ContinuationToken
+		for _, item := range queryResponse.Items {
+			json.Unmarshal(item, &items)
+		}
 	}
-	token := resp.Header.Get(documentdb.HeaderContinuation)
 
 	ret := make([]state.QueryItem, len(items))
+	var err error
 	for i := range items {
 		ret[i].Key = items[i].ID
-		ret[i].ETag = ptr.String(items[i].Etag)
+		ret[i].ETag = &items[0].Etag
 
 		if items[i].IsBinary {
 			ret[i].Data, _ = base64.StdEncoding.DecodeString(items[i].Value.(string))
-
 			continue
 		}
+
 		ret[i].Data, err = jsoniter.ConfigFastest.Marshal(&items[i].Value)
 		if err != nil {
 			ret[i].Error = err.Error()

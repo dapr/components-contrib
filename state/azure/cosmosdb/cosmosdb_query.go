@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
@@ -175,11 +174,10 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 	var err error
 	for i := range items {
 		ret[i].Key = items[i].ID
-		ret[i].ETag = ptr.String(string(items[i].ETag))
+		ret[i].ETag = &items[0].Etag
 
 		if items[i].IsBinary {
 			ret[i].Data, _ = base64.StdEncoding.DecodeString(items[i].Value.(string))
-
 			continue
 		}
 

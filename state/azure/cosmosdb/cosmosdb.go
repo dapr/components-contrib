@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/a8m/documentdb"
-	"github.com/agrea/ptr"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
@@ -68,12 +67,12 @@ type CosmosOperation struct {
 
 // CosmosItem is a wrapper around a CosmosDB document.
 type CosmosItem struct {
-	azcosmos.QueryItemsResponse
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
 	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
 	TTL          *int        `json:"ttl,omitempty"`
+	Etag         string
 }
 
 const (
@@ -202,13 +201,15 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 			return nil, innerErr
 		}
 		for _, item := range queryResponse.Items {
-			json.Unmarshal(item, &items)
+			i := CosmosItem{}
+			json.Unmarshal(item, &i)
+			i.Etag = string(queryResponse.ETag)
+			items = append(items, i)
 		}
 	}
 
 	if len(items) == 0 {
 		return &state.GetResponse{}, nil
-
 	}
 
 	if items[0].IsBinary {
@@ -221,7 +222,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return &state.GetResponse{
 			Data: bytes,
-			ETag: ptr.String(string(items[0].ETag)),
+			ETag: &items[0].Etag,
 		}, nil
 	}
 
@@ -232,7 +233,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: ptr.String(string(items[0].ETag)),
+		ETag: &items[0].Etag,
 	}, nil
 }
 

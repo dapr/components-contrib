@@ -5,13 +5,14 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
-	github.com/dapr/dapr v1.8.4-0.20220826162650-683a436ff136
+	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/stretchr/testify v1.8.0
 )
 
 require (
+	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
@@ -36,7 +37,6 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

@@ -1,10 +1,10 @@
-module github.com/dapr/components-contrib/tests/certification/state/sqlserver
+module github.com/dapr/components-contrib/tests/certification/bindings/localstorage
 
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.8.0-rc.6
-	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
+	github.com/dapr/components-contrib v1.8.2
+	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
 	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
@@ -16,7 +16,6 @@ require (
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
@@ -24,8 +23,8 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/denisenkom/go-mssqldb v0.0.0-20210411162248-d9abbec934ba // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fasthttp/router v1.3.8 // indirect
 	github.com/fatih/color v1.13.0 // indirect
@@ -36,7 +35,6 @@ require (
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -83,7 +81,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
-	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
 	go.opencensus.io v0.23.0 // indirect
@@ -97,7 +94,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.7.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220630215102-69896b714898 // indirect
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
@@ -128,10 +124,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/dapr/components-contrib/tests/certification => ../../
+replace github.com/dapr/components-contrib => ../../../..
 
-replace github.com/dapr/components-contrib => ../../../../
+replace github.com/dapr/components-contrib/tests/certification => ../..
 
 replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.20220709114046-2f2dc4f9a684
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v1.5.2-0.20220829014128-56ac94bfadd1

@@ -6,7 +6,7 @@ require (
 	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.8.4-0.20220826162650-683a436ff136
+	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/google/uuid v1.3.0
@@ -37,7 +37,7 @@ require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
+	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

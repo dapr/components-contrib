@@ -6,7 +6,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.8.4-0.20220826162650-683a436ff136
+	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/eclipse/paho.mqtt.golang v1.3.5
@@ -21,7 +21,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
+	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

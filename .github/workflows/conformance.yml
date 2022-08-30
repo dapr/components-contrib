@@ -299,6 +299,11 @@ jobs:
         docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
       if: contains(matrix.component, 'postgresql')
 
+    - name: Start postgres
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
+      if: contains(matrix.component, 'postgres')
+
     - name: Start cassandra
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d

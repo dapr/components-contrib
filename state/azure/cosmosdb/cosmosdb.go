@@ -68,7 +68,7 @@ type CosmosOperation struct {
 
 // CosmosItem is a wrapper around a CosmosDB document.
 type CosmosItem struct {
-	azcosmos.Response
+	azcosmos.QueryItemsResponse
 	ID           string      `json:"id"`
 	Value        interface{} `json:"value"`
 	IsBinary     bool        `json:"isBinary"`
@@ -206,8 +206,18 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		}
 	}
 
+	if len(items) == 0 {
+		return &state.GetResponse{}, nil
+
+	}
+
 	if items[0].IsBinary {
-		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+		bytes, decodeErr := base64.StdEncoding.DecodeString(items[0].Value.(string))
+
+		if decodeErr != nil {
+			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
+			bytes = []byte(items[0].Value.(string))
+		}
 
 		return &state.GetResponse{
 			Data: bytes,
@@ -421,6 +431,9 @@ func (c *StateStore) Ping() error {
 
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
 	byteArray, isBinary := req.Value.([]uint8)
+	if len(byteArray) == 0 {
+		isBinary = false
+	}
 
 	ttl, err := parseTTL(req.Metadata)
 	if err != nil {

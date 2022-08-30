@@ -167,6 +167,10 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return err
 	}
 	c.client = dbContainer
+
+	c.metadata = m
+	c.contentType = m.ContentType
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
 	_, err = c.client.Read(ctx, nil)
 	cancel()

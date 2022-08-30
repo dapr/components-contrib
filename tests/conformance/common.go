@@ -60,6 +60,7 @@ import (
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
+	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
@@ -399,6 +400,8 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 		store = ss_local_env.NewEnvSecretStore(testLogger)
 	case "localfile":
 		store = ss_local_file.NewLocalSecretStore(testLogger)
+	case "hashicorp.vault":
+		store = ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
 	default:
 		return nil
 	}

@@ -383,6 +383,78 @@ func TestSet(t *testing.T) {
 		}
 	})
 
+	t.Run("Successfully set item with first-write-concurrency", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, dynamodb.AttributeValue{
+						S: aws.String("key"),
+					}, *input.Item["key"])
+					assert.Equal(t, dynamodb.AttributeValue{
+						S: aws.String(`{"Value":"value"}`),
+					}, *input.Item["value"])
+					assert.Equal(t, "attribute_not_exists(etag)", *input.ConditionExpression)
+					assert.Equal(t, len(input.Item), 3)
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+		}
+		req := &state.SetRequest{
+			Key: "key",
+			Value: value{
+				Value: "value",
+			},
+			Options: state.SetStateOption{
+				Concurrency: state.FirstWrite,
+			},
+		}
+		err := ss.Set(req)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Unsuccessfully set item with first-write-concurrency", func(t *testing.T) {
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, dynamodb.AttributeValue{
+						S: aws.String("key"),
+					}, *input.Item["key"])
+					assert.Equal(t, dynamodb.AttributeValue{
+						S: aws.String(`{"Value":"value"}`),
+					}, *input.Item["value"])
+					assert.Equal(t, "attribute_not_exists(etag)", *input.ConditionExpression)
+					assert.Equal(t, len(input.Item), 3)
+
+					var checkErr dynamodb.ConditionalCheckFailedException
+					return nil, &checkErr
+				},
+			},
+		}
+		req := &state.SetRequest{
+			Key: "key",
+			Value: value{
+				Value: "value",
+			},
+			Options: state.SetStateOption{
+				Concurrency: state.FirstWrite,
+			},
+		}
+		err := ss.Set(req)
+		assert.NotNil(t, err)
+		switch err.(type) {
+		case *state.ETagError:
+			assert.True(t, false)
+		default:
+		}
+	})
+
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{

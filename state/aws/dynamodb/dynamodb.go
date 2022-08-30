@@ -150,7 +150,9 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 		TableName: &d.table,
 	}
 
+	haveEtag := false
 	if req.ETag != nil && *req.ETag != "" {
+		haveEtag = true
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -158,10 +160,13 @@ func (d *StateStore) Set(req *state.SetRequest) error {
 			S: req.ETag,
 		}
 		input.ExpressionAttributeValues = exprAttrValues
+	} else if req.Options.Concurrency == state.FirstWrite {
+		condExpr := "attribute_not_exists(etag)"
+		input.ConditionExpression = &condExpr
 	}
 
 	_, err = d.client.PutItem(input)
-	if err != nil {
+	if err != nil && haveEtag {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
 			err = state.NewETagError(state.ETagMismatch, cErr)
@@ -184,6 +189,8 @@ func (d *StateStore) BulkSet(req []state.SetRequest) error {
 
 		if r.ETag != nil && *r.ETag != "" {
 			return fmt.Errorf("dynamodb error: BulkSet() does not support etags; please use Set() instead")
+		} else if r.Options.Concurrency == state.FirstWrite {
+			return fmt.Errorf("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
 		}
 
 		item, err := d.getItemFromReq(&r)

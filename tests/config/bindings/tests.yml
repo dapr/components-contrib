@@ -57,3 +57,6 @@ components:
     operations: ["create", "operations", "read"]
     config:
       checkInOrderProcessing: false
+  - component: postgres
+    allOperations: false
+    operations: [ "exec", "query", "close", "operations" ]

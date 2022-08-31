@@ -106,6 +106,14 @@ func (q *Query) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
+
+		jdata, err := json.Marshal(elem)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(jdata, &q.Filters); err != nil {
+			return err
+		}
 	}
 	// setting sorting
 	if elem, ok := m[SORT]; ok {

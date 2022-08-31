@@ -38,16 +38,33 @@ func TestQuery(t *testing.T) {
 		{
 			input: "../../tests/state/query/q2.json",
 			query: Query{
-				Filters: nil,
-				Sort:    nil,
-				Page:    Pagination{Limit: 2, Token: ""},
-				Filter:  &EQ{Key: "state", Val: "CA"},
+				Filters: map[string]any{
+					"EQ": map[string]any{
+						"state": "CA",
+					},
+				},
+				Sort:   nil,
+				Page:   Pagination{Limit: 2, Token: ""},
+				Filter: &EQ{Key: "state", Val: "CA"},
 			},
 		},
 		{
 			input: "../../tests/state/query/q3.json",
 			query: Query{
-				Filters: nil,
+				Filters: map[string]any{
+					"AND": []any{
+						map[string]any{
+							"EQ": map[string]any{
+								"person.org": "A",
+							},
+						},
+						map[string]any{
+							"IN": map[string]any{
+								"state": []any{"CA", "WA"},
+							},
+						},
+					},
+				},
 				Sort: []Sorting{
 					{Key: "state", Order: "DESC"},
 					{Key: "person.name", Order: ""},
@@ -56,7 +73,7 @@ func TestQuery(t *testing.T) {
 				Filter: &AND{
 					Filters: []Filter{
 						&EQ{Key: "person.org", Val: "A"},
-						&IN{Key: "state", Vals: []interface{}{"CA", "WA"}},
+						&IN{Key: "state", Vals: []any{"CA", "WA"}},
 					},
 				},
 			},
@@ -64,7 +81,29 @@ func TestQuery(t *testing.T) {
 		{
 			input: "../../tests/state/query/q4.json",
 			query: Query{
-				Filters: nil,
+				Filters: map[string]any{
+					"OR": []any{
+						map[string]any{
+							"EQ": map[string]any{
+								"person.org": "A",
+							},
+						},
+						map[string]any{
+							"AND": []any{
+								map[string]any{
+									"EQ": map[string]any{
+										"person.org": "B",
+									},
+								},
+								map[string]any{
+									"IN": map[string]any{
+										"state": []any{"CA", "WA"},
+									},
+								},
+							},
+						},
+					},
+				},
 				Sort: []Sorting{
 					{Key: "state", Order: "DESC"},
 					{Key: "person.name", Order: ""},

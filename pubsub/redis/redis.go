@@ -401,7 +401,7 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 			Stream:   stream,
 			Group:    r.metadata.consumerID,
 			Consumer: r.metadata.consumerID,
-			MinIdle:  r.metadata.processingTimeout,
+			MinIdle:  0,
 			Messages: []string{pendingID},
 		}).Result()
 		if err != nil && !errors.Is(err, redis.Nil) {

@@ -45,6 +45,7 @@ import (
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
+	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
@@ -60,6 +61,7 @@ import (
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
+	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
@@ -399,6 +401,8 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 		store = ss_local_env.NewEnvSecretStore(testLogger)
 	case "localfile":
 		store = ss_local_file.NewLocalSecretStore(testLogger)
+	case "hashicorp.vault":
+		store = ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
 	default:
 		return nil
 	}
@@ -472,6 +476,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_mqtt.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
+	case "postgres":
+		binding = b_postgres.NewPostgres(testLogger)
 	default:
 		return nil
 	}

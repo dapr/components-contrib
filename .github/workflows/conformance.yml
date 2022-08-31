@@ -45,6 +45,7 @@ jobs:
         - bindings.mqtt-emqx
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
+        - bindings.postgres
         - bindings.redis
         - bindings.rabbitmq
         - pubsub.aws.snssqs
@@ -61,6 +62,7 @@ jobs:
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
+        - secretstores.hashicorp.vault
         - state.cassandra
         - state.memcached
         - state.mongodb
@@ -295,7 +297,7 @@ jobs:
     - name: Start postgresql
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
-      if: contains(matrix.component, 'postgresql')
+      if: contains(matrix.component, 'postgres')
 
     - name: Start cassandra
       run: |
@@ -306,6 +308,11 @@ jobs:
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
       if: contains(matrix.component, 'cockroachdb')
+    
+    - name: Start vault
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-hashicorp-vault.yml -p vault up -d
+      if: contains(matrix.component, 'hashicorp.vault')
 
     - name: Start rethinkdb
       run: |

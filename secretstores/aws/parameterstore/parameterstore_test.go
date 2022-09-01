@@ -117,6 +117,33 @@ func TestGetSecret(t *testing.T) {
 			assert.Nil(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
+
+		t.Run("with prefix", func(t *testing.T) {
+			s := ssmSecretStore{
+				client: &mockedSSM{
+					GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+						assert.Equal(t, "/prefix/aws/dev/secret", *input.Name)
+						secret := secretValue
+
+						return &ssm.GetParameterOutput{
+							Parameter: &ssm.Parameter{
+								Name:  input.Name,
+								Value: &secret,
+							},
+						}, nil
+					},
+				},
+				prefix: "/prefix",
+			}
+
+			req := secretstores.GetSecretRequest{
+				Name:     "/aws/dev/secret",
+				Metadata: map[string]string{},
+			}
+			output, e := s.GetSecret(req)
+			assert.Nil(t, e)
+			assert.Equal(t, "secret", output.Data[req.Name])
+		})
 	})
 
 	t.Run("unsuccessfully retrieve secret", func(t *testing.T) {
@@ -170,6 +197,42 @@ func TestGetBulkSecrets(t *testing.T) {
 		assert.Nil(t, e)
 		assert.Contains(t, output.Data, "/aws/dev/secret1")
 		assert.Contains(t, output.Data, "/aws/dev/secret2")
+	})
+
+	t.Run("successfully retrieve bulk secrets with prefix", func(t *testing.T) {
+		s := ssmSecretStore{
+			client: &mockedSSM{
+				DescribeParametersFn: func(*ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error) {
+					return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
+						{
+							Name: aws.String("/prefix/aws/dev/secret1"),
+						},
+						{
+							Name: aws.String("/prefix/aws/dev/secret2"),
+						},
+					}}, nil
+				},
+				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+					secret := fmt.Sprintf("%s-%s", *input.Name, secretValue)
+
+					return &ssm.GetParameterOutput{
+						Parameter: &ssm.Parameter{
+							Name:  input.Name,
+							Value: &secret,
+						},
+					}, nil
+				},
+			},
+			prefix: "/prefix",
+		}
+
+		req := secretstores.BulkGetSecretRequest{
+			Metadata: map[string]string{},
+		}
+		output, e := s.BulkGetSecret(req)
+		assert.Nil(t, e)
+		assert.Equal(t, "map[/aws/dev/secret1:/prefix/aws/dev/secret1-secret]", fmt.Sprint(output.Data["/aws/dev/secret1"]))
+		assert.Equal(t, "map[/aws/dev/secret2:/prefix/aws/dev/secret2-secret]", fmt.Sprint(output.Data["/aws/dev/secret2"]))
 	})
 
 	t.Run("unsuccessfully retrieve bulk secrets on get parameter", func(t *testing.T) {

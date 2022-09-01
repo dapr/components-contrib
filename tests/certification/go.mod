@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
-	github.com/dapr/dapr v1.8.4-0.20220822154328-9797b4006e23
+	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/google/go-cmp v0.5.8
@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20210826220005-b48c857c3a0e // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/color v1.13.0 // indirect
@@ -50,7 +51,6 @@ require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/antlr/antlr4 v0.0.0-20200503195918-621b933c7a7f // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3
@@ -128,7 +128,5 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
-
-replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20220825205949-5d389ea9a3bb
 
 replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.20220709114046-2f2dc4f9a684

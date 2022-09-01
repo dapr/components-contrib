@@ -14,10 +14,8 @@ limitations under the License.
 package cosmosdb
 
 import (
-	// For go:embed.
 	"context"
 	_ "embed"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,8 +24,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/a8m/documentdb"
-	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
@@ -80,14 +76,11 @@ const (
 	unknownPartitionKey   = "__UNKNOWN__"
 	metadataTTLKey        = "ttlInSeconds"
 	statusTooManyRequests = "429" // RFC 6585, 4
-	statusNotFound        = "NotFound"
+	defaultTimeout        = 20 * time.Second
 )
 
-// Value used for timeout durations
-const timeoutValue = 20
-
 // NewCosmosDBStateStore returns a new CosmosDB state store.
-func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
+func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
@@ -132,9 +125,10 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	// Create the client; first, try authenticating with a master key, if present
 	var client *azcosmos.Client
 	if m.MasterKey != "" {
-		cred, keyErr := azcosmos.NewKeyCredential(m.MasterKey)
-		if keyErr != nil {
-			return keyErr
+		var cred azcosmos.KeyCredential
+		cred, err = azcosmos.NewKeyCredential(m.MasterKey)
+		if err != nil {
+			return err
 		}
 		client, err = azcosmos.NewClientWithKey(m.URL, cred, nil)
 		if err != nil {
@@ -142,9 +136,10 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		}
 	} else {
 		// Fallback to using Azure AD
-		env, errB := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
-		if errB != nil {
-			return errB
+		var env azure.EnvironmentSettings
+		env, err = azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		if err != nil {
+			return err
 		}
 		token, tokenErr := env.GetTokenCredential()
 		if tokenErr != nil {
@@ -170,7 +165,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	c.metadata = m
 	c.contentType = m.ContentType
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	_, err = c.client.Read(ctx, nil)
 	cancel()
 	return err
@@ -185,8 +180,7 @@ func (c *StateStore) Features() []state.Feature {
 func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 
-	items := []CosmosItem{}
-	options := azcosmos.QueryOptions{}
+	options := azcosmos.ItemOptions{}
 	if req.Options.Consistency == state.Strong {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelStrong.ToPtr()
 	}
@@ -194,46 +188,21 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
-	queryPager := c.client.NewQueryItemsPager("SELECT * FROM ROOT r WHERE r.id=@id", azcosmos.NewPartitionKeyString(partitionKey), &options)
-	for queryPager.More() {
-		queryResponse, innerErr := queryPager.NextPage(context.Background())
-		if innerErr != nil {
-			return nil, innerErr
-		}
-		for _, item := range queryResponse.Items {
-			i := CosmosItem{}
-			json.Unmarshal(item, &i)
-			i.Etag = string(queryResponse.ETag)
-			items = append(items, i)
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	readItem, err := c.client.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), req.Key, &options)
+	cancel()
+	if err != nil {
+		return nil, err
 	}
 
-	if len(items) == 0 {
-		return &state.GetResponse{}, nil
-	}
-
-	if items[0].IsBinary {
-		bytes, decodeErr := base64.StdEncoding.DecodeString(items[0].Value.(string))
-
-		if decodeErr != nil {
-			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
-			bytes = []byte(items[0].Value.(string))
-		}
-
-		return &state.GetResponse{
-			Data: bytes,
-			ETag: &items[0].Etag,
-		}, nil
-	}
-
-	b, err := jsoniter.ConfigFastest.Marshal(&items[0].Value)
+	b, err := jsoniter.ConfigFastest.Marshal(readItem.Value)
 	if err != nil {
 		return nil, err
 	}
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: &items[0].Etag,
+		ETag: (*string)(&readItem.ETag),
 	}, nil
 }
 
@@ -267,8 +236,10 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.UpsertItem(context.Background(), pk, marshalled, &options)
+	_, err = c.client.UpsertItem(ctx, pk, marshalled, &options)
+	cancel()
 	if err != nil {
 		return err
 	}
@@ -295,14 +266,11 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.DeleteItem(context.Background(), pk, req.Key, &options)
-
-	if err != nil && !isNotFoundError(err) {
-		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
-		if req.ETag != nil {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
+	_, err = c.client.DeleteItem(ctx, pk, req.Key, &options)
+	cancel()
+	if err != nil {
 		return err
 	}
 
@@ -340,7 +308,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			if req.ETag != nil {
+			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
 			}
@@ -354,7 +322,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 
-			if req.ETag != nil {
+			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
 			}
@@ -368,7 +336,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		}
 	}
 
-	c.logger.Debugf("#operations=%d,partitionkey=%s", strconv.Itoa(numOperations), partitionKey)
+	c.logger.Debugf("#operations=%d,partitionkey=%s", numOperations, partitionKey)
 
 	var itemResponseBody map[string]string
 
@@ -421,11 +389,11 @@ func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 }
 
 func (c *StateStore) Ping() error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	_, err := c.client.Read(ctx, nil)
 	cancel()
 	if err != nil {
-		return backoff.Permanent(err)
+		return err
 	}
 	return nil
 }
@@ -498,18 +466,4 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	}
 
 	return nil, nil
-}
-
-func isNotFoundError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if requestError, ok := err.(*documentdb.RequestError); ok {
-		if requestError.Code == statusNotFound {
-			return true
-		}
-	}
-
-	return false
 }

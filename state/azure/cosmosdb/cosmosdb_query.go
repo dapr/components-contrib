@@ -32,6 +32,7 @@ type InternalQuery struct {
 	query      string
 	parameters []azcosmos.QueryParameter
 }
+
 type Query struct {
 	query InternalQuery
 	limit int
@@ -159,14 +160,18 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 
 	token := ""
 	for queryPager.More() {
-		queryResponse, innerErr := queryPager.NextPage(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		queryResponse, innerErr := queryPager.NextPage(ctx)
+		cancel()
 		if innerErr != nil {
 			return nil, "", innerErr
 		}
 
 		token = queryResponse.ContinuationToken
 		for _, item := range queryResponse.Items {
-			json.Unmarshal(item, &items)
+			res := []CosmosItem{}
+			json.Unmarshal(item, &res)
+			items = append(items, res...)
 		}
 	}
 
@@ -174,7 +179,7 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 	var err error
 	for i := range items {
 		ret[i].Key = items[i].ID
-		ret[i].ETag = &items[0].Etag
+		ret[i].ETag = &items[i].Etag
 
 		if items[i].IsBinary {
 			ret[i].Data, _ = base64.StdEncoding.DecodeString(items[i].Value.(string))

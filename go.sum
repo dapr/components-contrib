@@ -256,8 +256,6 @@ github.com/Stebalien/go-bitfield v0.0.1/go.mod h1:GNjFpasyUVkHMsfEOk8EFLJ9syQ6SI
 github.com/VividCortex/gohistogram v1.0.0/go.mod h1:Pf5mBqqDxYaXu3hDrrU+w6nw50o/4+TcAqDqk/vUH7g=
 github.com/Workiva/go-datastructures v1.0.52 h1:PLSK6pwn8mYdaoaCZEMsXBpBotr4HHn9abU0yMQt0NI=
 github.com/Workiva/go-datastructures v1.0.52/go.mod h1:Z+F2Rca0qCsVYDS8z7bAGm8f3UkzuWYS/oBZz5a7VVA=
-github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1 h1:vdxL7id6rXNHNAh7yHUHiTsTvFupt+c7MBa+1bru+48=
-github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1/go.mod h1:4Z0mpi7fkyqjxUdGiNMO3vagyiUoiwLncaIX6AsW5z0=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/aerospike/aerospike-client-go v4.5.0+incompatible h1:6ALev/Ge4jW5avSLoqgvPYTh+FLeeDD9xDhzoMCNgOo=
 github.com/aerospike/aerospike-client-go v4.5.0+incompatible/go.mod h1:zj8LBEnWBDOVEIJt8LvaRvDG5ARAoa5dBeHaB472NRc=

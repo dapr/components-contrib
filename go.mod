@@ -166,6 +166,7 @@ require (
 	github.com/ipfs/go-ipfs-http-client v0.4.0
 	github.com/ipfs/interface-go-ipfs-core v0.7.0
 	github.com/ipfs/kubo v0.15.0-rc1
+	github.com/julienschmidt/httprouter v1.3.0
 	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/multiformats/go-multiaddr v0.6.0

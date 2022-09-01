@@ -26,7 +26,7 @@ type Middleware struct {
 }
 
 // NewMiddleware returns a new wasm basic middleware.
-func NewMiddleware(logger logger.Logger) *Middleware {
+func NewMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 

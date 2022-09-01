@@ -102,7 +102,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware(log)
+	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware(log)
+	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
 	require.NoError(t, err)

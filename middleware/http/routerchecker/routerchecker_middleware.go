@@ -29,7 +29,7 @@ type Metadata struct {
 }
 
 // NewRouterCheckerMiddleware returns a new routerchecker middleware.
-func NewMiddleware(logger logger.Logger) *Middleware {
+func NewMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 

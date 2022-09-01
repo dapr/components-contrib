@@ -20,6 +20,7 @@ import (
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+
 	"github.com/julienschmidt/httprouter"
 	"github.com/valyala/fasthttp"
 )

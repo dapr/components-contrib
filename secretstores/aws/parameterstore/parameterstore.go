@@ -44,10 +44,12 @@ type parameterStoreMetaData struct {
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
+	Prefix       string `json:"prefix"`
 }
 
 type ssmSecretStore struct {
 	client ssmiface.SSMAPI
+	prefix string
 	logger logger.Logger
 }
 
@@ -63,6 +65,7 @@ func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
 		return err
 	}
 	s.client = client
+	s.prefix = meta.Prefix
 
 	return nil
 }
@@ -79,7 +82,8 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 
 	output, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
 		Name:           aws.String(name),
-		WithDecryption: aws.Bool(true),
+    Name:           aws.String(s.prefix + name),
+    WithDecryption: aws.Bool(true),
 	})
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)
@@ -89,7 +93,8 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 		Data: map[string]string{},
 	}
 	if output.Parameter.Name != nil && output.Parameter.Value != nil {
-		resp.Data[*output.Parameter.Name] = *output.Parameter.Value
+		secretName := (*output.Parameter.Name)[len(s.prefix):]
+		resp.Data[secretName] = *output.Parameter.Value
 	}
 
 	return resp, nil
@@ -104,10 +109,22 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	search := true
 	var nextToken *string = nil
 
+	var filters []*ssm.ParameterStringFilter
+	if s.prefix != "" {
+		filters = []*ssm.ParameterStringFilter{
+			{
+				Key:    aws.String(ssm.ParametersFilterKeyName),
+				Option: aws.String("BeginsWith"),
+				Values: aws.StringSlice([]string{s.prefix}),
+			},
+		}
+	}
+
 	for search {
 		output, err := s.client.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
 			MaxResults: nil,
 			NextToken:  nextToken,
+      ParameterFilters: filters,
 		})
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't list secrets: %s", err)
@@ -123,7 +140,8 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 			}
 
 			if entry.Name != nil && params.Parameter.Value != nil {
-				resp.Data[*entry.Name] = map[string]string{*entry.Name: *params.Parameter.Value}
+				secretName := (*entry.Name)[len(s.prefix):]
+				resp.Data[secretName] = map[string]string{secretName: *params.Parameter.Value}
 			}
 		}
 

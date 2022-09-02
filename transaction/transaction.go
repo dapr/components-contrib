@@ -25,5 +25,5 @@ type Transaction interface {
 
 	GetRetryTimes() int
 
-	GetTransactionSchema() string
+	GetTransactionScheme() string
 }

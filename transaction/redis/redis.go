@@ -28,7 +28,7 @@ const (
 	stateForRollbackSuccess      = 30
 	stateForRollbackFailure      = 3
 	requestStatusOK              = 1
-	defaultTransactionSchema     = "tcc"
+	defaultTransactionScheme     = "tcc"
 )
 
 type DistributeTransaction struct {
@@ -39,7 +39,7 @@ type DistributeTransaction struct {
 	cancel         context.CancelFunc
 	ctx            context.Context
 	duration       int
-	schema         string
+	scheme         string
 	retryTimes     int
 }
 
@@ -266,11 +266,11 @@ func (t *DistributeTransaction) genBunchTransactionID(index int) string {
 func (t *DistributeTransaction) Init(metadata transaction.Metadata) {
 	t.logger.Debug("initialize tranaction component")
 
-	// initialize distribute transaction schema, default use tcc
-	if metadata.Properties["schema"] != "" {
-		t.schema = metadata.Properties["schema"]
+	// initialize distribute transaction scheme, default use tcc
+	if metadata.Properties["scheme"] != "" {
+		t.scheme = metadata.Properties["scheme"]
 	} else {
-		t.schema = defaultTransactionSchema
+		t.scheme = defaultTransactionScheme
 	}
 
 	// initialize retryTimes for commit and roll back action
@@ -451,6 +451,6 @@ func (t *DistributeTransaction) GetRetryTimes() int {
 	return t.retryTimes
 }
 
-func (t *DistributeTransaction) GetTransactionSchema() string {
-	return t.schema
+func (t *DistributeTransaction) GetTransactionScheme() string {
+	return t.scheme
 }

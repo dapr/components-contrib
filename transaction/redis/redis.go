@@ -97,7 +97,7 @@ func (t *DistributeTransaction) initBunchTransactionState(transactionID string, 
 	if IntCmd.Err() != nil {
 		return fmt.Errorf("transaction state store persistence error")
 	}
-	// update ttl for the map, it doesn't mater get a failed result as it will be deleted when the transaction commited or roll back.
+	// update ttl for the map, it doesn't mater get a failed result as it will be deleted when the transaction committed or rollback.
 	t.client.Expire(t.ctx, transactionID, time.Second*time.Duration(t.duration))
 	return nil
 }
@@ -434,7 +434,7 @@ func (t *DistributeTransaction) GetBunchTransactions(transactionReq transaction.
 	}, nil
 }
 
-// release transaction state store when all of the bunch transaction commited or rollback
+// release transaction state store when all of the bunch transaction committed or rollback
 func (t *DistributeTransaction) ReleaseTransactionResource(releaseRequest transaction.ReleaseTransactionRequest) error {
 	if releaseRequest.TransactionID == "" {
 		t.logger.Info("distribute transaction id missing")

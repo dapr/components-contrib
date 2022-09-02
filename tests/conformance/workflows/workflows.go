@@ -22,7 +22,6 @@ import (
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
-	"go.temporal.io/api/enums/v1"
 )
 
 var testLogger = logger.NewLogger("workflowsTest")
@@ -59,24 +58,25 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 		t.Run("start", func(t *testing.T) {
 			testLogger.Info("Start test running...")
 			req := &workflows.StartRequest{
-				Parameters: 10, // Time that the activity within the workflow runs for
+				Parameters:   10, // Time that the activity within the workflow runs for
+				WorkflowName: "TestWorkflow",
 			}
-			req.WorkflowInfo.InstanceId = "TestWorkflow"
+			req.WorkflowInfo.InstanceId = "TestID"
 			req.Options.TaskQueue = "TestTaskQueue"
 			wf, err := workflowItem.Start(context.Background(), req)
 			assert.Nil(t, err)
 			resp, err := workflowItem.Get(context.Background(), wf)
 			assert.Nil(t, err)
-			assert.Equal(t, resp.Status, enums.WORKFLOW_EXECUTION_STATUS_RUNNING)
+			assert.Equal(t, "Running", resp.Status)
 			time.Sleep(5 * time.Second)
 			resp, err = workflowItem.Get(context.Background(), wf)
 			assert.Nil(t, err)
-			assert.Equal(t, resp.Status, enums.WORKFLOW_EXECUTION_STATUS_RUNNING)
+			assert.Equal(t, resp.Status, "Running")
 			err = workflowItem.Terminate(context.Background(), wf)
 			assert.Nil(t, err)
 			resp, err = workflowItem.Get(context.Background(), wf)
 			assert.Nil(t, err)
-			assert.Equal(t, resp.Status, enums.WORKFLOW_EXECUTION_STATUS_TERMINATED)
+			assert.Equal(t, "Terminated", resp.Status)
 		})
 		testLogger.Info("Start test done.")
 	}

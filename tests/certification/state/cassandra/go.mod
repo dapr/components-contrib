@@ -96,7 +96,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
-	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4 // indirect
 	go.opencensus.io v0.23.0 // indirect

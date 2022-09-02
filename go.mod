@@ -166,11 +166,15 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.476
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.476
 	github.com/wapc/wapc-go v0.5.4
+<<<<<<< HEAD
 	go.temporal.io/api v1.12.0
 	go.temporal.io/sdk v1.17.0
+=======
+	go.temporal.io/api v1.11.0
+	go.temporal.io/sdk v1.16.0
+>>>>>>> Updating go files and removing unnecessary temporal test since server is needed for it to run
 	go.uber.org/ratelimit v0.2.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
-	gotest.tools v2.2.0+incompatible
 )
 
 require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
@@ -388,7 +392,3 @@ replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
 replace go.opencensus.io => go.opencensus.io v0.23.0
 
 replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
-
-replace go.temporal.io/api => go.temporal.io/api v1.8.0
-
-replace go.temporal.io/sdk => go.temporal.io/sdk v1.15.0

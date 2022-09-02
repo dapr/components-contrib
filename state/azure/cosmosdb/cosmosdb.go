@@ -40,9 +40,7 @@ type StateStore struct {
 	client      *azcosmos.ContainerClient
 	metadata    metadata
 	contentType string
-
-	features []state.Feature
-	logger   logger.Logger
+	logger      logger.Logger
 }
 
 type metadata struct {
@@ -82,11 +80,9 @@ const (
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:   logger,
+		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
 	return s
 }
 
@@ -173,7 +169,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (c *StateStore) Features() []state.Feature {
-	return c.features
+	return c.DefaultBulkStore.Features()
 }
 
 // Get retrieves a CosmosDB item.

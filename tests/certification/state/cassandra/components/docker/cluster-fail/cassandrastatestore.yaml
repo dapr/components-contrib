@@ -16,4 +16,4 @@ spec:
   - name: consistency
     value: "Three"
   - name: replicationFactor
-    value: "2"
+    value: "3"

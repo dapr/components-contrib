@@ -1,11 +1,12 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: statestore
+  name: statestoreversionfail
 spec:
   type: state.cassandra
   version: v1
   initTimeout: 20s
+  ignoreErrors: true
   metadata:
   - name: hosts
     value: localhost
@@ -16,6 +17,8 @@ spec:
   - name: port
     value: "9044"
   - name: table
-    value: "daprTable"
+    value: "daprTableVersion"
   - name: keyspace
-    value: "daprKeyspace"
+    value: "daprKeyspaceVersion"
+  - name: protoVersion
+    value: "1"    

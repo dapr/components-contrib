@@ -3,10 +3,10 @@
 1. TTL not expiring
 2. TTL not a valid number
 3. TTL Expires as expected
-   - Provide a TTL of 1 second
+   - Provide a TTL of 5 second
    - Fetch this record just after saving 
-   - Sleep for 2 seconds 
-   - Try to fetch again after a gap of 2 seconds, record shouldn't be deleted
+   - Sleep for 5 seconds 
+   - Try to fetch again after a gap of 5 seconds, record shouldn't be deleted
 
 ## Connection Recovery
 
@@ -36,20 +36,30 @@
    - component should successfully initialize
    - run queries to verify
    
-5. Verify `replicationFactor` attribute is used
+5. Verify `protoVersion` attribute is used -negative test
+   - set protoVersion to non-default value 1 
+   - run dapr application with component
+   - component should recieve errors on queries
+
+6. Verify `replicationFactor` attribute is used
    - set replicationFactor to non-default value 2 
    - run dapr application with component using 2 nodes
    - component should successfully initialize
    - run queries to verify
 
- 6. Verify `consistency` attribute is used - negative test
-    - set consistency to non-default value "Three"
-    - run dapr application with component 
-    - component should successfully initialize
-    - run queries and see failure due to less than 3 nodes available
+7. Verify `replicationFactor` attribute is used - negative test
+   - set replicationFactor to non-default value 5 
+   - run dapr application with component using 1 node
+   - component should recieve errors on queries
 
- 7. Verify `consistency` attribute is used 
-    - set consistency to non-default value "One" 
-    - run dapr application with component 
-    - component should successfully initialize
-    - run queries successfully
+8. Verify `consistency` attribute is used - negative test
+   - set consistency to non-default value "Three"
+   - run dapr application with component 
+   - component should successfully initialize
+   - run queries and see failure due to less than 3 nodes available
+
+9. Verify `consistency` attribute is used 
+   - set consistency to non-default value "Two" 
+   - run dapr application with component 
+   - component should successfully initialize
+   - run queries successfully

@@ -20,7 +20,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	//"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -41,6 +41,8 @@ const (
 	stateStoreName        = "statestore"
 	stateStoreCluster     = "statestorecluster"
 	stateStoreClusterFail = "statestoreclusterfail"
+	stateStoreVersionFail = "statestoreversionfail"
+	stateStoreFactorFail  = "statestorefactorfail"
 
 	certificationTestPrefix = "stable-certification-"
 	stateStoreNoConfigError = "error saving state: rpc error: code = FailedPrecondition desc = state store is not configured"
@@ -109,7 +111,7 @@ func TestCassandra(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
 			}
 
-		ttlInSeconds := 10
+		ttlInSeconds := 5
 		mapOptions :=
 			map[string]string{
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
@@ -126,7 +128,8 @@ func TestCassandra(t *testing.T) {
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "cassandraCert3", string(item.Value))
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
+		//entry should be expired now
 		itemAgain, errAgain := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
 		assert.NoError(t, errAgain)
 		assert.Nil(t, nil, itemAgain)
@@ -149,6 +152,33 @@ func TestCassandra(t *testing.T) {
 		return nil
 	}
 
+	failTest := func(ctx flow.Context) error {
+		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort + 2))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		//should fail due to lack of replicas
+		err = client.SaveState(ctx, stateStoreFactorFail, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
+		assert.Error(t, err)
+
+		return nil
+	}
+
+	failVerTest := func(ctx flow.Context) error {
+		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort + 4))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+		// should fail due to unsupported version
+		err = client.SaveState(ctx, stateStoreVersionFail, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
+		assert.Error(t, err)
+
+		return nil
+	}
+
 	flow.New(t, "Connecting cassandra And Ports and Verifying TTL and network tests and table creation").
 		Step(dockercompose.Run("cassandra", dockerComposeYAML)).
 		Step("wait", flow.Sleep(80*time.Second)).
@@ -161,16 +191,36 @@ func TestCassandra(t *testing.T) {
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run TTL related test", timeToLiveTest).
-		Step("interrupt network",
-			network.InterruptNetwork(10*time.Second, nil, nil, "9044:9042")).
+		//Step("interrupt network",
+		//	network.InterruptNetwork(10*time.Second, nil, nil, "9044:9042")).
 		//Component should recover at this point.
-		Step("wait", flow.Sleep(30*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest).
+		//Step("wait", flow.Sleep(30*time.Second)).
+		//Step("Run basic test again to verify reconnection occurred", basicTest).
 		Step("stop cassandra server", dockercompose.Stop("cassandra", dockerComposeYAML, "cassandra")).
 		Step("start cassandra server", dockercompose.Start("cassandra", dockerComposeYAML, "cassandra")).
 		Step("wait", flow.Sleep(60*time.Second)).
 		Step("Get Values Saved Earlier And Not Expired, after Cassandra restart", testGetAfterCassandraRestart).
 		Step("Run basic test", basicTest).
+		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
+			embedded.WithoutApp(),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
+			embedded.WithDaprGRPCPort(currentGrpcPort+2),
+			embedded.WithDaprHTTPPort(currentHTTPPort+2),
+			embedded.WithComponentsPath("components/docker/defaultfactorfail"),
+			runtime.WithStates(stateRegistry),
+		)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("Run replication factor fail test", failTest).
+		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault3",
+			embedded.WithoutApp(),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
+			embedded.WithDaprGRPCPort(currentGrpcPort+4),
+			embedded.WithDaprHTTPPort(currentHTTPPort+4),
+			embedded.WithComponentsPath("components/docker/defaultverisonfail"),
+			runtime.WithStates(stateRegistry),
+		)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("Run replication factor fail test", failVerTest).
 		Run()
 
 }
@@ -219,7 +269,7 @@ func TestCluster(t *testing.T) {
 	}
 
 	failTest := func(ctx flow.Context) error {
-		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := goclient.NewClientWithPort(fmt.Sprint(currentGrpcPort + 2))
 		if err != nil {
 			panic(err)
 		}
@@ -247,17 +297,16 @@ func TestCluster(t *testing.T) {
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test", basicTest).
-		Step("reset dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
-		Step("wait", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(currentGrpcPort+2),
+			embedded.WithDaprHTTPPort(currentHTTPPort+2),
 			embedded.WithComponentsPath("components/docker/cluster-fail"),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
 			runtime.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("Run fail test", failTest).
+		Step("Run consistency fail test", failTest).
 		Run()
 
 }

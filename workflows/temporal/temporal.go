@@ -36,7 +36,7 @@ type temporalMetaData struct {
 	HostPort string `json:"hostport"`
 }
 
-// NewTemporalWorkflow returns a new CosmosDB state store.
+// NewTemporalWorkflow returns a new workflow.
 func NewTemporalWorkflow(logger logger.Logger) *TemporalWF {
 	s := &TemporalWF{
 		logger: logger,

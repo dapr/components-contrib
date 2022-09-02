@@ -104,7 +104,7 @@ const (
 )
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
-func NewCosmosDBStateStore(logger logger.Logger) *StateStore {
+func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
@@ -249,7 +249,18 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if items[0].IsBinary {
-		bytes, _ := base64.StdEncoding.DecodeString(items[0].Value.(string))
+		if items[0].Value == nil {
+			return &state.GetResponse{
+				Data: make([]byte, 0),
+				ETag: ptr.String(items[0].Etag),
+			}, nil
+		}
+
+		bytes, decodeErr := base64.StdEncoding.DecodeString(items[0].Value.(string))
+		if decodeErr != nil {
+			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
+			bytes = []byte(items[0].Value.(string))
+		}
 
 		return &state.GetResponse{
 			Data: bytes,
@@ -502,7 +513,7 @@ func (c *StateStore) checkStoredProcedures() error {
 	}
 	if err != nil || (err == nil && ver != spVersion) {
 		// Note that when the `stylecheck` linter is working with Go 1.18 again, this will need "nolint:stylecheck"
-		return fmt.Errorf("Dapr requires stored procedures created in Cosmos DB before it can be used as state store. Those stored procedures are currently not existing or are using a different version than expected. When you authenticate using Azure AD we cannot automatically create them for you: please start this state store with a Cosmos DB master key just once so we can create the stored procedures for you; otherwise, you can check our docs to learn how to create them yourself: https://aka.ms/dapr/cosmosdb-aad")
+		return fmt.Errorf("Dapr requires stored procedures created in Cosmos DB before it can be used as state store. Those stored procedures are currently not existing or are using a different version than expected. When you authenticate using Azure AD we cannot automatically create them for you: please start this state store with a Cosmos DB master key just once so we can create the stored procedures for you; otherwise, you can check our docs to learn how to create them yourself: https://aka.ms/dapr/cosmosdb-aad") //nolint:stylecheck
 	}
 	return nil
 }
@@ -583,6 +594,9 @@ func (c *StateStore) findCollection() (*documentdb.Collection, error) {
 
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
 	byteArray, isBinary := req.Value.([]uint8)
+	if len(byteArray) == 0 {
+		isBinary = false
+	}
 
 	ttl, err := parseTTL(req.Metadata)
 	if err != nil {

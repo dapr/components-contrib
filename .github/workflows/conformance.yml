@@ -18,7 +18,7 @@ on:
     types: [conformance-test]
   workflow_dispatch:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 */8 * * *'
   pull_request:
     branches:
       - master
@@ -45,6 +45,7 @@ jobs:
         - bindings.mqtt-emqx
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
+        - bindings.postgres
         - bindings.redis
         - bindings.rabbitmq
         - pubsub.aws.snssqs
@@ -61,13 +62,16 @@ jobs:
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
+        - secretstores.hashicorp.vault
         - state.cassandra
+        - state.memcached
         - state.mongodb
         - state.mysql
         - state.postgresql
         - state.redis
         - state.sqlserver
         - state.cockroachdb
+        - state.rethinkdb
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -122,6 +126,8 @@ jobs:
           required-certs: AzureKeyVaultSecretStoreCert
         - component: secretstores.azure.keyvault.serviceprincipal
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
+        - component: bindings.azure.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
@@ -235,6 +241,10 @@ jobs:
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
       if: contains(matrix.component, 'kafka')
+    
+    - name: Start memcached
+      run: docker-compose -f ./.github/infrastructure/docker-compose-memcached.yml -p memcached up -d
+      if: contains(matrix.component, 'memcached')
 
     - name: Start natsstreaming
       run: docker-compose -f ./.github/infrastructure/docker-compose-natsstreaming.yml -p natsstreaming up -d
@@ -287,7 +297,7 @@ jobs:
     - name: Start postgresql
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
-      if: contains(matrix.component, 'postgresql')
+      if: contains(matrix.component, 'postgres')
 
     - name: Start cassandra
       run: |
@@ -298,6 +308,16 @@ jobs:
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
       if: contains(matrix.component, 'cockroachdb')
+    
+    - name: Start vault
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-hashicorp-vault.yml -p vault up -d
+      if: contains(matrix.component, 'hashicorp.vault')
+
+    - name: Start rethinkdb
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
+      if: contains(matrix.component, 'rethinkdb')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
@@ -308,7 +328,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.18'
+        go-version: '^1.19'
     
     - name: Download Go dependencies
       run: |

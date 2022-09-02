@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/kit/config"
@@ -94,7 +95,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	// Init
 	t.Run("init", func(t *testing.T) {
 		err := ps.Init(pubsub.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
@@ -105,7 +106,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this pubsub")
+			assert.EqualError(t, err, "ping is not implemented by this pubsub")
 		} else {
 			assert.Nil(t, err)
 		}
@@ -125,7 +126,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	ctx := context.Background()
 
 	// Subscribe
-	if config.HasOperation("subscribe") { // nolint: nestif
+	if config.HasOperation("subscribe") { //nolint:nestif
 		t.Run("subscribe", func(t *testing.T) {
 			var counter int
 			var lastSequence int

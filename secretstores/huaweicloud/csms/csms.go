@@ -29,7 +29,7 @@ const (
 	secretAccessKey string = "secretAccessKey"
 	pageLimit       string = "100"
 	latestVersion   string = "latest"
-	versionId       string = "version_id"
+	versionID       string = "version_id"
 )
 
 type csmsClient interface {
@@ -67,7 +67,7 @@ func (c *csmsSecretStore) Init(metadata secretstores.Metadata) error {
 func (c *csmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	request := &model.ShowSecretVersionRequest{}
 	request.SecretName = req.Name
-	if value, ok := req.Metadata[versionId]; ok {
+	if value, ok := req.Metadata[versionID]; ok {
 		request.VersionId = value
 	}
 
@@ -98,7 +98,7 @@ func (c *csmsSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (
 		secret, err := c.GetSecret(secretstores.GetSecretRequest{
 			Name: secretName,
 			Metadata: map[string]string{
-				versionId: latestVersion,
+				versionID: latestVersion,
 			},
 		})
 		if err != nil {

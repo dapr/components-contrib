@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -16,10 +17,10 @@ func (t *testHandler) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func TestGetHandler(t *testing.T) {
-	meta := middleware.Metadata{Properties: map[string]string{
+	meta := middleware.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"path":    "./hello.wasm",
 		"runtime": "wazero",
-	}}
+	}}}
 	log := logger.NewLogger("wasm.basic.test")
 	handler, err := NewMiddleware(log).GetHandler(meta)
 	assert.Nil(t, err)

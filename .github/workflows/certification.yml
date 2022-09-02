@@ -46,6 +46,10 @@ jobs:
         - state.postgresql
         - bindings.alicloud.dubbo
         - bindings.kafka
+        - secretstores.local.env
+        - secretstores.local.file
+        - bindings.rabbitmq
+        - bindings.localstorage
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -88,6 +92,8 @@ jobs:
           required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        - component: pubsub.azure.servicebus
+          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.storagequeues
@@ -185,7 +191,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.18'
+        go-version: '^1.19'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -197,7 +203,7 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=1.18
+        go mod tidy -compat=1.19
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 
@@ -211,13 +217,6 @@ jobs:
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
           -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
-
-        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
-        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
-        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
-        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
-
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then
@@ -225,6 +224,12 @@ jobs:
           export CERTIFICATION_FAILURE=true
         fi
         set -e
+
+        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
+        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
         # Fail the step if we found no test to run
         if grep -q "\[no test files\]" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json ; then
@@ -288,16 +293,26 @@ jobs:
 
       - name: Calculate total coverage
         run: |
+          threshold=80.0
+          echo "threshold=$threshold" >> $GITHUB_ENV
+          aboveThreshold=0
+          totalFiles=0
           ls "${{steps.download.outputs.download-path}}" | while read f; do
           while read LINE;
               do
               ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
+              prcnt=$(echo $LINE | cut -d "(" -f1 | cut -d ")" -f1)
+              tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
+              if [ $tempPrcnt \> $threshold ]; then aboveThreshold=$(($aboveThreshold+1)); fi
+              totalFiles=$(($totalFiles+1))
               tempNumerator=$(echo $ratio | cut -d'/' -f1)
               tempDenominator=$(echo $ratio | cut -d'/' -f2)
               export numerator=$(($numerator+$tempNumerator))
               export denominator=$(($denominator+$tempDenominator))
               totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
               echo "totalPer=$totalPer" >> $GITHUB_ENV
+              echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
+              echo "totalFiles=$totalFiles" >> $GITHUB_ENV
             done < ${{steps.download.outputs.download-path}}/$f
           done
         continue-on-error: true
@@ -308,4 +323,4 @@ jobs:
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
         continue-on-error: true
         with:
-          args: 'Total Coverage for Certification Tests is {{ totalPer }}%'
+          args: 'Total Coverage for Certification Tests is {{ totalPer }}%. {{ aboveThreshold }} out of {{ totalFiles }} components have certification tests with code coverage > {{ threshold }}%'

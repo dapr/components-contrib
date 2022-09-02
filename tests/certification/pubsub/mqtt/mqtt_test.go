@@ -24,16 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-
-	// "github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
 	// Pub/Sub.
 
-	"github.com/dapr/components-contrib/pubsub"
 	pubsub_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
@@ -102,14 +99,8 @@ func mqttReady(url string) flow.Runnable {
 }
 
 func TestMQTT(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-
 	logger.ApplyOptionsToLoggers(&logger.Options{
 		OutputLevel: "debug",
-	})
-
-	component := pubsub_loader.New("mqtt", func() pubsub.PubSub {
-		return pubsub_mqtt.NewMQTTPubSub(log)
 	})
 
 	// In-order processing not guaranteed
@@ -325,7 +316,8 @@ func TestMQTT(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Send messages and test
 		Step("send and wait", test(topicName, consumerGroup1)).
@@ -341,7 +333,8 @@ func TestMQTT(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Send messages and test
 		Step("multiple send and wait", multipleTest(consumerGroup1, consumerGroup2)).
@@ -365,7 +358,8 @@ func TestMQTT(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+(portOffset*3)),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+(portOffset*3)),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+(portOffset*3)),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait wildcard", test(wildcardTopicPublish, consumerGroupMultiWildcard)).
 		Step("send and wait shared", test(sharedTopicPublish, consumerGroupMultiShared)).
 		//
@@ -383,14 +377,16 @@ func TestMQTT(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer1"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
@@ -416,6 +412,18 @@ type topicSubscription struct {
 	messages *watcher.Watcher
 	name     string
 	route    string
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	pubsubRegistry := pubsub_loader.NewRegistry()
+	pubsubRegistry.Logger = log
+	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt")
+
+	return []runtime.Option{
+		runtime.WithPubSubs(pubsubRegistry),
+	}
 }
 
 func randomStr() string {

@@ -63,7 +63,7 @@ func createIotHubPubsubMetadata() pubsub.Metadata {
 
 func testReadIotHubEvents(t *testing.T) {
 	logger := logger.NewLogger("pubsub.azure.eventhubs.integration.test")
-	eh := NewAzureEventHubs(logger)
+	eh := NewAzureEventHubs(logger).(*AzureEventHubs)
 	err := eh.Init(createIotHubPubsubMetadata())
 	assert.Nil(t, err)
 

@@ -38,9 +38,10 @@ func (z *ZeebeCommand) deployProcess(ctx context.Context, req *bindings.InvokeRe
 		return nil, ErrMissingFileName
 	}
 
-	response, err := z.client.NewDeployProcessCommand().
-		AddResource(req.Data, deployFileName).
-		Send(ctx)
+	// TODO: Replace with a method that is not deprecated.
+	response, err := z.client.NewDeployProcessCommand(). //nolint:staticcheck
+								AddResource(req.Data, deployFileName).
+								Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot deploy process with fileName %s: %w", deployFileName, err)
 	}

@@ -18,7 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -70,7 +70,7 @@ type listPayload struct {
 }
 
 // NewHuaweiOBS returns a new Huawei OBS instance.
-func NewHuaweiOBS(logger logger.Logger) *HuaweiOBS {
+func NewHuaweiOBS(logger logger.Logger) bindings.OutputBinding {
 	return &HuaweiOBS{logger: logger}
 }
 
@@ -228,7 +228,7 @@ func (o *HuaweiOBS) get(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		}
 	}()
 
-	data, err := ioutil.ReadAll(out.Body)
+	data, err := io.ReadAll(out.Body)
 	if err != nil {
 		return nil, fmt.Errorf("obs binding error. error reading obs object content: %w", err)
 	}

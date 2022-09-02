@@ -25,15 +25,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
-	m := bindings.Metadata{Name: "test", Properties: nil}
+	m := bindings.Metadata{Base: metadata.Base{Name: "test", Properties: nil}}
 	var err error
 	m.Properties, err = getNacosLocalCacheMetadata()
 	require.NoError(t, err)
-	n := NewNacos(logger.NewLogger("test"))
+	n := NewNacos(logger.NewLogger("test")).(*Nacos)
 	err = n.Init(m)
 	require.NoError(t, err)
 	var count int32
@@ -68,7 +69,7 @@ func getNacosLocalCacheMetadata() (map[string]string, error) {
 	}
 
 	cfgFile := path.Join(tmpDir, fmt.Sprintf("%s@@%s@@", dataID, group))
-	file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_CREATE, os.ModePerm) //nolint:nosnakecase
 	if err != nil || file == nil {
 		return nil, fmt.Errorf("open %s failed. %w", cfgFile, err)
 	}

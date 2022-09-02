@@ -29,11 +29,11 @@ jobs:
     name: Build ${{ matrix.target_os }}_${{ matrix.target_arch }} binaries
     runs-on: ${{ matrix.os }}
     env:
-      GOVER: "1.18"
+      GOVER: "1.19"
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.45.2"
+      GOLANGCI_LINT_VER: "v1.48.0"
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -95,14 +95,16 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true
+          args: --timeout 15m
       - name: Run go mod tidy check diff
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         run: make modtidy-all check-diff
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
+          IPFS_TEST: "1"
         if: matrix.target_arch != 'arm' && steps.skip_check.outputs.should_skip != 'true'
         run: make test
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3

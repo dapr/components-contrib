@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -41,7 +42,7 @@ func getNewRethinkActorBinding() *Binding {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
 
-	return NewRethinkDBStateChangeBinding(l)
+	return NewRethinkDBStateChangeBinding(l).(*Binding)
 }
 
 /*
@@ -63,10 +64,10 @@ func TestBinding(t *testing.T) {
 		testDuration = d
 	}
 
-	m := bindings.Metadata{
+	m := bindings.Metadata{Base: metadata.Base{
 		Name:       "test",
 		Properties: getTestMetadata(),
-	}
+	}}
 	assert.NotNil(t, m.Properties)
 
 	b := getNewRethinkActorBinding()

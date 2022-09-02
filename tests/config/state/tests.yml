@@ -5,6 +5,9 @@ components:
     allOperations: true
   - component: mongodb
     allOperations: true
+  - component: memcached
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
   - component: azure.cosmosdb
     allOperations: true
   - component: azure.blobstorage
@@ -21,7 +24,7 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
   - component: mysql
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
   - component: azure.tablestorage.storage
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
@@ -34,3 +37,6 @@ components:
   - component: cockroachdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
+  - component: rethinkdb
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]

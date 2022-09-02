@@ -40,7 +40,7 @@ type Hazelcast struct {
 }
 
 // NewHazelcastStore returns a new hazelcast backed state store.
-func NewHazelcastStore(logger logger.Logger) *Hazelcast {
+func NewHazelcastStore(logger logger.Logger) state.Store {
 	s := &Hazelcast{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,

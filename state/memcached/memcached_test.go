@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -29,7 +30,7 @@ func TestMemcachedMetadata(t *testing.T) {
 	t.Run("without required configuration", func(t *testing.T) {
 		properties := map[string]string{}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		_, err := getMemcachedMetadata(m)
 		assert.NotNil(t, err)
@@ -40,7 +41,7 @@ func TestMemcachedMetadata(t *testing.T) {
 			"hosts": "localhost:11211",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		metadata, err := getMemcachedMetadata(m)
 		assert.Nil(t, err)
@@ -54,7 +55,7 @@ func TestMemcachedMetadata(t *testing.T) {
 			"hosts": "localhost:11211,10.0.0.1:11211,10.0.0.2:10000",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		split := strings.Split(properties["hosts"], ",")
 		metadata, err := getMemcachedMetadata(m)
@@ -71,7 +72,7 @@ func TestMemcachedMetadata(t *testing.T) {
 			"timeout":            "5000",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		split := strings.Split(properties["hosts"], ",")
 		metadata, err := getMemcachedMetadata(m)
@@ -83,7 +84,7 @@ func TestMemcachedMetadata(t *testing.T) {
 }
 
 func TestParseTTL(t *testing.T) {
-	store := NewMemCacheStateStore(logger.NewLogger("test"))
+	store := NewMemCacheStateStore(logger.NewLogger("test")).(*Memcached)
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{

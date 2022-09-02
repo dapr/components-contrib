@@ -20,6 +20,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -46,7 +47,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 
 		// act
@@ -72,7 +73,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[metadataHostKey] = ""
 
@@ -92,7 +93,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataDeliveryModeKey] = deliveryMode
 
@@ -111,7 +112,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[metadataDeliveryModeKey] = "2"
 
@@ -129,7 +130,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[pubsub.ConcurrencyKey] = "a"
 
@@ -144,7 +145,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[metadataPrefetchCountKey] = "1"
 
@@ -162,7 +163,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[metadataMaxLenKey] = "1"
 		fakeMetaData.Properties[metadataMaxLenBytesKey] = "2000000"
@@ -183,7 +184,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataAutoAckKey] = tt.in
 
@@ -203,7 +204,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataRequeueInFailureKey] = tt.in
 
@@ -223,7 +224,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = tt.in
 
@@ -243,7 +244,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataDurableKey] = tt.in
 
@@ -263,7 +264,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataPublisherConfirmKey] = tt.in
 
@@ -283,7 +284,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataEnableDeadLetterKey] = tt.in
 
@@ -304,7 +305,7 @@ func TestCreateMetadata(t *testing.T) {
 			fakeProperties := getFakeProperties()
 
 			fakeMetaData := pubsub.Metadata{
-				Properties: fakeProperties,
+				Base: mdata.Base{Properties: fakeProperties},
 			}
 			fakeMetaData.Properties[metadataExchangeKindKey] = exchangeKind
 
@@ -323,7 +324,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[metadataExchangeKindKey] = "invalid"
 

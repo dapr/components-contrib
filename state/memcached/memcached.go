@@ -51,7 +51,7 @@ type memcachedMetadata struct {
 	timeout            time.Duration
 }
 
-func NewMemCacheStateStore(logger logger.Logger) *Memcached {
+func NewMemCacheStateStore(logger logger.Logger) state.Store {
 	s := &Memcached{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
@@ -154,6 +154,9 @@ func (m *Memcached) setValue(req *state.SetRequest) error {
 func (m *Memcached) Delete(req *state.DeleteRequest) error {
 	err := m.client.Delete(req.Key)
 	if err != nil {
+		if err == memcache.ErrCacheMiss {
+			return nil
+		}
 		return err
 	}
 

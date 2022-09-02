@@ -159,31 +159,73 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
 	keys := req.Keys
-	items := make([]*configuration.Item, 0, len(keys))
-	for _, key := range keys {
-		resp, err := r.client.GetSetting(
-			ctx,
-			key,
-			&azappconfig.GetSettingOptions{
-				Label: to.Ptr("label"),
-			})
-		if err != nil {
-			return nil, err
-		}
+	var items map[string]*configuration.Item
 
-		item := &configuration.Item{
-			Metadata: map[string]string{},
+	if len(keys) == 0 {
+		var err error
+		if items, err = r.getAll(ctx); err != nil {
+			return &configuration.GetResponse{}, err
 		}
-		item.Key = key
-		item.Value = *resp.Value
-		item.Metadata["label"] = *resp.Label
+	} else {
+		items = make(map[string]*configuration.Item, len(keys))
+		for _, key := range keys {
+			resp, err := r.client.GetSetting(
+				ctx,
+				key,
+				&azappconfig.GetSettingOptions{
+					Label: to.Ptr("*"),
+				})
+			if err != nil {
+				return &configuration.GetResponse{}, err
+			}
 
-		items = append(items, item)
+			item := &configuration.Item{
+				Metadata: map[string]string{},
+			}
+			item.Value = *resp.Value
+			if resp.Label != nil {
+				item.Metadata["label"] = *resp.Label
+			}
+
+			items[key] = item
+		}
 	}
 
 	return &configuration.GetResponse{
 		Items: items,
 	}, nil
+}
+
+func (r *ConfigurationStore) getAll(ctx context.Context) (map[string]*configuration.Item, error) {
+	items := make(map[string]*configuration.Item, 0)
+
+	revPgr := r.client.NewListRevisionsPager(
+		azappconfig.SettingSelector{
+			KeyFilter:   to.Ptr("*"),
+			LabelFilter: to.Ptr("*"),
+			Fields:      azappconfig.AllSettingFields(),
+		},
+		nil)
+
+	for revPgr.More() {
+		if revResp, err := revPgr.NextPage(ctx); err == nil {
+			for _, setting := range revResp.Settings {
+				item := &configuration.Item{
+					Metadata: map[string]string{},
+				}
+				item.Value = *setting.Value
+				if setting.Label != nil {
+					item.Metadata["label"] = *setting.Label
+				}
+
+				items[*setting.Key] = item
+			}
+		} else {
+			return nil, fmt.Errorf("failed to load all keys, error is %s", err)
+		}
+	}
+
+	return items, nil
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {

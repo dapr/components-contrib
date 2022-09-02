@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"strconv"
 
@@ -79,7 +78,7 @@ type createResponse struct {
 }
 
 // NewGCPStorage returns a new GCP storage instance.
-func NewGCPStorage(logger logger.Logger) *GCPStorage {
+func NewGCPStorage(logger logger.Logger) bindings.OutputBinding {
 	return &GCPStorage{logger: logger}
 }
 
@@ -214,9 +213,9 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	}
 	defer rc.Close()
 
-	data, err := ioutil.ReadAll(rc)
+	data, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: ioutil.ReadAll: %v", err)
+		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: io.ReadAll: %v", err)
 	}
 
 	if metadata.EncodeBase64 {

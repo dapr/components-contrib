@@ -48,7 +48,7 @@
    - run queries to verify
 
 7. Verify `replicationFactor` attribute is used - negative test
-   - set replicationFactor to non-default value 5 
+   - set replicationFactor to non-default value 2 
    - run dapr application with component using 1 node
    - component should recieve errors on queries
 

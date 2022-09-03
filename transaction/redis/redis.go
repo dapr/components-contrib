@@ -43,7 +43,7 @@ type DistributeTransaction struct {
 	retryTimes     int
 }
 
-func NewDistributeTransaction(logger logger.Logger) *DistributeTransaction {
+func NewDistributeTransaction(logger logger.Logger) transaction.Transaction {
 	t := &DistributeTransaction{
 		logger: logger,
 	}

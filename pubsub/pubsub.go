@@ -55,10 +55,10 @@ type DefaultBatcher struct {
 }
 
 func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatcher {
-	defaultMultiPubsub := DefaultBatcher{}
-	defaultMultiPubsub.p = pubsub
+	defaultBatcher := DefaultBatcher{}
+	defaultBatcher.p = pubsub
 
-	return defaultMultiPubsub
+	return defaultBatcher
 }
 
 func (p *DefaultBatcher) BatchPublish(req *BatchPublishRequest) error {

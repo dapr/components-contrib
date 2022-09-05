@@ -22,7 +22,7 @@ import (
 
 // PubSub is the interface for message buses.
 type PubSub interface {
-	BatchPubSub
+	Batcher
 	Init(metadata Metadata) error
 	Features() []Feature
 	Publish(req *PublishRequest) error
@@ -30,8 +30,8 @@ type PubSub interface {
 	Close() error
 }
 
-type BatchPubSub interface {
-	BatchPublish(req *BatchPublishRequest) error
+type Batcher interface {
+	BatchPublish(req *BatchPublishRequest) BatchPublishResponse
 	BatchSubscribe(ctx context.Context, req SubscribeRequest, handler BatchHandler) error
 }
 
@@ -62,7 +62,7 @@ func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatchPubSub {
 }
 
 func (p *DefaultBatchPubSub) BatchPublish(req *BatchPublishRequest) error {
-	return nil
+	return BatchPublishResponse{}
 }
 
 func (p *DefaultBatchPubSub) BatchSubscribe(tx context.Context, req SubscribeRequest, handler BatchHandler) error {

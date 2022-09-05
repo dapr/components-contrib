@@ -39,7 +39,7 @@ type NewMessage struct {
 // BatchMessage is a single message in a batch request.
 type BatchMessage struct {
 	ID          string            `json:"id"`
-	Event       interface{}       `json:"event"`
+	Event       []byte            `json:"event"`
 	ContentType string            `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
 }

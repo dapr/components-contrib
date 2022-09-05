@@ -45,5 +45,6 @@ type BatchMessageResponse struct {
 
 // BatchPublishResponse contains a list of responses for each message in the batch publish request.
 type BatchPublishResponse struct {
+	Error    error                  `json:"error"`
 	Statuses []BatchMessageResponse `json:"statuses"`
 }

@@ -24,11 +24,11 @@ type PublishRequest struct {
 
 // BatchPublishRequest is the request to publish mutilple messages.
 type BatchPublishRequest struct {
-	Data        [][]byte          `json:"data"`
-	PubsubName  string            `json:"pubsubname"`
-	Topic       string            `json:"topic"`
-	Metadata    map[string]string `json:"metadata"`
-	ContentType *string           `json:"contentType,omitempty"`
+	Data        []NewBatchEventItem `json:"data"`
+	PubsubName  string              `json:"pubsubname"`
+	Topic       string              `json:"topic"`
+	Metadata    map[string]string   `json:"metadata"`
+	ContentType *string             `json:"contentType,omitempty"`
 }
 
 // SubscribeRequest is the request to subscribe to a topic.
@@ -45,23 +45,20 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
+// Represents batch request struct
 type NewBatchMessage struct {
-	Messages    []NewBatchLeafMessage `json:"messages"`
-	Topic       string                `json:"topic"`
-	Metadata    map[string]string     `json:"metadata"`
-	ContentType *string               `json:"contentType,omitempty"`
+	Messages    []NewBatchEventItem `json:"messages"`
+	Topic       string              `json:"topic"`
+	Metadata    map[string]string   `json:"metadata"`
+	ContentType *string             `json:"contentType,omitempty"`
 }
 
-type NewBatchLeafMessage struct {
-	Data        []byte            `json:"data"`
+// Represents Single message inside batch request
+type NewBatchEventItem struct {
+	EventId     string            `json:eventId`
+	Event       []byte            `json:"event"`
 	ContentType *string           `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
-}
-
-type NewBatchChildMessage struct {
-	Data        map[string]interface{} `json:"data"`
-	ContentType *string                `json:"contentType,omitempty"`
-	Metadata    map[string]string      `json:"metadata"`
 }
 
 type BatchSubscribeConfig struct {

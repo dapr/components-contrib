@@ -16,6 +16,8 @@ package pubsub
 // AppResponseStatus represents a status of a PubSub response.
 type AppResponseStatus string
 
+type BatchPublishStatus string
+
 const (
 	// Success means the message is received and processed correctly.
 	Success AppResponseStatus = "SUCCESS"
@@ -23,6 +25,10 @@ const (
 	Retry AppResponseStatus = "RETRY"
 	// Drop means the message is received but should not be processed.
 	Drop AppResponseStatus = "DROP"
+	// Represents that message was published successfully.
+	PublishSuccess BatchPublishStatus = "SUCCESS"
+	// Represents that message publishing Failed.
+	PublishFailed BatchPublishStatus = "FAILED"
 )
 
 // AppResponse is the object describing the response from user code after a pubsub event.
@@ -30,11 +36,21 @@ type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
 }
 
-type AppResponsePerId struct {
-	Id     string            `json:"id"`
-	Status AppResponseStatus `json:"status"`
+type AppResponseItem struct {
+	EventId string            `json:"eventId"`
+	Status  AppResponseStatus `json:"status"`
 }
 
 type AppBatchResponse struct {
-	AppResponses []AppResponsePerId `json:"statuses"`
+	AppResponses []AppResponseItem `json:"statuses"`
+}
+
+type BatchPublishResponseItem struct {
+	EventId string             `json:"eventId"`
+	Status  BatchPublishStatus `json:"status"`
+}
+
+type BatchPublishResponse struct {
+	Error    error                      `json:"error"`
+	Statuses []BatchPublishResponseItem `json:"statuses"`
 }

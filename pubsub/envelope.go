@@ -65,49 +65,6 @@ func unmarshalPrecise(data []byte, v interface{}) error {
 	return nil
 }
 
-func NewBatchCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
-	dataContentType string, data []NewBatchChildMessage, traceParent string, traceState string,
-) map[string]interface{} {
-	// defaults
-	if id == "" {
-		id = uuid.New().String()
-	}
-	if source == "" {
-		source = DefaultCloudEventSource
-	}
-	if eventType == "" {
-		eventType = DefaultCloudEventType
-	}
-	if dataContentType == "" {
-		dataContentType = DefaultCloudEventDataContentType
-	}
-
-	var ceData interface{}
-	ceDataField := DataField
-	ceData = data
-
-	ce := map[string]interface{}{
-		IDField:              id,
-		SpecVersionField:     CloudEventsSpecVersion,
-		DataContentTypeField: dataContentType,
-		SourceField:          source,
-		TypeField:            eventType,
-		TopicField:           topic,
-		PubsubField:          pubsubName,
-		TraceIDField:         traceParent,
-		TraceParentField:     traceParent,
-		TraceStateField:      traceState,
-	}
-
-	ce[ceDataField] = ceData
-
-	if subject != "" {
-		ce[SubjectField] = subject
-	}
-
-	return ce
-}
-
 // NewCloudEventsEnvelope returns a map representation of a cloudevents JSON.
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
 	dataContentType string, data []byte, traceParent string, traceState string,

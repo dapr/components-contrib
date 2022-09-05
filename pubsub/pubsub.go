@@ -61,7 +61,7 @@ func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatcher {
 	return defaultBatcher
 }
 
-func (p *DefaultBatcher) BatchPublish(req *BatchPublishRequest) error {
+func (p *DefaultBatcher) BatchPublish(req *BatchPublishRequest) BatchPublishResponse {
 	return BatchPublishResponse{}
 }
 

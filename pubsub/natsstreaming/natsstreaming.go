@@ -68,7 +68,7 @@ const (
 )
 
 type natsStreamingPubSub struct {
-	pubsub.DefaultBatchPubSub
+	pubsub.DefaultBatcher
 	metadata         metadata
 	natStreamingConn stan.Conn
 

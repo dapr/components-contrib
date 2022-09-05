@@ -35,26 +35,33 @@ type consumer struct {
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
-	for message := range claim.Messages() {
-		if consumer.k.consumeRetryEnabled {
-			if err := retry.NotifyRecover(func() error {
-				return consumer.doCallback(session, message)
-			}, b, func(err error, d time.Duration) {
-				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-			}, func() {
-				consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-			}); err != nil {
-				consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+
+	for {
+		select {
+		case message := <-claim.Messages():
+			if consumer.k.consumeRetryEnabled {
+				if err := retry.NotifyRecover(func() error {
+					return consumer.doCallback(session, message)
+				}, b, func(err error, d time.Duration) {
+					consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+				}, func() {
+					consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+				}); err != nil {
+					consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+				}
+			} else {
+				err := consumer.doCallback(session, message)
+				if err != nil {
+					consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+				}
 			}
-		} else {
-			err := consumer.doCallback(session, message)
-			if err != nil {
-				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-			}
+		// Should return when `session.Context()` is done.
+		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
+		// https://github.com/Shopify/sarama/issues/1192
+		case <-session.Context().Done():
+			return nil
 		}
 	}
-
-	return nil
 }
 
 func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) error {

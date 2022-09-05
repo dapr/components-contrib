@@ -65,7 +65,7 @@ const (
 )
 
 type Pulsar struct {
-	pubsub.DefaultBatchPubSub
+	pubsub.DefaultBatcher
 	logger   logger.Logger
 	client   pulsar.Client
 	metadata pulsarMetadata

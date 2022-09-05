@@ -50,21 +50,21 @@ func Ping(pubsub PubSub) error {
 	}
 }
 
-type DefaultBatchPubSub struct {
+type DefaultBatcher struct {
 	p PubSub
 }
 
-func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatchPubSub {
-	defaultMultiPubsub := DefaultBatchPubSub{}
+func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatcher {
+	defaultMultiPubsub := DefaultBatcher{}
 	defaultMultiPubsub.p = pubsub
 
 	return defaultMultiPubsub
 }
 
-func (p *DefaultBatchPubSub) BatchPublish(req *BatchPublishRequest) error {
+func (p *DefaultBatcher) BatchPublish(req *BatchPublishRequest) error {
 	return BatchPublishResponse{}
 }
 
-func (p *DefaultBatchPubSub) BatchSubscribe(tx context.Context, req SubscribeRequest, handler BatchHandler) error {
+func (p *DefaultBatcher) BatchSubscribe(tx context.Context, req SubscribeRequest, handler BatchHandler) error {
 	return nil
 }

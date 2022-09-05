@@ -30,10 +30,10 @@ type SubscribeRequest struct {
 
 // NewMessage is an event arriving from a message bus instance.
 type NewMessage struct {
-	Event       []byte            `json:"event"`
-	ContentType *string           `json:"contentType,omitempty"`
+	Data        []byte            `json:"data"`
 	Topic       string            `json:"topic"`
 	Metadata    map[string]string `json:"metadata"`
+	ContentType *string           `json:"contentType,omitempty"`
 }
 
 // BatchMessage is a single message in a batch request.

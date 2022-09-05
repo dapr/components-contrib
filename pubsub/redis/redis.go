@@ -44,6 +44,7 @@ const (
 // See https://redis.io/topics/streams-intro for more information
 // on the mechanics of Redis Streams.
 type redisStreams struct {
+	pubsub.DefaultBatcher
 	metadata       metadata
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings

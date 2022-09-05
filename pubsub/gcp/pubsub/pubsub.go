@@ -57,6 +57,7 @@ const (
 
 // GCPPubSub type.
 type GCPPubSub struct {
+	pubsub.DefaultBatcher
 	client        *gcppubsub.Client
 	metadata      *metadata
 	logger        logger.Logger

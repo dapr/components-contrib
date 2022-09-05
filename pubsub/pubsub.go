@@ -22,6 +22,7 @@ import (
 
 // PubSub is the interface for message buses.
 type PubSub interface {
+	Batcher
 	Init(metadata Metadata) error
 	Features() []Feature
 	Publish(req *PublishRequest) error
@@ -29,8 +30,16 @@ type PubSub interface {
 	Close() error
 }
 
+type Batcher interface {
+	BatchPublish(req *BatchPublishRequest) BatchPublishResponse
+	BatchSubscribe(ctx context.Context, req SubscribeRequest, handler BatchHandler) error
+}
+
 // Handler is the handler used to invoke the app handler.
 type Handler func(ctx context.Context, msg *NewMessage) error
+
+// BatchHandler is the handler used to invoke the app handler for batch messages.
+type BatchHandler func(ctx context.Context, msg *NewBatchMessage) (error, []BatchMessageResponse)
 
 func Ping(pubsub PubSub) error {
 	// checks if this pubsub has the ping option then executes
@@ -39,4 +48,29 @@ func Ping(pubsub PubSub) error {
 	} else {
 		return fmt.Errorf("Ping is not implemented by this pubsub")
 	}
+}
+
+// DefaultBatcher is a default batching implementation.
+// This is used when the pubsub broker does not implement batching.
+type DefaultBatcher struct {
+	p PubSub
+}
+
+// NewDefaultBatcher builds a new DefaultBatcher from a PubSub.
+func NewDefaultBatcher(pubsub PubSub) DefaultBatcher {
+	return DefaultBatcher{
+		p: pubsub,
+	}
+}
+
+// BatchPublish publishes a batch of messages.
+// TODO: implement
+func (b *DefaultBatcher) BatchPublish(req *BatchPublishRequest) BatchPublishResponse {
+	return BatchPublishResponse{}
+}
+
+// BatchSubscribe subscribes to a topic using a batch handler.
+// TODO: implement
+func (b *DefaultBatcher) BatchSubscribe(ctx context.Context, req SubscribeRequest, handler BatchHandler) error {
+	return nil
 }

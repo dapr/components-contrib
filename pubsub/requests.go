@@ -35,3 +35,26 @@ type NewMessage struct {
 	Metadata    map[string]string `json:"metadata"`
 	ContentType *string           `json:"contentType,omitempty"`
 }
+
+// BatchMessage is a single message in a batch request.
+type BatchMessage struct {
+	ID          string            `json:"id"`
+	Data        interface{}       `json:"data"`
+	ContentType string            `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
+// BatchPublishRequest is the request to publish a batch of messages.
+type BatchPublishRequest struct {
+	Metadata   map[string]string `json:"metadata"`
+	Messages   []BatchMessage    `json:"messages"`
+	PubSubName string            `json:"pubsubname"`
+	Topic      string            `json:"topic"`
+}
+
+// NewBatchMessage is an event arriving from a message bus instance on a batch subscription.
+type NewBatchMessage struct {
+	Metadata map[string]string `json:"metadata"`
+	Messages []BatchMessage    `json:"messages"`
+	Topic    string            `json:"topic"`
+}

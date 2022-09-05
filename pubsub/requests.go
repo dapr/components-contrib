@@ -45,7 +45,7 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
-// Represents batch request struct
+// NewBatchMessage Represents batch message arriving from a message bus instance
 type NewBatchMessage struct {
 	Messages    []NewBatchEventItem `json:"messages"`
 	Topic       string              `json:"topic"`
@@ -53,7 +53,7 @@ type NewBatchMessage struct {
 	ContentType *string             `json:"contentType,omitempty"`
 }
 
-// Represents Single message inside batch request
+// NewBatchEventItem represents Single message inside batch request
 type NewBatchEventItem struct {
 	EventId     string            `json:eventId`
 	Event       []byte            `json:"event"`
@@ -61,8 +61,10 @@ type NewBatchEventItem struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
+// BatchSubscribeConfig defines the Configurations that can be applied to control batch subscribe
+// behavior - beahvior may depend per building block
 type BatchSubscribeConfig struct {
 	MaxBatchCount            int `json:"maxBatchCount"`
-	MaxBatchLatencyInSeconds int `json:"maxBatchLatencyInSeconds"`
+	MaxBatchLatencyInSeconds int `json:"maxBatchLatencyInSeconds"` // todo - change to millis
 	MaxBatchSizeInBytes      int `json:"maxBatchSizeInBytes"`
 }

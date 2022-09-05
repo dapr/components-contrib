@@ -38,7 +38,7 @@ type Batcher interface {
 // Handler is the handler used to invoke the app handler.
 type Handler func(ctx context.Context, msg *NewMessage) error
 
-// BatchHandler is the handler used to invoke the app handler.
+// BatchHandler is the handler used to invoke the app handler during batch subscribe.
 type BatchHandler func(ctx context.Context, msg *NewBatchMessage) error
 
 func Ping(pubsub PubSub) error {
@@ -50,21 +50,25 @@ func Ping(pubsub PubSub) error {
 	}
 }
 
+// DefaultBatcher is default implemnetation for Batcher
 type DefaultBatcher struct {
 	p PubSub
 }
 
-func NewDefaultBatchPubSub(pubsub PubSub) DefaultBatcher {
+// NewDefaultBatcher to create new DefaultBatcher for a PubSub
+func NewDefaultBatcher(pubsub PubSub) DefaultBatcher {
 	defaultBatcher := DefaultBatcher{}
 	defaultBatcher.p = pubsub
 
 	return defaultBatcher
 }
 
+// BatchPublish Default Implementation
 func (p *DefaultBatcher) BatchPublish(req *BatchPublishRequest) BatchPublishResponse {
 	return BatchPublishResponse{}
 }
 
+// BatchSubscribe Default Implementation
 func (p *DefaultBatcher) BatchSubscribe(tx context.Context, req SubscribeRequest, handler BatchHandler) error {
 	return nil
 }

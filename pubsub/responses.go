@@ -36,20 +36,26 @@ type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
 }
 
+// AppResponseItem Represents single response, as part of AppBatchResponse, to be
+// sent by subscibed App for the corresponding single message during batch subscribe
 type AppResponseItem struct {
 	EventId string            `json:"eventId"`
 	Status  AppResponseStatus `json:"status"`
 }
 
+// AppBatchResponse is the whole batch subscribe response sent by App
 type AppBatchResponse struct {
 	AppResponses []AppResponseItem `json:"statuses"`
 }
 
+// BatchPublishResponseItem Represents single publish response, as part of BatchPublishResponse
+// to be sent to publishing App for the corresponding single message during batch publish
 type BatchPublishResponseItem struct {
 	EventId string             `json:"eventId"`
 	Status  BatchPublishStatus `json:"status"`
 }
 
+// BatchPublishResponse is the whole batch publish response sent to App
 type BatchPublishResponse struct {
 	Error    error                      `json:"error"`
 	Statuses []BatchPublishResponseItem `json:"statuses"`

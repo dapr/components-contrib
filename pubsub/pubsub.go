@@ -30,6 +30,7 @@ type PubSub interface {
 	Close() error
 }
 
+// Batcher is the interface for batching functionality in message buses.
 type Batcher interface {
 	BatchPublish(req *BatchPublishRequest) BatchPublishResponse
 	BatchSubscribe(ctx context.Context, req SubscribeRequest, handler BatchHandler) error

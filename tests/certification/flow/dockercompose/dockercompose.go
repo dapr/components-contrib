@@ -49,7 +49,7 @@ func Up(project, filename string) flow.Runnable {
 
 func (c Compose) Up(ctx flow.Context) error {
 	out, err := exec.Command(
-		"docker-compose",
+		"docker compose",
 		"-p", c.project,
 		"-f", c.filename,
 		"up", "-d",

@@ -53,10 +53,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 				req.URL = new(url.URL)
 				req.URL.RawQuery = string(uri.QueryString())
 				handle(nil, req, params)
-				uri.SetPath(req.URL.Path)
-				uri.SetQueryString(req.URL.Query().Encode())
 				ctx.Request.SetRequestURI(req.URL.RequestURI())
-				ctx.Request.SetURI(uri)
 			}
 			h(ctx)
 		}

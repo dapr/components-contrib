@@ -34,7 +34,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.13.3
 	github.com/aliyun/aliyun-oss-go-sdk v2.0.7+incompatible
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.6.0
-	github.com/andybalholm/brotli v1.0.2 // indirect
+	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go v1.43.16
@@ -111,7 +111,7 @@ require (
 	github.com/supplyon/gremcos v0.1.0
 	github.com/tidwall/gjson v1.14.0 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
-	github.com/valyala/fasthttp v1.31.1-0.20211216042702-258a4c17b4f4
+	github.com/valyala/fasthttp v1.34.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0 // indirect

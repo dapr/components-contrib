@@ -72,6 +72,7 @@ func unmarshalPrecise(data []byte, v interface{}) error {
 func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string, pubsubName string,
 	dataContentType string, data []byte, traceParent string, traceState string,
 ) map[string]interface{} {
+	fmt.Printf("NewCloudEventsEnvelope: id=%s, source=%s, eventType=%s, subject=%s, topic=%s, pubsubName=%s, dataContentType=%s, data=%s, traceParent=%s, traceState=%s\n\n", id, source, eventType, subject, topic, pubsubName, dataContentType, string(data), traceParent, traceState)
 	// defaults
 	if id == "" {
 		id = uuid.New().String()
@@ -127,6 +128,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 
 // FromCloudEvent returns a map representation of an existing cloudevents JSON.
 func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceState string) (map[string]interface{}, error) {
+	fmt.Printf("FromCloudEvent: cloudEvent=%s, topic=%s, pubsub=%s, traceParent=%s, traceState=%s\n\n", string(cloudEvent), topic, pubsub, traceParent, traceState)
 	var m map[string]interface{}
 	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
@@ -175,6 +177,7 @@ func FromRawPayload(data []byte, topic, pubsub string) map[string]interface{} {
 	// - The CloudEvent ID will be random, so the same message can be redelivered as a different ID.
 	// - TraceID is not useful since it is random and not from publisher side.
 	// - Data is always returned as `data_base64` since we don't know the actual content type.
+	fmt.Printf("FromRawPayload: data=%s, topic=%s, pubsub=%s\n\n", string(data), topic, pubsub)
 	return map[string]interface{}{
 		IDField:              uuid.New().String(),
 		SpecVersionField:     CloudEventsSpecVersion,

@@ -15,7 +15,7 @@ package bindings
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 
 	"github.com/dapr/components-contrib/health"
@@ -43,6 +43,6 @@ func PingInpBinding(ctx context.Context, inputBinding InputBinding) error {
 	if inputBindingWithPing, ok := inputBinding.(health.Pinger); ok {
 		return inputBindingWithPing.Ping(ctx)
 	} else {
-		return fmt.Errorf("ping is not implemented by this input binding")
+		return errors.New("ping is not implemented by this input binding")
 	}
 }

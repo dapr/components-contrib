@@ -281,7 +281,7 @@ func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state
 
 	str, ok := res.(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid result")
+		return nil, errors.New("invalid result")
 	}
 
 	var entry jsonEntry
@@ -481,7 +481,7 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 		}
 	}
 	if !seenData || !seenVersion {
-		return "", nil, fmt.Errorf("required hash field 'data' or 'version' was not found")
+		return "", nil, errors.New("required hash field 'data' or 'version' was not found")
 	}
 
 	return data, version, nil

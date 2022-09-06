@@ -172,7 +172,7 @@ func Test_Invoke(t *testing.T) {
 
 			if tc.expectedErr == "" {
 				// execute twice to prove idempotency
-				for i := 0; i < 2; i++ {
+				for range 2 {
 					resp, outputErr := output.Invoke(reqCtx, tc.request)
 					require.NoError(t, outputErr)
 					require.Equal(t, tc.expectedData, string(resp.Data))
@@ -258,7 +258,7 @@ func Test_InvokeHttp(t *testing.T) {
 
 			if tc.expectedErr == "" {
 				// execute twice to prove idempotency
-				for i := 0; i < 2; i++ {
+				for range 2 {
 					resp, outputErr := output.Invoke(reqCtx, tc.request)
 					require.NoError(t, outputErr)
 					require.Equal(t, tc.expectedData, string(resp.Data))
@@ -292,7 +292,7 @@ func TestEnsureConcurrency(t *testing.T) {
 	// Wasm is running in goroutine, use wait group to ensure all goroutines are finished
 	wg := sync.WaitGroup{}
 	// 100 is enough to trigger concurrency, and wasm should be executed run fast enough to not consuming too much time
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		wg.Add(1)
 		go func(i int) {
 			request := &bindings.InvokeRequest{

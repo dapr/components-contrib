@@ -15,6 +15,7 @@ package ses
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -92,13 +93,13 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	metadata := a.metadata.mergeWithRequestMetadata(req)
 
 	if metadata.EmailFrom == "" {
-		return nil, fmt.Errorf("SES binding error: emailFrom property not supplied in configuration- or request-metadata")
+		return nil, errors.New("SES binding error: emailFrom property not supplied in configuration- or request-metadata")
 	}
 	if metadata.EmailTo == "" {
-		return nil, fmt.Errorf("SES binding error: emailTo property not supplied in configuration- or request-metadata")
+		return nil, errors.New("SES binding error: emailTo property not supplied in configuration- or request-metadata")
 	}
 	if metadata.Subject == "" {
-		return nil, fmt.Errorf("SES binding error: subject property not supplied in configuration- or request-metadata")
+		return nil, errors.New("SES binding error: subject property not supplied in configuration- or request-metadata")
 	}
 
 	body, err := strconv.Unquote(string(req.Data))

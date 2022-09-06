@@ -365,7 +365,7 @@ func GetServerVersion(c RedisClient) (string, error) {
 			return strings.TrimSpace(strings.Split(row, ":")[1]), nil
 		}
 	}
-	return "", fmt.Errorf("could not find redis_version in redis info response")
+	return "", errors.New("could not find redis_version in redis info response")
 }
 
 // GetConnectedSlaves returns the number of slaves connected to the Redis master.

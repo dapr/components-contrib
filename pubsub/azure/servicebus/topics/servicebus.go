@@ -256,7 +256,7 @@ func (a *azureServiceBus) connectAndReceive(ctx context.Context, req pubsub.Subs
 
 func (a *azureServiceBus) connectAndReceiveWithSessions(ctx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func(), maxConcurrentSessions int) {
 	sessionsChan := make(chan struct{}, maxConcurrentSessions)
-	for i := 0; i < maxConcurrentSessions; i++ {
+	for range maxConcurrentSessions {
 		sessionsChan <- struct{}{}
 	}
 

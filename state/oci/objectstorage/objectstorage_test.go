@@ -15,7 +15,7 @@ package objectstorage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -55,42 +55,42 @@ func TestInit(t *testing.T) {
 		meta.Properties[regionKey] = ""
 		err := statestore.Init(context.Background(), meta)
 		require.Error(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty region field from metadata"), err, "Lacking configuration property should be spotted")
+		assert.Equal(t, errors.New("missing or empty region field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing tenancyOCID", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties["tenancyOCID"] = ""
 		err := statestore.Init(context.Background(), meta)
 		require.Error(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty tenancyOCID field from metadata"), err, "Lacking configuration property should be spotted")
+		assert.Equal(t, errors.New("missing or empty tenancyOCID field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing userOCID", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[userKey] = ""
 		err := statestore.Init(context.Background(), meta)
 		require.Error(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty userOCID field from metadata"), err, "Lacking configuration property should be spotted")
+		assert.Equal(t, errors.New("missing or empty userOCID field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing compartmentOCID", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[compartmentKey] = ""
 		err := statestore.Init(context.Background(), meta)
 		require.Error(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty compartmentOCID field from metadata"), err, "Lacking configuration property should be spotted")
+		assert.Equal(t, errors.New("missing or empty compartmentOCID field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing fingerprint", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[fingerPrintKey] = ""
 		err := statestore.Init(context.Background(), meta)
 		require.Error(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty fingerPrint field from metadata"), err, "Lacking configuration property should be spotted")
+		assert.Equal(t, errors.New("missing or empty fingerPrint field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing private key", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[privateKeyKey] = ""
 		err := statestore.Init(context.Background(), meta)
 		require.Error(t, err)
-		assert.Equal(t, fmt.Errorf("missing or empty privateKey field from metadata"), err, "Lacking configuration property should be spotted")
+		assert.Equal(t, errors.New("missing or empty privateKey field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with incorrect value for instancePrincipalAuthentication", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
@@ -202,10 +202,10 @@ func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname stri
 func (c *mockedObjectStoreClient) deleteObject(ctx context.Context, objectname string, etag *string) (err error) {
 	c.deleteIsCalled = true
 	if objectname == "unknownKey" {
-		return fmt.Errorf("failed to delete object that does not exist - HTTP status code 404")
+		return errors.New("failed to delete object that does not exist - HTTP status code 404")
 	}
 	if etag != nil && *etag == "notTheCorrectETag" {
-		return fmt.Errorf("failed to delete object because of incorrect etag-value ")
+		return errors.New("failed to delete object because of incorrect etag-value ")
 	}
 	return nil
 }
@@ -213,7 +213,7 @@ func (c *mockedObjectStoreClient) deleteObject(ctx context.Context, objectname s
 func (c *mockedObjectStoreClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string) error {
 	c.putIsCalled = true
 	if etag != nil && *etag == "notTheCorrectETag" {
-		return fmt.Errorf("failed to delete object because of incorrect etag-value ")
+		return errors.New("failed to delete object because of incorrect etag-value ")
 	}
 	if etag != nil && *etag == "correctETag" {
 		return nil
@@ -290,7 +290,7 @@ func TestSetWithMockClient(t *testing.T) {
 	statestore.client = mockClient
 	t.Run("Set without a key", func(t *testing.T) {
 		err := statestore.Set(context.Background(), &state.SetRequest{Value: []byte("test-value")})
-		assert.Equal(t, err, fmt.Errorf("key for value to set was missing from request"), "Lacking Key results in error")
+		assert.Equal(t, err, errors.New("key for value to set was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Regular Set Operation", func(t *testing.T) {
 		testKey := "test-key"
@@ -349,7 +349,7 @@ func TestDeleteWithMockClient(t *testing.T) {
 	s.client = mockClient
 	t.Run("Delete without a key", func(t *testing.T) {
 		err := s.Delete(context.Background(), &state.DeleteRequest{})
-		assert.Equal(t, err, fmt.Errorf("key for value to delete was missing from request"), "Lacking Key results in error")
+		assert.Equal(t, err, errors.New("key for value to delete was missing from request"), "Lacking Key results in error")
 	})
 	t.Run("Delete with an unknown key", func(t *testing.T) {
 		err := s.Delete(context.Background(), &state.DeleteRequest{Key: "unknownKey"})

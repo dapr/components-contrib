@@ -91,7 +91,7 @@ func TestMysqlIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke insert", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{
@@ -106,7 +106,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke update", func(t *testing.T) {
 		date := time.Now().Add(time.Hour)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{
@@ -122,7 +122,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke update with parameters", func(t *testing.T) {
 		date := time.Now().Add(2 * time.Hour)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
 				Operation: execOperation,
 				Metadata: map[string]string{

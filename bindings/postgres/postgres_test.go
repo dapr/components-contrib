@@ -87,7 +87,7 @@ func TestPostgresIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke insert", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, time.Now().Format(time.RFC3339))
 			res, err := b.Invoke(ctx, req)
 			assertResponse(t, res, err)
@@ -95,7 +95,7 @@ func TestPostgresIntegration(t *testing.T) {
 	})
 
 	t.Run("Invoke update", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(time.RFC3339), i)
 			res, err := b.Invoke(ctx, req)
 			assertResponse(t, res, err)

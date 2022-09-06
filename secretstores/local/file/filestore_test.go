@@ -17,6 +17,7 @@ package file
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -52,7 +53,7 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		assert.Equal(t, err, fmt.Errorf("missing local secrets file in metadata"))
+		assert.Equal(t, err, errors.New("missing local secrets file in metadata"))
 	})
 }
 

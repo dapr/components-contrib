@@ -95,7 +95,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		},
 		{
 			key:   fmt.Sprintf("%s-string-with-json-and-int", key),
+			value: "{\"3\":\"6\"}",
+		},
+		{
+			key:   fmt.Sprintf("%s-string-with-json-and-int-and-jsontype", key),
 			value: "{\"a\":\"5\"}",
+			contentType: contenttype.JSONContentType,
 		},
 		{
 			key:   fmt.Sprintf("%s-string", key),

@@ -81,9 +81,8 @@ func (s *ssmSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	}
 
 	output, err := s.client.GetParameterWithContext(ctx, &ssm.GetParameterInput{
-		Name:           aws.String(name),
-    Name:           aws.String(s.prefix + name),
-    WithDecryption: aws.Bool(true),
+		Name:           aws.String(s.prefix + name),
+		WithDecryption: aws.Bool(true),
 	})
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %s", err)
@@ -122,9 +121,9 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 
 	for search {
 		output, err := s.client.DescribeParametersWithContext(ctx, &ssm.DescribeParametersInput{
-			MaxResults: nil,
-			NextToken:  nextToken,
-      ParameterFilters: filters,
+			MaxResults:       nil,
+			NextToken:        nextToken,
+			ParameterFilters: filters,
 		})
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't list secrets: %s", err)

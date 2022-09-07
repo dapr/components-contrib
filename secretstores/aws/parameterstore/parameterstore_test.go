@@ -123,7 +123,7 @@ func TestGetSecret(t *testing.T) {
 		t.Run("with prefix", func(t *testing.T) {
 			s := ssmSecretStore{
 				client: &mockedSSM{
-					GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+					GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 						assert.Equal(t, "/prefix/aws/dev/secret", *input.Name)
 						secret := secretValue
 
@@ -142,7 +142,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     "/aws/dev/secret",
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(req)
+			output, e := s.GetSecret(context.Background(), req)
 			assert.Nil(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
@@ -204,7 +204,7 @@ func TestGetBulkSecrets(t *testing.T) {
 	t.Run("successfully retrieve bulk secrets with prefix", func(t *testing.T) {
 		s := ssmSecretStore{
 			client: &mockedSSM{
-				DescribeParametersFn: func(*ssm.DescribeParametersInput) (*ssm.DescribeParametersOutput, error) {
+				DescribeParametersFn: func(context.Context, *ssm.DescribeParametersInput, ...request.Option) (*ssm.DescribeParametersOutput, error) {
 					return &ssm.DescribeParametersOutput{NextToken: nil, Parameters: []*ssm.ParameterMetadata{
 						{
 							Name: aws.String("/prefix/aws/dev/secret1"),
@@ -214,7 +214,7 @@ func TestGetBulkSecrets(t *testing.T) {
 						},
 					}}, nil
 				},
-				GetParameterFn: func(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+				GetParameterFn: func(ctx context.Context, input *ssm.GetParameterInput, option ...request.Option) (*ssm.GetParameterOutput, error) {
 					secret := fmt.Sprintf("%s-%s", *input.Name, secretValue)
 
 					return &ssm.GetParameterOutput{
@@ -231,7 +231,7 @@ func TestGetBulkSecrets(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{
 			Metadata: map[string]string{},
 		}
-		output, e := s.BulkGetSecret(req)
+		output, e := s.BulkGetSecret(context.Background(), req)
 		assert.Nil(t, e)
 		assert.Equal(t, "map[/aws/dev/secret1:/prefix/aws/dev/secret1-secret]", fmt.Sprint(output.Data["/aws/dev/secret1"]))
 		assert.Equal(t, "map[/aws/dev/secret2:/prefix/aws/dev/secret2-secret]", fmt.Sprint(output.Data["/aws/dev/secret2"]))

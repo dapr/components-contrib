@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: binding-kafka-confluent
+  name: binding-confluent
   namespace: default
 spec:
   type: bindings.kafka

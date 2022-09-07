@@ -42,6 +42,7 @@ jobs:
         - bindings.http
         - bindings.influx
         - bindings.kafka
+        - bindings.kafka-confluent
         - bindings.mqtt-emqx
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
@@ -241,7 +242,11 @@ jobs:
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
       if: contains(matrix.component, 'kafka')
-    
+
+    - name: Start kafka Confluent
+      run: docker-compose -f ./.github/infrastructure/docker-compose-kafka-confluent.yml -p confluent up -d
+      if: contains(matrix.component, 'kafka-confluent')
+
     - name: Start memcached
       run: docker-compose -f ./.github/infrastructure/docker-compose-memcached.yml -p memcached up -d
       if: contains(matrix.component, 'memcached')

@@ -22,7 +22,7 @@ import (
 
 // PubSub is the interface for message buses.
 type PubSub interface {
-	Bulker
+	BulkMessager
 	Init(metadata Metadata) error
 	Features() []Feature
 	Publish(req *PublishRequest) error
@@ -30,7 +30,7 @@ type PubSub interface {
 	Close() error
 }
 
-type Bulker interface {
+type BulkMessager interface {
 	BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error)
 	BulkSubscribe(ctx context.Context, req SubscribeRequest, handler BulkHandler) (BulkSubscribeResponse, error)
 }
@@ -54,26 +54,26 @@ func Ping(pubsub PubSub) error {
 	}
 }
 
-// DefaultBulker is default implemnetation for Bulker
-type DefaultBulker struct {
+// DefaultBulkMessager is default implemnetation for BukMessager
+type DefaultBulkMessager struct {
 	p PubSub
 }
 
-// NewDefaultBulker to create new DefaultBulker for a PubSub
-func NewDefaultBulker(pubsub PubSub) DefaultBulker {
-	defaultBulker := DefaultBulker{}
-	defaultBulker.p = pubsub
+// NewDefaultBulkMessager to create new DefaultBulkMessager for a PubSub
+func NewDefaultBulkMessager(pubsub PubSub) DefaultBulkMessager {
+	defaultBulkMessager := DefaultBulkMessager{}
+	defaultBulkMessager.p = pubsub
 
-	return defaultBulker
+	return defaultBulkMessager
 }
 
 // BulkPublish Default Implementation
-func (p *DefaultBulker) BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error) {
+func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error) {
 	return BulkPublishResponse{}, nil
 }
 
 // BulkSubscribe Default Implementation
-func (p *DefaultBulker) BulkSubscribe(tx context.Context, req SubscribeRequest,
+func (p *DefaultBulkMessager) BulkSubscribe(tx context.Context, req SubscribeRequest,
 	handler BulkHandler) (BulkSubscribeResponse, error) {
 	return BulkSubscribeResponse{}, nil
 }

@@ -23,7 +23,7 @@ import (
 )
 
 type bus struct {
-	pubsub.DefaultBulker
+	pubsub.DefaultBulkMessager
 	bus eventbus.Bus
 	log logger.Logger
 }

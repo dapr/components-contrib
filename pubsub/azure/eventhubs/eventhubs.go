@@ -128,7 +128,7 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
-	pubsub.DefaultBulker
+	pubsub.DefaultBulkMessager
 	metadata           *azureEventHubsMetadata
 	logger             logger.Logger
 	publishCtx         context.Context

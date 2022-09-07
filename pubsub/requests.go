@@ -22,13 +22,13 @@ type PublishRequest struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
-// BatchPublishRequest is the request to publish mutilple messages.
-type BatchPublishRequest struct {
-	Data        []NewBatchEventItem `json:"data"`
-	PubsubName  string              `json:"pubsubname"`
-	Topic       string              `json:"topic"`
-	Metadata    map[string]string   `json:"metadata"`
-	ContentType *string             `json:"contentType,omitempty"`
+// BulkPublishRequest is the request to publish mutilple messages.
+type BulkPublishRequest struct {
+	Data        []NewBulkEventItem `json:"data"`
+	PubsubName  string             `json:"pubsubname"`
+	Topic       string             `json:"topic"`
+	Metadata    map[string]string  `json:"metadata"`
+	ContentType *string            `json:"contentType,omitempty"`
 }
 
 // SubscribeRequest is the request to subscribe to a topic.
@@ -45,26 +45,25 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
-// NewBatchMessage Represents batch message arriving from a message bus instance
-type NewBatchMessage struct {
-	Messages    []NewBatchEventItem `json:"messages"`
-	Topic       string              `json:"topic"`
-	Metadata    map[string]string   `json:"metadata"`
-	ContentType *string             `json:"contentType,omitempty"`
+// NewBulkMessage Represents bulk message arriving from a message bus instance
+type NewBulkMessage struct {
+	Messages []NewBulkEventItem `json:"messages"`
+	Topic    string             `json:"topic"`
+	Metadata map[string]string  `json:"metadata"`
 }
 
-// NewBatchEventItem represents Single message inside batch request
-type NewBatchEventItem struct {
+// NewBulkEventItem represents Single message inside bulk request
+type NewBulkEventItem struct {
 	EventId     string            `json:eventId`
 	Event       []byte            `json:"event"`
 	ContentType *string           `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
 }
 
-// BatchSubscribeConfig defines the Configurations that can be applied to control batch subscribe
+// BulkSubscribeConfig defines the Configurations that can be applied to control bulk subscribe
 // behavior - beahvior may depend per building block
-type BatchSubscribeConfig struct {
-	MaxBatchCount            int `json:"maxBatchCount"`
-	MaxBatchLatencyInSeconds int `json:"maxBatchLatencyInSeconds"` // todo - change to millis
-	MaxBatchSizeInBytes      int `json:"maxBatchSizeInBytes"`
+type BulkSubscribeConfig struct {
+	MaxBulkCount            int `json:"maxBulkCount"`
+	MaxBulkLatencyInSeconds int `json:"maxBulkLatencyInSeconds"` // todo - change to millis
+	MaxBulkSizeInBytes      int `json:"maxBulkSizeInBytes"`
 }

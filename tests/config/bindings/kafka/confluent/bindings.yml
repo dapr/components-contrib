@@ -10,7 +10,7 @@ spec:
   - name: topics # Input binding topic
     value: binding-topic
   - name: brokers
-    value: localhost:9092,localhost:9093
+    value: localhost:9095
   - name: consumerGroup
     value: group1
   - name: publishTopic # Output binding topic

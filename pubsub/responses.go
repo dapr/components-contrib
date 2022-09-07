@@ -16,7 +16,7 @@ package pubsub
 // AppResponseStatus represents a status of a PubSub response.
 type AppResponseStatus string
 
-type BatchPublishStatus string
+type BulkPublishStatus string
 
 const (
 	// Success means the message is received and processed correctly.
@@ -26,9 +26,9 @@ const (
 	// Drop means the message is received but should not be processed.
 	Drop AppResponseStatus = "DROP"
 	// Represents that message was published successfully.
-	PublishSuccess BatchPublishStatus = "SUCCESS"
+	PublishSuccess BulkPublishStatus = "SUCCESS"
 	// Represents that message publishing Failed.
-	PublishFailed BatchPublishStatus = "FAILED"
+	PublishFailed BulkPublishStatus = "FAILED"
 )
 
 // AppResponse is the object describing the response from user code after a pubsub event.
@@ -36,27 +36,40 @@ type AppResponse struct {
 	Status AppResponseStatus `json:"status"`
 }
 
-// AppResponseItem Represents single response, as part of AppBatchResponse, to be
-// sent by subscibed App for the corresponding single message during batch subscribe
+// AppResponseItem Represents single response, as part of AppBulkResponse, to be
+// sent by subscibed App for the corresponding single message during bulk subscribe
 type AppResponseItem struct {
 	EventId string            `json:"eventId"`
 	Status  AppResponseStatus `json:"status"`
 }
 
-// AppBatchResponse is the whole batch subscribe response sent by App
-type AppBatchResponse struct {
+// AppBulkResponse is the whole bulk subscribe response sent by App
+type AppBulkResponse struct {
 	AppResponses []AppResponseItem `json:"statuses"`
 }
 
-// BatchPublishResponseItem Represents single publish response, as part of BatchPublishResponse
-// to be sent to publishing App for the corresponding single message during batch publish
-type BatchPublishResponseItem struct {
-	EventId string             `json:"eventId"`
-	Status  BatchPublishStatus `json:"status"`
+// BulkPublishResponseItem Represents single publish response, as part of BulkPublishResponse
+// to be sent to publishing App for the corresponding single message during bulk publish
+type BulkPublishResponseItem struct {
+	EventId string            `json:"eventId"`
+	Status  BulkPublishStatus `json:"status"`
 }
 
-// BatchPublishResponse is the whole batch publish response sent to App
-type BatchPublishResponse struct {
-	Error    error                      `json:"error"`
-	Statuses []BatchPublishResponseItem `json:"statuses"`
+// BulkPublishResponse is the whole bulk publish response sent to App
+type BulkPublishResponse struct {
+	Error    error                     `json:"error"`
+	Statuses []BulkPublishResponseItem `json:"statuses"`
+}
+
+// BulkSubscribeResponseItem Represents single subscribe response item, as part of BulkSubscribeResponse
+// to be sent to building block for the corresponding single message during bulk subscribe
+type BulkSubscribeResponseItem struct {
+	EventId string `json:"eventId"`
+	Error   error  `json:"error"`
+}
+
+// BulkSubscribeResponse is the whole bulk subscribe response sent to building block
+type BulkSubscribeResponse struct {
+	Error    error                       `json:"error"`
+	Statuses []BulkSubscribeResponseItem `json:"statuses"`
 }

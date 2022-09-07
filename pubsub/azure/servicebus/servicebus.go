@@ -55,7 +55,7 @@ var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
 }
 
 type azureServiceBus struct {
-	pubsub.DefaultBatcher
+	pubsub.DefaultBulker
 	metadata    metadata
 	client      *servicebus.Client
 	adminClient *sbadmin.Client

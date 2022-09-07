@@ -36,7 +36,7 @@ const (
 )
 
 type Hazelcast struct {
-	pubsub.DefaultBatcher
+	pubsub.DefaultBulker
 	client   hazelcast.Client
 	logger   logger.Logger
 	metadata metadata

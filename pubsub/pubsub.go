@@ -43,7 +43,7 @@ type Handler func(ctx context.Context, msg *NewMessage) error
 // broker can take appropriate action accordingly.
 // Second return type is error which if not nil, reflects that there was an issue with
 // the whole bulk event and nothing could be sent ahead.
-type BulkHandler func(ctx context.Context, msg *NewBulkMessage) ([]BulkSubscribeResponse, error)
+type BulkHandler func(ctx context.Context, msg *BulkMessage) ([]BulkSubscribeResponse, error)
 
 func Ping(pubsub PubSub) error {
 	// checks if this pubsub has the ping option then executes

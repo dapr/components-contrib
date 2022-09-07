@@ -24,7 +24,7 @@ type PublishRequest struct {
 
 // BulkPublishRequest is the request to publish mutilple messages.
 type BulkPublishRequest struct {
-	Data        []NewBulkEventItem `json:"data"`
+	Data        []BulkMessageEntry `json:"data"`
 	PubsubName  string             `json:"pubsubname"`
 	Topic       string             `json:"topic"`
 	Metadata    map[string]string  `json:"metadata"`
@@ -45,16 +45,16 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
-// NewBulkMessage Represents bulk message arriving from a message bus instance
-type NewBulkMessage struct {
-	Messages []NewBulkEventItem `json:"messages"`
+// BulkMessage Represents bulk message arriving from a message bus instance
+type BulkMessage struct {
+	Entries  []BulkMessageEntry `json:"entries"`
 	Topic    string             `json:"topic"`
 	Metadata map[string]string  `json:"metadata"`
 }
 
-// NewBulkEventItem represents Single message inside bulk request
-type NewBulkEventItem struct {
-	EventId     string            `json:eventId`
+// BulkMessageEntry represents Single message inside bulk request
+type BulkMessageEntry struct {
+	EntryID     string            `json:entryID`
 	Event       []byte            `json:"event"`
 	ContentType *string           `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`

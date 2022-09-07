@@ -44,7 +44,7 @@ type topicHandler struct {
 }
 
 type snsSqs struct {
-	pubsub.DefaultBatcher
+	pubsub.DefaultBulker
 	// key is the sanitized topic name
 	topicArns map[string]string
 	// key is the sanitized topic name

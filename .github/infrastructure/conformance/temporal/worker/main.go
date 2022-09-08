@@ -17,6 +17,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/dapr/kit/logger"
+	"github.com/zouyx/agollo/v3/component/log"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -26,6 +28,7 @@ import (
 func main() {
 	// Sleep for a bit so the docker container can spin up
 	time.Sleep(30 * time.Second)
+	logger logger.Logger
 	TaskQueueString := "TestTaskQueue"
 
 	// construct client here
@@ -35,6 +38,7 @@ func main() {
 	// Create the workflow client
 	clientTwo, err := client.Dial(cOpt)
 	if err != nil {
+		log.Error("Unable to create client.")
 		return
 	}
 	wOpt := worker.Options{}
@@ -47,6 +51,7 @@ func main() {
 
 	err = w.Start()
 	if err != nil {
+		log.Error("Unable to start worker.")
 		return
 	}
 	w.Run(worker.InterruptCh())
@@ -63,9 +68,9 @@ func TestWorkflow(ctx workflow.Context, runtimeSeconds int) error {
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, options)
-	newCtx, _ := workflow.NewDisconnectedContext(ctx)
-	err := workflow.ExecuteActivity(newCtx, ExampleActivity, runtimeSeconds).Get(ctx, nil)
+	err := workflow.ExecuteActivity(ctx, ExampleActivity, runtimeSeconds).Get(ctx, nil)
 	if err != nil {
+		log.Error("Unable to execute activity.")
 		return err
 	}
 

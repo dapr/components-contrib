@@ -18,7 +18,7 @@ import "context"
 // Workflow is an interface to perform operations on Workflow.
 type Workflow interface {
 	Init(metadata Metadata) error
-	Start(ctx context.Context, req *StartRequest) (*WorkflowStruct, error)
-	Terminate(ctx context.Context, req *WorkflowStruct) error
-	Get(ctx context.Context, req *WorkflowStruct) (*StateResponse, error)
+	Start(ctx context.Context, req *StartRequest) (*WorkflowReference, error)
+	Terminate(ctx context.Context, req *WorkflowReference) error
+	Get(ctx context.Context, req *WorkflowReference) (*StateResponse, error)
 }

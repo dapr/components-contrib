@@ -50,7 +50,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 		err := workflowItem.Init(workflows.Metadata{
 			Properties: props,
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	// Everything is within the same task since the workflow needs to persist between operations
@@ -61,21 +61,22 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 				Parameters:   10, // Time that the activity within the workflow runs for
 				WorkflowName: "TestWorkflow",
 			}
-			req.WorkflowInfo.InstanceId = "TestID"
-			req.Options.TaskQueue = "TestTaskQueue"
+			req.WorkflowInfo.InstanceID = "TestID"
+			req.Options = make(map[string]string)
+			req.Options["task_queue"] = "TestTaskQueue"
 			wf, err := workflowItem.Start(context.Background(), req)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			resp, err := workflowItem.Get(context.Background(), wf)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, "Running", resp.Status)
 			time.Sleep(5 * time.Second)
 			resp, err = workflowItem.Get(context.Background(), wf)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, resp.Status, "Running")
 			err = workflowItem.Terminate(context.Background(), wf)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			resp, err = workflowItem.Get(context.Background(), wf)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, "Terminated", resp.Status)
 		})
 		testLogger.Info("Start test done.")

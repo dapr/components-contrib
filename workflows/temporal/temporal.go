@@ -16,6 +16,7 @@ package temporal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
@@ -67,42 +68,49 @@ func (c *TemporalWF) Init(metadata workflows.Metadata) error {
 	return nil
 }
 
-func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*workflows.WorkflowStruct, error) {
+func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*workflows.WorkflowReference, error) {
 	c.logger.Debugf("starting workflow")
 
-	if req.Options.TaskQueue == "" {
-		c.logger.Debugf("no task queue provided")
-		return &workflows.WorkflowStruct{}, nil
+	if len(req.Options) == 0 {
+		c.logger.Debugf("no options provided")
+		return &workflows.WorkflowReference{}, errors.New("no options provided. At the very least, a task queue is needed")
 	}
-	opt := client.StartWorkflowOptions{ID: req.WorkflowInfo.InstanceId, TaskQueue: req.Options.TaskQueue}
+
+	if _, ok := req.Options["task_queue"]; !ok {
+		c.logger.Debugf("no task queue provided")
+		return &workflows.WorkflowReference{}, errors.New("no task queue provided")
+	}
+	taskQ := req.Options["task_queue"]
+
+	opt := client.StartWorkflowOptions{ID: req.WorkflowInfo.InstanceID, TaskQueue: taskQ}
 	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
 	if err != nil {
 		c.logger.Debugf("error when starting workflow")
-		return &workflows.WorkflowStruct{}, err
+		return &workflows.WorkflowReference{}, err
 	}
-	wfStruct := workflows.WorkflowStruct{InstanceId: run.GetID()}
+	wfStruct := workflows.WorkflowReference{InstanceID: run.GetID()}
 	return &wfStruct, nil
 }
 
-func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowStruct) error {
+func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowReference) error {
 	c.logger.Debugf("terminating workflow")
 
-	err := c.client.TerminateWorkflow(ctx, req.InstanceId, "", "")
+	err := c.client.TerminateWorkflow(ctx, req.InstanceID, "", "")
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowStruct) (*workflows.StateResponse, error) {
+func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) (*workflows.StateResponse, error) {
 	c.logger.Debugf("getting workflow data")
-	resp, err := c.client.DescribeWorkflowExecution(ctx, req.InstanceId, "")
+	resp, err := c.client.DescribeWorkflowExecution(ctx, req.InstanceID, "")
 	if err != nil {
 		return nil, err
 	}
 	// Build the output struct
 	outputStruct := workflows.StateResponse{
-		WfInfo:    workflows.WorkflowStruct{InstanceId: req.InstanceId},
+		WFInfo:    workflows.WorkflowReference{InstanceID: req.InstanceID},
 		StartTime: resp.WorkflowExecutionInfo.StartTime.String(),
 		TaskQueue: resp.WorkflowExecutionInfo.GetTaskQueue(),
 		Status:    lookupStatus(resp.WorkflowExecutionInfo.Status),
@@ -116,14 +124,14 @@ func (c *TemporalWF) Close() {
 	c.client.Close()
 }
 
-func (c *TemporalWF) parseMetadata(metadata workflows.Metadata) (*temporalMetaData, error) {
+func (c *TemporalWF) parseMetadata(metadata workflows.Metadata) (*temporalMetadata, error) {
 	connInfo := metadata.Properties
 	b, err := json.Marshal(connInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	var creds temporalMetaData
+	var creds temporalMetadata
 	err = json.Unmarshal(b, &creds)
 	if err != nil {
 		return nil, err

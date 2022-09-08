@@ -169,7 +169,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (c *StateStore) Features() []state.Feature {
-	return c.DefaultBulkStore.Features()
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
 }
 
 // Get retrieves a CosmosDB item.

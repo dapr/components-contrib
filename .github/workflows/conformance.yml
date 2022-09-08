@@ -52,7 +52,6 @@ jobs:
         - pubsub.aws.snssqs
         - pubsub.hazelcast
         - pubsub.in-memory
-        - pubsub.kafka
         - pubsub.mqtt-emqx
         - pubsub.mqtt-mosquitto
         - pubsub.mqtt-vernemq

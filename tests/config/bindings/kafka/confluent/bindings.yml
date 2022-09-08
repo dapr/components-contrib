@@ -1,10 +1,10 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: binding-kafka-confluent
+  name: binding-topic-confluent
   namespace: default
 spec:
-  type: binding.kafka
+  type: bindings.kafka
   version: v1
   metadata:
   - name: topics # Input binding topic

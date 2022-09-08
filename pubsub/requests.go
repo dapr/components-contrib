@@ -24,11 +24,10 @@ type PublishRequest struct {
 
 // BulkPublishRequest is the request to publish mutilple messages.
 type BulkPublishRequest struct {
-	Entries     []BulkMessageEntry `json:"entries"`
-	PubsubName  string             `json:"pubsubname"`
-	Topic       string             `json:"topic"`
-	Metadata    map[string]string  `json:"metadata"`
-	ContentType *string            `json:"contentType,omitempty"`
+	Entries    []BulkMessageEntry `json:"entries"`
+	PubsubName string             `json:"pubsubname"`
+	Topic      string             `json:"topic"`
+	Metadata   map[string]string  `json:"metadata"`
 }
 
 // SubscribeRequest is the request to subscribe to a topic.

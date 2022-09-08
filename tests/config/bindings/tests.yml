@@ -34,6 +34,7 @@ components:
   - component: azure.servicebusqueues
     operations: ["create", "operations", "read"]
   - component: kafka
+    profile: wurstmeister
     operations: ["create", "operations"]
   - component: kafka
     profile: confluent

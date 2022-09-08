@@ -41,7 +41,7 @@ jobs:
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
         - bindings.influx
-        - bindings.kafka
+        - bindings.kafka-wurstmeister
         - bindings.kafka-confluent
         - bindings.mqtt-emqx
         - bindings.mqtt-mosquitto
@@ -241,7 +241,7 @@ jobs:
 
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
-      if: endsWith(matrix.component, 'kafka')
+      if: contains(matrix.component, 'wurstmeister')
 
     - name: Start kafka Confluent
       run: docker-compose -f ./.github/infrastructure/docker-compose-confluent.yml -p confluent up -d

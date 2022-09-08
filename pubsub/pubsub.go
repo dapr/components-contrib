@@ -30,6 +30,7 @@ type PubSub interface {
 	Close() error
 }
 
+// BulkMessager is the interface defining BulkPublish and BulkSubscribe definitions for message buses
 type BulkMessager interface {
 	BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error)
 	BulkSubscribe(ctx context.Context, req SubscribeRequest, handler BulkHandler) (BulkSubscribeResponse, error)
@@ -61,10 +62,9 @@ type DefaultBulkMessager struct {
 
 // NewDefaultBulkMessager to create new DefaultBulkMessager for a PubSub
 func NewDefaultBulkMessager(pubsub PubSub) DefaultBulkMessager {
-	defaultBulkMessager := DefaultBulkMessager{}
-	defaultBulkMessager.p = pubsub
-
-	return defaultBulkMessager
+	return DefaultBulkMessager{
+		p: pubsub,
+	}
 }
 
 // BulkPublish Default Implementation

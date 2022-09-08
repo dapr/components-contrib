@@ -24,7 +24,7 @@ type PublishRequest struct {
 
 // BulkPublishRequest is the request to publish mutilple messages.
 type BulkPublishRequest struct {
-	Data        []BulkMessageEntry `json:"data"`
+	Entries     []BulkMessageEntry `json:"entries"`
 	PubsubName  string             `json:"pubsubname"`
 	Topic       string             `json:"topic"`
 	Metadata    map[string]string  `json:"metadata"`
@@ -45,14 +45,14 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
-// BulkMessage Represents bulk message arriving from a message bus instance
+// BulkMessage represents bulk message arriving from a message bus instance
 type BulkMessage struct {
 	Entries  []BulkMessageEntry `json:"entries"`
 	Topic    string             `json:"topic"`
 	Metadata map[string]string  `json:"metadata"`
 }
 
-// BulkMessageEntry represents Single message inside bulk request
+// BulkMessageEntry represents a single message inside a bulk request
 type BulkMessageEntry struct {
 	EntryID     string            `json:entryID`
 	Event       []byte            `json:"event"`
@@ -63,7 +63,7 @@ type BulkMessageEntry struct {
 // BulkSubscribeConfig defines the Configurations that can be applied to control bulk subscribe
 // behavior - beahvior may depend per building block
 type BulkSubscribeConfig struct {
-	MaxBulkCount            int `json:"maxBulkCount"`
-	MaxBulkLatencyInSeconds int `json:"maxBulkLatencyInSeconds"` // todo - change to millis
-	MaxBulkSizeInBytes      int `json:"maxBulkSizeInBytes"`
+	MaxBulkCount               int `json:"maxBulkCount"`
+	MaxBulkLatencyMilliSeconds int `json:"maxBulkLatencyMilliSeconds"`
+	MaxBulkSizeBytes           int `json:"maxBulkSizeBytes"`
 }

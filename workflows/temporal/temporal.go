@@ -31,7 +31,7 @@ type TemporalWF struct {
 	logger logger.Logger
 }
 
-type temporalMetaData struct {
+type temporalMetadata struct {
 	Identity string `json:"identity"`
 	HostPort string `json:"hostport"`
 }

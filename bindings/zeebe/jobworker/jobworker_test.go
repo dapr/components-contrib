@@ -22,6 +22,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -59,9 +60,9 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{"jobType": "a"},
-		}
+		}}
 		mcf := mockClientFactory{
 			metadata: metadata,
 		}
@@ -90,9 +91,9 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
-		metadata := bindings.Metadata{
+		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{"jobType": "a"},
-		}
+		}}
 		mcf := mockClientFactory{
 			metadata: metadata,
 		}

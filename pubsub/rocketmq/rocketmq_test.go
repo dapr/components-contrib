@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -36,14 +37,14 @@ func getTestMetadata() map[string]string {
 func TestParseRocketMQMetadata(t *testing.T) {
 	t.Run("correct metadata", func(t *testing.T) {
 		meta := getTestMetadata()
-		_, err := parseRocketMQMetaData(pubsub.Metadata{Properties: meta}, logger.NewLogger("test"))
+		_, err := parseRocketMQMetaData(pubsub.Metadata{Base: mdata.Base{Properties: meta}}, logger.NewLogger("test"))
 		assert.Nil(t, err)
 	})
 
 	t.Run("correct init", func(t *testing.T) {
 		meta := getTestMetadata()
 		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Properties: meta})
+		err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 		assert.Nil(t, err)
 	})
 
@@ -51,7 +52,7 @@ func TestParseRocketMQMetadata(t *testing.T) {
 		meta := getTestMetadata()
 		delete(meta, "nameServer")
 		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Properties: meta})
+		err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 		assert.Nil(t, err)
 		req := &pubsub.PublishRequest{
 			Data:       []byte("hello"),
@@ -66,7 +67,7 @@ func TestParseRocketMQMetadata(t *testing.T) {
 	t.Run("subscribe illegal type", func(t *testing.T) {
 		meta := getTestMetadata()
 		r := NewRocketMQ(logger.NewLogger("test"))
-		err := r.Init(pubsub.Metadata{Properties: meta})
+		err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 		assert.Nil(t, err)
 
 		req := pubsub.SubscribeRequest{

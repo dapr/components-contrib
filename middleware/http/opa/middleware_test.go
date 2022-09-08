@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	fh "github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -44,27 +45,27 @@ func TestOpaPolicy(t *testing.T) {
 		shouldRegoError    bool
 	}{
 		"allow": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = true`,
 				},
-			},
+			}},
 			status: 200,
 		},
 		"deny": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = false`,
 				},
-			},
+			}},
 			status: 403,
 		},
 		"status": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -73,11 +74,11 @@ func TestOpaPolicy(t *testing.T) {
 							"status_code": 301
 						}`,
 				},
-			},
+			}},
 			status: 301,
 		},
 		"add redirect": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -87,14 +88,14 @@ func TestOpaPolicy(t *testing.T) {
 							"additional_headers": { "location": "https://my.site/login" }
 						}`,
 				},
-			},
+			}},
 			status: 301,
 			headers: &[][]string{
 				{"location", "https://my.site/login"},
 			},
 		},
 		"add headers": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -104,14 +105,14 @@ func TestOpaPolicy(t *testing.T) {
 							"additional_headers": { "x-key": "abc" }
 						}`,
 				},
-			},
+			}},
 			status: 301,
 			headers: &[][]string{
 				{"x-key", "abc"},
 			},
 		},
 		"allow with path": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -122,7 +123,7 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
+			}},
 			req: func(ctx *fh.RequestCtx) {
 				ctx.Request.SetHost("https://my.site")
 				ctx.Request.URI().SetPath("/allowed")
@@ -130,7 +131,7 @@ func TestOpaPolicy(t *testing.T) {
 			status: 200,
 		},
 		"deny with path": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -141,7 +142,7 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
+			}},
 			req: func(ctx *fh.RequestCtx) {
 				ctx.Request.SetHost("https://my.site")
 				ctx.Request.URI().SetPath("/forbidden")
@@ -149,7 +150,7 @@ func TestOpaPolicy(t *testing.T) {
 			status: 403,
 		},
 		"allow when header not included": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -160,7 +161,7 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
+			}},
 			req: func(ctx *fh.RequestCtx) {
 				ctx.Request.SetHost("https://my.site")
 				ctx.Request.Header.Add("x-bad-header", "1")
@@ -168,7 +169,7 @@ func TestOpaPolicy(t *testing.T) {
 			status: 200,
 		},
 		"deny when header included": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -180,7 +181,7 @@ func TestOpaPolicy(t *testing.T) {
 						`,
 					"includedHeaders": "x-bad-header",
 				},
-			},
+			}},
 			req: func(ctx *fh.RequestCtx) {
 				ctx.Request.SetHost("https://my.site")
 				ctx.Request.Header.Add("x-bad-header", "1")
@@ -188,44 +189,44 @@ func TestOpaPolicy(t *testing.T) {
 			status: 403,
 		},
 		"err on no rego": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{},
-			},
+			}},
 			shouldHandlerError: true,
 		},
 		"err on bad allow": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = 1`,
 				},
-			},
+			}},
 			shouldRegoError: true,
 		},
 		"err on bad package": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http.authz
 						allow = true`,
 				},
-			},
+			}},
 			shouldRegoError: true,
 		},
 		"status config": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = false`,
 					"defaultStatus": "500",
 				},
-			},
+			}},
 			status: 500,
 		},
 		"rego priority over defaultStatus metadata": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -235,11 +236,11 @@ func TestOpaPolicy(t *testing.T) {
 						}`,
 					"defaultStatus": "500",
 				},
-			},
+			}},
 			status: 301,
 		},
 		"allow on body contains allow": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -250,7 +251,7 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
+			}},
 			req: func(ctx *fh.RequestCtx) {
 				ctx.SetContentType("text/plain; charset=utf8")
 				ctx.Request.SetHost("https://my.site")
@@ -259,7 +260,7 @@ func TestOpaPolicy(t *testing.T) {
 			status: 200,
 		},
 		"allow when multiple headers included with space": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -271,7 +272,7 @@ func TestOpaPolicy(t *testing.T) {
 						`,
 					"includedHeaders": "x-my-custom-header, x-jwt-header",
 				},
-			},
+			}},
 			req: func(ctx *fh.RequestCtx) {
 				ctx.Request.SetHost("https://my.site")
 				ctx.Request.Header.Add("x-jwt-header", "1")

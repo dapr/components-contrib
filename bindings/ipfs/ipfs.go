@@ -68,7 +68,7 @@ type IPFSBinding struct {
 }
 
 // NewIPFSBinding returns a new IPFSBinding.
-func NewIPFSBinding(logger logger.Logger) *IPFSBinding {
+func NewIPFSBinding(logger logger.Logger) bindings.OutputBinding {
 	return &IPFSBinding{
 		logger: logger,
 	}

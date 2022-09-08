@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -57,10 +58,10 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	oracleWalletLocation := getWalletLocation()
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: connectionString, oracleWalletLocationKey: oracleWalletLocation},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString, oracleWalletLocationKey: oracleWalletLocation}},
 	}
 
-	ods := NewOracleDatabaseStateStore(logger.NewLogger("test"))
+	ods := NewOracleDatabaseStateStore(logger.NewLogger("test")).(*OracleDatabase)
 	t.Cleanup(func() {
 		defer ods.Close()
 	})
@@ -772,11 +773,11 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewOracleDatabaseStateStore(logger)
+			p := NewOracleDatabaseStateStore(logger).(*OracleDatabase)
 			defer p.Close()
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := p.Init(metadata)

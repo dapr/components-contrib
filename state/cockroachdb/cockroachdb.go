@@ -26,7 +26,7 @@ type CockroachDB struct {
 }
 
 // New creates a new instance of CockroachDB state store.
-func New(logger logger.Logger) *CockroachDB {
+func New(logger logger.Logger) state.Store {
 	dba := newCockroachDBAccess(logger)
 
 	return internalNew(logger, dba)

@@ -36,7 +36,7 @@ type Binding struct {
 }
 
 // NewCron returns a new Cron event input binding.
-func NewCron(logger logger.Logger) *Binding {
+func NewCron(logger logger.Logger) bindings.InputOutputBinding {
 	return &Binding{
 		logger: logger,
 		parser: cron.NewParser(

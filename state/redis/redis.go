@@ -106,7 +106,7 @@ type StateStore struct {
 }
 
 // NewRedisStateStore returns a new redis state store.
-func NewRedisStateStore(logger logger.Logger) *StateStore {
+func NewRedisStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},

@@ -44,7 +44,7 @@ type sqsMetadata struct {
 }
 
 // NewAWSSQS returns a new AWS SQS instance.
-func NewAWSSQS(logger logger.Logger) *AWSSQS {
+func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
 	return &AWSSQS{logger: logger}
 }
 

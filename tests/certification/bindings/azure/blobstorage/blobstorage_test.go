@@ -25,9 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/azure/blobstorage"
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
@@ -132,8 +130,6 @@ func TestBlobStorage(t *testing.T) {
 
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
-
-	log := logger.NewLogger("dapr.components")
 
 	testCreateBlobWithFileNameConflict := func(ctx flow.Context) error {
 		// verifies that overwriting a blob with the same name will not cause a conflict.
@@ -607,16 +603,8 @@ func TestBlobStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/serviceprincipal"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
-					return blobstorage.NewAzureBlobStorage(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Create blob", testCreateGetListDelete).
 		Run()
 
@@ -632,16 +620,8 @@ func TestBlobStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/accesskey"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
-					return blobstorage.NewAzureBlobStorage(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Create blob", testCreateGetListDelete).
 		Step("Create blob from file", testCreateBlobFromFile(false)).
 		Step("List contents", testListContents).
@@ -664,16 +644,8 @@ func TestBlobStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/decodeBase64"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
-					return blobstorage.NewAzureBlobStorage(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Create blob from file", testCreateBlobFromFile(true)).
 		Run()
 
@@ -689,16 +661,8 @@ func TestBlobStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/publicAccessBlob"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
-					return blobstorage.NewAzureBlobStorage(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Creating a public blob works", testCreatePublicBlob(true, "publiccontainer")).
 		Run()
 
@@ -714,16 +678,25 @@ func TestBlobStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/publicAccessContainer"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.blobstorage", func() bindings.OutputBinding {
-					return blobstorage.NewAzureBlobStorage(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Creating a public blob works", testCreatePublicBlob(true, "alsopubliccontainer")).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterOutputBinding(blobstorage.NewAzureBlobStorage, "azure.blobstorage")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

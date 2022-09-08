@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -28,7 +29,7 @@ func TestGetConsulMetadata(t *testing.T) {
 			"httpAddr":   "127.0.0.1:8500",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
@@ -46,7 +47,7 @@ func TestGetConsulMetadata(t *testing.T) {
 			"keyPrefixPath": "example/path/key",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		metadata, err := metadataToConfig(m.Properties)

@@ -13,7 +13,9 @@ limitations under the License.
 
 package pubsub
 
+import "github.com/dapr/components-contrib/metadata"
+
 // Metadata represents a set of message-bus specific properties.
 type Metadata struct {
-	Properties map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 }

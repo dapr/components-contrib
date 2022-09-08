@@ -54,11 +54,11 @@ type AppBulkResponse struct {
 type BulkPublishResponseEntry struct {
 	EntryID string            `json:"entryID"`
 	Status  BulkPublishStatus `json:"status"`
+	Error   string            `json:"error"`
 }
 
 // BulkPublishResponse is the whole bulk publish response sent to App
 type BulkPublishResponse struct {
-	Error    error                      `json:"error"`
 	Statuses []BulkPublishResponseEntry `json:"statuses"`
 }
 
@@ -66,11 +66,11 @@ type BulkPublishResponse struct {
 // to be sent to building block for the corresponding single message during bulk subscribe
 type BulkSubscribeResponseEntry struct {
 	EntryID string `json:"entryID"`
-	Error   error  `json:"error"`
+	Error   string `json:"error"`
 }
 
 // BulkSubscribeResponse is the whole bulk subscribe response sent to building block
 type BulkSubscribeResponse struct {
-	Error    error                        `json:"error"`
+	Error    string                       `json:"error"`
 	Statuses []BulkSubscribeResponseEntry `json:"statuses"`
 }

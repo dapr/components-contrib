@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -87,9 +88,9 @@ type crossPartitionQueryPolicy struct{}
 func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, error) {
 	raw := req.Raw()
 	hdr := raw.Header
-	if hdr.Get("x-ms-documentdb-query") == "True" {
+	if strings.ToLower(hdr.Get("x-ms-documentdb-query")) == "true" {
 		// modify req here since we know it is a query
-		hdr.Add("x-ms-documentdb-query-enablecrosspartition", "True")
+		hdr.Add("x-ms-documentdb-query-enablecrosspartition", "true")
 		hdr.Del("x-ms-documentdb-partitionkey")
 		raw.Header = hdr
 

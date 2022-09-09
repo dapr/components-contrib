@@ -16,6 +16,7 @@ package cosmosdb
 import (
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/agrea/ptr"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
@@ -188,17 +190,48 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	readItem, err := c.client.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), req.Key, &options)
 	cancel()
 	if err != nil {
+		var responseErr *azcore.ResponseError
+		errors.As(err, &responseErr)
+		if responseErr.ErrorCode == "NotFound" {
+			return &state.GetResponse{}, nil
+		}
 		return nil, err
 	}
 
-	b, err := jsoniter.ConfigFastest.Marshal(readItem.Value)
+	item := CosmosItem{}
+	err = jsoniter.ConfigFastest.Unmarshal(readItem.Value, &item)
+	if err != nil {
+		return nil, err
+	}
+
+	if item.IsBinary {
+		if item.Value == nil {
+			return &state.GetResponse{
+				Data: make([]byte, 0),
+				ETag: ptr.String(item.Etag),
+			}, nil
+		}
+
+		bytes, decodeErr := base64.StdEncoding.DecodeString(item.Value.(string))
+		if decodeErr != nil {
+			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
+			bytes = []byte(item.Value.(string))
+		}
+
+		return &state.GetResponse{
+			Data: bytes,
+			ETag: ptr.String(item.Etag),
+		}, nil
+	}
+
+	b, err := jsoniter.ConfigFastest.Marshal(&item.Value)
 	if err != nil {
 		return nil, err
 	}
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: (*string)(&readItem.ETag),
+		ETag: ptr.String(item.Etag),
 	}, nil
 }
 
@@ -227,14 +260,14 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
-	marshalled, err := json.Marshal(req.Value)
+	doc, err := createUpsertItem(c.contentType, *req, partitionKey)
 	if err != nil {
 		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.UpsertItem(ctx, pk, marshalled, &options)
+	_, err = c.client.UpsertItem(ctx, pk, doc, &options)
 	cancel()
 	if err != nil {
 		return err
@@ -299,7 +332,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
-			marshalled, err := json.Marshal(req.Value)
+			doc, err := createUpsertItem(c.contentType, req, partitionKey)
 			if err != nil {
 				return err
 			}
@@ -313,7 +346,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				options.IfMatchETag = &newTag
 			}
 
-			batch.UpsertItem(marshalled, nil)
+			batch.UpsertItem(doc, nil)
 			numOperations++
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -394,7 +427,7 @@ func (c *StateStore) Ping() error {
 	return nil
 }
 
-func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
+func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) ([]byte, error) {
 	byteArray, isBinary := req.Value.([]uint8)
 	if len(byteArray) == 0 {
 		isBinary = false
@@ -402,7 +435,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 
 	ttl, err := parseTTL(req.Metadata)
 	if err != nil {
-		return CosmosItem{}, fmt.Errorf("error parsing TTL from metadata: %s", err)
+		return []byte{}, fmt.Errorf("error parsing TTL from metadata: %s", err)
 	}
 
 	if isBinary {
@@ -412,32 +445,36 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 			// if byte array is not a valid JSON, so keep it as-is to be Base64 encoded in CosmosDB.
 			// otherwise, we save it as JSON
 			if err == nil {
-				return CosmosItem{
+				item := CosmosItem{
 					ID:           req.Key,
 					Value:        value,
 					PartitionKey: partitionKey,
 					IsBinary:     false,
 					TTL:          ttl,
-				}, nil
+				}
+				return json.Marshal(&item)
+
 			}
 		} else if contenttype.IsStringContentType(contentType) {
-			return CosmosItem{
+			item := CosmosItem{
 				ID:           req.Key,
 				Value:        string(byteArray),
 				PartitionKey: partitionKey,
 				IsBinary:     false,
 				TTL:          ttl,
-			}, nil
+			}
+			return json.Marshal(&item)
 		}
 	}
 
-	return CosmosItem{
+	item := CosmosItem{
 		ID:           req.Key,
 		Value:        req.Value,
 		PartitionKey: partitionKey,
 		IsBinary:     isBinary,
 		TTL:          ttl,
-	}, nil
+	}
+	return json.Marshal(&item)
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,

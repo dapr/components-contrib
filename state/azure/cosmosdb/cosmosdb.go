@@ -20,10 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/agrea/ptr"
 	"github.com/google/uuid"
@@ -79,6 +81,22 @@ const (
 	defaultTimeout        = 20 * time.Second
 )
 
+// policy that tracks the number of times it was invoked
+type crossPartitionQueryPolicy struct{}
+
+func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, error) {
+	raw := req.Raw()
+	hdr := raw.Header
+	if hdr.Get("x-ms-documentdb-query") == "True" {
+		// modify req here since we know it is a query
+		hdr.Add("x-ms-documentdb-query-enablecrosspartition", "True")
+		hdr.Del("x-ms-documentdb-partitionkey")
+		raw.Header = hdr
+
+	}
+	return req.Next()
+}
+
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
@@ -120,6 +138,14 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return errors.New("contentType is required")
 	}
 
+	// Internal query policy was created due to lack of cross partition query capability in go sdk
+	queryPolicy := &crossPartitionQueryPolicy{}
+	opts := azcosmos.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			PerCallPolicies: []policy.Policy{queryPolicy},
+		},
+	}
+
 	// Create the client; first, try authenticating with a master key, if present
 	var client *azcosmos.Client
 	if m.MasterKey != "" {
@@ -128,7 +154,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		if err != nil {
 			return err
 		}
-		client, err = azcosmos.NewClientWithKey(m.URL, cred, nil)
+		client, err = azcosmos.NewClientWithKey(m.URL, cred, &opts)
 		if err != nil {
 			return err
 		}
@@ -143,7 +169,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		if tokenErr != nil {
 			return tokenErr
 		}
-		client, err = azcosmos.NewClient(m.URL, token, nil)
+		client, err = azcosmos.NewClient(m.URL, token, &opts)
 		if err != nil {
 			return err
 		}

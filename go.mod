@@ -80,7 +80,7 @@ require (
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
-	github.com/jackc/pgx/v4 v4.15.0
+	github.com/jackc/pgx/v4 v4.17.0
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12
 	github.com/kataras/go-errors v0.0.3 // indirect
@@ -98,6 +98,7 @@ require (
 	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
 	github.com/nats-io/stan.go v0.8.3
 	github.com/open-policy-agent/opa v0.42.0
+	github.com/pashagolub/pgxmock v1.8.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
@@ -120,7 +121,7 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/net v0.0.0-20220630215102-69896b714898
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	google.golang.org/api v0.74.0
@@ -469,12 +470,12 @@ require (
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/serf v0.9.6 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.11.0 // indirect
+	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.2.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.10.0 // indirect
+	github.com/jackc/pgtype v1.12.0 // indirect
 	github.com/jackc/puddle v1.2.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect

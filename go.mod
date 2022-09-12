@@ -88,7 +88,7 @@ require (
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/matryer/is v1.4.0 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.17 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
@@ -121,7 +121,7 @@ require (
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
-	golang.org/x/net v0.0.0-20220630215102-69896b714898
+	golang.org/x/net v0.0.0-20220728181054-f92ba40d432d
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	google.golang.org/api v0.74.0
 	google.golang.org/genproto v0.0.0-20220725144611-272f38e5d71b
@@ -367,6 +367,7 @@ require (
 	github.com/polydawn/refmt v0.0.0-20201211092308-30ac6d18308e // indirect
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/shirou/gopsutil v3.20.11+incompatible // indirect
@@ -528,7 +529,7 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
-	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
+	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect

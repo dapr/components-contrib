@@ -2,7 +2,10 @@ module github/dapr/workflow/worker
 
 go 1.18
 
-require go.temporal.io/sdk v1.15.0
+require (
+	github.com/zouyx/agollo/v3 v3.4.5
+	go.temporal.io/sdk v1.15.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

@@ -18,10 +18,11 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/dapr/components-contrib/workflows"
-	"github.com/dapr/kit/logger"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
+
+	"github.com/dapr/components-contrib/workflows"
+	"github.com/dapr/kit/logger"
 )
 
 // Placeholder string for the task queue
@@ -121,7 +122,6 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 }
 
 func (c *TemporalWF) Close() {
-
 	c.client.Close()
 }
 

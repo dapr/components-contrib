@@ -18,10 +18,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/components-contrib/workflows"
-	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 var testLogger = logger.NewLogger("workflowsTest")

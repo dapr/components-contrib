@@ -17,9 +17,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/health"
 	"github.com/dapr/components-contrib/internal/utils"
-	"github.com/google/uuid"
 )
 
 // PubSub is the interface for message buses.
@@ -103,8 +104,8 @@ func (p *DefaultBulkMessager) BulkSubscribe(ctx context.Context, req SubscribeRe
 				ContentType: *msg.ContentType,
 				Metadata:    msg.Metadata,
 			},
-			cb: func(_err error) {
-				err = _err
+			cb: func(ierr error) {
+				err = ierr
 				done <- struct{}{}
 			},
 		}

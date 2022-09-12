@@ -31,7 +31,7 @@ const (
 // bulkPublishSerial publishes messages in serial order.
 // This is slower, but ensures that messages are published in the same order as specified in the request.
 func (p *DefaultBulkMessager) bulkPublishSerial(req *BulkPublishRequest) (BulkPublishResponse, error) {
-	var statuses []BulkPublishResponseEntry
+	statuses := make([]BulkPublishResponseEntry, len(req.Entries))
 
 	for _, entry := range req.Entries {
 		statuses = append(statuses, p.bulkPublishSingleEntry(req, entry))
@@ -43,19 +43,26 @@ func (p *DefaultBulkMessager) bulkPublishSerial(req *BulkPublishRequest) (BulkPu
 // bulkPublishParallel publishes messages in parallel.
 // This is faster, but does not guarantee that messages are published in the same order as specified in the request.
 func (p *DefaultBulkMessager) bulkPublishParallel(req *BulkPublishRequest) (BulkPublishResponse, error) {
-	var statuses []BulkPublishResponseEntry
+	statuses := make([]BulkPublishResponseEntry, 0, len(req.Entries))
 	var wg sync.WaitGroup
+
+	statusChan := make(chan BulkPublishResponseEntry, len(req.Entries))
 
 	for _, entry := range req.Entries {
 		wg.Add(1)
 
 		go func(entry BulkMessageEntry) {
 			defer wg.Done()
-			statuses = append(statuses, p.bulkPublishSingleEntry(req, entry))
+			statusChan <- p.bulkPublishSingleEntry(req, entry)
 		}(entry)
 	}
 
 	wg.Wait()
+	close(statusChan)
+
+	for status := range statusChan {
+		statuses = append(statuses, status)
+	}
 
 	return BulkPublishResponse{Statuses: statuses}, nil
 }
@@ -122,7 +129,7 @@ func flushMessages(ctx context.Context, req SubscribeRequest, messages *[]BulkMe
 			}
 		}
 
-		messages = &[]BulkMessageEntry{}
+		*messages = []BulkMessageEntry{}
 		*msgCbMap = make(map[string]func(error))
 	}
 }

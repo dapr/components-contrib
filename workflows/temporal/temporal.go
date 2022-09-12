@@ -38,7 +38,7 @@ type temporalMetadata struct {
 }
 
 // NewTemporalWorkflow returns a new workflow.
-func NewTemporalWorkflow(logger logger.Logger) *TemporalWF {
+func NewTemporalWorkflow(logger logger.Logger) workflows.Workflow {
 	s := &TemporalWF{
 		logger: logger,
 	}

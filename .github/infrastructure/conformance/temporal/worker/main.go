@@ -17,7 +17,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/dapr/kit/logger"
 	"github.com/zouyx/agollo/v3/component/log"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -28,7 +27,6 @@ import (
 func main() {
 	// Sleep for a bit so the docker container can spin up
 	time.Sleep(30 * time.Second)
-	logger logger.Logger
 	TaskQueueString := "TestTaskQueue"
 
 	// construct client here

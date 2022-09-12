@@ -18,6 +18,9 @@ import (
 	"time"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Updates to workflows to be compatible with pluggable components changes
 	"github.com/zouyx/agollo/v3/component/log"
 =======
 >>>>>>> Initial creation of workflows building block

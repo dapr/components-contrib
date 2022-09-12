@@ -15,6 +15,7 @@ package kafka
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/dapr/kit/logger"
 
@@ -28,6 +29,7 @@ type PubSub struct {
 	logger          logger.Logger
 	subscribeCtx    context.Context
 	subscribeCancel context.CancelFunc
+	pubsub.BulkSubscribeConfig
 }
 
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
@@ -63,6 +65,46 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	return p.kafka.Subscribe(p.subscribeCtx)
 }
 
+func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	p.kafka.AddTopicBulkHandler(req.Topic, adaptBulkHandler(handler))
+	maxBulkCount, err := strconv.Atoi(req.Metadata["maxBulkCount"])
+	if err != nil {
+		maxBulkCount = 20
+	}
+	maxBulkLatencyMilliSeconds, err := strconv.Atoi(req.Metadata["maxBulkLatencyMilliSeconds"])
+	if err != nil {
+		maxBulkLatencyMilliSeconds = 20
+	}
+	maxBulkSizeBytes, err := strconv.Atoi(req.Metadata["maxBulkSizeBytes"])
+	if err != nil {
+		maxBulkSizeBytes = 20
+	}
+	p.kafka.AddBulkSubscribeConfig(maxBulkCount, maxBulkLatencyMilliSeconds, maxBulkSizeBytes)
+
+	go func() {
+		// Wait for context cancelation
+		select {
+		case <-ctx.Done():
+		case <-p.subscribeCtx.Done():
+		}
+
+		// Remove the topic handler before restarting the subscriber
+		p.kafka.RemoveTopicBulkHandler(req.Topic)
+
+		// If the component's context has been canceled, do not re-subscribe
+		if p.subscribeCtx.Err() != nil {
+			return
+		}
+
+		err := p.kafka.BulkSubscribe(p.subscribeCtx)
+		if err != nil {
+			p.logger.Errorf("kafka pubsub: error re-subscribing: %v", err)
+		}
+	}()
+
+	return p.kafka.BulkSubscribe(p.subscribeCtx)
+}
+
 // NewKafka returns a new kafka pubsub instance.
 func NewKafka(logger logger.Logger) pubsub.PubSub {
 	k := kafka.NewKafka(logger)
@@ -95,6 +137,27 @@ func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
 			Data:        event.Data,
 			Metadata:    event.Metadata,
 			ContentType: event.ContentType,
+		})
+	}
+}
+
+func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
+	return func(ctx context.Context, event *kafka.KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+		messages := make([]pubsub.BulkMessageEntry, 0)
+		for _, leafEvent := range event.Entries {
+			message := pubsub.BulkMessageEntry{
+				EntryID:     leafEvent.EntryID,
+				Event:       leafEvent.Event,
+				Metadata:    leafEvent.Metadata,
+				ContentType: leafEvent.ContentType,
+			}
+			messages = append(messages, message)
+		}
+
+		return handler(ctx, &pubsub.BulkMessage{
+			Topic:    event.Topic,
+			Entries:  messages,
+			Metadata: event.Metadata,
 		})
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 // asBase64String implements the `fmt.Stringer` interface in order to print
@@ -55,6 +56,9 @@ func isValidPEM(val string) bool {
 // Map of topics and their handlers
 type TopicHandlers map[string]EventHandler
 
+// Map of topics and their bulk handlers
+type TopicBulkHandlers map[string]BulkEventHandler
+
 // TopicList returns the list of topics
 func (th TopicHandlers) TopicList() []string {
 	topics := make([]string, len(th))
@@ -64,4 +68,18 @@ func (th TopicHandlers) TopicList() []string {
 		i++
 	}
 	return topics
+}
+
+func (tbh TopicBulkHandlers) TopicList() []string {
+	topics := make([]string, len(tbh))
+	i := 0
+	for topic := range tbh {
+		topics[i] = topic
+		i++
+	}
+	return topics
+}
+
+func GetEntryIds(n int) []int {
+	return pubsub.GetEntryIds(n)
 }

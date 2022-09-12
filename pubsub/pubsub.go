@@ -74,6 +74,7 @@ func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishR
 
 // BulkSubscribe Default Implementation
 func (p *DefaultBulkMessager) BulkSubscribe(tx context.Context, req SubscribeRequest,
-	handler BulkHandler) error {
+	handler BulkHandler,
+) error {
 	return nil
 }

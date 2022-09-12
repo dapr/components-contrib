@@ -89,16 +89,27 @@ func (p *DefaultBulkMessager) BulkSubscribe(ctx context.Context, req SubscribeRe
 		MaxBulkAwaitDurationMs: utils.GetIntOrDefault(req.Metadata, bulkSubscribeMaxAwaitDurationMsKey, defaultMaxBulkAwaitDurationMs),
 	}
 
-	msgs := make(chan *BulkMessageEntry, cfg.MaxBulkCount)
-	go processBulkMessages(ctx, msgs, cfg, handler)
+	msgCbChan := make(chan msgWithCallback, cfg.MaxBulkCount)
+	go processBulkMessages(ctx, req, msgCbChan, cfg, handler)
 
 	return p.p.Subscribe(ctx, req, func(ctx context.Context, msg *NewMessage) error {
-		msgs <- &BulkMessageEntry{
-			EntryID:     uuid.NewString(),
-			Event:       msg.Data,
-			ContentType: *msg.ContentType,
-			Metadata:    msg.Metadata,
+		var err error
+		done := make(chan struct{})
+
+		msgCbChan <- msgWithCallback{
+			msg: BulkMessageEntry{
+				EntryID:     uuid.NewString(),
+				Event:       msg.Data,
+				ContentType: *msg.ContentType,
+				Metadata:    msg.Metadata,
+			},
+			cb: func(_err error) {
+				err = _err
+				done <- struct{}{}
+			},
 		}
-		return nil
+
+		<-done
+		return err
 	})
 }

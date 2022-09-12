@@ -84,18 +84,54 @@ func (p *DefaultBulkMessager) bulkPublishSingleEntry(req *BulkPublishRequest, en
 	}
 }
 
-// flushMessages writes messages to a BulkHandler.
-func flushMessages(ctx context.Context, messages *[]*BulkMessageEntry, handler BulkHandler) {
+// msgWithCallback is a wrapper around a message that includes a callback function
+// that is called when the message is processed.
+type msgWithCallback struct {
+	msg BulkMessageEntry
+	cb  func(error)
+}
+
+// flushMessages writes messages to a BulkHandler and clears the messages slice.
+func flushMessages(ctx context.Context, req SubscribeRequest, messages *[]BulkMessageEntry, msgCbMap *map[string]func(error), handler BulkHandler) {
 	if len(*messages) > 0 {
-		// TODO: log error
-		handler(ctx)
+		// TODO: should we log errors?
+		responses, err := handler(ctx, &BulkMessage{
+			Topic:    req.Topic,
+			Metadata: map[string]string{},
+			Entries:  *messages,
+		})
+
+		if err != nil {
+			if responses != nil {
+				// invoke callbacks for each message
+				for _, r := range responses {
+					if cb, ok := (*msgCbMap)[r.EntryID]; ok {
+						cb(r.Error)
+					}
+				}
+			} else {
+				// all messages failed
+				for _, cb := range *msgCbMap {
+					cb(err)
+				}
+			}
+		} else {
+			// no error has occurred
+			for _, cb := range *msgCbMap {
+				cb(nil)
+			}
+		}
+
+		messages = &[]BulkMessageEntry{}
+		*msgCbMap = make(map[string]func(error))
 	}
 }
 
 // processBulkMessages reads messages from msgChan and publishes them to a BulkHandler.
 // It buffers messages in memory and publishes them in bulk.
-func processBulkMessages(ctx context.Context, msgChan <-chan *BulkMessageEntry, cfg BulkSubscribeConfig, handler BulkHandler) {
-	var messages []*BulkMessageEntry
+func processBulkMessages(ctx context.Context, req SubscribeRequest, msgCbChan <-chan msgWithCallback, cfg BulkSubscribeConfig, handler BulkHandler) {
+	var messages []BulkMessageEntry
+	msgCbMap := make(map[string]func(error))
 
 	ticker := time.NewTicker(time.Duration(cfg.MaxBulkAwaitDurationMs) * time.Millisecond)
 	defer ticker.Stop()
@@ -103,15 +139,16 @@ func processBulkMessages(ctx context.Context, msgChan <-chan *BulkMessageEntry, 
 	for {
 		select {
 		case <-ctx.Done():
-			flushMessages(ctx, messages, handler)
+			flushMessages(ctx, req, &messages, &msgCbMap, handler)
 			return
-		case msg := <-msgChan:
-			messages = append(messages, msg)
+		case msgCb := <-msgCbChan:
+			messages = append(messages, msgCb.msg)
+			msgCbMap[msgCb.msg.EntryID] = msgCb.cb
 			if len(messages) >= cfg.MaxBulkCount {
-				flushMessages(ctx, messages, handler)
+				flushMessages(ctx, req, &messages, &msgCbMap, handler)
 			}
 		case <-ticker.C:
-			flushMessages(ctx, messages, handler)
+			flushMessages(ctx, req, &messages, &msgCbMap, handler)
 		}
 	}
 }

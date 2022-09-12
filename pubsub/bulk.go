@@ -40,7 +40,7 @@ func (p *DefaultBulkMessager) bulkPublishSingleEntry(req *BulkPublishRequest, en
 }
 
 // bulkPublishSerial publishes messages in serial order.
-// This is slower, but ensures that messages are published in the order as specified in the request.
+// This is slower, but ensures that messages are published in the same order as specified in the request.
 func (p *DefaultBulkMessager) bulkPublishSerial(req *BulkPublishRequest) (BulkPublishResponse, error) {
 	var statuses []BulkPublishResponseEntry
 
@@ -52,7 +52,7 @@ func (p *DefaultBulkMessager) bulkPublishSerial(req *BulkPublishRequest) (BulkPu
 }
 
 // bulkPublishParallel publishes messages in parallel.
-// This is faster, but does not guarantee that messages are published in the order as specified in the request.
+// This is faster, but does not guarantee that messages are published in the same order as specified in the request.
 func (p *DefaultBulkMessager) bulkPublishParallel(req *BulkPublishRequest) (BulkPublishResponse, error) {
 	var statuses []BulkPublishResponseEntry
 	var wg sync.WaitGroup
@@ -65,6 +65,8 @@ func (p *DefaultBulkMessager) bulkPublishParallel(req *BulkPublishRequest) (Bulk
 			statuses = append(statuses, p.bulkPublishSingleEntry(req, entry))
 		}(entry)
 	}
+
+	wg.Wait()
 
 	return BulkPublishResponse{Statuses: statuses}, nil
 }

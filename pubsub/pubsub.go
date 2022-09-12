@@ -33,18 +33,18 @@ type PubSub interface {
 // BulkMessager is the interface defining BulkPublish and BulkSubscribe definitions for message buses
 type BulkMessager interface {
 	BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error)
-	BulkSubscribe(ctx context.Context, req SubscribeRequest, handler BulkHandler) (BulkSubscribeResponse, error)
+	BulkSubscribe(ctx context.Context, req SubscribeRequest, handler BulkHandler) error
 }
 
 // Handler is the handler used to invoke the app handler.
 type Handler func(ctx context.Context, msg *NewMessage) error
 
 // BulkHandler is the handler used to invoke the app handler.
-// It returns first type as []BulkSubscribeResponse which represents status per message - if not nil,
+// It returns first type as []BulkSubscribeResponseEntry which represents status per message - if not nil,
 // broker can take appropriate action accordingly.
 // Second return type is error which if not nil, reflects that there was an issue with
 // the whole bulk event and nothing could be sent ahead.
-type BulkHandler func(ctx context.Context, msg *BulkMessage) ([]BulkSubscribeResponse, error)
+type BulkHandler func(ctx context.Context, msg *BulkMessage) ([]BulkSubscribeResponseEntry, error)
 
 func Ping(pubsub PubSub) error {
 	// checks if this pubsub has the ping option then executes
@@ -74,6 +74,6 @@ func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishR
 
 // BulkSubscribe Default Implementation
 func (p *DefaultBulkMessager) BulkSubscribe(tx context.Context, req SubscribeRequest,
-	handler BulkHandler) (BulkSubscribeResponse, error) {
-	return BulkSubscribeResponse{}, nil
+	handler BulkHandler) error {
+	return nil
 }

@@ -67,9 +67,20 @@ func NewDefaultBulkMessager(pubsub PubSub) DefaultBulkMessager {
 	}
 }
 
-// BulkPublish Default Implementation
+// BulkPublish publishes messages to a broker that does not support bulk publish.
+// If 'bulkPublishKeepOrder' metadata is set to true, the messages are published serially
+// in the same order, otherwise they are published in parallel.
 func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error) {
-	return BulkPublishResponse{}, nil
+	var resp BulkPublishResponse
+	var err error
+
+	if req.Metadata[bulkPublishKeepOrderKey] == "true" {
+		resp, err = p.bulkPublishSerial(req)
+	} else {
+		resp, err = p.bulkPublishParallel(req)
+	}
+
+	return resp, err
 }
 
 // BulkSubscribe Default Implementation

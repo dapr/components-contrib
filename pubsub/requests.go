@@ -55,7 +55,7 @@ type BulkMessage struct {
 type BulkMessageEntry struct {
 	EntryID     string            `json:entryID`
 	Event       []byte            `json:"event"`
-	ContentType *string           `json:"contentType,omitempty"`
+	ContentType string            `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`
 }
 

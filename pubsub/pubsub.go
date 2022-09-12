@@ -18,6 +18,8 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/health"
+	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/google/uuid"
 )
 
 // PubSub is the interface for message buses.
@@ -81,7 +83,22 @@ func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishR
 // BulkSubscribe subscribes to a topic using a BulkHandler.
 // Dapr buffers messages in memory and calls the handler with a list of messages
 // when the buffer is full or max await duration is reached.
-func (p *DefaultBulkMessager) BulkSubscribe(tx context.Context, req SubscribeRequest,
-	handler BulkHandler) error {
-	return nil
+func (p *DefaultBulkMessager) BulkSubscribe(ctx context.Context, req SubscribeRequest, handler BulkHandler) error {
+	cfg := BulkSubscribeConfig{
+		MaxBulkCount:           utils.GetIntOrDefault(req.Metadata, bulkSubscribeMaxCountKey, defaultMaxBulkCount),
+		MaxBulkAwaitDurationMs: utils.GetIntOrDefault(req.Metadata, bulkSubscribeMaxAwaitDurationMsKey, defaultMaxBulkAwaitDurationMs),
+	}
+
+	msgs := make(chan *BulkMessageEntry, cfg.MaxBulkCount)
+	go processBulkMessages(ctx, msgs, cfg, handler)
+
+	return p.p.Subscribe(ctx, req, func(ctx context.Context, msg *NewMessage) error {
+		msgs <- &BulkMessageEntry{
+			EntryID:     uuid.NewString(),
+			Event:       msg.Data,
+			ContentType: *msg.ContentType,
+			Metadata:    msg.Metadata,
+		}
+		return nil
+	})
 }

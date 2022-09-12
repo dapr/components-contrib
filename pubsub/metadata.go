@@ -15,12 +15,6 @@ package pubsub
 
 import "github.com/dapr/components-contrib/metadata"
 
-const (
-	bulkPublishKeepOrderKey            string = "bulkPublishKeepOrder"
-	bulkSubscribeMaxCountKey           string = "bulkSubscribeMaxCount"
-	bulkSubscribeMaxAwaitDurationMsKey string = "bulkSubscribeMaxAwaitDurationMs"
-)
-
 // Metadata represents a set of message-bus specific properties.
 type Metadata struct {
 	metadata.Base `json:",inline"`

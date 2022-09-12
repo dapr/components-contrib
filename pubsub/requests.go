@@ -59,10 +59,10 @@ type BulkMessageEntry struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
-// BulkSubscribeConfig defines the Configurations that can be applied to control bulk subscribe
-// behavior - beahvior may depend per building block
+// BulkSubscribeConfig configures the bulk subscribe behavior.
+// It depends on the specific component implementations to support it.
 type BulkSubscribeConfig struct {
-	MaxBulkCount               int `json:"maxBulkCount"`
-	MaxBulkLatencyMilliSeconds int `json:"maxBulkLatencyMilliSeconds"`
-	MaxBulkSizeBytes           int `json:"maxBulkSizeBytes"`
+	MaxBulkCount           int `json:"maxBulkCount"`
+	MaxBulkAwaitDurationMs int `json:"maxBulkAwaitDurationMs"`
+	MaxBulkSizeBytes       int `json:"maxBulkSizeBytes"`
 }

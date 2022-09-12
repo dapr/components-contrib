@@ -13,7 +13,20 @@ limitations under the License.
 
 package pubsub
 
-import "sync"
+import (
+	"context"
+	"sync"
+	"time"
+)
+
+const (
+	bulkPublishKeepOrderKey            string = "bulkPublishKeepOrder"
+	bulkSubscribeMaxCountKey           string = "bulkSubscribeMaxCount"
+	bulkSubscribeMaxAwaitDurationMsKey string = "bulkSubscribeMaxAwaitDurationMs"
+
+	defaultMaxBulkCount           int = 100
+	defaultMaxBulkAwaitDurationMs int = 5 * 1000
+)
 
 // bulkPublishSerial publishes messages in serial order.
 // This is slower, but ensures that messages are published in the same order as specified in the request.
@@ -68,5 +81,37 @@ func (p *DefaultBulkMessager) bulkPublishSingleEntry(req *BulkPublishRequest, en
 	return BulkPublishResponseEntry{
 		EntryID: entry.EntryID,
 		Status:  PublishSucceeded,
+	}
+}
+
+// flushMessages writes messages to a BulkHandler.
+func flushMessages(ctx context.Context, messages *[]*BulkMessageEntry, handler BulkHandler) {
+	if len(*messages) > 0 {
+		// TODO: log error
+		handler(ctx)
+	}
+}
+
+// processBulkMessages reads messages from msgChan and publishes them to a BulkHandler.
+// It buffers messages in memory and publishes them in bulk.
+func processBulkMessages(ctx context.Context, msgChan <-chan *BulkMessageEntry, cfg BulkSubscribeConfig, handler BulkHandler) {
+	var messages []*BulkMessageEntry
+
+	ticker := time.NewTicker(time.Duration(cfg.MaxBulkAwaitDurationMs) * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			flushMessages(ctx, messages, handler)
+			return
+		case msg := <-msgChan:
+			messages = append(messages, msg)
+			if len(messages) >= cfg.MaxBulkCount {
+				flushMessages(ctx, messages, handler)
+			}
+		case <-ticker.C:
+			flushMessages(ctx, messages, handler)
+		}
 	}
 }

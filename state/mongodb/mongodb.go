@@ -66,7 +66,7 @@ const (
 	connectionURIFormatWithSrv = "mongodb+srv://%s/%s"
 
 	// mongodb+srv://<username>:<password>@<server>/<params>
-	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s"
+	connectionURIFormatWithSrvAndCredentials = "mongodb+srv://%s:%s@%s/%s%s" //nolint:gosec
 )
 
 // MongoDB is a state store implementation for MongoDB.
@@ -102,7 +102,7 @@ type Item struct {
 }
 
 // NewMongoDB returns a new MongoDB state store.
-func NewMongoDB(logger logger.Logger) *MongoDB {
+func NewMongoDB(logger logger.Logger) state.Store {
 	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,

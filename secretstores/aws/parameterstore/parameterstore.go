@@ -21,7 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -41,10 +41,12 @@ type parameterStoreMetaData struct {
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
 	SessionToken string `json:"sessionToken"`
+	Prefix       string `json:"prefix"`
 }
 
 type ssmSecretStore struct {
 	client ssmiface.SSMAPI
+	prefix string
 	logger logger.Logger
 }
 
@@ -60,6 +62,7 @@ func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
 		return err
 	}
 	s.client = client
+	s.prefix = meta.Prefix
 
 	return nil
 }
@@ -75,7 +78,7 @@ func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 	}
 
 	output, err := s.client.GetParameter(&ssm.GetParameterInput{
-		Name:           aws.String(name),
+		Name:           aws.String(s.prefix + name),
 		WithDecryption: aws.Bool(true),
 	})
 	if err != nil {
@@ -86,7 +89,8 @@ func (s *ssmSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 		Data: map[string]string{},
 	}
 	if output.Parameter.Name != nil && output.Parameter.Value != nil {
-		resp.Data[*output.Parameter.Name] = *output.Parameter.Value
+		secretName := (*output.Parameter.Name)[len(s.prefix):]
+		resp.Data[secretName] = *output.Parameter.Value
 	}
 
 	return resp, nil
@@ -101,10 +105,22 @@ func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 	search := true
 	var nextToken *string = nil
 
+	var filters []*ssm.ParameterStringFilter
+	if s.prefix != "" {
+		filters = []*ssm.ParameterStringFilter{
+			{
+				Key:    aws.String(ssm.ParametersFilterKeyName),
+				Option: aws.String("BeginsWith"),
+				Values: aws.StringSlice([]string{s.prefix}),
+			},
+		}
+	}
+
 	for search {
 		output, err := s.client.DescribeParameters(&ssm.DescribeParametersInput{
-			MaxResults: nil,
-			NextToken:  nextToken,
+			MaxResults:       nil,
+			NextToken:        nextToken,
+			ParameterFilters: filters,
 		})
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{Data: nil}, fmt.Errorf("couldn't list secrets: %s", err)
@@ -120,7 +136,8 @@ func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 			}
 
 			if entry.Name != nil && params.Parameter.Value != nil {
-				resp.Data[*entry.Name] = map[string]string{*entry.Name: *params.Parameter.Value}
+				secretName := (*entry.Name)[len(s.prefix):]
+				resp.Data[secretName] = map[string]string{secretName: *params.Parameter.Value}
 			}
 		}
 
@@ -132,7 +149,7 @@ func (s *ssmSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 }
 
 func (s *ssmSecretStore) getClient(metadata *parameterStoreMetaData) (*ssm.SSM, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
 	if err != nil {
 		return nil, err
 	}

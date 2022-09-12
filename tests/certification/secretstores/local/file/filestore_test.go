@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// SecretStores
-	"github.com/dapr/components-contrib/secretstores"
+
 	secretstore_file "github.com/dapr/components-contrib/secretstores/local/file"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -43,8 +43,6 @@ func TestEnv(t *testing.T) {
 
 	currentGrpcPort := ports[0]
 	currentHttpPort := ports[1]
-
-	log := logger.NewLogger("dapr.components")
 
 	testGetKnownSecret := func(ctx flow.Context) error {
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
@@ -86,11 +84,8 @@ func TestEnv(t *testing.T) {
 			embedded.WithComponentsPath("./components/defaultnestedseparator/"),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.file", func() secretstores.SecretStore {
-					return secretstore_file.NewLocalSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Getting known secret", testGetKnownSecret).
 		Run()
 
@@ -100,11 +95,20 @@ func TestEnv(t *testing.T) {
 			embedded.WithComponentsPath("./components/customnestedseparator/"),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.file", func() secretstores.SecretStore {
-					return secretstore_file.NewLocalSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Getting known secret", testGetKnownSecretWithCustomSeparator).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_file.NewLocalSecretStore, "local.file")
+
+	return []runtime.Option{
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

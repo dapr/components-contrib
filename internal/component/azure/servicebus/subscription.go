@@ -81,7 +81,7 @@ func NewSubscription(
 }
 
 // Connect to a Service Bus topic or queue, blocking until it succeeds; it can retry forever (until the context is canceled).
-func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, error)) (err error) {
+func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, error)) error {
 	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
 	config := retry.DefaultConfig()
 	config.Policy = retry.PolicyExponential
@@ -89,7 +89,7 @@ func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, e
 	config.MaxElapsedTime = 0
 	backoff := config.NewBackOffWithContext(s.ctx)
 
-	err = retry.NotifyRecover(
+	err := retry.NotifyRecover(
 		func() error {
 			clientAttempt, innerErr := newReceiverFunc()
 			if innerErr != nil {
@@ -139,6 +139,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 	for {
 		select {
 		// This blocks if there are too many active messages already
+		// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeMessagesChan`
 		case s.activeMessagesChan <- struct{}{}:
 		// Return if context is canceled
 		case <-ctx.Done():
@@ -152,6 +153,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 			if err != context.Canceled {
 				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())
 			}
+			<-s.activeMessagesChan
 			// Return the error. This will cause the Service Bus component to try and reconnect.
 			return err
 		}
@@ -166,6 +168,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 		if l == 0 {
 			// We got no message, which is unusual too
 			s.logger.Warn("Received 0 messages from Service Bus")
+			<-s.activeMessagesChan
 			continue
 		} else if l > 1 {
 			// We are requesting one message only; this should never happen
@@ -181,6 +184,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 			// be a bug in the Azure Service Bus SDK so we will log the error and not
 			// handle the message. The message will eventually be retried until fixed.
 			s.logger.Errorf("Error adding message: %s", err.Error())
+			<-s.activeMessagesChan
 			continue
 		}
 
@@ -202,14 +206,15 @@ func (s *Subscription) Close(closeCtx context.Context) {
 
 func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handler HandlerFunc) {
 	go func() {
-		var consumeToken bool
-		var err error
+		var (
+			consumeToken           bool
+			takenConcurrentHandler bool
+			err                    error
+		)
 
-		// If handleChan is non-nil, we have a limit on how many handler we can process
-		limitConcurrentHandlers := cap(s.handleChan) > 0
 		defer func() {
 			// Release a handler if needed
-			if limitConcurrentHandlers {
+			if takenConcurrentHandler {
 				<-s.handleChan
 				s.logger.Debugf("Released message handle for %s on %s", msg.MessageID, s.entity)
 			}
@@ -230,7 +235,8 @@ func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 			<-s.activeMessagesChan
 		}()
 
-		if limitConcurrentHandlers {
+		// If handleChan is non-nil, we have a limit on how many handler we can process
+		if cap(s.handleChan) > 0 {
 			s.logger.Debugf("Taking message handle for %s on %s", msg.MessageID, s.entity)
 			select {
 			// Context is done, so we will stop waiting
@@ -239,6 +245,7 @@ func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.Receiv
 				return
 			// Blocks until we have a handler available
 			case s.handleChan <- struct{}{}:
+				takenConcurrentHandler = true
 				s.logger.Debugf("Taken message handle for %s on %s", msg.MessageID, s.entity)
 			}
 		}

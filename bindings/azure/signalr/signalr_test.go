@@ -17,7 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -186,7 +186,7 @@ func TestConfigurationValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewSignalR(logger.NewLogger("test"))
+			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expectedEndpoint, s.endpoint)
@@ -256,7 +256,7 @@ func TestInvalidConfigurations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewSignalR(logger.NewLogger("test"))
+			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
 			assert.NotNil(t, err)
 		})
@@ -284,10 +284,10 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestWriteShouldFail(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 
-	s := NewSignalR(logger.NewLogger("test"))
+	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 	s.endpoint = "https://fake.service.signalr.net"
 	s.accessKey = "G7+nIt9n48+iYSltPRf1v8kE+MupFfEt/9NSNTKOdzA="
 	s.httpClient = &http.Client{
@@ -335,10 +335,10 @@ func TestWriteShouldFail(t *testing.T) {
 
 func TestWriteShouldSucceed(t *testing.T) {
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: 200, Body: ioutil.NopCloser(strings.NewReader(""))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
 	}
 
-	s := NewSignalR(logger.NewLogger("test"))
+	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 	s.endpoint = "https://fake.service.signalr.net"
 	s.accessKey = "fakekey"
 	s.httpClient = &http.Client{

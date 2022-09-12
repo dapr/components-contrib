@@ -18,9 +18,9 @@ import (
 	"io"
 	"strings"
 
-	ipfs_options "github.com/ipfs/interface-go-ipfs-core/options"
-	ipfs_config "github.com/ipfs/kubo/config"
-	ipfs_fsrepo "github.com/ipfs/kubo/repo/fsrepo"
+	ipfsOptions "github.com/ipfs/interface-go-ipfs-core/options"
+	ipfsConfig "github.com/ipfs/kubo/config"
+	ipfsFsrepo "github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/dapr/kit/config"
@@ -71,7 +71,7 @@ func (m *ipfsMetadata) FromMap(mp map[string]string) (err error) {
 	}
 
 	if m.RepoPath == "" {
-		m.RepoPath, err = ipfs_fsrepo.BestKnownPath()
+		m.RepoPath, err = ipfsFsrepo.BestKnownPath()
 		if err != nil {
 			return fmt.Errorf("error determining the best known repo path: %v", err)
 		}
@@ -82,22 +82,22 @@ func (m *ipfsMetadata) FromMap(mp map[string]string) (err error) {
 
 // IPFSConfig returns the configuration object for using with the go-ipfs library.
 // This is executed only when initializing a new repository.
-func (m *ipfsMetadata) IPFSConfig() (*ipfs_config.Config, error) {
-	identity, err := ipfs_config.CreateIdentity(io.Discard, []ipfs_options.KeyGenerateOption{
-		ipfs_options.Key.Type(ipfs_options.Ed25519Key),
+func (m *ipfsMetadata) IPFSConfig() (*ipfsConfig.Config, error) {
+	identity, err := ipfsConfig.CreateIdentity(io.Discard, []ipfsOptions.KeyGenerateOption{
+		ipfsOptions.Key.Type(ipfsOptions.Ed25519Key),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := ipfs_config.InitWithIdentity(identity)
+	cfg, err := ipfsConfig.InitWithIdentity(identity)
 	if err != nil {
 		return nil, err
 	}
 
 	if m.BootstrapNodes != "" {
 		var peers []peer.AddrInfo
-		peers, err = ipfs_config.ParseBootstrapPeers(
+		peers, err = ipfsConfig.ParseBootstrapPeers(
 			strings.Split(m.BootstrapNodes, ","),
 		)
 		if err != nil {
@@ -109,9 +109,9 @@ func (m *ipfsMetadata) IPFSConfig() (*ipfs_config.Config, error) {
 	r := strings.ToLower(m.Routing)
 	switch r {
 	case "dht", "dhtclient", "dhtserver", "none":
-		cfg.Routing.Type = ipfs_config.NewOptionalString(r)
+		cfg.Routing.Type = ipfsConfig.NewOptionalString(r)
 	case "":
-		cfg.Routing.Type = ipfs_config.NewOptionalString("dht")
+		cfg.Routing.Type = ipfsConfig.NewOptionalString("dht")
 	default:
 		return nil, fmt.Errorf("invalid value for metadata property 'routing'")
 	}

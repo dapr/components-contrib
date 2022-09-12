@@ -10,7 +10,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/dapr/components-contrib/bindings"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/internal/utils"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 
 type serviceBusQueuesMetadata struct {
@@ -25,6 +26,7 @@ type serviceBusQueuesMetadata struct {
 	LockRenewalInSec           int    `json:"lockRenewalInSec"`
 	MaxConcurrentHandlers      int    `json:"maxConcurrentHandlers"`
 	ttl                        time.Duration
+	DisableEntityManagement    bool `json:"disableEntityManagement"`
 }
 
 const (
@@ -39,6 +41,7 @@ const (
 	maxActiveMessages          = "maxActiveMessages"
 	lockRenewalInSec           = "lockRenewalInSec"
 	maxConcurrentHandlers      = "maxConcurrentHandlers"
+	disableEntityManagement    = "disableEntityManagement"
 
 	// Default time to live for queues, which is 14 days. The same way Azure Portal does.
 	defaultMessageTimeToLive = time.Hour * 24 * 14
@@ -64,6 +67,9 @@ const (
 	// Default rate of retriable errors per second
 	defaultMaxRetriableErrorsPerSec = 10
 
+	// By default entity management is enabled
+	defaultDisableEntityManagement = false
+
 	errorMessagePrefix = "azure service bus error:"
 )
 
@@ -82,7 +88,7 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 		return nil, errors.New("connectionString and namespaceName are mutually exclusive")
 	}
 
-	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +166,11 @@ func (a *AzureServiceBusQueues) parseMetadata(metadata bindings.Metadata) (*serv
 			return nil, fmt.Errorf("%smaxRetriableErrorsPerSec must be non-negative, %s", errorMessagePrefix, err)
 		}
 		m.MaxRetriableErrorsPerSec = to.Ptr(mRetriableErrorsPerSec)
+	}
+
+	m.DisableEntityManagement = defaultDisableEntityManagement
+	if val, ok := metadata.Properties[disableEntityManagement]; ok && val != "" {
+		m.DisableEntityManagement = utils.IsTruthy(val)
 	}
 
 	return &m, nil

@@ -30,11 +30,12 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestMain(m *testing.M) {
-	if utils.IsTruthy(os.Getenv("IPFS_TEST")) {
+	if !utils.IsTruthy(os.Getenv("IPFS_TEST")) {
 		log.Println("IPFS_TEST env var is not set to a truthy value; skipping tests")
 		os.Exit(0)
 	}
@@ -58,13 +59,13 @@ func TestSingleNodeGlobalNetwork(t *testing.T) {
 	sort.Strings(folderCids)
 
 	t.Run("init node", func(t *testing.T) {
-		b = NewIPFSBinding(logger.NewLogger("tests"))
-		err := b.Init(bindings.Metadata{
+		b = NewIPFSBinding(logger.NewLogger("tests")).(*IPFSBinding)
+		err := b.Init(bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{
 				"repoPath": repoPath,
 				"routing":  "dhtclient",
 			},
-		})
+		}})
 		require.NoError(t, err)
 	})
 

@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -58,7 +58,7 @@ func init() {
 }
 
 // NewSignalR creates a new output binding for Azure SignalR.
-func NewSignalR(logger logger.Logger) *SignalR {
+func NewSignalR(logger logger.Logger) bindings.OutputBinding {
 	return &SignalR{
 		logger:     logger,
 		httpClient: httpClient,
@@ -197,7 +197,7 @@ func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 }
 
 func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token string, data []byte) error {
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -213,7 +213,7 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 	defer resp.Body.Close()
 
 	// Read the body regardless to drain it and ensure the connection can be reused
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -263,7 +263,8 @@ func (s *SignalR) getToken(ctx context.Context, url string) (token string, err e
 		}
 		token = at.Token
 	} else {
-		claims := &jwt.StandardClaims{
+		// TODO: Use jwt.RegisteredClaims instead
+		claims := &jwt.StandardClaims{ //nolint:staticcheck
 			ExpiresAt: time.Now().Add(15 * time.Minute).Unix(),
 			Audience:  url,
 		}

@@ -159,7 +159,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
 	keys := req.Keys
-	var items []*configuration.Item
+	var items map[string]*configuration.Item
 
 	if len(keys) == 0 {
 		var err error
@@ -167,8 +167,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			return &configuration.GetResponse{}, err
 		}
 	} else {
-		items = make([]*configuration.Item, 0, len(keys))
-		i := 0
+		items = make(map[string]*configuration.Item, len(keys))
 		for _, key := range keys {
 			resp, err := r.client.GetSetting(
 				ctx,
@@ -183,16 +182,13 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			item := &configuration.Item{
 				Metadata: map[string]string{},
 			}
-			item.Key = key
 			item.Value = *resp.Value
 			if resp.Label != nil {
 				item.Metadata["label"] = *resp.Label
 			}
 
-			items[i] = item
-			i++
+			items[key] = item
 		}
-		items = items[:i]
 	}
 
 	return &configuration.GetResponse{
@@ -200,8 +196,8 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	}, nil
 }
 
-func (r *ConfigurationStore) getAll(ctx context.Context) ([]*configuration.Item, error) {
-	items := make([]*configuration.Item, 0)
+func (r *ConfigurationStore) getAll(ctx context.Context) (map[string]*configuration.Item, error) {
+	items := make(map[string]*configuration.Item, 0)
 
 	revPgr := r.client.NewListRevisionsPager(
 		azappconfig.SettingSelector{
@@ -217,13 +213,12 @@ func (r *ConfigurationStore) getAll(ctx context.Context) ([]*configuration.Item,
 				item := &configuration.Item{
 					Metadata: map[string]string{},
 				}
-				item.Key = *setting.Key
 				item.Value = *setting.Value
 				if setting.Label != nil {
 					item.Metadata["label"] = *setting.Label
 				}
 
-				items = append(items, item)
+				items[*setting.Key] = item
 			}
 		} else {
 			return nil, fmt.Errorf("failed to load all keys, error is %s", err)

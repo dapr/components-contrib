@@ -15,13 +15,13 @@ package vault
 
 import (
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 )
 
@@ -35,7 +35,7 @@ const (
 func TestReadVaultToken(t *testing.T) {
 	t.Run("read correct token", func(t *testing.T) {
 		dir := os.TempDir()
-		f, err := ioutil.TempFile(dir, "vault-token")
+		f, err := os.CreateTemp(dir, "vault-token")
 		assert.NoError(t, err)
 		fileName := f.Name()
 		defer os.Remove(fileName)
@@ -55,7 +55,7 @@ func TestReadVaultToken(t *testing.T) {
 
 	t.Run("read incorrect token", func(t *testing.T) {
 		dir := os.TempDir()
-		f, err := ioutil.TempFile(dir, "vault-token")
+		f, err := os.CreateTemp(dir, "vault-token")
 		assert.NoError(t, err)
 		fileName := f.Name()
 		defer os.Remove(fileName)
@@ -94,7 +94,7 @@ func TestVaultTLSConfig(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		tlsConfig := metadataToTLSConfig(m.Properties)
@@ -110,7 +110,7 @@ func TestVaultEnginePath(t *testing.T) {
 	t.Run("without engine path config", func(t *testing.T) {
 		v := vaultSecretStore{}
 
-		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}})
+		err := v.Init(secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
 		assert.Nil(t, err)
 		assert.Equal(t, v.vaultEnginePath, defaultVaultEnginePath)
 	})
@@ -118,7 +118,7 @@ func TestVaultEnginePath(t *testing.T) {
 	t.Run("with engine path config", func(t *testing.T) {
 		v := vaultSecretStore{}
 
-		err := v.Init(secretstores.Metadata{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}})
+		err := v.Init(secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
 		assert.Nil(t, err)
 		assert.Equal(t, v.vaultEnginePath, "kv")
 	})
@@ -131,7 +131,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -156,7 +156,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -181,7 +181,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -204,7 +204,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		properties := map[string]string{}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -226,7 +226,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -250,7 +250,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -275,7 +275,7 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -299,7 +299,7 @@ func TestDefaultVaultAddress(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -326,7 +326,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -347,7 +347,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -367,7 +367,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{
@@ -388,7 +388,7 @@ func TestVaultValueType(t *testing.T) {
 		}
 
 		m := secretstores.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 
 		target := &vaultSecretStore{

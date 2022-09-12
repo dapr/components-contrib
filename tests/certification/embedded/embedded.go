@@ -107,13 +107,31 @@ func WithProfilePort(port int) Option {
 
 func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
-
-	runtimeConfig := runtime.NewRuntimeConfig(
-		appID, []string{}, controlPlaneAddress,
-		allowedOrigins, config, componentsPath, string(runtime.HTTPProtocol), string(mode),
-		daprHTTPPort, daprInternalGRPC, daprAPIGRPCPort, []string{"127.0.0.1"}, nil, appPort, profilePort,
-		enableProfiling, maxConcurrency, enableMTLS, sentryAddress, appSSL, maxRequestBodySize, "",
-		runtime.DefaultReadBufferSize, false, time.Second, true, false)
+	runtimeConfig := runtime.NewRuntimeConfig(runtime.NewRuntimeConfigOpts{
+		ID:                           appID,
+		HTTPPort:                     daprHTTPPort,
+		InternalGRPCPort:             daprInternalGRPC,
+		APIGRPCPort:                  daprAPIGRPCPort,
+		AppPort:                      appPort,
+		ProfilePort:                  profilePort,
+		APIListenAddresses:           []string{"127.0.0.1"},
+		AppProtocol:                  string(runtime.HTTPProtocol),
+		Mode:                         string(mode),
+		PlacementAddresses:           []string{},
+		GlobalConfig:                 config,
+		AllowedOrigins:               allowedOrigins,
+		ComponentsPath:               componentsPath,
+		EnableProfiling:              enableProfiling,
+		MaxConcurrency:               maxConcurrency,
+		MTLSEnabled:                  enableMTLS,
+		SentryAddress:                sentryAddress,
+		AppSSL:                       appSSL,
+		MaxRequestBodySize:           maxRequestBodySize,
+		ReadBufferSize:               runtime.DefaultReadBufferSize,
+		GracefulShutdownDuration:     time.Second,
+		EnableAPILogging:             true,
+		DisableBuiltinK8sSecretStore: false,
+	})
 
 	for _, opt := range opts {
 		opt(runtimeConfig)

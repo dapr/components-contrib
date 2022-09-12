@@ -24,10 +24,9 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	binding_asb "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 
-	binding_loader "github.com/dapr/dapr/pkg/components/bindings"
+	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
@@ -51,7 +50,6 @@ const (
 )
 
 func TestServiceBusQueue(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	messagesFor1 := watcher.NewOrdered()
 	messagesFor2 := watcher.NewOrdered()
 
@@ -131,21 +129,8 @@ func TestServiceBusQueue(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/standard"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.servicebusqueues", func() bindings.OutputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.servicebusqueues", func() bindings.InputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		// Block the standard AMPQ ports.
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
 		Step("send and wait", test).
@@ -153,7 +138,6 @@ func TestServiceBusQueue(t *testing.T) {
 }
 
 func TestAzureServiceBusQueuesTTLs(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	ttlMessages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -224,21 +208,8 @@ func TestAzureServiceBusQueuesTTLs(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/ttl"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.servicebusqueues", func() bindings.OutputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.servicebusqueues", func() bindings.InputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send ttl messages", sendTTLMessages).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
@@ -246,21 +217,8 @@ func TestAzureServiceBusQueuesTTLs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(freshPorts[0]),
 			embedded.WithDaprHTTPPort(freshPorts[1]),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.servicebusqueues", func() bindings.OutputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.servicebusqueues", func() bindings.InputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			ttlMessages.Assert(t, time.Minute)
 			return nil
@@ -269,7 +227,6 @@ func TestAzureServiceBusQueuesTTLs(t *testing.T) {
 }
 
 func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
 	messages := watcher.NewUnordered()
 
 	ports, _ := dapr_testing.GetFreePorts(3)
@@ -335,21 +292,115 @@ func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/retry"),
-			runtime.WithOutputBindings(
-				binding_loader.NewOutput("azure.servicebusqueues", func() bindings.OutputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithInputBindings(
-				binding_loader.NewInput("azure.servicebusqueues", func() bindings.InputBinding {
-					return binding_asb.NewAzureServiceBusQueues(log)
-				}),
-			),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("send and wait", test).
 		Run()
+}
+
+func TestServiceBusQueueMetadata(t *testing.T) {
+	messages := watcher.NewUnordered()
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	test := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		// Send events that the application above will observe.
+		ctx.Log("Invoking binding!")
+		req := &daprClient.InvokeBindingRequest{Name: "sb-binding-1", Operation: "create", Data: []byte("test msg"), Metadata: map[string]string{"Testmetadata": "Some Metadata"}}
+		err = client.InvokeOutputBinding(ctx, req)
+		require.NoError(ctx, err, "error publishing message")
+
+		// Do the messages we observed match what we expect?
+		messages.Assert(ctx, time.Minute)
+
+		return nil
+	}
+
+	// Application logic that tracks messages from a topic.
+	application := func(ctx flow.Context, s common.Service) (err error) {
+		// Setup the input binding endpoints
+		err = multierr.Combine(err,
+			s.AddBindingInvocationHandler("sb-binding-1", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				messages.Observe(string(in.Data))
+				ctx.Logf("Got message: %s - %+v", string(in.Data), in.Metadata)
+				require.NotEmpty(t, in.Metadata)
+				require.Contains(t, in.Metadata, "Testmetadata")
+				require.Equal(t, "Some Metadata", in.Metadata["Testmetadata"])
+
+				return []byte("{}"), nil
+			}))
+
+		return err
+	}
+
+	flow.New(t, "servicebusqueue certification").
+		// Run the application logic above.
+		Step(app.Run("metadataApp", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("metadataSidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/standard"),
+			componentRuntimeOptions(),
+		)).
+		Step("send and wait", test).
+		Run()
+}
+
+func TestServiceBusQueueDisableEntityManagement(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(2)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+
+	testWithExpectedFailure := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		// Send events that the application above will observe.
+		ctx.Log("Invoking binding!")
+		req := &daprClient.InvokeBindingRequest{Name: "mgmt-binding", Operation: "create", Data: []byte("test msg"), Metadata: map[string]string{"TestMetadata": "Some Metadata"}}
+		err = client.InvokeOutputBinding(ctx, req)
+		require.Error(ctx, err, "error publishing message")
+		return nil
+	}
+
+	flow.New(t, "servicebus queues certification - entity management disabled").
+		// Run the application logic above.
+		Step(sidecar.Run("metadataSidecar",
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/disable_entity_mgmt"),
+			componentRuntimeOptions(),
+		)).
+		Step("send and wait", testWithExpectedFailure).
+		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
+		return binding_asb.NewAzureServiceBusQueues(l)
+	}, "azure.servicebusqueues")
+	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
+		return binding_asb.NewAzureServiceBusQueues(l)
+	}, "azure.servicebusqueues")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

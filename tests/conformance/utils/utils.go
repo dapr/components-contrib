@@ -15,7 +15,7 @@ package utils
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +38,7 @@ type server struct {
 	Data []byte
 }
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	s          server
 	testLogger = logger.NewLogger("utils")
@@ -118,7 +118,7 @@ func (s *server) handleGet() []byte {
 }
 
 func (s *server) handlePost(r *http.Request) {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
 	if err == nil {

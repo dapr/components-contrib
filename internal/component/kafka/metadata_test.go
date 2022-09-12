@@ -60,7 +60,7 @@ func TestParseMetadata(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, meta)
 		assertMetadata(t, meta)
-		require.Equal(t, sarama.V2_0_0_0, meta.Version)
+		require.Equal(t, sarama.V2_0_0_0, meta.Version) //nolint:nosnakecase
 	})
 
 	t.Run("specific kafka version", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestParseMetadata(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, meta)
 		assertMetadata(t, meta)
-		require.Equal(t, sarama.V0_10_2_0, meta.Version)
+		require.Equal(t, sarama.V0_10_2_0, meta.Version) //nolint:nosnakecase
 	})
 
 	t.Run("invalid kafka version", func(t *testing.T) {

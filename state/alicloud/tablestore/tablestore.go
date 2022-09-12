@@ -45,7 +45,7 @@ type tablestoreMetadata struct {
 	TableName    string `json:"tableName"`
 }
 
-func NewAliCloudTableStore(logger logger.Logger) *AliCloudTableStore {
+func NewAliCloudTableStore(logger logger.Logger) state.Store {
 	return &AliCloudTableStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
@@ -164,7 +164,7 @@ func (s *AliCloudTableStore) updateRowChange(req *state.SetRequest) *tablestore.
 		change.PutColumn(sateEtag, *req.ETag)
 	}
 
-	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE)
+	change.SetCondition(tablestore.RowExistenceExpectation_IGNORE) //nolint:nosnakecase
 
 	return change
 }
@@ -200,7 +200,7 @@ func (s *AliCloudTableStore) deleteRowChange(req *state.DeleteRequest) *tablesto
 		PrimaryKey: s.primaryKey(req.Key),
 		TableName:  s.metadata.TableName,
 	}
-	change.SetCondition(tablestore.RowExistenceExpectation_EXPECT_EXIST)
+	change.SetCondition(tablestore.RowExistenceExpectation_EXPECT_EXIST) //nolint:nosnakecase
 
 	return change
 }

@@ -71,19 +71,16 @@ func NewDefaultBulkMessager(pubsub PubSub) DefaultBulkMessager {
 // If 'bulkPublishKeepOrder' metadata is set to true, the messages are published serially
 // in the same order, otherwise they are published in parallel.
 func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error) {
-	var resp BulkPublishResponse
-	var err error
-
 	if req.Metadata[bulkPublishKeepOrderKey] == "true" {
-		resp, err = p.bulkPublishSerial(req)
+		return p.bulkPublishSerial(req)
 	} else {
-		resp, err = p.bulkPublishParallel(req)
+		return p.bulkPublishParallel(req)
 	}
-
-	return resp, err
 }
 
-// BulkSubscribe Default Implementation
+// BulkSubscribe subscribes to a topic using a BulkHandler.
+// Dapr buffers messages in memory and calls the handler with a list of messages
+// when the buffer is full or max await duration is reached.
 func (p *DefaultBulkMessager) BulkSubscribe(tx context.Context, req SubscribeRequest,
 	handler BulkHandler) error {
 	return nil

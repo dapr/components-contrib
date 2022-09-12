@@ -15,30 +15,6 @@ package pubsub
 
 import "sync"
 
-// bulkPublishSingleEntry publishes a single message from the bulk request.
-func (p *DefaultBulkMessager) bulkPublishSingleEntry(req *BulkPublishRequest, entry BulkMessageEntry) BulkPublishResponseEntry {
-	pr := PublishRequest{
-		Data:        entry.Event,
-		PubsubName:  req.PubsubName,
-		Topic:       req.Topic,
-		Metadata:    entry.Metadata,
-		ContentType: &entry.ContentType,
-	}
-
-	if err := p.p.Publish(&pr); err != nil {
-		return BulkPublishResponseEntry{
-			EntryID: entry.EntryID,
-			Status:  PublishFailed,
-			Error:   err,
-		}
-	}
-
-	return BulkPublishResponseEntry{
-		EntryID: entry.EntryID,
-		Status:  PublishSucceeded,
-	}
-}
-
 // bulkPublishSerial publishes messages in serial order.
 // This is slower, but ensures that messages are published in the same order as specified in the request.
 func (p *DefaultBulkMessager) bulkPublishSerial(req *BulkPublishRequest) (BulkPublishResponse, error) {
@@ -69,4 +45,28 @@ func (p *DefaultBulkMessager) bulkPublishParallel(req *BulkPublishRequest) (Bulk
 	wg.Wait()
 
 	return BulkPublishResponse{Statuses: statuses}, nil
+}
+
+// bulkPublishSingleEntry publishes a single message from the bulk request.
+func (p *DefaultBulkMessager) bulkPublishSingleEntry(req *BulkPublishRequest, entry BulkMessageEntry) BulkPublishResponseEntry {
+	pr := PublishRequest{
+		Data:        entry.Event,
+		PubsubName:  req.PubsubName,
+		Topic:       req.Topic,
+		Metadata:    entry.Metadata,
+		ContentType: &entry.ContentType,
+	}
+
+	if err := p.p.Publish(&pr); err != nil {
+		return BulkPublishResponseEntry{
+			EntryID: entry.EntryID,
+			Status:  PublishFailed,
+			Error:   err,
+		}
+	}
+
+	return BulkPublishResponseEntry{
+		EntryID: entry.EntryID,
+		Status:  PublishSucceeded,
+	}
 }

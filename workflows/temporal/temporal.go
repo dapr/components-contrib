@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
@@ -113,7 +114,7 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 	// Build the output struct
 	outputStruct := workflows.StateResponse{
 		WFInfo:    workflows.WorkflowReference{InstanceID: req.InstanceID},
-		StartTime: resp.WorkflowExecutionInfo.StartTime.String(),
+		StartTime: resp.WorkflowExecutionInfo.StartTime.Format(time.RFC3339),
 		TaskQueue: resp.WorkflowExecutionInfo.GetTaskQueue(),
 		Status:    lookupStatus(resp.WorkflowExecutionInfo.Status),
 	}

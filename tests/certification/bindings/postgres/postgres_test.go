@@ -75,7 +75,8 @@ func TestPostgres(t *testing.T) {
 		ctx.Log("Invoking output binding for query operation!")
 		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
 		req.Metadata["sql"] = "SELECT * FROM dapr_test_table WHERE id = 1;"
-		errBinding := client.InvokeOutputBinding(ctx, req)
+		resp, errBinding := client.InvokeBinding(ctx, req)
+		assert.Contains(t, string(resp.Data), "1,\"demo\",\"2020-09-24T11:45:05Z07:00\"")
 		require.NoError(ctx, errBinding, "error in output binding - query")
 
 		return nil
@@ -92,6 +93,11 @@ func TestPostgres(t *testing.T) {
 		errBinding := client.InvokeOutputBinding(ctx, req)
 		require.NoError(ctx, errBinding, "error in output binding - close")
 
+		req = &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
+		req.Metadata["sql"] = "SELECT * FROM dapr_test_table WHERE id = 1;"
+		errBinding = client.InvokeOutputBinding(ctx, req)
+		require.Error(ctx, errBinding, "error in output binding - query")
+
 		return nil
 	}
 
@@ -101,25 +107,6 @@ func TestPostgres(t *testing.T) {
 		_, err = db.Exec("CREATE TABLE dapr_test_table(id INT, c1 TEXT, ts TEXT);")
 		assert.NoError(t, err)
 		db.Close()
-		return nil
-	}
-
-	// checks the state store component is not vulnerable to SQL injection
-	verifySQLInjectionTest := func(ctx flow.Context) error {
-		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		if err != nil {
-			panic(err)
-		}
-		defer client.Close()
-
-		metadata := make(map[string]string)
-
-		ctx.Log("Invoking output binding for verificatio0n of SQL Injection!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "close", Metadata: metadata}
-		req.Metadata["sql"] = "DROP TABLE dapr_test_table dapr' OR '1'='1"
-		errBinding := client.InvokeOutputBinding(ctx, req)
-		require.NoError(ctx, errBinding, "error in output binding - sql injection verfication")
-
 		return nil
 	}
 
@@ -137,7 +124,6 @@ func TestPostgres(t *testing.T) {
 		)).
 		Step("Run exec test", testExec).
 		Step("Run query test", testQuery).
-		Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop("standardSidecar")).
 		Step("wait for DB operations to complete", flow.Sleep(10*time.Second)).
 		Step("Run close test", testClose).
 		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
@@ -181,20 +167,6 @@ func TestPostgresNetworkError(t *testing.T) {
 		return nil
 	}
 
-	testClose := func(ctx flow.Context) error {
-		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
-
-		metadata := make(map[string]string)
-
-		ctx.Log("Invoking output binding for close operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "close", Metadata: metadata}
-		errBinding := client.InvokeOutputBinding(ctx, req)
-		require.NoError(ctx, errBinding, "error in output binding - close")
-
-		return nil
-	}
-
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("postgres", dockerConnectionString)
 		assert.NoError(t, err)
@@ -219,10 +191,9 @@ func TestPostgresNetworkError(t *testing.T) {
 		Step("Run exec test", testExec).
 		Step("Run query test", testQuery).
 		Step("wait for DB operations to complete", flow.Sleep(10*time.Second)).
-		Step("Run close test", testClose).
-		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5432")).
+		Step("wait for component to recover", flow.Sleep(10*time.Second)).
+		Step("Run query test", testQuery).
 		Run()
 }
 

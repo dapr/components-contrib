@@ -12,10 +12,10 @@ type WorkflowReference struct {
 
 // StartRequest is the object describing a Start Workflow request.
 type StartRequest struct {
-	Options      map[string]string `json:"workflow_options"`
-	WorkflowInfo WorkflowReference `json:"workflow_info"`
-	WorkflowName string            `json:"function_name"`
-	Parameters   interface{}       `json:"parameters"`
+	Options           map[string]string `json:"workflow_options"`
+	WorkflowReference WorkflowReference `json:"workflow_reference"`
+	WorkflowName      string            `json:"function_name"`
+	Parameters        interface{}       `json:"parameters"`
 }
 
 // CreateWorkerRequest is the object describing a Create Worker request.

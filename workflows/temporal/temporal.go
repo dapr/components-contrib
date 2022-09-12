@@ -82,10 +82,10 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 	}
 	taskQ := req.Options["task_queue"]
 
-	opt := client.StartWorkflowOptions{ID: req.WorkflowInfo.InstanceID, TaskQueue: taskQ}
+	opt := client.StartWorkflowOptions{ID: req.WorkflowReference.InstanceID, TaskQueue: taskQ}
 	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
 	if err != nil {
-		c.logger.Debugf("error when starting workflow")
+		c.logger.Debugf("error when starting workflow: %v", err)
 		return &workflows.WorkflowReference{}, err
 	}
 	wfStruct := workflows.WorkflowReference{InstanceID: run.GetID()}
@@ -97,6 +97,7 @@ func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowRefer
 
 	err := c.client.TerminateWorkflow(ctx, req.InstanceID, "", "")
 	if err != nil {
+		c.logger.Errorf("error when terminating workflow: %v", err)
 		return err
 	}
 	return nil

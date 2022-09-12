@@ -602,7 +602,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 			}, b, func(_ error, _ time.Duration) {
 				aeh.logger.Errorf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
 			}, func() {
-				aeh.logger.Errorf("Successfully processed EventHubs event after it previously failed: %s/%s", req.Topic, e.ID)
+				aeh.logger.Warnf("Successfully processed EventHubs event after it previously failed: %s/%s", req.Topic, e.ID)
 			})
 		})
 	if err != nil {

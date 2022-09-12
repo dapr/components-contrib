@@ -21,7 +21,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -76,7 +76,7 @@ type Mysql struct {
 }
 
 // NewMysql returns a new MySQL output binding.
-func NewMysql(logger logger.Logger) *Mysql {
+func NewMysql(logger logger.Logger) bindings.OutputBinding {
 	return &Mysql{logger: logger}
 }
 
@@ -155,7 +155,7 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		},
 	}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation { //nolint:exhaustive
 	case execOperation:
 		r, err := m.exec(ctx, s)
 		if err != nil {
@@ -263,7 +263,7 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 
 	if pemPath != "" {
 		rootCertPool := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(pemPath)
+		pem, err := os.ReadFile(pemPath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
 		}

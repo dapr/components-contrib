@@ -54,7 +54,7 @@ type cosmosDBGremlinAPICredentials struct {
 }
 
 // NewCosmosDBGremlinAPI returns a new CosmosDBGremlinAPI instance.
-func NewCosmosDBGremlinAPI(logger logger.Logger) *CosmosDBGremlinAPI {
+func NewCosmosDBGremlinAPI(logger logger.Logger) bindings.OutputBinding {
 	return &CosmosDBGremlinAPI{logger: logger}
 }
 

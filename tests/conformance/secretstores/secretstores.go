@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -50,7 +51,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	// Init
 	t.Run("init", func(t *testing.T) {
 		err := store.Init(secretstores.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
@@ -61,7 +62,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this secret store")
+			assert.EqualError(t, err, "ping is not implemented by this secret store")
 		} else {
 			assert.Nil(t, err)
 		}

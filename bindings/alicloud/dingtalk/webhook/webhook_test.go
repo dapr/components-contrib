@@ -15,7 +15,7 @@ package webhook
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -43,17 +44,17 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 			t.Errorf("Expected request to '/test', got '%s'", r.URL.EscapedPath())
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		require.Nil(t, err)
 		assert.Equal(t, msg, string(body))
 	}))
 	defer ts.Close()
 
-	m := bindings.Metadata{Name: "test", Properties: map[string]string{
+	m := bindings.Metadata{Base: metadata.Base{Name: "test", Properties: map[string]string{
 		"url":    ts.URL + "/test",
 		"secret": "",
 		"id":     "x",
-	}}
+	}}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)
@@ -67,14 +68,14 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	msg := "{\"type\": \"text\",\"text\": {\"content\": \"hello\"}}"
 
-	m := bindings.Metadata{
+	m := bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"url":    "/test",
 			"secret": "",
 			"id":     "x",
 		},
-	}
+	}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(m)

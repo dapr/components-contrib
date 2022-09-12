@@ -53,12 +53,12 @@ type outgoingWebhook struct {
 	handler bindings.Handler
 }
 
-var webhooks = struct { //nolint: gochecknoglobals
+var webhooks = struct { //nolint:gochecknoglobals
 	sync.RWMutex
 	m map[string]*outgoingWebhook
 }{m: make(map[string]*outgoingWebhook)}
 
-func NewDingTalkWebhook(l logger.Logger) *DingTalkWebhook {
+func NewDingTalkWebhook(l logger.Logger) bindings.InputOutputBinding {
 	// See guidance on proper HTTP client settings here:
 	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
 	dialer := &net.Dialer{ //nolint:exhaustivestruct
@@ -162,7 +162,7 @@ func (t *DingTalkWebhook) sendMessage(ctx context.Context, req *bindings.InvokeR
 	ctx, cancel := context.WithTimeout(ctx, defaultHTTPClientTimeout)
 	defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", postURL, bytes.NewReader(msg))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, postURL, bytes.NewReader(msg))
 	if err != nil {
 		return fmt.Errorf("dingtalk webhook error: new request failed. %w", err)
 	}

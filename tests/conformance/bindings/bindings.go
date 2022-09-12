@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
@@ -38,7 +39,7 @@ const (
 	defaultOutputData = "[{\"eventType\":\"test\",\"eventTime\": \"2018-01-25T22:12:19.4556811Z\",\"subject\":\"dapr-conf-tests\",\"id\":\"A234-1234-1234\",\"data\":\"root/>\"}]"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	testLogger = logger.NewLogger("bindingsTest")
 
@@ -126,7 +127,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
 			err := outputBinding.Init(bindings.Metadata{
-				Properties: props,
+				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up output binding")
 		}
@@ -134,7 +135,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
 			err := inputBinding.Init(bindings.Metadata{
-				Properties: props,
+				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up input binding")
 		}
@@ -147,7 +148,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if errInp != nil {
-			assert.EqualError(t, errInp, "Ping is not implemented by this input binding")
+			assert.EqualError(t, errInp, "ping is not implemented by this input binding")
 		} else {
 			assert.Nil(t, errInp)
 		}
@@ -156,7 +157,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if errOut != nil {
-			assert.EqualError(t, errOut, "Ping is not implemented by this output binding")
+			assert.EqualError(t, errOut, "ping is not implemented by this output binding")
 		} else {
 			assert.Nil(t, errOut)
 		}

@@ -222,7 +222,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	t.Run("init", func(t *testing.T) {
 		err := statestore.Init(state.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.Nil(t, err)
 	})
@@ -233,7 +233,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this state store")
+			assert.EqualError(t, err, "ping is not implemented by this state store")
 		} else {
 			assert.Nil(t, err)
 		}
@@ -386,7 +386,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	}
 
-	// nolint: nestif
+	//nolint:nestif
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
 			// Check if transactional feature is listed
@@ -425,7 +425,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 
-			transactionStore := statestore.(state.TransactionalStore)
+			transactionStore, ok := statestore.(state.TransactionalStore)
+			assert.True(t, ok)
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
@@ -547,7 +548,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// Act
-			transactionStore := statestore.(state.TransactionalStore)
+			transactionStore, ok := statestore.(state.TransactionalStore)
+			assert.True(t, ok)
 			err = transactionStore.Multi(&state.TransactionalStateRequest{
 				Operations: operations,
 				Metadata:   partitionMetadata,

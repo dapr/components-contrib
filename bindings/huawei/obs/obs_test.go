@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -61,7 +61,7 @@ func (m *MockHuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListO
 }
 
 func TestParseMetadata(t *testing.T) {
-	obs := NewHuaweiOBS(logger.NewLogger("test"))
+	obs := NewHuaweiOBS(logger.NewLogger("test")).(*HuaweiOBS)
 
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -374,7 +374,7 @@ func TestGetOperation(t *testing.T) {
 							},
 							Metadata: map[string]string{},
 						},
-						Body: ioutil.NopCloser(strings.NewReader("Hello Dapr")),
+						Body: io.NopCloser(strings.NewReader("Hello Dapr")),
 					}, nil
 				},
 			},
@@ -447,7 +447,7 @@ func TestGetOperation(t *testing.T) {
 							},
 							Metadata: map[string]string{},
 						},
-						Body: ioutil.NopCloser(iotest.ErrReader(errors.New("unexpected data reading error"))),
+						Body: io.NopCloser(iotest.ErrReader(errors.New("unexpected data reading error"))),
 					}, nil
 				},
 			},
@@ -667,7 +667,7 @@ func TestInvoke(t *testing.T) {
 							},
 							Metadata: map[string]string{},
 						},
-						Body: ioutil.NopCloser(strings.NewReader("Hello Dapr")),
+						Body: io.NopCloser(strings.NewReader("Hello Dapr")),
 					}, nil
 				},
 			},

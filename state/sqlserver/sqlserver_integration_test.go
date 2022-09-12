@@ -3,7 +3,9 @@ Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -93,7 +96,7 @@ func getUniqueDBSchema() string {
 }
 
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
-	metadata := state.Metadata{
+	metadata := state.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
 			connectionStringKey: getMasterConnectionString(),
 			schemaKey:           schema,
@@ -101,7 +104,7 @@ func createMetadata(schema string, kt KeyType, indexedProperties string) state.M
 			keyTypeKey:          string(kt),
 			databaseNameKey:     "dapr_test",
 		},
-	}
+	}}
 
 	if indexedProperties != "" {
 		metadata.Properties[indexedPropertiesKey] = indexedProperties
@@ -119,7 +122,7 @@ func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *SQLServer {
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
-	store := NewSQLServerStateStore(logger.NewLogger("test"))
+	store := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 	err := store.Init(metadata)
 	assert.Nil(t, err)
 
@@ -795,7 +798,7 @@ func testMultipleInitializations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := getTestStoreWithKeyType(t, test.kt, test.indexedProperties)
 
-			store2 := NewSQLServerStateStore(logger.NewLogger("test"))
+			store2 := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 			assert.Nil(t, store2.Init(createMetadata(store.schema, test.kt, test.indexedProperties)))
 		})
 	}

@@ -31,7 +31,7 @@ import (
 )
 
 func TestGetKeyVersion(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test"))
+	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
 	t.Run("With all required fields", func(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
 		assert.Equal(t, nil, err, "failed to read all fields")
@@ -63,7 +63,7 @@ func TestGetKeyVersion(t *testing.T) {
 }
 
 func TestParseEtag(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test"))
+	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
 	t.Run("Empty ETag", func(t *testing.T) {
 		etag := ""
 		ver, err := store.parseETag(&state.SetRequest{
@@ -127,7 +127,7 @@ func TestParseEtag(t *testing.T) {
 }
 
 func TestParseTTL(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test"))
+	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{
@@ -172,7 +172,7 @@ func TestParseTTL(t *testing.T) {
 }
 
 func TestParseConnectedSlavs(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test"))
+	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
 
 	t.Run("Empty info", func(t *testing.T) {
 		slaves := store.parseConnectedSlaves("")

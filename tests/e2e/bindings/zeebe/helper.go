@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe/command"
 	"github.com/dapr/components-contrib/bindings/zeebe/jobworker"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -68,15 +68,15 @@ func Command() (*command.ZeebeCommand, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
 
-	cmd := command.NewZeebeCommand(testLogger)
-	err := cmd.Init(bindings.Metadata{
+	cmd := command.NewZeebeCommand(testLogger).(*command.ZeebeCommand)
+	err := cmd.Init(bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
 			"gatewayKeepAlive":       "45s",
 			"usePlainTextConnection": "true",
 		},
-	})
+	}})
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func Command() (*command.ZeebeCommand, error) {
 func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.ZeebeJobWorker, error) {
 	testLogger := logger.NewLogger("test")
 	envVars := GetEnvVars()
-	metadata := bindings.Metadata{
+	metadata := bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
@@ -96,13 +96,13 @@ func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.Z
 			"usePlainTextConnection": "true",
 			"jobType":                jobType,
 		},
-	}
+	}}
 
 	for _, pair := range additionalMetadata {
 		metadata.Properties[pair.Key] = pair.Value
 	}
 
-	cmd := jobworker.NewZeebeJobWorker(testLogger)
+	cmd := jobworker.NewZeebeJobWorker(testLogger).(*jobworker.ZeebeJobWorker)
 	if err := cmd.Init(metadata); err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func RetryModifier(jobType string, retries int) func(string) string {
 // GetTestFile loads the content of a BPMN process file. The function also accepts a list of
 // modifier functions which allows to manipulate the content of the returned BPMN file.
 func GetTestFile(fileName string, modifiers ...func(string) string) ([]byte, error) {
-	dataBytes, err := ioutil.ReadFile("../processes/" + fileName)
+	dataBytes, err := os.ReadFile("../processes/" + fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,8 @@ func DeployProcess(
 		return nil, err
 	}
 
-	deployment := &pb.DeployProcessResponse{}
+	// TODO: pb.DeployProcessResponse is deprecated and needs to be replaced eventually
+	deployment := &pb.DeployProcessResponse{} //nolint:staticcheck
 	err = json.Unmarshal(res.Data, deployment)
 	if err != nil {
 		return nil, err

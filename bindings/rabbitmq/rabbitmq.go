@@ -25,7 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -65,7 +65,7 @@ type rabbitMQMetadata struct {
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
-func NewRabbitMQ(logger logger.Logger) *RabbitMQ {
+func NewRabbitMQ(logger logger.Logger) bindings.InputOutputBinding {
 	return &RabbitMQ{logger: logger}
 }
 
@@ -110,13 +110,13 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		Body:         req.Data,
 	}
 
-	contentType, ok := contrib_metadata.TryGetContentType(req.Metadata)
+	contentType, ok := contribMetadata.TryGetContentType(req.Metadata)
 
 	if ok {
 		pub.ContentType = contentType
 	}
 
-	ttl, ok, err := contrib_metadata.TryGetTTL(req.Metadata)
+	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
 	}
 
-	priority, ok, err := contrib_metadata.TryGetPriority(req.Metadata)
+	priority, ok, err := contribMetadata.TryGetPriority(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.MaxPriority = &maxPriority
 	}
 
-	ttl, ok, err := contrib_metadata.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
 	if err != nil {
 		return err
 	}

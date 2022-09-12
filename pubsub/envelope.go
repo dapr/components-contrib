@@ -22,8 +22,8 @@ import (
 
 	"github.com/google/uuid"
 
-	contrib_contenttype "github.com/dapr/components-contrib/contenttype"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribContenttype "github.com/dapr/components-contrib/contenttype"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 
 const (
@@ -86,9 +86,9 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	var ceData interface{}
 	ceDataField := DataField
 	var err error
-	if contrib_contenttype.IsJSONContentType(dataContentType) {
+	if contribContenttype.IsJSONContentType(dataContentType) {
 		err = unmarshalPrecise(data, &ceData)
-	} else if contrib_contenttype.IsBinaryContentType(dataContentType) {
+	} else if contribContenttype.IsBinaryContentType(dataContentType) {
 		ceData = base64.StdEncoding.EncodeToString(data)
 		ceDataField = DataBase64Field
 	} else {
@@ -186,7 +186,7 @@ func HasExpired(cloudEvent map[string]interface{}) bool {
 
 // ApplyMetadata will process metadata to modify the cloud event based on the component's feature set.
 func ApplyMetadata(cloudEvent map[string]interface{}, componentFeatures []Feature, metadata map[string]string) {
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(metadata)
+	ttl, hasTTL, _ := contribMetadata.TryGetTTL(metadata)
 	if hasTTL && !FeatureMessageTTL.IsPresent(componentFeatures) {
 		// Dapr only handles Message TTL if component does not.
 		now := time.Now().UTC()

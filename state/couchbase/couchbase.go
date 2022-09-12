@@ -52,7 +52,7 @@ type Couchbase struct {
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store.
-func NewCouchbaseStateStore(logger logger.Logger) *Couchbase {
+func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	s := &Couchbase{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
@@ -125,14 +125,14 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 
 	r := metadata.Properties[numReplicasDurableReplication]
 	if r != "" {
-		_r, _ := strconv.ParseUint(r, 10, 0)
-		cbs.numReplicasDurableReplication = uint(_r)
+		r2, _ := strconv.ParseUint(r, 10, 0)
+		cbs.numReplicasDurableReplication = uint(r2)
 	}
 
 	p := metadata.Properties[numReplicasDurablePersistence]
 	if p != "" {
-		_p, _ := strconv.ParseUint(p, 10, 0)
-		cbs.numReplicasDurablePersistence = uint(_p)
+		p2, _ := strconv.ParseUint(p, 10, 0)
+		cbs.numReplicasDurablePersistence = uint(p2)
 	}
 
 	return nil
@@ -154,7 +154,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}
 
-	// nolint:nestif
+	//nolint:nestif
 	// key already exists (use Replace)
 	if req.ETag != nil {
 		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html

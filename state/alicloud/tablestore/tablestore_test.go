@@ -50,7 +50,7 @@ func TestReadAndWrite(t *testing.T) {
 
 	defer ctl.Finish()
 
-	store := NewAliCloudTableStore(logger.NewLogger("test"))
+	store := NewAliCloudTableStore(logger.NewLogger("test")).(*AliCloudTableStore)
 	store.Init(state.Metadata{})
 
 	store.client = &mockClient{

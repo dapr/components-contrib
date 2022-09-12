@@ -43,7 +43,7 @@ type commercetoolsMetadata struct {
 	scopes       string
 }
 
-func NewCommercetools(logger logger.Logger) *Binding {
+func NewCommercetools(logger logger.Logger) bindings.OutputBinding {
 	return &Binding{logger: logger}
 }
 

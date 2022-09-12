@@ -30,7 +30,7 @@ import (
 	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
 
 	"github.com/dapr/components-contrib/bindings"
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/kit/logger"
 )
 
@@ -82,7 +82,7 @@ type recordProcessor struct {
 }
 
 // NewAWSKinesis returns a new AWS Kinesis instance.
-func NewAWSKinesis(logger logger.Logger) *AWSKinesis {
+func NewAWSKinesis(logger logger.Logger) bindings.InputOutputBinding {
 	return &AWSKinesis{logger: logger}
 }
 
@@ -313,7 +313,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 }
 
 func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

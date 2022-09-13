@@ -18,8 +18,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/dapr/components-contrib/configuration"
 	"github.com/pashagolub/pgxmock"
+
+	"github.com/dapr/components-contrib/configuration"
 )
 
 func TestPostgresbuildQuery(t *testing.T) {

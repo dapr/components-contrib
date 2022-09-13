@@ -15,6 +15,7 @@ package zeebe
 
 import (
 	"errors"
+	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
@@ -36,10 +37,10 @@ type ClientFactoryImpl struct {
 
 // https://docs.zeebe.io/operations/authentication.html
 type clientMetadata struct {
-	GatewayAddr            string            `json:"gatewayAddr" mapstructure:"gatewayAddr"`
-	GatewayKeepAlive       metadata.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
-	CaCertificatePath      string            `json:"caCertificatePath" mapstructure:"caCertificatePath"`
-	UsePlaintextConnection bool              `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
+	GatewayAddr            string        `json:"gatewayAddr" mapstructure:"gatewayAddr"`
+	GatewayKeepAlive       time.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
+	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
+	UsePlaintextConnection bool          `json:"usePlainTextConnection,string" mapstructure:"usePlainTextConnection"`
 }
 
 // NewClientFactoryImpl returns a new ClientFactory instance.
@@ -57,7 +58,7 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 		GatewayAddress:         meta.GatewayAddr,
 		UsePlaintextConnection: meta.UsePlaintextConnection,
 		CaCertificatePath:      meta.CaCertificatePath,
-		KeepAlive:              meta.GatewayKeepAlive.Duration,
+		KeepAlive:              meta.GatewayKeepAlive,
 	})
 	if err != nil {
 		return nil, err

@@ -154,3 +154,8 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 
 	return &meta, nil
 }
+
+// Features returns the features available in this secret store.
+func (s *smSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

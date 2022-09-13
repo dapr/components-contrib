@@ -31,7 +31,7 @@ const (
 // bulkPublishSerial publishes messages in serial order.
 // This is slower, but ensures that messages are published in the same order as specified in the request.
 func (p *DefaultBulkMessager) bulkPublishSerial(req *BulkPublishRequest) (BulkPublishResponse, error) {
-	statuses := make([]BulkPublishResponseEntry, len(req.Entries))
+	statuses := make([]BulkPublishResponseEntry, 0, len(req.Entries))
 
 	for _, entry := range req.Entries {
 		statuses = append(statuses, p.bulkPublishSingleEntry(req, entry))

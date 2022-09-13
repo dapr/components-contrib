@@ -25,13 +25,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dapr/components-contrib/configuration"
-	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"golang.org/x/exp/utf8string"
+
+	"github.com/dapr/components-contrib/configuration"
+	"github.com/dapr/kit/logger"
 )
 
 type ConfigurationStore struct {
@@ -53,6 +55,10 @@ const (
 	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
 	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 	ErrorTooLongFieldLength      = "field name is too long"
+)
+
+const (
+	queryKey = `SELECT * `
 )
 
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
@@ -101,7 +107,6 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		p.logger.Error(err)
 		return nil, err
 	}
-
 	rows, err := p.client.Query(ctx, query)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
@@ -261,6 +266,13 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 }
 
 func Connect(ctx context.Context, conn string, maxTimeout time.Duration) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(conn)
+	if err != nil {
+		return nil, fmt.Errorf("postgres configuration store configuration error : %s", err)
+	}
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) {
+
+	}
 	pool, err := pgxpool.Connect(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store connection error : %s", err)

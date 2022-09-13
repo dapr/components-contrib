@@ -22,9 +22,8 @@ import (
 	ipfsFiles "github.com/ipfs/go-ipfs-files"
 	ipfsPath "github.com/ipfs/interface-go-ipfs-core/path"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // Handler for the "get" operation, which retrieves a document
@@ -72,7 +71,7 @@ type getRequestMetadata struct {
 
 func (m *getRequestMetadata) FromMap(mp map[string]string) (err error) {
 	if len(mp) > 0 {
-		err = mapstructure.WeakDecode(mp, m)
+		err = metadata.DecodeMetadata(mp, m)
 		if err != nil {
 			return err
 		}

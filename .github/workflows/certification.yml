@@ -42,6 +42,7 @@ jobs:
         - pubsub.kafka
         - pubsub.rabbitmq
         - pubsub.mqtt
+        - state.mongodb
         - state.redis
         - state.postgresql
         - bindings.alicloud.dubbo
@@ -102,6 +103,8 @@ jobs:
           required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: state.azure.blobstorage
           required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: state.azure.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"

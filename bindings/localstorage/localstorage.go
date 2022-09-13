@@ -26,9 +26,9 @@ import (
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/google/uuid"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -72,9 +72,9 @@ func (ls *LocalStorage) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (ls *LocalStorage) parseMetadata(metadata bindings.Metadata) (*Metadata, error) {
+func (ls *LocalStorage) parseMetadata(meta bindings.Metadata) (*Metadata, error) {
 	var m Metadata
-	err := mapstructure.WeakDecode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

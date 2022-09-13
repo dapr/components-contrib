@@ -128,12 +128,13 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 
 // DecodeMetadata decodes metadata into a struct
 // This is an extension of mitchellh/mapstructure which also supports decoding durations
-func DecodeMetadata(input map[string]string, result interface{}) error {
+func DecodeMetadata(input interface{}, result interface{}) error {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
 			toTimeDurationHookFunc()),
-		Metadata: nil,
-		Result:   &result,
+		Metadata:         nil,
+		Result:           result,
+		WeaklyTypedInput: true,
 	})
 	if err != nil {
 		return err

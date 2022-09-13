@@ -18,8 +18,11 @@ package metadata
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 type Duration struct {
@@ -50,6 +53,54 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 		return nil
 	default:
 		return errors.New("invalid duration")
+	}
+}
+
+// This helper function is used to decode durations within a map[string]interface{} into a struct.
+// It must be used in conjunction with mapstructure's DecodeHook.
+// This is used in utils.DecodeMetadata to decode durations in metadata.
+//
+//	mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+//	   DecodeHook: mapstructure.ComposeDecodeHookFunc(
+//	     toTimeDurationHookFunc()),
+//	   Metadata: nil,
+//			Result:   result,
+//	})
+func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if t != reflect.TypeOf(Duration{}) && t != reflect.TypeOf(time.Duration(0)) {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
+			val, err := time.ParseDuration(data.(string))
+			if err != nil {
+				return nil, err
+			}
+			if t != reflect.TypeOf(Duration{}) {
+				return val, nil
+			}
+			return Duration{Duration: val}, nil
+		case reflect.Float64:
+			val := time.Duration(data.(float64))
+			if t != reflect.TypeOf(Duration{}) {
+				return val, nil
+			}
+			return Duration{Duration: val}, nil
+		case reflect.Int64:
+			val := time.Duration(data.(int64))
+			if t != reflect.TypeOf(Duration{}) {
+				return val, nil
+			}
+			return Duration{Duration: val}, nil
+		default:
+			return data, nil
+		}
 	}
 }
 

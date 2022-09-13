@@ -17,9 +17,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/config"
-	"github.com/dapr/kit/logger"
 )
 
 var (
@@ -79,7 +78,7 @@ func getDefaultRocketMQMetaData() *rocketMQMetaData {
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
-	if err := config.Decode(in, &s); err != nil {
+	if err := metadata.DecodeMetadata(in, &s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 	return nil

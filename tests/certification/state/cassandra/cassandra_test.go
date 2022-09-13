@@ -20,7 +20,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	//"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -191,11 +191,11 @@ func TestCassandra(t *testing.T) {
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run TTL related test", timeToLiveTest).
-		//Step("interrupt network",
-		//	network.InterruptNetwork(10*time.Second, nil, nil, "9044:9042")).
+		Step("interrupt network",
+			network.InterruptNetwork(10*time.Second, nil, nil, "9044:9042")).
 		//Component should recover at this point.
-		//Step("wait", flow.Sleep(30*time.Second)).
-		//Step("Run basic test again to verify reconnection occurred", basicTest).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("Run basic test again to verify reconnection occurred", basicTest).
 		Step("stop cassandra server", dockercompose.Stop("cassandra", dockerComposeYAML, "cassandra")).
 		Step("start cassandra server", dockercompose.Start("cassandra", dockerComposeYAML, "cassandra")).
 		Step("wait", flow.Sleep(60*time.Second)).

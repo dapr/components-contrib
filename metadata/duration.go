@@ -72,7 +72,7 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 		t reflect.Type,
 		data interface{},
 	) (interface{}, error) {
-		if t != reflect.TypeOf(Duration{}) {
+		if t != reflect.TypeOf(Duration{}) && t != reflect.TypeOf(time.Duration(0)) {
 			return data, nil
 		}
 
@@ -82,10 +82,22 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 			if err != nil {
 				return nil, err
 			}
+			if t != reflect.TypeOf(Duration{}) {
+				return val, nil
+			}
 			return Duration{Duration: val}, nil
 		case reflect.Float64:
 			val := time.Duration(data.(float64))
-			return val, nil
+			if t != reflect.TypeOf(Duration{}) {
+				return val, nil
+			}
+			return Duration{Duration: val}, nil
+		case reflect.Int64:
+			val := time.Duration(data.(int64))
+			if t != reflect.TypeOf(Duration{}) {
+				return val, nil
+			}
+			return Duration{Duration: val}, nil
 		default:
 			return data, nil
 		}

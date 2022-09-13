@@ -68,10 +68,13 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 	k := kafka.NewKafka(logger)
 	// in kafka pubsub component, enable consumer retry by default
 	k.DefaultConsumeRetryEnabled = true
-	return &PubSub{
+	p := &PubSub{
 		kafka:  k,
 		logger: logger,
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 // Publish message to Kafka cluster.

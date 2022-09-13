@@ -161,7 +161,10 @@ type azureEventHubsMetadata struct {
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
-	return &AzureEventHubs{logger: logger}
+	p := &AzureEventHubs{logger: logger}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func parseEventHubsMetadata(meta pubsub.Metadata) (*azureEventHubsMetadata, error) {

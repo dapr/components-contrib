@@ -76,7 +76,10 @@ type Pulsar struct {
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
-	return &Pulsar{logger: l}
+	p := &Pulsar{logger: l}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {

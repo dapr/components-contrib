@@ -84,7 +84,10 @@ type WhatNow struct {
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
-	return &GCPPubSub{logger: logger}
+	p := &GCPPubSub{logger: logger}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {

@@ -35,7 +35,10 @@ type jetstreamPubSub struct {
 }
 
 func NewJetStream(logger logger.Logger) pubsub.PubSub {
-	return &jetstreamPubSub{l: logger}
+	p := &jetstreamPubSub{l: logger}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {

@@ -56,13 +56,16 @@ type rocketMQ struct {
 }
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
-	return &rocketMQ{
+	p := &rocketMQ{
 		name:         "rocketmq",
 		logger:       l,
 		topics:       make(map[string]topicData),
 		producerLock: sync.RWMutex{},
 		consumerLock: sync.RWMutex{},
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func (r *rocketMQ) Init(metadata pubsub.Metadata) error {

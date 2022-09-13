@@ -101,12 +101,15 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 		l.Fatalf("failed generating unique nano id: %s", err)
 	}
 
-	return &snsSqs{
+	p := &snsSqs{
 		logger:        l,
 		id:            id,
 		topicsLock:    sync.RWMutex{},
 		pollerRunning: make(chan struct{}, 1),
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 // sanitize topic/queue name to conform with:

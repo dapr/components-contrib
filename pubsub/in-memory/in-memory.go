@@ -29,9 +29,12 @@ type bus struct {
 }
 
 func New(logger logger.Logger) pubsub.PubSub {
-	return &bus{
+	p := &bus{
 		log: logger,
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func (a *bus) Close() error {

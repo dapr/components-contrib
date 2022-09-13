@@ -67,7 +67,10 @@ type redisMessageWrapper struct {
 
 // NewRedisStreams returns a new redis streams pub-sub implementation.
 func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
-	return &redisStreams{logger: logger}
+	p := &redisStreams{logger: logger}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {

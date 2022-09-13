@@ -70,12 +70,15 @@ type azureServiceBus struct {
 
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
-	return &azureServiceBus{
+	p := &azureServiceBus{
 		logger:     logger,
 		features:   []pubsub.Feature{pubsub.FeatureMessageTTL},
 		topics:     map[string]*servicebus.Sender{},
 		topicsLock: &sync.RWMutex{},
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (metadata, error) {

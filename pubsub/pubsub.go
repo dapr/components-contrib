@@ -58,7 +58,7 @@ func Ping(pubsub PubSub) error {
 	}
 }
 
-// DefaultBulkMessager is default implemnetation for BukMessager
+// DefaultBulkMessager is default implementation for BukMessager
 type DefaultBulkMessager struct {
 	p PubSub
 }

@@ -60,10 +60,13 @@ type mqttPubSubSubscription struct {
 
 // NewMQTTPubSub returns a new mqttPubSub instance.
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
-	return &mqttPubSub{
+	p := &mqttPubSub{
 		logger:          logger,
 		subscribingLock: sync.RWMutex{},
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 // isValidPEM validates the provided input has PEM formatted block.

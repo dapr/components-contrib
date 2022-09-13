@@ -88,11 +88,14 @@ type rabbitMQConnectionBroker interface {
 
 // NewRabbitMQ creates a new RabbitMQ pub/sub.
 func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
-	return &rabbitMQ{
+	p := &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
 		logger:            logger,
 		connectionDial:    dial,
 	}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {

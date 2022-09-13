@@ -79,7 +79,10 @@ type natsStreamingPubSub struct {
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation.
 func NewNATSStreamingPubSub(logger logger.Logger) pubsub.PubSub {
-	return &natsStreamingPubSub{logger: logger}
+	p := &natsStreamingPubSub{logger: logger}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {

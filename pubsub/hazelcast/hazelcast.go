@@ -44,7 +44,10 @@ type Hazelcast struct {
 
 // NewHazelcastPubSub returns a new hazelcast pub-sub implementation.
 func NewHazelcastPubSub(logger logger.Logger) pubsub.PubSub {
-	return &Hazelcast{logger: logger}
+	p := &Hazelcast{logger: logger}
+	p.DefaultBulkMessager = pubsub.NewDefaultBulkMessager(p)
+
+	return p
 }
 
 func parseHazelcastMetadata(meta pubsub.Metadata) (metadata, error) {

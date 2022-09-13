@@ -131,3 +131,12 @@ func TestBulkGetSecret(t *testing.T) {
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
 	})
 }
+
+func TestGetFeatures(t *testing.T) {
+	s := NewSecreteManager(logger.NewLogger("test"))
+	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
+	t.Run("no features are advertised", func(t *testing.T) {
+		f := s.Features()
+		assert.Empty(t, f)
+	})
+}

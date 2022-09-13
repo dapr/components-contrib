@@ -28,6 +28,8 @@ type SecretStore interface {
 	GetSecret(ctx context.Context, req GetSecretRequest) (GetSecretResponse, error)
 	// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
 	BulkGetSecret(ctx context.Context, req BulkGetSecretRequest) (BulkGetSecretResponse, error)
+	// Features lists the features supported by the secret store.
+	Features() []Feature
 }
 
 func Ping(secretStore SecretStore) error {

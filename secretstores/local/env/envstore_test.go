@@ -57,3 +57,12 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, secret, resp.Data[key][key])
 	})
 }
+
+func TestGetFeatures(t *testing.T) {
+	s := envSecretStore{logger: logger.NewLogger("test")}
+	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
+	t.Run("no features are advertised", func(t *testing.T) {
+		f := s.Features()
+		assert.Empty(t, f)
+	})
+}

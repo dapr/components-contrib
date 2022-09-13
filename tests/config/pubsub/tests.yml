@@ -37,6 +37,12 @@ components:
     allOperations: true
   - component: kafka
     allOperations: true
+  - component: kafka
+    profile: wurstmeister
+    allOperations: true
+  - component: kafka
+    profile: confluent
+    allOperations: true    
   - component: pulsar
     allOperations: true
   - component: mqtt

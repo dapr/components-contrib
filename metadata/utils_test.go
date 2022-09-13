@@ -14,7 +14,6 @@ limitations under the License.
 package metadata
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -114,7 +113,6 @@ func TestMetadataDecode(t *testing.T) {
 		testData["mybool"] = "true"
 
 		err := DecodeMetadata(testData, &m)
-		fmt.Println(testData)
 
 		assert.Nil(t, err)
 		assert.Equal(t, true, *m.Mybool)

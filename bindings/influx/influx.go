@@ -20,10 +20,10 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/influxdata/influxdb-client-go/api"
-	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -96,9 +96,9 @@ func (i *Influx) Init(metadata bindings.Metadata) error {
 }
 
 // GetInfluxMetadata returns new Influx metadata.
-func (i *Influx) getInfluxMetadata(metadata bindings.Metadata) (*influxMetadata, error) {
+func (i *Influx) getInfluxMetadata(meta bindings.Metadata) (*influxMetadata, error) {
 	var iMetadata influxMetadata
-	err := mapstructure.WeakDecode(metadata.Properties, &iMetadata)
+	err := metadata.DecodeMetadata(meta.Properties, &iMetadata)
 	if err != nil {
 		return nil, err
 	}

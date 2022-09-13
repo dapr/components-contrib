@@ -93,7 +93,6 @@ func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, err
 		hdr.Add("x-ms-documentdb-query-enablecrosspartition", "true")
 		hdr.Del("x-ms-documentdb-partitionkey")
 		raw.Header = hdr
-
 	}
 	return req.Next()
 }
@@ -292,9 +291,14 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
+	marsh, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.UpsertItem(ctx, pk, doc, &options)
+	_, err = c.client.UpsertItem(ctx, pk, marsh, &options)
 	cancel()
 	if err != nil {
 		return err
@@ -373,7 +377,11 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				options.IfMatchETag = &newTag
 			}
 
-			batch.UpsertItem(doc, nil)
+			marsh, err := json.Marshal(doc)
+			if err != nil {
+				return err
+			}
+			batch.UpsertItem(marsh, nil)
 			numOperations++
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -454,7 +462,7 @@ func (c *StateStore) Ping() error {
 	return nil
 }
 
-func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) ([]byte, error) {
+func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
 	byteArray, isBinary := req.Value.([]uint8)
 	if len(byteArray) == 0 {
 		isBinary = false
@@ -462,7 +470,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 
 	ttl, err := parseTTL(req.Metadata)
 	if err != nil {
-		return []byte{}, fmt.Errorf("error parsing TTL from metadata: %s", err)
+		return CosmosItem{}, fmt.Errorf("error parsing TTL from metadata: %s", err)
 	}
 
 	if isBinary {
@@ -479,8 +487,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 					IsBinary:     false,
 					TTL:          ttl,
 				}
-				return json.Marshal(&item)
-
+				return item, nil
 			}
 		} else if contenttype.IsStringContentType(contentType) {
 			item := CosmosItem{
@@ -490,7 +497,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 				IsBinary:     false,
 				TTL:          ttl,
 			}
-			return json.Marshal(&item)
+			return item, nil
 		}
 	}
 
@@ -501,7 +508,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 		IsBinary:     isBinary,
 		TTL:          ttl,
 	}
-	return json.Marshal(&item)
+	return item, nil
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,

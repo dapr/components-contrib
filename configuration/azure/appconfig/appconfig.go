@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -24,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
+	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/configuration"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -32,14 +34,16 @@ import (
 )
 
 const (
-	host                 = "appConfigHost"
-	connectionString     = "appConfigConnectionString"
-	maxRetries           = "maxRetries"
-	retryDelay           = "retryDelay"
-	maxRetryDelay        = "maxRetryDelay"
-	defaultMaxRetries    = 3
-	defaultRetryDelay    = time.Second * 4
-	defaultMaxRetryDelay = time.Second * 120
+	host                         = "appConfigHost"
+	connectionString             = "appConfigConnectionString"
+	maxRetries                   = "maxRetries"
+	retryDelay                   = "retryDelay"
+	maxRetryDelay                = "maxRetryDelay"
+	subscribePollInterval        = "subscribePollInterval"
+	defaultMaxRetries            = 3
+	defaultRetryDelay            = time.Second * 4
+	defaultMaxRetryDelay         = time.Second * 120
+	defaultSubscribePollInterval = time.Second * 30
 )
 
 type azAppConfigClient interface {
@@ -49,8 +53,9 @@ type azAppConfigClient interface {
 
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client   azAppConfigClient
-	metadata metadata
+	client               azAppConfigClient
+	metadata             metadata
+	subscribeStopChanMap sync.Map
 
 	logger logger.Logger
 }
@@ -160,6 +165,15 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 		m.retryDelay = time.Duration(parsedVal)
 	}
 
+	m.subscribePollInterval = defaultSubscribePollInterval
+	if val, ok := meta.Properties[subscribePollInterval]; ok && val != "" {
+		parsedVal, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("azure appconfig error: can't parse subscribePollInterval field: %s", err)
+		}
+		m.subscribePollInterval = time.Duration(parsedVal)
+	}
+
 	return m, nil
 }
 
@@ -248,9 +262,76 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	return "", fmt.Errorf("Subscribe is not implemented by this configuration store")
+	subscribeID := uuid.New().String()
+	stop := make(chan struct{})
+	r.subscribeStopChanMap.Store(subscribeID, stop)
+	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
+	if sentinelKey == "" {
+		return "", fmt.Errorf("sentinel key is not provided in metadata")
+	}
+	go r.doSubscribe(ctx, req, handler, sentinelKey, subscribeID, stop)
+	return subscribeID, nil
+}
+
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, sentinelKey string, id string, stop chan struct{}) {
+	for {
+		// get sentinel key changes
+		_, err := r.Get(ctx, &configuration.GetRequest{
+			Keys:     []string{sentinelKey},
+			Metadata: req.Metadata,
+		})
+		if err != nil {
+			r.logger.Debugf("fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
+		} else {
+			items, err := r.Get(ctx, &configuration.GetRequest{
+				Keys:     req.Keys,
+				Metadata: req.Metadata,
+			})
+			if err != nil {
+				r.logger.Errorf("fail to get configuration key changes: %s", err)
+			} else {
+				r.handleSubscribedChange(ctx, req, handler, items, id)
+			}
+		}
+		select {
+		case <-stop:
+			return
+		case <-ctx.Done():
+			return
+		case <-time.After(r.metadata.subscribePollInterval):
+		}
+	}
+}
+
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, items *configuration.GetResponse, id string) {
+	defer func() {
+		if err := recover(); err != nil {
+			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
+		}
+	}()
+
+	e := &configuration.UpdateEvent{
+		Items: items.Items,
+		ID:    id,
+	}
+	err := handler(ctx, e)
+	if err != nil {
+		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+	}
+}
+
+func (r *ConfigurationStore) getSentinelKeyFromMetadata(metadata map[string]string) string {
+	if s, ok := metadata["sentinelKey"]; ok && s != "" {
+		return s
+	}
+	return ""
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	return fmt.Errorf("Unsubscribe is not implemented by this configuration store")
+	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
+		// already exist subscription
+		r.subscribeStopChanMap.Delete(req.ID)
+		close(oldStopChan.(chan struct{}))
+	}
+	return nil
 }

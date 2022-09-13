@@ -196,3 +196,8 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 
 	return &meta, nil
 }
+
+// Features returns the features available in this secret store.
+func (s *Store) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

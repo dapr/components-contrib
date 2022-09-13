@@ -140,3 +140,8 @@ func (c *csmsSecretStore) getSecretNames(marker *string) ([]string, error) {
 
 	return resp, nil
 }
+
+// Features returns the features available in this secret store.
+func (c *csmsSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

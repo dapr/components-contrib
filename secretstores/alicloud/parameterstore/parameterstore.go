@@ -184,3 +184,8 @@ func (o *oosSecretStore) getPathFromMetadata(metadata map[string]string) *string
 
 	return nil
 }
+
+// Features returns the features available in this secret store.
+func (o *oosSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

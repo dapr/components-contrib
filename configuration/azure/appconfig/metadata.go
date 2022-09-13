@@ -16,9 +16,10 @@ package appconfig
 import "time"
 
 type metadata struct {
-	host             string
-	connectionString string
-	maxRetries       int
-	maxRetryDelay    time.Duration
-	retryDelay       time.Duration
+	host                  string
+	connectionString      string
+	maxRetries            int
+	maxRetryDelay         time.Duration
+	retryDelay            time.Duration
+	subscribePollInterval time.Duration
 }

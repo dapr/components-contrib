@@ -15,14 +15,18 @@ package appconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
+	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/configuration"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -31,22 +35,52 @@ import (
 )
 
 const (
-	host                 = "appConfigHost"
-	connectionString     = "appConfigConnectionString"
-	maxRetries           = "maxRetries"
-	retryDelay           = "retryDelay"
-	maxRetryDelay        = "maxRetryDelay"
-	defaultMaxRetries    = 3
-	defaultRetryDelay    = time.Second * 4
-	defaultMaxRetryDelay = time.Second * 120
+	host                         = "appConfigHost"
+	connectionString             = "appConfigConnectionString"
+	maxRetries                   = "maxRetries"
+	retryDelay                   = "retryDelay"
+	maxRetryDelay                = "maxRetryDelay"
+	subscribePollInterval        = "subscribePollInterval"
+	defaultMaxRetries            = 3
+	defaultRetryDelay            = time.Second * 4
+	defaultMaxRetryDelay         = time.Second * 120
+	defaultSubscribePollInterval = time.Second * 30
 )
+
+var (
+	itemsToSubscriptionIDMap map[string]string
+	serviceBusConnStr        string
+)
+
+type SubscribeKeys struct {
+	SubscribeAll bool
+}
+
+type EventBody struct {
+	Data        DataField `json:"data"`
+	ID          string    `json:"id"`
+	Source      string    `json:"source"`
+	Specversion string    `json:"specversion"`
+	Subject     string    `json:"subject"`
+	Time        string    `json:"time"`
+	Type        string    `json:"type"`
+}
+
+type DataField struct {
+	Etag      string      `json:"etag"`
+	Key       string      `json:"key"`
+	Label     interface{} `json:"label"`
+	SyncToken string      `json:"syncToken"`
+}
 
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client   *azappconfig.Client
-	metadata metadata
+	client               *azappconfig.Client
+	metadata             metadata
+	subscribeStopChanMap sync.Map
 
-	logger logger.Logger
+	logger    logger.Logger
+	busClient *servicebus.Client
 }
 
 // NewAzureAppConfigurationStore returns a new Azure App Configuration store.
@@ -105,6 +139,13 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		}
 	}
 
+	r.busClient, err = servicebus.NewClientFromConnectionString(serviceBusConnStr, &servicebus.ClientOptions{
+		ApplicationID: "dapr-" + logger.DaprVersion,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -152,6 +193,15 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 			return m, fmt.Errorf("azure appconfig error: can't parse retryDelay field: %s", err)
 		}
 		m.retryDelay = time.Duration(parsedVal)
+	}
+
+	m.subscribePollInterval = defaultSubscribePollInterval
+	if val, ok := meta.Properties[subscribePollInterval]; ok && val != "" {
+		parsedVal, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("azure appconfig error: can't parse subscribePollInterval field: %s", err)
+		}
+		m.subscribePollInterval = time.Duration(parsedVal)
 	}
 
 	return m, nil
@@ -243,9 +293,83 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	return "", fmt.Errorf("Subscribe is not implemented by this configuration store")
+	subscribeID := uuid.New().String()
+
+	keys := req.Keys
+	itemsToSubscriptionIDMap = make(map[string]string)
+	for _, elm := range keys {
+		_, exist := itemsToSubscriptionIDMap[elm]
+		if !exist {
+			itemsToSubscriptionIDMap[elm] = subscribeID
+		}
+	}
+	stop := make(chan struct{})
+	r.subscribeStopChanMap.Store(subscribeID, stop)
+	go r.doSubscribe(ctx, req, handler, subscribeID, stop)
+	return subscribeID, nil
+}
+
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, id string, stop chan struct{}) {
+	for {
+		receiver, err := r.busClient.NewReceiverForSubscription("keyupdates", "keysub", nil)
+		if err != nil {
+			fmt.Println(err, " in receiver")
+		}
+		message, err := receiver.ReceiveMessages(ctx, 1, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		for _, mes := range message {
+			var body []byte = mes.Body
+			var eventBody EventBody
+			err := json.Unmarshal(body, &eventBody)
+			if err != nil {
+				panic(err)
+			}
+			items, err := r.Get(ctx, &configuration.GetRequest{
+				Keys:     []string{eventBody.Data.Key},
+				Metadata: req.Metadata,
+			})
+			if err != nil {
+				r.logger.Errorf("fail to get configuration key changes: %s", err)
+			} else {
+				r.handleSubscribedChange(ctx, req, handler, items, itemsToSubscriptionIDMap[eventBody.Data.Key])
+			}
+		}
+		select {
+		case <-stop:
+			return
+		case <-ctx.Done():
+			return
+		case <-time.After(r.metadata.subscribePollInterval):
+		}
+	}
+}
+
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, items *configuration.GetResponse, id string) {
+	defer func() {
+		if err := recover(); err != nil {
+			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
+		}
+	}()
+
+	e := &configuration.UpdateEvent{
+		Items: items.Items,
+		ID:    id,
+	}
+	fmt.Println("handleSubscribedChange    ", e)
+	err := handler(ctx, e)
+	if err != nil {
+		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+	}
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	return fmt.Errorf("Unsubscribe is not implemented by this configuration store")
+	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
+		// already exist subscription
+		r.subscribeStopChanMap.Delete(req.ID)
+		close(oldStopChan.(chan struct{}))
+	}
+	return nil
 }

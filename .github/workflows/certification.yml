@@ -48,6 +48,7 @@ jobs:
         - state.cassandra
         - bindings.alicloud.dubbo
         - bindings.kafka
+        - bindings.redis
         - secretstores.local.env
         - secretstores.local.file
         - bindings.rabbitmq

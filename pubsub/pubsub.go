@@ -93,23 +93,30 @@ func (p *DefaultBulkMessager) BulkSubscribe(ctx context.Context, req SubscribeRe
 	msgCbChan := make(chan msgWithCallback, cfg.MaxBulkCount)
 	go processBulkMessages(ctx, req, msgCbChan, cfg, handler)
 
+	// Subscribe to the topic and listen for messages.
 	return p.p.Subscribe(ctx, req, func(ctx context.Context, msg *NewMessage) error {
 		var err error
 		done := make(chan struct{})
 
+		bulkMsg := BulkMessageEntry{
+			EntryID:  uuid.NewString(),
+			Event:    msg.Data,
+			Metadata: msg.Metadata,
+		}
+
+		if msg.ContentType != nil {
+			bulkMsg.ContentType = *msg.ContentType
+		}
+
 		msgCbChan <- msgWithCallback{
-			msg: BulkMessageEntry{
-				EntryID:     uuid.NewString(),
-				Event:       msg.Data,
-				ContentType: *msg.ContentType,
-				Metadata:    msg.Metadata,
-			},
+			msg: bulkMsg,
 			cb: func(ierr error) {
 				err = ierr
 				done <- struct{}{}
 			},
 		}
 
+		// Wait for the message to be processed.
 		<-done
 		return err
 	})

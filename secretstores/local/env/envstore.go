@@ -59,3 +59,8 @@ func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 		Data: r,
 	}, nil
 }
+
+// Features returns the features available in this secret store.
+func (s *envSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

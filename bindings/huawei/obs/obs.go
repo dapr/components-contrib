@@ -23,9 +23,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -92,9 +92,9 @@ func (o *HuaweiOBS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (o *HuaweiOBS) parseMetadata(metadata bindings.Metadata) (*obsMetadata, error) {
+func (o *HuaweiOBS) parseMetadata(meta bindings.Metadata) (*obsMetadata, error) {
 	var m obsMetadata
-	err := mapstructure.WeakDecode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

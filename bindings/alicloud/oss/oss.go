@@ -19,9 +19,9 @@ import (
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/google/uuid"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -87,9 +87,9 @@ func (s *AliCloudOSS) Invoke(_ context.Context, req *bindings.InvokeRequest) (*b
 	return nil, err
 }
 
-func (s *AliCloudOSS) parseMetadata(metadata bindings.Metadata) (*ossMetadata, error) {
+func (s *AliCloudOSS) parseMetadata(meta bindings.Metadata) (*ossMetadata, error) {
 	var m ossMetadata
-	err := mapstructure.WeakDecode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

@@ -96,11 +96,12 @@ func TestTryGetContentType(t *testing.T) {
 func TestMetadataDecode(t *testing.T) {
 	t.Run("Test metadata decoding", func(t *testing.T) {
 		type testMetadata struct {
-			Mystring   string   `json:"mystring"`
-			Myduration Duration `json:"myduration"`
-			Myinteger  int      `json:"myinteger,string"`
-			Myfloat64  float64  `json:"myfloat64,string"`
-			Mybool     *bool    `json:"mybool,omitempty"`
+			Mystring          string        `json:"mystring"`
+			Myduration        Duration      `json:"myduration"`
+			Myinteger         int           `json:"myinteger,string"`
+			Myfloat64         float64       `json:"myfloat64,string"`
+			Mybool            *bool         `json:"mybool,omitempty"`
+			MyRegularDuration time.Duration `json:"myregularduration"`
 		}
 
 		var m testMetadata
@@ -111,6 +112,7 @@ func TestMetadataDecode(t *testing.T) {
 		testData["myinteger"] = "1"
 		testData["myfloat64"] = "1.1"
 		testData["mybool"] = "true"
+		testData["myregularduration"] = "6m"
 
 		err := DecodeMetadata(testData, &m)
 
@@ -119,6 +121,7 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, "test", m.Mystring)
 		assert.Equal(t, 1, m.Myinteger)
 		assert.Equal(t, 1.1, m.Myfloat64)
+		assert.Equal(t, 6*time.Minute, m.MyRegularDuration)
 		assert.Equal(t, Duration{Duration: 3 * time.Second}, m.Myduration)
 	})
 }

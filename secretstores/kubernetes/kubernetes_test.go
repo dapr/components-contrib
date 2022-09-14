@@ -50,3 +50,12 @@ func TestGetNamespace(t *testing.T) {
 		assert.Equal(t, "namespace is missing on metadata and NAMESPACE env variable", err.Error())
 	})
 }
+
+func TestGetFeatures(t *testing.T) {
+	s := kubernetesSecretStore{logger: logger.NewLogger("test")}
+	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
+	t.Run("no features are advertised", func(t *testing.T) {
+		f := s.Features()
+		assert.Empty(t, f)
+	})
+}

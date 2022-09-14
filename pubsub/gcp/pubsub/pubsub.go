@@ -57,7 +57,6 @@ const (
 
 // GCPPubSub type.
 type GCPPubSub struct {
-	pubsub.DefaultBulkMessager
 	client        *gcppubsub.Client
 	metadata      *metadata
 	logger        logger.Logger

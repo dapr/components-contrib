@@ -11,15 +11,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package csms
+package ssm
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
-	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/model"
 	"github.com/stretchr/testify/assert"
+	ssm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm/v20190923"
 
 	"github.com/dapr/components-contrib/secretstores"
 )
@@ -29,77 +29,82 @@ const (
 	secretValue = "secret-value"
 )
 
-type mockedCsmsSecretStore struct {
-	csmsClient
+type mockedSsmSecretStore struct {
+	ssmClient
 }
 
-func (m *mockedCsmsSecretStore) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
+func (m *mockedSsmSecretStore) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
 	name := secretName
-	return &model.ListSecretsResponse{
-		Secrets: &[]model.Secret{
-			{
-				Name: &name,
+	requestID := "requestid"
+	return &ssm.ListSecretsResponse{
+		Response: &ssm.ListSecretsResponseParams{
+			SecretMetadatas: []*ssm.SecretMetadata{
+				{
+					SecretName: &name,
+				},
 			},
-		},
-		PageInfo: &model.PageInfo{
-			NextMarker: nil,
+			RequestId: &requestID,
 		},
 	}, nil
 }
 
-func (m *mockedCsmsSecretStore) ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error) {
+func (m *mockedSsmSecretStore) GetSecretValueWithContext(ctx context.Context, request *ssm.GetSecretValueRequest) (*ssm.GetSecretValueResponse, error) {
 	secretString := secretValue
-	return &model.ShowSecretVersionResponse{
-		Version: &model.Version{
+	requestID := "requestid"
+	return &ssm.GetSecretValueResponse{
+		Response: &ssm.GetSecretValueResponseParams{
+			SecretName:   request.SecretName,
 			SecretString: &secretString,
+			RequestId:    &requestID,
 		},
 	}, nil
 }
 
-type mockedCsmsSecretStoreReturnError struct {
-	csmsClient
+type mockedSsmSecretStoreReturnError struct {
+	ssmClient
 }
 
-func (m *mockedCsmsSecretStoreReturnError) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
+func (m *mockedSsmSecretStoreReturnError) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
 	name := secretName
-	return &model.ListSecretsResponse{
-		Secrets: &[]model.Secret{
-			{
-				Name: &name,
+	requestID := "requestid"
+	return &ssm.ListSecretsResponse{
+		Response: &ssm.ListSecretsResponseParams{
+			SecretMetadatas: []*ssm.SecretMetadata{
+				{
+					SecretName: &name,
+				},
 			},
-		},
-		PageInfo: &model.PageInfo{
-			NextMarker: nil,
+			RequestId: &requestID,
 		},
 	}, nil
 }
 
-func (m *mockedCsmsSecretStoreReturnError) ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error) {
+func (m *mockedSsmSecretStoreReturnError) GetSecretValueWithContext(ctx context.Context, request *ssm.GetSecretValueRequest) (*ssm.GetSecretValueResponse, error) {
 	return nil, fmt.Errorf("mocked error")
 }
 
-type mockedCsmsSecretStoreBothReturnError struct {
-	csmsClient
+type mockedSsmSecretStoreBothReturnError struct {
+	ssmClient
 }
 
-func (m *mockedCsmsSecretStoreBothReturnError) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
+func (m *mockedSsmSecretStoreBothReturnError) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
 	return nil, fmt.Errorf("mocked error")
 }
 
-func (m *mockedCsmsSecretStoreBothReturnError) ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error) {
+func (m *mockedSsmSecretStoreBothReturnError) GetSecretValueWithContext(ctx context.Context, request *ssm.GetSecretValueRequest) (*ssm.GetSecretValueResponse, error) {
 	return nil, fmt.Errorf("mocked error")
 }
 
 func TestGetSecret(t *testing.T) {
 	t.Run("successfully get secret", func(t *testing.T) {
-		c := csmsSecretStore{
-			client: &mockedCsmsSecretStore{},
+		c := ssmSecretStore{
+			client: &mockedSsmSecretStore{},
 		}
 
 		req := secretstores.GetSecretRequest{
 			Name: secretName,
 			Metadata: map[string]string{
-				"version_id": "v1",
+				"VersionID": "v1",
 			},
 		}
 
@@ -109,8 +114,8 @@ func TestGetSecret(t *testing.T) {
 	})
 
 	t.Run("unsuccessfully get secret", func(t *testing.T) {
-		c := csmsSecretStore{
-			client: &mockedCsmsSecretStoreBothReturnError{},
+		c := ssmSecretStore{
+			client: &mockedSsmSecretStoreBothReturnError{},
 		}
 
 		req := secretstores.GetSecretRequest{
@@ -125,14 +130,16 @@ func TestGetSecret(t *testing.T) {
 
 func TestBulkGetSecret(t *testing.T) {
 	t.Run("successfully bulk get secret", func(t *testing.T) {
-		c := csmsSecretStore{
-			client: &mockedCsmsSecretStore{},
+		c := ssmSecretStore{
+			client: &mockedSsmSecretStore{},
 		}
 
 		req := secretstores.BulkGetSecretRequest{}
 		expectedSecrets := map[string]map[string]string{
 			secretName: {
 				secretName: secretValue,
+				RequestID:  "requestid",
+				ValueType:  "10",
 			},
 		}
 		resp, e := c.BulkGetSecret(context.Background(), req)
@@ -142,8 +149,8 @@ func TestBulkGetSecret(t *testing.T) {
 
 	t.Run("unsuccessfully bulk get secret", func(t *testing.T) {
 		t.Run("with failed to retrieve list of secrets", func(t *testing.T) {
-			c := csmsSecretStore{
-				client: &mockedCsmsSecretStoreBothReturnError{},
+			c := ssmSecretStore{
+				client: &mockedSsmSecretStoreBothReturnError{},
 			}
 
 			req := secretstores.BulkGetSecretRequest{}
@@ -152,24 +159,13 @@ func TestBulkGetSecret(t *testing.T) {
 		})
 
 		t.Run("with failed to retrieve the secret", func(t *testing.T) {
-			c := csmsSecretStore{
-				client: &mockedCsmsSecretStoreReturnError{},
+			c := ssmSecretStore{
+				client: &mockedSsmSecretStoreReturnError{},
 			}
 
 			req := secretstores.BulkGetSecretRequest{}
 			_, e := c.BulkGetSecret(context.Background(), req)
 			assert.NotNil(t, e)
 		})
-	})
-}
-
-func TestGetFeatures(t *testing.T) {
-	s := csmsSecretStore{
-		client: &mockedCsmsSecretStore{},
-	}
-	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
-	t.Run("no features are advertised", func(t *testing.T) {
-		f := s.Features()
-		assert.Empty(t, f)
 	})
 }

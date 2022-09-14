@@ -19,6 +19,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 var (
@@ -37,13 +38,14 @@ const (
 )
 
 type rocketMQMetaData struct {
-	AccessProto string `mapstructure:"accessProto"`
 	// rocketmq Credentials
 	AccessKey  string `mapstructure:"accessKey"`
 	SecretKey  string `mapstructure:"secretKey"`
 	NameServer string `mapstructure:"nameServer"`
-	GroupName  string `mapstructure:"groupName"`
-	NameSpace  string `mapstructure:"nameSpace"`
+	// Deprecated: use ProducerGroup instead.
+	GroupName     string `mapstructure:"groupName"`
+	ProducerGroup string `mapstructure:"producerGroup"`
+	NameSpace     string `mapstructure:"nameSpace"`
 	// consumer group rocketmq's subscribers
 	ConsumerGroup     string `mapstructure:"consumerGroup"`
 	ConsumerBatchSize int    `mapstructure:"consumerBatchSize"`
@@ -52,24 +54,27 @@ type rocketMQMetaData struct {
 	// msg's content-type
 	ContentType string `mapstructure:"content-type"`
 	// retry times to connect rocketmq's broker
-	Retries     int `mapstructure:"retries"`
+	Retries int `mapstructure:"retries"`
+	// Deprecated: send msg timeout to connect rocketmq's broker, nanoseconds
 	SendTimeOut int `mapstructure:"sendTimeOut"`
+	// send msg timeout to connect rocketmq's broker, seconds
+	SendTimeOutSec int `mapstructure:"sendTimeOutSec"`
 }
 
 func getDefaultRocketMQMetaData() *rocketMQMetaData {
 	return &rocketMQMetaData{
-		AccessProto:       "",
 		AccessKey:         "",
 		SecretKey:         "",
 		NameServer:        "",
 		GroupName:         "",
+		ProducerGroup:     "",
 		NameSpace:         "",
 		ConsumerGroup:     "",
 		ConsumerBatchSize: 0,
 		NameServerDomain:  "",
 		ContentType:       pubsub.DefaultCloudEventDataContentType,
 		Retries:           3,
-		SendTimeOut:       10,
+		SendTimeOutSec:    60,
 	}
 }
 
@@ -80,7 +85,7 @@ func (s *rocketMQMetaData) Decode(in interface{}) error {
 	return nil
 }
 
-func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) {
+func parseRocketMQMetaData(metadata pubsub.Metadata, logger logger.Logger) (*rocketMQMetaData, error) {
 	rMetaData := getDefaultRocketMQMetaData()
 	if metadata.Properties != nil {
 		err := rMetaData.Decode(metadata.Properties)
@@ -88,5 +93,17 @@ func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) 
 			return nil, fmt.Errorf("rocketmq configuration error: %w", err)
 		}
 	}
+
+	if rMetaData.GroupName != "" {
+		logger.Warn("pubsub.rocketmq: metadata property 'groupName' has been deprecated - use 'producerGroup' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
+	}
+
+	if rMetaData.SendTimeOut != 0 {
+		logger.Warn("pubsub.rocketmq: metadata property 'sendTimeOut' has been deprecated - use 'sendTimeOutSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
+		if rMetaData.SendTimeOutSec == 0 {
+			rMetaData.SendTimeOutSec = rMetaData.SendTimeOut / 1000000
+		}
+	}
+
 	return rMetaData, nil
 }

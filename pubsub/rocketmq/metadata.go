@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/config"
 )
 
 const (
@@ -169,7 +169,7 @@ type rocketMQMetaData struct {
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
-	if err := config.Decode(in, &s); err != nil {
+	if err := metadata.DecodeMetadata(in, &s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 	return nil

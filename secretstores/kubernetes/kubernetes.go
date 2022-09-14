@@ -107,3 +107,8 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 
 	return "", errors.New("namespace is missing on metadata and NAMESPACE env variable")
 }
+
+// Features returns the features available in this secret store.
+func (k *kubernetesSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{}
+}

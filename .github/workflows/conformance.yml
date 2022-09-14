@@ -58,6 +58,7 @@ jobs:
         - pubsub.natsstreaming
         - pubsub.pulsar
         - pubsub.rabbitmq
+        - pubsub.redis
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
         - secretstores.kubernetes

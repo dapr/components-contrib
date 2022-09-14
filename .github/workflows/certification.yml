@@ -45,6 +45,7 @@ jobs:
         - state.mongodb
         - state.redis
         - state.postgresql
+        - state.cassandra
         - bindings.alicloud.dubbo
         - bindings.kafka
         - secretstores.local.env

@@ -5,6 +5,7 @@ metadata:
 spec:
   type: state.cassandra
   version: v1
+  initTimeout: 20s
   metadata:
   - name: hosts
     value: localhost
@@ -12,3 +13,9 @@ spec:
     value: cassandra
   - name: password
     value: cassandra
+  - name: port
+    value: "9044"
+  - name: table
+    value: "daprTable"
+  - name: keyspace
+    value: "daprKeyspace"

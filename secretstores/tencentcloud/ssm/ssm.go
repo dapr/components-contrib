@@ -185,3 +185,8 @@ func (s *ssmSecretStore) getSecretNames(ctx context.Context, offset *uint64) ([]
 
 	return names, nil
 }
+
+// Features returns the features available in this secret store.
+func (s *ssmSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

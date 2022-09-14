@@ -67,6 +67,17 @@ else
 	INSTALLED_LINT_VERSION=v$(shell $(LINTER_BINARY) version | grep -Eo '([0-9]+\.)+[0-9]+' - || "")
 endif
 
+# Build tools
+ifeq ($(TARGET_OS_LOCAL),windows)
+	BUILD_TOOLS_BIN ?= components-contrib-build-tools.exe
+	BUILD_TOOLS ?= ./.build-tools/$(BUILD_TOOLS_BIN)
+	RUN_BUILD_TOOLS ?= cd .build-tools; go.exe run .
+else
+	BUILD_TOOLS_BIN ?= components-contrib-build-tools
+	BUILD_TOOLS ?= ./.build-tools/$(BUILD_TOOLS_BIN)
+	RUN_BUILD_TOOLS ?= cd .build-tools; go run .
+endif
+
 ################################################################################
 # Linter targets                                                               #
 ################################################################################
@@ -139,12 +150,39 @@ modtidy:
 	go mod tidy
 
 ################################################################################
-# Target: check-diff                                                           #
+# Target: check-mod-diff                                                       #
 ################################################################################
-.PHONY: check-diff
-check-diff:
+.PHONY: check-mod-diff
+check-mod-diff:
 	git diff --exit-code -- '*go.mod' # check no changes
 	git diff --exit-code -- '*go.sum' # check no changes
+
+################################################################################
+# Target: compile-build-tools                                                  #
+################################################################################
+.PHONY: compile-build-tools
+compile-build-tools:
+ifeq (,$(wildcard $(BUILD_TOOLS)))
+	cd .build-tools; CGO_ENABLED=$(CGO) GOOS=$(TARGET_OS_LOCAL) GOARCH=$(TARGET_ARCH_LOCAL) go build -o $(BUILD_TOOLS_BIN) .
+endif
+
+################################################################################
+# Components schema targets                                                    #
+################################################################################
+.PHONY: component-metadata-schema
+component-metadata-schema:
+	$(RUN_BUILD_TOOLS) gen-component-schema > ../component-metadata-schema.json
+
+.PHONY: check-component-metadata-schema-diff
+check-component-metadata-schema-diff: component-metadata-schema
+	git diff --exit-code -- component-metadata-schema.json # check no changes
+
+################################################################################
+# Component metadata bundle targets                                            #
+################################################################################
+.PHONY: bundle-component-metadata
+bundle-component-metadata:
+	$(RUN_BUILD_TOOLS) bundle-component-metadata > ../component-metadata-bundle.json
 
 ################################################################################
 # Target: conf-tests                                                           #
@@ -154,8 +192,6 @@ conf-tests:
 	CGO_ENABLED=$(CGO) go test -v -tags=conftests -count=1 ./tests/conformance
 
 ################################################################################
-# Target: e2e-tests-zeebe                                                      #
+# Target: e2e                                                                #
 ################################################################################
-.PHONY: e2e-tests-zeebe
-e2e-tests-zeebe:
-	CGO_ENABLED=$(CGO) go test -v -tags=e2etests -count=1 ./tests/e2e/bindings/zeebe/...
+include tests/e2e/e2e_tests.mk

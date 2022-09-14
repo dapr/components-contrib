@@ -91,6 +91,9 @@ jobs:
           key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-
+      - name: Check components-schema
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
+        run: make check-components-schema-diff
       - name: Run golangci-lint
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         uses: golangci/golangci-lint-action@v3.2.0
@@ -100,7 +103,7 @@ jobs:
           args: --timeout 15m
       - name: Run go mod tidy check diff
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
-        run: make modtidy-all check-diff
+        run: make modtidy-all check-mod-diff
 #       - name: Run Go Vulnerability Check
 #         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
 #         run: |

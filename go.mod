@@ -172,9 +172,9 @@ require (
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
 	github.com/rabbitmq/amqp091-go v1.3.4
+	github.com/wapc/wapc-go v0.5.2
 	go.temporal.io/api v1.11.0
 	go.temporal.io/sdk v1.16.0
-	github.com/wapc/wapc-go v0.5.2
 	go.uber.org/ratelimit v0.2.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 )

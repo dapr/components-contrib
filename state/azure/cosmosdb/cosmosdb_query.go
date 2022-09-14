@@ -173,6 +173,7 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 			tempItem := CosmosItem{}
 			err := json.Unmarshal(item, &tempItem)
 			if err != nil {
+				return nil, "", err
 			}
 			items = append(items, tempItem)
 		}
@@ -222,7 +223,7 @@ func replaceKeyword(key, keyword string) string {
 		// Get the new keyword to replace
 		newKeyword := keyword
 		if nextIndx < len(key)-1 {
-			// Get the index of the next period (Note that it grabs the index relative to the begining of the initial string)
+			// Get the index of the next period (Note that it grabs the index relative to the beginning of the initial string)
 			idxOfPeriod := strings.Index(key[nextIndx+1:], ".")
 			if idxOfPeriod != -1 {
 				newKeyword = key[nextIndx+1 : nextIndx+idxOfPeriod+1]

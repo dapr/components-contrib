@@ -40,7 +40,7 @@ func TestCosmosDbKeyReplace(t *testing.T) {
 		},
 		{
 			input:    "c.value.a",
-			expected: "c['value'].a",
+			expected: "c['value']['a']",
 		},
 		{
 			input:    "c.value.value",
@@ -48,7 +48,7 @@ func TestCosmosDbKeyReplace(t *testing.T) {
 		},
 		{
 			input:    "c.value.a.value",
-			expected: "c['value'].a['value']",
+			expected: "c['value']['a']['value']",
 		},
 	}
 
@@ -72,7 +72,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		{
 			input: "../../../tests/state/query/q2.json",
 			query: InternalQuery{
-				query: "SELECT * FROM c WHERE c['value'].state = @__param__0__",
+				query: "SELECT * FROM c WHERE c['value']['state'] = @__param__0__",
 				parameters: []azcosmos.QueryParameter{
 					{
 						Name:  "@__param__0__",
@@ -84,7 +84,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		{
 			input: "../../../tests/state/query/q3.json",
 			query: InternalQuery{
-				query: "SELECT * FROM c WHERE c['value'].person.org = @__param__0__ AND c['value'].state IN (@__param__1__, @__param__2__) ORDER BY c['value'].state DESC, c['value'].person.name ASC",
+				query: "SELECT * FROM c WHERE c['value']['person']['org'] = @__param__0__ AND c['value']['state'] IN (@__param__1__, @__param__2__) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
 				parameters: []azcosmos.QueryParameter{
 					{
 						Name:  "@__param__0__",
@@ -104,7 +104,7 @@ func TestCosmosDbQuery(t *testing.T) {
 		{
 			input: "../../../tests/state/query/q4.json",
 			query: InternalQuery{
-				query: "SELECT * FROM c WHERE c['value'].person.org = @__param__0__ OR (c['value'].person.org = @__param__1__ AND c['value'].state IN (@__param__2__, @__param__3__)) ORDER BY c['value'].state DESC, c['value'].person.name ASC",
+				query: "SELECT * FROM c WHERE c['value']['person']['org'] = @__param__0__ OR (c['value']['person']['org'] = @__param__1__ AND c['value']['state'] IN (@__param__2__, @__param__3__)) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
 				parameters: []azcosmos.QueryParameter{
 					{
 						Name:  "@__param__0__",

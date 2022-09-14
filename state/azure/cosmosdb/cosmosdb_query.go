@@ -129,6 +129,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 		}
 		orderBy = fmt.Sprintf(" ORDER BY %s", strings.Join(order, ", "))
 	}
+
 	q.query.query = fmt.Sprintf("SELECT * FROM c%s%s", filter, orderBy)
 	q.limit = qq.Page.Limit
 	q.token = qq.Page.Token
@@ -146,6 +147,7 @@ func (q *Query) setNextParameter(val string) string {
 func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, string, error) {
 	opts := &azcosmos.QueryOptions{}
 
+	opts.QueryParameters = append(opts.QueryParameters, q.query.parameters...)
 	if q.limit != 0 {
 		opts.PageSizeHint = int32(q.limit)
 	}
@@ -154,7 +156,6 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 	}
 
 	items := []CosmosItem{}
-
 	pk := azcosmos.NewPartitionKeyBool(true)
 	queryPager := client.NewQueryItemsPager(q.query.query, pk, opts)
 
@@ -169,9 +170,11 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 
 		token = queryResponse.ContinuationToken
 		for _, item := range queryResponse.Items {
-			res := []CosmosItem{}
-			json.Unmarshal(item, &res)
-			items = append(items, res...)
+			tempItem := CosmosItem{}
+			err := json.Unmarshal(item, &tempItem)
+			if err != nil {
+			}
+			items = append(items, tempItem)
 		}
 	}
 
@@ -207,16 +210,28 @@ func replaceKeywords(key string) string {
 	return key
 }
 
+// Replaces reserved keywords. If a replacement of a reserved keyword is made, all other words will be changed from .word to ['word']
 func replaceKeyword(key, keyword string) string {
 	indx := strings.Index(strings.ToUpper(key), "."+strings.ToUpper(keyword))
 	if indx == -1 {
 		return key
 	}
+	// Grab the next index to check and ensure that it doesn't over-index
 	nextIndx := indx + len(keyword) + 1
 	if nextIndx == len(key) || !isLetter(key[nextIndx]) {
-		return fmt.Sprintf("%s['%s']%s", key[:indx], key[indx+1:nextIndx], replaceKeyword(key[nextIndx:], keyword))
+		// Get the new keyword to replace
+		newKeyword := keyword
+		if nextIndx < len(key)-1 {
+			// Get the index of the next period (Note that it grabs the index relative to the begining of the initial string)
+			idxOfPeriod := strings.Index(key[nextIndx+1:], ".")
+			if idxOfPeriod != -1 {
+				newKeyword = key[nextIndx+1 : nextIndx+idxOfPeriod+1]
+			} else {
+				newKeyword = key[nextIndx+1:]
+			}
+		}
+		return fmt.Sprintf("%s['%s']%s", key[:indx], key[indx+1:nextIndx], replaceKeyword(key[nextIndx:], newKeyword))
 	}
-
 	return key
 }
 

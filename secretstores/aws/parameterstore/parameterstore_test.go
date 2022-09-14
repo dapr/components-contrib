@@ -275,3 +275,12 @@ func TestGetBulkSecrets(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 }
+
+func TestGetFeatures(t *testing.T) {
+	s := ssmSecretStore{}
+	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
+	t.Run("no features are advertised", func(t *testing.T) {
+		f := s.Features()
+		assert.Empty(t, f)
+	})
+}

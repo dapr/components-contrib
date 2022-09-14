@@ -45,6 +45,7 @@ jobs:
         - state.mongodb
         - state.redis
         - state.postgresql
+        - state.cassandra
         - bindings.alicloud.dubbo
         - bindings.kafka
         - secretstores.local.env
@@ -284,7 +285,7 @@ jobs:
     name: Notify Total coverage
     runs-on: ubuntu-latest
     needs: certification
-    if: always()
+    if: github.event_name == 'schedule'
     steps:
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3

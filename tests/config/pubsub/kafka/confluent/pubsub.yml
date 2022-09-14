@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-confluent
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers
+    value: localhost:9095
+  - name: consumerGroup
+    value: pubsubgroup1
+  - name: authRequired
+    value: "false"
+  - name: initialOffset
+    value: oldest

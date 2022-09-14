@@ -29,8 +29,8 @@ import (
 const (
 	// DefaultCloudEventType is the default event type for an Dapr published event.
 	DefaultCloudEventType = "com.dapr.event.sent"
-	// DefaultBulkCloudEventType is the default bulk event type for a Dapr published event.
-	DefaultBulkCloudEventType = "com.dapr.event.sent.bulk"
+	// DefaultBulkEventType is the default bulk event type for a Dapr published event.
+	DefaultBulkEventType = "com.dapr.event.sent.bulk"
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation.
 	CloudEventsSpecVersion = "1.0"
 	// DefaultCloudEventSource is the default event source.

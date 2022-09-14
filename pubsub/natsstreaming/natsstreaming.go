@@ -68,7 +68,6 @@ const (
 )
 
 type natsStreamingPubSub struct {
-	pubsub.DefaultBulkMessager
 	metadata         metadata
 	natStreamingConn stan.Conn
 

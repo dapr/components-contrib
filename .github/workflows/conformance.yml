@@ -41,7 +41,8 @@ jobs:
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - bindings.http
         - bindings.influx
-        - bindings.kafka
+        - bindings.kafka-wurstmeister
+        - bindings.kafka-confluent
         - bindings.mqtt-emqx
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
@@ -51,14 +52,14 @@ jobs:
         - pubsub.aws.snssqs
         - pubsub.hazelcast
         - pubsub.in-memory
-        - pubsub.kafka
         - pubsub.mqtt-emqx
         - pubsub.mqtt-mosquitto
         - pubsub.mqtt-vernemq
         - pubsub.natsstreaming
         - pubsub.pulsar
         - pubsub.rabbitmq
-        - pubsub.redis
+        - pubsub.kafka-wurstmeister
+        - pubsub.kafka-confluent
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -240,8 +241,12 @@ jobs:
 
     - name: Start kafka
       run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
-      if: contains(matrix.component, 'kafka')
-    
+      if: contains(matrix.component, 'wurstmeister')
+
+    - name: Start kafka Confluent
+      run: docker-compose -f ./.github/infrastructure/docker-compose-confluent.yml -p confluent up -d
+      if: contains(matrix.component, 'confluent')
+
     - name: Start memcached
       run: docker-compose -f ./.github/infrastructure/docker-compose-memcached.yml -p memcached up -d
       if: contains(matrix.component, 'memcached')

@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
-	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -41,6 +41,7 @@ type localSecretStore struct {
 	currentPath     string
 	secrets         map[string]interface{}
 	readLocalFileFn func(secretsFile string) (map[string]interface{}, error)
+	features        []secretstores.Feature
 	logger          logger.Logger
 }
 
@@ -86,9 +87,17 @@ func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
 			}
 		}
 		j.secrets = allSecrets
+		// If MultiValued is set, this secret store supports a multiple
+		// key-valyes per secret.
+		j.features = []secretstores.Feature{
+			secretstores.FeatureMultipleKeyValuesPerSecret,
+		}
 	} else {
 		j.secrets = map[string]interface{}{}
 		j.visitJSONObject(jsonConfig)
+		// MultiValued is not set: reset to its default single-value per
+		// secret (no extra feature) behavior.
+		j.features = []secretstores.Feature{}
 	}
 
 	return nil
@@ -225,7 +234,7 @@ func (j *localSecretStore) combine(values []string) string {
 
 func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadata) (*localSecretStoreMetaData, error) {
 	var meta localSecretStoreMetaData
-	err := config.Decode(spec.Properties, &meta)
+	err := metadata.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
@@ -258,4 +267,9 @@ func (j *localSecretStore) readLocalFile(secretsFile string) (map[string]interfa
 	}
 
 	return jsonConfig, nil
+}
+
+// Features returns the features available in this secret store.
+func (j *localSecretStore) Features() []secretstores.Feature {
+	return j.features
 }

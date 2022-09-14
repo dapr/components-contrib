@@ -23,6 +23,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -405,4 +406,13 @@ func getCertificate() []byte {
 	certificateBytes, _ := base64.StdEncoding.DecodeString(certificate)
 
 	return certificateBytes
+}
+
+func TestGetFeatures(t *testing.T) {
+	s := NewHashiCorpVaultSecretStore(logger.NewLogger("test"))
+	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
+	t.Run("Vault supports MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
+		f := s.Features()
+		assert.True(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
+	})
 }

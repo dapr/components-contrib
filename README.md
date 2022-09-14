@@ -12,13 +12,13 @@ Using components developers can interact with bindings, state stores, messaging 
 
 Available component types:
 
-* [Input/Output Bindings](bindings/Readme.md)
-* [Pub Sub](pubsub/Readme.md)
-* [State Stores](state/Readme.md)
-* [Secret Stores](secretstores/Readme.md)
-* [Name resolvers](nameresolution/Readme.md)
-* [Configuration stores](configuration/Readme.md)
-* [Middlewares](middleware/Readme.md)
+* [Input/Output Bindings](bindings/README.md)
+* [Pub Sub](pubsub/README.md)
+* [State Stores](state/README.md)
+* [Secret Stores](secretstores/README.md)
+* [Name resolvers](nameresolution/README.md)
+* [Configuration stores](configuration/README.md)
+* [Middlewares](middleware/README.md)
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://docs.dapr.io).
 

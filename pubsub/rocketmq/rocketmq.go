@@ -66,7 +66,7 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 
 func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 	var err error
-	r.metadata, err = parseRocketMQMetaData(metadata)
+	r.metadata, err = parseRocketMQMetaData(metadata, r.logger)
 	if err != nil {
 		return err
 	}
@@ -79,6 +79,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	opts := make([]mqc.Option, 0)
 	if r.metadata.ConsumerGroup != "" {
 		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroup))
+	}
+	if r.metadata.ConsumerBatchSize != 0 {
+		opts = append(opts, mqc.WithPullBatchSize(int32(r.metadata.ConsumerBatchSize)))
 	}
 	if r.metadata.NameSpace != "" {
 		opts = append(opts, mqc.WithNamespace(r.metadata.NameSpace))
@@ -108,6 +111,9 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	}
 	if r.metadata.GroupName != "" {
 		opts = append(opts, mqp.WithGroupName(r.metadata.GroupName))
+	}
+	if r.metadata.ProducerGroup != "" {
+		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroup))
 	}
 	if r.metadata.NameServerDomain != "" {
 		opts = append(opts, mqp.WithNameServerDomain(r.metadata.NameServerDomain))
@@ -167,7 +173,8 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 				}
 			}
 
-			ctx, cancel := context.WithTimeout(r.ctx, time.Duration(r.metadata.SendTimeOut))
+			sendTimeOut := time.Duration(r.metadata.SendTimeOutSec) * time.Second
+			ctx, cancel := context.WithTimeout(r.ctx, sendTimeOut)
 			defer cancel()
 			result, err := producer.SendSync(ctx, msg)
 			if err != nil {

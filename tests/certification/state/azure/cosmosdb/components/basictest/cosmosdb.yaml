@@ -1,0 +1,26 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-basic
+spec:
+  type: state.azure.cosmosdb
+  version: v1
+  metadata:
+  - name: url
+    secretKeyRef:
+      key:  AzureCosmosDBUrl
+      name:  AzureCosmosDBUrl
+  - name: masterKey
+    secretKeyRef:
+      key:  AzureCosmosDBMasterKey
+      name:  AzureCosmosDBMasterKey
+  - name: database
+    secretKeyRef:
+      key:  AzureCosmosDB
+      name:  AzureCosmosDB
+  - name: collection
+    secretKeyRef:
+      key:  AzureCosmosDBCollection
+      name:  AzureCosmosDBCollection
+auth:
+  secretStore: envvar-secret-store

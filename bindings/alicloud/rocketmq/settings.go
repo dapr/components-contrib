@@ -19,7 +19,7 @@ import (
 
 	rocketmq "github.com/cinience/go_rocketmq"
 
-	"github.com/dapr/kit/config"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // rocketmq.
@@ -63,7 +63,7 @@ type Settings struct {
 }
 
 func (s *Settings) Decode(in interface{}) error {
-	if err := config.Decode(in, s); err != nil {
+	if err := metadata.DecodeMetadata(in, s); err != nil {
 		return fmt.Errorf("decode error: %w", err)
 	}
 

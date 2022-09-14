@@ -204,3 +204,13 @@ func TestBulkGetSecret(t *testing.T) {
 		})
 	})
 }
+
+func TestGetFeatures(t *testing.T) {
+	m := secretstores.Metadata{}
+	s := NewParameterStore(logger.NewLogger("test"))
+	s.Init(m)
+	t.Run("no features are advertised", func(t *testing.T) {
+		f := s.Features()
+		assert.Empty(t, f)
+	})
+}

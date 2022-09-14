@@ -139,6 +139,10 @@ func TestGetSecret(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("secret %s not found", req.Name))
 	})
+
+	t.Run("Regular (non-MultiValued) secret store does not support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
+		assert.False(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(s.Features()))
+	})
 }
 
 func TestBulkGetSecret(t *testing.T) {
@@ -195,6 +199,10 @@ func TestMultiValuedSecrets(t *testing.T) {
 	}
 	err := s.Init(m)
 	require.NoError(t, err)
+
+	t.Run("MultiValued stores support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
+		assert.True(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(s.Features()))
+	})
 
 	t.Run("successfully retrieve a single multi-valued secret", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{

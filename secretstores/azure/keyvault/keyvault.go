@@ -199,3 +199,8 @@ func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]stri
 
 	return nil, nil
 }
+
+// Features returns the features available in this secret store.
+func (k *keyvaultSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
+}

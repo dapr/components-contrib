@@ -1,0 +1,23 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestorefactorfail
+spec:
+  type: state.cassandra
+  version: v1
+  initTimeout: 30s
+  metadata:
+  - name: hosts
+    value: localhost
+  - name: username
+    value: cassandra
+  - name: password
+    value: cassandra
+  - name: port
+    value: "9044"
+  - name: table
+    value: "daprTableFactor"
+  - name: keyspace
+    value: "daprKeyspaceFactor"
+  - name: replicationFactor
+    value: "2"    

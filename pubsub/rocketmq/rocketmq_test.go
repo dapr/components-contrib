@@ -26,20 +26,18 @@ import (
 
 func getTestMetadata() map[string]string {
 	return map[string]string{
-		"nameServer":         "127.0.0.1:9876",
-		"consumerGroup":      "dapr.rocketmq.producer",
-		"accessKey":          "RocketMQ",
-		"secretKey":          "12345",
-		"consumerBatchSize":  "1",
-		"consumerThreadNums": "2",
-		"retries":            "2",
+		"nameServer":    "127.0.0.1:9876",
+		"consumerGroup": "dapr.rocketmq.producer",
+		"accessKey":     "RocketMQ",
+		"secretKey":     "12345",
+		"retries":       "2",
 	}
 }
 
 func TestParseRocketMQMetadata(t *testing.T) {
 	t.Run("correct metadata", func(t *testing.T) {
 		meta := getTestMetadata()
-		_, err := parseRocketMQMetaData(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+		_, err := parseRocketMQMetaData(pubsub.Metadata{Base: mdata.Base{Properties: meta}}, logger.NewLogger("test"))
 		assert.Nil(t, err)
 	})
 

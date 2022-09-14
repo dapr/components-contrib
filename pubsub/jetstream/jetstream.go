@@ -25,7 +25,6 @@ import (
 )
 
 type jetstreamPubSub struct {
-	pubsub.DefaultBulkMessager
 	nc   *nats.Conn
 	jsc  nats.JetStreamContext
 	l    logger.Logger

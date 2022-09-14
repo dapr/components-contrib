@@ -23,7 +23,6 @@ import (
 )
 
 type PubSub struct {
-	pubsub.DefaultBulkMessager
 	kafka           *kafka.Kafka
 	logger          logger.Logger
 	subscribeCtx    context.Context

@@ -13,11 +13,22 @@ limitations under the License.
 
 package metadata
 
+// ValidationType metadata validation type.
+type ValidationType string
+
+const (
+	Required ValidationType = "required"
+	Optional ValidationType = "optional"
+	Denied   ValidationType = "denied"
+)
+
 // Base is the common metadata across components.
 // All components-specific metadata should embed this.
 type Base struct {
 	// Name is the name of the component that's being used.
 	Name string
+	// Valiation is the metadata validation in non-initialization phase.
+	Validations map[string]ValidationType `json:"validations,omitempty"`
 	// Properties is the metadata properties.
 	Properties map[string]string `json:"properties,omitempty"`
 }

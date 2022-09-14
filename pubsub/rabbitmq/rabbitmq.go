@@ -50,7 +50,6 @@ const (
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
 type rabbitMQ struct {
-	pubsub.DefaultBulkMessager
 	connection        rabbitMQConnectionBroker
 	channel           rabbitMQChannelBroker
 	channelMutex      sync.RWMutex

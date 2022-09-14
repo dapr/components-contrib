@@ -22,7 +22,6 @@ import (
 
 // PubSub is the interface for message buses.
 type PubSub interface {
-	BulkMessager
 	Init(metadata Metadata) error
 	Features() []Feature
 	Publish(req *PublishRequest) error
@@ -30,20 +29,34 @@ type PubSub interface {
 	Close() error
 }
 
-// BulkMessager is the interface defining BulkPublish and BulkSubscribe definitions for message buses
-type BulkMessager interface {
+// BulkPublisher is the interface defining BulkPublish definition for message buses
+type BulkPublisher interface {
+	// BulkPublish is the method to publish multiple messages to a topic in a bulk fashion.
 	BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error)
-	BulkSubscribe(ctx context.Context, req SubscribeRequest, handler BulkHandler) error
+}
+
+// BulkSubscriber is the interface defining BulkSubscribe definition for message buses
+type BulkSubscriber interface {
+	// BulkSubscribe can be used to subscribe to a topic and receive messages in a bulk fashion.
+	// It will depend on broker if they can support bulk consumption.
+	// If the broker does not support bulk consumption, default implementation can be leveraged
+	// to optimize between Dapr sidecar and consumer App.
+	// The bulkHandler will be called with a list of messages.
+	BulkSubscribe(ctx context.Context, req SubscribeRequest, bulkHandler BulkHandler) error
 }
 
 // Handler is the handler used to invoke the app handler.
 type Handler func(ctx context.Context, msg *NewMessage) error
 
-// BulkHandler is the handler used to invoke the app handler.
-// It returns first type as []BulkSubscribeResponseEntry which represents status per message - if not nil,
-// broker can take appropriate action accordingly.
-// Second return type is error which if not nil, reflects that there was an issue with
-// the whole bulk event and nothing could be sent ahead.
+// BulkHandler is the handler used to invoke the app handler in a bulk fashion.
+// If second return type error is not nil, and []BulkSubscribeResponseEntry is nil,
+// it represents some issue and that none of the message could be sent.
+
+// If second return type error is not nil, and []BulkSubscribeResponseEntry is also not nil,
+// []BulkSubscribeResponseEntry can be checked for each message's response status.
+
+// If second return type error is nil, that reflects all items were sent successfully
+// and []BulkSubscribeResponseEntry doesn't matter
 type BulkHandler func(ctx context.Context, msg *BulkMessage) ([]BulkSubscribeResponseEntry, error)
 
 func Ping(pubsub PubSub) error {
@@ -53,28 +66,4 @@ func Ping(pubsub PubSub) error {
 	} else {
 		return fmt.Errorf("ping is not implemented by this pubsub")
 	}
-}
-
-// DefaultBulkMessager is default implemnetation for BukMessager
-type DefaultBulkMessager struct {
-	p PubSub
-}
-
-// NewDefaultBulkMessager to create new DefaultBulkMessager for a PubSub
-func NewDefaultBulkMessager(pubsub PubSub) DefaultBulkMessager {
-	return DefaultBulkMessager{
-		p: pubsub,
-	}
-}
-
-// BulkPublish Default Implementation
-func (p *DefaultBulkMessager) BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error) {
-	return BulkPublishResponse{}, nil
-}
-
-// BulkSubscribe Default Implementation
-func (p *DefaultBulkMessager) BulkSubscribe(tx context.Context, req SubscribeRequest,
-	handler BulkHandler,
-) error {
-	return nil
 }

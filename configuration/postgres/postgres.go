@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"golang.org/x/exp/utf8string"
@@ -41,6 +39,13 @@ type ConfigurationStore struct {
 	client               *pgxpool.Pool
 	logger               logger.Logger
 	subscribeStopChanMap sync.Map
+	ActiveSubscriptions  map[string]*subscription
+}
+
+type subscription struct {
+	uuid    string
+	trigger string
+	keys    []string
 }
 
 const (
@@ -48,17 +53,13 @@ const (
 	connMaxIdleTimeKey           = "connMaxIdleTime"
 	connectionStringKey          = "connectionString"
 	ErrorMissingTableName        = "missing postgreSQL configuration table name"
-	InfoStartInit                = "Initializing PostgreSQL state store"
+	InfoStartInit                = "Initializing postgreSQL configuration store"
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
 	ErrorAlreadyInitialized      = "PostgreSQL configuration store already initialized"
 	ErrorMissinMaxTimeout        = "missing PostgreSQL maxTimeout setting in configuration"
 	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
 	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 	ErrorTooLongFieldLength      = "field name is too long"
-)
-
-const (
-	queryKey = `SELECT * `
 )
 
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
@@ -70,6 +71,7 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 
 func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	p.logger.Debug(InfoStartInit)
+
 	if p.client != nil {
 		return fmt.Errorf(ErrorAlreadyInitialized)
 	}
@@ -79,7 +81,7 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	} else {
 		p.metadata = m
 	}
-
+	p.ActiveSubscriptions = make(map[string]*subscription)
 	ctx, cancel := context.WithTimeout(context.Background(), p.metadata.maxIdleTime)
 	defer cancel()
 	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTime)
@@ -91,7 +93,6 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	if pingErr != nil {
 		return pingErr
 	}
-
 	// check if table exists
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.configTable).Scan(&exists)
@@ -115,14 +116,14 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		}
 		return nil, err
 	}
-	response := configuration.GetResponse{}
+	response := configuration.GetResponse{make(map[string]*configuration.Item)}
 	for i := 0; rows.Next(); i++ {
 		var item configuration.Item
 		var key string
 		var metadata []byte
 		v := make(map[string]string)
 
-		if err := rows.Scan(key, &item.Value, &item.Version, &metadata); err != nil {
+		if err := rows.Scan(&key, &item.Value, &item.Version, &metadata); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(metadata, &v); err != nil {
@@ -135,53 +136,79 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	subscribeID := uuid.New().String()
-	key := "listen " + p.metadata.configTable
-	// subscribe to events raised on the configTable
-	if oldStopChan, ok := p.subscribeStopChanMap.Load(key); ok {
-		close(oldStopChan.(chan struct{}))
+	var triggers []string //req.Metadata
+	for k, v := range req.Metadata {
+		if k == strings.ToLower("trigger") {
+			triggers = append(triggers, v)
+		}
 	}
-	stop := make(chan struct{})
-	p.subscribeStopChanMap.Store(subscribeID, stop)
-	go p.doSubscribe(ctx, req, handler, key, subscribeID, stop)
+
+	if len(triggers) == 0 {
+		return "", fmt.Errorf("cannot subscribe to empty trigger")
+	}
+
+	var subscribeID string
+	for _, trigger := range triggers {
+		key := "listen " + trigger
+		if sub, isActive := p.isSubscriptionActive(req); isActive {
+			//unsubscribe the previous subscription
+			if oldStopChan, ok := p.subscribeStopChanMap.Load(sub); ok {
+				close(oldStopChan.(chan struct{}))
+			}
+		}
+		stop := make(chan struct{})
+		subscribeID = uuid.New().String()
+		p.subscribeStopChanMap.Store(subscribeID, stop)
+		p.ActiveSubscriptions[trigger] = &subscription{
+			uuid:    subscribeID,
+			trigger: trigger,
+			keys:    req.Keys,
+		}
+		go p.doSubscribe(ctx, req, handler, key, trigger, subscribeID, stop)
+	}
 	return subscribeID, nil
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	if oldStopChan, ok := p.subscribeStopChanMap.Load(req.ID); ok {
 		p.subscribeStopChanMap.Delete(req.ID)
+		for k, v := range p.ActiveSubscriptions {
+			if v.uuid == req.ID {
+				delete(p.ActiveSubscriptions, k)
+			}
+		}
 		close(oldStopChan.(chan struct{}))
+		return nil
 	}
-	return nil
+	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 }
 
-func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, channel string, id string, stop chan struct{}) {
+func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, channel string, trigger string, subscription string, stop chan struct{}) {
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error acquiring connection:", err)
+		p.logger.Errorf("Error acquiring connection:", err)
+		return
 	}
 	defer conn.Release()
-	ctxTimeout, cancel := context.WithTimeout(ctx, p.metadata.maxIdleTime)
-	defer cancel()
-	_, err = conn.Exec(ctxTimeout, channel)
+	_, err = conn.Exec(ctx, channel)
 	if err != nil {
 		p.logger.Errorf("Error listening to channel:", err)
 		return
 	}
 
 	for {
-		notification, err := conn.Conn().WaitForNotification(ctxTimeout)
+		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
-			if !(pgconn.Timeout(err) || errors.Is(ctxTimeout.Err(), context.Canceled)) {
+			if !(pgconn.Timeout(err) || errors.Is(ctx.Err(), context.Canceled)) {
 				p.logger.Errorf("Error waiting for notification:", err)
 			}
 			return
 		}
-		p.handleSubscribedChange(ctx, handler, notification, id)
+		p.handleSubscribedChange(ctx, handler, notification, trigger, subscription)
 	}
 }
 
-func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, msg *pgconn.Notification, id string) {
+func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, msg *pgconn.Notification, trigger string, subscription string) {
 	defer func() {
 		if err := recover(); err != nil {
 			p.logger.Errorf("panic in handleSubscribedChange method and recovered: %s", err)
@@ -205,6 +232,10 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 			switch strings.ToLower(strKey) {
 			case "key":
 				key = v.Interface().(string)
+				if yes := p.isSubscribed(trigger, key, subscription); !yes {
+					p.logger.Debugf("Ignoring notification for %v", key)
+					return
+				}
 			case "value":
 				value = v.Interface().(string)
 			case "version":
@@ -225,7 +256,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 				Metadata: m,
 			},
 		},
-		ID: id,
+		ID: subscription,
 	}
 	err = handler(ctx, e)
 	if err != nil {
@@ -266,13 +297,6 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 }
 
 func Connect(ctx context.Context, conn string, maxTimeout time.Duration) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(conn)
-	if err != nil {
-		return nil, fmt.Errorf("postgres configuration store configuration error : %s", err)
-	}
-	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) {
-
-	}
 	pool, err := pgxpool.Connect(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store connection error : %s", err)
@@ -294,20 +318,20 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, erro
 		queryBuilder.WriteString(strings.Join(req.Keys, "','"))
 		queryBuilder.WriteString("')")
 		query = queryBuilder.String()
-	}
 
-	if len(req.Metadata) > 0 {
-		var s strings.Builder
-		i, j := len(req.Metadata), 0
-		s.WriteString(" AND ")
-		for k, v := range req.Metadata {
-			temp := k + "='" + v + "'"
-			s.WriteString(temp)
-			if j++; j < i {
-				s.WriteString(" AND ")
+		if len(req.Metadata) > 0 {
+			var s strings.Builder
+			i, j := len(req.Metadata), 0
+			s.WriteString(" AND ")
+			for k, v := range req.Metadata {
+				temp := k + "='" + v + "'"
+				s.WriteString(temp)
+				if j++; j < i {
+					s.WriteString(" AND ")
+				}
 			}
+			query += s.String()
 		}
-		query += s.String()
 	}
 	return query, nil
 }
@@ -319,4 +343,28 @@ func QueryRow(ctx context.Context, p *pgxpool.Pool, query string, tbl string) er
 		return fmt.Errorf("postgres configuration store query error : %s", err)
 	}
 	return nil
+}
+
+func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRequest) (string, bool) {
+	for _, trigger := range req.Metadata {
+		for key2, sub := range p.ActiveSubscriptions {
+			if strings.ToLower(trigger) == strings.ToLower(key2) {
+				return sub.uuid, true
+			}
+		}
+	}
+	return " ", false
+}
+
+func (p *ConfigurationStore) isSubscribed(trigger string, key string, subscription string) bool {
+	for t, s := range p.ActiveSubscriptions {
+		if t == trigger && s.uuid == subscription {
+			for _, k := range s.keys {
+				if k == key {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

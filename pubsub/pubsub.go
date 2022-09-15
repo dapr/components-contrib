@@ -29,18 +29,18 @@ type PubSub interface {
 	Close() error
 }
 
-// BulkPublisher is the interface defining BulkPublish definition for message buses
+// BulkPublisher is the interface that wraps the BulkPublish method.
+
+// BulkPublish publishes a collection of entries/messages in a BulkPublishRequest to a
+// message bus topic and returns a BulkPublishResponse with individual statuses for each message.
 type BulkPublisher interface {
-	// BulkPublish is the method to publish multiple messages to a topic in a bulk fashion.
 	BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error)
 }
 
 // BulkSubscriber is the interface defining BulkSubscribe definition for message buses
 type BulkSubscriber interface {
-	// BulkSubscribe can be used to subscribe to a topic and receive messages in a bulk fashion.
-	// It will depend on broker if they can support bulk consumption.
-	// If the broker does not support bulk consumption, default implementation can be leveraged
-	// to optimize between Dapr sidecar and consumer App.
+	// BulkSubscribe is used to subscribe to a topic and receive collection of entries/ messages
+	// from a message bus topic.
 	// The bulkHandler will be called with a list of messages.
 	BulkSubscribe(ctx context.Context, req SubscribeRequest, bulkHandler BulkHandler) error
 }
@@ -49,6 +49,7 @@ type BulkSubscriber interface {
 type Handler func(ctx context.Context, msg *NewMessage) error
 
 // BulkHandler is the handler used to invoke the app handler in a bulk fashion.
+
 // If second return type error is not nil, and []BulkSubscribeResponseEntry is nil,
 // it represents some issue and that none of the message could be sent.
 
@@ -57,6 +58,9 @@ type Handler func(ctx context.Context, msg *NewMessage) error
 
 // If second return type error is nil, that reflects all items were sent successfully
 // and []BulkSubscribeResponseEntry doesn't matter
+
+// []BulkSubscribeResponseEntry represents individual statuses for each message in an
+// orderly fashion.
 type BulkHandler func(ctx context.Context, msg *BulkMessage) ([]BulkSubscribeResponseEntry, error)
 
 func Ping(pubsub PubSub) error {

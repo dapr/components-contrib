@@ -14,6 +14,7 @@ limitations under the License.
 package secretmanager
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -69,7 +70,7 @@ func TestGetSecret(t *testing.T) {
 	sm := NewSecreteManager(logger.NewLogger("test"))
 
 	t.Run("Get Secret - without Init", func(t *testing.T) {
-		v, err := sm.GetSecret(secretstores.GetSecretRequest{Name: "test"})
+		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("client is not initialized"))
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
@@ -91,7 +92,7 @@ func TestGetSecret(t *testing.T) {
 			},
 		}}
 		sm.Init(m)
-		v, err := sm.GetSecret(secretstores.GetSecretRequest{Name: "test"})
+		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
 		assert.NotNil(t, err)
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
 	})
@@ -101,7 +102,7 @@ func TestBulkGetSecret(t *testing.T) {
 	sm := NewSecreteManager(logger.NewLogger("test"))
 
 	t.Run("Bulk Get Secret - without Init", func(t *testing.T) {
-		v, err := sm.BulkGetSecret(secretstores.BulkGetSecretRequest{})
+		v, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("client is not initialized"))
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
@@ -125,7 +126,7 @@ func TestBulkGetSecret(t *testing.T) {
 			},
 		}
 		sm.Init(m)
-		v, err := sm.BulkGetSecret(secretstores.BulkGetSecretRequest{})
+		v, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 		assert.NotNil(t, err)
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
 	})

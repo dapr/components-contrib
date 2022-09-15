@@ -28,7 +28,7 @@ const (
 	Drop AppResponseStatus = "DROP"
 	// PublishSucceeded represents that message was published successfully.
 	PublishSucceeded BulkPublishStatus = "SUCCESS"
-	// PublishFailed represents that message publishing Failed.
+	// PublishFailed represents that message publishing failed.
 	PublishFailed BulkPublishStatus = "FAILED"
 )
 

@@ -26,6 +26,13 @@ For documentation on how components are being used in Dapr in a language/platfor
 
 * [Developing new component](docs/developing-component.md)
 
+Thanks to everyone who has contributed!
+
+<a href="https://github.com/dapr/components-contrib/graphs/contributors">
+  <img src="https://contributors-img.web.app/image?repo=dapr/components-contrib" />
+</a>
+
+
 ## Code of Conduct
 
 Please refer to our [Dapr Community Code of Conduct](https://github.com/dapr/community/blob/master/CODE-OF-CONDUCT.md)

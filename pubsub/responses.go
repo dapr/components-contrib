@@ -74,3 +74,20 @@ type BulkSubscribeResponse struct {
 	Error    error                        `json:"error"`
 	Statuses []BulkSubscribeResponseEntry `json:"statuses"`
 }
+
+// NewBulkPublishResponse returns a BulkPublishResponse with each entry having same status and error.
+// This method is a helper method to map a single error/success response on BulkPublish to multiple events.
+func NewBulkPublishResponse(messages []BulkMessageEntry, status BulkPublishStatus, err error) BulkPublishResponse {
+	response := BulkPublishResponse{}
+	response.Statuses = make([]BulkPublishResponseEntry, len(messages))
+	for i, msg := range messages {
+		st := BulkPublishResponseEntry{}
+		st.EntryID = msg.EntryID
+		st.Status = status
+		if err != nil {
+			st.Error = err
+		}
+		response.Statuses[i] = st
+	}
+	return response
+}

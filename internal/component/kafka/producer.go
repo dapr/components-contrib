@@ -17,6 +17,8 @@ import (
 	"errors"
 
 	"github.com/Shopify/sarama"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int) (sarama.SyncProducer, error) {
@@ -73,4 +75,40 @@ func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) e
 	}
 
 	return nil
+}
+
+func (k *Kafka) BulkPublish(topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
+	if k.producer == nil {
+		err := errors.New("component is closed")
+		return pubsub.NewBulkPublishResponse(entries, pubsub.PublishFailed, err), err
+	}
+	k.logger.Debugf("Bulk Publishing on topic %v", topic)
+
+	msgs := []*sarama.ProducerMessage{}
+	for _, entry := range entries {
+		msg := &sarama.ProducerMessage{
+			Topic: topic,
+			Value: sarama.ByteEncoder(entry.Event),
+		}
+		for name, value := range metadata {
+			if name == key {
+				msg.Key = sarama.StringEncoder(value)
+			} else {
+				if msg.Headers == nil {
+					msg.Headers = make([]sarama.RecordHeader, 0, len(metadata))
+				}
+				msg.Headers = append(msg.Headers, sarama.RecordHeader{
+					Key:   []byte(name),
+					Value: []byte(value),
+				})
+			}
+		}
+		msgs = append(msgs, msg)
+	}
+
+	if err := k.producer.SendMessages(msgs); err != nil {
+		return pubsub.NewBulkPublishResponse(entries, pubsub.PublishFailed, err), err
+	}
+
+	return pubsub.NewBulkPublishResponse(entries, pubsub.PublishSucceeded, nil), nil
 }

@@ -44,14 +44,14 @@ type NewMessage struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
-// BulkMessage represents bulk message arriving from a message bus instance
+// BulkMessage represents bulk message arriving from a message bus instance.
 type BulkMessage struct {
 	Entries  []BulkMessageEntry `json:"entries"`
 	Topic    string             `json:"topic"`
 	Metadata map[string]string  `json:"metadata"`
 }
 
-// BulkMessageEntry represents a single message inside a bulk request
+// BulkMessageEntry represents a single message inside a bulk request.
 type BulkMessageEntry struct {
 	EntryID     string            `json:entryID`
 	Event       []byte            `json:"event"`
@@ -59,10 +59,10 @@ type BulkMessageEntry struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
-// BulkSubscribeConfig defines the Configurations that can be applied to control bulk subscribe
-// behavior - beahvior may depend per building block
+// BulkSubscribeConfig represents the configuration for bulk subscribe.
+// It depends on specific componets to support these.
 type BulkSubscribeConfig struct {
-	MaxBulkCount               int `json:"maxBulkCount"`
-	MaxBulkLatencyMilliSeconds int `json:"maxBulkLatencyMilliSeconds"`
-	MaxBulkSizeBytes           int `json:"maxBulkSizeBytes"`
+	MaxBulkCount                     int `json:"maxBulkCount"`
+	MaxBulkAwaitDurationMilliSeconds int `json:"maxBulkAwaitDurationMilliSeconds"`
+	MaxBulkSizeBytes                 int `json:"maxBulkSizeBytes"`
 }

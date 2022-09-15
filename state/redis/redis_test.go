@@ -21,7 +21,8 @@ import (
 
 	"github.com/agrea/ptr"
 	miniredis "github.com/alicebob/miniredis/v2"
-	redis "github.com/go-redis/redis/v8"
+	v8 "github.com/go-redis/redis/v8"
+	v9 "github.com/go-redis/redis/v9"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
@@ -195,14 +196,15 @@ func TestParseConnectedSlavs(t *testing.T) {
 	})
 }
 
-func TestTransactionalUpsert(t *testing.T) {
-	s, c := setupMiniredis()
+func TestTransactionalUpsertv8(t *testing.T) {
+	s, c := setupMiniredisv8()
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		legacyRedis: true,
+		clientv8:    c,
+		json:        jsoniter.ConfigFastest,
+		logger:      logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -261,14 +263,15 @@ func TestTransactionalUpsert(t *testing.T) {
 	assert.Equal(t, int64(-1), res)
 }
 
-func TestTransactionalDelete(t *testing.T) {
-	s, c := setupMiniredis()
+func TestTransactionalDeletev8(t *testing.T) {
+	s, c := setupMiniredisv8()
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		legacyRedis: true,
+		clientv8:    c,
+		json:        jsoniter.ConfigFastest,
+		logger:      logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -297,11 +300,12 @@ func TestTransactionalDelete(t *testing.T) {
 	assert.Equal(t, 0, len(vals))
 }
 
-func TestPing(t *testing.T) {
-	s, c := setupMiniredis()
+func TestPingv8(t *testing.T) {
+	s, c := setupMiniredisv8()
 
 	ss := &StateStore{
-		client:         c,
+		legacyRedis:    true,
+		clientv8:       c,
 		json:           jsoniter.ConfigFastest,
 		logger:         logger.NewLogger("test"),
 		clientSettings: &rediscomponent.Settings{},
@@ -316,17 +320,18 @@ func TestPing(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestRequestsWithGlobalTTL(t *testing.T) {
-	s, c := setupMiniredis()
+func TestRequestsWithGlobalTTLv8(t *testing.T) {
+	s, c := setupMiniredisv8()
 	defer s.Close()
 
 	globalTTLInSeconds := 100
 
 	ss := &StateStore{
-		client:   c,
-		json:     jsoniter.ConfigFastest,
-		logger:   logger.NewLogger("test"),
-		metadata: rediscomponent.Metadata{TTLInSeconds: &globalTTLInSeconds},
+		legacyRedis: true,
+		clientv8:    c,
+		json:        jsoniter.ConfigFastest,
+		logger:      logger.NewLogger("test"),
+		metadata:    rediscomponent.Metadata{TTLInSeconds: &globalTTLInSeconds},
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -335,7 +340,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 			Key:   "weapon100",
 			Value: "deathstar100",
 		})
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+		ttl, _ := ss.clientv8.TTL(ss.ctx, "weapon100").Result()
 
 		assert.Equal(t, time.Duration(globalTTLInSeconds)*time.Second, ttl)
 	})
@@ -349,7 +354,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(requestTTL),
 			},
 		})
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+		ttl, _ := ss.clientv8.TTL(ss.ctx, "weapon100").Result()
 
 		assert.Equal(t, time.Duration(requestTTL)*time.Second, ttl)
 	})
@@ -411,14 +416,15 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 	})
 }
 
-func TestSetRequestWithTTL(t *testing.T) {
-	s, c := setupMiniredis()
+func TestSetRequestWithTTLv8(t *testing.T) {
+	s, c := setupMiniredisv8()
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		legacyRedis: true,
+		clientv8:    c,
+		json:        jsoniter.ConfigFastest,
+		logger:      logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -432,7 +438,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			},
 		})
 
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+		ttl, _ := ss.clientv8.TTL(ss.ctx, "weapon100").Result()
 
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 	})
@@ -443,7 +449,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Value: "deathstar200",
 		})
 
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon200").Result()
+		ttl, _ := ss.clientv8.TTL(ss.ctx, "weapon200").Result()
 
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
@@ -453,7 +459,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Key:   "weapon300",
 			Value: "deathstar300",
 		})
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon300").Result()
+		ttl, _ := ss.clientv8.TTL(ss.ctx, "weapon300").Result()
 		assert.Equal(t, time.Duration(-1), ttl)
 
 		// make the key no longer persistent
@@ -465,7 +471,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		ttl, _ = ss.client.TTL(ss.ctx, "weapon300").Result()
+		ttl, _ = ss.clientv8.TTL(ss.ctx, "weapon300").Result()
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 
 		// make the key persistent again
@@ -476,19 +482,20 @@ func TestSetRequestWithTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(-1),
 			},
 		})
-		ttl, _ = ss.client.TTL(ss.ctx, "weapon300").Result()
+		ttl, _ = ss.clientv8.TTL(ss.ctx, "weapon300").Result()
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
 }
 
-func TestTransactionalDeleteNoEtag(t *testing.T) {
-	s, c := setupMiniredis()
+func TestTransactionalDeleteNoEtagv8(t *testing.T) {
+	s, c := setupMiniredisv8()
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		legacyRedis: true,
+		clientv8:    c,
+		json:        jsoniter.ConfigFastest,
+		logger:      logger.NewLogger("test"),
 	}
 	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
@@ -515,15 +522,348 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	assert.Equal(t, 0, len(vals))
 }
 
-func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
+func TestTransactionalUpsertv9(t *testing.T) {
+	s, c := setupMiniredisv9()
+	defer s.Close()
+
+	ss := &StateStore{
+		clientv9: c,
+		json:     jsoniter.ConfigFastest,
+		logger:   logger.NewLogger("test"),
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	err := ss.Multi(&state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{
+			{
+				Operation: state.Upsert,
+				Request: state.SetRequest{
+					Key:   "weapon",
+					Value: "deathstar",
+				},
+			},
+			{
+				Operation: state.Upsert,
+				Request: state.SetRequest{
+					Key:   "weapon2",
+					Value: "deathstar2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "123",
+					},
+				},
+			},
+			{
+				Operation: state.Upsert,
+				Request: state.SetRequest{
+					Key:   "weapon3",
+					Value: "deathstar3",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
+					},
+				},
+			},
+		},
+	})
+	assert.Equal(t, nil, err)
+
+	res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+	assert.Equal(t, nil, err)
+
+	vals := res.([]interface{})
+	data, version, err := ss.getKeyVersion(vals)
+	assert.Equal(t, nil, err)
+	assert.Equal(t, ptr.String("1"), version)
+	assert.Equal(t, `"deathstar"`, data)
+
+	res, err = c.Do(context.Background(), "TTL", "weapon").Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(-1), res)
+
+	res, err = c.Do(context.Background(), "TTL", "weapon2").Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(123), res)
+
+	res, err = c.Do(context.Background(), "TTL", "weapon3").Result()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(-1), res)
+}
+
+func TestTransactionalDeletev9(t *testing.T) {
+	s, c := setupMiniredisv9()
+	defer s.Close()
+
+	ss := &StateStore{
+		clientv9: c,
+		json:     jsoniter.ConfigFastest,
+		logger:   logger.NewLogger("test"),
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	// Insert a record first.
+	ss.Set(&state.SetRequest{
+		Key:   "weapon",
+		Value: "deathstar",
+	})
+
+	etag := "1"
+	err := ss.Multi(&state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{{
+			Operation: state.Delete,
+			Request: state.DeleteRequest{
+				Key:  "weapon",
+				ETag: &etag,
+			},
+		}},
+	})
+	assert.Equal(t, nil, err)
+
+	res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+	assert.Equal(t, nil, err)
+
+	vals := res.([]interface{})
+	assert.Equal(t, 0, len(vals))
+}
+
+func TestPingv9(t *testing.T) {
+	s, c := setupMiniredisv9()
+
+	ss := &StateStore{
+		clientv9:       c,
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
+		clientSettings: &rediscomponent.Settings{},
+	}
+
+	err := state.Ping(ss)
+	assert.NoError(t, err)
+
+	s.Close()
+
+	err = state.Ping(ss)
+	assert.Error(t, err)
+}
+
+func TestRequestsWithGlobalTTLv9(t *testing.T) {
+	s, c := setupMiniredisv9()
+	defer s.Close()
+
+	globalTTLInSeconds := 100
+
+	ss := &StateStore{
+		clientv9: c,
+		json:     jsoniter.ConfigFastest,
+		logger:   logger.NewLogger("test"),
+		metadata: rediscomponent.Metadata{TTLInSeconds: &globalTTLInSeconds},
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	t.Run("TTL: Only global specified", func(t *testing.T) {
+		ss.Set(&state.SetRequest{
+			Key:   "weapon100",
+			Value: "deathstar100",
+		})
+		ttl, _ := ss.clientv9.TTL(ss.ctx, "weapon100").Result()
+
+		assert.Equal(t, time.Duration(globalTTLInSeconds)*time.Second, ttl)
+	})
+
+	t.Run("TTL: Global and Request specified", func(t *testing.T) {
+		requestTTL := 200
+		ss.Set(&state.SetRequest{
+			Key:   "weapon100",
+			Value: "deathstar100",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(requestTTL),
+			},
+		})
+		ttl, _ := ss.clientv9.TTL(ss.ctx, "weapon100").Result()
+
+		assert.Equal(t, time.Duration(requestTTL)*time.Second, ttl)
+	})
+
+	t.Run("TTL: Global and Request specified", func(t *testing.T) {
+		err := ss.Multi(&state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "weapon",
+						Value: "deathstar",
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "weapon2",
+						Value: "deathstar2",
+						Metadata: map[string]string{
+							"ttlInSeconds": "123",
+						},
+					},
+				},
+				{
+					Operation: state.Upsert,
+					Request: state.SetRequest{
+						Key:   "weapon3",
+						Value: "deathstar3",
+						Metadata: map[string]string{
+							"ttlInSeconds": "-1",
+						},
+					},
+				},
+			},
+		})
+		assert.Equal(t, nil, err)
+
+		res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+		assert.Equal(t, nil, err)
+
+		vals := res.([]interface{})
+		data, version, err := ss.getKeyVersion(vals)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, ptr.String("1"), version)
+		assert.Equal(t, `"deathstar"`, data)
+
+		res, err = c.Do(context.Background(), "TTL", "weapon").Result()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, int64(globalTTLInSeconds), res)
+
+		res, err = c.Do(context.Background(), "TTL", "weapon2").Result()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, int64(123), res)
+
+		res, err = c.Do(context.Background(), "TTL", "weapon3").Result()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, int64(-1), res)
+	})
+}
+
+func TestSetRequestWithTTLv9(t *testing.T) {
+	s, c := setupMiniredisv9()
+	defer s.Close()
+
+	ss := &StateStore{
+		clientv9: c,
+		json:     jsoniter.ConfigFastest,
+		logger:   logger.NewLogger("test"),
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	t.Run("TTL specified", func(t *testing.T) {
+		ttlInSeconds := 100
+		ss.Set(&state.SetRequest{
+			Key:   "weapon100",
+			Value: "deathstar100",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+
+		ttl, _ := ss.clientv9.TTL(ss.ctx, "weapon100").Result()
+
+		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
+	})
+
+	t.Run("TTL not specified", func(t *testing.T) {
+		ss.Set(&state.SetRequest{
+			Key:   "weapon200",
+			Value: "deathstar200",
+		})
+
+		ttl, _ := ss.clientv9.TTL(ss.ctx, "weapon200").Result()
+
+		assert.Equal(t, time.Duration(-1), ttl)
+	})
+
+	t.Run("TTL Changed for Existing Key", func(t *testing.T) {
+		ss.Set(&state.SetRequest{
+			Key:   "weapon300",
+			Value: "deathstar300",
+		})
+		ttl, _ := ss.clientv9.TTL(ss.ctx, "weapon300").Result()
+		assert.Equal(t, time.Duration(-1), ttl)
+
+		// make the key no longer persistent
+		ttlInSeconds := 123
+		ss.Set(&state.SetRequest{
+			Key:   "weapon300",
+			Value: "deathstar300",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		ttl, _ = ss.clientv9.TTL(ss.ctx, "weapon300").Result()
+		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
+
+		// make the key persistent again
+		ss.Set(&state.SetRequest{
+			Key:   "weapon300",
+			Value: "deathstar301",
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(-1),
+			},
+		})
+		ttl, _ = ss.clientv9.TTL(ss.ctx, "weapon300").Result()
+		assert.Equal(t, time.Duration(-1), ttl)
+	})
+}
+
+func TestTransactionalDeleteNoEtagv9(t *testing.T) {
+	s, c := setupMiniredisv9()
+	defer s.Close()
+
+	ss := &StateStore{
+		clientv9: c,
+		json:     jsoniter.ConfigFastest,
+		logger:   logger.NewLogger("test"),
+	}
+	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	// Insert a record first.
+	ss.Set(&state.SetRequest{
+		Key:   "weapon100",
+		Value: "deathstar100",
+	})
+
+	err := ss.Multi(&state.TransactionalStateRequest{
+		Operations: []state.TransactionalStateOperation{{
+			Operation: state.Delete,
+			Request: state.DeleteRequest{
+				Key: "weapon100",
+			},
+		}},
+	})
+	assert.Equal(t, nil, err)
+
+	res, err := c.Do(context.Background(), "HGETALL", "weapon100").Result()
+	assert.Equal(t, nil, err)
+
+	vals := res.([]interface{})
+	assert.Equal(t, 0, len(vals))
+}
+
+func setupMiniredisv8() (*miniredis.Miniredis, *v8.Client) {
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
 	}
-	opts := &redis.Options{
+	opts := &v8.Options{
 		Addr: s.Addr(),
 		DB:   defaultDB,
 	}
 
-	return s, redis.NewClient(opts)
+	return s, v8.NewClient(opts)
+}
+
+func setupMiniredisv9() (*miniredis.Miniredis, *v9.Client) {
+	s, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	opts := &v9.Options{
+		Addr: s.Addr(),
+		DB:   defaultDB,
+	}
+
+	return s, v9.NewClient(opts)
 }

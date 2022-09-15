@@ -23,7 +23,8 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 
-	"github.com/go-redis/redis/v8"
+	v8 "github.com/go-redis/redis/v8"
+	v9 "github.com/go-redis/redis/v9"
 )
 
 var ErrMultipleSortBy error = errors.New("multiple SORTBY steps are not allowed. Sort multiple fields in a single step")
@@ -190,12 +191,25 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, client redis.UniversalClient) ([]state.QueryItem, string, error) {
+func (q *Query) executev8(ctx context.Context, client v8.UniversalClient) ([]state.QueryItem, string, error) {
 	query := append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", "2", "$.data", "$.version")
 	ret, err := client.Do(ctx, query...).Result()
 	if err != nil {
 		return nil, "", err
 	}
+	return parseQueryResult(q, ret)
+}
+
+func (q *Query) executev9(ctx context.Context, client v9.UniversalClient) ([]state.QueryItem, string, error) {
+	query := append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", "2", "$.data", "$.version")
+	ret, err := client.Do(ctx, query...).Result()
+	if err != nil {
+		return nil, "", err
+	}
+	return parseQueryResult(q, ret)
+}
+
+func parseQueryResult(q *Query, ret interface{}) ([]state.QueryItem, string, error) {
 	arr, ok := ret.([]interface{})
 	if !ok {
 		return nil, "", fmt.Errorf("invalid output")
@@ -229,5 +243,5 @@ func (q *Query) execute(ctx context.Context, client redis.UniversalClient) ([]st
 		token = strconv.FormatInt(q.offset+int64(len(res)), 10)
 	}
 
-	return res, token, err
+	return res, token, nil
 }

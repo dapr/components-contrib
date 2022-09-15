@@ -20,7 +20,8 @@ import (
 	"strings"
 
 	"github.com/agrea/ptr"
-	"github.com/go-redis/redis/v8"
+	redisClientv8 "github.com/go-redis/redis/v8"
+	redisClientv9 "github.com/go-redis/redis/v9"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/contenttype"
@@ -91,7 +92,9 @@ const (
 // StateStore is a Redis state store.
 type StateStore struct {
 	state.DefaultBulkStore
-	client         redis.UniversalClient
+	clientv8       redisClientv8.UniversalClient
+	clientv9       redisClientv9.UniversalClient
+	legacyRedis    bool
 	clientSettings *rediscomponent.Settings
 	json           jsoniter.API
 	metadata       rediscomponent.Metadata
@@ -118,8 +121,15 @@ func NewRedisStateStore(logger logger.Logger) state.Store {
 }
 
 func (r *StateStore) Ping() error {
-	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+	// redis 6
+	if r.legacyRedis {
+		if _, err := r.clientv8.Ping(context.Background()).Result(); err != nil {
+			return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+		}
+	} else {
+		if _, err := r.clientv9.Ping(context.Background()).Result(); err != nil {
+			return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+		}
 	}
 
 	return nil
@@ -132,9 +142,17 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 	r.metadata = m
+	if rediscomponent.IsLegacyRedisVersion(metadata.Properties) {
+		r.legacyRedis = true
+	}
 
 	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.MaxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.MaxRetryBackoff)}
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
+	// redis 6 and below
+	if r.legacyRedis {
+		r.clientv8, r.clientSettings, err = rediscomponent.ParseClientv8FromProperties(metadata.Properties, &defaultSettings)
+	} else {
+		r.clientv9, r.clientSettings, err = rediscomponent.ParseClientv9FromProperties(metadata.Properties, &defaultSettings)
+	}
 	if err != nil {
 		return err
 	}
@@ -146,8 +164,15 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
+	// redis 6 and below
+	if r.legacyRedis {
+		if _, err = r.clientv8.Ping(r.ctx).Result(); err != nil {
+			return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
+		}
+	} else {
+		if _, err = r.clientv9.Ping(r.ctx).Result(); err != nil {
+			return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
+		}
 	}
 
 	if r.replicas, err = r.getConnectedSlaves(); err != nil {
@@ -167,7 +192,15 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.Do(r.ctx, "INFO", "replication").Result()
+	var res interface{}
+	var err error
+
+	// redis 6 and below
+	if r.legacyRedis {
+		res, err = r.clientv8.Do(r.ctx, "INFO", "replication").Result()
+	} else {
+		res, err = r.clientv9.Do(r.ctx, "INFO", "replication").Result()
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -207,7 +240,13 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	} else {
 		delQuery = delDefaultQuery
 	}
-	_, err := r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	var err error
+	// redis 6 and below
+	if r.legacyRedis {
+		_, err = r.clientv8.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	} else {
+		_, err = r.clientv9.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	}
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -226,7 +265,15 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "GET", req.Key).Result()
+	var res interface{}
+	var err error
+
+	// redis 6 and below
+	if r.legacyRedis {
+		res, err = r.clientv8.Do(r.ctx, "GET", req.Key).Result()
+	} else {
+		res, err = r.clientv9.Do(r.ctx, "GET", req.Key).Result()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +290,15 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 }
 
 func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+	var res interface{}
+	var err error
+
+	// redis 6 and below
+	if r.legacyRedis {
+		res, err = r.clientv8.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+	} else {
+		res, err = r.clientv9.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+	}
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
@@ -267,7 +322,15 @@ func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, erro
 }
 
 func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "JSON.GET", req.Key).Result()
+	var res interface{}
+	var err error
+
+	// redis 6 and below
+	if r.legacyRedis {
+		res, err = r.clientv8.Do(r.ctx, "JSON.GET", req.Key).Result()
+	} else {
+		res, err = r.clientv9.Do(r.ctx, "JSON.GET", req.Key).Result()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +413,12 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		bt, _ = utils.Marshal(req.Value, r.json.Marshal)
 	}
 
-	err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
+	// redis 6 and below
+	if r.legacyRedis {
+		err = r.clientv8.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
+	} else {
+		err = r.clientv9.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
+	}
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -360,21 +428,36 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 
 	if ttl != nil && *ttl > 0 {
-		_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		// redis 6 and below
+		if r.legacyRedis {
+			_, err = r.clientv8.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		} else {
+			_, err = r.clientv9.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		}
 		if err != nil {
 			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
 		}
 	}
 
 	if ttl != nil && *ttl <= 0 {
-		_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
+		// redis 6 and below
+		if r.legacyRedis {
+			_, err = r.clientv8.Do(r.ctx, "PERSIST", req.Key).Result()
+		} else {
+			_, err = r.clientv9.Do(r.ctx, "PERSIST", req.Key).Result()
+		}
 		if err != nil {
 			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
 		}
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		_, err = r.client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		// redis 6 and below
+		if r.legacyRedis {
+			_, err = r.clientv8.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		} else {
+			_, err = r.clientv9.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		}
 		if err != nil {
 			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
 		}
@@ -401,7 +484,13 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		delQuery = delDefaultQuery
 	}
 
-	pipe := r.client.TxPipeline()
+	var pipe any
+	// redis 6 and below
+	if r.legacyRedis {
+		pipe = r.clientv8.TxPipeline()
+	} else {
+		pipe = r.clientv9.TxPipeline()
+	}
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
@@ -423,24 +512,46 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			} else {
 				bt, _ = utils.Marshal(req.Value, r.json.Marshal)
 			}
-			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
-			if ttl != nil && *ttl > 0 {
-				pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
+
+			if r.legacyRedis {
+				pipe.(redisClientv8.Pipeliner).Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
+				if ttl != nil && *ttl > 0 {
+					pipe.(redisClientv8.Pipeliner).Do(r.ctx, "EXPIRE", req.Key, *ttl)
+				}
+				if ttl != nil && *ttl <= 0 {
+					pipe.(redisClientv8.Pipeliner).Do(r.ctx, "PERSIST", req.Key)
+				}
+			} else {
+				pipe.(redisClientv9.Pipeliner).Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
+				if ttl != nil && *ttl > 0 {
+					pipe.(redisClientv9.Pipeliner).Do(r.ctx, "EXPIRE", req.Key, *ttl)
+				}
+				if ttl != nil && *ttl <= 0 {
+					pipe.(redisClientv9.Pipeliner).Do(r.ctx, "PERSIST", req.Key)
+				}
 			}
-			if ttl != nil && *ttl <= 0 {
-				pipe.Do(r.ctx, "PERSIST", req.Key)
-			}
+
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			if req.ETag == nil {
 				etag := "0"
 				req.ETag = &etag
 			}
-			pipe.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
+			if r.legacyRedis {
+				pipe.(redisClientv8.Pipeliner).Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
+			} else {
+				pipe.(redisClientv9.Pipeliner).Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
+			}
 		}
 	}
 
-	_, err := pipe.Exec(r.ctx)
+	var err error
+	// redis 6 and below
+	if r.legacyRedis {
+		_, err = pipe.(redisClientv8.Pipeliner).Exec(r.ctx)
+	} else {
+		_, err = pipe.(redisClientv9.Pipeliner).Exec(r.ctx)
+	}
 
 	return err
 }
@@ -448,16 +559,32 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 func (r *StateStore) registerSchemas() error {
 	for name, elem := range r.querySchemas {
 		r.logger.Infof("redis: create query index %s", name)
-		if err := r.client.Do(r.ctx, elem.schema...).Err(); err != nil {
-			if err.Error() != "Index already exists" {
-				return err
+		// redis 6 and below
+		if r.legacyRedis {
+			if err := r.clientv8.Do(r.ctx, elem.schema...).Err(); err != nil {
+				if err.Error() != "Index already exists" {
+					return err
+				}
+				r.logger.Infof("redis: drop stale query index %s", name)
+				if err = r.clientv8.Do(r.ctx, "FT.DROPINDEX", name).Err(); err != nil {
+					return err
+				}
+				if err = r.clientv8.Do(r.ctx, elem.schema...).Err(); err != nil {
+					return err
+				}
 			}
-			r.logger.Infof("redis: drop stale query index %s", name)
-			if err = r.client.Do(r.ctx, "FT.DROPINDEX", name).Err(); err != nil {
-				return err
-			}
-			if err = r.client.Do(r.ctx, elem.schema...).Err(); err != nil {
-				return err
+		} else {
+			if err := r.clientv9.Do(r.ctx, elem.schema...).Err(); err != nil {
+				if err.Error() != "Index already exists" {
+					return err
+				}
+				r.logger.Infof("redis: drop stale query index %s", name)
+				if err = r.clientv9.Do(r.ctx, "FT.DROPINDEX", name).Err(); err != nil {
+					return err
+				}
+				if err = r.clientv9.Do(r.ctx, elem.schema...).Err(); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -529,7 +656,15 @@ func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
-	data, token, err := q.execute(r.ctx, r.client)
+	var data []state.QueryItem
+	var token string
+	var err error
+	// redis 6 and below
+	if r.legacyRedis {
+		data, token, err = q.executev8(r.ctx, r.clientv8)
+	} else {
+		data, token, err = q.executev9(r.ctx, r.clientv9)
+	}
 	if err != nil {
 		return &state.QueryResponse{}, err
 	}
@@ -543,5 +678,5 @@ func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 func (r *StateStore) Close() error {
 	r.cancel()
 
-	return r.client.Close()
+	return r.clientv8.Close()
 }

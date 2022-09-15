@@ -14,63 +14,30 @@ limitations under the License.
 package redis
 
 import (
-	"fmt"
-	"strconv"
 	"time"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 const (
-	maxRetries             = "maxRetries"
-	maxRetryBackoff        = "maxRetryBackoff"
-	ttlInSeconds           = "ttlInSeconds"
-	queryIndexes           = "queryIndexes"
-	defaultBase            = 10
-	defaultBitSize         = 0
 	defaultMaxRetries      = 3
 	defaultMaxRetryBackoff = time.Second * 2
 )
 
 type Metadata struct {
-	MaxRetries      int
-	MaxRetryBackoff time.Duration
-	TTLInSeconds    *int
-	QueryIndexes    string
+	MaxRetries      int           `json:"maxRetries,string,omitempty"`
+	MaxRetryBackoff time.Duration `json:"maxRetryBackoff,string,omitempty"`
+	TTLInSeconds    *int          `json:"ttlInSeconds,string,omitempty"`
+	QueryIndexes    string        `json:"queryIndexes,omitempty"`
+	RedisVersion    string        `json:"redisVersion,omitempty"`
 }
 
 func ParseRedisMetadata(properties map[string]string) (Metadata, error) {
 	m := Metadata{}
 
 	m.MaxRetries = defaultMaxRetries
-	if val, ok := properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
-		}
-		m.MaxRetries = int(parsedVal)
-	}
-
 	m.MaxRetryBackoff = defaultMaxRetryBackoff
-	if val, ok := properties[maxRetryBackoff]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
-		}
-		m.MaxRetryBackoff = time.Duration(parsedVal)
-	}
+	metadata.DecodeMetadata(properties, &m)
 
-	if val, ok := properties[ttlInSeconds]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse ttlInSeconds field: %s", err)
-		}
-		intVal := int(parsedVal)
-		m.TTLInSeconds = &intVal
-	} else {
-		m.TTLInSeconds = nil
-	}
-
-	if val, ok := properties[queryIndexes]; ok && val != "" {
-		m.QueryIndexes = val
-	}
 	return m, nil
 }

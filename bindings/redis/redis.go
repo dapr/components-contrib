@@ -18,7 +18,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-redis/redis/v8"
+	v8 "github.com/go-redis/redis/v8"
+	v9 "github.com/go-redis/redis/v9"
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
@@ -27,9 +28,11 @@ import (
 
 // Redis is a redis output binding.
 type Redis struct {
-	client         redis.UniversalClient
+	clientv8       v8.UniversalClient
+	clientv9       v9.UniversalClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
+	legacyRedis    bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -42,14 +45,24 @@ func NewRedis(logger logger.Logger) bindings.OutputBinding {
 
 // Init performs metadata parsing and connection creation.
 func (r *Redis) Init(meta bindings.Metadata) (err error) {
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
+	if rediscomponent.IsLegacyRedisVersion(meta.Properties) {
+		r.legacyRedis = true
+		r.clientv8, r.clientSettings, err = rediscomponent.ParseClientv8FromProperties(meta.Properties, nil)
+	} else {
+		r.legacyRedis = false
+		r.clientv9, r.clientSettings, err = rediscomponent.ParseClientv9FromProperties(meta.Properties, nil)
+	}
 	if err != nil {
 		return err
 	}
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	_, err = r.client.Ping(r.ctx).Result()
+	if r.legacyRedis {
+		_, err = r.clientv8.Ping(r.ctx).Result()
+	} else {
+		_, err = r.clientv9.Ping(r.ctx).Result()
+	}
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
@@ -58,8 +71,14 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 }
 
 func (r *Redis) Ping() error {
-	if _, err := r.client.Ping(r.ctx).Result(); err != nil {
-		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+	if r.legacyRedis {
+		if _, err := r.clientv8.Ping(r.ctx).Result(); err != nil {
+			return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+		}
+	} else {
+		if _, err := r.clientv9.Ping(r.ctx).Result(); err != nil {
+			return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+		}
 	}
 
 	return nil
@@ -72,7 +91,12 @@ func (r *Redis) Operations() []bindings.OperationKind {
 func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.client.Do(ctx, "SET", key, req.Data).Result()
+		var err error
+		if r.legacyRedis {
+			_, err = r.clientv8.Do(ctx, "SET", key, req.Data).Result()
+		} else {
+			_, err = r.clientv9.Do(ctx, "SET", key, req.Data).Result()
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -86,5 +110,9 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 func (r *Redis) Close() error {
 	r.cancel()
 
-	return r.client.Close()
+	if r.legacyRedis {
+		return r.clientv8.Close()
+	} else {
+		return r.clientv9.Close()
+	}
 }

@@ -400,7 +400,9 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 
 	c.logger.Debugf("#operations=%d,partitionkey=%s", numOperations, partitionKey)
 
-	batchResponse, err := c.client.ExecuteTransactionalBatch(context.Background(), batch, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	batchResponse, err := c.client.ExecuteTransactionalBatch(ctx, batch, nil)
+	cancel()
 	if err != nil {
 		return err
 	}

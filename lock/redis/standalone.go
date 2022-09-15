@@ -70,6 +70,7 @@ func (r *StandaloneRedisLock) InitLockStore(metadata lock.Metadata) error {
 		r.legacyRedis = true
 	} else {
 		r.legacyRedis = false
+		r.logger.Warnf("Redis version 7 and above uses a Beta SDK at this time. Please use caution.")
 	}
 	// must have `redisHost`
 	if metadata.Properties["redisHost"] == "" {
@@ -195,6 +196,7 @@ func (r *StandaloneRedisLock) TryLock(req *lock.TryLockRequest) (*lock.TryLockRe
 func (r *StandaloneRedisLock) Unlock(req *lock.UnlockRequest) (*lock.UnlockResponse, error) {
 	var i int
 	var err error
+	var status lock.Status
 	if r.legacyRedis {
 		// 1. delegate to client.eval lua script
 		eval := r.clientv8.Eval(r.ctx, unlockScript, []string{req.ResourceID}, req.LockOwner)
@@ -202,12 +204,18 @@ func (r *StandaloneRedisLock) Unlock(req *lock.UnlockRequest) (*lock.UnlockRespo
 		if eval == nil {
 			return newInternalErrorUnlockResponse(), fmt.Errorf("[standaloneRedisLock]: Eval unlock script returned nil.ResourceID: %s", req.ResourceID)
 		}
-		err := eval.Err()
+		err = eval.Err()
 		if err != nil {
 			return newInternalErrorUnlockResponse(), err
 		}
 		// 3. parse result
 		i, err = eval.Int()
+		status = lock.InternalError
+		if err != nil {
+			return &lock.UnlockResponse{
+				Status: status,
+			}, err
+		}
 	} else {
 		// 1. delegate to client.eval lua script
 		eval := r.clientv9.Eval(r.ctx, unlockScript, []string{req.ResourceID}, req.LockOwner)
@@ -215,20 +223,20 @@ func (r *StandaloneRedisLock) Unlock(req *lock.UnlockRequest) (*lock.UnlockRespo
 		if eval == nil {
 			return newInternalErrorUnlockResponse(), fmt.Errorf("[standaloneRedisLock]: Eval unlock script returned nil.ResourceID: %s", req.ResourceID)
 		}
-		err := eval.Err()
+		err = eval.Err()
 		if err != nil {
 			return newInternalErrorUnlockResponse(), err
 		}
 		// 3. parse result
 		i, err = eval.Int()
+		status = lock.InternalError
+		if err != nil {
+			return &lock.UnlockResponse{
+				Status: status,
+			}, err
+		}
 	}
 
-	status := lock.InternalError
-	if err != nil {
-		return &lock.UnlockResponse{
-			Status: status,
-		}, err
-	}
 	if i >= 0 {
 		status = lock.Success
 	} else if i == -1 {

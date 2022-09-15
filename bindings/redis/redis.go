@@ -51,6 +51,7 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 	} else {
 		r.legacyRedis = false
 		r.clientv9, r.clientSettings, err = rediscomponent.ParseClientv9FromProperties(meta.Properties, nil)
+		r.logger.Warnf("Redis version 7 and above uses a Beta SDK at this time. Please use caution.")
 	}
 	if err != nil {
 		return err

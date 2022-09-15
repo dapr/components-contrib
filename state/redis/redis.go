@@ -144,6 +144,9 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.metadata = m
 	if rediscomponent.IsLegacyRedisVersion(metadata.Properties) {
 		r.legacyRedis = true
+	} else {
+		r.legacyRedis = false
+		r.logger.Warnf("Redis version 7 and above uses a Beta SDK at this time. Please use caution.")
 	}
 
 	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.MaxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.MaxRetryBackoff)}
@@ -530,7 +533,6 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 					pipe.(redisClientv9.Pipeliner).Do(r.ctx, "PERSIST", req.Key)
 				}
 			}
-
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			if req.ETag == nil {

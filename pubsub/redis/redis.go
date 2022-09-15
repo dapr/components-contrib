@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	v8 "github.com/go-redis/redis/v8"
 	v9 "github.com/go-redis/redis/v9"
 
@@ -147,6 +146,7 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	} else {
 		r.legacyRedis = false
 		r.clientv9, r.clientSettings, err = rediscomponent.ParseClientv9FromProperties(metadata.Properties, nil)
+		r.logger.Warnf("Redis version 7 and above uses a Beta SDK at this time. Please use caution.")
 	}
 
 	if err != nil {
@@ -375,7 +375,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 				Block:    time.Duration(r.clientSettings.ReadTimeout),
 			}).Result()
 			if err != nil {
-				if !errors.Is(err, redis.Nil) && err != context.Canceled {
+				if !errors.Is(err, v8.Nil) && err != context.Canceled {
 					r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 				}
 				continue
@@ -394,7 +394,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 				Block:    time.Duration(r.clientSettings.ReadTimeout),
 			}).Result()
 			if err != nil {
-				if !errors.Is(err, redis.Nil) && err != context.Canceled {
+				if !errors.Is(err, v9.Nil) && err != context.Canceled {
 					r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 				}
 				continue
@@ -405,7 +405,6 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 				r.enqueueMessagesv9(ctx, s.Stream, handler, s.Messages)
 			}
 		}
-
 	}
 }
 
@@ -440,14 +439,14 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 	if r.legacyRedis {
 		for {
 			// Retrieve pending messages for this stream and consumer
-			pendingResult, err := r.clientv8.XPendingExt(ctx, &redis.XPendingExtArgs{
+			pendingResult, err := r.clientv8.XPendingExt(ctx, &v8.XPendingExtArgs{
 				Stream: stream,
 				Group:  r.metadata.consumerID,
 				Start:  "-",
 				End:    "+",
 				Count:  int64(r.metadata.queueDepth),
 			}).Result()
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, v8.Nil) {
 				r.logger.Errorf("error retrieving pending Redis messages: %v", err)
 
 				break
@@ -467,14 +466,14 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			}
 
 			// Attempt to claim the messages for the filtered IDs
-			claimResult, err := r.clientv8.XClaim(ctx, &redis.XClaimArgs{
+			claimResult, err := r.clientv8.XClaim(ctx, &v8.XClaimArgs{
 				Stream:   stream,
 				Group:    r.metadata.consumerID,
 				Consumer: r.metadata.consumerID,
 				MinIdle:  r.metadata.processingTimeout,
 				Messages: msgIDs,
 			}).Result()
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, v8.Nil) {
 				r.logger.Errorf("error claiming pending Redis messages: %v", err)
 
 				break
@@ -486,7 +485,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			// If the Redis nil error is returned, it means somes message in the pending
 			// state no longer exist. We need to acknowledge these messages to
 			// remove them from the pending list.
-			if errors.Is(err, redis.Nil) {
+			if errors.Is(err, v8.Nil) {
 				// Build a set of message IDs that were not returned
 				// that potentially no longer exist.
 				expectedMsgIDs := make(map[string]struct{}, len(msgIDs))
@@ -510,7 +509,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 				End:    "+",
 				Count:  int64(r.metadata.queueDepth),
 			}).Result()
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, v9.Nil) {
 				r.logger.Errorf("error retrieving pending Redis messages: %v", err)
 
 				break
@@ -537,7 +536,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 				MinIdle:  r.metadata.processingTimeout,
 				Messages: msgIDs,
 			}).Result()
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, v9.Nil) {
 				r.logger.Errorf("error claiming pending Redis messages: %v", err)
 
 				break
@@ -549,7 +548,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			// If the Redis nil error is returned, it means somes message in the pending
 			// state no longer exist. We need to acknowledge these messages to
 			// remove them from the pending list.
-			if errors.Is(err, redis.Nil) {
+			if errors.Is(err, v9.Nil) {
 				// Build a set of message IDs that were not returned
 				// that potentially no longer exist.
 				expectedMsgIDs := make(map[string]struct{}, len(msgIDs))
@@ -579,14 +578,14 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 				MinIdle:  0,
 				Messages: []string{pendingID},
 			}).Result()
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, v8.Nil) {
 				r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
 
 				continue
 			}
 
 			// Ack the message to remove it from the pending list.
-			if errors.Is(err, redis.Nil) {
+			if errors.Is(err, v8.Nil) {
 				// Use the background context in case subscriptionCtx is already closed
 				if err = r.clientv8.XAck(context.Background(), stream, r.metadata.consumerID, pendingID).Err(); err != nil {
 					r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
@@ -606,14 +605,14 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 				MinIdle:  0,
 				Messages: []string{pendingID},
 			}).Result()
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, v9.Nil) {
 				r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
 
 				continue
 			}
 
 			// Ack the message to remove it from the pending list.
-			if errors.Is(err, redis.Nil) {
+			if errors.Is(err, v9.Nil) {
 				// Use the background context in case subscriptionCtx is already closed
 				if err = r.clientv9.XAck(context.Background(), stream, r.metadata.consumerID, pendingID).Err(); err != nil {
 					r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)

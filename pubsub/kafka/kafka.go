@@ -79,7 +79,7 @@ func (p *PubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 // BatchPublish messages to Kafka cluster.
-func (p *PubSub) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	return p.kafka.BulkPublish(req.Topic, req.Entries, req.Metadata)
 }
 

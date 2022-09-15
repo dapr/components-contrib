@@ -51,7 +51,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				if err := retry.NotifyRecover(func() error {
 					return consumer.doCallback(session, message)
 				}, b, func(err error, d time.Duration) {
-					consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+					consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 				}, func() {
 					consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 				}); err != nil {

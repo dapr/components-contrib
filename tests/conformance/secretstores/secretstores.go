@@ -14,6 +14,7 @@ limitations under the License.
 package secretstores
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -80,7 +81,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		}
 
 		t.Run("get", func(t *testing.T) {
-			resp, err := store.GetSecret(getSecretRequest)
+			resp, err := store.GetSecret(context.Background(), getSecretRequest)
 			assert.NoError(t, err, "expected no error on getting secret %v", getSecretRequest)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")
@@ -101,7 +102,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		}
 
 		t.Run("bulkget", func(t *testing.T) {
-			resp, err := store.BulkGetSecret(bulkReq)
+			resp, err := store.BulkGetSecret(context.Background(), bulkReq)
 			assert.NoError(t, err, "expected no error on getting secret %v", bulkReq)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")

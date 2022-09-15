@@ -14,6 +14,7 @@ limitations under the License.
 package csms
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -102,7 +103,7 @@ func TestGetSecret(t *testing.T) {
 			},
 		}
 
-		resp, e := c.GetSecret(req)
+		resp, e := c.GetSecret(context.Background(), req)
 		assert.Nil(t, e)
 		assert.Equal(t, secretValue, resp.Data[req.Name])
 	})
@@ -117,7 +118,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 
-		_, e := c.GetSecret(req)
+		_, e := c.GetSecret(context.Background(), req)
 		assert.NotNil(t, e)
 	})
 }
@@ -134,7 +135,7 @@ func TestBulkGetSecret(t *testing.T) {
 				secretName: secretValue,
 			},
 		}
-		resp, e := c.BulkGetSecret(req)
+		resp, e := c.BulkGetSecret(context.Background(), req)
 		assert.Nil(t, e)
 		assert.Equal(t, expectedSecrets, resp.Data)
 	})
@@ -146,7 +147,7 @@ func TestBulkGetSecret(t *testing.T) {
 			}
 
 			req := secretstores.BulkGetSecretRequest{}
-			_, e := c.BulkGetSecret(req)
+			_, e := c.BulkGetSecret(context.Background(), req)
 			assert.NotNil(t, e)
 		})
 
@@ -156,7 +157,7 @@ func TestBulkGetSecret(t *testing.T) {
 			}
 
 			req := secretstores.BulkGetSecretRequest{}
-			_, e := c.BulkGetSecret(req)
+			_, e := c.BulkGetSecret(context.Background(), req)
 			assert.NotNil(t, e)
 		})
 	})

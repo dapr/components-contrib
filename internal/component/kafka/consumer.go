@@ -17,12 +17,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/google/uuid"
 
 	"github.com/dapr/kit/retry"
 )
@@ -70,7 +70,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			if err := retry.NotifyRecover(func() error {
 				return consumer.doBulkCallback(session, messages, claim.Topic())
 			}, b, func(err error, d time.Duration) {
-				consumer.k.logger.Errorf("Error processing Kafka bulk messages: %s. Error: %v. Retrying...", claim.Topic(), err)
+				consumer.k.logger.Warnf("Error processing Kafka bulk messages: %s. Error: %v. Retrying...", claim.Topic(), err)
 			}, func() {
 				consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s", claim.Topic())
 			}); err != nil {
@@ -92,24 +92,26 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession, me
 	if err != nil {
 		return err
 	}
-	var messageValues []KafkaBulkMessageEntry
-	messageValues = make([]KafkaBulkMessageEntry, 0)
+	messageValues := make([]KafkaBulkMessageEntry, (len(messages)))
 
-	entryIds := GetEntryIds(len(messages))
 	for i, message := range messages {
 		if message != nil {
-			metadata := make(map[string]string)
+			metadata := make(map[string]string, len(message.Headers))
 			if message.Headers != nil {
 				for _, t := range message.Headers {
 					metadata[string(t.Key)] = string(t.Value)
 				}
 			}
+			entryID, entryIDErr := uuid.NewRandom()
+			if entryIDErr != nil {
+				consumer.k.logger.Errorf("Failed to generate entryID for sending message for bulk subscribe event on topic: %s. Error: %v.", topic, err)
+			}
 			childMessage := KafkaBulkMessageEntry{
-				EntryID:  strconv.Itoa(entryIds[i]),
+				EntryID:  entryID.String(),
 				Event:    message.Value,
 				Metadata: metadata,
 			}
-			messageValues = append(messageValues, childMessage)
+			messageValues[i] = childMessage
 		}
 	}
 	event := KafkaBulkMessage{
@@ -183,9 +185,9 @@ func (k *Kafka) RemoveTopicHandler(topic string) {
 }
 
 // AddBulkSubscribeConfig adds bulk subscribe config
-func (k *Kafka) AddBulkSubscribeConfig(maxBulkCount int, maxBulkLatencyMilliSeconds int, maxBulkSizeBytes int) {
+func (k *Kafka) AddBulkSubscribeConfig(maxBulkCount int, maxBulkAwaitDurationMilliSeconds int, maxBulkSizeBytes int) {
 	k.bulkSubscribeConfig.MaxBulkCount = maxBulkCount
-	k.bulkSubscribeConfig.MaxBulkLatencyMilliSeconds = maxBulkLatencyMilliSeconds
+	k.bulkSubscribeConfig.MaxBulkAwaitDurationMilliSeconds = maxBulkAwaitDurationMilliSeconds
 	k.bulkSubscribeConfig.MaxBulkSizeBytes = maxBulkSizeBytes
 }
 

@@ -70,15 +70,15 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	if err != nil {
 		maxBulkCount = 20
 	}
-	maxBulkLatencyMilliSeconds, err := strconv.Atoi(req.Metadata["maxBulkLatencyMilliSeconds"])
+	maxBulkAwaitDurationMilliSeconds, err := strconv.Atoi(req.Metadata["maxBulkAwaitDurationMilliSeconds"])
 	if err != nil {
-		maxBulkLatencyMilliSeconds = 20
+		maxBulkAwaitDurationMilliSeconds = 20
 	}
 	maxBulkSizeBytes, err := strconv.Atoi(req.Metadata["maxBulkSizeBytes"])
 	if err != nil {
 		maxBulkSizeBytes = 20
 	}
-	p.kafka.AddBulkSubscribeConfig(maxBulkCount, maxBulkLatencyMilliSeconds, maxBulkSizeBytes)
+	p.kafka.AddBulkSubscribeConfig(maxBulkCount, maxBulkAwaitDurationMilliSeconds, maxBulkSizeBytes)
 
 	go func() {
 		// Wait for context cancelation

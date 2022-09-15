@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
-	"github.com/dapr/components-contrib/pubsub"
 )
 
 // asBase64String implements the `fmt.Stringer` interface in order to print
@@ -78,8 +77,4 @@ func (tbh TopicBulkHandlers) TopicList() []string {
 		i++
 	}
 	return topics
-}
-
-func GetEntryIds(n int) []int {
-	return pubsub.GetEntryIds(n)
 }

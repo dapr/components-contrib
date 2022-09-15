@@ -14,6 +14,7 @@ limitations under the License.
 package snssqs
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -400,6 +401,97 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_Trimmed(t *testing.T) {
 	v := nameToAWSSanitizedName(s, true)
 	r.Equal(80, len(v))
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
+}
+
+func Test_UnmarshalJSON_UnmarshallsToArray(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "sns.amazonaws.com"
+      },
+      "Action": "sqs:SendMessage",
+      "Resource": "sqsArn",
+      "Condition": {
+        "ForAllValues:ArnEquals": {
+          "aws:SourceArn": "snsArn"
+        }
+      }
+    }
+  ]
+}
+`
+	p := &policy{}
+
+	err := json.Unmarshal([]byte(s), p)
+	r.Equal(err, nil)
+
+	statement := p.Statement[0]
+	r.Equal(len(statement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
+	r.Equal(statement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], "snsArn")
+}
+
+func Test_tryInsertCondition(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	policy := &policy{Version: "2012-10-17"}
+	sqsArn := "sqsArn"
+	snsArns := []string{"snsArns1", "snsArns2", "snsArns3", "snsArns4"}
+
+	for _, snsArn := range snsArns {
+		policy.tryInsertCondition(sqsArn, snsArn)
+	}
+
+	r.Equal(len(policy.Statement), 1)
+	insertedStatement := policy.Statement[0]
+	r.Equal(insertedStatement.Resource, sqsArn)
+	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), len(snsArns))
+	r.ElementsMatch(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArns)
+}
+
+func Test_policy_compatible(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	sqsArn := "sqsArn"
+	snsArn := "snsArn"
+	oldPolicy := `
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "sns.amazonaws.com"
+      },
+      "Action": "sqs:SendMessage",
+      "Resource": "sqsArn",
+      "Condition": {
+        "ArnEquals": {
+          "aws:SourceArn": "snsArn"
+        }
+      }
+    }
+  ]
+}
+`
+	policy := &policy{Version: "2012-10-17"}
+	err := json.Unmarshal([]byte(oldPolicy), policy)
+	r.Equal(err, nil)
+
+	policy.tryInsertCondition(sqsArn, snsArn)
+	r.Equal(len(policy.Statement), 1)
+	insertedStatement := policy.Statement[0]
+	r.Equal(insertedStatement.Resource, sqsArn)
+	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
+	r.Equal(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], snsArn)
 }
 
 func Test_buildARN_DefaultPartition(t *testing.T) {

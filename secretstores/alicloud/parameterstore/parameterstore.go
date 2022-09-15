@@ -14,12 +14,15 @@ limitations under the License.
 package parameterstore
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/alibabacloud-go/darabonba-openapi/client"
 	oos "github.com/alibabacloud-go/oos-20190601/client"
+	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
 
 	"github.com/dapr/components-contrib/secretstores"
@@ -31,6 +34,8 @@ const (
 	VersionID = "version_id"
 	Path      = "path"
 )
+
+var _ secretstores.SecretStore = (*oosSecretStore)(nil)
 
 // NewParameterStore returns a new oos parameter store.
 func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
@@ -45,8 +50,8 @@ type parameterStoreMetaData struct {
 }
 
 type parameterStoreClient interface {
-	GetSecretParameter(request *oos.GetSecretParameterRequest) (*oos.GetSecretParameterResponse, error)
-	GetSecretParametersByPath(request *oos.GetSecretParametersByPathRequest) (*oos.GetSecretParametersByPathResponse, error)
+	GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error)
+	GetSecretParametersByPathWithOptions(request *oos.GetSecretParametersByPathRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParametersByPathResponse, error)
 }
 
 type oosSecretStore struct {
@@ -71,7 +76,7 @@ func (o *oosSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (o *oosSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (o *oosSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	name := req.Name
 
 	parameterVersion, err := o.getVersionFromMetadata(req.Metadata)
@@ -79,11 +84,16 @@ func (o *oosSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 		return secretstores.GetSecretResponse{}, err
 	}
 
-	output, err := o.client.GetSecretParameter(&oos.GetSecretParameterRequest{
+	runtime := &util.RuntimeOptions{}
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout := deadline.Sub(time.Now()).Milliseconds()
+		runtime.SetReadTimeout(int(timeout))
+	}
+	output, err := o.client.GetSecretParameterWithOptions(&oos.GetSecretParameterRequest{
 		Name:             tea.String(name),
 		WithDecryption:   tea.Bool(true),
 		ParameterVersion: parameterVersion,
-	})
+	}, runtime)
 	if err != nil {
 		return secretstores.GetSecretResponse{Data: nil}, fmt.Errorf("couldn't get secret: %w", err)
 	}
@@ -100,7 +110,7 @@ func (o *oosSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (o *oosSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (o *oosSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	response := secretstores.BulkGetSecretResponse{
 		Data: map[string]map[string]string{},
 	}
@@ -112,12 +122,17 @@ func (o *oosSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 	var nextToken *string
 
 	for {
-		output, err := o.client.GetSecretParametersByPath(&oos.GetSecretParametersByPathRequest{
+		runtime := &util.RuntimeOptions{}
+		if deadline, ok := ctx.Deadline(); ok {
+			timeout := deadline.Sub(time.Now()).Milliseconds()
+			runtime.SetReadTimeout(int(timeout))
+		}
+		output, err := o.client.GetSecretParametersByPathWithOptions(&oos.GetSecretParametersByPathRequest{
 			Path:           path,
 			WithDecryption: tea.Bool(true),
 			Recursive:      tea.Bool(true),
 			NextToken:      nextToken,
-		})
+		}, runtime)
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{}, fmt.Errorf("couldn't get secrets: %w", err)
 		}
@@ -183,4 +198,9 @@ func (o *oosSecretStore) getPathFromMetadata(metadata map[string]string) *string
 	}
 
 	return nil
+}
+
+// Features returns the features available in this secret store.
+func (o *oosSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
 }

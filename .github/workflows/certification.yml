@@ -52,6 +52,7 @@ jobs:
         - secretstores.local.file
         - bindings.rabbitmq
         - bindings.localstorage
+        - bindings.postgres
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"

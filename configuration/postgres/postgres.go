@@ -116,7 +116,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		}
 		return nil, err
 	}
-	response := configuration.GetResponse{make(map[string]*configuration.Item)}
+	items := make(map[string]*configuration.Item)
 	for i := 0; rows.Next(); i++ {
 		var item configuration.Item
 		var key string
@@ -130,15 +130,19 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			return nil, err
 		}
 		item.Metadata = v
-		response.Items[key] = &item
+		if item.Value != "" {
+			items[key] = &item
+		}
 	}
-	return &response, nil
+	return &configuration.GetResponse{
+		Items: items,
+	}, nil
 }
 
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	var triggers []string //req.Metadata
+	var triggers []string
 	for k, v := range req.Metadata {
-		if k == strings.ToLower("trigger") {
+		if res := strings.EqualFold("trigger", k); res {
 			triggers = append(triggers, v)
 		}
 	}
@@ -151,7 +155,6 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	for _, trigger := range triggers {
 		key := "listen " + trigger
 		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			//unsubscribe the previous subscription
 			if oldStopChan, ok := p.subscribeStopChanMap.Load(sub); ok {
 				close(oldStopChan.(chan struct{}))
 			}
@@ -348,7 +351,7 @@ func QueryRow(ctx context.Context, p *pgxpool.Pool, query string, tbl string) er
 func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRequest) (string, bool) {
 	for _, trigger := range req.Metadata {
 		for key2, sub := range p.ActiveSubscriptions {
-			if strings.ToLower(trigger) == strings.ToLower(key2) {
+			if res := strings.EqualFold(trigger, key2); res {
 				return sub.uuid, true
 			}
 		}

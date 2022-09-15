@@ -16,3 +16,5 @@ spec:
     value: 100s
   - name: enableTLS
     value: true
+  - name: redisVersion
+    value: "6"

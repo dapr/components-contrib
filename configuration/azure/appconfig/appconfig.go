@@ -163,7 +163,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 	if len(keys) == 0 {
 		var err error
-		if items, err = r.getAll(ctx); err != nil {
+		if items, err = r.getAll(ctx, req); err != nil {
 			return &configuration.GetResponse{}, err
 		}
 	} else {
@@ -173,8 +173,9 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 				ctx,
 				key,
 				&azappconfig.GetSettingOptions{
-					Label: to.Ptr("*"),
-				})
+					Label: r.getLabelFromMetadata(req.Metadata),
+				},
+			)
 			if err != nil {
 				return &configuration.GetResponse{}, err
 			}
@@ -196,13 +197,18 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	}, nil
 }
 
-func (r *ConfigurationStore) getAll(ctx context.Context) (map[string]*configuration.Item, error) {
+func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetRequest) (map[string]*configuration.Item, error) {
 	items := make(map[string]*configuration.Item, 0)
+
+	labelFilter := r.getLabelFromMetadata(req.Metadata)
+	if labelFilter == nil {
+		labelFilter = to.Ptr("*")
+	}
 
 	revPgr := r.client.NewListRevisionsPager(
 		azappconfig.SettingSelector{
 			KeyFilter:   to.Ptr("*"),
-			LabelFilter: to.Ptr("*"),
+			LabelFilter: labelFilter,
 			Fields:      azappconfig.AllSettingFields(),
 		},
 		nil)
@@ -226,6 +232,14 @@ func (r *ConfigurationStore) getAll(ctx context.Context) (map[string]*configurat
 	}
 
 	return items, nil
+}
+
+func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *string {
+	if s, ok := metadata["label"]; ok && s != "" {
+		return to.Ptr(s)
+	}
+
+	return nil
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {

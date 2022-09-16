@@ -34,7 +34,7 @@ type PubSub interface {
 // BulkPublish publishes a collection of entries/messages in a BulkPublishRequest to a
 // message bus topic and returns a BulkPublishResponse with individual statuses for each message.
 type BulkPublisher interface {
-	BulkPublish(req *BulkPublishRequest) (BulkPublishResponse, error)
+	BulkPublish(ctx context.Context, req *BulkPublishRequest) (BulkPublishResponse, error)
 }
 
 // BulkSubscriber is the interface defining BulkSubscribe definition for message buses

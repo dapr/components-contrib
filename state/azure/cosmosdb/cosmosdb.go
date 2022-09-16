@@ -419,21 +419,24 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error)
 	if err != nil {
 		return err
 	}
-	if batchResponse.Success {
-		// Transaction succeeded
-		// We can inspect the individual operation results
-		for index, operation := range batchResponse.OperationResults {
-			c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
-		}
-	} else {
+
+	if !batchResponse.Success {
 		// Transaction failed, look for the offending operation
 		for index, operation := range batchResponse.OperationResults {
-			if operation.StatusCode != http.StatusTooManyRequests {
-				c.logger.Debugf("Transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
-				return nil
+			if operation.StatusCode != http.StatusFailedDependency {
+				c.logger.Errorf("Transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
+				return fmt.Errorf("transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
 			}
 		}
+		return errors.New("transaction failed")
 	}
+
+	// Transaction succeeded
+	// We can inspect the individual operation results
+	for index, operation := range batchResponse.OperationResults {
+		c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
+	}
+
 	return nil
 }
 

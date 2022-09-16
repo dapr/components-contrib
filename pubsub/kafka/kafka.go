@@ -15,7 +15,6 @@ package kafka
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/dapr/kit/logger"
 
@@ -28,8 +27,20 @@ type PubSub struct {
 	logger          logger.Logger
 	subscribeCtx    context.Context
 	subscribeCancel context.CancelFunc
-	pubsub.BulkSubscribeConfig
 }
+
+const (
+	// maxBulkCountKey is the key for the max bulk count in the metadata.
+	maxBulkCountKey string = "maxBulkCount"
+	// maxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
+	maxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
+	// defaultMaxBulkCount is the default max bulk count for kafka pubsub component
+	// if the maxBulkCountKey is not set in the metadata.
+	defaultMaxBulkCount = 80
+	// defaultMaxBulkAwaitDurationMilliSeconds is the default max bulk await duration for kafka pubsub component
+	// if the maxBulkAwaitDurationKey is not set in the metadata.
+	defaultMaxBulkAwaitDurationMilliSeconds = 10000
+)
 
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
 	p.subscribeCtx, p.subscribeCancel = context.WithCancel(context.Background())
@@ -64,21 +75,19 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	return p.kafka.Subscribe(p.subscribeCtx)
 }
 
-func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
-	p.kafka.AddTopicBulkHandler(req.Topic, adaptBulkHandler(handler))
-	maxBulkCount, err := strconv.Atoi(req.Metadata["maxBulkCount"])
-	if err != nil {
-		maxBulkCount = 20
+func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
+	handler pubsub.BulkHandler) error {
+	subConfig := pubsub.BulkSubscribeConfig{
+		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, maxBulkCountKey,
+			defaultMaxBulkCount),
+		MaxBulkAwaitDurationMilliSeconds: kafka.GetIntFromMetadata(req.Metadata,
+			maxBulkAwaitDurationMilliSecondsKey, defaultMaxBulkAwaitDurationMilliSeconds),
 	}
-	maxBulkAwaitDurationMilliSeconds, err := strconv.Atoi(req.Metadata["maxBulkAwaitDurationMilliSeconds"])
-	if err != nil {
-		maxBulkAwaitDurationMilliSeconds = 20
+	handlerConfig := kafka.BulkSubscriptionHandlerConfig{
+		SubscribeConfig: subConfig,
+		Handler:         adaptBulkHandler(handler),
 	}
-	maxBulkSizeBytes, err := strconv.Atoi(req.Metadata["maxBulkSizeBytes"])
-	if err != nil {
-		maxBulkSizeBytes = 20
-	}
-	p.kafka.AddBulkSubscribeConfig(maxBulkCount, maxBulkAwaitDurationMilliSeconds, maxBulkSizeBytes)
+	p.kafka.AddTopicBulkHandler(req.Topic, handlerConfig)
 
 	go func() {
 		// Wait for context cancelation

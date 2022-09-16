@@ -36,17 +36,11 @@ type consumer struct {
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
-	var messages []*sarama.ConsumerMessage
-	messages = make([]*sarama.ConsumerMessage, 0)
 	isBulkSubscribe := consumer.k.checkBulkSubscribe(claim.Topic())
-	for message := range claim.Messages() {
-		if isBulkSubscribe {
-			if len(messages) < consumer.k.bulkSubscribeConfig.MaxBulkCount {
-				messages = append(messages, message)
-			} else {
-				break
-			}
-		} else {
+	if isBulkSubscribe {
+		return consumer.processBulkMessages(session.Context(), session, claim, b)
+	} else {
+		for message := range claim.Messages() {
 			if consumer.k.consumeRetryEnabled {
 				if err := retry.NotifyRecover(func() error {
 					return consumer.doCallback(session, message)
@@ -65,10 +59,42 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			}
 		}
 	}
-	if isBulkSubscribe {
+	return nil
+}
+
+func (consumer *consumer) processBulkMessages(ctx context.Context, session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim,
+	b backoff.BackOff) error {
+	handlerConfig, err := consumer.k.GetTopicBulkHandlerConfig(claim.Topic())
+	if err != nil {
+		return err
+	}
+	ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds) * time.Millisecond)
+	defer ticker.Stop()
+	messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkCount)
+	for {
+		select {
+		case <-ctx.Done():
+			return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
+		case message := <-(claim.Messages()):
+			if message != nil {
+				messages = append(messages, message)
+				if len(messages) >= handlerConfig.SubscribeConfig.MaxBulkCount {
+					return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
+				}
+			}
+		case <-ticker.C:
+			return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
+		}
+	}
+}
+
+func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
+	messages []*sarama.ConsumerMessage, session sarama.ConsumerGroupSession,
+	handler BulkEventHandler, b backoff.BackOff) error {
+	if len(messages) > 0 {
 		if consumer.k.consumeRetryEnabled {
 			if err := retry.NotifyRecover(func() error {
-				return consumer.doBulkCallback(session, messages, claim.Topic())
+				return consumer.doBulkCallback(session, messages, handler, claim.Topic())
 			}, b, func(err error, d time.Duration) {
 				consumer.k.logger.Warnf("Error processing Kafka bulk messages: %s. Error: %v. Retrying...", claim.Topic(), err)
 			}, func() {
@@ -77,21 +103,19 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s. Error: %v.", claim.Topic(), err)
 			}
 		} else {
-			err := consumer.doBulkCallback(session, messages, claim.Topic())
+			err := consumer.doBulkCallback(session, messages, handler, claim.Topic())
 			if err != nil {
 				consumer.k.logger.Errorf("Error processing Kafka message: %s. Error: %v.", claim.Topic(), err)
 			}
+			return err
 		}
 	}
 	return nil
 }
 
-func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession, messages []*sarama.ConsumerMessage, topic string) error {
+func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string) error {
 	consumer.k.logger.Debugf("Processing Kafka bulk message: %s", topic)
-	handler, err := consumer.k.GetTopicBulkHandler(topic)
-	if err != nil {
-		return err
-	}
 	messageValues := make([]KafkaBulkMessageEntry, (len(messages)))
 
 	for i, message := range messages {
@@ -104,7 +128,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession, me
 			}
 			entryID, entryIDErr := uuid.NewRandom()
 			if entryIDErr != nil {
-				consumer.k.logger.Errorf("Failed to generate entryID for sending message for bulk subscribe event on topic: %s. Error: %v.", topic, err)
+				consumer.k.logger.Errorf("Failed to generate entryID for sending message for bulk subscribe event on topic: %s. Error: %v.", topic, entryIDErr)
 			}
 			childMessage := KafkaBulkMessageEntry{
 				EntryID:  entryID.String(),
@@ -184,17 +208,17 @@ func (k *Kafka) RemoveTopicHandler(topic string) {
 	k.subscribeLock.Unlock()
 }
 
-// AddBulkSubscribeConfig adds bulk subscribe config
-func (k *Kafka) AddBulkSubscribeConfig(maxBulkCount int, maxBulkAwaitDurationMilliSeconds int, maxBulkSizeBytes int) {
-	k.bulkSubscribeConfig.MaxBulkCount = maxBulkCount
-	k.bulkSubscribeConfig.MaxBulkAwaitDurationMilliSeconds = maxBulkAwaitDurationMilliSeconds
-	k.bulkSubscribeConfig.MaxBulkSizeBytes = maxBulkSizeBytes
-}
+// // AddBulkSubscribeConfig adds bulk subscribe config
+// func (k *Kafka) AddBulkSubscribeConfig(maxBulkCount int, maxBulkAwaitDurationMilliSeconds int, maxBulkSizeBytes int) {
+// 	k.bulkSubscribeConfig.MaxBulkCount = maxBulkCount
+// 	k.bulkSubscribeConfig.MaxBulkAwaitDurationMilliSeconds = maxBulkAwaitDurationMilliSeconds
+// 	k.bulkSubscribeConfig.MaxBulkSizeBytes = maxBulkSizeBytes
+// }
 
-// AddTopicBulkHandler adds a bulk handler for a topic
-func (k *Kafka) AddTopicBulkHandler(topic string, handler BulkEventHandler) {
+// AddTopicBulkHandler adds a bulk handler and configuration for a topic
+func (k *Kafka) AddTopicBulkHandler(topic string, handlerConfig BulkSubscriptionHandlerConfig) {
 	k.bulkSubscribeLock.Lock()
-	k.bulkSubscribeTopics[topic] = handler
+	k.bulkSubscribeTopics[topic] = handlerConfig
 	k.bulkSubscribeLock.Unlock()
 }
 
@@ -211,7 +235,7 @@ func (k *Kafka) checkBulkSubscribe(topic string) bool {
 	if !ok {
 		return false
 	}
-	if topicBulkHandler != nil {
+	if topicBulkHandler.Handler != nil {
 		return true
 	} else {
 		return false
@@ -229,12 +253,13 @@ func (k *Kafka) GetTopicHandler(topic string) (EventHandler, error) {
 }
 
 // GetTopicBulkHandler returns the bulk handler for a topic
-func (k *Kafka) GetTopicBulkHandler(topic string) (BulkEventHandler, error) {
-	handler, ok := k.bulkSubscribeTopics[topic]
-	if !ok || handler == nil {
-		return nil, fmt.Errorf("bulk handler for messages of topic %s not found", topic)
+func (k *Kafka) GetTopicBulkHandlerConfig(topic string) (BulkSubscriptionHandlerConfig, error) {
+	handlerConfig, ok := k.bulkSubscribeTopics[topic]
+	if !ok || handlerConfig.Handler == nil {
+		return BulkSubscriptionHandlerConfig{},
+			fmt.Errorf("bulk handler for messages of topic %s not found", topic)
 	}
-	return handler, nil
+	return handlerConfig, nil
 }
 
 // Subscribe to topic in the Kafka cluster, in a background goroutine

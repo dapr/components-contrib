@@ -1,4 +1,5 @@
-# Supported operation: publish, subscribe
+# Supported operation: publish, subscribe, multiplehandlers, bulkpublish
+# bulkpublish is only run for components that implement pubsub.BulkPublisher interface
 # Config map:
 ## pubsubName : name of the pubsub
 ## testTopicName: name of the test topic to use

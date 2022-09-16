@@ -14,6 +14,7 @@ limitations under the License.
 package kafka
 
 import (
+	"context"
 	"errors"
 
 	"github.com/Shopify/sarama"
@@ -77,7 +78,7 @@ func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) e
 	return nil
 }
 
-func (k *Kafka) BulkPublish(topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
+func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
 	if k.producer == nil {
 		err := errors.New("component is closed")
 		return pubsub.NewBulkPublishResponse(entries, pubsub.PublishFailed, err), err

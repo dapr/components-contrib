@@ -39,42 +39,41 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
 	isBulkSubscribe := consumer.k.checkBulkSubscribe(claim.Topic())
 	if isBulkSubscribe {
-		return consumer.processBulkMessages(session.Context(), session, claim, b)
-	} else {
-		for message := range claim.Messages() {
-			if consumer.k.consumeRetryEnabled {
-				if err := retry.NotifyRecover(func() error {
-					return consumer.doCallback(session, message)
-				}, b, func(err error, d time.Duration) {
-					consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-				}, func() {
-					consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-				}); err != nil {
-					consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-				}
-			} else {
-				err := consumer.doCallback(session, message)
-				if err != nil {
-					consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
-				}
+		return consumer.processBulkMessages(session, claim, b)
+	}
+	for message := range claim.Messages() {
+		if consumer.k.consumeRetryEnabled {
+			if err := retry.NotifyRecover(func() error {
+				return consumer.doCallback(session, message)
+			}, b, func(err error, d time.Duration) {
+				consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+			}, func() {
+				consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
+			}); err != nil {
+				consumer.k.logger.Errorf("Too many failed attempts at processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+			}
+		} else {
+			err := consumer.doCallback(session, message)
+			if err != nil {
+				consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 			}
 		}
 	}
 	return nil
 }
 
-func (consumer *consumer) processBulkMessages(ctx context.Context, session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim,
+func (consumer *consumer) processBulkMessages(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim,
 	b backoff.BackOff) error {
 	handlerConfig, err := consumer.k.GetTopicBulkHandlerConfig(claim.Topic())
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
 	}
 	ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds) * time.Millisecond)
 	defer ticker.Stop()
 	messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkCount)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-session.Context().Done():
 			return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
 		case message := <-(claim.Messages()):
 			if message != nil {
@@ -130,7 +129,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 			var entryIDStr string
 			entryID, entryIDErr := uuid.NewRandom()
 			if entryIDErr != nil {
-				consumer.k.logger.Errorf("Failed to generate UUID for sending as entryID in message for bulk subscribe event on topic: %s. Error: %v.", topic, entryIDErr)
+				consumer.k.logger.Warnf("Failed to generate UUID for sending as entryID in message for bulk subscribe event on topic: %s. Error: %v.", topic, entryIDErr)
 				entryIDStr = strconv.Itoa(i)
 			} else {
 				entryIDStr = entryID.String()
@@ -151,15 +150,13 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 	if err != nil {
 		for i, resp := range responses {
-			if resp.EntryID == messageValues[i].EntryID {
-				if resp.Error == nil {
-					session.MarkMessage(messages[i], "")
-				} else {
-					break
-				}
-			} else {
+			if resp.EntryID != messageValues[i].EntryID {
 				return errors.New("entry id mismatch while processing bulk messages")
 			}
+			if resp.Error != nil {
+				break
+			}
+			session.MarkMessage(messages[i], "")
 		}
 	} else {
 		for _, message := range messages {
@@ -390,7 +387,7 @@ func (k *Kafka) BulkSubscribe(ctx context.Context) error {
 				}
 				return k.cg.Consume(ctx, topics, &(k.consumer))
 			}, bo, func(err error, t time.Duration) {
-				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
+				k.logger.Warnf("Error consuming %v. Retrying...: %v", topics, err)
 			}, func() {
 				k.logger.Infof("Recovered consuming %v", topics)
 			})

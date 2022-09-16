@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
+	"github.com/Azure/azure-event-hubs-go/v3/persist"
 	"github.com/Azure/azure-event-hubs-go/v3/storage"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/azure-storage-blob-go/azblob"
@@ -632,6 +633,41 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 
 // BulkSubscribe receives data from Azure Event Hubs in bulk.
 func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest, bulkHandler pubsub.BulkHandler) error {
+	err := aeh.validateSubscriptionAttributes()
+	if err != nil {
+		return fmt.Errorf("error on bulk subscribe %s", err)
+	}
+	if aeh.metadata.EnableEntityManagement {
+		if err = aeh.ensureSubscription(ctx, req.Topic); err != nil {
+			return err
+		}
+	}
+
+	// TODO: use storage persister here
+	persister := persist.NewMemoryPersister()
+	receiver, err := NewBulkReceiver(persister, 1000, req.Topic, bulkHandler)
+	if err != nil {
+		return err
+	}
+
+	// TODO: should we store this in a map?
+	hub, err := eventhub.NewHubFromConnectionString(
+		aeh.metadata.ConnectionString,
+		eventhub.HubWithOffsetPersistence(persister),
+	)
+	if err != nil {
+		return err
+	}
+
+	defer hub.Close(ctx)
+	// TODO: figure partition ID - what is the best way to do this?
+	for i := 0; i < int(aeh.metadata.PartitionCount); i++ {
+		_, err = hub.Receive(ctx, fmt.Sprintf("%d", i), receiver.HandleEvent, eventhub.ReceiveWithPrefetchCount(20000))
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

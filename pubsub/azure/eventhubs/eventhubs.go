@@ -583,8 +583,7 @@ func (aeh *AzureEventHubs) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.B
 	events := make([]*eventhub.Event, len(req.Entries))
 	for i, entry := range req.Entries {
 		events[i] = &eventhub.Event{Data: entry.Event}
-		val, ok := entry.Metadata[partitionKeyMetadataKey]
-		if ok {
+		if val, ok := entry.Metadata[partitionKeyMetadataKey]; ok {
 			events[i].PartitionKey = &val
 		}
 	}
@@ -601,7 +600,7 @@ func (aeh *AzureEventHubs) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.B
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
 
-	return pubsub.BulkPublishResponse{}, nil
+	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
 }
 
 // Subscribe receives data from Azure Event Hubs.

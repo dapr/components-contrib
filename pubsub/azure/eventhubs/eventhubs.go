@@ -57,6 +57,7 @@ const (
 	missingSubscriptionIDMsg                 = "error: missing subscriptionID attribute required for entityManagement"
 	entityManagementConnectionStrMsg         = "error: entity management support is not available with connectionString"
 	differentTopicConnectionStringErrorTmpl  = "error: specified topic %s does not match the event hub name in the provided connectionString"
+	maxBulkSizeInBytesTooLargeErrorTmpl      = "error: maxBulkSizeInBytes exceeds the maximum allowed value of %d"
 
 	// Event Hubs SystemProperties names for metadata passthrough.
 	sysPropSequenceNumber             = "x-opt-sequence-number"
@@ -156,6 +157,7 @@ type azureEventHubsMetadata struct {
 	PartitionCount         int32  `json:"partitionCount,omitempty,string"`
 	SubscriptionID         string `json:"subscriptionID,omitempty"`
 	ResourceGroupName      string `json:"resourceGroupName,omitempty"`
+	MaxBulkSizeInBytes     int    `json:"maxBulkSizeInBytes,omitempty,string"`
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -181,6 +183,10 @@ func parseEventHubsMetadata(meta pubsub.Metadata) (*azureEventHubsMetadata, erro
 
 	if m.ConnectionString != "" && m.EventHubNamespace != "" {
 		return &m, errors.New(bothConnectionStringNamespaceErrorMsg)
+	}
+
+	if m.MaxBulkSizeInBytes > int(eventhub.DefaultMaxMessageSizeInBytes) {
+		return &m, fmt.Errorf(maxBulkSizeInBytesTooLargeErrorTmpl, eventhub.DefaultMaxMessageSizeInBytes)
 	}
 
 	return &m, nil
@@ -562,6 +568,40 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	}
 
 	return nil
+}
+
+// BulkPublish sends data to Azure Event Hubs in bulk.
+func (aeh *AzureEventHubs) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	if _, ok := aeh.hubClients[req.Topic]; !ok {
+		if err := aeh.ensurePublisherClient(aeh.publishCtx, req.Topic); err != nil {
+			err = fmt.Errorf("error on establishing hub connection: %s", err)
+			return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+		}
+	}
+
+	// Create a slice of events to send.
+	events := make([]*eventhub.Event, len(req.Entries))
+	for i, entry := range req.Entries {
+		events[i] = &eventhub.Event{Data: entry.Event}
+		val, ok := entry.Metadata[partitionKeyMetadataKey]
+		if ok {
+			events[i].PartitionKey = &val
+		}
+	}
+
+	// Configure options for sending events.
+	opts := []eventhub.BatchOption{}
+	if aeh.metadata.MaxBulkSizeInBytes > 0 {
+		opts = append(opts, eventhub.BatchWithMaxSizeInBytes(aeh.metadata.MaxBulkSizeInBytes))
+	}
+
+	// Send events.
+	err := aeh.hubClients[req.Topic].SendBatch(aeh.publishCtx, eventhub.NewEventBatchIterator(events...), opts...)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	return pubsub.BulkPublishResponse{}, nil
 }
 
 // Subscribe receives data from Azure Event Hubs.

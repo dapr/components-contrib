@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/agrea/ptr"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // StateStore is a CosmosDB state store.
@@ -236,7 +236,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		if item.Value == nil {
 			return &state.GetResponse{
 				Data: make([]byte, 0),
-				ETag: ptr.String(item.Etag),
+				ETag: ptr.Of(item.Etag),
 			}, nil
 		}
 
@@ -248,7 +248,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return &state.GetResponse{
 			Data: bytes,
-			ETag: ptr.String(item.Etag),
+			ETag: ptr.Of(item.Etag),
 		}, nil
 	}
 
@@ -259,7 +259,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: b,
-		ETag: ptr.String(item.Etag),
+		ETag: ptr.Of(item.Etag),
 	}, nil
 }
 

@@ -277,7 +277,8 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		options.IfMatchEtag = &etag
 	}
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-		u, err := uuid.NewRandom()
+		var u uuid.UUID
+		u, err = uuid.NewRandom()
 		if err != nil {
 			return err
 		}
@@ -345,7 +346,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
-func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
+func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error) {
 	if len(request.Operations) == 0 {
 		c.logger.Debugf("No Operations Provided")
 		return nil
@@ -363,7 +364,8 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
-			doc, err := createUpsertItem(c.contentType, req, partitionKey)
+			var doc CosmosItem
+			doc, err = createUpsertItem(c.contentType, req, partitionKey)
 			if err != nil {
 				return err
 			}
@@ -373,14 +375,16 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				options.IfMatchETag = &etag
 			}
 			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-				u, err := uuid.NewRandom()
+				var u uuid.UUID
+				u, err = uuid.NewRandom()
 				if err != nil {
 					return err
 				}
 				options.IfMatchETag = ptr.Of(azcore.ETag(u.String()))
 			}
 
-			marsh, err := json.Marshal(doc)
+			var marsh []byte
+			marsh, err = json.Marshal(doc)
 			if err != nil {
 				return err
 			}
@@ -394,7 +398,8 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				options.IfMatchETag = &etag
 			}
 			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-				u, err := uuid.NewRandom()
+				var u uuid.UUID
+				u, err = uuid.NewRandom()
 				if err != nil {
 					return err
 				}

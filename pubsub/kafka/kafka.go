@@ -29,19 +29,6 @@ type PubSub struct {
 	subscribeCancel context.CancelFunc
 }
 
-const (
-	// maxBulkCountKey is the key for the max bulk count in the metadata.
-	maxBulkCountKey string = "maxBulkCount"
-	// maxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
-	maxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
-	// defaultMaxBulkCount is the default max bulk count for kafka pubsub component
-	// if the maxBulkCountKey is not set in the metadata.
-	defaultMaxBulkCount = 80
-	// defaultMaxBulkAwaitDurationMilliSeconds is the default max bulk await duration for kafka pubsub component
-	// if the maxBulkAwaitDurationKey is not set in the metadata.
-	defaultMaxBulkAwaitDurationMilliSeconds = 10000
-)
-
 func (p *PubSub) Init(metadata pubsub.Metadata) error {
 	p.subscribeCtx, p.subscribeCancel = context.WithCancel(context.Background())
 
@@ -78,10 +65,10 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	handler pubsub.BulkHandler) error {
 	subConfig := pubsub.BulkSubscribeConfig{
-		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, maxBulkCountKey,
-			defaultMaxBulkCount),
+		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, kafka.MaxBulkCountKey,
+			kafka.DefaultMaxBulkCount),
 		MaxBulkAwaitDurationMilliSeconds: kafka.GetIntFromMetadata(req.Metadata,
-			maxBulkAwaitDurationMilliSecondsKey, defaultMaxBulkAwaitDurationMilliSeconds),
+			kafka.MaxBulkAwaitDurationMilliSecondsKey, kafka.DefaultMaxBulkAwaitDurationMilliSeconds),
 	}
 	handlerConfig := kafka.BulkSubscriptionHandlerConfig{
 		SubscribeConfig: subConfig,

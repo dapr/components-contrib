@@ -23,6 +23,19 @@ import (
 	"github.com/Shopify/sarama"
 )
 
+const (
+	// MaxBulkCountKey is the key for the max bulk count in the metadata.
+	MaxBulkCountKey string = "maxBulkCount"
+	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
+	MaxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
+	// DefaultMaxBulkCount is the default max bulk count for kafka pubsub component
+	// if the maxBulkCountKey is not set in the metadata.
+	DefaultMaxBulkCount = 80
+	// DefaultMaxBulkAwaitDurationMilliSeconds is the default max bulk await duration for kafka pubsub component
+	// if the maxBulkAwaitDurationKey is not set in the metadata.
+	DefaultMaxBulkAwaitDurationMilliSeconds = 10000
+)
+
 // asBase64String implements the `fmt.Stringer` interface in order to print
 // `[]byte` as a base 64 encoded string.
 // It is used above to log the message key. The call to `EncodeToString`

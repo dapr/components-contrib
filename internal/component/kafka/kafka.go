@@ -40,7 +40,7 @@ type Kafka struct {
 	consumer            consumer
 	config              *sarama.Config
 	subscribeTopics     TopicHandlers
-	bulkSubscribeTopics TopicBulkHandlers
+	bulkSubscribeTopics TopicBulkHandlerConfig
 	subscribeLock       sync.Mutex
 	bulkSubscribeLock   sync.Mutex
 
@@ -51,14 +51,13 @@ type Kafka struct {
 	DefaultConsumeRetryEnabled bool
 	consumeRetryEnabled        bool
 	consumeRetryInterval       time.Duration
-	bulkSubscribeConfig        pubsub.BulkSubscribeConfig
 }
 
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
 		logger:              logger,
 		subscribeTopics:     make(TopicHandlers),
-		bulkSubscribeTopics: make(TopicBulkHandlers),
+		bulkSubscribeTopics: make(TopicBulkHandlerConfig),
 		subscribeLock:       sync.Mutex{},
 		bulkSubscribeLock:   sync.Mutex{},
 	}
@@ -84,9 +83,6 @@ func (k *Kafka) Init(metadata map[string]string) error {
 	config := sarama.NewConfig()
 	config.Version = meta.Version
 	config.Consumer.Offsets.Initial = k.initialOffset
-	if meta.MinFetchBytes > 0 {
-		config.Consumer.Fetch.Min = meta.MinFetchBytes
-	}
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID
@@ -157,6 +153,12 @@ type EventHandler func(ctx context.Context, msg *NewEvent) error
 
 // BulkEventHandler is the handler used to handle the subscribed event.
 type BulkEventHandler func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error)
+
+// BulkHandlerConfig is the bulkHandler and configuration for bulk subscription.
+type BulkSubscriptionHandlerConfig struct {
+	SubscribeConfig pubsub.BulkSubscribeConfig
+	Handler         BulkEventHandler
+}
 
 // NewEvent is an event arriving from a message bus instance.
 type NewEvent struct {

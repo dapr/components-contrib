@@ -15,7 +15,6 @@ package cosmosdb
 
 import (
 	"context"
-	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -75,11 +74,10 @@ type CosmosItem struct {
 }
 
 const (
-	metadataPartitionKey  = "partitionKey"
-	metadataTTLKey        = "ttlInSeconds"
-	statusTooManyRequests = "429" // RFC 6585, 4
-	defaultTimeout        = 20 * time.Second
-	statusNotFound        = "NotFound"
+	metadataPartitionKey = "partitionKey"
+	metadataTTLKey       = "ttlInSeconds"
+	defaultTimeout       = 20 * time.Second
+	statusNotFound       = "NotFound"
 )
 
 // policy that tracks the number of times it was invoked
@@ -110,8 +108,7 @@ func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
-	connInfo := meta.Properties
-	b, err := json.Marshal(connInfo)
+	b, err := json.Marshal(meta.Properties)
 	if err != nil {
 		return err
 	}
@@ -138,7 +135,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 		return errors.New("contentType is required")
 	}
 
-	// Internal query policy was created due to lack of cross partition query capability in go sdk
+	// Internal query policy was created due to lack of cross partition query capability in the current Go sdk
 	queryPolicy := &crossPartitionQueryPolicy{}
 	opts := azcosmos.ClientOptions{
 		ClientOptions: policy.ClientOptions{
@@ -197,7 +194,11 @@ func (c *StateStore) Init(meta state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (c *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureQueryAPI,
+	}
 }
 
 // Get retrieves a CosmosDB item.
@@ -207,8 +208,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	options := azcosmos.ItemOptions{}
 	if req.Options.Consistency == state.Strong {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
-	}
-	if req.Options.Consistency == state.Eventual {
+	} else if req.Options.Consistency == state.Eventual {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
@@ -217,8 +217,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	cancel()
 	if err != nil {
 		var responseErr *azcore.ResponseError
-		errors.As(err, &responseErr)
-		if responseErr.ErrorCode == "NotFound" {
+		if errors.As(err, &responseErr) && responseErr.ErrorCode == "NotFound" {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
@@ -273,19 +272,21 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := azcosmos.ItemOptions{}
 
-	if req.ETag != nil {
+	if req.ETag != nil && *req.ETag != "" {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
 	}
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-		newTag := azcore.ETag(uuid.NewString())
-		options.IfMatchEtag = &newTag
+		u, err := uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		options.IfMatchEtag = ptr.Of(azcore.ETag(u.String()))
 	}
 	// Consistency levels can only be relaxed so the session level is used here
 	if req.Options.Consistency == state.Strong {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
-	}
-	if req.Options.Consistency == state.Eventual {
+	} else if req.Options.Consistency == state.Eventual {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
@@ -318,14 +319,13 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := azcosmos.ItemOptions{}
 
-	if req.ETag != nil {
+	if req.ETag != nil && *req.ETag != "" {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
 	}
 	if req.Options.Consistency == state.Strong {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
-	}
-	if req.Options.Consistency == state.Eventual {
+	} else if req.Options.Consistency == state.Eventual {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
@@ -335,7 +335,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 	cancel()
 	if err != nil && !isNotFoundError(err) {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
-		if req.ETag != nil {
+		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
@@ -373,8 +373,11 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				options.IfMatchETag = &etag
 			}
 			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-				newTag := azcore.ETag(uuid.NewString())
-				options.IfMatchETag = &newTag
+				u, err := uuid.NewRandom()
+				if err != nil {
+					return err
+				}
+				options.IfMatchETag = ptr.Of(azcore.ETag(u.String()))
 			}
 
 			marsh, err := json.Marshal(doc)
@@ -391,8 +394,11 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				options.IfMatchETag = &etag
 			}
 			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-				newTag := azcore.ETag(uuid.NewString())
-				options.IfMatchETag = &newTag
+				u, err := uuid.NewRandom()
+				if err != nil {
+					return err
+				}
+				options.IfMatchETag = ptr.Of(azcore.ETag(u.String()))
 			}
 
 			batch.DeleteItem(req.Key, options)
@@ -412,13 +418,13 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		// Transaction succeeded
 		// We can inspect the individual operation results
 		for index, operation := range batchResponse.OperationResults {
-			c.logger.Debugf("Operation %v completed with status code %v", index, operation.StatusCode)
+			c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
 		}
 	} else {
 		// Transaction failed, look for the offending operation
 		for index, operation := range batchResponse.OperationResults {
-			if string(operation.StatusCode) != statusTooManyRequests {
-				c.logger.Debugf("Transaction failed due to operation %v which failed with status code %v", index, operation.StatusCode)
+			if operation.StatusCode != http.StatusTooManyRequests {
+				c.logger.Debugf("Transaction failed due to operation %v which failed with status code %d", index, operation.StatusCode)
 				return nil
 			}
 		}
@@ -433,13 +439,10 @@ func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
-	var data []state.QueryItem
-	var token string
 
-	var innerErr error
-	data, token, innerErr = q.execute(c.client)
-	if innerErr != nil {
-		return nil, innerErr
+	data, token, err := q.execute(c.client)
+	if err != nil {
+		return nil, err
 	}
 
 	return &state.QueryResponse{
@@ -459,7 +462,7 @@ func (c *StateStore) Ping() error {
 }
 
 func createUpsertItem(contentType string, req state.SetRequest, partitionKey string) (CosmosItem, error) {
-	byteArray, isBinary := req.Value.([]uint8)
+	byteArray, isBinary := req.Value.([]byte)
 	if len(byteArray) == 0 {
 		isBinary = false
 	}

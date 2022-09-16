@@ -630,6 +630,11 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	return nil
 }
 
+// BulkSubscribe receives data from Azure Event Hubs in bulk.
+func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest, bulkHandler pubsub.BulkHandler) error {
+	return nil
+}
+
 func (aeh *AzureEventHubs) Close() (err error) {
 	if aeh.publishCancel != nil {
 		aeh.publishCancel()

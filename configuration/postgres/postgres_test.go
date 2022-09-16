@@ -31,13 +31,36 @@ func TestPostgresbuildQuery(t *testing.T) {
 		},
 	}
 
-	query, err := buildQuery(g, "cfgtbl")
+	query, params, err := buildQuery(g, "cfgtbl")
+	_ = params
 	if err != nil {
 		t.Errorf("Error building query: %v ", err)
 	}
-	expected := "SELECT * FROM cfgtbl WHERE KEY IN ('someKey') AND Version='1.0'"
+	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND $2 = $3"
 	if query != expected {
 		t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
+	}
+	i := 0
+	for _, v := range params {
+		got := v.(string)
+		switch i {
+		case 0:
+			expected := "someKey"
+			if expected != got {
+				t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
+			}
+		case 1:
+			expected := "Version"
+			if expected != got {
+				t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
+			}
+		case 2:
+			expected := "1.0"
+			if expected != got {
+				t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
+			}
+		}
+		i++
 	}
 }
 

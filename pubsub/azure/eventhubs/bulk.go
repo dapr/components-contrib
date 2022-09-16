@@ -31,6 +31,7 @@ type bulkReceiver struct {
 	handler  pubsub.BulkHandler
 }
 
+// NewBulkReceiver creates a new bulkReceiver instance.
 func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic string, handler pubsub.BulkHandler) (*bulkReceiver, error) {
 	return &bulkReceiver{
 		persister: persister,
@@ -41,6 +42,7 @@ func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic 
 	}, nil
 }
 
+// HandleEvent is an event handler for the event hub receiver.
 func (r *bulkReceiver) HandleEvent(ctx context.Context, event *eventhub.Event) error {
 	if len(r.bulk) >= r.bulkSize {
 		err := r.flush(ctx)

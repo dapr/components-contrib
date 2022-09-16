@@ -24,15 +24,11 @@ import (
 )
 
 const (
-	// MaxBulkCountKey is the key for the max bulk count in the metadata.
-	MaxBulkCountKey string = "maxBulkCount"
-	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
-	MaxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
 	// DefaultMaxBulkCount is the default max bulk count for kafka pubsub component
-	// if the maxBulkCountKey is not set in the metadata.
+	// if the MaxBulkCountKey is not set in the metadata.
 	DefaultMaxBulkCount = 80
 	// DefaultMaxBulkAwaitDurationMilliSeconds is the default max bulk await duration for kafka pubsub component
-	// if the maxBulkAwaitDurationKey is not set in the metadata.
+	// if the MaxBulkAwaitDurationKey is not set in the metadata.
 	DefaultMaxBulkAwaitDurationMilliSeconds = 10000
 )
 

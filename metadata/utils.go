@@ -37,6 +37,12 @@ const (
 
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
+
+	// MaxBulkCountKey is the key for the max bulk count in the metadata.
+	MaxBulkCountKey string = "maxBulkCount"
+
+	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
+	MaxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.

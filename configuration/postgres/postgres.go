@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +30,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
-	"golang.org/x/exp/utf8string"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/kit/logger"
@@ -53,7 +54,7 @@ const (
 	connMaxIdleTimeKey           = "connMaxIdleTime"
 	connectionStringKey          = "connectionString"
 	ErrorMissingTableName        = "missing postgreSQL configuration table name"
-	InfoStartInit                = "Initializing postgreSQL configuration store"
+	InfoStartInit                = "initializing postgreSQL configuration store"
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
 	ErrorAlreadyInitialized      = "PostgreSQL configuration store already initialized"
 	ErrorMissinMaxTimeout        = "missing PostgreSQL maxTimeout setting in configuration"
@@ -103,12 +104,16 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 }
 
 func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
-	query, err := buildQuery(req, p.metadata.configTable)
+	if err := validateInput(req.Keys); err != nil {
+		p.logger.Error(err)
+		return nil, err
+	}
+	query, params, err := buildQuery(req, p.metadata.configTable)
 	if err != nil {
 		p.logger.Error(err)
 		return nil, err
 	}
-	rows, err := p.client.Query(ctx, query)
+	rows, err := p.client.Query(ctx, query, params...)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -277,8 +282,8 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	}
 
 	if tbl, ok := cmetadata.Properties[configtablekey]; ok && tbl != "" {
-		if !utf8string.NewString(tbl).IsASCII() {
-			return m, fmt.Errorf("invalid table name : '%v'. non-ascii characters are not supported", tbl)
+		if !regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(tbl) {
+			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", tbl)
 		}
 		if len(tbl) > maxIdentifierLength {
 			return m, fmt.Errorf(ErrorTooLongFieldLength+" - tableName : '%v'. max allowed field length is %v ", tbl, maxIdentifierLength)
@@ -311,15 +316,24 @@ func Connect(ctx context.Context, conn string, maxTimeout time.Duration) (*pgxpo
 	return pool, nil
 }
 
-func buildQuery(req *configuration.GetRequest, configTable string) (string, error) {
+func buildQuery(req *configuration.GetRequest, configTable string) (string, []interface{}, error) {
 	var query string
+	var params []interface{}
 	if len(req.Keys) == 0 {
 		query = "SELECT * FROM " + configTable
 	} else {
 		var queryBuilder strings.Builder
-		queryBuilder.WriteString("SELECT * FROM " + configTable + " WHERE KEY IN ('")
-		queryBuilder.WriteString(strings.Join(req.Keys, "','"))
-		queryBuilder.WriteString("')")
+		queryBuilder.WriteString("SELECT * FROM " + configTable + " WHERE KEY IN (")
+		var paramWildcard []string
+		paramPosition := 1
+		for _, v := range req.Keys {
+			paramWildcard = append(paramWildcard, "$"+strconv.Itoa(paramPosition))
+			params = append(params, v)
+			paramPosition++
+		}
+		queryBuilder.WriteString(strings.Join(paramWildcard, " , "))
+		queryBuilder.WriteString(")")
+
 		query = queryBuilder.String()
 
 		if len(req.Metadata) > 0 {
@@ -327,8 +341,10 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, erro
 			i, j := len(req.Metadata), 0
 			s.WriteString(" AND ")
 			for k, v := range req.Metadata {
-				temp := k + "='" + v + "'"
+				temp := "$" + strconv.Itoa(paramPosition) + " = " + "$" + strconv.Itoa(paramPosition+1)
 				s.WriteString(temp)
+				params = append(params, k, v)
+				paramPosition += 2
 				if j++; j < i {
 					s.WriteString(" AND ")
 				}
@@ -336,7 +352,7 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, erro
 			query += s.String()
 		}
 	}
-	return query, nil
+	return query, params, nil
 }
 
 func QueryRow(ctx context.Context, p *pgxpool.Pool, query string, tbl string) error {
@@ -370,4 +386,16 @@ func (p *ConfigurationStore) isSubscribed(trigger string, key string, subscripti
 		}
 	}
 	return false
+}
+
+func validateInput(keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	for _, key := range keys {
+		if !regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(key) {
+			return fmt.Errorf("invalid key : '%v'", key)
+		}
+	}
+	return nil
 }

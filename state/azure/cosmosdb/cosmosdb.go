@@ -350,7 +350,9 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		c.logger.Debugf("No Operations Provided")
 		return nil
 	}
-	partitionKey := request.Metadata["partitionKey"]
+
+	var partitionKey string
+	partitionKey = populatePartitionMetadata(partitionKey, request.Metadata)
 
 	batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
 

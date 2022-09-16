@@ -47,7 +47,7 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	}
 	name := q.setNextParameter(val)
 
-	return fmt.Sprintf("%s = %s", replaceKeywords("c.value."+f.Key), name), nil
+	return replaceKeywords("c.value."+f.Key) + " = " + name, nil
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
@@ -116,21 +116,21 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 func (q *Query) Finalize(filters string, qq *query.Query) error {
 	var filter, orderBy string
 	if len(filters) != 0 {
-		filter = fmt.Sprintf(" WHERE %s", filters)
+		filter = " WHERE " + filters
 	}
 	if sz := len(qq.Sort); sz != 0 {
 		order := make([]string, sz)
 		for i, item := range qq.Sort {
 			if item.Order == query.DESC {
-				order[i] = fmt.Sprintf("%s DESC", replaceKeywords("c.value."+item.Key))
+				order[i] = replaceKeywords("c.value."+item.Key) + " DESC"
 			} else {
-				order[i] = fmt.Sprintf("%s ASC", replaceKeywords("c.value."+item.Key))
+				order[i] = replaceKeywords("c.value."+item.Key) + " ASC"
 			}
 		}
-		orderBy = fmt.Sprintf(" ORDER BY %s", strings.Join(order, ", "))
+		orderBy = " ORDER BY " + strings.Join(order, ", ")
 	}
 
-	q.query.query = fmt.Sprintf("SELECT * FROM c%s%s", filter, orderBy)
+	q.query.query = "SELECT * FROM c" + filter + orderBy
 	q.limit = qq.Page.Limit
 	q.token = qq.Page.Token
 

@@ -223,8 +223,53 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		})
 	}
 
+	// assumes that publish operation is run only once for publishing config.MessageCount number of events
+	// bulkpublish needs to be run after publish operation
+	if config.HasOperation("bulkpublish") {
+		if bP, ok := ps.(pubsub.BulkPublisher); ok {
+			// only run the test if BulkPublish is implemented
+			// Some pubsub, like Kafka need to wait for Subscriber to be up before messages can be consumed.
+			// So, wait for some time here.
+			time.Sleep(config.WaitDurationToPublish)
+			t.Run("bulkPublish", func(t *testing.T) {
+				req := pubsub.BulkPublishRequest{
+					PubsubName: config.PubsubName,
+					Topic:      config.TestTopicName,
+					Metadata:   config.PublishMetadata,
+					Entries:    make([]pubsub.BulkMessageEntry, config.MessageCount),
+				}
+				entryMap := map[string][]byte{}
+				// setting k to one value more than the previously published list of events.
+				// assuming that publish test is run only once and bulkPublish is run right after that
+				for i, k := 0, config.MessageCount+1; i < config.MessageCount; {
+					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
+					strK := strconv.Itoa(k)
+					req.Entries[i].EntryID = strK
+					req.Entries[i].ContentType = "text/plain"
+					req.Entries[i].Metadata = config.PublishMetadata
+					req.Entries[i].Event = data
+					entryMap[strK] = data
+					k++
+					i++
+				}
+
+				res, err := bP.BulkPublish(context.Background(), &req)
+				if err == nil {
+					for _, status := range res.Statuses {
+						if status.Status == pubsub.PublishSucceeded {
+							awaitingMessages[string(entryMap[status.EntryID])] = struct{}{}
+						}
+					}
+				}
+				// here only the success case is tested for bulkPublish similar to publish.
+				// For scenarios on partial failures, those will be tested as part of certification tests if possible.
+				assert.NoError(t, err, "expected no error on bulk publishing on topic %s", config.TestTopicName)
+			})
+		}
+	}
+
 	// Verify read
-	if config.HasOperation("publish") && config.HasOperation("subscribe") {
+	if (config.HasOperation("publish") || config.HasOperation("bulkpublish")) && config.HasOperation("subscribe") {
 		t.Run("verify read", func(t *testing.T) {
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
 			timeout := time.After(config.MaxReadDuration)
@@ -309,7 +354,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					close(sent1Ch)
 					sent1Ch = nil
 					time.Sleep(config.WaitDurationToPublish)
-				case 2: // On iteration 1, close the second subscriber
+				case 2: // On iteration 2, close the second subscriber
 					subscribe2Cancel()
 					close(sent2Ch)
 					sent2Ch = nil

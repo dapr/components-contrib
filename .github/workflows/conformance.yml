@@ -22,7 +22,8 @@ on:
   pull_request:
     branches:
       - master
-      - release-*
+      - 'release-*'
+      - 'feature/*'
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different

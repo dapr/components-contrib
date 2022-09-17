@@ -20,6 +20,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -39,6 +40,7 @@ type metadata struct {
 	exchangeKind     string
 	publisherConfirm bool
 	concurrency      pubsub.ConcurrencyMode
+	defaultQueueTTL  *time.Duration
 }
 
 const (
@@ -158,6 +160,15 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	ttl, ok, err := contribMetadata.TryGetTTL(pubSubMetadata.Properties)
+	if err != nil {
+		return &result, fmt.Errorf("%s parse RabbitMQ ttl metadata with error: %s", errorMessagePrefix, err)
+	}
+
+	if ok {
+		result.defaultQueueTTL = &ttl
+	}
+
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)
 	if err != nil {
 		return &result, err
@@ -176,6 +187,12 @@ func (m *metadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
 	}
 	if m.maxLenBytes > 0 {
 		origin[argMaxLengthBytes] = m.maxLenBytes
+	}
+
+	if m.defaultQueueTTL != nil {
+		// Value in ms
+		ttl := *m.defaultQueueTTL / time.Millisecond
+		origin[argQueueMessageTTLKey] = int(ttl)
 	}
 
 	return origin

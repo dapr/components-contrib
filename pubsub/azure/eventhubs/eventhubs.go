@@ -659,13 +659,18 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 		return err
 	}
 
-	defer hub.Close(ctx)
 	// TODO: figure partition ID - what is the best way to do this?
 	for i := 0; i < int(aeh.metadata.PartitionCount); i++ {
-		_, err := hub.Receive(ctx, fmt.Sprintf("%d", i), receiver.HandleEvent, eventhub.ReceiveWithPrefetchCount(20000))
+		listener, err := hub.Receive(ctx, fmt.Sprintf("%d", i), receiver.HandleEvent, eventhub.ReceiveWithPrefetchCount(5))
 		if err != nil {
+			aeh.logger.Errorf("error on bulk subscribe %s", err)
 			return err
 		}
+		go func() {
+			<-listener.Done()
+			aeh.logger.Debugf("listener done, err %v", listener.Err())
+			hub.Close(ctx)
+		}()
 	}
 
 	return nil

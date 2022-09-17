@@ -19,6 +19,7 @@ import (
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 )
 
@@ -33,6 +34,7 @@ type persistRecord struct {
 type bulkReceiver struct {
 	persister persist.CheckpointPersister
 	handler   pubsub.BulkHandler
+	logger    logger.Logger
 
 	bulkSize       int
 	bulk           []pubsub.BulkMessageEntry
@@ -42,10 +44,11 @@ type bulkReceiver struct {
 }
 
 // NewBulkReceiver creates an object that can be used as both a `persist.CheckpointPersister` and an Event Hubs Event Handler `batchWriter.HandleEvent`.
-func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic string, handler pubsub.BulkHandler) (*bulkReceiver, error) {
+func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic string, handler pubsub.BulkHandler, logger logger.Logger) (*bulkReceiver, error) {
 	return &bulkReceiver{
 		persister:      persister,
 		handler:        handler,
+		logger:         logger,
 		bulkSize:       bulkSize,
 		topic:          topic,
 		bulk:           make([]pubsub.BulkMessageEntry, 0, bulkSize),
@@ -55,11 +58,13 @@ func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic 
 
 // Read reads the last checkpoint.
 func (r *bulkReceiver) Read(namespace, name, consumerGroup, partitionID string) (persist.Checkpoint, error) {
+	r.logger.Debugf("Reading checkpoint for %s/%s/%s/%s", namespace, name, consumerGroup, partitionID)
 	return r.persister.Read(namespace, name, consumerGroup, partitionID)
 }
 
 // Write will write the last checkpoint of the last event flushed and record persist records for future use.
 func (r *bulkReceiver) Write(namespace, name, consumerGroup, partitionID string, checkpoint persist.Checkpoint) error {
+	r.logger.Debugf("Writing checkpoint for %s/%s/%s/%s", namespace, name, consumerGroup, partitionID)
 	var err error
 	if r.flushed != nil {
 		pr := r.flushed
@@ -75,6 +80,7 @@ func (r *bulkReceiver) Write(namespace, name, consumerGroup, partitionID string,
 		partitionID:   partitionID,
 		checkpoint:    checkpoint,
 	})
+	r.logger.Debugf("Wrote checkpoint, error %v", err)
 	return err
 }
 
@@ -82,8 +88,12 @@ func (r *bulkReceiver) Write(namespace, name, consumerGroup, partitionID string,
 // If the length of the bulk buffer has reached the max bulkSize, the buffer will be flushed before appending the new event.
 // If flush fails and it hasn't made space in the buffer, the flush error will be returned to the caller.
 func (r *bulkReceiver) HandleEvent(ctx context.Context, event *eventhub.Event) error {
+	r.logger.Debugf("Handling event, buffer size: %d", len(r.bulk))
+	// TODO: Also use a timeout to flush the buffer, can't be just using the bulkSize.
 	if len(r.bulk) >= r.bulkSize {
+		r.logger.Debugf("Flushing buffer, size: %d", len(r.bulk))
 		err := r.Flush(ctx)
+		r.logger.Debugf("Flushed buffer, error: %v", err)
 		// If no events were flushed, return the error.
 		if err != nil && len(r.bulk) >= r.bulkSize {
 			return err
@@ -119,15 +129,22 @@ func (r *bulkReceiver) Flush(ctx context.Context) error {
 		Metadata: map[string]string{},
 	}
 	res, err := r.handler(ctx, &bulkMessage)
+	r.logger.Debugf("Invoked handler, error: %v, result: %+v", err, res)
 
 	var offset int
 	if err != nil {
 		offset = r.getFailureOffset(ctx, res, err)
-		r.bulk = r.bulk[offset:]
-		r.persistRecords = r.persistRecords[offset:]
+		r.logger.Debugf("Failure offset: %d", offset)
+		if offset < len(r.bulk) {
+			r.bulk = r.bulk[offset:]
+		}
+		if offset < len(r.persistRecords) {
+			r.persistRecords = r.persistRecords[offset:]
+		}
 		return err
 	}
 
+	r.logger.Debugf("Flushed everything, resetting buffer")
 	// r.flushed is used to track the last entry that was successfully processed.
 	if offset > 0 {
 		r.flushed = r.persistRecords[offset-1]
@@ -154,5 +171,6 @@ func (r *bulkReceiver) getFailureOffset(ctx context.Context, entries []pubsub.Bu
 	}
 
 	// This should never be called, but if it is, return the length of the bulk buffer.
+	r.logger.Debugf("getFailureOffset called with no errors, returning len(r.bulk) = %d", len(r.bulk))
 	return len(r.bulk)
 }

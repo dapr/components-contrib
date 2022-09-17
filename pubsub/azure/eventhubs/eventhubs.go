@@ -645,7 +645,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 
 	// TODO: use storage persister here
 	persister := persist.NewMemoryPersister()
-	receiver, err := NewBulkReceiver(persister, 1000, req.Topic, bulkHandler)
+	receiver, err := NewBulkReceiver(persister, 2, req.Topic, bulkHandler, aeh.logger)
 	if err != nil {
 		return err
 	}
@@ -653,7 +653,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 	// TODO: should we store this in a map?
 	hub, err := eventhub.NewHubFromConnectionString(
 		aeh.metadata.ConnectionString,
-		eventhub.HubWithOffsetPersistence(persister),
+		eventhub.HubWithOffsetPersistence(receiver),
 	)
 	if err != nil {
 		return err
@@ -662,7 +662,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 	defer hub.Close(ctx)
 	// TODO: figure partition ID - what is the best way to do this?
 	for i := 0; i < int(aeh.metadata.PartitionCount); i++ {
-		_, err = hub.Receive(ctx, fmt.Sprintf("%d", i), receiver.HandleEvent, eventhub.ReceiveWithPrefetchCount(20000))
+		_, err := hub.Receive(ctx, fmt.Sprintf("%d", i), receiver.HandleEvent, eventhub.ReceiveWithPrefetchCount(20000))
 		if err != nil {
 			return err
 		}

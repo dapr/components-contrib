@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
-	"github.com/Azure/azure-event-hubs-go/v3/persist"
 	"github.com/Azure/azure-event-hubs-go/v3/storage"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/azure-storage-blob-go/azblob"
@@ -644,7 +643,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 	}
 
 	// TODO: use storage persister here
-	persister := persist.NewMemoryPersister()
+	persister, _ := NewFilePersister("/Users/shubham1172/Desktop/checkpoints")
 	receiver, err := NewBulkReceiver(persister, 2, req.Topic, bulkHandler, aeh.logger)
 	if err != nil {
 		return err

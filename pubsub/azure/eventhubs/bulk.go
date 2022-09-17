@@ -59,7 +59,9 @@ func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic 
 // Read reads the last checkpoint.
 func (r *bulkReceiver) Read(namespace, name, consumerGroup, partitionID string) (persist.Checkpoint, error) {
 	r.logger.Debugf("Reading checkpoint for %s/%s/%s/%s", namespace, name, consumerGroup, partitionID)
-	return r.persister.Read(namespace, name, consumerGroup, partitionID)
+	checkpoint, err := r.persister.Read(namespace, name, consumerGroup, partitionID)
+	r.logger.Debugf("Read checkpoint %+v", checkpoint)
+	return checkpoint, err
 }
 
 // Write will write the last checkpoint of the last event flushed and record persist records for future use.
@@ -72,6 +74,7 @@ func (r *bulkReceiver) Write(namespace, name, consumerGroup, partitionID string,
 		if err != nil {
 			r.flushed = nil
 		}
+		r.logger.Debugf("Wrote checkpoint %+v, error: %v", pr.checkpoint, err)
 	}
 	r.persistRecords = append(r.persistRecords, &persistRecord{
 		namespace:     namespace,
@@ -80,7 +83,6 @@ func (r *bulkReceiver) Write(namespace, name, consumerGroup, partitionID string,
 		partitionID:   partitionID,
 		checkpoint:    checkpoint,
 	})
-	r.logger.Debugf("Wrote checkpoint, error %v", err)
 	return err
 }
 
@@ -140,14 +142,16 @@ func (r *bulkReceiver) Flush(ctx context.Context) error {
 		}
 		if offset < len(r.persistRecords) {
 			r.persistRecords = r.persistRecords[offset:]
+			r.flushed = r.persistRecords[offset-1]
 		}
 		return err
 	}
 
-	r.logger.Debugf("Flushed everything, resetting buffer")
+	r.logger.Debugf("Flushed everything, resetting buffer, offset: %d", offset)
+	r.logger.Debugf("persistRecords before reset: %+v", r.persistRecords)
 	// r.flushed is used to track the last entry that was successfully processed.
-	if offset > 0 {
-		r.flushed = r.persistRecords[offset-1]
+	if len(r.persistRecords) > 0 {
+		r.flushed = r.persistRecords[len(r.persistRecords)-1]
 	}
 
 	r.bulk = make([]pubsub.BulkMessageEntry, 0, r.bulkSize)

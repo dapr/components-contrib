@@ -374,15 +374,6 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	return query, params, nil
 }
 
-func QueryRow(ctx context.Context, p *pgxpool.Pool, query string, tbl string) error {
-	exists := false
-	err := p.QueryRow(ctx, query, tbl).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("postgres configuration store query error : %s", err)
-	}
-	return nil
-}
-
 func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRequest) (string, bool) {
 	for _, trigger := range req.Metadata {
 		for key2, sub := range p.ActiveSubscriptions {

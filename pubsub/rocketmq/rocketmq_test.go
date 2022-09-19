@@ -176,7 +176,7 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 		return
 	}
 	assert.Nil(t, e)
-	time.Sleep(30 * time.Second)
+	time.Sleep(20 * time.Second)
 }
 
 func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
@@ -210,7 +210,7 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	}
 	e = r.Subscribe(context.Background(), req, handler)
 	assert.Nil(t, e)
-	time.Sleep(30 * time.Second)
+	time.Sleep(20 * time.Second)
 }
 
 func BuildRocketMQ() (logger.Logger, pubsub.PubSub, error) {

@@ -40,7 +40,7 @@ type ConfigurationStore struct {
 	client               *pgxpool.Pool
 	logger               logger.Logger
 	configLock           sync.Mutex
-	subscribeStopChanMap sync.Map
+	subscribeStopChanMap map[string]interface{}
 	ActiveSubscriptions  map[string]*subscription
 }
 
@@ -55,6 +55,7 @@ const (
 	connMaxIdleTimeKey           = "connMaxIdleTime"
 	connectionStringKey          = "connectionString"
 	ErrorMissingTableName        = "missing postgreSQL configuration table name"
+	ErrorMissingTable            = "postgreSQL configuration table - '%v' does not exist"
 	InfoStartInit                = "initializing postgreSQL configuration store"
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
 	ErrorAlreadyInitialized      = "PostgreSQL configuration store already initialized"
@@ -70,7 +71,7 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	logger.Debug("Instantiating PostgreSQL configuration store")
 	return &ConfigurationStore{
 		logger:               logger,
-		subscribeStopChanMap: sync.Map{},
+		subscribeStopChanMap: make(map[string]interface{}),
 		configLock:           sync.Mutex{},
 	}
 }
@@ -103,6 +104,9 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.configTable).Scan(&exists)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf(ErrorMissingTable, p.metadata.configTable)
+		}
 		return err
 	}
 	return nil
@@ -166,13 +170,13 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	for _, trigger := range triggers {
 		notificationChannel := "listen " + trigger
 		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			if oldStopChan, ok := p.subscribeStopChanMap.Load(sub); ok {
+			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
 				close(oldStopChan.(chan struct{}))
 			}
 		}
 		stop := make(chan struct{})
 		subscribeID = uuid.New().String()
-		p.subscribeStopChanMap.Store(subscribeID, stop)
+		p.subscribeStopChanMap[subscribeID] = stop
 		p.ActiveSubscriptions[trigger] = &subscription{
 			uuid:    subscribeID,
 			trigger: trigger,
@@ -187,8 +191,8 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
-	if oldStopChan, ok := p.subscribeStopChanMap.Load(req.ID); ok {
-		p.subscribeStopChanMap.Delete(req.ID)
+	if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
+		delete(p.subscribeStopChanMap, req.ID)
 		close(oldStopChan.(chan struct{}))
 		for k, v := range p.ActiveSubscriptions {
 			if v.uuid == req.ID {

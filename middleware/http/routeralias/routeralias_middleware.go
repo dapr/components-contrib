@@ -49,8 +49,9 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 
 			handle, params, _ := m.router.Lookup("", string(uri.Path()))
 			if handle != nil {
-				req := &http.Request{}
-				req.URL = new(url.URL)
+				req := &http.Request{
+					URL: new(url.URL),
+				}
 				req.URL.RawQuery = string(uri.QueryString())
 				handle(nil, req, params)
 				ctx.Request.SetRequestURI(req.URL.RequestURI())

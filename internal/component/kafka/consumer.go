@@ -23,7 +23,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/google/uuid"
 
 	"github.com/dapr/kit/retry"
 )
@@ -126,16 +125,8 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 					metadata[string(t.Key)] = string(t.Value)
 				}
 			}
-			var entryIDStr string
-			entryID, entryIDErr := uuid.NewRandom()
-			if entryIDErr != nil {
-				consumer.k.logger.Warnf("Failed to generate UUID for sending as entryID in message for bulk subscribe event on topic: %s. Error: %v.", topic, entryIDErr)
-				entryIDStr = strconv.Itoa(i)
-			} else {
-				entryIDStr = entryID.String()
-			}
 			childMessage := KafkaBulkMessageEntry{
-				EntryID:  entryIDStr,
+				EntryID:  strconv.Itoa(i),
 				Event:    message.Value,
 				Metadata: metadata,
 			}

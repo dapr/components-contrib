@@ -39,6 +39,7 @@ type ConfigurationStore struct {
 	metadata             metadata
 	client               *pgxpool.Pool
 	logger               logger.Logger
+	configLock           sync.Mutex
 	subscribeStopChanMap sync.Map
 	ActiveSubscriptions  map[string]*subscription
 }
@@ -63,10 +64,14 @@ const (
 	ErrorTooLongFieldLength      = "field name is too long"
 )
 
+var allowedChars = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
+
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	logger.Debug("Instantiating PostgreSQL configuration store")
 	return &ConfigurationStore{
-		logger: logger,
+		logger:               logger,
+		subscribeStopChanMap: sync.Map{},
+		configLock:           sync.Mutex{},
 	}
 }
 
@@ -157,8 +162,9 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	}
 
 	var subscribeID string
+	p.configLock.Lock()
 	for _, trigger := range triggers {
-		key := "listen " + trigger
+		notificationChannel := "listen " + trigger
 		if sub, isActive := p.isSubscriptionActive(req); isActive {
 			if oldStopChan, ok := p.subscribeStopChanMap.Load(sub); ok {
 				close(oldStopChan.(chan struct{}))
@@ -172,20 +178,33 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 			trigger: trigger,
 			keys:    req.Keys,
 		}
-		go p.doSubscribe(ctx, req, handler, key, trigger, subscribeID, stop)
+		go p.doSubscribe(ctx, req, handler, notificationChannel, trigger, subscribeID, stop)
 	}
+	p.configLock.Unlock()
 	return subscribeID, nil
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
+	p.configLock.Lock()
+	defer p.configLock.Unlock()
 	if oldStopChan, ok := p.subscribeStopChanMap.Load(req.ID); ok {
 		p.subscribeStopChanMap.Delete(req.ID)
+		close(oldStopChan.(chan struct{}))
 		for k, v := range p.ActiveSubscriptions {
 			if v.uuid == req.ID {
+				channel := "unlisten " + v.trigger
+				conn, err := p.client.Acquire(ctx)
+				if err != nil {
+					return fmt.Errorf("Error acquiring connection: %v", err)
+				}
+				defer conn.Release()
+				_, err = conn.Exec(ctx, channel)
+				if err != nil {
+					return fmt.Errorf("Error unlistening to channel: %v", err)
+				}
 				delete(p.ActiveSubscriptions, k)
 			}
 		}
-		close(oldStopChan.(chan struct{}))
 		return nil
 	}
 	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
@@ -282,7 +301,7 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	}
 
 	if tbl, ok := cmetadata.Properties[configtablekey]; ok && tbl != "" {
-		if !regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(tbl) {
+		if !allowedChars.MatchString(tbl) {
 			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", tbl)
 		}
 		if len(tbl) > maxIdentifierLength {
@@ -393,7 +412,7 @@ func validateInput(keys []string) error {
 		return nil
 	}
 	for _, key := range keys {
-		if !regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(key) {
+		if !allowedChars.MatchString(key) {
 			return fmt.Errorf("invalid key : '%v'", key)
 		}
 	}

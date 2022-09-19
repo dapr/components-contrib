@@ -15,6 +15,8 @@ package eventhubs
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
@@ -36,24 +38,34 @@ type bulkReceiver struct {
 	handler   pubsub.BulkHandler
 	logger    logger.Logger
 
-	bulkSize       int
-	bulk           []pubsub.BulkMessageEntry
-	topic          string
-	persistRecords []*persistRecord
-	flushed        *persistRecord
+	bulkEntries        chan pubsub.BulkMessageEntry
+	bulkSize           int
+	bulk               []pubsub.BulkMessageEntry
+	topic              string
+	persistRecords     []*persistRecord
+	flushed            *persistRecord
+	maxAwaitDuration   time.Duration
+	flushHandlerStopCh chan struct{}
 }
 
 // NewBulkReceiver creates an object that can be used as both a `persist.CheckpointPersister` and an Event Hubs Event Handler `batchWriter.HandleEvent`.
-func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic string, handler pubsub.BulkHandler, logger logger.Logger) (*bulkReceiver, error) {
-	return &bulkReceiver{
-		persister:      persister,
-		handler:        handler,
-		logger:         logger,
-		bulkSize:       bulkSize,
-		topic:          topic,
-		bulk:           make([]pubsub.BulkMessageEntry, 0, bulkSize),
-		persistRecords: make([]*persistRecord, 0, bulkSize),
-	}, nil
+func NewBulkReceiver(persister persist.CheckpointPersister, bulkSize int, topic string, maxAwaitDuration time.Duration, handler pubsub.BulkHandler, logger logger.Logger) (*bulkReceiver, error) {
+	r := &bulkReceiver{
+		persister:          persister,
+		handler:            handler,
+		logger:             logger,
+		bulkEntries:        make(chan pubsub.BulkMessageEntry, bulkSize),
+		bulkSize:           bulkSize,
+		topic:              topic,
+		bulk:               make([]pubsub.BulkMessageEntry, 0, bulkSize),
+		persistRecords:     make([]*persistRecord, 0, bulkSize),
+		maxAwaitDuration:   maxAwaitDuration,
+		flushHandlerStopCh: make(chan struct{}),
+	}
+
+	go r.startFlushHandler()
+
+	return r, nil
 }
 
 // Read reads the last checkpoint.
@@ -86,23 +98,10 @@ func (r *bulkReceiver) Write(namespace, name, consumerGroup, partitionID string,
 	return err
 }
 
-// HandleEvent is a bulk event handler for the event hub receiver.
-// If the length of the bulk buffer has reached the max bulkSize, the buffer will be flushed before appending the new event.
-// If flush fails and it hasn't made space in the buffer, the flush error will be returned to the caller.
+// HandleEvent is a event handler for the event hub receiver.
+// It will add the event to the bulk messages channel.
 func (r *bulkReceiver) HandleEvent(ctx context.Context, event *eventhub.Event) error {
 	r.logger.Debugf("Handling event, buffer size: %d", len(r.bulk))
-	// TODO: Also use a timeout to flush the buffer, can't be just using the bulkSize.
-	if len(r.bulk) >= r.bulkSize {
-		r.logger.Debugf("Flushing buffer, size: %d", len(r.bulk))
-		err := r.Flush(ctx)
-		r.logger.Debugf("Flushed buffer, error: %v", err)
-		// If no events were flushed, return the error.
-		if err != nil && len(r.bulk) >= r.bulkSize {
-			return err
-		}
-	}
-	// Append the event to the buffer if we have room for it.
-
 	// Create a new pubsub BulkMessageEntry from the event.
 	entryID, err := uuid.NewRandom()
 	if err != nil {
@@ -110,21 +109,56 @@ func (r *bulkReceiver) HandleEvent(ctx context.Context, event *eventhub.Event) e
 	}
 
 	// TODO: figure out metadata
-	data := pubsub.BulkMessageEntry{
+	entry := pubsub.BulkMessageEntry{
 		EntryID:  entryID.String(),
 		Event:    event.Data,
 		Metadata: map[string]string{},
 	}
-	r.bulk = append(r.bulk, data)
+
+	r.bulkEntries <- entry
 	return nil
 }
 
-// Flush flushes the buffer to the given pubsub.BulkHandler.
+// Close stops the flush handler.
+func (r *bulkReceiver) Close() {
+	r.flushHandlerStopCh <- struct{}{}
+}
+
+// startFlushHandler will flush the bulk entries channel to the bulk handler
+// whenever there are enough entries in the channel, or when maxAwaitDuration has passed.
+// This should be run in a goroutine.
+func (r *bulkReceiver) startFlushHandler() {
+	ticker := time.NewTicker(r.maxAwaitDuration)
+	for {
+		select {
+		case entry := <-r.bulkEntries:
+			r.bulk = append(r.bulk, entry)
+			if len(r.bulk) == r.bulkSize {
+				err := r.flush(context.TODO())
+				if err != nil {
+					r.logger.Warnf("Error flushing bulk messages: %v", err)
+				}
+			}
+		case <-ticker.C:
+			if len(r.bulk) > 0 {
+				err := r.flush(context.TODO())
+				if err != nil {
+					r.logger.Warnf("Error flushing bulk messages: %v", err)
+				}
+			}
+		case <-r.flushHandlerStopCh:
+			close(r.bulkEntries)
+			return
+		}
+	}
+}
+
+// flush flushes the buffer to the given pubsub.BulkHandler.
 // Post-condition:
 //
 //	error == nil: buffer has been flushed successfully, buffer has been replaced with a new buffer.
 //	error != nil: some or no events have been flushed, buffer contains only events that failed to flush.
-func (r *bulkReceiver) Flush(ctx context.Context) error {
+func (r *bulkReceiver) flush(ctx context.Context) error {
 	bulkMessage := pubsub.BulkMessage{
 		Topic:    r.topic,
 		Entries:  r.bulk,
@@ -137,25 +171,30 @@ func (r *bulkReceiver) Flush(ctx context.Context) error {
 	if err != nil {
 		offset = r.getFailureOffset(ctx, res, err)
 		r.logger.Debugf("Failure offset: %d", offset)
-		if offset < len(r.bulk) {
-			r.bulk = r.bulk[offset:]
+		if offset < 0 {
+			return fmt.Errorf("failed to flush buffer: %w", err)
 		}
-		if offset < len(r.persistRecords) {
-			r.persistRecords = r.persistRecords[offset:]
-			r.flushed = r.persistRecords[offset-1]
-		}
+
+		// Remove the successful events from the buffers.
+		r.bulk = r.bulk[offset:]
+		r.persistRecords = r.persistRecords[offset:]
+
+		// Record the last successful persist record.
+		r.updateFlushed(offset - 1)
+
 		return err
 	}
 
 	r.logger.Debugf("Flushed everything, resetting buffer, offset: %d", offset)
 	r.logger.Debugf("persistRecords before reset: %+v", r.persistRecords)
-	// r.flushed is used to track the last entry that was successfully processed.
-	if len(r.persistRecords) > 0 {
-		r.flushed = r.persistRecords[len(r.persistRecords)-1]
-	}
 
+	// Record the last successful persist record.
+	r.updateFlushed(offset - 1)
+
+	// Reset the buffers.
 	r.bulk = make([]pubsub.BulkMessageEntry, 0, r.bulkSize)
 	r.persistRecords = make([]*persistRecord, 0, r.bulkSize)
+
 	return nil
 }
 
@@ -177,4 +216,11 @@ func (r *bulkReceiver) getFailureOffset(ctx context.Context, entries []pubsub.Bu
 	// This should never be called, but if it is, return the length of the bulk buffer.
 	r.logger.Debugf("getFailureOffset called with no errors, returning len(r.bulk) = %d", len(r.bulk))
 	return len(r.bulk)
+}
+
+// updateFlushed updates r.flushed to an element from r.persistRecords at index i.
+func (r *bulkReceiver) updateFlushed(i int) {
+	if i >= 0 && i < len(r.persistRecords) {
+		r.flushed = r.persistRecords[i]
+	}
 }

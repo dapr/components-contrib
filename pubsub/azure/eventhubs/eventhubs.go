@@ -644,7 +644,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 
 	// TODO: use storage persister here
 	persister, _ := NewFilePersister("/Users/shubham1172/Desktop/checkpoints")
-	receiver, err := NewBulkReceiver(persister, 2, req.Topic, bulkHandler, aeh.logger)
+	receiver, err := NewBulkReceiver(persister, 2, req.Topic, 10*time.Second, bulkHandler, aeh.logger)
 	if err != nil {
 		return err
 	}
@@ -669,6 +669,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 			<-listener.Done()
 			aeh.logger.Debugf("listener done, err %v", listener.Err())
 			hub.Close(ctx)
+			receiver.Close()
 		}()
 	}
 

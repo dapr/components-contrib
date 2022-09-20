@@ -20,26 +20,29 @@ import (
 
 	"github.com/Shopify/sarama"
 
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer        sarama.SyncProducer
-	consumerGroup   string
-	brokers         []string
-	logger          logger.Logger
-	authType        string
-	saslUsername    string
-	saslPassword    string
-	initialOffset   int64
-	cg              sarama.ConsumerGroup
-	cancel          context.CancelFunc
-	consumer        consumer
-	config          *sarama.Config
-	subscribeTopics TopicHandlers
-	subscribeLock   sync.Mutex
+	producer            sarama.SyncProducer
+	consumerGroup       string
+	brokers             []string
+	logger              logger.Logger
+	authType            string
+	saslUsername        string
+	saslPassword        string
+	initialOffset       int64
+	cg                  sarama.ConsumerGroup
+	cancel              context.CancelFunc
+	consumer            consumer
+	config              *sarama.Config
+	subscribeTopics     TopicHandlers
+	bulkSubscribeTopics TopicBulkHandlerConfig
+	subscribeLock       sync.Mutex
+	bulkSubscribeLock   sync.Mutex
 
 	backOffConfig retry.Config
 
@@ -52,9 +55,11 @@ type Kafka struct {
 
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger:          logger,
-		subscribeTopics: make(TopicHandlers),
-		subscribeLock:   sync.Mutex{},
+		logger:              logger,
+		subscribeTopics:     make(TopicHandlers),
+		bulkSubscribeTopics: make(TopicBulkHandlerConfig),
+		subscribeLock:       sync.Mutex{},
+		bulkSubscribeLock:   sync.Mutex{},
 	}
 }
 
@@ -146,10 +151,34 @@ func (k *Kafka) Close() (err error) {
 // EventHandler is the handler used to handle the subscribed event.
 type EventHandler func(ctx context.Context, msg *NewEvent) error
 
+// BulkEventHandler is the handler used to handle the subscribed event.
+type BulkEventHandler func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error)
+
+// BulkHandlerConfig is the bulkHandler and configuration for bulk subscription.
+type BulkSubscriptionHandlerConfig struct {
+	SubscribeConfig pubsub.BulkSubscribeConfig
+	Handler         BulkEventHandler
+}
+
 // NewEvent is an event arriving from a message bus instance.
 type NewEvent struct {
 	Data        []byte            `json:"data"`
 	Topic       string            `json:"topic"`
 	Metadata    map[string]string `json:"metadata"`
 	ContentType *string           `json:"contentType,omitempty"`
+}
+
+// KafkaBulkMessage is a bulk event arriving from a message bus instance.
+type KafkaBulkMessage struct {
+	Entries  []KafkaBulkMessageEntry `json:"entries"`
+	Topic    string                  `json:"topic"`
+	Metadata map[string]string       `json:"metadata"`
+}
+
+// KafkaBulkMessageEntry is an item contained inside bulk event arriving from a message bus instance.
+type KafkaBulkMessageEntry struct {
+	EntryID     string            `json:entryID`
+	Event       []byte            `json:"event"`
+	ContentType string            `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
 }

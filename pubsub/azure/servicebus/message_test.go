@@ -25,20 +25,80 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-func TestNewASBMessageFromPubsubRequest(t *testing.T) {
-	testMessageData := []byte("test message")
-	testMessageID := "testMessageId"
-	testCorrelationID := "testCorrelationId"
-	testSessionID := "testSessionId"
-	testLabel := "testLabel"
-	testReplyTo := "testReplyTo"
-	testTo := "testTo"
-	testPartitionKey := testSessionID
-	testPartitionKeyUnique := "testPartitionKey"
-	testContentType := "testContentType"
-	nowUtc := time.Now().UTC()
-	testScheduledEnqueueTimeUtc := nowUtc.Format(http.TimeFormat)
+var (
+	testMessageData                    = []byte("test message")
+	testMessageID                      = "testMessageId"
+	testCorrelationID                  = "testCorrelationId"
+	testSessionID                      = "testSessionId"
+	testLabel                          = "testLabel"
+	testReplyTo                        = "testReplyTo"
+	testTo                             = "testTo"
+	testPartitionKey                   = testSessionID
+	testPartitionKeyUnique             = "testPartitionKey"
+	testContentType                    = "testContentType"
+	nowUtc                             = time.Now().UTC()
+	testScheduledEnqueueTimeUtc        = nowUtc.Format(http.TimeFormat)
+	testLockTokenString                = "bG9ja3Rva2VuAAAAAAAAAA=="
+	testLockTokenBytes                 = [16]byte{108, 111, 99, 107, 116, 111, 107, 101, 110}
+	testDeliveryCount           uint32 = 1
+	testSampleTime                     = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+	testSampleTimeHttpFormat           = "Thu, 01 Jan 1970 00:00:00 GMT"
+	testSequenceNumber          int64  = 1
+)
 
+func TestAddMessageAttributesToMetadata(t *testing.T) {
+	testCases := []struct {
+		name             string
+		ASBMessage       azservicebus.ReceivedMessage
+		expectedMetadata map[string]string
+	}{
+		{
+			name: "Metadata must contain all attributes with the correct prefix",
+			ASBMessage: azservicebus.ReceivedMessage{
+				MessageID:            testMessageID,
+				SessionID:            &testSessionID,
+				CorrelationID:        &testCorrelationID,
+				Subject:              &testLabel,
+				ReplyTo:              &testReplyTo,
+				To:                   &testTo,
+				ContentType:          &testContentType,
+				LockToken:            testLockTokenBytes,
+				DeliveryCount:        testDeliveryCount,
+				EnqueuedTime:         &testSampleTime,
+				SequenceNumber:       &testSequenceNumber,
+				ScheduledEnqueueTime: &testSampleTime,
+				PartitionKey:         &testPartitionKey,
+				LockedUntil:          &testSampleTime,
+			},
+			expectedMetadata: map[string]string{
+				"metadata." + MessageIDMetadataKey:               testMessageID,
+				"metadata." + SessionIDMetadataKey:               testSessionID,
+				"metadata." + CorrelationIDMetadataKey:           testCorrelationID,
+				"metadata." + LabelMetadataKey:                   testLabel, // Subject
+				"metadata." + ReplyToMetadataKey:                 testReplyTo,
+				"metadata." + ToMetadataKey:                      testTo,
+				"metadata." + ContentTypeMetadataKey:             testContentType,
+				"metadata." + LockTokenMetadataKey:               testLockTokenString,
+				"metadata." + DeliveryCountMetadataKey:           "1",
+				"metadata." + EnqueuedTimeUtcMetadataKey:         testSampleTimeHttpFormat,
+				"metadata." + SequenceNumberMetadataKey:          "1",
+				"metadata." + ScheduledEnqueueTimeUtcMetadataKey: testSampleTimeHttpFormat,
+				"metadata." + PartitionKeyMetadataKey:            testPartitionKey,
+				"metadata." + LockedUntilUtcMetadataKey:          testSampleTimeHttpFormat,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			metadata := make(map[string]string)
+			addMessageAttributesToMetadata(metadata, &tc.ASBMessage)
+			assert.Equal(t, tc.expectedMetadata, metadata)
+		})
+	}
+}
+
+func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 	testCases := []struct {
 		name                        string
 		pubsubRequest               pubsub.PublishRequest

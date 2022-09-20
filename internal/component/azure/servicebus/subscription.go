@@ -465,6 +465,7 @@ func (s *Subscription) handleMultipleAsync(ctx context.Context, msgs []*azservic
 		defer finalizeCancel()
 
 		if err != nil {
+			// Handle the error and mark messages accordingly.
 			for i, resp := range resps {
 				if resp.Error != nil {
 					// Log the error only, as we're running asynchronously
@@ -474,6 +475,12 @@ func (s *Subscription) handleMultipleAsync(ctx context.Context, msgs []*azservic
 					s.CompleteMessage(finalizeCtx, msgs[i])
 				}
 			}
+			return
+		}
+
+		// No error, so we can complete all messages.
+		for _, msg := range msgs {
+			s.CompleteMessage(finalizeCtx, msg)
 		}
 	}()
 }

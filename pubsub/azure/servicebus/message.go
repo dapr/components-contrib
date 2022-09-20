@@ -77,12 +77,7 @@ const (
 func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic string) (*pubsub.NewMessage, error) {
 	pubsubMsg := &pubsub.NewMessage{
 		Topic: topic,
-	}
-
-	pubsubMsg.Data = asbMsg.Body
-
-	if pubsubMsg.Metadata == nil {
-		pubsubMsg.Metadata = map[string]string{}
+		Data:  asbMsg.Body,
 	}
 
 	pubsubMsg.Metadata = addMessageAttributesToMetadata(pubsubMsg.Metadata, asbMsg)
@@ -98,12 +93,7 @@ func NewBulkMessageEntryFromASBMessage(asbMsg *azservicebus.ReceivedMessage) (pu
 
 	bulkMsgEntry := pubsub.BulkMessageEntry{
 		EntryID: entryID.String(),
-	}
-
-	bulkMsgEntry.Event = asbMsg.Body
-
-	if bulkMsgEntry.Metadata == nil {
-		bulkMsgEntry.Metadata = map[string]string{}
+		Event:   asbMsg.Body,
 	}
 
 	bulkMsgEntry.Metadata = addMessageAttributesToMetadata(bulkMsgEntry.Metadata, asbMsg)
@@ -112,6 +102,10 @@ func NewBulkMessageEntryFromASBMessage(asbMsg *azservicebus.ReceivedMessage) (pu
 }
 
 func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservicebus.ReceivedMessage) map[string]string {
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+
 	addToMetadata := func(metadata map[string]string, key, value string) {
 		metadata["metadata."+key] = value
 	}

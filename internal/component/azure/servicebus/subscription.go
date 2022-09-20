@@ -243,7 +243,27 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 		}
 
 		s.logger.Debugf("Processing received message: %s", msg.MessageID)
-		s.handleAsync(s.ctx, msg, handler)
+
+		runHandlerFn := func() {
+			// Invoke the handler to process the message
+			err = handler(ctx, msg)
+
+			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+			// This uses a background context in case ctx has been canceled already.
+			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+			defer finalizeCancel()
+
+			if err != nil {
+				// Log the error only, as we're running asynchronously
+				s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
+				s.AbandonMessage(finalizeCtx, msg)
+				return
+			}
+
+			s.CompleteMessage(finalizeCtx, msg)
+		}
+		s.handleAsync(s.ctx, []*azservicebus.ReceivedMessage{msg}, runHandlerFn)
 	}
 }
 
@@ -324,7 +344,36 @@ func (s *Subscription) ReceiveMultipleAndBlock(handler BulkHandlerFunc, lockRene
 			s.logger.Debugf("Processing received message: %s", msg.MessageID)
 		}
 
-		s.handleMultipleAsync(s.ctx, msgs, handler)
+		runHandlerFn := func() {
+			resps, err := handler(s.ctx, msgs)
+
+			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+			// This uses a background context in case ctx has been canceled already.
+			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+			defer finalizeCancel()
+
+			if err != nil {
+				// Handle the error and mark messages accordingly.
+				// Note, the order of the responses match the order of the messages.
+				for i, resp := range resps {
+					if resp.Error != nil {
+						// Log the error only, as we're running asynchronously.
+						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, err)
+						s.AbandonMessage(finalizeCtx, msgs[i])
+					} else {
+						s.CompleteMessage(finalizeCtx, msgs[i])
+					}
+				}
+				return
+			}
+
+			// No error, so we can complete all messages.
+			for _, msg := range msgs {
+				s.CompleteMessage(finalizeCtx, msg)
+			}
+		}
+		s.handleAsync(s.ctx, msgs, runHandlerFn)
 	}
 }
 
@@ -339,78 +388,14 @@ func (s *Subscription) Close(closeCtx context.Context) {
 	s.cancel()
 }
 
-func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handler HandlerFunc) {
+// handleAsync handles messages from azure service bus asynchronously.
+// runHandlerFn is responsible for calling the message handler function
+// and marking messages as complete/abandon.
+func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, runHandlerFn func()) {
 	go func() {
 		var (
 			consumeToken           bool
 			takenConcurrentHandler bool
-			err                    error
-		)
-
-		defer func() {
-			// Release a handler if needed
-			if takenConcurrentHandler {
-				<-s.handleChan
-				s.logger.Debugf("Released message handle for %s on %s", msg.MessageID, s.entity)
-			}
-
-			// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
-			// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
-			if consumeToken {
-				s.logger.Debugf("Taking a retriable error token")
-				before := time.Now()
-				_ = s.retriableErrLimit.Take()
-				s.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
-			}
-
-			// Remove the message from the map of active ones
-			s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
-
-			// Remove an entry from activeMessageChan to allow processing more messages
-			<-s.activeMessagesChan
-		}()
-
-		// If handleChan is non-nil, we have a limit on how many handler we can process
-		if cap(s.handleChan) > 0 {
-			s.logger.Debugf("Taking message handle for %s on %s", msg.MessageID, s.entity)
-			select {
-			// Context is done, so we will stop waiting
-			case <-ctx.Done():
-				s.logger.Debugf("Message context done for %s on %s", msg.MessageID, s.entity)
-				return
-			// Blocks until we have a handler available
-			case s.handleChan <- struct{}{}:
-				takenConcurrentHandler = true
-				s.logger.Debugf("Taken message handle for %s on %s", msg.MessageID, s.entity)
-			}
-		}
-
-		// Invoke the handler to process the message
-		err = handler(ctx, msg)
-
-		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-		// This uses a background context in case ctx has been canceled already.
-		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-		defer finalizeCancel()
-
-		if err != nil {
-			// Log the error only, as we're running asynchronously
-			s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
-			s.AbandonMessage(finalizeCtx, msg)
-			return
-		}
-
-		s.CompleteMessage(finalizeCtx, msg)
-	}()
-}
-
-func (s *Subscription) handleMultipleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, handler BulkHandlerFunc) {
-	go func() {
-		var (
-			consumeToken           bool
-			takenConcurrentHandler bool
-			err                    error
 		)
 
 		defer func() {
@@ -427,7 +412,7 @@ func (s *Subscription) handleMultipleAsync(ctx context.Context, msgs []*azservic
 					s.logger.Debugf("Taking a retriable error token")
 					before := time.Now()
 					_ = s.retriableErrLimit.Take()
-					s.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
+					s.logger.Debugf("Resumed after pausing for %v", time.Since(before))
 				}
 
 				// Remove the message from the map of active ones
@@ -455,34 +440,8 @@ func (s *Subscription) handleMultipleAsync(ctx context.Context, msgs []*azservic
 			}
 		}
 
-		// Invoke the handler to process the message
-		resps, err := handler(ctx, msgs)
-
-		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-		// This uses a background context in case ctx has been canceled already.
-		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-		defer finalizeCancel()
-
-		if err != nil {
-			// Handle the error and mark messages accordingly.
-			// Note, the order of the responses match the order of the messages.
-			for i, resp := range resps {
-				if resp.Error != nil {
-					// Log the error only, as we're running asynchronously.
-					s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, err)
-					s.AbandonMessage(finalizeCtx, msgs[i])
-				} else {
-					s.CompleteMessage(finalizeCtx, msgs[i])
-				}
-			}
-			return
-		}
-
-		// No error, so we can complete all messages.
-		for _, msg := range msgs {
-			s.CompleteMessage(finalizeCtx, msg)
-		}
+		// Invoke the handler to process the message.
+		runHandlerFn()
 	}()
 }
 

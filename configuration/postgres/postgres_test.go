@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,10 +18,33 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/pashagolub/pgxmock"
+	"github.com/pashagolub/pgxmock/v2"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
 )
+
+func TestSelectAllQuery(t *testing.T) {
+	g := &configuration.GetRequest{}
+	expected := "SELECT * FROM cfgtbl"
+	query, _, err := buildQuery(g, "cfgtbl")
+	if err != nil {
+		t.Errorf("Error building query: %v ", err)
+	}
+	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
+
+	g = &configuration.GetRequest{
+		Keys: []string{},
+		Metadata: map[string]string{
+			"Version": "1.0",
+		},
+	}
+	query, _, err = buildQuery(g, "cfgtbl")
+	if err != nil {
+		t.Errorf("Error building query: %v ", err)
+	}
+	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
+}
 
 func TestPostgresbuildQuery(t *testing.T) {
 	g := &configuration.GetRequest{
@@ -37,28 +60,23 @@ func TestPostgresbuildQuery(t *testing.T) {
 		t.Errorf("Error building query: %v ", err)
 	}
 	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND $2 = $3"
-	if query != expected {
-		t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
-	}
+	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
+	// if query != expected {
+	// 	t.Errorf("did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
+	// }
 	i := 0
 	for _, v := range params {
 		got := v.(string)
 		switch i {
 		case 0:
 			expected := "someKey"
-			if expected != got {
-				t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
-			}
+			assert.Equal(t, expected, got, "Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
 		case 1:
 			expected := "Version"
-			if expected != got {
-				t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
-			}
+			assert.Equal(t, expected, got, "Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
 		case 2:
 			expected := "1.0"
-			if expected != got {
-				t.Errorf("Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
-			}
+			assert.Equal(t, expected, got, "Did not get expected result. Got: '%v' , Expected: '%v'", got, expected)
 		}
 		i++
 	}

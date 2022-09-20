@@ -34,10 +34,7 @@ type MockConfigurationStore struct {
 	azAppConfigClient
 }
 
-func (m *MockConfigurationStore) GetSetting(
-	ctx context.Context,
-	key string,
-	options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
+func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
 	if key == "testKey" {
 		settings := azappconfig.Setting{}
 
@@ -52,10 +49,7 @@ func (m *MockConfigurationStore) GetSetting(
 	return resp, nil
 }
 
-func (m *MockConfigurationStore) NewListSettingsPager(
-	selector azappconfig.SettingSelector,
-	options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage] {
-
+func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage] {
 	settings := make([]azappconfig.Setting, 2)
 
 	setting1 := azappconfig.Setting{}
@@ -67,8 +61,6 @@ func (m *MockConfigurationStore) NewListSettingsPager(
 	setting2.Value = to.StringPtr("testValue-2")
 	settings[0] = setting1
 	settings[1] = setting2
-
-	fmt.Println(settings)
 
 	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPage]{
 		More: func(azappconfig.ListSettingsPage) bool {

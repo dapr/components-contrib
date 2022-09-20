@@ -61,9 +61,6 @@ func TestPostgresbuildQuery(t *testing.T) {
 	}
 	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND $2 = $3"
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
-	// if query != expected {
-	// 	t.Errorf("did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
-	// }
 	i := 0
 	for _, v := range params {
 		got := v.(string)
@@ -89,9 +86,7 @@ func TestConnectAndQuery(t *testing.T) {
 	}
 
 	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
-	}
+	assert.Nil(t, err)
 	defer mock.Close()
 
 	query := "SELECT EXISTS (SELECT FROM pg_tables where tablename = '" + m.configTable + "'"
@@ -106,7 +101,6 @@ func TestConnectAndQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("there were unfulfilled expectations: %s", err)
-	}
+	err = mock.ExpectationsWereMet()
+	assert.Nil(t, err)
 }

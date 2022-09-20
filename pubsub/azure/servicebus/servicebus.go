@@ -558,7 +558,8 @@ func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHa
 			pubsubMsgs[i] = pubsubMsg
 		}
 
-		// TODO: figure out metadata
+		// Note, no metadata is currently supported here.
+		// In the future, we could add propagate metadata to the handler if required.
 		bulkMessage := &pubsub.BulkMessage{
 			Entries:  pubsubMsgs,
 			Metadata: map[string]string{},

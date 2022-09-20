@@ -98,7 +98,6 @@ require (
 	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
 	github.com/nats-io/stan.go v0.8.3
 	github.com/open-policy-agent/opa v0.43.1
-	github.com/pashagolub/pgxmock v1.8.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
@@ -121,7 +120,7 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.0.0-20220630215102-69896b714898
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	google.golang.org/api v0.74.0
@@ -167,11 +166,13 @@ require (
 	github.com/ipfs/go-ipfs-http-client v0.4.0
 	github.com/ipfs/interface-go-ipfs-core v0.7.0
 	github.com/ipfs/kubo v0.15.0-rc1
+	github.com/jackc/pgx/v5 v5.0.0
 	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/multiformats/go-multiaddr v0.6.0
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
+	github.com/pashagolub/pgxmock/v2 v2.0.0-beta2
 	github.com/rabbitmq/amqp091-go v1.3.4
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.476
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.476
@@ -290,6 +291,7 @@ require (
 	github.com/ipld/edelweiss v0.1.4 // indirect
 	github.com/ipld/go-codec-dagpb v1.4.1 // indirect
 	github.com/ipld/go-ipld-prime v0.17.0 // indirect
+	github.com/jackc/puddle/v2 v2.0.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
@@ -473,7 +475,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/serf v0.9.6 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.13.0
+	github.com/jackc/pgconn v1.13.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.1 // indirect

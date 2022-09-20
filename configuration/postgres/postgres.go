@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -27,9 +27,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4/pgxpool"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/kit/logger"
@@ -58,11 +57,11 @@ const (
 	ErrorMissingTable            = "postgreSQL configuration table - '%v' does not exist"
 	InfoStartInit                = "initializing postgreSQL configuration store"
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
-	ErrorAlreadyInitialized      = "PostgreSQL configuration store already initialized"
-	ErrorMissinMaxTimeout        = "missing PostgreSQL maxTimeout setting in configuration"
+	ErrorAlreadyInitialized      = "postgreSQL configuration store already initialized"
+	ErrorMissingMaxTimeout       = "missing PostgreSQL maxTimeout setting in configuration"
 	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
-	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 	ErrorTooLongFieldLength      = "field name is too long"
+	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 )
 
 var allowedChars = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
@@ -78,7 +77,6 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 
 func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	p.logger.Debug(InfoStartInit)
-
 	if p.client != nil {
 		return fmt.Errorf(ErrorAlreadyInitialized)
 	}
@@ -93,12 +91,12 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	defer cancel()
 	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTime)
 	if err != nil {
-		return err
+		return fmt.Errorf("error connecting to configuration store: '%s'", err)
 	}
 	p.client = client
 	pingErr := p.client.Ping(ctx)
 	if pingErr != nil {
-		return pingErr
+		return fmt.Errorf("unable to connect to configuration store: '%s'", pingErr)
 	}
 	// check if table exists
 	exists := false
@@ -107,7 +105,7 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf(ErrorMissingTable, p.metadata.configTable)
 		}
-		return err
+		return fmt.Errorf("error in checking if configtable exists - '%v'", p.metadata.configTable)
 	}
 	return nil
 }
@@ -120,7 +118,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	query, params, err := buildQuery(req, p.metadata.configTable)
 	if err != nil {
 		p.logger.Error(err)
-		return nil, err
+		return nil, fmt.Errorf("error in configuration store query: '%s' ", err)
 	}
 	rows, err := p.client.Query(ctx, query, params...)
 	if err != nil {
@@ -128,7 +126,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		if err == sql.ErrNoRows {
 			return &configuration.GetResponse{}, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("error in querying configuration store: '%s'", err)
 	}
 	items := make(map[string]*configuration.Item)
 	for i := 0; rows.Next(); i++ {
@@ -136,12 +134,11 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		var key string
 		var metadata []byte
 		v := make(map[string]string)
-
 		if err := rows.Scan(&key, &item.Value, &item.Version, &metadata); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in reading data from configuration store: '%s'", err)
 		}
 		if err := json.Unmarshal(metadata, &v); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in unmarshalling response from configuration store: '%s'", err)
 		}
 		item.Metadata = v
 		if item.Value != "" {
@@ -160,32 +157,10 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 			triggers = append(triggers, v)
 		}
 	}
-
 	if len(triggers) == 0 {
 		return "", fmt.Errorf("cannot subscribe to empty trigger")
 	}
-
-	var subscribeID string
-	p.configLock.Lock()
-	for _, trigger := range triggers {
-		notificationChannel := "listen " + trigger
-		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
-				close(oldStopChan.(chan struct{}))
-			}
-		}
-		stop := make(chan struct{})
-		subscribeID = uuid.New().String()
-		p.subscribeStopChanMap[subscribeID] = stop
-		p.ActiveSubscriptions[trigger] = &subscription{
-			uuid:    subscribeID,
-			trigger: trigger,
-			keys:    req.Keys,
-		}
-		go p.doSubscribe(ctx, req, handler, notificationChannel, trigger, subscribeID, stop)
-	}
-	p.configLock.Unlock()
-	return subscribeID, nil
+	return p.subscribeToChannel(ctx, triggers, req, handler)
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
@@ -199,12 +174,14 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 				channel := "unlisten " + v.trigger
 				conn, err := p.client.Acquire(ctx)
 				if err != nil {
-					return fmt.Errorf("Error acquiring connection: %v", err)
+					p.logger.Errorf("error acquiring connection:", err)
+					return fmt.Errorf("error acquiring connection: %s ", err)
 				}
 				defer conn.Release()
 				_, err = conn.Exec(ctx, channel)
 				if err != nil {
-					return fmt.Errorf("Error unlistening to channel: %v", err)
+					p.logger.Errorf("error listening to channel:", err)
+					return fmt.Errorf("error listening to channel: %s", err)
 				}
 				delete(p.ActiveSubscriptions, k)
 			}
@@ -217,16 +194,15 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, channel string, trigger string, subscription string, stop chan struct{}) {
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
-		p.logger.Errorf("Error acquiring connection:", err)
+		p.logger.Errorf("error acquiring connection:", err)
 		return
 	}
 	defer conn.Release()
 	_, err = conn.Exec(ctx, channel)
 	if err != nil {
-		p.logger.Errorf("Error listening to channel:", err)
+		p.logger.Errorf("error listening to channel:", err)
 		return
 	}
-
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
@@ -251,7 +227,6 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 		p.logger.Errorf("Error in UnMarshal: ", err)
 		return
 	}
-
 	var key, value, version string
 	m := make(map[string]string)
 	// trigger should encapsulate the row in "data" field in the notification
@@ -278,32 +253,32 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 				}
 			}
 		}
-	}
-	e := &configuration.UpdateEvent{
-		Items: map[string]*configuration.Item{
-			key: {
-				Value:    value,
-				Version:  version,
-				Metadata: m,
+		e := &configuration.UpdateEvent{
+			Items: map[string]*configuration.Item{
+				key: {
+					Value:    value,
+					Version:  version,
+					Metadata: m,
+				},
 			},
-		},
-		ID: subscription,
-	}
-	err = handler(ctx, e)
-	if err != nil {
-		p.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+			ID: subscription,
+		}
+		err = handler(ctx, e)
+		if err != nil {
+			p.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+		}
+	} else {
+		p.logger.Info("unknown format of data received in notify event - '%s'", msg.Payload)
 	}
 }
 
 func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	m := metadata{}
-
 	if val, ok := cmetadata.Properties[connectionStringKey]; ok && val != "" {
 		m.connectionString = val
 	} else {
 		return m, fmt.Errorf(ErrorMissingConnectionString)
 	}
-
 	if tbl, ok := cmetadata.Properties[configtablekey]; ok && tbl != "" {
 		if !allowedChars.MatchString(tbl) {
 			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", tbl)
@@ -315,20 +290,23 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	} else {
 		return m, fmt.Errorf(ErrorMissingTableName)
 	}
-
 	// configure maxTimeout if provided
 	if mxTimeout, ok := cmetadata.Properties[connMaxIdleTimeKey]; ok && mxTimeout != "" {
 		if t, err := time.ParseDuration(mxTimeout); err == nil {
 			m.maxIdleTime = t
 		} else {
-			return m, fmt.Errorf(ErrorMissinMaxTimeout)
+			return m, fmt.Errorf(ErrorMissingMaxTimeout)
 		}
 	}
 	return m, nil
 }
 
 func Connect(ctx context.Context, conn string, maxTimeout time.Duration) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.Connect(ctx, conn)
+	config, err := pgxpool.ParseConfig(conn)
+	if err != nil {
+		return nil, fmt.Errorf("postgres configuration store connection error : %s", err)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store connection error : %s", err)
 	}
@@ -356,7 +334,6 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 		}
 		queryBuilder.WriteString(strings.Join(paramWildcard, " , "))
 		queryBuilder.WriteString(")")
-
 		query = queryBuilder.String()
 
 		if len(req.Metadata) > 0 {
@@ -412,4 +389,28 @@ func validateInput(keys []string) error {
 		}
 	}
 	return nil
+}
+
+func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, triggers []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+	p.configLock.Lock()
+	var subscribeID string
+	for _, trigger := range triggers {
+		notificationChannel := "listen " + trigger
+		if sub, isActive := p.isSubscriptionActive(req); isActive {
+			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
+				close(oldStopChan.(chan struct{}))
+			}
+		}
+		stop := make(chan struct{})
+		subscribeID = uuid.New().String()
+		p.subscribeStopChanMap[subscribeID] = stop
+		p.ActiveSubscriptions[trigger] = &subscription{
+			uuid:    subscribeID,
+			trigger: trigger,
+			keys:    req.Keys,
+		}
+		go p.doSubscribe(ctx, req, handler, notificationChannel, trigger, subscribeID, stop)
+	}
+	p.configLock.Unlock()
+	return subscribeID, nil
 }

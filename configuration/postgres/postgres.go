@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/kit/logger"
@@ -65,6 +66,7 @@ const (
 )
 
 var allowedChars = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
+var defaultMaxConnIdleTime = time.Minute * 30
 
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	logger.Debug("Instantiating PostgreSQL configuration store")
@@ -72,6 +74,11 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 		logger:               logger,
 		subscribeStopChanMap: make(map[string]interface{}),
 		configLock:           sync.Mutex{},
+		metadata: metadata{
+			maxIdleTimeout:   0,
+			connectionString: "",
+			configTable:      "",
+		},
 	}
 }
 
@@ -166,6 +173,13 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
+	for _, v := range p.ActiveSubscriptions {
+		if v.uuid == req.ID {
+			break
+		} else {
+			return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
+		}
+	}
 	if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
 		delete(p.subscribeStopChanMap, req.ID)
 		close(oldStopChan.(chan struct{}))
@@ -207,7 +221,7 @@ func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
 			if !(pgconn.Timeout(err) || errors.Is(ctx.Err(), context.Canceled)) {
-				p.logger.Errorf("Error waiting for notification:", err)
+				p.logger.Errorf("error waiting for notification:", err)
 			}
 			return
 		}
@@ -218,13 +232,13 @@ func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, msg *pgconn.Notification, trigger string, subscription string) {
 	defer func() {
 		if err := recover(); err != nil {
-			p.logger.Errorf("panic in handleSubscribedChange method and recovered: %s", err)
+			p.logger.Errorf("panic in handlesubscribedchange method and recovered: %s", err)
 		}
 	}()
 	payload := make(map[string]interface{})
 	err := json.Unmarshal([]byte(msg.Payload), &payload)
 	if err != nil {
-		p.logger.Errorf("Error in UnMarshal: ", err)
+		p.logger.Errorf("error in unmarshal: ", err)
 		return
 	}
 	var key, value, version string
@@ -239,7 +253,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 			case "key":
 				key = v.Interface().(string)
 				if yes := p.isSubscribed(trigger, key, subscription); !yes {
-					p.logger.Debugf("Ignoring notification for %v", key)
+					p.logger.Debugf("ignoring notification for %v", key)
 					return
 				}
 			case "value":
@@ -294,9 +308,10 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	if mxTimeout, ok := cmetadata.Properties[connMaxIdleTimeKey]; ok && mxTimeout != "" {
 		if t, err := time.ParseDuration(mxTimeout); err == nil {
 			m.maxIdleTimeout = t
-		} else {
-			return m, fmt.Errorf(ErrorMissingMaxTimeout)
 		}
+	}
+	if m.maxIdleTimeout == 0 {
+		m.maxIdleTimeout = defaultMaxConnIdleTime
 	}
 	return m, nil
 }
@@ -367,13 +382,9 @@ func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRe
 }
 
 func (p *ConfigurationStore) isSubscribed(trigger string, key string, subscription string) bool {
-	for t, s := range p.ActiveSubscriptions {
-		if t == trigger && s.uuid == subscription {
-			for _, k := range s.keys {
-				if k == key {
-					return true
-				}
-			}
+	if val, yes := p.ActiveSubscriptions[trigger]; yes {
+		if val.uuid == subscription && slices.Contains(val.keys, key) {
+			return true
 		}
 	}
 	return false
@@ -399,6 +410,7 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, triggers []
 		if sub, isActive := p.isSubscriptionActive(req); isActive {
 			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
 				close(oldStopChan.(chan struct{}))
+				delete(p.subscribeStopChanMap, sub)
 			}
 		}
 		stop := make(chan struct{})

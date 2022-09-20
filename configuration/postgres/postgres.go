@@ -45,15 +45,18 @@ type ConfigurationStore struct {
 }
 
 type subscription struct {
-	uuid    string
-	trigger string
-	keys    []string
+	uuid string
+	keys []string
 }
 
 const (
 	configtablekey               = "table"
 	connMaxIdleTimeKey           = "connMaxIdleTime"
 	connectionStringKey          = "connectionString"
+	pgNotifyChannelKey           = "pgNotifyChannel"
+	listenTemplate               = "listen %s"
+	unlistenTemplate             = "unlisten %s"
+	payloadDataKey               = "data"
 	ErrorMissingTableName        = "missing postgreSQL configuration table name"
 	ErrorMissingTable            = "postgreSQL configuration table - '%v' does not exist"
 	InfoStartInit                = "initializing postgreSQL configuration store"
@@ -65,8 +68,10 @@ const (
 	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 )
 
-var allowedChars = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
-var defaultMaxConnIdleTime = time.Minute * 30
+var (
+	allowedChars           = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
+	defaultMaxConnIdleTime = time.Minute * 30
+)
 
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	logger.Debug("Instantiating PostgreSQL configuration store")
@@ -158,16 +163,16 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	var triggers []string
+	var pgNotifyChannels []string
 	for k, v := range req.Metadata {
-		if res := strings.EqualFold("trigger", k); res {
-			triggers = append(triggers, v)
+		if res := strings.EqualFold(pgNotifyChannelKey, k) && !slices.Contains(pgNotifyChannels, v); res {
+			pgNotifyChannels = append(pgNotifyChannels, v) //append unique channel names only
 		}
 	}
-	if len(triggers) == 0 {
-		return "", fmt.Errorf("cannot subscribe to empty trigger")
+	if len(pgNotifyChannels) == 0 {
+		return "", fmt.Errorf("cannot subscribe to empty channel")
 	}
-	return p.subscribeToChannel(ctx, triggers, req, handler)
+	return p.subscribeToChannel(ctx, pgNotifyChannels, req, handler)
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
@@ -185,14 +190,14 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		close(oldStopChan.(chan struct{}))
 		for k, v := range p.ActiveSubscriptions {
 			if v.uuid == req.ID {
-				channel := "unlisten " + v.trigger
+				pgChannel := fmt.Sprintf(unlistenTemplate, k)
 				conn, err := p.client.Acquire(ctx)
 				if err != nil {
 					p.logger.Errorf("error acquiring connection:", err)
 					return fmt.Errorf("error acquiring connection: %s ", err)
 				}
 				defer conn.Release()
-				_, err = conn.Exec(ctx, channel)
+				_, err = conn.Exec(ctx, pgChannel)
 				if err != nil {
 					p.logger.Errorf("error listening to channel:", err)
 					return fmt.Errorf("error listening to channel: %s", err)
@@ -205,22 +210,21 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 }
 
-func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, channel string, trigger string, subscription string, stop chan struct{}) {
+func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, trigger string, subscription string, stop chan struct{}) {
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
 		p.logger.Errorf("error acquiring connection:", err)
 		return
 	}
 	defer conn.Release()
-	_, err = conn.Exec(ctx, channel)
-	if err != nil {
+	if _, err = conn.Exec(ctx, command); err != nil {
 		p.logger.Errorf("error listening to channel:", err)
 		return
 	}
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
-			if !(pgconn.Timeout(err) || errors.Is(ctx.Err(), context.Canceled)) {
+			if !pgconn.Timeout(err) && !errors.Is(ctx.Err(), context.Canceled) {
 				p.logger.Errorf("error waiting for notification:", err)
 			}
 			return
@@ -229,7 +233,7 @@ func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 	}
 }
 
-func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, msg *pgconn.Notification, trigger string, subscription string) {
+func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, msg *pgconn.Notification, channel string, subscriptionID string) {
 	defer func() {
 		if err := recover(); err != nil {
 			p.logger.Errorf("panic in handlesubscribedchange method and recovered: %s", err)
@@ -244,7 +248,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	var key, value, version string
 	m := make(map[string]string)
 	// trigger should encapsulate the row in "data" field in the notification
-	row := reflect.ValueOf(payload["data"])
+	row := reflect.ValueOf(payload[payloadDataKey])
 	if row.Kind() == reflect.Map {
 		for _, k := range row.MapKeys() {
 			v := row.MapIndex(k)
@@ -252,7 +256,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 			switch strings.ToLower(strKey) {
 			case "key":
 				key = v.Interface().(string)
-				if yes := p.isSubscribed(trigger, key, subscription); !yes {
+				if yes := p.isSubscribed(subscriptionID, channel, key); !yes {
 					p.logger.Debugf("ignoring notification for %v", key)
 					return
 				}
@@ -275,7 +279,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 					Metadata: m,
 				},
 			},
-			ID: subscription,
+			ID: subscriptionID,
 		}
 		err = handler(ctx, e)
 		if err != nil {
@@ -371,9 +375,9 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 }
 
 func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRequest) (string, bool) {
-	for _, trigger := range req.Metadata {
+	for _, channel := range req.Metadata {
 		for key2, sub := range p.ActiveSubscriptions {
-			if res := strings.EqualFold(trigger, key2); res {
+			if res := strings.EqualFold(channel, key2); res {
 				return sub.uuid, true
 			}
 		}
@@ -381,9 +385,9 @@ func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRe
 	return " ", false
 }
 
-func (p *ConfigurationStore) isSubscribed(trigger string, key string, subscription string) bool {
-	if val, yes := p.ActiveSubscriptions[trigger]; yes {
-		if val.uuid == subscription && slices.Contains(val.keys, key) {
+func (p *ConfigurationStore) isSubscribed(subscriptionID string, channel string, key string) bool {
+	if val, yes := p.ActiveSubscriptions[channel]; yes {
+		if val.uuid == subscriptionID && slices.Contains(val.keys, key) {
 			return true
 		}
 	}
@@ -402,26 +406,26 @@ func validateInput(keys []string) error {
 	return nil
 }
 
-func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, triggers []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChanList []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
-	var subscribeID string
-	for _, trigger := range triggers {
-		notificationChannel := "listen " + trigger
+	var subscribeID string // TO_DO - duplicate trigger
+	for _, channel := range pgNotifyChanList {
+		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
 		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
-				close(oldStopChan.(chan struct{}))
-				delete(p.subscribeStopChanMap, sub)
+			p.configLock.Unlock()
+			if err := p.Unsubscribe(ctx, &configuration.UnsubscribeRequest{ID: sub}); err != nil {
+				return "", fmt.Errorf("error in unsubscribing from existing channel: '%s' ", channel)
 			}
+			p.configLock.Lock()
 		}
 		stop := make(chan struct{})
 		subscribeID = uuid.New().String()
 		p.subscribeStopChanMap[subscribeID] = stop
-		p.ActiveSubscriptions[trigger] = &subscription{
-			uuid:    subscribeID,
-			trigger: trigger,
-			keys:    req.Keys,
+		p.ActiveSubscriptions[channel] = &subscription{
+			uuid: subscribeID,
+			keys: req.Keys,
 		}
-		go p.doSubscribe(ctx, req, handler, notificationChannel, trigger, subscribeID, stop)
+		go p.doSubscribe(ctx, req, handler, pgNotifyCmd, channel, subscribeID, stop)
 	}
 	p.configLock.Unlock()
 	return subscribeID, nil

@@ -166,7 +166,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	var pgNotifyChannels []string
 	for k, v := range req.Metadata {
 		if res := strings.EqualFold(pgNotifyChannelKey, k) && !slices.Contains(pgNotifyChannels, v); res {
-			pgNotifyChannels = append(pgNotifyChannels, v) //append unique channel names only
+			pgNotifyChannels = append(pgNotifyChannels, v) // append unique channel names only
 		}
 	}
 	if len(pgNotifyChannels) == 0 {
@@ -210,7 +210,7 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 }
 
-func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, trigger string, subscription string, stop chan struct{}) {
+func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, channel string, subscription string, stop chan struct{}) {
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
 		p.logger.Errorf("error acquiring connection:", err)
@@ -229,7 +229,7 @@ func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			}
 			return
 		}
-		p.handleSubscribedChange(ctx, handler, notification, trigger, subscription)
+		p.handleSubscribedChange(ctx, handler, notification, channel, subscription)
 	}
 }
 
@@ -412,11 +412,11 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 	for _, channel := range pgNotifyChanList {
 		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
 		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			p.configLock.Unlock()
-			if err := p.Unsubscribe(ctx, &configuration.UnsubscribeRequest{ID: sub}); err != nil {
-				return "", fmt.Errorf("error in unsubscribing from existing channel: '%s' ", channel)
+			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
+				close(oldStopChan.(chan struct{}))
+				delete(p.subscribeStopChanMap, sub)
+				delete(p.ActiveSubscriptions, channel)
 			}
-			p.configLock.Lock()
 		}
 		stop := make(chan struct{})
 		subscribeID = uuid.New().String()

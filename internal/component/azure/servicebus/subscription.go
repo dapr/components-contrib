@@ -466,9 +466,10 @@ func (s *Subscription) handleMultipleAsync(ctx context.Context, msgs []*azservic
 
 		if err != nil {
 			// Handle the error and mark messages accordingly.
+			// Note, the order of the responses match the order of the messages.
 			for i, resp := range resps {
 				if resp.Error != nil {
-					// Log the error only, as we're running asynchronously
+					// Log the error only, as we're running asynchronously.
 					s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, err)
 					s.AbandonMessage(finalizeCtx, msgs[i])
 				} else {

@@ -62,7 +62,8 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 }
 
 func (consumer *consumer) processBulkMessages(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim,
-	b backoff.BackOff) error {
+	b backoff.BackOff,
+) error {
 	handlerConfig, err := consumer.k.GetTopicBulkHandlerConfig(claim.Topic())
 	if err != nil {
 		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
@@ -89,7 +90,8 @@ func (consumer *consumer) processBulkMessages(session sarama.ConsumerGroupSessio
 
 func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 	messages []*sarama.ConsumerMessage, session sarama.ConsumerGroupSession,
-	handler BulkEventHandler, b backoff.BackOff) error {
+	handler BulkEventHandler, b backoff.BackOff,
+) error {
 	if len(messages) > 0 {
 		if consumer.k.consumeRetryEnabled {
 			if err := retry.NotifyRecover(func() error {
@@ -113,7 +115,8 @@ func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
 }
 
 func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
-	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string) error {
+	messages []*sarama.ConsumerMessage, handler BulkEventHandler, topic string,
+) error {
 	consumer.k.logger.Debugf("Processing Kafka bulk message: %s", topic)
 	messageValues := make([]KafkaBulkMessageEntry, (len(messages)))
 

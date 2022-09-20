@@ -369,88 +369,60 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	subID := a.metadata.ConsumerID
-	if !a.metadata.DisableEntityManagement {
-		err := a.ensureSubscription(subscribeCtx, subID, req.Topic)
-		if err != nil {
-			return err
-		}
+	sub := impl.NewSubscription(
+		subscribeCtx,
+		a.metadata.MaxActiveMessages,
+		a.metadata.TimeoutInSec,
+		a.metadata.MaxRetriableErrorsPerSec,
+		a.metadata.MaxConcurrentHandlers,
+		"topic "+req.Topic,
+		a.logger,
+	)
+
+	receiveAndBlockFn := func(bo *backoff.ExponentialBackOff) error {
+		return sub.ReceiveAndBlock(
+			a.getHandlerFunc(req.Topic, handler),
+			a.metadata.LockRenewalInSec,
+			func() {
+				// Reset the backoff when the subscription is successful and we have received the first message
+				bo.Reset()
+			},
+		)
 	}
 
-	// Reconnection backoff policy
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = 0
-	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
-	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
-
-	go func() {
-		// Reconnect loop.
-		for {
-			sub := impl.NewSubscription(
-				subscribeCtx,
-				a.metadata.MaxActiveMessages,
-				a.metadata.TimeoutInSec,
-				a.metadata.MaxRetriableErrorsPerSec,
-				a.metadata.MaxConcurrentHandlers,
-				"topic "+req.Topic,
-				a.logger,
-			)
-
-			// Blocks until a successful connection (or until context is canceled)
-			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.NewReceiverForSubscription(req.Topic, subID, nil)
-			})
-			if err != nil {
-				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-				if err != context.Canceled {
-					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
-				}
-				return
-			}
-
-			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
-			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = sub.ReceiveAndBlock(
-				a.getHandlerFunc(req.Topic, handler),
-				a.metadata.LockRenewalInSec,
-				func() {
-					// Reset the backoff when the subscription is successful and we have received the first message
-					bo.Reset()
-				},
-			)
-			if err != nil {
-				var detachError *amqp.DetachError
-				var amqpError *amqp.Error
-				if errors.Is(err, detachError) ||
-					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
-					a.logger.Debug(err)
-				} else {
-					a.logger.Error(err)
-				}
-			}
-
-			// Gracefully close the connection (in case it's not closed already)
-			// Use a background context here (with timeout) because ctx may be closed already
-			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-			sub.Close(closeCtx)
-			closeCancel()
-
-			// If context was canceled, do not attempt to reconnect
-			if subscribeCtx.Err() != nil {
-				a.logger.Debug("Context canceled; will not reconnect")
-				return
-			}
-
-			wait := bo.NextBackOff()
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
-			time.Sleep(wait)
-		}
-	}()
-
-	return nil
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn)
 }
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	sub := impl.NewBulkSubscription(
+		subscribeCtx,
+		a.metadata.MaxActiveMessages,
+		a.metadata.TimeoutInSec,
+		a.metadata.MaxFetchQty,
+		a.metadata.MaxRetriableErrorsPerSec,
+		a.metadata.MaxConcurrentHandlers,
+		"topic "+req.Topic,
+		a.logger,
+	)
+
+	receiveAndBlockFn := func(bo *backoff.ExponentialBackOff) error {
+		return sub.ReceiveMultipleAndBlock(
+			a.getBulkHandlerFunc(req.Topic, handler),
+			a.metadata.LockRenewalInSec,
+			func() {
+				// Reset the backoff when the subscription is successful and we have received the first message
+				bo.Reset()
+			},
+		)
+	}
+
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn)
+}
+
+// doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
+// The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
+func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(*backoff.ExponentialBackOff) error) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
 		err := a.ensureSubscription(subscribeCtx, subID, req.Topic)
@@ -468,17 +440,6 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 	go func() {
 		// Reconnect loop.
 		for {
-			sub := impl.NewBulkSubscription(
-				subscribeCtx,
-				a.metadata.MaxActiveMessages,
-				a.metadata.TimeoutInSec,
-				a.metadata.MaxFetchQty,
-				a.metadata.MaxRetriableErrorsPerSec,
-				a.metadata.MaxConcurrentHandlers,
-				"topic "+req.Topic,
-				a.logger,
-			)
-
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
 				return a.client.NewReceiverForSubscription(req.Topic, subID, nil)
@@ -491,16 +452,9 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 				return
 			}
 
-			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = sub.ReceiveMultipleAndBlock(
-				a.getBulkHandlerFunc(req.Topic, handler),
-				a.metadata.LockRenewalInSec,
-				func() {
-					// Reset the backoff when the subscription is successful and we have received the first message
-					bo.Reset()
-				},
-			)
+			err = receiveAndBlockFn(bo)
 			if err != nil {
 				var detachError *amqp.DetachError
 				var amqpError *amqp.Error

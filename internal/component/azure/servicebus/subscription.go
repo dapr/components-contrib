@@ -122,7 +122,7 @@ func NewBulkSubscription(
 	}
 
 	if prefetch < 1 {
-		s.logger.Debugf("Prefetch must be greater than 0, using default value of 1")
+		s.logger.Warnf("Prefetch must be greater than 0, using default value of 1")
 		s.prefetch = 1
 	}
 

@@ -19,6 +19,8 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/internal/component/kafka"
+	"github.com/dapr/components-contrib/metadata"
+
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -62,6 +64,44 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	return p.kafka.Subscribe(p.subscribeCtx)
 }
 
+func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
+	handler pubsub.BulkHandler) error {
+	subConfig := pubsub.BulkSubscribeConfig{
+		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkCountKey,
+			kafka.DefaultMaxBulkCount),
+		MaxBulkAwaitDurationMilliSeconds: kafka.GetIntFromMetadata(req.Metadata,
+			metadata.MaxBulkAwaitDurationMilliSecondsKey, kafka.DefaultMaxBulkAwaitDurationMilliSeconds),
+	}
+	handlerConfig := kafka.BulkSubscriptionHandlerConfig{
+		SubscribeConfig: subConfig,
+		Handler:         adaptBulkHandler(handler),
+	}
+	p.kafka.AddTopicBulkHandler(req.Topic, handlerConfig)
+
+	go func() {
+		// Wait for context cancelation
+		select {
+		case <-ctx.Done():
+		case <-p.subscribeCtx.Done():
+		}
+
+		// Remove the topic handler before restarting the subscriber
+		p.kafka.RemoveTopicBulkHandler(req.Topic)
+
+		// If the component's context has been canceled, do not re-subscribe
+		if p.subscribeCtx.Err() != nil {
+			return
+		}
+
+		err := p.kafka.BulkSubscribe(p.subscribeCtx)
+		if err != nil {
+			p.logger.Errorf("kafka pubsub: error re-subscribing: %v", err)
+		}
+	}()
+
+	return p.kafka.BulkSubscribe(p.subscribeCtx)
+}
+
 // NewKafka returns a new kafka pubsub instance.
 func NewKafka(logger logger.Logger) pubsub.PubSub {
 	k := kafka.NewKafka(logger)
@@ -99,6 +139,27 @@ func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
 			Data:        event.Data,
 			Metadata:    event.Metadata,
 			ContentType: event.ContentType,
+		})
+	}
+}
+
+func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
+	return func(ctx context.Context, event *kafka.KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+		messages := make([]pubsub.BulkMessageEntry, 0)
+		for _, leafEvent := range event.Entries {
+			message := pubsub.BulkMessageEntry{
+				EntryID:     leafEvent.EntryID,
+				Event:       leafEvent.Event,
+				Metadata:    leafEvent.Metadata,
+				ContentType: leafEvent.ContentType,
+			}
+			messages = append(messages, message)
+		}
+
+		return handler(ctx, &pubsub.BulkMessage{
+			Topic:    event.Topic,
+			Entries:  messages,
+			Metadata: event.Metadata,
 		})
 	}
 }

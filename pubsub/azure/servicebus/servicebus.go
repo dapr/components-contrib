@@ -110,6 +110,15 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 		}
 	}
 
+	m.MaxFetchQty = defaultMaxFetchQty
+	if val, ok := meta.Properties[maxFetchQty]; ok && val != "" {
+		var err error
+		m.MaxFetchQty, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid maxFetchQty %s, %s", errorMessagePrefix, val, err)
+		}
+	}
+
 	m.DisableEntityManagement = defaultDisableEntityManagement
 	if val, ok := meta.Properties[disableEntityManagement]; ok && val != "" {
 		var err error
@@ -441,6 +450,89 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	return nil
 }
 
+func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	subID := a.metadata.ConsumerID
+	if !a.metadata.DisableEntityManagement {
+		err := a.ensureSubscription(subscribeCtx, subID, req.Topic)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Reconnection backoff policy
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0
+	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
+	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+
+	go func() {
+		// Reconnect loop.
+		for {
+			sub := impl.NewBulkSubscription(
+				subscribeCtx,
+				a.metadata.MaxActiveMessages,
+				a.metadata.TimeoutInSec,
+				a.metadata.MaxFetchQty,
+				a.metadata.MaxRetriableErrorsPerSec,
+				a.metadata.MaxConcurrentHandlers,
+				"topic "+req.Topic,
+				a.logger,
+			)
+
+			// Blocks until a successful connection (or until context is canceled)
+			err := sub.Connect(func() (*servicebus.Receiver, error) {
+				return a.client.NewReceiverForSubscription(req.Topic, subID, nil)
+			})
+			if err != nil {
+				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
+				if err != context.Canceled {
+					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+				}
+				return
+			}
+
+			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
+			err = sub.ReceiveMultipleAndBlock(
+				a.getBulkHandlerFunc(req.Topic, handler),
+				a.metadata.LockRenewalInSec,
+				func() {
+					// Reset the backoff when the subscription is successful and we have received the first message
+					bo.Reset()
+				},
+			)
+			if err != nil {
+				var detachError *amqp.DetachError
+				var amqpError *amqp.Error
+				if errors.Is(err, detachError) ||
+					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
+					a.logger.Debug(err)
+				} else {
+					a.logger.Error(err)
+				}
+			}
+
+			// Gracefully close the connection (in case it's not closed already)
+			// Use a background context here (with timeout) because ctx may be closed already
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
+			sub.Close(closeCtx)
+			closeCancel()
+
+			// If context was canceled, do not attempt to reconnect
+			if subscribeCtx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			}
+
+			wait := bo.NextBackOff()
+			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
+			time.Sleep(wait)
+		}
+	}()
+
+	return nil
+}
+
 func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) impl.HandlerFunc {
 	return func(ctx context.Context, asbMsg *servicebus.ReceivedMessage) error {
 		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, topic)
@@ -452,6 +544,41 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) i
 		defer handleCancel()
 		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.MessageID, topic)
 		return handler(handleCtx, pubsubMsg)
+	}
+}
+
+func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHandler) impl.BulkHandlerFunc {
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.BulkHandlerResponseItem, error) {
+		pubsubMsgs := make([]pubsub.BulkMessageEntry, len(asbMsgs))
+		for i, asbMsg := range asbMsgs {
+			pubsubMsg, err := NewBulkMessageEntryFromASBMessage(asbMsg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+			}
+			pubsubMsgs[i] = pubsubMsg
+		}
+
+		// TODO: figure out metadata
+		bulkMessage := &pubsub.BulkMessage{
+			Entries:  pubsubMsgs,
+			Metadata: map[string]string{},
+			Topic:    topic,
+		}
+
+		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
+		defer handleCancel()
+		a.logger.Debugf("Calling app's handler for %d messages on topic %s", len(asbMsgs), topic)
+		resps, err := handler(handleCtx, bulkMessage)
+
+		implResps := make([]impl.BulkHandlerResponseItem, len(resps))
+		for i, resp := range resps {
+			implResps[i] = impl.BulkHandlerResponseItem{
+				EntryID: resp.EntryID,
+				Error:   resp.Error,
+			}
+		}
+
+		return implResps, err
 	}
 }
 

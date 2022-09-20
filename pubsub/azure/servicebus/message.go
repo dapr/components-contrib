@@ -21,6 +21,7 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"github.com/google/uuid"
 
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -136,6 +137,77 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic 
 	}
 
 	return pubsubMsg, nil
+}
+
+func NewBulkMessageEntryFromASBMessage(asbMsg *azservicebus.ReceivedMessage) (pubsub.BulkMessageEntry, error) {
+	entryID, err := uuid.NewRandom()
+	if err != nil {
+		// This should never happen.
+		return pubsub.BulkMessageEntry{}, err
+	}
+
+	bulkMsgEntry := pubsub.BulkMessageEntry{
+		EntryID: entryID.String(),
+	}
+
+	bulkMsgEntry.Event = asbMsg.Body
+
+	addToMetadata := func(msg pubsub.BulkMessageEntry, key, value string) {
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]string)
+		}
+
+		msg.Metadata[fmt.Sprintf("metadata.%s", key)] = value
+	}
+
+	if asbMsg.MessageID != "" {
+		addToMetadata(bulkMsgEntry, MessageIDMetadataKey, asbMsg.MessageID)
+	}
+	if asbMsg.SessionID != nil {
+		addToMetadata(bulkMsgEntry, SessionIDMetadataKey, *asbMsg.SessionID)
+	}
+	if asbMsg.CorrelationID != nil && *asbMsg.CorrelationID != "" {
+		addToMetadata(bulkMsgEntry, CorrelationIDMetadataKey, *asbMsg.CorrelationID)
+	}
+	if asbMsg.Subject != nil && *asbMsg.Subject != "" {
+		addToMetadata(bulkMsgEntry, LabelMetadataKey, *asbMsg.Subject)
+	}
+	if asbMsg.ReplyTo != nil && *asbMsg.ReplyTo != "" {
+		addToMetadata(bulkMsgEntry, ReplyToMetadataKey, *asbMsg.ReplyTo)
+	}
+	if asbMsg.To != nil && *asbMsg.To != "" {
+		addToMetadata(bulkMsgEntry, ToMetadataKey, *asbMsg.To)
+	}
+	if asbMsg.ContentType != nil && *asbMsg.ContentType != "" {
+		addToMetadata(bulkMsgEntry, ContentTypeMetadataKey, *asbMsg.ContentType)
+	}
+	if asbMsg.LockToken != [16]byte{} {
+		addToMetadata(bulkMsgEntry, LockTokenMetadataKey, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
+	}
+
+	// Always set delivery count.
+	addToMetadata(bulkMsgEntry, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
+
+	if asbMsg.EnqueuedTime != nil {
+		// Preserve RFC2616 time format.
+		addToMetadata(bulkMsgEntry, EnqueuedTimeUtcMetadataKey, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
+	}
+	if asbMsg.SequenceNumber != nil {
+		addToMetadata(bulkMsgEntry, SequenceNumberMetadataKey, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
+	}
+	if asbMsg.ScheduledEnqueueTime != nil {
+		// Preserve RFC2616 time format.
+		addToMetadata(bulkMsgEntry, ScheduledEnqueueTimeUtcMetadataKey, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
+	}
+	if asbMsg.PartitionKey != nil {
+		addToMetadata(bulkMsgEntry, PartitionKeyMetadataKey, *asbMsg.PartitionKey)
+	}
+	if asbMsg.LockedUntil != nil {
+		// Preserve RFC2616 time format.
+		addToMetadata(bulkMsgEntry, LockedUntilUtcMetadataKey, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
+	}
+
+	return bulkMsgEntry, nil
 }
 
 // NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.

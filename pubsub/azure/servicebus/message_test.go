@@ -14,6 +14,7 @@ limitations under the License.
 package servicebus
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -89,12 +90,18 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 		},
 	}
 
+	metadataMap := map[string]map[string]string{
+		"Nil":   nil,
+		"Empty": {},
+	}
+
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			metadata := make(map[string]string)
-			addMessageAttributesToMetadata(metadata, &tc.ASBMessage)
-			assert.Equal(t, tc.expectedMetadata, metadata)
-		})
+		for mType, mMap := range metadataMap {
+			t.Run(fmt.Sprintf("%s, metadata is %s", tc.name, mType), func(t *testing.T) {
+				actual := addMessageAttributesToMetadata(mMap, &tc.ASBMessage)
+				assert.Equal(t, tc.expectedMetadata, actual)
+			})
+		}
 	}
 }
 

@@ -87,9 +87,9 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		p.metadata = m
 	}
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	ctx, cancel := context.WithTimeout(context.Background(), p.metadata.maxIdleTime)
+	ctx, cancel := context.WithTimeout(context.Background(), p.metadata.maxIdleTimeout)
 	defer cancel()
-	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTime)
+	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTimeout)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%s'", err)
 	}
@@ -293,7 +293,7 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	// configure maxTimeout if provided
 	if mxTimeout, ok := cmetadata.Properties[connMaxIdleTimeKey]; ok && mxTimeout != "" {
 		if t, err := time.ParseDuration(mxTimeout); err == nil {
-			m.maxIdleTime = t
+			m.maxIdleTimeout = t
 		} else {
 			return m, fmt.Errorf(ErrorMissingMaxTimeout)
 		}

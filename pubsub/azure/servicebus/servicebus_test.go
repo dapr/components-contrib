@@ -33,6 +33,7 @@ func getFakeProperties() map[string]string {
 		consumerID:                    "fakeConId",
 		disableEntityManagement:       "true",
 		timeoutInSec:                  "90",
+		maxFetchQty:                   "100",
 		handlerTimeoutInSec:           "30",
 		maxDeliveryCount:              "10",
 		autoDeleteOnIdleInSec:         "240",
@@ -64,6 +65,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[consumerID], m.ConsumerID)
 
 		assert.Equal(t, 90, m.TimeoutInSec)
+		assert.Equal(t, 100, m.MaxFetchQty)
 		assert.Equal(t, true, m.DisableEntityManagement)
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
 		assert.NotNil(t, m.LockRenewalInSec)
@@ -196,6 +198,38 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[timeoutInSec] = invalidNumber
+
+		// act.
+		_, err := parseAzureServiceBusMetadata(fakeMetaData, nil)
+
+		// assert.
+		assert.Error(t, err)
+		assertValidErrorMessage(t, err)
+	})
+
+	t.Run("missing optional maxFetchQty", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[maxFetchQty] = ""
+
+		// act.
+		m, err := parseAzureServiceBusMetadata(fakeMetaData, nil)
+
+		// assert.
+		assert.Equal(t, defaultMaxFetchQty, m.MaxFetchQty)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid maxFetchQty", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[maxFetchQty] = invalidNumber
 
 		// act.
 		_, err := parseAzureServiceBusMetadata(fakeMetaData, nil)

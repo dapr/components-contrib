@@ -383,6 +383,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		return sub.ReceiveAndBlock(
 			a.getHandlerFunc(req.Topic, handler),
 			a.metadata.LockRenewalInSec,
+			false, // Bulk is not supported in regular Subscribe.
 			func() {
 				// Reset the backoff when the subscription is successful and we have received the first message
 				bo.Reset()
@@ -406,9 +407,10 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 	)
 
 	receiveAndBlockFn := func(bo *backoff.ExponentialBackOff) error {
-		return sub.ReceiveMultipleAndBlock(
+		return sub.ReceiveAndBlock(
 			a.getBulkHandlerFunc(req.Topic, handler),
 			a.metadata.LockRenewalInSec,
+			true, // Bulk is supported in BulkSubscribe.
 			func() {
 				// Reset the backoff when the subscription is successful and we have received the first message
 				bo.Reset()
@@ -488,21 +490,23 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 }
 
 func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) impl.HandlerFunc {
-	return func(ctx context.Context, asbMsg *servicebus.ReceivedMessage) error {
-		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, topic)
+	emptyResponseItems := []impl.HandlerResponseItem{}
+	// Only the first ASB message is used in the actual handler invocation.
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsgs[0], topic)
 		if err != nil {
-			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+			return emptyResponseItems, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
 		}
 
 		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
 		defer handleCancel()
-		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.MessageID, topic)
-		return handler(handleCtx, pubsubMsg)
+		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsgs[0].MessageID, topic)
+		return emptyResponseItems, handler(handleCtx, pubsubMsg)
 	}
 }
 
-func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHandler) impl.BulkHandlerFunc {
-	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.BulkHandlerResponseItem, error) {
+func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHandler) impl.HandlerFunc {
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
 		pubsubMsgs := make([]pubsub.BulkMessageEntry, len(asbMsgs))
 		for i, asbMsg := range asbMsgs {
 			pubsubMsg, err := NewBulkMessageEntryFromASBMessage(asbMsg)
@@ -525,9 +529,9 @@ func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHa
 		a.logger.Debugf("Calling app's handler for %d messages on topic %s", len(asbMsgs), topic)
 		resps, err := handler(handleCtx, bulkMessage)
 
-		implResps := make([]impl.BulkHandlerResponseItem, len(resps))
+		implResps := make([]impl.HandlerResponseItem, len(resps))
 		for i, resp := range resps {
-			implResps[i] = impl.BulkHandlerResponseItem{
+			implResps[i] = impl.HandlerResponseItem{
 				EntryID: resp.EntryID,
 				Error:   resp.Error,
 			}

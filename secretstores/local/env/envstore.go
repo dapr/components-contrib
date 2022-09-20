@@ -14,12 +14,15 @@ limitations under the License.
 package env
 
 import (
+	"context"
 	"os"
 	"strings"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
+
+var _ secretstores.SecretStore = (*envSecretStore)(nil)
 
 type envSecretStore struct {
 	logger logger.Logger
@@ -38,7 +41,7 @@ func (s *envSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret from env var using provided key.
-func (s *envSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (s *envSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{
 			req.Name: os.Getenv(req.Name),
@@ -47,7 +50,7 @@ func (s *envSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretsto
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (s *envSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	r := map[string]map[string]string{}
 
 	for _, element := range os.Environ() {
@@ -58,4 +61,9 @@ func (s *envSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (s
 	return secretstores.BulkGetSecretResponse{
 		Data: r,
 	}, nil
+}
+
+// Features returns the features available in this secret store.
+func (s *envSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
 }

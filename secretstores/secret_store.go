@@ -14,6 +14,7 @@ limitations under the License.
 package secretstores
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dapr/components-contrib/health"
@@ -24,9 +25,11 @@ type SecretStore interface {
 	// Init authenticates with the actual secret store and performs other init operation
 	Init(metadata Metadata) error
 	// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-	GetSecret(req GetSecretRequest) (GetSecretResponse, error)
+	GetSecret(ctx context.Context, req GetSecretRequest) (GetSecretResponse, error)
 	// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-	BulkGetSecret(req BulkGetSecretRequest) (BulkGetSecretResponse, error)
+	BulkGetSecret(ctx context.Context, req BulkGetSecretRequest) (BulkGetSecretResponse, error)
+	// Features lists the features supported by the secret store.
+	Features() []Feature
 }
 
 func Ping(secretStore SecretStore) error {

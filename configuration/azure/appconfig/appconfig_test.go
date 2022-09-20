@@ -14,17 +14,73 @@ limitations under the License.
 package appconfig
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
+
+type MockConfigurationStore struct {
+	azAppConfigClient
+}
+
+func (m *MockConfigurationStore) GetSetting(
+	ctx context.Context,
+	key string,
+	options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
+	if key == "testKey" {
+		settings := azappconfig.Setting{}
+
+		settings.Key = to.StringPtr("testKey")
+		settings.Value = to.StringPtr("testValue")
+
+		resp := azappconfig.GetSettingResponse{}
+		resp.Setting = settings
+		return resp, nil
+	}
+	resp := azappconfig.GetSettingResponse{}
+	return resp, nil
+}
+
+func (m *MockConfigurationStore) NewListSettingsPager(
+	selector azappconfig.SettingSelector,
+	options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage] {
+
+	settings := make([]azappconfig.Setting, 2)
+
+	setting1 := azappconfig.Setting{}
+	setting1.Key = to.StringPtr("testKey-1")
+	setting1.Value = to.StringPtr("testValue-1")
+
+	setting2 := azappconfig.Setting{}
+	setting2.Key = to.StringPtr("testKey-2")
+	setting2.Value = to.StringPtr("testValue-2")
+	settings[0] = setting1
+	settings[1] = setting2
+
+	fmt.Println(settings)
+
+	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPage]{
+		More: func(azappconfig.ListSettingsPage) bool {
+			return false
+		},
+		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPage) (azappconfig.ListSettingsPage, error) {
+			listSettingPage := azappconfig.ListSettingsPage{}
+			listSettingPage.Settings = settings
+			return listSettingPage, nil
+		},
+	})
+}
 
 func TestNewAzureAppConfigurationStore(t *testing.T) {
 	type args struct {
@@ -47,6 +103,38 @@ func TestNewAzureAppConfigurationStore(t *testing.T) {
 			assert.NotNil(t, got)
 		})
 	}
+}
+
+func Test_getConfigurationWithProvidedKeys(t *testing.T) {
+	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
+
+	s.client = &MockConfigurationStore{}
+
+	t.Run("call getConfiguration for provided keys", func(t *testing.T) {
+		req := configuration.GetRequest{
+			Keys:     []string{"testKey"},
+			Metadata: map[string]string{},
+		}
+		res, err := s.Get(context.Background(), &req)
+		assert.Nil(t, err)
+		assert.True(t, len(res.Items) == 1)
+	})
+}
+
+func Test_getConfigurationWithNoProvidedKeys(t *testing.T) {
+	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
+
+	s.client = &MockConfigurationStore{}
+
+	t.Run("call getConfiguration for provided keys", func(t *testing.T) {
+		req := configuration.GetRequest{
+			Keys:     []string{},
+			Metadata: map[string]string{},
+		}
+		res, err := s.Get(context.Background(), &req)
+		assert.Nil(t, err)
+		assert.True(t, len(res.Items) == 2)
+	})
 }
 
 func TestInit(t *testing.T) {

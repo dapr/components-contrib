@@ -98,24 +98,21 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 	}
-	k.vaultClient, err = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
+	k.vaultClient = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
 		ClientOptions: coreClientOpts,
 	})
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (k *keyvaultSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
-	opts := &azsecrets.GetSecretOptions{}
-	if value, ok := req.Metadata[VersionID]; ok {
-		opts.Version = value
+	version := "" // empty string means latest version
+	if val, ok := req.Metadata[VersionID]; ok {
+		version = val
 	}
 
-	secretResp, err := k.vaultClient.GetSecret(ctx, req.Name, opts)
+	secretResp, err := k.vaultClient.GetSecret(ctx, req.Name, version, nil)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}
@@ -145,7 +142,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 
 	secretIDPrefix := k.getVaultURI() + secretItemIDPrefix
 
-	pager := k.vaultClient.ListPropertiesOfSecrets(nil)
+	pager := k.vaultClient.NewListSecretsPager(nil)
 
 out:
 	for pager.More() {
@@ -154,13 +151,13 @@ out:
 			return secretstores.BulkGetSecretResponse{}, err
 		}
 
-		for _, secret := range pr.Secrets {
-			if secret.Properties == nil || secret.Properties.Enabled == nil || !*secret.Properties.Enabled {
+		for _, secret := range pr.Value {
+			if secret.Attributes == nil || secret.Attributes.Enabled == nil || !*secret.Attributes.Enabled {
 				continue
 			}
 
-			secretName := strings.TrimPrefix(*secret.ID, secretIDPrefix)
-			secretResp, err := k.vaultClient.GetSecret(ctx, secretName, nil)
+			secretName := strings.TrimPrefix(secret.ID.Name(), secretIDPrefix)
+			secretResp, err := k.vaultClient.GetSecret(ctx, secretName, "", nil) // empty string means latest version
 			if err != nil {
 				return secretstores.BulkGetSecretResponse{}, err
 			}

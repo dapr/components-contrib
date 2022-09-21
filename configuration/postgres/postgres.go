@@ -170,7 +170,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		}
 	}
 	if len(pgNotifyChannels) == 0 {
-		return "", fmt.Errorf("cannot subscribe to empty channel")
+		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.configTable)
 	}
 	return p.subscribeToChannel(ctx, pgNotifyChannels, req, handler)
 }
@@ -178,18 +178,11 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
-	for _, v := range p.ActiveSubscriptions {
+	for k, v := range p.ActiveSubscriptions {
 		if v.uuid == req.ID {
-			break
-		} else {
-			return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
-		}
-	}
-	if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
-		delete(p.subscribeStopChanMap, req.ID)
-		close(oldStopChan.(chan struct{}))
-		for k, v := range p.ActiveSubscriptions {
-			if v.uuid == req.ID {
+			if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
+				delete(p.subscribeStopChanMap, req.ID)
+				close(oldStopChan.(chan struct{}))
 				pgChannel := fmt.Sprintf(unlistenTemplate, k)
 				conn, err := p.client.Acquire(ctx)
 				if err != nil {
@@ -207,6 +200,7 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 			}
 		}
 	}
+
 	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 }
 
@@ -408,6 +402,7 @@ func validateInput(keys []string) error {
 
 func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChanList []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
+	defer p.configLock.Unlock()
 	var subscribeID string // TO_DO - duplicate trigger
 	for _, channel := range pgNotifyChanList {
 		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
@@ -427,6 +422,5 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 		}
 		go p.doSubscribe(ctx, req, handler, pgNotifyCmd, channel, subscribeID, stop)
 	}
-	p.configLock.Unlock()
 	return subscribeID, nil
 }

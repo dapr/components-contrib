@@ -98,7 +98,7 @@ func TestConnectAndQuery(t *testing.T) {
 	rows := mock.QueryRow(context.Background(), query)
 	var id string
 	err = rows.Scan(&id)
-	assert.Nil(t, err)
+	assert.Nil(t, err, "error in scan")
 	err = mock.ExpectationsWereMet()
-	assert.Nil(t, err)
+	assert.Nil(t, err, "pgxmock error in expectations were met")
 }

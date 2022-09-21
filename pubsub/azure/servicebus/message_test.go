@@ -39,11 +39,11 @@ var (
 	testContentType                    = "testContentType"
 	nowUtc                             = time.Now().UTC()
 	testScheduledEnqueueTimeUtc        = nowUtc.Format(http.TimeFormat)
-	testLockTokenString                = "bG9ja3Rva2VuAAAAAAAAAA=="
+	testLockTokenString                = "bG9ja3Rva2VuAAAAAAAAAA==" //nolint:gosec
 	testLockTokenBytes                 = [16]byte{108, 111, 99, 107, 116, 111, 107, 101, 110}
 	testDeliveryCount           uint32 = 1
 	testSampleTime                     = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-	testSampleTimeHttpFormat           = "Thu, 01 Jan 1970 00:00:00 GMT"
+	testSampleTimeHTTPFormat           = "Thu, 01 Jan 1970 00:00:00 GMT"
 	testSequenceNumber          int64  = 1
 )
 
@@ -81,11 +81,11 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				"metadata." + ContentTypeMetadataKey:             testContentType,
 				"metadata." + LockTokenMetadataKey:               testLockTokenString,
 				"metadata." + DeliveryCountMetadataKey:           "1",
-				"metadata." + EnqueuedTimeUtcMetadataKey:         testSampleTimeHttpFormat,
+				"metadata." + EnqueuedTimeUtcMetadataKey:         testSampleTimeHTTPFormat,
 				"metadata." + SequenceNumberMetadataKey:          "1",
-				"metadata." + ScheduledEnqueueTimeUtcMetadataKey: testSampleTimeHttpFormat,
+				"metadata." + ScheduledEnqueueTimeUtcMetadataKey: testSampleTimeHTTPFormat,
 				"metadata." + PartitionKeyMetadataKey:            testPartitionKey,
-				"metadata." + LockedUntilUtcMetadataKey:          testSampleTimeHttpFormat,
+				"metadata." + LockedUntilUtcMetadataKey:          testSampleTimeHTTPFormat,
 			},
 		},
 	}

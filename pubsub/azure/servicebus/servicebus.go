@@ -359,8 +359,8 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	)
 }
 
-func (a *azureServiceBus) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
-	sender, err := a.senderForTopic(a.publishCtx, req.Topic)
+func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	sender, err := a.senderForTopic(ctx, req.Topic)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
@@ -379,6 +379,14 @@ func (a *azureServiceBus) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.Bu
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
 
+	// This handling is required since *servicebus.MessageBatch cannot be empty.
+	// If it is empty, the call to sender.SendMessageBatch will panic.
+	if batchMsg.NumMessages() == 0 {
+		a.logger.Warnf("No messages to bulk publish, skipping")
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+	}
+
+	a.logger.Debugf("Sending %d messages in bulk publish request", batchMsg.NumMessages())
 	// Azure Service Bus does not return individual status for each message in a batch.
 	err = sender.SendMessageBatch(context.Background(), batchMsg, nil)
 	if err != nil {

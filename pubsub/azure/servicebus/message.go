@@ -204,8 +204,71 @@ func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.M
 	return asbMsg, nil
 }
 
+// TODO: refactor this
 func NewASBMessageFromBulkMessageEntry(entry pubsub.BulkMessageEntry) (*azservicebus.Message, error) {
-	return nil, nil
+	asbMsg := &azservicebus.Message{
+		Body:        entry.Event,
+		ContentType: &entry.ContentType,
+	}
+
+	// Common properties.
+	ttl, ok, _ := contribMetadata.TryGetTTL(entry.Metadata)
+	if ok {
+		asbMsg.TimeToLive = &ttl
+	}
+
+	// Azure Service Bus specific properties.
+	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
+	msgID, ok, _ := tryGetString(entry.Metadata, MessageIDMetadataKey)
+	if ok {
+		asbMsg.MessageID = &msgID
+	}
+
+	correlationID, ok, _ := tryGetString(entry.Metadata, CorrelationIDMetadataKey)
+	if ok {
+		asbMsg.CorrelationID = &correlationID
+	}
+
+	sessionID, okSessionID, _ := tryGetString(entry.Metadata, SessionIDMetadataKey)
+	if okSessionID {
+		asbMsg.SessionID = &sessionID
+	}
+
+	label, ok, _ := tryGetString(entry.Metadata, LabelMetadataKey)
+	if ok {
+		asbMsg.Subject = &label
+	}
+
+	replyTo, ok, _ := tryGetString(entry.Metadata, ReplyToMetadataKey)
+	if ok {
+		asbMsg.ReplyTo = &replyTo
+	}
+
+	to, ok, _ := tryGetString(entry.Metadata, ToMetadataKey)
+	if ok {
+		asbMsg.To = &to
+	}
+
+	partitionKey, ok, _ := tryGetString(entry.Metadata, PartitionKeyMetadataKey)
+	if ok {
+		if okSessionID && partitionKey != sessionID {
+			return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
+		}
+
+		asbMsg.PartitionKey = &partitionKey
+	}
+
+	contentType, ok, _ := tryGetString(entry.Metadata, ContentTypeMetadataKey)
+	if ok {
+		asbMsg.ContentType = &contentType
+	}
+
+	scheduledEnqueueTime, ok, _ := tryGetScheduledEnqueueTime(entry.Metadata)
+	if ok {
+		asbMsg.ScheduledEnqueueTime = scheduledEnqueueTime
+	}
+
+	return asbMsg, nil
 }
 
 func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.MessageBatch, req *pubsub.BulkPublishRequest) error {

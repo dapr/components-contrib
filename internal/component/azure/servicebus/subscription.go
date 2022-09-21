@@ -43,7 +43,7 @@ type Subscription struct {
 	activeOperationsChan chan struct{}
 	receiver             *azservicebus.Receiver
 	timeout              time.Duration
-	maxBulkCount         int
+	maxBulkSubCount      int
 	retriableErrLimit    ratelimit.Limiter
 	handleChan           chan struct{}
 	logger               logger.Logger
@@ -68,7 +68,7 @@ func NewSubscription(
 		activeMessages:       make(map[int64]*azservicebus.ReceivedMessage),
 		activeOperationsChan: make(chan struct{}, maxActiveMessages), // In case of a non-bulk subscription, one operation is one message.
 		timeout:              time.Duration(timeoutInSec) * time.Second,
-		maxBulkCount:         1, // for non-bulk subscriptions, we only get one message at a time
+		maxBulkSubCount:      1, // for non-bulk subscriptions, we only get one message at a time
 		logger:               logger,
 		ctx:                  ctx,
 		cancel:               cancel,
@@ -94,7 +94,7 @@ func NewBulkSubscription(
 	parentCtx context.Context,
 	maxActiveMessages int,
 	timeoutInSec int,
-	maxBulkCount int,
+	maxBulkSubCount int,
 	maxRetriableEPS int,
 	maxConcurrentHandlers *int,
 	entity string,
@@ -102,13 +102,13 @@ func NewBulkSubscription(
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
 	s := &Subscription{
-		entity:         entity,
-		activeMessages: make(map[int64]*azservicebus.ReceivedMessage),
-		timeout:        time.Duration(timeoutInSec) * time.Second,
-		maxBulkCount:   maxBulkCount,
-		logger:         logger,
-		ctx:            ctx,
-		cancel:         cancel,
+		entity:          entity,
+		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
+		timeout:         time.Duration(timeoutInSec) * time.Second,
+		maxBulkSubCount: maxBulkSubCount,
+		logger:          logger,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 
 	if maxRetriableEPS > 0 {
@@ -117,18 +117,18 @@ func NewBulkSubscription(
 		s.retriableErrLimit = ratelimit.NewUnlimited()
 	}
 
-	if maxBulkCount < 1 {
-		s.logger.Warnf("maxBulkCount must be greater than 0, setting it to 1")
-		s.maxBulkCount = 1
+	if maxBulkSubCount < 1 {
+		s.logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
+		s.maxBulkSubCount = 1
 	}
 
-	if maxBulkCount > maxActiveMessages {
-		s.logger.Warnf("maxBulkCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
-		s.maxBulkCount = maxActiveMessages
+	if maxBulkSubCount > maxActiveMessages {
+		s.logger.Warnf("maxBulkSubCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
+		s.maxBulkSubCount = maxActiveMessages
 	}
 
 	// This is a pessimistic estimate of the number of total operations that can be active at any given time.
-	s.activeOperationsChan = make(chan struct{}, maxActiveMessages/s.maxBulkCount)
+	s.activeOperationsChan = make(chan struct{}, maxActiveMessages/s.maxBulkSubCount)
 
 	if maxConcurrentHandlers != nil {
 		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, *maxConcurrentHandlers)
@@ -206,7 +206,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 		}
 
 		// This method blocks until we get a message or the context is canceled
-		msgs, err := s.receiver.ReceiveMessages(s.ctx, s.maxBulkCount, nil)
+		msgs, err := s.receiver.ReceiveMessages(s.ctx, s.maxBulkSubCount, nil)
 		if err != nil {
 			if err != context.Canceled {
 				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())

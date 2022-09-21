@@ -22,24 +22,24 @@ import (
 
 var maxConcurrentHandlers = 100
 
-func TestNewBulkSubscription_MaxBulkCountShouldBeGreaterThanZero(t *testing.T) {
+func TestNewBulkSubscription_MaxBulkSubCountShouldBeGreaterThanZero(t *testing.T) {
 	testcases := []struct {
-		name                 string
-		maxBulkCountParam    int
-		maxBulkCountExpected int
+		name                    string
+		maxBulkSubCountParam    int
+		maxBulkSubCountExpected int
 	}{
 		{
-			"maxBulkCount passed is 0",
+			"maxBulkSubCount passed is 0",
 			0,
 			1,
 		},
 		{
-			"maxBulkCount passed is negative",
+			"maxBulkSubCount passed is negative",
 			-100,
 			1,
 		},
 		{
-			"maxBulkCount passed is positive",
+			"maxBulkSubCount passed is positive",
 			100,
 			100,
 		},
@@ -50,13 +50,13 @@ func TestNewBulkSubscription_MaxBulkCountShouldBeGreaterThanZero(t *testing.T) {
 				context.Background(),
 				1000,
 				1,
-				tc.maxBulkCountParam,
+				tc.maxBulkSubCountParam,
 				10,
 				&maxConcurrentHandlers,
 				"test",
 				logger.NewLogger("test"))
-			if bulkSubscription.maxBulkCount != tc.maxBulkCountExpected {
-				t.Errorf("Expected maxBulkCount to be %d but got %d", tc.maxBulkCountExpected, bulkSubscription.maxBulkCount)
+			if bulkSubscription.maxBulkSubCount != tc.maxBulkSubCountExpected {
+				t.Errorf("Expected maxBulkSubCount to be %d but got %d", tc.maxBulkSubCountExpected, bulkSubscription.maxBulkSubCount)
 			}
 		})
 	}

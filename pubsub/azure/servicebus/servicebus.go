@@ -110,12 +110,12 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 		}
 	}
 
-	m.MaxBulkCount = defaultMaxBulkCount
-	if val, ok := meta.Properties[maxBulkCount]; ok && val != "" {
+	m.MaxBulkSubCount = defaultMaxBulkSubCount
+	if val, ok := meta.Properties[maxBulkSubCount]; ok && val != "" {
 		var err error
-		m.MaxBulkCount, err = strconv.Atoi(val)
+		m.MaxBulkSubCount, err = strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("%s invalid maxBulkCount %s, %s", errorMessagePrefix, val, err)
+			return m, fmt.Errorf("%s invalid maxBulkSubCount %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -396,7 +396,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		subscribeCtx,
 		a.metadata.MaxActiveMessages,
 		a.metadata.TimeoutInSec,
-		a.metadata.MaxBulkCount,
+		a.metadata.MaxBulkSubCount,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
 		"topic "+req.Topic,

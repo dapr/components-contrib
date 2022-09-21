@@ -137,5 +137,3 @@ replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.2022
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v1.5.2-0.20220829014128-56ac94bfadd1

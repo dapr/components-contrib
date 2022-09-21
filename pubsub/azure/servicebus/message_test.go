@@ -24,7 +24,6 @@ import (
 )
 
 var (
-	testMessageData             = []byte("test message")
 	testMessageID               = "testMessageId"
 	testCorrelationID           = "testCorrelationId"
 	testSessionID               = "testSessionId"

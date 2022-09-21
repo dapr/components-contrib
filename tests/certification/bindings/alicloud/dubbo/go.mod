@@ -7,7 +7,7 @@ require (
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
+	github.com/dapr/dapr v1.8.4-0.20220921220401-d84681b92f89
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/stretchr/testify v1.8.0

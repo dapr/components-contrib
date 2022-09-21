@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
+	github.com/dapr/dapr v1.8.4-0.20220921203221-25213183ab8f
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/stretchr/testify v1.8.0
@@ -133,5 +133,3 @@ replace github.com/dapr/components-contrib/tests/certification => ../../
 replace github.com/dapr/components-contrib => ../../../../
 
 replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.20220709114046-2f2dc4f9a684
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v1.5.2-0.20220829014128-56ac94bfadd1

@@ -89,7 +89,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
 	// mqtt broker allows only one connection at a given time from a clientID.
-	producerClientID := fmt.Sprintf("%s-producer", m.metadata.clientID)
+	producerClientID := m.metadata.clientID
 	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
 	p, err := m.connect(connCtx, producerClientID)
 	connCancel()

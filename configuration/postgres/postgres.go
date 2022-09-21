@@ -58,7 +58,7 @@ const (
 	unlistenTemplate             = "unlisten %s"
 	payloadDataKey               = "data"
 	ErrorMissingTableName        = "missing postgreSQL configuration table name"
-	ErrorMissingTable            = "postgreSQL configuration table - '%v' does not exist"
+	ErrorMissingTable            = "postgreSQL configuration table - '%s' does not exist"
 	InfoStartInit                = "initializing postgreSQL configuration store"
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
 	ErrorAlreadyInitialized      = "postgreSQL configuration store already initialized"
@@ -203,9 +203,9 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 					return fmt.Errorf("error listening to channel: %s", err)
 				}
 				delete(p.ActiveSubscriptions, k)
+				return nil
 			}
 		}
-		return nil
 	}
 	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 }
@@ -310,7 +310,7 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	}
 	// configure maxTimeout if provided
 	if mxTimeout, ok := cmetadata.Properties[connMaxIdleTimeKey]; ok && mxTimeout != "" {
-		if t, err := time.ParseDuration(mxTimeout); err == nil {
+		if t, err := time.ParseDuration(mxTimeout); err == nil && t > 0 {
 			m.maxIdleTimeout = t
 		}
 	}

@@ -98,9 +98,7 @@ func TestConnectAndQuery(t *testing.T) {
 	rows := mock.QueryRow(context.Background(), query)
 	var id string
 	err = rows.Scan(&id)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	err = mock.ExpectationsWereMet()
 	assert.Nil(t, err)
 }

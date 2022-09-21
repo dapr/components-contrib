@@ -249,15 +249,19 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					req.Entries[i].Metadata = config.PublishMetadata
 					req.Entries[i].Event = data
 					entryMap[strK] = data
+					t.Logf("Adding message with ID %d for bulk publish", k)
 					k++
 					i++
 				}
 
+				t.Logf("Calling Bulk Publish on component %s", config.ComponentName)
 				res, err := bP.BulkPublish(context.Background(), &req)
 				if err == nil {
 					for _, status := range res.Statuses {
 						if status.Status == pubsub.PublishSucceeded {
-							awaitingMessages[string(entryMap[status.EntryID])] = struct{}{}
+							data := entryMap[status.EntryID]
+							t.Logf("adding to awaited messages %s", data)
+							awaitingMessages[string(data)] = struct{}{}
 						}
 					}
 				}
@@ -265,6 +269,8 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				// For scenarios on partial failures, those will be tested as part of certification tests if possible.
 				assert.NoError(t, err, "expected no error on bulk publishing on topic %s", config.TestTopicName)
 			})
+		} else {
+			t.Skipf("Bulk publish conformance skipped since component %s  does not implement the required interface", config.ComponentName)
 		}
 	}
 
@@ -277,6 +283,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			for waiting {
 				select {
 				case processed := <-processedC:
+					t.Logf("deleting %s processed message", processed)
 					delete(awaitingMessages, processed)
 					waiting = len(awaitingMessages) > 0
 				case <-timeout:

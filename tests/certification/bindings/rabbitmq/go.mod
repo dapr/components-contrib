@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.8.4-0.20220921203221-25213183ab8f
+	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/rabbitmq/amqp091-go v1.3.4
@@ -137,3 +137,5 @@ replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.2022
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
+
+replace github.com/dapr/dapr => github.com/1046102779/dapr v1.5.2-0.20220829014128-56ac94bfadd1

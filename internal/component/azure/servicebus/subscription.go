@@ -242,11 +242,11 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 			s.logger.Debugf("Processing received message: %s", msg.MessageID)
 		}
 
-		runHandlerFn := func() {
+		runHandlerFn := func(hctx context.Context) {
 			msg := msgs[0]
 
 			// Invoke the handler to process the message
-			_, err = handler(ctx, msgs)
+			_, err = handler(hctx, msgs)
 
 			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
 			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
@@ -264,8 +264,8 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 			s.CompleteMessage(finalizeCtx, msg)
 		}
 
-		bulkRunHandlerFunc := func() {
-			resps, err := handler(s.ctx, msgs)
+		bulkRunHandlerFunc := func(hctx context.Context) {
+			resps, err := handler(hctx, msgs)
 
 			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
 			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
@@ -316,7 +316,7 @@ func (s *Subscription) Close(closeCtx context.Context) {
 // handleAsync handles messages from azure service bus asynchronously.
 // runHandlerFn is responsible for calling the message handler function
 // and marking messages as complete/abandon.
-func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, runHandlerFn func()) {
+func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, runHandlerFn func(ctx context.Context)) {
 	go func() {
 		var (
 			consumeToken           bool
@@ -366,7 +366,7 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 		}
 
 		// Invoke the handler to process the message.
-		runHandlerFn()
+		runHandlerFn(ctx)
 	}()
 }
 

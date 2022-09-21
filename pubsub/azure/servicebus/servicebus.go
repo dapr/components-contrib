@@ -379,15 +379,12 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(bo *backoff.ExponentialBackOff) error {
+	receiveAndBlockFn := func(onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
 			a.getHandlerFunc(req.Topic, handler),
 			a.metadata.LockRenewalInSec,
 			false, // Bulk is not supported in regular Subscribe.
-			func() {
-				// Reset the backoff when the subscription is successful and we have received the first message
-				bo.Reset()
-			},
+			onFirstSuccess,
 		)
 	}
 
@@ -406,15 +403,12 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(bo *backoff.ExponentialBackOff) error {
+	receiveAndBlockFn := func(onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
 			a.getBulkHandlerFunc(req.Topic, handler),
 			a.metadata.LockRenewalInSec,
 			true, // Bulk is supported in BulkSubscribe.
-			func() {
-				// Reset the backoff when the subscription is successful and we have received the first message
-				bo.Reset()
-			},
+			onFirstSuccess,
 		)
 	}
 
@@ -424,7 +418,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(*backoff.ExponentialBackOff) error) error {
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
 		err := a.ensureSubscription(subscribeCtx, subID, req.Topic)
@@ -438,6 +432,11 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	bo.MaxElapsedTime = 0
 	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
 	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+
+	onFirstSuccess := func() {
+		// Reset the backoff when the subscription is successful and we have received the first message
+		bo.Reset()
+	}
 
 	go func() {
 		// Reconnect loop.
@@ -456,7 +455,7 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 
 			// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = receiveAndBlockFn(bo)
+			err = receiveAndBlockFn(onFirstSuccess)
 			if err != nil {
 				var detachError *amqp.DetachError
 				var amqpError *amqp.Error
@@ -493,6 +492,10 @@ func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) i
 	emptyResponseItems := []impl.HandlerResponseItem{}
 	// Only the first ASB message is used in the actual handler invocation.
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		if len(asbMsgs) != 1 {
+			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))
+		}
+
 		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsgs[0], topic)
 		if err != nil {
 			return emptyResponseItems, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)

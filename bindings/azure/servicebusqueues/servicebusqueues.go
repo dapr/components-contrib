@@ -16,6 +16,7 @@ package servicebusqueues
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -270,6 +271,10 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 
 func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFunc {
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		if len(asbMsgs) != 1 {
+			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))
+		}
+
 		msg := asbMsgs[0]
 		metadata := make(map[string]string)
 		metadata[id] = msg.MessageID

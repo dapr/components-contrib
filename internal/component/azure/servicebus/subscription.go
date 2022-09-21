@@ -37,18 +37,18 @@ type HandlerFunc func(ctx context.Context, msgs []*azservicebus.ReceivedMessage)
 
 // Subscription is an object that manages a subscription to an Azure Service Bus receiver, for a topic or queue.
 type Subscription struct {
-	entity             string
-	mu                 sync.RWMutex
-	activeMessages     map[int64]*azservicebus.ReceivedMessage
-	activeMessagesChan chan struct{}
-	receiver           *azservicebus.Receiver
-	timeout            time.Duration
-	prefetch           int
-	retriableErrLimit  ratelimit.Limiter
-	handleChan         chan struct{}
-	logger             logger.Logger
-	ctx                context.Context
-	cancel             context.CancelFunc
+	entity               string
+	mu                   sync.RWMutex
+	activeMessages       map[int64]*azservicebus.ReceivedMessage
+	activeOperationsChan chan struct{}
+	receiver             *azservicebus.Receiver
+	timeout              time.Duration
+	maxBulkCount         int
+	retriableErrLimit    ratelimit.Limiter
+	handleChan           chan struct{}
+	logger               logger.Logger
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // NewSubscription returns a new Subscription object.
@@ -64,14 +64,14 @@ func NewSubscription(
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
 	s := &Subscription{
-		entity:             entity,
-		activeMessages:     make(map[int64]*azservicebus.ReceivedMessage),
-		activeMessagesChan: make(chan struct{}, maxActiveMessages),
-		timeout:            time.Duration(timeoutInSec) * time.Second,
-		prefetch:           1, // for non-bulk subscriptions, we only prefetch one message at a time
-		logger:             logger,
-		ctx:                ctx,
-		cancel:             cancel,
+		entity:               entity,
+		activeMessages:       make(map[int64]*azservicebus.ReceivedMessage),
+		activeOperationsChan: make(chan struct{}, maxActiveMessages), // In case of a non-bulk subscription, one operation is one message.
+		timeout:              time.Duration(timeoutInSec) * time.Second,
+		maxBulkCount:         1, // for non-bulk subscriptions, we only get one message at a time
+		logger:               logger,
+		ctx:                  ctx,
+		cancel:               cancel,
 	}
 
 	if maxRetriableEPS > 0 {
@@ -94,7 +94,7 @@ func NewBulkSubscription(
 	parentCtx context.Context,
 	maxActiveMessages int,
 	timeoutInSec int,
-	prefetch int,
+	maxBulkCount int,
 	maxRetriableEPS int,
 	maxConcurrentHandlers *int,
 	entity string,
@@ -102,14 +102,13 @@ func NewBulkSubscription(
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
 	s := &Subscription{
-		entity:             entity,
-		activeMessages:     make(map[int64]*azservicebus.ReceivedMessage),
-		activeMessagesChan: make(chan struct{}, maxActiveMessages),
-		timeout:            time.Duration(timeoutInSec) * time.Second,
-		prefetch:           prefetch,
-		logger:             logger,
-		ctx:                ctx,
-		cancel:             cancel,
+		entity:         entity,
+		activeMessages: make(map[int64]*azservicebus.ReceivedMessage),
+		timeout:        time.Duration(timeoutInSec) * time.Second,
+		maxBulkCount:   maxBulkCount,
+		logger:         logger,
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 
 	if maxRetriableEPS > 0 {
@@ -118,10 +117,18 @@ func NewBulkSubscription(
 		s.retriableErrLimit = ratelimit.NewUnlimited()
 	}
 
-	if prefetch < 1 {
-		s.logger.Warnf("Prefetch must be greater than 0, using default value of 1")
-		s.prefetch = 1
+	if maxBulkCount < 1 {
+		s.logger.Warnf("maxBulkCount must be greater than 0, setting it to 1")
+		s.maxBulkCount = 1
 	}
+
+	if maxBulkCount > maxActiveMessages {
+		s.logger.Warnf("maxBulkCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
+		s.maxBulkCount = maxActiveMessages
+	}
+
+	// This is a pessimistic estimate of the number of total operations that can be active at any given time.
+	s.activeOperationsChan = make(chan struct{}, maxActiveMessages/s.maxBulkCount)
 
 	if maxConcurrentHandlers != nil {
 		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, *maxConcurrentHandlers)
@@ -189,9 +196,9 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 	// Receiver loop
 	for {
 		select {
-		// This blocks if there are too many active messages already
-		// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeMessagesChan`
-		case s.activeMessagesChan <- struct{}{}:
+		// This blocks if there are too many active operations already
+		// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`
+		case s.activeOperationsChan <- struct{}{}:
 		// Return if context is canceled
 		case <-ctx.Done():
 			s.logger.Debugf("Receive context for %s done", s.entity)
@@ -199,12 +206,12 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 		}
 
 		// This method blocks until we get a message or the context is canceled
-		msgs, err := s.receiver.ReceiveMessages(s.ctx, s.prefetch, nil)
+		msgs, err := s.receiver.ReceiveMessages(s.ctx, s.maxBulkCount, nil)
 		if err != nil {
 			if err != context.Canceled {
 				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())
 			}
-			<-s.activeMessagesChan
+			<-s.activeOperationsChan
 			// Return the error. This will cause the Service Bus component to try and reconnect.
 			return err
 		}
@@ -219,27 +226,31 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 		if l == 0 {
 			// We got no message, which is unusual too
 			s.logger.Warn("Received 0 messages from Service Bus")
-			<-s.activeMessagesChan
+			<-s.activeOperationsChan
 			continue
 		} else if l > 1 && !bulkEnabled {
 			// We are requesting one message only; this should never happen
 			s.logger.Errorf("Expected one message from Service Bus, but received %d", l)
 		}
 
-		s.logger.Debugf("Received messages: %d; current active message usage: %d/%d", l, len(s.activeMessagesChan), cap(s.activeMessagesChan))
-		// s.logger.Debugf("Message body: %s", string(msg.Body))
+		s.logger.Debugf("Received messages: %d; current active operations usage: %d/%d", l, len(s.activeOperationsChan), cap(s.activeOperationsChan))
 
+		skipProcessing := false
 		for _, msg := range msgs {
 			if err = s.addActiveMessage(msg); err != nil {
 				// If we cannot add the message then sequence number is not set, this must
 				// be a bug in the Azure Service Bus SDK so we will log the error and not
 				// handle the message. The message will eventually be retried until fixed.
 				s.logger.Errorf("Error adding message: %s", err.Error())
-				<-s.activeMessagesChan
-				continue
+				skipProcessing = true
+				break
 			}
-
 			s.logger.Debugf("Processing received message: %s", msg.MessageID)
+		}
+
+		if skipProcessing {
+			<-s.activeOperationsChan
+			continue
 		}
 
 		runHandlerFn := func(hctx context.Context) {
@@ -342,10 +353,10 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 
 				// Remove the message from the map of active ones
 				s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
-
-				// Remove an entry from activeMessageChan to allow processing more messages
-				<-s.activeMessagesChan
 			}
+
+			// Remove an entry from activeOperationsChan to allow processing more messages
+			<-s.activeOperationsChan
 		}()
 
 		for _, msg := range msgs {

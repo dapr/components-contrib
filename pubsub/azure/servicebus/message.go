@@ -144,133 +144,83 @@ func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.M
 		Body: req.Data,
 	}
 
-	// Common properties.
-	ttl, ok, _ := contribMetadata.TryGetTTL(req.Metadata)
-	if ok {
-		asbMsg.TimeToLive = &ttl
-	}
-
-	// Azure Service Bus specific properties.
-	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
-	msgID, ok, _ := tryGetString(req.Metadata, MessageIDMetadataKey)
-	if ok {
-		asbMsg.MessageID = &msgID
-	}
-
-	correlationID, ok, _ := tryGetString(req.Metadata, CorrelationIDMetadataKey)
-	if ok {
-		asbMsg.CorrelationID = &correlationID
-	}
-
-	sessionID, okSessionID, _ := tryGetString(req.Metadata, SessionIDMetadataKey)
-	if okSessionID {
-		asbMsg.SessionID = &sessionID
-	}
-
-	label, ok, _ := tryGetString(req.Metadata, LabelMetadataKey)
-	if ok {
-		asbMsg.Subject = &label
-	}
-
-	replyTo, ok, _ := tryGetString(req.Metadata, ReplyToMetadataKey)
-	if ok {
-		asbMsg.ReplyTo = &replyTo
-	}
-
-	to, ok, _ := tryGetString(req.Metadata, ToMetadataKey)
-	if ok {
-		asbMsg.To = &to
-	}
-
-	partitionKey, ok, _ := tryGetString(req.Metadata, PartitionKeyMetadataKey)
-	if ok {
-		if okSessionID && partitionKey != sessionID {
-			return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
-		}
-
-		asbMsg.PartitionKey = &partitionKey
-	}
-
-	contentType, ok, _ := tryGetString(req.Metadata, ContentTypeMetadataKey)
-	if ok {
-		asbMsg.ContentType = &contentType
-	}
-
-	scheduledEnqueueTime, ok, _ := tryGetScheduledEnqueueTime(req.Metadata)
-	if ok {
-		asbMsg.ScheduledEnqueueTime = scheduledEnqueueTime
-	}
-
-	return asbMsg, nil
+	err := addMetadataToMessage(asbMsg, req.Metadata)
+	return asbMsg, err
 }
 
-// TODO: refactor this
+// NewASBMessageFromBulkMessageEntry builds a new Azure Service Bus message from a BulkMessageEntry.
 func NewASBMessageFromBulkMessageEntry(entry pubsub.BulkMessageEntry) (*azservicebus.Message, error) {
 	asbMsg := &azservicebus.Message{
 		Body:        entry.Event,
 		ContentType: &entry.ContentType,
 	}
 
+	err := addMetadataToMessage(asbMsg, entry.Metadata)
+	return asbMsg, err
+}
+
+func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]string) error {
 	// Common properties.
-	ttl, ok, _ := contribMetadata.TryGetTTL(entry.Metadata)
+	ttl, ok, _ := contribMetadata.TryGetTTL(metadata)
 	if ok {
 		asbMsg.TimeToLive = &ttl
 	}
 
 	// Azure Service Bus specific properties.
 	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
-	msgID, ok, _ := tryGetString(entry.Metadata, MessageIDMetadataKey)
+	msgID, ok, _ := tryGetString(metadata, MessageIDMetadataKey)
 	if ok {
 		asbMsg.MessageID = &msgID
 	}
 
-	correlationID, ok, _ := tryGetString(entry.Metadata, CorrelationIDMetadataKey)
+	correlationID, ok, _ := tryGetString(metadata, CorrelationIDMetadataKey)
 	if ok {
 		asbMsg.CorrelationID = &correlationID
 	}
 
-	sessionID, okSessionID, _ := tryGetString(entry.Metadata, SessionIDMetadataKey)
+	sessionID, okSessionID, _ := tryGetString(metadata, SessionIDMetadataKey)
 	if okSessionID {
 		asbMsg.SessionID = &sessionID
 	}
 
-	label, ok, _ := tryGetString(entry.Metadata, LabelMetadataKey)
+	label, ok, _ := tryGetString(metadata, LabelMetadataKey)
 	if ok {
 		asbMsg.Subject = &label
 	}
 
-	replyTo, ok, _ := tryGetString(entry.Metadata, ReplyToMetadataKey)
+	replyTo, ok, _ := tryGetString(metadata, ReplyToMetadataKey)
 	if ok {
 		asbMsg.ReplyTo = &replyTo
 	}
 
-	to, ok, _ := tryGetString(entry.Metadata, ToMetadataKey)
+	to, ok, _ := tryGetString(metadata, ToMetadataKey)
 	if ok {
 		asbMsg.To = &to
 	}
 
-	partitionKey, ok, _ := tryGetString(entry.Metadata, PartitionKeyMetadataKey)
+	partitionKey, ok, _ := tryGetString(metadata, PartitionKeyMetadataKey)
 	if ok {
 		if okSessionID && partitionKey != sessionID {
-			return nil, fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
+			return fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
 		}
 
 		asbMsg.PartitionKey = &partitionKey
 	}
 
-	contentType, ok, _ := tryGetString(entry.Metadata, ContentTypeMetadataKey)
+	contentType, ok, _ := tryGetString(metadata, ContentTypeMetadataKey)
 	if ok {
 		asbMsg.ContentType = &contentType
 	}
 
-	scheduledEnqueueTime, ok, _ := tryGetScheduledEnqueueTime(entry.Metadata)
+	scheduledEnqueueTime, ok, _ := tryGetScheduledEnqueueTime(metadata)
 	if ok {
 		asbMsg.ScheduledEnqueueTime = scheduledEnqueueTime
 	}
 
-	return asbMsg, nil
+	return nil
 }
 
+// UpdateASBBatchMessageWithBulkPublishRequest updates the batch message with messages from the bulk publish request.
 func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.MessageBatch, req *pubsub.BulkPublishRequest) error {
 	// Add entries from bulk request to batch.
 	for _, entry := range req.Entries {

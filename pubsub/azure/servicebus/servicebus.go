@@ -238,6 +238,16 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 		m.PublishInitialRetryIntervalInMs = valAsInt
 	}
 
+	m.MaxBulkPubBytes = defaultMaxBulkPubBytes
+	if val, ok := meta.Properties[maxBulkPubBytes]; ok && val != "" {
+		var err error
+		valAsUint, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return m, fmt.Errorf("%s invalid maxBulkPubBytes %s, %s", errorMessagePrefix, val, err)
+		}
+		m.MaxBulkPubBytes = valAsUint
+	}
+
 	/* Deprecated properties - show a warning. */
 	// TODO: Remove in the future
 	if _, ok := meta.Properties[connectionRecoveryInSec]; ok && logger != nil {
@@ -365,29 +375,32 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
 
-	// TODO: read from metadata
-	opts := &servicebus.MessageBatchOptions{
-		MaxBytes: 1024 * 1024,
+	// Create a new batch of messages with batch options.
+	batchOpts := &servicebus.MessageBatchOptions{
+		MaxBytes: a.metadata.MaxBulkPubBytes,
 	}
 
-	batchMsg, err := sender.NewMessageBatch(context.Background(), opts)
+	batchMsg, err := sender.NewMessageBatch(context.Background(), batchOpts)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
+
+	// Add messages from the bulk publish request to the batch.
 	err = UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
 
-	// This handling is required since *servicebus.MessageBatch cannot be empty.
-	// If it is empty, the call to sender.SendMessageBatch will panic.
+	// If *servicebus.MessageBatch is empty, the call to sender.SendMessageBatch will panic.
+	// Return a response early to avoid this.
 	if batchMsg.NumMessages() == 0 {
 		a.logger.Warnf("No messages to bulk publish, skipping")
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
 	}
 
 	a.logger.Debugf("Sending %d messages in bulk publish request", batchMsg.NumMessages())
-	// Azure Service Bus does not return individual status for each message in a batch.
+
+	// Azure Service Bus does not return individual status for each message in the request.
 	err = sender.SendMessageBatch(context.Background(), batchMsg, nil)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err

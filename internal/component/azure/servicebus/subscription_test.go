@@ -22,24 +22,24 @@ import (
 
 var maxConcurrentHandlers = 100
 
-func TestNewBulkSubscription_PrefetchValueShouldBeGreaterThanZero(t *testing.T) {
+func TestNewBulkSubscription_MaxBulkCountShouldBeGreaterThanZero(t *testing.T) {
 	testcases := []struct {
-		name             string
-		prefetchParam    int
-		prefetchExpected int
+		name                 string
+		maxBulkCountParam    int
+		maxBulkCountExpected int
 	}{
 		{
-			"Prefetch passed is 0",
+			"maxBulkCount passed is 0",
 			0,
 			1,
 		},
 		{
-			"Prefetch passed is negative",
+			"maxBulkCount passed is negative",
 			-100,
 			1,
 		},
 		{
-			"Prefetch passed is positive",
+			"maxBulkCount passed is positive",
 			100,
 			100,
 		},
@@ -50,13 +50,13 @@ func TestNewBulkSubscription_PrefetchValueShouldBeGreaterThanZero(t *testing.T) 
 				context.Background(),
 				1000,
 				1,
-				tc.prefetchParam,
+				tc.maxBulkCountParam,
 				10,
 				&maxConcurrentHandlers,
 				"test",
 				logger.NewLogger("test"))
-			if bulkSubscription.prefetch != tc.prefetchExpected {
-				t.Errorf("Expected prefetch to be %d but got %d", tc.prefetchExpected, bulkSubscription.prefetch)
+			if bulkSubscription.maxBulkCount != tc.maxBulkCountExpected {
+				t.Errorf("Expected maxBulkCount to be %d but got %d", tc.maxBulkCountExpected, bulkSubscription.maxBulkCount)
 			}
 		})
 	}

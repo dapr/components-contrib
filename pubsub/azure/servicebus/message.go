@@ -204,6 +204,27 @@ func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.M
 	return asbMsg, nil
 }
 
+func NewASBMessageFromBulkMessageEntry(entry pubsub.BulkMessageEntry) (*azservicebus.Message, error) {
+	return nil, nil
+}
+
+func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.MessageBatch, req *pubsub.BulkPublishRequest) error {
+	// Add entries from bulk request to batch.
+	for _, entry := range req.Entries {
+		asbMsg, err := NewASBMessageFromBulkMessageEntry(entry)
+		if err != nil {
+			return err
+		}
+
+		err = asbMsgBatch.AddMessage(asbMsg, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func tryGetString(props map[string]string, key string) (string, bool, error) {
 	if val, ok := props[key]; ok && val != "" {
 		return val, true, nil

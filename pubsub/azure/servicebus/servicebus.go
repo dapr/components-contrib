@@ -359,6 +359,35 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	)
 }
 
+func (a *azureServiceBus) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	sender, err := a.senderForTopic(a.publishCtx, req.Topic)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// TODO: read from metadata
+	opts := &servicebus.MessageBatchOptions{
+		MaxBytes: 1024 * 1024,
+	}
+
+	batchMsg, err := sender.NewMessageBatch(context.Background(), opts)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+	err = UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Azure Service Bus does not return individual status for each message in a batch.
+	err = sender.SendMessageBatch(context.Background(), batchMsg, nil)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+}
+
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {

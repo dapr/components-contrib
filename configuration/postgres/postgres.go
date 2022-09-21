@@ -79,11 +79,6 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 		logger:               logger,
 		subscribeStopChanMap: make(map[string]interface{}),
 		configLock:           sync.Mutex{},
-		metadata: metadata{
-			maxIdleTimeout:   0,
-			connectionString: "",
-			configTable:      "",
-		},
 	}
 }
 

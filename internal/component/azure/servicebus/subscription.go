@@ -290,7 +290,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 				for i, resp := range resps {
 					if resp.Error != nil {
 						// Log the error only, as we're running asynchronously.
-						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, err)
+						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
 						s.AbandonMessage(finalizeCtx, msgs[i])
 					} else {
 						s.CompleteMessage(finalizeCtx, msgs[i])

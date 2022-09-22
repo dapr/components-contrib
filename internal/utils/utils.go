@@ -16,17 +16,6 @@ func IsTruthy(val string) bool {
 	}
 }
 
-// GetIntOrDefFromMap returns the value of a key in a map as an int,
-// or a default value if the key is not present or a valid int.
-func GetIntOrDefFromMap(m map[string]string, key string, def int) int {
-	if val, ok := m[key]; ok {
-		if ival, err := strconv.Atoi(val); err == nil {
-			return ival
-		}
-	}
-	return def
-}
-
 // GetUint64OrDefFromMap returns the value of a key in a map as a uint64,
 // or a default value if the key is not present or a valid uint64.
 func GetUint64OrDefFromMap(m map[string]string, key string, def uint64) uint64 {

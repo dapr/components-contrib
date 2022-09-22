@@ -29,6 +29,8 @@ func IsTruthy(val string) bool {
 	}
 }
 
+// GetElemOrDefaultFromMap returns the value of a key from a map, or a default value
+// if the key does not exist or the value is not of the expected type.
 func GetElemOrDefaultFromMap[T int | uint64](m map[string]string, key string, def T) T {
 	if val, ok := m[key]; ok {
 		switch any(def).(type) {

@@ -6,7 +6,7 @@ require (
 	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.8.4-0.20220921220401-d84681b92f89
+	github.com/dapr/dapr v1.8.4-0.20220922033213-ca2b9a109f5e
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/google/uuid v1.3.0

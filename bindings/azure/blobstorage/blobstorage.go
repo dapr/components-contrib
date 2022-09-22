@@ -476,6 +476,7 @@ func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[stri
 		}, key)
 
 		if oldkey != key {
+			a.logger.Warnf("metadata key %s contains disallowed characters, sanitized to %s", oldkey, key)
 			delete(metadata, oldkey)
 			metadata[key] = val
 		}

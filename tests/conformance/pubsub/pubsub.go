@@ -229,7 +229,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		t.Run("bulkPublish", func(t *testing.T) {
 			bP, ok := ps.(pubsub.BulkPublisher)
 			if !ok {
-				t.Skipf("Bulk publish conformance skipped since component %s does not implement the required interface", config.ComponentName)
+				t.Fatalf("cannot run bulkPublish conformance, BulkPublisher interface not implemented by the component %s", config.ComponentName)
 			}
 			// only run the test if BulkPublish is implemented
 			// Some pubsub, like Kafka need to wait for Subscriber to be up before messages can be consumed.

@@ -34,7 +34,6 @@ type metadata struct {
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName,omitempty"`
-	MaxBulkPubBytes                 uint64 `json:"maxBulkPubBytes"`
 }
 
 const (
@@ -57,7 +56,6 @@ const (
 	publishMaxRetries               = "publishMaxRetries"
 	publishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	namespaceName                   = "namespaceName"
-	maxBulkPubBytes                 = "maxBulkPubBytes"
 
 	// Deprecated keys.
 	maxReconnectionAttempts = "maxReconnectionAttempts"
@@ -76,5 +74,4 @@ const (
 	defaultMaxConnectionRecoveryInSec      = 300
 	defaultPublishMaxRetries               = 5
 	defaultPublishInitialRetryInternalInMs = 500
-	defaultMaxBulkPubBytes                 = 1024 * 1024 * 16 // 16MiB
 )

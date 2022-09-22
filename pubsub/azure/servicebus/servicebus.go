@@ -30,6 +30,7 @@ import (
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
+	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -37,7 +38,8 @@ import (
 )
 
 const (
-	errorMessagePrefix = "azure service bus error:"
+	errorMessagePrefix     = "azure service bus error:"
+	defaultMaxBulkPubBytes = 1024 * 1024 * 16 // 16MiB
 )
 
 var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
@@ -238,16 +240,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 		m.PublishInitialRetryIntervalInMs = valAsInt
 	}
 
-	m.MaxBulkPubBytes = defaultMaxBulkPubBytes
-	if val, ok := meta.Properties[maxBulkPubBytes]; ok && val != "" {
-		var err error
-		valAsUint, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxBulkPubBytes %s, %s", errorMessagePrefix, val, err)
-		}
-		m.MaxBulkPubBytes = valAsUint
-	}
-
 	/* Deprecated properties - show a warning. */
 	// TODO: Remove in the future
 	if _, ok := meta.Properties[connectionRecoveryInSec]; ok && logger != nil {
@@ -384,7 +376,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 	// Create a new batch of messages with batch options.
 	batchOpts := &servicebus.MessageBatchOptions{
-		MaxBytes: a.metadata.MaxBulkPubBytes,
+		MaxBytes: utils.GetUint64OrDefFromMap(req.Metadata, contribMetadata.MaxBulkPubBytes, defaultMaxBulkPubBytes),
 	}
 
 	batchMsg, err := sender.NewMessageBatch(context.Background(), batchOpts)

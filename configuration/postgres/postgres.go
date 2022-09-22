@@ -303,7 +303,7 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 			m.maxIdleTimeout = t
 		}
 	}
-	if m.maxIdleTimeout == 0 {
+	if m.maxIdleTimeout <= 0 {
 		m.maxIdleTimeout = defaultMaxConnIdleTime
 	}
 	return m, nil
@@ -375,18 +375,13 @@ func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRe
 }
 
 func (p *ConfigurationStore) isSubscribed(subscriptionID string, channel string, key string) bool {
-	if val, yes := p.ActiveSubscriptions[channel]; yes {
-		if val.uuid == subscriptionID && slices.Contains(val.keys, key) {
-			return true
-		}
+	if val, yes := p.ActiveSubscriptions[channel]; yes && val.uuid == subscriptionID && slices.Contains(val.keys, key) {
+		return true
 	}
 	return false
 }
 
 func validateInput(keys []string) error {
-	if len(keys) == 0 {
-		return nil
-	}
 	for _, key := range keys {
 		if !allowedChars.MatchString(key) {
 			return fmt.Errorf("invalid key : '%v'", key)
@@ -398,7 +393,7 @@ func validateInput(keys []string) error {
 func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChanList []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
-	var subscribeID string // TO_DO - duplicate trigger
+	var subscribeID string
 	for _, channel := range pgNotifyChanList {
 		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
 		if sub, isActive := p.isSubscriptionActive(req); isActive {

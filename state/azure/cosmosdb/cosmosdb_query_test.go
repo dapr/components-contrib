@@ -18,7 +18,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/a8m/documentdb"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state/query"
@@ -40,7 +40,7 @@ func TestCosmosDbKeyReplace(t *testing.T) {
 		},
 		{
 			input:    "c.value.a",
-			expected: "c['value'].a",
+			expected: "c['value']['a']",
 		},
 		{
 			input:    "c.value.value",
@@ -48,7 +48,7 @@ func TestCosmosDbKeyReplace(t *testing.T) {
 		},
 		{
 			input:    "c.value.a.value",
-			expected: "c['value'].a['value']",
+			expected: "c['value']['a']['value']",
 		},
 	}
 
@@ -60,20 +60,20 @@ func TestCosmosDbKeyReplace(t *testing.T) {
 func TestCosmosDbQuery(t *testing.T) {
 	tests := []struct {
 		input string
-		query documentdb.Query
+		query InternalQuery
 	}{
 		{
 			input: "../../../tests/state/query/q1.json",
-			query: documentdb.Query{
-				Query:      "SELECT * FROM c",
-				Parameters: nil,
+			query: InternalQuery{
+				query:      "SELECT * FROM c",
+				parameters: nil,
 			},
 		},
 		{
 			input: "../../../tests/state/query/q2.json",
-			query: documentdb.Query{
-				Query: "SELECT * FROM c WHERE c['value'].state = @__param__0__",
-				Parameters: []documentdb.Parameter{
+			query: InternalQuery{
+				query: "SELECT * FROM c WHERE c['value']['state'] = @__param__0__",
+				parameters: []azcosmos.QueryParameter{
 					{
 						Name:  "@__param__0__",
 						Value: "CA",
@@ -83,9 +83,9 @@ func TestCosmosDbQuery(t *testing.T) {
 		},
 		{
 			input: "../../../tests/state/query/q3.json",
-			query: documentdb.Query{
-				Query: "SELECT * FROM c WHERE c['value'].person.org = @__param__0__ AND c['value'].state IN (@__param__1__, @__param__2__) ORDER BY c['value'].state DESC, c['value'].person.name ASC",
-				Parameters: []documentdb.Parameter{
+			query: InternalQuery{
+				query: "SELECT * FROM c WHERE c['value']['person']['org'] = @__param__0__ AND c['value']['state'] IN (@__param__1__, @__param__2__) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
+				parameters: []azcosmos.QueryParameter{
 					{
 						Name:  "@__param__0__",
 						Value: "A",
@@ -103,9 +103,9 @@ func TestCosmosDbQuery(t *testing.T) {
 		},
 		{
 			input: "../../../tests/state/query/q4.json",
-			query: documentdb.Query{
-				Query: "SELECT * FROM c WHERE c['value'].person.org = @__param__0__ OR (c['value'].person.org = @__param__1__ AND c['value'].state IN (@__param__2__, @__param__3__)) ORDER BY c['value'].state DESC, c['value'].person.name ASC",
-				Parameters: []documentdb.Parameter{
+			query: InternalQuery{
+				query: "SELECT * FROM c WHERE c['value']['person']['org'] = @__param__0__ OR (c['value']['person']['org'] = @__param__1__ AND c['value']['state'] IN (@__param__2__, @__param__3__)) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
+				parameters: []azcosmos.QueryParameter{
 					{
 						Name:  "@__param__0__",
 						Value: "A",

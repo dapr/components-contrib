@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.18
+go 1.19
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
@@ -10,13 +10,12 @@ require (
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
 	github.com/Azure/azure-sdk-for-go v65.0.0+incompatible
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.2
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.7.1
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.0.1
-	github.com/Azure/azure-service-bus-go v0.10.10
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.10.1
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.1.0
 	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-amqp v0.17.4
@@ -406,7 +405,7 @@ require (
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.5.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect

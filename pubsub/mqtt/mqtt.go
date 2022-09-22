@@ -203,7 +203,7 @@ func (m *mqttPubSub) resetSubscription() {
 // startSubscription connects to the server and begins receiving messages
 func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 	// mqtt broker allows only one connection at a given time from a clientID.
-	consumerClientID := fmt.Sprintf("%s-consumer", m.metadata.clientID)
+	consumerClientID := m.metadata.clientID
 	connCtx, connCancel := context.WithTimeout(ctx, defaultWait)
 	c, err := m.connect(connCtx, consumerClientID)
 	connCancel()

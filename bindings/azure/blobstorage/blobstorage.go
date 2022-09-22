@@ -467,6 +467,7 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[string]string {
 	for key, val := range metadata {
 		oldkey := key
+		// Keep only letters and digits
 		key = strings.Map(func(r rune) rune {
 			if unicode.IsLetter(r) || unicode.IsDigit(r) {
 				return r
@@ -479,7 +480,7 @@ func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[stri
 			metadata[key] = val
 		}
 
-		// Remove all non-ascii characters and replace all colons with underscores
+		// Remove all non-ascii characters
 		metadata[key] = strings.Map(func(r rune) rune {
 			if r > unicode.MaxASCII {
 				return -1

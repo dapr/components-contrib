@@ -38,8 +38,8 @@ import (
 )
 
 const (
-	errorMessagePrefix     = "azure service bus error:"
-	defaultMaxBulkPubBytes = 1024 * 1024 * 16 // 16MiB
+	errorMessagePrefix            = "azure service bus error:"
+	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
 )
 
 var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
@@ -376,10 +376,10 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 	// Create a new batch of messages with batch options.
 	batchOpts := &servicebus.MessageBatchOptions{
-		MaxBytes: utils.GetUint64OrDefFromMap(req.Metadata, contribMetadata.MaxBulkPubBytes, defaultMaxBulkPubBytes),
+		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytes, defaultMaxBulkPubBytes),
 	}
 
-	batchMsg, err := sender.NewMessageBatch(context.Background(), batchOpts)
+	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
@@ -391,7 +391,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 	}
 
 	// Azure Service Bus does not return individual status for each message in the request.
-	err = sender.SendMessageBatch(context.Background(), batchMsg, nil)
+	err = sender.SendMessageBatch(ctx, batchMsg, nil)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}

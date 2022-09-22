@@ -1,4 +1,5 @@
-# Supported operation: publish, subscribe
+# Supported operation: publish, subscribe, multiplehandlers, bulkpublish
+# bulkpublish should only be run for components that implement pubsub.BulkPublisher interface
 # Config map:
 ## pubsubName : name of the pubsub
 ## testTopicName: name of the test topic to use
@@ -10,7 +11,7 @@
 componentType: pubsub
 components:
   - component: azure.eventhubs
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       pubsubName: azure-eventhubs
       testTopicName: eventhubs-pubsub-topic
@@ -22,41 +23,41 @@ components:
       publishMetadata:
         partitionKey: abcd
   - component: azure.servicebus
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
       checkInOrderProcessing: false
   - component: redis
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false
   - component: natsstreaming
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: jetstream
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: kafka
     allOperations: true
   - component: pulsar
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt
     profile: mosquitto
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt
     profile: emqx
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt
     profile: vernemq
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: hazelcast
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: rabbitmq
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false
   - component: in-memory
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: aws.snssqs
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false

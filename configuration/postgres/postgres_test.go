@@ -43,6 +43,7 @@ func TestSelectAllQuery(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error building query: %v ", err)
 	}
+	assert.Nil(t, err, "Error building query: %v ", err)
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 }
 
@@ -56,9 +57,7 @@ func TestPostgresbuildQuery(t *testing.T) {
 
 	query, params, err := buildQuery(g, "cfgtbl")
 	_ = params
-	if err != nil {
-		t.Errorf("Error building query: %v ", err)
-	}
+	assert.Nil(t, err, "Error building query: %v ", err)
 	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND $2 = $3"
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 	i := 0
@@ -101,4 +100,15 @@ func TestConnectAndQuery(t *testing.T) {
 	assert.Nil(t, err, "error in scan")
 	err = mock.ExpectationsWereMet()
 	assert.Nil(t, err, "pgxmock error in expectations were met")
+}
+
+func TestValidateInput(t *testing.T) {
+	keys := []string{"testKey1", "testKey2"}
+	assert.Nil(t, validateInput(keys), "incorrect input provided: %v", keys)
+
+	var keys2 []string
+	assert.Nil(t, validateInput(keys), "incorrect input provided: %v", keys2)
+
+	keys3 := []string{"Name 1=1"}
+	assert.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
 }

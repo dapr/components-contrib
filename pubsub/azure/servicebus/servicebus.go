@@ -30,6 +30,7 @@ import (
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
+	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -37,7 +38,8 @@ import (
 )
 
 const (
-	errorMessagePrefix = "azure service bus error:"
+	errorMessagePrefix     = "azure service bus error:"
+	defaultMaxBulkSubCount = 100
 )
 
 var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
@@ -107,15 +109,6 @@ func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (m
 		m.TimeoutInSec, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("%s invalid timeoutInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.MaxBulkSubCount = defaultMaxBulkSubCount
-	if val, ok := meta.Properties[maxBulkSubCount]; ok && val != "" {
-		var err error
-		m.MaxBulkSubCount, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxBulkSubCount %s, %s", errorMessagePrefix, val, err)
 		}
 	}
 
@@ -392,11 +385,12 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 }
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	maxBulkSubCount := utils.GetIntOrDefFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
 	sub := impl.NewBulkSubscription(
 		subscribeCtx,
 		a.metadata.MaxActiveMessages,
 		a.metadata.TimeoutInSec,
-		a.metadata.MaxBulkSubCount,
+		maxBulkSubCount,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
 		"topic "+req.Topic,

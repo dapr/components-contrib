@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -13,4 +14,15 @@ func IsTruthy(val string) bool {
 	default:
 		return false
 	}
+}
+
+// GetIntOrDefFromMap returns the value of a key in a map as an int,
+// or a default value if the key is not present or a valid int.
+func GetIntOrDefFromMap(m map[string]string, key string, def int) int {
+	if val, ok := m[key]; ok {
+		if ival, err := strconv.Atoi(val); err == nil {
+			return ival
+		}
+	}
+	return def
 }

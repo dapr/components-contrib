@@ -37,6 +37,9 @@ const (
 
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
+
+	// MaxBulkCountSubKey defines the maximum number of messages to be sent in a single bulk subscribe request.
+	MaxBulkSubCountKey string = "maxBulkSubCount"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.

@@ -19,7 +19,6 @@ type metadata struct {
 	ConnectionString                string `json:"connectionString"`
 	ConsumerID                      string `json:"consumerID"`
 	TimeoutInSec                    int    `json:"timeoutInSec"`
-	MaxBulkSubCount                 int    `json:"maxBulkSubCount"`
 	HandlerTimeoutInSec             int    `json:"handlerTimeoutInSec"`
 	LockRenewalInSec                int    `json:"lockRenewalInSec"`
 	MaxActiveMessages               int    `json:"maxActiveMessages"`
@@ -43,7 +42,6 @@ const (
 	consumerID                      = "consumerID"
 	timeoutInSec                    = "timeoutInSec"
 	handlerTimeoutInSec             = "handlerTimeoutInSec"
-	maxBulkSubCount                 = "maxBulkSubCount"
 	lockRenewalInSec                = "lockRenewalInSec"
 	maxActiveMessages               = "maxActiveMessages"
 	maxConnectionRecoveryInSec      = "maxConnectionRecoveryInSec"
@@ -68,7 +66,6 @@ const (
 	defaultHandlerTimeoutInSec      = 60
 	defaultLockRenewalInSec         = 20
 	defaultMaxRetriableErrorsPerSec = 10
-	defaultMaxBulkSubCount          = 1
 	// ASB Messages can be up to 256Kb. 10000 messages at this size would roughly use 2.56Gb.
 	// We should change this if performance testing suggests a more sensible default.
 	defaultMaxActiveMessages               = 10000

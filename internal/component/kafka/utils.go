@@ -62,24 +62,14 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-// Map of topics and their handlers
-type TopicHandlers map[string]EventHandler
+// // Map of topics and their handlers
+// type TopicHandlers map[string]EventHandler
 
-// TopicBulkHandlerConfig is the map of topics and sruct containing bulk handler and their config.
-type TopicBulkHandlerConfig map[string]BulkSubscriptionHandlerConfig
+// TopicHandlerConfig is the map of topics and sruct containing handler and their config.
+type TopicHandlerConfig map[string]SubscriptionHandlerConfig
 
-// TopicList returns the list of topics
-func (th TopicHandlers) TopicList() []string {
-	topics := make([]string, len(th))
-	i := 0
-	for topic := range th {
-		topics[i] = topic
-		i++
-	}
-	return topics
-}
-
-func (tbh TopicBulkHandlerConfig) TopicList() []string {
+// // TopicList returns the list of topics
+func (tbh TopicHandlerConfig) TopicList() []string {
 	topics := make([]string, len(tbh))
 	i := 0
 	for topic := range tbh {

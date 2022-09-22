@@ -23,6 +23,7 @@ on:
     branches:
       - master
       - release-*
+      - 'feature/*'
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different

@@ -36,24 +36,32 @@ import (
 )
 
 const (
-	defaultPubsubName             = "pubusub"
-	defaultTopicName              = "testTopic"
-	defaultMultiTopic1Name        = "multiTopic1"
-	defaultMultiTopic2Name        = "multiTopic2"
-	defaultMessageCount           = 10
-	defaultMaxReadDuration        = 60 * time.Second
-	defaultWaitDurationToPublish  = 5 * time.Second
-	defaultCheckInOrderProcessing = true
+	defaultPubsubName                   = "pubusub"
+	defaultTopicName                    = "testTopic"
+	defaultTopicNameBulk                = "testTopicBulk"
+	defaultMultiTopic1Name              = "multiTopic1"
+	defaultMultiTopic2Name              = "multiTopic2"
+	defaultMessageCount                 = 10
+	defaultMaxReadDuration              = 60 * time.Second
+	defaultWaitDurationToPublish        = 5 * time.Second
+	defaultCheckInOrderProcessing       = true
+	defaultMaxBulkCount                 = 5
+	defaultMaxBulkAwaitDurationMs       = 500
+	maxBulkCountKey                     = "maxBulkCount"
+	maxBulkAwaitDurationMilliSecondsKey = "maxBulkAwaitDurationMilliSeconds"
+	bulkSubStartingKey                  = 1000
 )
 
 type TestConfig struct {
 	utils.CommonConfig
 	PubsubName             string            `mapstructure:"pubsubName"`
 	TestTopicName          string            `mapstructure:"testTopicName"`
+	TestTopicForBulkSub    string            `mapstructure:"testTopicForBulkSub"`
 	TestMultiTopic1Name    string            `mapstructure:"testMultiTopic1Name"`
 	TestMultiTopic2Name    string            `mapstructure:"testMultiTopic2Name"`
 	PublishMetadata        map[string]string `mapstructure:"publishMetadata"`
 	SubscribeMetadata      map[string]string `mapstructure:"subscribeMetadata"`
+	BulkSubscribeMetadata  map[string]string `mapstructure:"bulkSubscribeMetadata"`
 	MessageCount           int               `mapstructure:"messageCount"`
 	MaxReadDuration        time.Duration     `mapstructure:"maxReadDuration"`
 	WaitDurationToPublish  time.Duration     `mapstructure:"waitDurationToPublish"`
@@ -78,7 +86,9 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 		WaitDurationToPublish:  defaultWaitDurationToPublish,
 		PublishMetadata:        map[string]string{},
 		SubscribeMetadata:      map[string]string{},
+		BulkSubscribeMetadata:  map[string]string{},
 		CheckInOrderProcessing: defaultCheckInOrderProcessing,
+		TestTopicForBulkSub:    defaultTopicNameBulk,
 	}
 
 	err := config.Decode(configMap, &tc)
@@ -124,6 +134,11 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	dataPrefix := "message-" + runID + "-"
 	var outOfOrder bool
 	ctx := context.Background()
+	awaitingMessagesBulk := make(map[string]struct{}, 20)
+	processedMessagesBulk := make(map[int]struct{}, 20)
+	processedCBulk := make(chan string, config.MessageCount*2)
+	errorCountBulk := 0
+	var muBulk sync.Mutex
 
 	// Subscribe
 	if config.HasOperation("subscribe") { //nolint:nestif
@@ -201,6 +216,102 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		})
 	}
 
+	// Bulk Subscribe
+	if config.HasOperation("bulksubscribe") { //nolint:nestif
+		t.Run("bulkSubscribe", func(t *testing.T) {
+			bS, ok := ps.(pubsub.BulkSubscriber)
+			if !ok {
+				t.Fatalf("cannot run bulkSubscribe conformance, BulkSubscriber interface not implemented by the component %s", config.ComponentName)
+			}
+			var counter int
+			var lastSequence int
+			config.BulkSubscribeMetadata[metadata.MaxBulkCountKey] = strconv.Itoa(defaultMaxBulkCount)
+			config.BulkSubscribeMetadata[metadata.MaxBulkAwaitDurationMilliSecondsKey] = strconv.Itoa(defaultMaxBulkAwaitDurationMs)
+			err := bS.BulkSubscribe(ctx, pubsub.SubscribeRequest{
+				Topic:    config.TestTopicForBulkSub,
+				Metadata: config.BulkSubscribeMetadata,
+			}, func(ctx context.Context, bulkMsg *pubsub.BulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+				bulkResponses := make([]pubsub.BulkSubscribeResponseEntry, len(bulkMsg.Entries))
+				hasAnyError := false
+				for i, msg := range bulkMsg.Entries {
+					dataString := string(msg.Event)
+					if !strings.HasPrefix(dataString, dataPrefix) {
+						t.Logf("Ignoring message without expected prefix")
+						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].Error = nil
+						continue
+					}
+					sequence, err := strconv.Atoi(dataString[len(dataPrefix):])
+					if err != nil {
+						t.Logf("Message did not contain a sequence number")
+						assert.Fail(t, "message did not contain a sequence number")
+						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].Error = err
+						hasAnyError = true
+						continue
+					}
+					// Ignore already processed messages
+					// in case we receive a redelivery from the broker
+					// during retries.
+					muBulk.Lock()
+					_, alreadyProcessed := processedMessagesBulk[sequence]
+					muBulk.Unlock()
+					if alreadyProcessed {
+						t.Logf("Message was already processed: %d", sequence)
+
+						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].Error = nil
+						continue
+					}
+					counter++
+
+					// Only consider order when we receive a message for the first time
+					// Messages that fail and are re-queued will naturally come out of order
+					if errorCountBulk == 0 {
+						if sequence < lastSequence {
+							outOfOrder = true
+							t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
+						}
+
+						lastSequence = sequence
+					}
+
+					// This behavior is standard to repro a failure of one message in a batch.
+					if errorCountBulk < 2 || counter%5 == 0 {
+						// First message errors just to give time for more messages to pile up.
+						// Second error is to force an error in a batch.
+						errorCountBulk++
+						// Sleep to allow messages to pile up and be delivered as a batch.
+						time.Sleep(1 * time.Second)
+						t.Logf("Simulating subscriber error")
+
+						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].Error = errors.Errorf("conf test simulated error")
+						hasAnyError = true
+						continue
+					}
+
+					t.Logf("Simulating subscriber success")
+					actualReadCount++
+
+					muBulk.Lock()
+					processedMessagesBulk[sequence] = struct{}{}
+					muBulk.Unlock()
+
+					processedCBulk <- dataString
+
+					bulkResponses[i].EntryID = msg.EntryID
+					bulkResponses[i].Error = nil
+				}
+				if hasAnyError {
+					return bulkResponses, errors.Errorf("Few messages errorred out")
+				}
+				return bulkResponses, nil
+			})
+			assert.NoError(t, err, "expected no error on bulk subscribe")
+		})
+	}
+
 	// Publish
 	if config.HasOperation("publish") {
 		// Some pubsub, like Kafka need to wait for Subscriber to be up before messages can be consumed.
@@ -219,6 +330,25 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					awaitingMessages[string(data)] = struct{}{}
 				}
 				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
+			}
+			if config.HasOperation("bulksubscribe") {
+				_, ok := ps.(pubsub.BulkSubscriber)
+				if !ok {
+					t.Fatalf("cannot run bulkSubscribe conformance, BulkSubscriber interface not implemented by the component %s", config.ComponentName)
+				}
+				for k := bulkSubStartingKey; k <= (bulkSubStartingKey + config.MessageCount); k++ {
+					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
+					err := ps.Publish(&pubsub.PublishRequest{
+						Data:       data,
+						PubsubName: config.PubsubName,
+						Topic:      config.TestTopicForBulkSub,
+						Metadata:   config.PublishMetadata,
+					})
+					if err == nil {
+						awaitingMessagesBulk[string(data)] = struct{}{}
+					}
+					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicForBulkSub)
+				}
 			}
 		})
 	}
@@ -241,6 +371,32 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 			assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
 			assert.Empty(t, awaitingMessages, "expected to read %v messages", config.MessageCount)
+		})
+	}
+
+	// Verify read on bulk subscription
+	if config.HasOperation("publish") && config.HasOperation("bulksubscribe") {
+
+		t.Run("verify read on bulk subscription", func(t *testing.T) {
+			_, ok := ps.(pubsub.BulkSubscriber)
+			if !ok {
+				t.Fatalf("cannot run bulkSubscribe conformance, BulkSubscriber interface not implemented by the component %s", config.ComponentName)
+			}
+			t.Logf("waiting for %v to complete read for bulk subscription", config.MaxReadDuration)
+			timeout := time.After(config.MaxReadDuration)
+			waiting := true
+			for waiting {
+				select {
+				case processed := <-processedCBulk:
+					delete(awaitingMessagesBulk, processed)
+					waiting = len(awaitingMessagesBulk) > 0
+				case <-timeout:
+					// Break out after the mamimum read duration has elapsed
+					waiting = false
+				}
+			}
+			assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
+			assert.Empty(t, awaitingMessagesBulk, "expected to read %v messages", config.MessageCount)
 		})
 	}
 

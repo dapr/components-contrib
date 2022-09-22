@@ -38,7 +38,31 @@ func (p *PubSub) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	p.kafka.AddTopicHandler(req.Topic, adaptHandler(handler))
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: false,
+		Handler:         adaptHandler(handler),
+	}
+	return p.subscribeUtil(ctx, req, handlerConfig)
+}
+
+func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
+	handler pubsub.BulkHandler) error {
+	subConfig := pubsub.BulkSubscribeConfig{
+		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkCountKey,
+			kafka.DefaultMaxBulkCount),
+		MaxBulkAwaitDurationMilliSeconds: kafka.GetIntFromMetadata(req.Metadata,
+			metadata.MaxBulkAwaitDurationMilliSecondsKey, kafka.DefaultMaxBulkAwaitDurationMilliSeconds),
+	}
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: true,
+		SubscribeConfig: subConfig,
+		BulkHandler:     adaptBulkHandler(handler),
+	}
+	return p.subscribeUtil(ctx, req, handlerConfig)
+}
+
+func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest, handlerConfig kafka.SubscriptionHandlerConfig) error {
+	p.kafka.AddTopicHandler(req.Topic, handlerConfig)
 
 	go func() {
 		// Wait for context cancelation
@@ -62,44 +86,6 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}()
 
 	return p.kafka.Subscribe(p.subscribeCtx)
-}
-
-func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
-	handler pubsub.BulkHandler) error {
-	subConfig := pubsub.BulkSubscribeConfig{
-		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkCountKey,
-			kafka.DefaultMaxBulkCount),
-		MaxBulkAwaitDurationMilliSeconds: kafka.GetIntFromMetadata(req.Metadata,
-			metadata.MaxBulkAwaitDurationMilliSecondsKey, kafka.DefaultMaxBulkAwaitDurationMilliSeconds),
-	}
-	handlerConfig := kafka.BulkSubscriptionHandlerConfig{
-		SubscribeConfig: subConfig,
-		Handler:         adaptBulkHandler(handler),
-	}
-	p.kafka.AddTopicBulkHandler(req.Topic, handlerConfig)
-
-	go func() {
-		// Wait for context cancelation
-		select {
-		case <-ctx.Done():
-		case <-p.subscribeCtx.Done():
-		}
-
-		// Remove the topic handler before restarting the subscriber
-		p.kafka.RemoveTopicBulkHandler(req.Topic)
-
-		// If the component's context has been canceled, do not re-subscribe
-		if p.subscribeCtx.Err() != nil {
-			return
-		}
-
-		err := p.kafka.BulkSubscribe(p.subscribeCtx)
-		if err != nil {
-			p.logger.Errorf("kafka pubsub: error re-subscribing: %v", err)
-		}
-	}()
-
-	return p.kafka.BulkSubscribe(p.subscribeCtx)
 }
 
 // NewKafka returns a new kafka pubsub instance.

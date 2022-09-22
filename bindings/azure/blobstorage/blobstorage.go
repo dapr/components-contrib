@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
@@ -260,7 +261,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 
 	_, err = azblob.UploadBufferToBlockBlob(ctx, req.Data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
-		Metadata:        req.Metadata,
+		Metadata:        a.sanitizeMetadata(req.Metadata),
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
 	if err != nil {
@@ -461,4 +462,31 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 	}
 
 	return false
+}
+
+func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[string]string {
+	for key, val := range metadata {
+		oldkey := key
+		key = strings.Map(func(r rune) rune {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				return r
+			}
+			return -1
+		}, key)
+
+		if oldkey != key {
+			delete(metadata, oldkey)
+			metadata[key] = val
+		}
+
+		// Remove all non-ascii characters and replace all colons with underscores
+		metadata[key] = strings.Map(func(r rune) rune {
+			if r > unicode.MaxASCII {
+				return -1
+			}
+			return r
+		}, val)
+	}
+
+	return metadata
 }

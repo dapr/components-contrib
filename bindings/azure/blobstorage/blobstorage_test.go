@@ -80,6 +80,16 @@ func TestParseMetadata(t *testing.T) {
 		_, err := blobStorage.parseMetadata(m)
 		assert.Error(t, err)
 	})
+
+	t.Run("sanitize metadata if necessary", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"somecustomfield": "some-custom-value",
+			"specialfield":    "special:valueÜ",
+		}
+		meta := blobStorage.sanitizeMetadata(m.Properties)
+		assert.Equal(t, meta["somecustomfield"], "some-custom-value")
+		assert.Equal(t, meta["specialfield"], "special_value")
+	})
 }
 
 func TestGetOption(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"github.com/aliyun/aliyun-log-go-sdk/producer"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/config"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -97,9 +97,9 @@ func (s *AliCloudSlsLogstorage) parseLog(req *bindings.InvokeRequest) (*sls.Log,
 	return producer.GenerateLog(uint32(time.Now().Unix()), logInfo), nil
 }
 
-func (s *AliCloudSlsLogstorage) parseMeta(metadata bindings.Metadata) (*SlsLogstorageMetadata, error) {
+func (s *AliCloudSlsLogstorage) parseMeta(meta bindings.Metadata) (*SlsLogstorageMetadata, error) {
 	var m SlsLogstorageMetadata
-	err := config.Decode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

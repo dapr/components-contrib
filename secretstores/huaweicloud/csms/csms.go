@@ -14,6 +14,8 @@ limitations under the License.
 package csms
 
 import (
+	"context"
+
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/basic"
 	csms "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/model"
@@ -36,6 +38,8 @@ type csmsClient interface {
 	ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error)
 	ShowSecretVersion(request *model.ShowSecretVersionRequest) (*model.ShowSecretVersionResponse, error)
 }
+
+var _ secretstores.SecretStore = (*csmsSecretStore)(nil)
 
 type csmsSecretStore struct {
 	client csmsClient
@@ -64,7 +68,7 @@ func (c *csmsSecretStore) Init(metadata secretstores.Metadata) error {
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (c *csmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+func (c *csmsSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	request := &model.ShowSecretVersionRequest{}
 	request.SecretName = req.Name
 	if value, ok := req.Metadata[versionID]; ok {
@@ -84,8 +88,8 @@ func (c *csmsSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretst
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (c *csmsSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
-	secretNames, err := c.getSecretNames(nil)
+func (c *csmsSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+	secretNames, err := c.getSecretNames(ctx, nil)
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{}, err
 	}
@@ -95,7 +99,7 @@ func (c *csmsSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (
 	}
 
 	for _, secretName := range secretNames {
-		secret, err := c.GetSecret(secretstores.GetSecretRequest{
+		secret, err := c.GetSecret(ctx, secretstores.GetSecretRequest{
 			Name: secretName,
 			Metadata: map[string]string{
 				versionID: latestVersion,
@@ -112,7 +116,7 @@ func (c *csmsSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (
 }
 
 // Get all secret names recursively.
-func (c *csmsSecretStore) getSecretNames(marker *string) ([]string, error) {
+func (c *csmsSecretStore) getSecretNames(ctx context.Context, marker *string) ([]string, error) {
 	request := &model.ListSecretsRequest{}
 	limit := pageLimit
 	request.Limit = &limit
@@ -130,7 +134,7 @@ func (c *csmsSecretStore) getSecretNames(marker *string) ([]string, error) {
 
 	// If the NextMarker has value then continue to retrieve data from next page.
 	if response.PageInfo.NextMarker != nil {
-		nextResp, err := c.getSecretNames(response.PageInfo.NextMarker)
+		nextResp, err := c.getSecretNames(ctx, response.PageInfo.NextMarker)
 		if err != nil {
 			return nil, err
 		}
@@ -139,4 +143,9 @@ func (c *csmsSecretStore) getSecretNames(marker *string) ([]string, error) {
 	}
 
 	return resp, nil
+}
+
+// Features returns the features available in this secret store.
+func (c *csmsSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
 }

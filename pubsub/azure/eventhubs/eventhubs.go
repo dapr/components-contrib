@@ -595,15 +595,19 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 			// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
 			b := aeh.backOffConfig.NewBackOffWithContext(subscribeCtx)
 
-			return retry.NotifyRecover(func() error {
+			retryerr := retry.NotifyRecover(func() error {
 				aeh.logger.Debugf("Processing EventHubs event %s/%s", req.Topic, e.ID)
 
 				return subscribeHandler(subscribeCtx, req.Topic, e, handler)
 			}, b, func(_ error, _ time.Duration) {
-				aeh.logger.Errorf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
+				aeh.logger.Warnf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
 			}, func() {
-				aeh.logger.Errorf("Successfully processed EventHubs event after it previously failed: %s/%s", req.Topic, e.ID)
+				aeh.logger.Warnf("Successfully processed EventHubs event after it previously failed: %s/%s", req.Topic, e.ID)
 			})
+			if retryerr != nil {
+				aeh.logger.Errorf("Too many failed attempts at processing Eventhubs event: %s/%s. Error: %v.", req.Topic, e.ID, err)
+			}
+			return retryerr
 		})
 	if err != nil {
 		return err

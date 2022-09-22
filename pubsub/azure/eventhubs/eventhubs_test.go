@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"testing"
 
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -66,6 +67,18 @@ func TestParseEventHubsMetadata(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, missingConnectionStringNamespaceErrorMsg, err.Error())
+	})
+
+	t.Run("test maxBulkSizeInBytes limits", func(t *testing.T) {
+		val := fmt.Sprintf("%d", eventhub.DefaultMaxMessageSizeInBytes+1)
+		props := map[string]string{"connectionString": "fake", "maxBulkSizeInBytes": val}
+
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
+		_, err := parseEventHubsMetadata(metadata)
+
+		expected := fmt.Sprintf(maxBulkSizeInBytesTooLargeErrorTmpl, eventhub.DefaultMaxMessageSizeInBytes)
+		assert.Error(t, err)
+		assert.Equal(t, expected, err.Error())
 	})
 }
 

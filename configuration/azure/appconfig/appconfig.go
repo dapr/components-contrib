@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
 
@@ -41,9 +42,14 @@ const (
 	defaultMaxRetryDelay = time.Second * 120
 )
 
+type azAppConfigClient interface {
+	GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error)
+	NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage]
+}
+
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client   *azappconfig.Client
+	client   azAppConfigClient
 	metadata metadata
 
 	logger logger.Logger
@@ -205,7 +211,7 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		labelFilter = to.Ptr("*")
 	}
 
-	revPgr := r.client.NewListRevisionsPager(
+	allSettingsPgr := r.client.NewListSettingsPager(
 		azappconfig.SettingSelector{
 			KeyFilter:   to.Ptr("*"),
 			LabelFilter: labelFilter,
@@ -213,8 +219,8 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		},
 		nil)
 
-	for revPgr.More() {
-		if revResp, err := revPgr.NextPage(ctx); err == nil {
+	for allSettingsPgr.More() {
+		if revResp, err := allSettingsPgr.NextPage(ctx); err == nil {
 			for _, setting := range revResp.Settings {
 				item := &configuration.Item{
 					Metadata: map[string]string{},
@@ -230,7 +236,6 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 			return nil, fmt.Errorf("failed to load all keys, error is %s", err)
 		}
 	}
-
 	return items, nil
 }
 

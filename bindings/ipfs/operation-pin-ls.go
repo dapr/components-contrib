@@ -21,9 +21,8 @@ import (
 
 	ipfsOptions "github.com/ipfs/interface-go-ipfs-core/options"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // Handler for the "pin-ls" operation, which removes a pin
@@ -75,7 +74,7 @@ type pinLsRequestMetadata struct {
 
 func (m *pinLsRequestMetadata) FromMap(mp map[string]string) (err error) {
 	if len(mp) > 0 {
-		err = mapstructure.WeakDecode(mp, m)
+		err = metadata.DecodeMetadata(mp, m)
 		if err != nil {
 			return err
 		}

@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
 
@@ -123,4 +124,21 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 		}
 	}
 	return "", false
+}
+
+// DecodeMetadata decodes metadata into a struct
+// This is an extension of mitchellh/mapstructure which also supports decoding durations
+func DecodeMetadata(input interface{}, result interface{}) error {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			toTimeDurationHookFunc()),
+		Metadata:         nil,
+		Result:           result,
+		WeaklyTypedInput: true,
+	})
+	if err != nil {
+		return err
+	}
+	err = decoder.Decode(input)
+	return err
 }

@@ -1,0 +1,21 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.cassandra
+  version: v1
+  initTimeout: 20s
+  metadata:
+  - name: hosts
+    value: localhost
+  - name: username
+    value: cassandra
+  - name: password
+    value: cassandra
+  - name: port
+    value: "9044"
+  - name: table
+    value: "daprTable"
+  - name: keyspace
+    value: "daprKeyspace"

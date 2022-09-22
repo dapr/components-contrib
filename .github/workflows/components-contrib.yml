@@ -93,7 +93,7 @@ jobs:
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-
       - name: Check components-schema
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
-        run: make check-components-schema-diff
+        run: make check-component-metadata-schema-diff
       - name: Run golangci-lint
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         uses: golangci/golangci-lint-action@v3.2.0

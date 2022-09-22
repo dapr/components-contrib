@@ -94,9 +94,10 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		p.metadata = m
 	}
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	ctx, cancel := context.WithTimeout(context.Background(), p.metadata.maxIdleTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultMaxConnIdleTime)
 	defer cancel()
-	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTimeout)
+	// ctx := context.Background()
+	client, err := Connect(ctx, p.metadata.connectionString)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%s'", err)
 	}
@@ -309,7 +310,7 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func Connect(ctx context.Context, conn string, maxTimeout time.Duration) (*pgxpool.Pool, error) {
+func Connect(ctx context.Context, conn string) (*pgxpool.Pool, error) {
 	config, err := pgxpool.ParseConfig(conn)
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store connection error : %s", err)

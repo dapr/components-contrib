@@ -39,7 +39,7 @@ type middlewareMetadata struct {
 }
 
 // NewMiddleware returns a new Open Policy Agent middleware.
-func NewMiddleware(logger logger.Logger) *Middleware {
+func NewMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 

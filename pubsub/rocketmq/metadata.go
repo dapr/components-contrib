@@ -45,16 +45,24 @@ const (
 
 // RocketMQ Go Client Options
 type rocketMQMetaData struct {
-	InstanceName      string `mapstructure:"instanceName"`
+	// rocketmq instance name, it will be registered to the broker
+	InstanceName string `mapstructure:"instanceName"`
+	// consumer group name
 	ConsumerGroupName string `mapstructure:"consumerGroupName"`
+	// producer group name
 	ProducerGroupName string `mapstructure:"producerGroupName"`
-	NameSpace         string `mapstructure:"nameSpace"`
-	NameServerDomain  string `mapstructure:"nameServerDomain"`
-	NameServer        string `mapstructure:"nameServer"`
-	AccessKey         string `mapstructure:"accessKey"`
-	SecretKey         string `mapstructure:"secretKey"`
-	SecurityToken     string `mapstructure:"securityToken"`
-	Retries           int    `mapstructure:"retries"`
+	// rocketmq namespace
+	NameSpace string `mapstructure:"nameSpace"`
+	// rocketmq's name server domain
+	NameServerDomain string `mapstructure:"nameServerDomain"`
+	// rocketmq's name server
+	NameServer string `mapstructure:"nameServer"`
+	// rocketmq Credentials
+	AccessKey     string `mapstructure:"accessKey"`
+	SecretKey     string `mapstructure:"secretKey"`
+	SecurityToken string `mapstructure:"securityToken"`
+	// retry times to send msg to broker
+	Retries int `mapstructure:"retries"`
 
 	// Producer Queue selector
 	// There are five implementations of queue selector，Hash, Random, Manual, RoundRobin, Dapr，respectively
@@ -175,6 +183,17 @@ func (s *rocketMQMetaData) Decode(in interface{}) error {
 	return nil
 }
 
+const (
+	keyInstance         string = "instance"
+	KeyConsumerGroup    string = "consumerGroup"
+	KeyProducerGroup    string = "producerGroup"
+	KeyConsumeFromWhere string = "consumeFromWhere"
+	KeyConsumeOrder     string = "consumeOrder"
+	KeyQueueSelector    string = "queueSelector"
+	KeySendMsgTimeout   string = "sendMsgTimeout"
+	KeySendTimeOut      string = "sendTimeOut"
+)
+
 func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) {
 	rMetaData := &rocketMQMetaData{
 		Retries:             3,
@@ -189,25 +208,25 @@ func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) 
 			return nil, fmt.Errorf("rocketmq configuration error: %w", err)
 		}
 		if rMetaData.InstanceName == "" {
-			rMetaData.InstanceName = metadata.Properties["instance"]
+			rMetaData.InstanceName = metadata.Properties[keyInstance]
 		}
 		if rMetaData.ConsumerGroupName == "" {
-			rMetaData.ConsumerGroupName = metadata.Properties["consumerGroup"]
+			rMetaData.ConsumerGroupName = metadata.Properties[KeyConsumerGroup]
 		}
 		if rMetaData.ProducerGroupName == "" {
-			rMetaData.ProducerGroupName = metadata.Properties["producerGroup"]
+			rMetaData.ProducerGroupName = metadata.Properties[KeyProducerGroup]
 		}
 		if rMetaData.FromWhere == "" {
-			rMetaData.FromWhere = metadata.Properties["consumeFromWhere"]
+			rMetaData.FromWhere = metadata.Properties[KeyConsumeFromWhere]
 		}
 		if rMetaData.ConsumeOrderly == "" {
-			rMetaData.ConsumeOrderly = metadata.Properties["consumeOrder"]
+			rMetaData.ConsumeOrderly = metadata.Properties[KeyConsumeOrder]
 		}
 		if rMetaData.ProducerQueueSelector == "" {
-			rMetaData.ProducerQueueSelector = QueueSelectorType(metadata.Properties["queueSelector"])
+			rMetaData.ProducerQueueSelector = QueueSelectorType(metadata.Properties[KeyQueueSelector])
 		}
-		if _, ok := metadata.Properties["sendMsgTimeout"]; !ok {
-			if v, ok := metadata.Properties["sendTimeOut"]; ok {
+		if _, ok := metadata.Properties[KeySendMsgTimeout]; !ok {
+			if v, ok := metadata.Properties[KeySendTimeOut]; ok {
 				if sendMsgTimeout, e := strconv.Atoi(v); e == nil {
 					rMetaData.SendMsgTimeout = sendMsgTimeout
 				}

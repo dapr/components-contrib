@@ -403,7 +403,11 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 			}
 		}
 		stop := make(chan struct{})
-		subscribeID = uuid.New().String()
+		subscribeUID, err := uuid.NewRandom()
+		if err != nil {
+			return "", fmt.Errorf("unable to generate subscription id - %w", err)
+		}
+		subscribeID = subscribeUID.String()
 		p.subscribeStopChanMap[subscribeID] = stop
 		p.ActiveSubscriptions[channel] = &subscription{
 			uuid: subscribeID,

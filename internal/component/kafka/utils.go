@@ -62,9 +62,6 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-// // Map of topics and their handlers
-// type TopicHandlers map[string]EventHandler
-
 // TopicHandlerConfig is the map of topics and sruct containing handler and their config.
 type TopicHandlerConfig map[string]SubscriptionHandlerConfig
 

@@ -52,19 +52,19 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			case <-session.Context().Done():
 				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
 			case message := <-claim.Messages():
+				consumer.mutex.Lock()
 				if message != nil {
-					consumer.mutex.Lock()
 					messages = append(messages, message)
 					if len(messages) >= handlerConfig.SubscribeConfig.MaxBulkCount {
 						consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
-						messages = make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkCount)
+						messages = messages[:0]
 					}
-					consumer.mutex.Unlock()
 				}
+				consumer.mutex.Unlock()
 			case <-ticker.C:
 				consumer.mutex.Lock()
 				consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
-				messages = make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkCount)
+				messages = messages[:0]
 				consumer.mutex.Unlock()
 			}
 		}
@@ -197,18 +197,18 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// AddTopicHandler adds a bulk handler and configuration for a topic
+// AddTopicHandler adds a handler and configuration for a topic
 func (k *Kafka) AddTopicHandler(topic string, handlerConfig SubscriptionHandlerConfig) {
-	k.bulkSubscribeLock.Lock()
+	k.subscribeLock.Lock()
 	k.subscribeTopics[topic] = handlerConfig
-	k.bulkSubscribeLock.Unlock()
+	k.subscribeLock.Unlock()
 }
 
-// RemoveTopicHandler removes a topic bulk handler
+// RemoveTopicHandler removes a topic handler
 func (k *Kafka) RemoveTopicHandler(topic string) {
-	k.bulkSubscribeLock.Lock()
+	k.subscribeLock.Lock()
 	delete(k.subscribeTopics, topic)
-	k.bulkSubscribeLock.Unlock()
+	k.subscribeLock.Unlock()
 }
 
 // checkBulkSubscribe checks if a bulk handler and config are correctly registered for provided topic
@@ -222,7 +222,7 @@ func (k *Kafka) checkBulkSubscribe(topic string) bool {
 	return false
 }
 
-// GetTopicBulkHandler returns the bulk handler for a topic
+// GetTopicBulkHandler returns the handlerConfig for a topic
 func (k *Kafka) GetTopicHandlerConfig(topic string) (SubscriptionHandlerConfig, error) {
 	handlerConfig, ok := k.subscribeTopics[topic]
 	if ok && ((handlerConfig.IsBulkSubscribe && handlerConfig.BulkHandler != nil) ||

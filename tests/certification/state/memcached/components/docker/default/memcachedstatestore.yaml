@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.memcached
+  version: v1
+  metadata:
+  - name: hosts
+    value: "localhost:11211"

@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
@@ -466,28 +465,37 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 
 func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[string]string {
 	for key, val := range metadata {
-		oldkey := key
 		// Keep only letters and digits
-		key = strings.Map(func(r rune) rune {
-			if unicode.IsLetter(r) || unicode.IsDigit(r) {
-				return r
+		n := 0
+		newKey := make([]byte, len(key))
+		for i := 0; i < len(key); i++ {
+			if (key[i] >= 'A' && key[i] <= 'Z') ||
+				(key[i] >= 'a' && key[i] <= 'z') ||
+				(key[i] >= '0' && key[i] <= '9') {
+				newKey[n] = key[i]
+				n++
 			}
-			return -1
-		}, key)
+		}
 
-		if oldkey != key {
-			a.logger.Warnf("metadata key %s contains disallowed characters, sanitized to %s", oldkey, key)
-			delete(metadata, oldkey)
-			metadata[key] = val
+		if n != len(key) {
+			nks := string(newKey[:n])
+			a.logger.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
+			delete(metadata, key)
+			metadata[nks] = val
+			key = nks
 		}
 
 		// Remove all non-ascii characters
-		metadata[key] = strings.Map(func(r rune) rune {
-			if r > unicode.MaxASCII {
-				return -1
+		n = 0
+		newVal := make([]byte, len(val))
+		for i := 0; i < len(val); i++ {
+			if val[i] > 127 {
+				continue
 			}
-			return r
-		}, val)
+			newVal[n] = val[i]
+			n++
+		}
+		metadata[key] = string(newVal[:n])
 	}
 
 	return metadata

@@ -50,7 +50,7 @@ type TokenProviderInterface interface {
 }
 
 // NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware.
-func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) *Middleware {
+func NewOAuth2ClientCredentialsMiddleware(logger logger.Logger) middleware.Middleware {
 	m := &Middleware{
 		log:        logger,
 		tokenCache: cache.New(1*time.Hour, 10*time.Minute),

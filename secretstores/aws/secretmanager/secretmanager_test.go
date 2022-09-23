@@ -15,9 +15,11 @@ limitations under the License.
 package secretmanager
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/stretchr/testify/assert"
@@ -29,12 +31,12 @@ import (
 const secretValue = "secret"
 
 type mockedSM struct {
-	GetSecretValueFn func(*secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error)
+	GetSecretValueFn func(context.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
 	secretsmanageriface.SecretsManagerAPI
 }
 
-func (m *mockedSM) GetSecretValue(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
-	return m.GetSecretValueFn(input)
+func (m *mockedSM) GetSecretValueWithContext(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+	return m.GetSecretValueFn(ctx, input, option...)
 }
 
 func TestInit(t *testing.T) {
@@ -58,7 +60,7 @@ func TestGetSecret(t *testing.T) {
 		t.Run("without version id and version stage", func(t *testing.T) {
 			s := smSecretStore{
 				client: &mockedSM{
-					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
+					GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.Nil(t, input.VersionId)
 						assert.Nil(t, input.VersionStage)
 						secret := secretValue
@@ -75,7 +77,7 @@ func TestGetSecret(t *testing.T) {
 				Name:     "/aws/secret/testing",
 				Metadata: map[string]string{},
 			}
-			output, e := s.GetSecret(req)
+			output, e := s.GetSecret(context.Background(), req)
 			assert.Nil(t, e)
 			assert.Equal(t, "secret", output.Data[req.Name])
 		})
@@ -83,7 +85,7 @@ func TestGetSecret(t *testing.T) {
 		t.Run("with version id", func(t *testing.T) {
 			s := smSecretStore{
 				client: &mockedSM{
-					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
+					GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.NotNil(t, input.VersionId)
 						secret := secretValue
 
@@ -101,7 +103,7 @@ func TestGetSecret(t *testing.T) {
 					VersionID: "1",
 				},
 			}
-			output, e := s.GetSecret(req)
+			output, e := s.GetSecret(context.Background(), req)
 			assert.Nil(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -109,7 +111,7 @@ func TestGetSecret(t *testing.T) {
 		t.Run("with version stage", func(t *testing.T) {
 			s := smSecretStore{
 				client: &mockedSM{
-					GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
+					GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 						assert.NotNil(t, input.VersionStage)
 						secret := secretValue
 
@@ -127,7 +129,7 @@ func TestGetSecret(t *testing.T) {
 					VersionStage: "dev",
 				},
 			}
-			output, e := s.GetSecret(req)
+			output, e := s.GetSecret(context.Background(), req)
 			assert.Nil(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
@@ -136,7 +138,7 @@ func TestGetSecret(t *testing.T) {
 	t.Run("unsuccessfully retrieve secret", func(t *testing.T) {
 		s := smSecretStore{
 			client: &mockedSM{
-				GetSecretValueFn: func(input *secretsmanager.GetSecretValueInput) (*secretsmanager.GetSecretValueOutput, error) {
+				GetSecretValueFn: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, option ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
 					return nil, fmt.Errorf("failed due to any reason")
 				},
 			},
@@ -145,7 +147,15 @@ func TestGetSecret(t *testing.T) {
 			Name:     "/aws/secret/testing",
 			Metadata: map[string]string{},
 		}
-		_, err := s.GetSecret(req)
+		_, err := s.GetSecret(context.Background(), req)
 		assert.NotNil(t, err)
+	})
+}
+
+func TestGetFeatures(t *testing.T) {
+	s := smSecretStore{}
+	t.Run("no features are advertised", func(t *testing.T) {
+		f := s.Features()
+		assert.Empty(t, f)
 	})
 }

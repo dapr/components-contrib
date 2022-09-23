@@ -27,22 +27,20 @@ import (
 
 // Kafka allows reading/writing to a Kafka consumer group.
 type Kafka struct {
-	producer            sarama.SyncProducer
-	consumerGroup       string
-	brokers             []string
-	logger              logger.Logger
-	authType            string
-	saslUsername        string
-	saslPassword        string
-	initialOffset       int64
-	cg                  sarama.ConsumerGroup
-	cancel              context.CancelFunc
-	consumer            consumer
-	config              *sarama.Config
-	subscribeTopics     TopicHandlers
-	bulkSubscribeTopics TopicBulkHandlerConfig
-	subscribeLock       sync.Mutex
-	bulkSubscribeLock   sync.Mutex
+	producer        sarama.SyncProducer
+	consumerGroup   string
+	brokers         []string
+	logger          logger.Logger
+	authType        string
+	saslUsername    string
+	saslPassword    string
+	initialOffset   int64
+	cg              sarama.ConsumerGroup
+	cancel          context.CancelFunc
+	consumer        consumer
+	config          *sarama.Config
+	subscribeTopics TopicHandlerConfig
+	subscribeLock   sync.Mutex
 
 	backOffConfig retry.Config
 
@@ -55,11 +53,9 @@ type Kafka struct {
 
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
-		logger:              logger,
-		subscribeTopics:     make(TopicHandlers),
-		bulkSubscribeTopics: make(TopicBulkHandlerConfig),
-		subscribeLock:       sync.Mutex{},
-		bulkSubscribeLock:   sync.Mutex{},
+		logger:          logger,
+		subscribeTopics: make(TopicHandlerConfig),
+		subscribeLock:   sync.Mutex{},
 	}
 }
 
@@ -151,13 +147,15 @@ func (k *Kafka) Close() (err error) {
 // EventHandler is the handler used to handle the subscribed event.
 type EventHandler func(ctx context.Context, msg *NewEvent) error
 
-// BulkEventHandler is the handler used to handle the subscribed event.
+// BulkEventHandler is the handler used to handle the subscribed bulk event.
 type BulkEventHandler func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error)
 
-// BulkHandlerConfig is the bulkHandler and configuration for bulk subscription.
-type BulkSubscriptionHandlerConfig struct {
+// SubscriptionHandlerConfig is the handler and configuration for subscription.
+type SubscriptionHandlerConfig struct {
+	IsBulkSubscribe bool
 	SubscribeConfig pubsub.BulkSubscribeConfig
-	Handler         BulkEventHandler
+	BulkHandler     BulkEventHandler
+	Handler         EventHandler
 }
 
 // NewEvent is an event arriving from a message bus instance.

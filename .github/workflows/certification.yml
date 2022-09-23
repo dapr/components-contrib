@@ -42,14 +42,18 @@ jobs:
         - pubsub.kafka
         - pubsub.rabbitmq
         - pubsub.mqtt
+        - state.mongodb
         - state.redis
         - state.postgresql
+        - state.cassandra
         - bindings.alicloud.dubbo
         - bindings.kafka
+        - bindings.redis
         - secretstores.local.env
         - secretstores.local.file
         - bindings.rabbitmq
         - bindings.localstorage
+        - bindings.postgres
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -102,6 +106,8 @@ jobs:
           required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: state.azure.blobstorage
           required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: state.azure.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
@@ -249,6 +255,7 @@ jobs:
         fi
 
     - name: Prepare Cert Coverage Info
+      if: github.event_name == 'schedule'
       run: |
        mkdir -p tmp/cov_files
        SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g') # converts slashes to dots in this string, so that it doesn't consider them sub-folders
@@ -256,12 +263,14 @@ jobs:
 
     - name: Upload Cert Coverage Artifact
       uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
       with:
         name: certtest_cov
         path: tmp/cov_files
         retention-days: 1
 
-    - name: Component Coverage Discord Notification 
+    - name: Component Coverage Discord Notification
+      if: github.event_name == 'schedule'
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
       uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
@@ -281,7 +290,7 @@ jobs:
     name: Notify Total coverage
     runs-on: ubuntu-latest
     needs: certification
-    if: always()
+    if: github.event_name == 'schedule'
     steps:
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3

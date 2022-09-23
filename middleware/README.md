@@ -6,4 +6,4 @@ Middleware components provide a way to define middlewares that are executed in a
 
 ## Implementing a new Middleware
 
-A compliant middleware needs to implement the `Middleware` inteface included in the [`middleware.go`](middleware.go) file.
+A compliant middleware needs to implement the `Middleware` interface included in the [`middleware.go`](middleware.go) file.

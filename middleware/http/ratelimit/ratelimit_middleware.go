@@ -39,7 +39,7 @@ const (
 )
 
 // NewRateLimitMiddleware returns a new ratelimit middleware.
-func NewRateLimitMiddleware(logger logger.Logger) *Middleware {
+func NewRateLimitMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 

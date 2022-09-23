@@ -377,7 +377,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 	// Create a new batch of messages with batch options.
 	batchOpts := &servicebus.MessageBatchOptions{
-		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytes, defaultMaxBulkPubBytes),
+		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytesKey, defaultMaxBulkPubBytes),
 	}
 
 	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)

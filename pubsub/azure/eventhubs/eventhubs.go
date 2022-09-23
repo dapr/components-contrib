@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -57,7 +59,6 @@ const (
 	missingSubscriptionIDMsg                 = "error: missing subscriptionID attribute required for entityManagement"
 	entityManagementConnectionStrMsg         = "error: entity management support is not available with connectionString"
 	differentTopicConnectionStringErrorTmpl  = "error: specified topic %s does not match the event hub name in the provided connectionString"
-	maxBulkSizeInBytesTooLargeErrorTmpl      = "error: maxBulkSizeInBytes exceeds the maximum allowed value of %d"
 
 	// Event Hubs SystemProperties names for metadata passthrough.
 	sysPropSequenceNumber             = "x-opt-sequence-number"
@@ -157,7 +158,6 @@ type azureEventHubsMetadata struct {
 	PartitionCount         int32  `json:"partitionCount,omitempty,string"`
 	SubscriptionID         string `json:"subscriptionID,omitempty"`
 	ResourceGroupName      string `json:"resourceGroupName,omitempty"`
-	MaxBulkSizeInBytes     int    `json:"maxBulkSizeInBytes,omitempty,string"`
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -183,10 +183,6 @@ func parseEventHubsMetadata(meta pubsub.Metadata) (*azureEventHubsMetadata, erro
 
 	if m.ConnectionString != "" && m.EventHubNamespace != "" {
 		return &m, errors.New(bothConnectionStringNamespaceErrorMsg)
-	}
-
-	if m.MaxBulkSizeInBytes > int(eventhub.DefaultMaxMessageSizeInBytes) {
-		return &m, fmt.Errorf(maxBulkSizeInBytesTooLargeErrorTmpl, eventhub.DefaultMaxMessageSizeInBytes)
 	}
 
 	return &m, nil
@@ -589,9 +585,9 @@ func (aeh *AzureEventHubs) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.B
 	}
 
 	// Configure options for sending events.
-	opts := []eventhub.BatchOption{}
-	if aeh.metadata.MaxBulkSizeInBytes > 0 {
-		opts = append(opts, eventhub.BatchWithMaxSizeInBytes(aeh.metadata.MaxBulkSizeInBytes))
+	opts := []eventhub.BatchOption{
+		eventhub.BatchWithMaxSizeInBytes(utils.GetElemOrDefaultFromMap(
+			req.Metadata, contribMetadata.MaxBulkPubBytesKey, int(eventhub.DefaultMaxMessageSizeInBytes))),
 	}
 
 	// Send events.

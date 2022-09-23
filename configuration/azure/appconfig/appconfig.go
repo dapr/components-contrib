@@ -56,6 +56,8 @@ type ConfigurationStore struct {
 	client               azAppConfigClient
 	metadata             metadata
 	subscribeStopChanMap sync.Map
+	keysToSubIDMap       map[string]string
+	subIDToKeyListMap    map[string][]string
 
 	logger logger.Logger
 }
@@ -63,7 +65,9 @@ type ConfigurationStore struct {
 // NewAzureAppConfigurationStore returns a new Azure App Configuration store.
 func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 	s := &ConfigurationStore{
-		logger: logger,
+		keysToSubIDMap:    make(map[string]string),
+		subIDToKeyListMap: make(map[string][]string),
+		logger:            logger,
 	}
 
 	return s
@@ -269,6 +273,26 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	if sentinelKey == "" {
 		return "", fmt.Errorf("sentinel key is not provided in metadata")
 	}
+	actualKeyToSubscribeSlice := make([]string, 0)
+	for _, key := range req.Keys {
+		_, found := r.keysToSubIDMap[key]
+		if !found {
+			actualKeyToSubscribeSlice = append(actualKeyToSubscribeSlice, key)
+			r.keysToSubIDMap[key] = subscribeID
+		}
+	}
+	if len(actualKeyToSubscribeSlice) == 0 {
+		return "", fmt.Errorf("all provided keys are already subscribed")
+	}
+	value, found := r.subIDToKeyListMap[subscribeID]
+	if found {
+		value = append(value, actualKeyToSubscribeSlice...)
+		r.subIDToKeyListMap[subscribeID] = value
+	} else {
+		r.subIDToKeyListMap[subscribeID] = actualKeyToSubscribeSlice
+	}
+
+	req.Keys = actualKeyToSubscribeSlice
 	go r.doSubscribe(ctx, req, handler, sentinelKey, subscribeID, stop)
 	return subscribeID, nil
 }
@@ -332,6 +356,13 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		// already exist subscription
 		r.subscribeStopChanMap.Delete(req.ID)
 		close(oldStopChan.(chan struct{}))
+		keys, found := r.subIDToKeyListMap[req.ID]
+		if found {
+			for _, key := range keys {
+				delete(r.keysToSubIDMap, key)
+			}
+			delete(r.subIDToKeyListMap, req.ID)
+		}
 	}
 	return nil
 }

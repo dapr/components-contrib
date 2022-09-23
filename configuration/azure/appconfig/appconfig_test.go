@@ -113,6 +113,71 @@ func Test_getConfigurationWithProvidedKeys(t *testing.T) {
 	})
 }
 
+func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
+	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
+
+	s.client = &MockConfigurationStore{}
+
+	metadata := make(map[string]string)
+	metadata["sentinelKey"] = "test_sentinel_key"
+
+	t.Run("call subscribe", func(t *testing.T) {
+		req := configuration.SubscribeRequest{
+			Keys:     []string{"testKey"},
+			Metadata: metadata,
+		}
+		subID, err := s.Subscribe(context.Background(), &req, updateEventHandler)
+		assert.True(t, len(subID) > 0)
+		assert.Nil(t, err)
+		unReq := &configuration.UnsubscribeRequest{
+			ID: subID,
+		}
+		s.Unsubscribe(context.Background(), unReq)
+	})
+
+	t.Run("call subscribe", func(t *testing.T) {
+		req := configuration.SubscribeRequest{
+			Keys:     []string{"testKey"},
+			Metadata: make(map[string]string),
+		}
+		_, err := s.Subscribe(context.Background(), &req, updateEventHandler)
+		assert.NotNil(t, err)
+	})
+}
+
+func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
+	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
+
+	s.client = &MockConfigurationStore{}
+	s.subscribeStopChanMap.Store("id1", make(chan struct{}))
+	s.keysToSubIDMap["testKey"] = "id1"
+	s.subIDToKeyListMap["id1"] = []string{"testKey"}
+
+	t.Run("call unsubscribe with incorrect subId", func(t *testing.T) {
+		req := configuration.UnsubscribeRequest{
+			ID: "id_not_exist",
+		}
+		err := s.Unsubscribe(context.Background(), &req)
+		assert.Nil(t, err)
+		_, ok := s.subscribeStopChanMap.Load("id1")
+		assert.True(t, ok)
+	})
+
+	t.Run("call unsubscribe with correct subId", func(t *testing.T) {
+		req := configuration.UnsubscribeRequest{
+			ID: "id1",
+		}
+		err := s.Unsubscribe(context.Background(), &req)
+		assert.Nil(t, err)
+		_, ok := s.subscribeStopChanMap.Load("id1")
+		assert.False(t, ok)
+		_, ok = s.keysToSubIDMap["testKey"]
+		assert.False(t, ok)
+		_, ok = s.subIDToKeyListMap["id1"]
+		assert.False(t, ok)
+	})
+}
+
 func Test_getConfigurationWithNoProvidedKeys(t *testing.T) {
 	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
 
@@ -256,4 +321,8 @@ func Test_parseMetadata(t *testing.T) {
 		_, err := parseMetadata(meta)
 		assert.Error(t, err)
 	})
+}
+
+func updateEventHandler(ctx context.Context, e *configuration.UpdateEvent) error {
+	return nil
 }

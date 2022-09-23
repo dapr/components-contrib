@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dapr/kit/config"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 type Settings struct {
@@ -48,7 +48,7 @@ type Settings struct {
 }
 
 func (s *Settings) Decode(in interface{}) error {
-	return config.Decode(in, s)
+	return metadata.DecodeMetadata(in, s)
 }
 
 func (s *Settings) Validate() error {

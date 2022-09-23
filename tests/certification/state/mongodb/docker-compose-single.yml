@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+
+  mongo1:
+    image: mongo
+    restart: always
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo1:/data/db
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all"]
+
+volumes:
+  mongo1:

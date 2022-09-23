@@ -121,7 +121,7 @@ func (p *PubSub) Publish(req *pubsub.PublishRequest) error {
 
 // BatchPublish messages to Kafka cluster.
 func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
-	return p.kafka.BulkPublish(req.Topic, req.Entries, req.Metadata)
+	return p.kafka.BulkPublish(ctx, req.Topic, req.Entries, req.Metadata)
 }
 
 func (p *PubSub) Close() (err error) {

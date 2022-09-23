@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -41,6 +42,7 @@ const (
 	metadataDecodeBase64 = "decodeBase64"
 	metadataEncodeBase64 = "encodeBase64"
 	metadataFilePath     = "filePath"
+	metadataPresignTTL   = "presignTTL"
 
 	metadataKey = "key"
 
@@ -69,11 +71,13 @@ type s3Metadata struct {
 	DisableSSL     bool   `json:"disableSSL,string"`
 	InsecureSSL    bool   `json:"insecureSSL,string"`
 	FilePath       string
+	PresignTTL     string
 }
 
 type createResponse struct {
-	Location  string  `json:"location"`
-	VersionID *string `json:"versionID"`
+	Location   string  `json:"location"`
+	VersionID  *string `json:"versionID"`
+	PresignURL string  `json:"presignURL,omitempty"`
 }
 
 type listPayload struct {
@@ -178,9 +182,27 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return nil, fmt.Errorf("s3 binding error. Uploading: %w", err)
 	}
 
+	var presignURL string
+	if metadata.PresignTTL != "" {
+		d, err := time.ParseDuration(metadata.PresignTTL)
+		if err != nil {
+			return nil, fmt.Errorf("se binding error. Cannot parse duration value: %s", metadata.PresignTTL)
+		}
+
+		req, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
+			Bucket: aws.String(metadata.Bucket),
+			Key:    aws.String(key),
+		})
+		presignURL, err = req.Presign(d)
+		if err != nil {
+			return nil, fmt.Errorf("s3 binding error. Failed to presign URL: %s", err)
+		}
+	}
+
 	jsonResponse, err := json.Marshal(createResponse{
-		Location:  resultUpload.Location,
-		VersionID: resultUpload.VersionID,
+		Location:   resultUpload.Location,
+		VersionID:  resultUpload.VersionID,
+		PresignURL: presignURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error. Error marshalling create response: %w", err)
@@ -335,6 +357,10 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 
 	if val, ok := req.Metadata[metadataFilePath]; ok && val != "" {
 		merged.FilePath = val
+	}
+
+	if val, ok := req.Metadata[metadataPresignTTL]; ok && val != "" {
+		merged.PresignTTL = val
 	}
 
 	return merged, nil

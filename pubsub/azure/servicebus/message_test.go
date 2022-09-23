@@ -22,8 +22,6 @@ import (
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dapr/components-contrib/pubsub"
 )
 
 var (
@@ -105,31 +103,27 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 	}
 }
 
-func TestNewASBMessageFromPubsubRequest(t *testing.T) {
+func TestAddMetadataToMessage(t *testing.T) {
 	testCases := []struct {
 		name                        string
-		pubsubRequest               pubsub.PublishRequest
+		metadata                    map[string]string
 		expectedAzServiceBusMessage azservicebus.Message
 		expectError                 bool
 	}{
 		{
 			name: "Maps pubsub request to azure service bus message.",
-			pubsubRequest: pubsub.PublishRequest{
-				Data: testMessageData,
-				Metadata: map[string]string{
-					MessageIDMetadataKey:               testMessageID,
-					CorrelationIDMetadataKey:           testCorrelationID,
-					SessionIDMetadataKey:               testSessionID,
-					LabelMetadataKey:                   testLabel,
-					ReplyToMetadataKey:                 testReplyTo,
-					ToMetadataKey:                      testTo,
-					PartitionKeyMetadataKey:            testPartitionKey,
-					ContentTypeMetadataKey:             testContentType,
-					ScheduledEnqueueTimeUtcMetadataKey: testScheduledEnqueueTimeUtc,
-				},
+			metadata: map[string]string{
+				MessageIDMetadataKey:               testMessageID,
+				CorrelationIDMetadataKey:           testCorrelationID,
+				SessionIDMetadataKey:               testSessionID,
+				LabelMetadataKey:                   testLabel,
+				ReplyToMetadataKey:                 testReplyTo,
+				ToMetadataKey:                      testTo,
+				PartitionKeyMetadataKey:            testPartitionKey,
+				ContentTypeMetadataKey:             testContentType,
+				ScheduledEnqueueTimeUtcMetadataKey: testScheduledEnqueueTimeUtc,
 			},
 			expectedAzServiceBusMessage: azservicebus.Message{
-				Body:                 testMessageData,
 				MessageID:            &testMessageID,
 				CorrelationID:        &testCorrelationID,
 				SessionID:            &testSessionID,
@@ -144,21 +138,17 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 		},
 		{
 			name: "Errors when partition key and session id set but not equal.",
-			pubsubRequest: pubsub.PublishRequest{
-				Data: testMessageData,
-				Metadata: map[string]string{
-					MessageIDMetadataKey:     testMessageID,
-					CorrelationIDMetadataKey: testCorrelationID,
-					SessionIDMetadataKey:     testSessionID,
-					LabelMetadataKey:         testLabel,
-					ReplyToMetadataKey:       testReplyTo,
-					ToMetadataKey:            testTo,
-					PartitionKeyMetadataKey:  testPartitionKeyUnique,
-					ContentTypeMetadataKey:   testContentType,
-				},
+			metadata: map[string]string{
+				MessageIDMetadataKey:     testMessageID,
+				CorrelationIDMetadataKey: testCorrelationID,
+				SessionIDMetadataKey:     testSessionID,
+				LabelMetadataKey:         testLabel,
+				ReplyToMetadataKey:       testReplyTo,
+				ToMetadataKey:            testTo,
+				PartitionKeyMetadataKey:  testPartitionKeyUnique,
+				ContentTypeMetadataKey:   testContentType,
 			},
 			expectedAzServiceBusMessage: azservicebus.Message{
-				Body:          testMessageData,
 				MessageID:     &testMessageID,
 				CorrelationID: &testCorrelationID,
 				SessionID:     &testSessionID,
@@ -175,7 +165,8 @@ func TestNewASBMessageFromPubsubRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// act.
-			msg, err := NewASBMessageFromPubsubRequest(&tc.pubsubRequest)
+			msg := &azservicebus.Message{}
+			err := addMetadataToMessage(msg, tc.metadata)
 
 			// assert.
 			if tc.expectError {

@@ -38,8 +38,9 @@ import (
 )
 
 const (
-	errorMessagePrefix     = "azure service bus error:"
-	defaultMaxBulkSubCount = 100
+	errorMessagePrefix            = "azure service bus error:"
+	defaultMaxBulkSubCount        = 100
+	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
 )
 
 var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
@@ -359,6 +360,44 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 			a.logger.Debugf("Successfully published service bus message (%s) after it previously failed", msgID)
 		},
 	)
+}
+
+func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	// If the request is empty, sender.SendMessageBatch will panic later.
+	// Return an empty response to avoid this.
+	if len(req.Entries) == 0 {
+		a.logger.Warnf("Empty bulk publish request, skipping")
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+	}
+
+	sender, err := a.senderForTopic(ctx, req.Topic)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Create a new batch of messages with batch options.
+	batchOpts := &servicebus.MessageBatchOptions{
+		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytes, defaultMaxBulkPubBytes),
+	}
+
+	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Add messages from the bulk publish request to the batch.
+	err = UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Azure Service Bus does not return individual status for each message in the request.
+	err = sender.SendMessageBatch(ctx, batchMsg, nil)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {

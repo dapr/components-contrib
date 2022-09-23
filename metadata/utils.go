@@ -39,8 +39,8 @@ const (
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
 
-	// MaxBulkCountKey is the key for the max bulk count in the metadata.
-	MaxBulkCountKey string = "maxBulkCount"
+	// MaxBulkCountSubKey defines the maximum number of messages to be sent in a single bulk subscribe request.
+	MaxBulkSubCountKey string = "maxBulkSubCount"
 
 	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
 	MaxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"

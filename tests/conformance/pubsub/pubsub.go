@@ -223,7 +223,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 			var counter int
 			var lastSequence int
-			config.BulkSubscribeMetadata[metadata.MaxBulkCountKey] = strconv.Itoa(defaultMaxBulkCount)
+			config.BulkSubscribeMetadata[metadata.MaxBulkSubCountKey] = strconv.Itoa(defaultMaxBulkCount)
 			config.BulkSubscribeMetadata[metadata.MaxBulkAwaitDurationMilliSecondsKey] = strconv.Itoa(defaultMaxBulkAwaitDurationMs)
 			err := bS.BulkSubscribe(ctx, pubsub.SubscribeRequest{
 				Topic:    config.TestTopicForBulkSub,

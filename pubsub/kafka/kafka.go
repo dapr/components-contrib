@@ -49,7 +49,7 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	handler pubsub.BulkHandler,
 ) error {
 	subConfig := pubsub.BulkSubscribeConfig{
-		MaxBulkCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkCountKey,
+		MaxBulkSubCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkSubCountKey,
 			kafka.DefaultMaxBulkCount),
 		MaxBulkAwaitDurationMilliSeconds: kafka.GetIntFromMetadata(req.Metadata,
 			metadata.MaxBulkAwaitDurationMilliSecondsKey, kafka.DefaultMaxBulkAwaitDurationMilliSeconds),

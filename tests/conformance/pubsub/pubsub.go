@@ -36,20 +36,18 @@ import (
 )
 
 const (
-	defaultPubsubName                   = "pubusub"
-	defaultTopicName                    = "testTopic"
-	defaultTopicNameBulk                = "testTopicBulk"
-	defaultMultiTopic1Name              = "multiTopic1"
-	defaultMultiTopic2Name              = "multiTopic2"
-	defaultMessageCount                 = 10
-	defaultMaxReadDuration              = 60 * time.Second
-	defaultWaitDurationToPublish        = 5 * time.Second
-	defaultCheckInOrderProcessing       = true
-	defaultMaxBulkCount                 = 5
-	defaultMaxBulkAwaitDurationMs       = 500
-	maxBulkCountKey                     = "maxBulkCount"
-	maxBulkAwaitDurationMilliSecondsKey = "maxBulkAwaitDurationMilliSeconds"
-	bulkSubStartingKey                  = 1000
+	defaultPubsubName             = "pubusub"
+	defaultTopicName              = "testTopic"
+	defaultTopicNameBulk          = "testTopicBulk"
+	defaultMultiTopic1Name        = "multiTopic1"
+	defaultMultiTopic2Name        = "multiTopic2"
+	defaultMessageCount           = 10
+	defaultMaxReadDuration        = 60 * time.Second
+	defaultWaitDurationToPublish  = 5 * time.Second
+	defaultCheckInOrderProcessing = true
+	defaultMaxBulkCount           = 5
+	defaultMaxBulkAwaitDurationMs = 500
+	bulkSubStartingKey            = 1000
 )
 
 type TestConfig struct {
@@ -428,7 +426,6 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 	// Verify read on bulk subscription
 	if config.HasOperation("publish") && config.HasOperation("bulksubscribe") {
-
 		t.Run("verify read on bulk subscription", func(t *testing.T) {
 			_, ok := ps.(pubsub.BulkSubscriber)
 			if !ok {

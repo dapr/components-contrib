@@ -32,22 +32,49 @@ type consumer struct {
 	ready   chan bool
 	running chan struct{}
 	once    sync.Once
+	mutex   sync.Mutex
 }
 
 func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	b := consumer.k.backOffConfig.NewBackOffWithContext(session.Context())
 	isBulkSubscribe := consumer.k.checkBulkSubscribe(claim.Topic())
-	if isBulkSubscribe {
-		return consumer.processBulkMessages(session, claim, b)
+
+	handlerConfig, err := consumer.k.GetTopicHandlerConfig(claim.Topic())
+	if err != nil {
+		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
 	}
-	for {
-		select {
-		case message := <-claim.Messages():
+	if isBulkSubscribe {
+		ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds) * time.Millisecond)
+		defer ticker.Stop()
+		messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkSubCount)
+		for {
+			select {
+			case <-session.Context().Done():
+				return consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+			case message := <-claim.Messages():
+				consumer.mutex.Lock()
+				if message != nil {
+					messages = append(messages, message)
+					if len(messages) >= handlerConfig.SubscribeConfig.MaxBulkSubCount {
+						consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+						messages = messages[:0]
+					}
+				}
+				consumer.mutex.Unlock()
+			case <-ticker.C:
+				consumer.mutex.Lock()
+				consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
+				messages = messages[:0]
+				consumer.mutex.Unlock()
+			}
+		}
+	} else {
+		for message := range claim.Messages() {
 			if consumer.k.consumeRetryEnabled {
 				if err := retry.NotifyRecover(func() error {
 					return consumer.doCallback(session, message)
 				}, b, func(err error, d time.Duration) {
-					consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
+					consumer.k.logger.Warnf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v. Retrying...", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 				}, func() {
 					consumer.k.logger.Infof("Successfully processed Kafka message after it previously failed: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
 				}); err != nil {
@@ -59,40 +86,9 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 					consumer.k.logger.Errorf("Error processing Kafka message: %s/%d/%d [key=%s]. Error: %v.", message.Topic, message.Partition, message.Offset, asBase64String(message.Key), err)
 				}
 			}
-		// Should return when `session.Context()` is done.
-		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
-		// https://github.com/Shopify/sarama/issues/1192
-		case <-session.Context().Done():
-			return nil
 		}
 	}
-}
-
-func (consumer *consumer) processBulkMessages(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim,
-	b backoff.BackOff,
-) error {
-	handlerConfig, err := consumer.k.GetTopicBulkHandlerConfig(claim.Topic())
-	if err != nil {
-		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
-	}
-	ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds) * time.Millisecond)
-	defer ticker.Stop()
-	messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkSubCount)
-	for {
-		select {
-		case <-session.Context().Done():
-			return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
-		case message := <-(claim.Messages()):
-			if message != nil {
-				messages = append(messages, message)
-				if len(messages) >= handlerConfig.SubscribeConfig.MaxBulkSubCount {
-					return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
-				}
-			}
-		case <-ticker.C:
-			return consumer.flushBulkMessages(claim, messages, session, handlerConfig.Handler, b)
-		}
-	}
+	return nil
 }
 
 func (consumer *consumer) flushBulkMessages(claim sarama.ConsumerGroupClaim,
@@ -151,6 +147,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 	if err != nil {
 		for i, resp := range responses {
+			// An extra check to confirm that runtime returned responses are in order
 			if resp.EntryID != messageValues[i].EntryID {
 				return errors.New("entry id mismatch while processing bulk messages")
 			}
@@ -169,26 +166,22 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) error {
 	consumer.k.logger.Debugf("Processing Kafka message: %s/%d/%d [key=%s]", message.Topic, message.Partition, message.Offset, asBase64String(message.Key))
-	handler, err := consumer.k.GetTopicHandler(message.Topic)
+	handlerConfig, err := consumer.k.GetTopicHandlerConfig(message.Topic)
 	if err != nil {
 		return err
+	}
+	if !handlerConfig.IsBulkSubscribe && handlerConfig.Handler == nil {
+		return errors.New("invalid handler config for subscribe call")
 	}
 	event := NewEvent{
 		Topic: message.Topic,
 		Data:  message.Value,
 	}
-	// This is true only when headers are set (Kafka > 0.11)
-	if message.Headers != nil && len(message.Headers) > 0 {
-		event.Metadata = make(map[string]string, len(message.Headers))
-		for _, header := range message.Headers {
-			event.Metadata[string(header.Key)] = string(header.Value)
-		}
-	}
-	err = handler(session.Context(), &event)
+
+	err = handlerConfig.Handler(session.Context(), &event)
 	if err == nil {
 		session.MarkMessage(message, "")
 	}
-
 	return err
 }
 
@@ -204,10 +197,10 @@ func (consumer *consumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// AddTopicHandler adds a topic handler
-func (k *Kafka) AddTopicHandler(topic string, handler EventHandler) {
+// AddTopicHandler adds a handler and configuration for a topic
+func (k *Kafka) AddTopicHandler(topic string, handlerConfig SubscriptionHandlerConfig) {
 	k.subscribeLock.Lock()
-	k.subscribeTopics[topic] = handler
+	k.subscribeTopics[topic] = handlerConfig
 	k.subscribeLock.Unlock()
 }
 
@@ -218,48 +211,26 @@ func (k *Kafka) RemoveTopicHandler(topic string) {
 	k.subscribeLock.Unlock()
 }
 
-// AddTopicBulkHandler adds a bulk handler and configuration for a topic
-func (k *Kafka) AddTopicBulkHandler(topic string, handlerConfig BulkSubscriptionHandlerConfig) {
-	k.bulkSubscribeLock.Lock()
-	k.bulkSubscribeTopics[topic] = handlerConfig
-	k.bulkSubscribeLock.Unlock()
-}
-
-// RemoveTopicBulkHandler removes a topic bulk handler
-func (k *Kafka) RemoveTopicBulkHandler(topic string) {
-	k.bulkSubscribeLock.Lock()
-	delete(k.bulkSubscribeTopics, topic)
-	k.bulkSubscribeLock.Unlock()
-}
-
 // checkBulkSubscribe checks if a bulk handler and config are correctly registered for provided topic
 func (k *Kafka) checkBulkSubscribe(topic string) bool {
-	if bulkHandlerConfig, ok := k.bulkSubscribeTopics[topic]; ok &&
-		bulkHandlerConfig.Handler != nil && (bulkHandlerConfig.SubscribeConfig.MaxBulkSubCount > 0) &&
+	if bulkHandlerConfig, ok := k.subscribeTopics[topic]; ok &&
+		bulkHandlerConfig.IsBulkSubscribe &&
+		bulkHandlerConfig.BulkHandler != nil && (bulkHandlerConfig.SubscribeConfig.MaxBulkSubCount > 0) &&
 		bulkHandlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds > 0 {
 		return true
 	}
 	return false
 }
 
-// GetTopicHandler returns the handler for a topic
-func (k *Kafka) GetTopicHandler(topic string) (EventHandler, error) {
-	handler, ok := k.subscribeTopics[topic]
-	if !ok || handler == nil {
-		return nil, fmt.Errorf("handler for messages of topic %s not found", topic)
+// GetTopicBulkHandler returns the handlerConfig for a topic
+func (k *Kafka) GetTopicHandlerConfig(topic string) (SubscriptionHandlerConfig, error) {
+	handlerConfig, ok := k.subscribeTopics[topic]
+	if ok && ((handlerConfig.IsBulkSubscribe && handlerConfig.BulkHandler != nil) ||
+		(!handlerConfig.IsBulkSubscribe && handlerConfig.Handler != nil)) {
+		return handlerConfig, nil
 	}
-
-	return handler, nil
-}
-
-// GetTopicBulkHandler returns the bulk handler for a topic
-func (k *Kafka) GetTopicBulkHandlerConfig(topic string) (BulkSubscriptionHandlerConfig, error) {
-	handlerConfig, ok := k.bulkSubscribeTopics[topic]
-	if !ok || handlerConfig.Handler == nil {
-		return BulkSubscriptionHandlerConfig{},
-			fmt.Errorf("bulk handler for messages of topic %s not found", topic)
-	}
-	return handlerConfig, nil
+	return SubscriptionHandlerConfig{},
+		fmt.Errorf("any handler for messages of topic %s not found", topic)
 }
 
 // Subscribe to topic in the Kafka cluster, in a background goroutine
@@ -318,84 +289,6 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 				return k.cg.Consume(ctx, topics, &(k.consumer))
 			}, bo, func(err error, t time.Duration) {
 				k.logger.Errorf("Error consuming %v. Retrying...: %v", topics, err)
-			}, func() {
-				k.logger.Infof("Recovered consuming %v", topics)
-			})
-			if innerErr != nil && !errors.Is(innerErr, context.Canceled) {
-				k.logger.Errorf("Permanent error consuming %v: %v", topics, innerErr)
-			}
-		}
-
-		k.logger.Debugf("Closing ConsumerGroup for topics: %v", topics)
-		err := k.cg.Close()
-		if err != nil {
-			k.logger.Errorf("Error closing consumer group: %v", err)
-		}
-
-		close(k.consumer.running)
-	}()
-
-	<-ready
-
-	return nil
-}
-
-// BulkSubscribe to topic in the Kafka cluster, in a background goroutine
-func (k *Kafka) BulkSubscribe(ctx context.Context) error {
-	if k.consumerGroup == "" {
-		return errors.New("kafka: consumerGroup must be set to subscribe")
-	}
-
-	k.bulkSubscribeLock.Lock()
-	defer k.bulkSubscribeLock.Unlock()
-
-	// Close resources and reset synchronization primitives
-	k.closeSubscriptionResources()
-
-	topics := k.bulkSubscribeTopics.TopicList()
-	if len(topics) == 0 {
-		// Nothing to subscribe to
-		return nil
-	}
-
-	cg, err := sarama.NewConsumerGroup(k.brokers, k.consumerGroup, k.config)
-	if err != nil {
-		return err
-	}
-
-	k.cg = cg
-
-	ctx, cancel := context.WithCancel(ctx)
-	k.cancel = cancel
-
-	ready := make(chan bool)
-	k.consumer = consumer{
-		k:       k,
-		ready:   ready,
-		running: make(chan struct{}),
-	}
-
-	go func() {
-		k.logger.Debugf("Bulk subscribed and listening to topics: %s", topics)
-
-		for {
-			// If the context was cancelled, as is the case when handling SIGINT and SIGTERM below, then this pops
-			// us out of the consume loop
-			if ctx.Err() != nil {
-				break
-			}
-
-			k.logger.Debugf("Starting loop to consume.")
-
-			// Consume the requested topics
-			bo := backoff.WithContext(backoff.NewConstantBackOff(k.consumeRetryInterval), ctx)
-			innerErr := retry.NotifyRecover(func() error {
-				if ctxErr := ctx.Err(); ctxErr != nil {
-					return backoff.Permanent(ctxErr)
-				}
-				return k.cg.Consume(ctx, topics, &(k.consumer))
-			}, bo, func(err error, t time.Duration) {
-				k.logger.Warnf("Error consuming %v. Retrying...: %v", topics, err)
 			}, func() {
 				k.logger.Infof("Recovered consuming %v", topics)
 			})

@@ -192,7 +192,7 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 				_, err = conn.Exec(ctx, pgChannel)
 				if err != nil {
 					p.logger.Errorf("error un-listening to channel:", err)
-					return fmt.Errorf("error listening to channel: %w", err)
+					return fmt.Errorf("error un-listening to channel: %w", err)
 				}
 				delete(p.ActiveSubscriptions, k)
 				return nil
@@ -227,11 +227,6 @@ func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 }
 
 func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, msg *pgconn.Notification, channel string, subscriptionID string) {
-	defer func() {
-		if err := recover(); err != nil {
-			p.logger.Errorf("panic in handlesubscribedchange method and recovered: %w", err)
-		}
-	}()
 	payload := make(map[string]interface{})
 	err := json.Unmarshal([]byte(msg.Payload), &payload)
 	if err != nil {
@@ -276,7 +271,7 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 		}
 		err = handler(ctx, e)
 		if err != nil {
-			p.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %w", err)
+			p.logger.Errorf("failed to call notify event handler : %w", err)
 		}
 	} else {
 		p.logger.Info("unknown format of data received in notify event - '%s'", msg.Payload)

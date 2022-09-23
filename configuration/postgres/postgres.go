@@ -141,13 +141,13 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		return nil, fmt.Errorf("error in querying configuration store: '%w'", err)
 	}
 	items, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (pgResponse, error) {
-		a := pgResponse{
+		res := pgResponse{
 			item: new(configuration.Item),
 		}
-		if err = row.Scan(&a.key, &a.item.Value, &a.item.Version, &a.item.Metadata); err != nil {
-			return pgResponse{}, fmt.Errorf("error in reading data from configuration store: '%w'", err)
+		if innerErr := row.Scan(&res.key, &res.item.Value, &res.item.Version, &res.item.Metadata); innerErr != nil {
+			return pgResponse{}, fmt.Errorf("error in reading data from configuration store: '%w'", innerErr)
 		}
-		return a, nil
+		return res, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse response from configuration store - %w", err)

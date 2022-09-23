@@ -144,7 +144,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		a := pgResponse{
 			item: new(configuration.Item),
 		}
-		if err := row.Scan(&a.key, &a.item.Value, &a.item.Version, &a.item.Metadata); err != nil {
+		if err = row.Scan(&a.key, &a.item.Value, &a.item.Version, &a.item.Metadata); err != nil {
 			return pgResponse{}, fmt.Errorf("error in reading data from configuration store: '%w'", err)
 		}
 		return a, nil

@@ -144,14 +144,14 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
 		key = uuid.New().String()
-		s.logger.Debugf("key not found. generating key %s", key)
+		s.logger.Debugf("s3 binding: key not found. generating key %s", key)
 	}
 
 	d, err := strconv.Unquote(string(req.Data))
@@ -179,14 +179,14 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		Body:   r,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. Uploading: %w", err)
+		return nil, fmt.Errorf("s3 binding error: Uploading: %w", err)
 	}
 
 	var presignURL string
 	if metadata.PresignTTL != "" {
 		d, parseErr := time.ParseDuration(metadata.PresignTTL)
 		if parseErr != nil {
-			return nil, fmt.Errorf("se binding error. Cannot parse duration %s: %s", metadata.PresignTTL, parseErr)
+			return nil, fmt.Errorf("s3 binding error: Cannot parse duration %s: %s", metadata.PresignTTL, parseErr)
 		}
 
 		req, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
@@ -195,7 +195,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		})
 		url, signErr := req.Presign(d)
 		if signErr != nil {
-			return nil, fmt.Errorf("s3 binding error. Failed to presign URL: %s", signErr)
+			return nil, fmt.Errorf("s3 binding error: Failed to presign URL: %s", signErr)
 		}
 
 		presignURL = url
@@ -207,7 +207,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		PresignURL: presignURL,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. Error marshalling create response: %w", err)
+		return nil, fmt.Errorf("s3 binding error: Error marshalling create response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{

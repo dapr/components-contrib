@@ -23,7 +23,7 @@ import (
 	ipfsFsrepo "github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/libp2p/go-libp2p-core/peer"
 
-	"github.com/dapr/kit/config"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 type ipfsMetadata struct {
@@ -64,7 +64,7 @@ type ipfsMetadata struct {
 // FromMap initializes the metadata object from a map.
 func (m *ipfsMetadata) FromMap(mp map[string]string) (err error) {
 	if len(mp) > 0 {
-		err = config.Decode(mp, m)
+		err = metadata.DecodeMetadata(mp, m)
 		if err != nil {
 			return err
 		}

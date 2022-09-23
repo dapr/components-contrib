@@ -15,6 +15,7 @@ limitations under the License.
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -80,7 +81,7 @@ func TestSeparator(t *testing.T) {
 			Name:     "root.key1",
 			Metadata: map[string]string{},
 		}
-		output, err := s.GetSecret(req)
+		output, err := s.GetSecret(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, "value1", output.Data[req.Name])
 	})
@@ -96,7 +97,7 @@ func TestSeparator(t *testing.T) {
 			Name:     "root:key2",
 			Metadata: map[string]string{},
 		}
-		output, err := s.GetSecret(req)
+		output, err := s.GetSecret(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, "value2", output.Data[req.Name])
 	})
@@ -124,7 +125,7 @@ func TestGetSecret(t *testing.T) {
 			Name:     "secret",
 			Metadata: map[string]string{},
 		}
-		output, e := s.GetSecret(req)
+		output, e := s.GetSecret(context.Background(), req)
 		assert.Nil(t, e)
 		assert.Equal(t, "secret", output.Data[req.Name])
 	})
@@ -134,9 +135,13 @@ func TestGetSecret(t *testing.T) {
 			Name:     "NoSecret",
 			Metadata: map[string]string{},
 		}
-		_, err := s.GetSecret(req)
+		_, err := s.GetSecret(context.Background(), req)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("secret %s not found", req.Name))
+	})
+
+	t.Run("Regular (non-MultiValued) secret store does not support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
+		assert.False(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(s.Features()))
 	})
 }
 
@@ -159,7 +164,7 @@ func TestBulkGetSecret(t *testing.T) {
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
-		output, e := s.BulkGetSecret(req)
+		output, e := s.BulkGetSecret(context.Background(), req)
 		assert.Nil(t, e)
 		assert.Equal(t, "secret", output.Data["secret"]["secret"])
 	})
@@ -195,11 +200,15 @@ func TestMultiValuedSecrets(t *testing.T) {
 	err := s.Init(m)
 	require.NoError(t, err)
 
+	t.Run("MultiValued stores support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
+		assert.True(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(s.Features()))
+	})
+
 	t.Run("successfully retrieve a single multi-valued secret", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{
 			Name: "parent",
 		}
-		resp, err := s.GetSecret(req)
+		resp, err := s.GetSecret(context.Background(), req)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"child1":        "12345",
@@ -210,7 +219,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 
 	t.Run("successfully retrieve multi-valued secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
-		resp, err := s.BulkGetSecret(req)
+		resp, err := s.BulkGetSecret(context.Background(), req)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]map[string]string{
 			"parent": {

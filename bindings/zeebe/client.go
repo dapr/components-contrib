@@ -20,7 +20,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/kit/config"
+	metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -67,9 +67,9 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 	return client, nil
 }
 
-func (c *ClientFactoryImpl) parseMetadata(metadata bindings.Metadata) (*clientMetadata, error) {
+func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*clientMetadata, error) {
 	var m clientMetadata
-	err := config.Decode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

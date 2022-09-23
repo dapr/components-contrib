@@ -46,6 +46,7 @@ jobs:
         - state.redis
         - state.postgresql
         - state.cassandra
+        - state.memcached
         - bindings.alicloud.dubbo
         - bindings.kafka
         - bindings.redis

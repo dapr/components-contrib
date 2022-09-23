@@ -174,12 +174,12 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 			if err != nil {
 				return nil, "", err
 			}
-			if len(items) >= resultLimit {
+			if (resultLimit != 0) && (len(items) >= resultLimit) {
 				break
 			}
 			items = append(items, tempItem)
 		}
-		if len(items) >= resultLimit {
+		if (resultLimit != 0) && (len(items) >= resultLimit) {
 			break
 		}
 	}

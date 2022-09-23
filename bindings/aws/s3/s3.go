@@ -184,19 +184,21 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	var presignURL string
 	if metadata.PresignTTL != "" {
-		d, err := time.ParseDuration(metadata.PresignTTL)
-		if err != nil {
-			return nil, fmt.Errorf("se binding error. Cannot parse duration value: %s", metadata.PresignTTL)
+		d, parseErr := time.ParseDuration(metadata.PresignTTL)
+		if parseErr != nil {
+			return nil, fmt.Errorf("se binding error. Cannot parse duration %s: %s", metadata.PresignTTL, parseErr)
 		}
 
 		req, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
 			Bucket: aws.String(metadata.Bucket),
 			Key:    aws.String(key),
 		})
-		presignURL, err = req.Presign(d)
-		if err != nil {
-			return nil, fmt.Errorf("s3 binding error. Failed to presign URL: %s", err)
+		url, signErr := req.Presign(d)
+		if signErr != nil {
+			return nil, fmt.Errorf("s3 binding error. Failed to presign URL: %s", signErr)
 		}
+
+		presignURL = url
 	}
 
 	jsonResponse, err := json.Marshal(createResponse{

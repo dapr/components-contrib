@@ -126,7 +126,7 @@ func TestLoadRules(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			sentinel := NewMiddleware(nil)
+			sentinel, _ := NewMiddleware(nil).(*Middleware)
 			err := sentinel.loadSentinelRules(&c.meta)
 			if c.expectErr {
 				assert.NotNil(t, err)

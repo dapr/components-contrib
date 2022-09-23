@@ -1,0 +1,31 @@
+version: '2'
+services:
+  cassandra:
+    image: docker.io/bitnami/cassandra:4.0.1
+    ports:
+      - '7000:7000'
+      - '9042:9042'
+    volumes:
+      - 'cassandra_data:/bitnami'
+    environment:
+      - CASSANDRA_SEEDS=cassandra,cassandra2
+      - CASSANDRA_CLUSTER_NAME=cassandra-cluster
+      - CASSANDRA_PASSWORD=cassandra
+      - CASSANDRA_PASSWORD_SEEDER=yes
+
+  cassandra2:
+    image: docker.io/bitnami/cassandra:4.0.1
+    ports:
+      - 7001:7000
+      - 9043:9042
+    volumes:
+      - cassandra2_data:/bitnami
+    environment:
+      - CASSANDRA_SEEDS=cassandra,cassandra2
+      - CASSANDRA_CLUSTER_NAME=cassandra-cluster
+      - CASSANDRA_PASSWORD=cassandra
+volumes:
+  cassandra_data:
+    driver: local
+  cassandra2_data:
+    driver: local

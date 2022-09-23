@@ -147,10 +147,9 @@ func (q *Query) setNextParameter(val string) string {
 func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, string, error) {
 	opts := &azcosmos.QueryOptions{}
 
+	resultLimit := q.limit
 	opts.QueryParameters = append(opts.QueryParameters, q.query.parameters...)
-	if q.limit != 0 {
-		opts.PageSizeHint = int32(q.limit)
-	}
+
 	if len(q.token) != 0 {
 		opts.ContinuationToken = q.token
 	}
@@ -175,7 +174,13 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 			if err != nil {
 				return nil, "", err
 			}
+			if (resultLimit != 0) && (len(items) >= resultLimit) {
+				break
+			}
 			items = append(items, tempItem)
+		}
+		if (resultLimit != 0) && (len(items) >= resultLimit) {
+			break
 		}
 	}
 

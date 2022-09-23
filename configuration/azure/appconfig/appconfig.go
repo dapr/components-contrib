@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
 
@@ -41,9 +42,14 @@ const (
 	defaultMaxRetryDelay = time.Second * 120
 )
 
+type azAppConfigClient interface {
+	GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error)
+	NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage]
+}
+
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client   *azappconfig.Client
+	client   azAppConfigClient
 	metadata metadata
 
 	logger logger.Logger
@@ -163,7 +169,7 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 	if len(keys) == 0 {
 		var err error
-		if items, err = r.getAll(ctx); err != nil {
+		if items, err = r.getAll(ctx, req); err != nil {
 			return &configuration.GetResponse{}, err
 		}
 	} else {
@@ -173,8 +179,9 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 				ctx,
 				key,
 				&azappconfig.GetSettingOptions{
-					Label: to.Ptr("*"),
-				})
+					Label: r.getLabelFromMetadata(req.Metadata),
+				},
+			)
 			if err != nil {
 				return &configuration.GetResponse{}, err
 			}
@@ -196,19 +203,24 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	}, nil
 }
 
-func (r *ConfigurationStore) getAll(ctx context.Context) (map[string]*configuration.Item, error) {
+func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetRequest) (map[string]*configuration.Item, error) {
 	items := make(map[string]*configuration.Item, 0)
 
-	revPgr := r.client.NewListRevisionsPager(
+	labelFilter := r.getLabelFromMetadata(req.Metadata)
+	if labelFilter == nil {
+		labelFilter = to.Ptr("*")
+	}
+
+	allSettingsPgr := r.client.NewListSettingsPager(
 		azappconfig.SettingSelector{
 			KeyFilter:   to.Ptr("*"),
-			LabelFilter: to.Ptr("*"),
+			LabelFilter: labelFilter,
 			Fields:      azappconfig.AllSettingFields(),
 		},
 		nil)
 
-	for revPgr.More() {
-		if revResp, err := revPgr.NextPage(ctx); err == nil {
+	for allSettingsPgr.More() {
+		if revResp, err := allSettingsPgr.NextPage(ctx); err == nil {
 			for _, setting := range revResp.Settings {
 				item := &configuration.Item{
 					Metadata: map[string]string{},
@@ -224,8 +236,15 @@ func (r *ConfigurationStore) getAll(ctx context.Context) (map[string]*configurat
 			return nil, fmt.Errorf("failed to load all keys, error is %s", err)
 		}
 	}
-
 	return items, nil
+}
+
+func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *string {
+	if s, ok := metadata["label"]; ok && s != "" {
+		return to.Ptr(s)
+	}
+
+	return nil
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {

@@ -38,6 +38,12 @@ components:
     operations: ["publish", "subscribe", "multiplehandlers"]
   - component: kafka
     allOperations: true
+  - component: kafka
+    profile: wurstmeister
+    allOperations: true
+  - component: kafka
+    profile: confluent
+    allOperations: true    
   - component: pulsar
     operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt

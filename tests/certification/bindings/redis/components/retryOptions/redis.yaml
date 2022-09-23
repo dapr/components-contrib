@@ -1,0 +1,22 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: redisBinding
+  initTimeout: 5m
+spec:
+  type: bindings.redis
+  version: v1
+  ignoreErrors: true
+  metadata:
+    - name: redisHost
+      value: "localhost:6379"
+    - name: redisPassword
+      value: ""
+    - name: dialTimeout
+      value: "10s"
+    - name: redisMaxRetries
+      value: "5"
+    - name: redisMinRetryInterval
+      value: "100ms"
+    - name: redisMaxRetryInterval
+      value: "3s"

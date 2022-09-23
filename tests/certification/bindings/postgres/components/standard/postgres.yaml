@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: standard-binding
+spec:
+  type: bindings.postgres
+  version: v1
+  metadata:
+    - name: url
+      value: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"

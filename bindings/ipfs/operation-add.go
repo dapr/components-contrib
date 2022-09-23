@@ -24,9 +24,8 @@ import (
 
 	"github.com/multiformats/go-multihash"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // Handler for the "add" operation, which adds a new file
@@ -78,7 +77,7 @@ type addRequestMetadata struct {
 
 func (m *addRequestMetadata) FromMap(mp map[string]string) (err error) {
 	if len(mp) > 0 {
-		err = mapstructure.WeakDecode(mp, m)
+		err = metadata.DecodeMetadata(mp, m)
 		if err != nil {
 			return err
 		}

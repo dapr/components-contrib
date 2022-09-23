@@ -42,9 +42,6 @@ const (
 	// MaxBulkCountSubKey defines the maximum number of messages to be sent in a single bulk subscribe request.
 	MaxBulkSubCountKey string = "maxBulkSubCount"
 
-	// MaxBulkCountKey is the key for the max bulk count in the metadata.
-	MaxBulkCountKey string = "maxBulkCount"
-
 	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
 	MaxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
 )

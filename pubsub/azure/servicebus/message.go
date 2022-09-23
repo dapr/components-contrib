@@ -21,6 +21,7 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"github.com/google/uuid"
 
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -76,66 +77,87 @@ const (
 func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic string) (*pubsub.NewMessage, error) {
 	pubsubMsg := &pubsub.NewMessage{
 		Topic: topic,
+		Data:  asbMsg.Body,
 	}
 
-	pubsubMsg.Data = asbMsg.Body
+	pubsubMsg.Metadata = addMessageAttributesToMetadata(pubsubMsg.Metadata, asbMsg)
 
-	addToMetadata := func(msg *pubsub.NewMessage, key, value string) {
-		if msg.Metadata == nil {
-			msg.Metadata = make(map[string]string)
-		}
+	return pubsubMsg, nil
+}
 
-		msg.Metadata[fmt.Sprintf("metadata.%s", key)] = value
+func NewBulkMessageEntryFromASBMessage(asbMsg *azservicebus.ReceivedMessage) (pubsub.BulkMessageEntry, error) {
+	entryID, err := uuid.NewRandom()
+	if err != nil {
+		return pubsub.BulkMessageEntry{}, err
+	}
+
+	bulkMsgEntry := pubsub.BulkMessageEntry{
+		EntryID: entryID.String(),
+		Event:   asbMsg.Body,
+	}
+
+	bulkMsgEntry.Metadata = addMessageAttributesToMetadata(bulkMsgEntry.Metadata, asbMsg)
+
+	return bulkMsgEntry, nil
+}
+
+func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservicebus.ReceivedMessage) map[string]string {
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+
+	addToMetadata := func(metadata map[string]string, key, value string) {
+		metadata["metadata."+key] = value
 	}
 
 	if asbMsg.MessageID != "" {
-		addToMetadata(pubsubMsg, MessageIDMetadataKey, asbMsg.MessageID)
+		addToMetadata(metadata, MessageIDMetadataKey, asbMsg.MessageID)
 	}
 	if asbMsg.SessionID != nil {
-		addToMetadata(pubsubMsg, SessionIDMetadataKey, *asbMsg.SessionID)
+		addToMetadata(metadata, SessionIDMetadataKey, *asbMsg.SessionID)
 	}
 	if asbMsg.CorrelationID != nil && *asbMsg.CorrelationID != "" {
-		addToMetadata(pubsubMsg, CorrelationIDMetadataKey, *asbMsg.CorrelationID)
+		addToMetadata(metadata, CorrelationIDMetadataKey, *asbMsg.CorrelationID)
 	}
 	if asbMsg.Subject != nil && *asbMsg.Subject != "" {
-		addToMetadata(pubsubMsg, LabelMetadataKey, *asbMsg.Subject)
+		addToMetadata(metadata, LabelMetadataKey, *asbMsg.Subject)
 	}
 	if asbMsg.ReplyTo != nil && *asbMsg.ReplyTo != "" {
-		addToMetadata(pubsubMsg, ReplyToMetadataKey, *asbMsg.ReplyTo)
+		addToMetadata(metadata, ReplyToMetadataKey, *asbMsg.ReplyTo)
 	}
 	if asbMsg.To != nil && *asbMsg.To != "" {
-		addToMetadata(pubsubMsg, ToMetadataKey, *asbMsg.To)
+		addToMetadata(metadata, ToMetadataKey, *asbMsg.To)
 	}
 	if asbMsg.ContentType != nil && *asbMsg.ContentType != "" {
-		addToMetadata(pubsubMsg, ContentTypeMetadataKey, *asbMsg.ContentType)
+		addToMetadata(metadata, ContentTypeMetadataKey, *asbMsg.ContentType)
 	}
 	if asbMsg.LockToken != [16]byte{} {
-		addToMetadata(pubsubMsg, LockTokenMetadataKey, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
+		addToMetadata(metadata, LockTokenMetadataKey, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
 	}
 
 	// Always set delivery count.
-	addToMetadata(pubsubMsg, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
+	addToMetadata(metadata, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
 
 	if asbMsg.EnqueuedTime != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(pubsubMsg, EnqueuedTimeUtcMetadataKey, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
+		addToMetadata(metadata, EnqueuedTimeUtcMetadataKey, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
 	}
 	if asbMsg.SequenceNumber != nil {
-		addToMetadata(pubsubMsg, SequenceNumberMetadataKey, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
+		addToMetadata(metadata, SequenceNumberMetadataKey, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
 	}
 	if asbMsg.ScheduledEnqueueTime != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(pubsubMsg, ScheduledEnqueueTimeUtcMetadataKey, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
+		addToMetadata(metadata, ScheduledEnqueueTimeUtcMetadataKey, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
 	}
 	if asbMsg.PartitionKey != nil {
-		addToMetadata(pubsubMsg, PartitionKeyMetadataKey, *asbMsg.PartitionKey)
+		addToMetadata(metadata, PartitionKeyMetadataKey, *asbMsg.PartitionKey)
 	}
 	if asbMsg.LockedUntil != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(pubsubMsg, LockedUntilUtcMetadataKey, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
+		addToMetadata(metadata, LockedUntilUtcMetadataKey, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
 	}
 
-	return pubsubMsg, nil
+	return metadata
 }
 
 // NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.

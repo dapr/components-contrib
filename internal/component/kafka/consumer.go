@@ -46,7 +46,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	if isBulkSubscribe {
 		ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds) * time.Millisecond)
 		defer ticker.Stop()
-		messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkCount)
+		messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkSubCount)
 		for {
 			select {
 			case <-session.Context().Done():
@@ -55,7 +55,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				consumer.mutex.Lock()
 				if message != nil {
 					messages = append(messages, message)
-					if len(messages) >= handlerConfig.SubscribeConfig.MaxBulkCount {
+					if len(messages) >= handlerConfig.SubscribeConfig.MaxBulkSubCount {
 						consumer.flushBulkMessages(claim, messages, session, handlerConfig.BulkHandler, b)
 						messages = messages[:0]
 					}
@@ -215,7 +215,7 @@ func (k *Kafka) RemoveTopicHandler(topic string) {
 func (k *Kafka) checkBulkSubscribe(topic string) bool {
 	if bulkHandlerConfig, ok := k.subscribeTopics[topic]; ok &&
 		bulkHandlerConfig.IsBulkSubscribe &&
-		bulkHandlerConfig.BulkHandler != nil && (bulkHandlerConfig.SubscribeConfig.MaxBulkCount > 0) &&
+		bulkHandlerConfig.BulkHandler != nil && (bulkHandlerConfig.SubscribeConfig.MaxBulkSubCount > 0) &&
 		bulkHandlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds > 0 {
 		return true
 	}

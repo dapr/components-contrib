@@ -62,7 +62,7 @@ type BulkMessageEntry struct {
 // BulkSubscribeConfig represents the configuration for bulk subscribe.
 // It depends on specific componets to support these.
 type BulkSubscribeConfig struct {
-	MaxBulkCount                     int `json:"maxBulkCount"`
+	MaxBulkSubCount                  int `json:"maxBulkSubCount"`
 	MaxBulkAwaitDurationMilliSeconds int `json:"maxBulkAwaitDurationMilliSeconds"`
 	MaxBulkSizeBytes                 int `json:"maxBulkSizeBytes"`
 }

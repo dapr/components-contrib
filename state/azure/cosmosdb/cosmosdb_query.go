@@ -149,9 +149,7 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 
 	resultLimit := q.limit
 	opts.QueryParameters = append(opts.QueryParameters, q.query.parameters...)
-	if q.limit != 0 {
-		opts.PageSizeHint = int32(resultLimit)
-	}
+
 	if len(q.token) != 0 {
 		opts.ContinuationToken = q.token
 	}

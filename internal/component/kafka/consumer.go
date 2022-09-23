@@ -38,7 +38,11 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 	for {
 		select {
-		case message := <-claim.Messages():
+		case message, ok := <-claim.Messages():
+			if !ok {
+				return nil
+			}
+
 			if consumer.k.consumeRetryEnabled {
 				if err := retry.NotifyRecover(func() error {
 					return consumer.doCallback(session, message)

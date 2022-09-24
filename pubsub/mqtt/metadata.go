@@ -25,7 +25,8 @@ import (
 type metadata struct {
 	tlsCfg
 	url                      string
-	clientID                 string
+	consumerID               string
+	producerID               string
 	qos                      byte
 	retain                   bool
 	cleanSession             bool
@@ -43,7 +44,8 @@ const (
 	mqttURL                      = "url"
 	mqttQOS                      = "qos"
 	mqttRetain                   = "retain"
-	mqttClientID                 = "consumerID"
+	mqttConsumerID               = "consumerID"
+	mqttProducerID               = "producerID"
 	mqttCleanSession             = "cleanSession"
 	mqttCACert                   = "caCert"
 	mqttClientCert               = "clientCert"
@@ -87,10 +89,15 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 		}
 	}
 
-	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
-		m.clientID = val
+	// Note: the runtime sets the default value to the Dapr app ID if empty
+	if val, ok := md.Properties[mqttConsumerID]; ok && val != "" {
+		m.consumerID = val
 	} else {
 		return &m, fmt.Errorf("%s missing consumerID", errorMsgPrefix)
+	}
+
+	if val, ok := md.Properties[mqttProducerID]; ok && val != "" {
+		m.producerID = val
 	}
 
 	m.cleanSession = defaultCleanSession

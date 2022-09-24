@@ -22,17 +22,24 @@ import (
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 func getFakeProperties() map[string]string {
 	props := map[string]string{}
-	props[metadataHostKey] = "fakehost"
+	props[metadataConnectionStringKey] = "fakeconnectionstring"
+	props[metadataProtocolKey] = "fakeprotocol"
+	props[metadataHostnameKey] = "fakehostname"
+	props[metadataUsernameKey] = "fakeusername"
+	props[metadataPasswordKey] = "fakepassword"
 	props[metadataConsumerIDKey] = "fakeConsumerID"
 
 	return props
 }
 
 func TestCreateMetadata(t *testing.T) {
+	log := logger.NewLogger("test")
+
 	booleanFlagTests := []struct {
 		in       string
 		expected bool
@@ -51,11 +58,15 @@ func TestCreateMetadata(t *testing.T) {
 		}
 
 		// act
-		m, err := createMetadata(fakeMetaData)
+		m, err := createMetadata(fakeMetaData, log)
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+		assert.Equal(t, fakeProperties[metadataConnectionStringKey], m.connectionString)
+		assert.Equal(t, fakeProperties[metadataProtocolKey], m.protocol)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
+		assert.Equal(t, fakeProperties[metadataUsernameKey], m.username)
+		assert.Equal(t, fakeProperties[metadataPasswordKey], m.password)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, false, m.autoAck)
 		assert.Equal(t, false, m.requeueInFailure)
@@ -67,23 +78,6 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, int64(0), m.maxLen)
 		assert.Equal(t, int64(0), m.maxLenBytes)
 		assert.Equal(t, fanoutExchangeKind, m.exchangeKind)
-	})
-
-	t.Run("host is not given", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Base: mdata.Base{Properties: fakeProperties},
-		}
-		fakeMetaData.Properties[metadataHostKey] = ""
-
-		// act
-		m, err := createMetadata(fakeMetaData)
-
-		// assert
-		assert.EqualError(t, err, "rabbitmq pub/sub error: missing RabbitMQ host")
-		assert.Empty(t, m.host)
-		assert.Empty(t, m.consumerID)
 	})
 
 	invalidDeliveryModes := []string{"3", "10", "-1"}
@@ -98,11 +92,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataDeliveryModeKey] = deliveryMode
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.EqualError(t, err, "rabbitmq pub/sub error: invalid RabbitMQ delivery mode, accepted values are between 0 and 2")
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, uint8(0), m.deliveryMode)
 		})
@@ -117,11 +111,11 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData.Properties[metadataDeliveryModeKey] = "2"
 
 		// act
-		m, err := createMetadata(fakeMetaData)
+		m, err := createMetadata(fakeMetaData, log)
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, uint8(2), m.deliveryMode)
 	})
@@ -135,7 +129,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData.Properties[pubsub.ConcurrencyKey] = "a"
 
 		// act
-		_, err := createMetadata(fakeMetaData)
+		_, err := createMetadata(fakeMetaData, log)
 
 		// assert
 		assert.Error(t, err)
@@ -150,11 +144,11 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData.Properties[metadataPrefetchCountKey] = "1"
 
 		// act
-		m, err := createMetadata(fakeMetaData)
+		m, err := createMetadata(fakeMetaData, log)
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, uint8(1), m.prefetchCount)
 	})
@@ -169,11 +163,11 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData.Properties[metadataMaxLenBytesKey] = "2000000"
 
 		// act
-		m, err := createMetadata(fakeMetaData)
+		m, err := createMetadata(fakeMetaData, log)
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, int64(1), m.maxLen)
 		assert.Equal(t, int64(2000000), m.maxLenBytes)
@@ -189,11 +183,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataAutoAckKey] = tt.in
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, tt.expected, m.autoAck)
 		})
@@ -209,11 +203,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataRequeueInFailureKey] = tt.in
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, tt.expected, m.requeueInFailure)
 		})
@@ -229,11 +223,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = tt.in
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, tt.expected, m.deleteWhenUnused)
 		})
@@ -249,11 +243,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataDurableKey] = tt.in
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, tt.expected, m.durable)
 		})
@@ -269,11 +263,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataPublisherConfirmKey] = tt.in
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, tt.expected, m.publisherConfirm)
 		})
@@ -289,11 +283,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataEnableDeadLetterKey] = tt.in
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, tt.expected, m.enableDeadLetter)
 		})
@@ -310,11 +304,11 @@ func TestCreateMetadata(t *testing.T) {
 			fakeMetaData.Properties[metadataExchangeKindKey] = exchangeKind
 
 			// act
-			m, err := createMetadata(fakeMetaData)
+			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostKey], m.host)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 			assert.Equal(t, exchangeKind, m.exchangeKind)
 		})
@@ -329,9 +323,69 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData.Properties[metadataExchangeKindKey] = "invalid"
 
 		// act
-		_, err := createMetadata(fakeMetaData)
+		_, err := createMetadata(fakeMetaData, log)
 
 		// assert
 		assert.Error(t, err)
 	})
+}
+
+func TestConnectionURI(t *testing.T) {
+	log := logger.NewLogger("test")
+
+	testCases := []struct {
+		args           map[string]string
+		expectedOutput string
+	}{
+		// connection string
+		{
+			args:           map[string]string{"connectionString": "amqp://fakeuser:fakepassword@fakehostname-connectionstring"},
+			expectedOutput: "amqp://fakeuser:fakepassword@fakehostname-connectionstring",
+		},
+
+		// individual arguments
+		{
+			args:           map[string]string{},
+			expectedOutput: "amqp://localhost",
+		},
+		{
+			args:           map[string]string{"hostname": "localhost"},
+			expectedOutput: "amqp://localhost",
+		},
+		{
+			args:           map[string]string{"hostname": "fake-hostname", "password": "testpassword"},
+			expectedOutput: "amqp://fake-hostname",
+		},
+		{
+			args:           map[string]string{"hostname": "localhost", "username": "testusername"},
+			expectedOutput: "amqp://testusername@localhost",
+		},
+		{
+			args:           map[string]string{"hostname": "localhost", "username": "testusername", "password": "testpassword"},
+			expectedOutput: "amqp://testusername:testpassword@localhost",
+		},
+		{
+			args:           map[string]string{"protocol": "amqps", "hostname": "localhost", "username": "testusername", "password": "testpassword"},
+			expectedOutput: "amqps://testusername:testpassword@localhost",
+		},
+
+		// legacy argument
+		{
+			args:           map[string]string{"host": "amqp://fake-hostname"},
+			expectedOutput: "amqp://fake-hostname",
+		},
+	}
+
+	var metadata pubsub.Metadata
+
+	for _, testCase := range testCases {
+		metadata = pubsub.Metadata{
+			Base: mdata.Base{Properties: testCase.args},
+		}
+
+		m, err := createMetadata(metadata, log)
+
+		assert.NoError(t, err)
+		assert.Equal(t, testCase.expectedOutput, m.connectionURI())
+	}
 }

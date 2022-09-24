@@ -7,7 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.8.4-0.20220829184035-996cc622ad0c
+	github.com/dapr/dapr v1.8.4-0.20220922033213-ca2b9a109f5e
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/google/uuid v1.3.0
@@ -113,7 +113,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.7.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220630215102-69896b714898 // indirect
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
@@ -125,7 +125,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220622171453-ea41d75dfa0f // indirect
-	google.golang.org/grpc v1.47.0 // indirect
+	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -154,5 +154,3 @@ replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.2022
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v1.5.2-0.20220829014128-56ac94bfadd1

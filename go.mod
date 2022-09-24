@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.18
+go 1.19
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
@@ -10,13 +10,12 @@ require (
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
 	github.com/Azure/azure-sdk-for-go v65.0.0+incompatible
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.1
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.2
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.7.1
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.0.1
-	github.com/Azure/azure-service-bus-go v0.10.10
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.10.1
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.1.0
 	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/Azure/go-amqp v0.17.4
@@ -26,7 +25,6 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.30.0
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
-	github.com/a8m/documentdb v1.3.1-0.20220405205223-5b41ba0aaeb1
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/ajg/form v1.5.1 // indirect
@@ -80,7 +78,7 @@ require (
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
-	github.com/jackc/pgx/v4 v4.15.0
+	github.com/jackc/pgx/v4 v4.17.0
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12
 	github.com/kataras/go-errors v0.0.3 // indirect
@@ -97,7 +95,7 @@ require (
 	github.com/nats-io/nats-streaming-server v0.21.2 // indirect
 	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
 	github.com/nats-io/stan.go v0.8.3
-	github.com/open-policy-agent/opa v0.42.0
+	github.com/open-policy-agent/opa v0.43.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
@@ -120,12 +118,12 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e // indirect
 	go.mongodb.org/mongo-driver v1.5.1
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.0.0-20220630215102-69896b714898
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	google.golang.org/api v0.74.0
 	google.golang.org/genproto v0.0.0-20220405205423-9d709892a2bf
-	google.golang.org/grpc v1.47.0
+	google.golang.org/grpc v1.48.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect
@@ -157,7 +155,7 @@ require (
 require (
 	cloud.google.com/go/secretmanager v1.4.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
-	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.4.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.4.1-0.20220914204640-4d445978fe75
 	github.com/aliyun/aliyun-log-go-sdk v0.1.37
 	github.com/apache/dubbo-go-hessian2 v1.11.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
@@ -166,11 +164,13 @@ require (
 	github.com/ipfs/go-ipfs-http-client v0.4.0
 	github.com/ipfs/interface-go-ipfs-core v0.7.0
 	github.com/ipfs/kubo v0.15.0-rc1
+	github.com/jackc/pgx/v5 v5.0.0
 	github.com/labd/commercetools-go-sdk v0.3.2
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/multiformats/go-multiaddr v0.6.0
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/nacos-group/nacos-sdk-go/v2 v2.0.1
+	github.com/pashagolub/pgxmock/v2 v2.0.0-beta2
 	github.com/rabbitmq/amqp091-go v1.3.4
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.476
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.476
@@ -289,6 +289,7 @@ require (
 	github.com/ipld/edelweiss v0.1.4 // indirect
 	github.com/ipld/go-codec-dagpb v1.4.1 // indirect
 	github.com/ipld/go-ipld-prime v0.17.0 // indirect
+	github.com/jackc/puddle/v2 v2.0.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
@@ -370,7 +371,7 @@ require (
 	github.com/spf13/viper v1.10.0 // indirect
 	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
+	github.com/vektah/gqlparser/v2 v2.4.6 // indirect
 	github.com/wI2L/jsondiff v0.2.0 // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
 	github.com/whyrusleeping/cbor-gen v0.0.0-20210219115102-f37d292932f2 // indirect
@@ -407,11 +408,11 @@ require (
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.5.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
+	github.com/Azure/go-autorest/autorest/to v0.4.0
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
@@ -472,12 +473,12 @@ require (
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/serf v0.9.6 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.11.0 // indirect
+	github.com/jackc/pgconn v1.13.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.2.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.10.0 // indirect
+	github.com/jackc/pgtype v1.12.0 // indirect
 	github.com/jackc/puddle v1.2.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
@@ -537,7 +538,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/klog/v2 v2.30.0 // indirect
-	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b // indirect
+	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
 	nhooyr.io/websocket v1.8.7 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

@@ -37,7 +37,7 @@ func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
 		logger:            logger.NewLogger("test"),
-		connectionDial: func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		connectionDial: func(uri string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 			broker.connectCount++
 
 			return broker, broker, nil
@@ -45,20 +45,12 @@ func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	}
 }
 
-func TestNoHost(t *testing.T) {
-	broker := newBroker()
-	pubsubRabbitMQ := newRabbitMQTest(broker)
-	err := pubsubRabbitMQ.Init(pubsub.Metadata{})
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "missing RabbitMQ host")
-}
-
 func TestNoConsumer(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostKey: "anyhost",
+			metadataHostnameKey: "anyhost",
 		},
 	}}
 	err := pubsubRabbitMQ.Init(metadata)
@@ -73,7 +65,7 @@ func TestConcurrencyMode(t *testing.T) {
 		pubsubRabbitMQ := newRabbitMQTest(broker)
 		metadata := pubsub.Metadata{Base: mdata.Base{
 			Properties: map[string]string{
-				metadataHostKey:       "anyhost",
+				metadataHostnameKey:   "anyhost",
 				metadataConsumerIDKey: "consumer",
 				pubsub.ConcurrencyKey: string(pubsub.Parallel),
 			},
@@ -88,7 +80,7 @@ func TestConcurrencyMode(t *testing.T) {
 		pubsubRabbitMQ := newRabbitMQTest(broker)
 		metadata := pubsub.Metadata{Base: mdata.Base{
 			Properties: map[string]string{
-				metadataHostKey:       "anyhost",
+				metadataHostnameKey:   "anyhost",
 				metadataConsumerIDKey: "consumer",
 				pubsub.ConcurrencyKey: string(pubsub.Single),
 			},
@@ -103,7 +95,7 @@ func TestConcurrencyMode(t *testing.T) {
 		pubsubRabbitMQ := newRabbitMQTest(broker)
 		metadata := pubsub.Metadata{Base: mdata.Base{
 			Properties: map[string]string{
-				metadataHostKey:       "anyhost",
+				metadataHostnameKey:   "anyhost",
 				metadataConsumerIDKey: "consumer",
 			},
 		}}
@@ -118,7 +110,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
+			metadataHostnameKey:   "anyhost",
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
@@ -161,7 +153,7 @@ func TestPublishReconnect(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
+			metadataHostnameKey:   "anyhost",
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
@@ -212,7 +204,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
+			metadataHostnameKey:   "anyhost",
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
@@ -262,7 +254,7 @@ func TestSubscribeBindRoutingKeys(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostKey:       "anyhost",
+			metadataHostnameKey:   "anyhost",
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
@@ -286,7 +278,7 @@ func TestSubscribeReconnect(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostKey:                 "anyhost",
+			metadataHostnameKey:             "anyhost",
 			metadataConsumerIDKey:           "consumer",
 			metadataAutoAckKey:              "true",
 			metadataReconnectWaitSecondsKey: "0",

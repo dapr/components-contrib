@@ -31,7 +31,7 @@ type bearerMiddlewareMetadata struct {
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware.
-func NewBearerMiddleware(logger logger.Logger) *Middleware {
+func NewBearerMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 

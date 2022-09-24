@@ -14,20 +14,27 @@ limitations under the License.
 package cosmosdb
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/a8m/documentdb"
-	"github.com/agrea/ptr"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 )
 
+// Internal query object is created here since azcosmos has no notion of a query object
+type InternalQuery struct {
+	query      string
+	parameters []azcosmos.QueryParameter
+}
+
 type Query struct {
-	query documentdb.Query
+	query InternalQuery
 	limit int
 	token string
 }
@@ -40,7 +47,7 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	}
 	name := q.setNextParameter(val)
 
-	return fmt.Sprintf("%s = %s", replaceKeywords("c.value."+f.Key), name), nil
+	return replaceKeywords("c.value."+f.Key) + " = " + name, nil
 }
 
 func (q *Query) VisitIN(f *query.IN) (string, error) {
@@ -109,20 +116,21 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 func (q *Query) Finalize(filters string, qq *query.Query) error {
 	var filter, orderBy string
 	if len(filters) != 0 {
-		filter = fmt.Sprintf(" WHERE %s", filters)
+		filter = " WHERE " + filters
 	}
 	if sz := len(qq.Sort); sz != 0 {
 		order := make([]string, sz)
 		for i, item := range qq.Sort {
 			if item.Order == query.DESC {
-				order[i] = fmt.Sprintf("%s DESC", replaceKeywords("c.value."+item.Key))
+				order[i] = replaceKeywords("c.value."+item.Key) + " DESC"
 			} else {
-				order[i] = fmt.Sprintf("%s ASC", replaceKeywords("c.value."+item.Key))
+				order[i] = replaceKeywords("c.value."+item.Key) + " ASC"
 			}
 		}
-		orderBy = fmt.Sprintf(" ORDER BY %s", strings.Join(order, ", "))
+		orderBy = " ORDER BY " + strings.Join(order, ", ")
 	}
-	q.query.Query = fmt.Sprintf("SELECT * FROM c%s%s", filter, orderBy)
+
+	q.query.query = "SELECT * FROM c" + filter + orderBy
 	q.limit = qq.Page.Limit
 	q.token = qq.Page.Token
 
@@ -130,37 +138,63 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 }
 
 func (q *Query) setNextParameter(val string) string {
-	pname := fmt.Sprintf("@__param__%d__", len(q.query.Parameters))
-	q.query.Parameters = append(q.query.Parameters, documentdb.Parameter{Name: pname, Value: val})
+	pname := fmt.Sprintf("@__param__%d__", len(q.query.parameters))
+	q.query.parameters = append(q.query.parameters, azcosmos.QueryParameter{Name: pname, Value: val})
 
 	return pname
 }
 
-func (q *Query) execute(client *documentdb.DocumentDB, collection string) ([]state.QueryItem, string, error) {
-	opts := []documentdb.CallOption{documentdb.CrossPartition()}
-	if q.limit != 0 {
-		opts = append(opts, documentdb.Limit(q.limit))
-	}
+func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, string, error) {
+	opts := &azcosmos.QueryOptions{}
+
+	resultLimit := q.limit
+	opts.QueryParameters = append(opts.QueryParameters, q.query.parameters...)
+
 	if len(q.token) != 0 {
-		opts = append(opts, documentdb.Continuation(q.token))
+		opts.ContinuationToken = q.token
 	}
+
 	items := []CosmosItem{}
-	resp, err := client.QueryDocuments(collection, &q.query, &items, opts...)
-	if err != nil {
-		return nil, "", err
+	pk := azcosmos.NewPartitionKeyBool(true)
+	queryPager := client.NewQueryItemsPager(q.query.query, pk, opts)
+
+	token := ""
+	for queryPager.More() {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		queryResponse, innerErr := queryPager.NextPage(ctx)
+		cancel()
+		if innerErr != nil {
+			return nil, "", innerErr
+		}
+
+		token = queryResponse.ContinuationToken
+		for _, item := range queryResponse.Items {
+			tempItem := CosmosItem{}
+			err := json.Unmarshal(item, &tempItem)
+			if err != nil {
+				return nil, "", err
+			}
+			if (resultLimit != 0) && (len(items) >= resultLimit) {
+				break
+			}
+			items = append(items, tempItem)
+		}
+		if (resultLimit != 0) && (len(items) >= resultLimit) {
+			break
+		}
 	}
-	token := resp.Header.Get(documentdb.HeaderContinuation)
 
 	ret := make([]state.QueryItem, len(items))
+	var err error
 	for i := range items {
 		ret[i].Key = items[i].ID
-		ret[i].ETag = ptr.String(items[i].Etag)
+		ret[i].ETag = &items[i].Etag
 
 		if items[i].IsBinary {
 			ret[i].Data, _ = base64.StdEncoding.DecodeString(items[i].Value.(string))
-
 			continue
 		}
+
 		ret[i].Data, err = jsoniter.ConfigFastest.Marshal(&items[i].Value)
 		if err != nil {
 			ret[i].Error = err.Error()
@@ -182,16 +216,28 @@ func replaceKeywords(key string) string {
 	return key
 }
 
+// Replaces reserved keywords. If a replacement of a reserved keyword is made, all other words will be changed from .word to ['word']
 func replaceKeyword(key, keyword string) string {
 	indx := strings.Index(strings.ToUpper(key), "."+strings.ToUpper(keyword))
 	if indx == -1 {
 		return key
 	}
+	// Grab the next index to check and ensure that it doesn't over-index
 	nextIndx := indx + len(keyword) + 1
 	if nextIndx == len(key) || !isLetter(key[nextIndx]) {
-		return fmt.Sprintf("%s['%s']%s", key[:indx], key[indx+1:nextIndx], replaceKeyword(key[nextIndx:], keyword))
+		// Get the new keyword to replace
+		newKeyword := keyword
+		if nextIndx < len(key)-1 {
+			// Get the index of the next period (Note that it grabs the index relative to the beginning of the initial string)
+			idxOfPeriod := strings.Index(key[nextIndx+1:], ".")
+			if idxOfPeriod != -1 {
+				newKeyword = key[nextIndx+1 : nextIndx+idxOfPeriod+1]
+			} else {
+				newKeyword = key[nextIndx+1:]
+			}
+		}
+		return fmt.Sprintf("%s['%s']%s", key[:indx], key[indx+1:nextIndx], replaceKeyword(key[nextIndx:], newKeyword))
 	}
-
 	return key
 }
 

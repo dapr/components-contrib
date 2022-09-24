@@ -59,7 +59,7 @@ type rabbitMQ struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 
-	connectionDial func(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(uri string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 
 	logger logger.Logger
 }
@@ -94,8 +94,8 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
-	conn, err := amqp.Dial(host)
+func dial(uri string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+	conn, err := amqp.Dial(uri)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -111,7 +111,7 @@ func dial(host string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) 
 
 // Init does metadata parsing and connection creation.
 func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
-	meta, err := createMetadata(metadata)
+	meta, err := createMetadata(metadata, r.logger)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.host)
+	r.connection, r.channel, err = r.connectionDial(r.metadata.connectionURI())
 	if err != nil {
 		r.reset()
 

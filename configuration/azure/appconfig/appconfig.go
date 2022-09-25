@@ -268,7 +268,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate uuid, error is %s", err)
+		return "", fmt.Errorf("failed to generate subscription id, error is %s", err)
 	}
 	subscribeID := uuid.String()
 	stop := make(chan struct{})

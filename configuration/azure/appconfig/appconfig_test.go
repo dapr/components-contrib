@@ -35,7 +35,7 @@ type MockConfigurationStore struct {
 }
 
 func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
-	if key == "testKey" {
+	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
 
 		settings.Key = to.StringPtr("testKey")
@@ -121,7 +121,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 	metadata := make(map[string]string)
 	metadata["sentinelKey"] = "test_sentinel_key"
 
-	t.Run("call subscribe", func(t *testing.T) {
+	t.Run("call subscribe with sentinel key", func(t *testing.T) {
 		req := configuration.SubscribeRequest{
 			Keys:     []string{"testKey"},
 			Metadata: metadata,
@@ -135,7 +135,7 @@ func Test_subscribeConfigurationWithProvidedKeys(t *testing.T) {
 		s.Unsubscribe(context.Background(), unReq)
 	})
 
-	t.Run("call subscribe", func(t *testing.T) {
+	t.Run("call subscribe w/o sentinel key", func(t *testing.T) {
 		req := configuration.SubscribeRequest{
 			Keys:     []string{"testKey"},
 			Metadata: make(map[string]string),
@@ -150,15 +150,13 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 
 	s.client = &MockConfigurationStore{}
 	s.subscribeStopChanMap.Store("id1", make(chan struct{}))
-	s.keysToSubIDMap["testKey"] = "id1"
-	s.subIDToKeyListMap["id1"] = []string{"testKey"}
 
 	t.Run("call unsubscribe with incorrect subId", func(t *testing.T) {
 		req := configuration.UnsubscribeRequest{
 			ID: "id_not_exist",
 		}
 		err := s.Unsubscribe(context.Background(), &req)
-		assert.Nil(t, err)
+		assert.NotNil(t, err)
 		_, ok := s.subscribeStopChanMap.Load("id1")
 		assert.True(t, ok)
 	})
@@ -170,10 +168,6 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 		err := s.Unsubscribe(context.Background(), &req)
 		assert.Nil(t, err)
 		_, ok := s.subscribeStopChanMap.Load("id1")
-		assert.False(t, ok)
-		_, ok = s.keysToSubIDMap["testKey"]
-		assert.False(t, ok)
-		_, ok = s.subIDToKeyListMap["id1"]
 		assert.False(t, ok)
 	})
 }
@@ -202,6 +196,7 @@ func TestInit(t *testing.T) {
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
+		testProperties[subscribePollInterval] = "30000000000"
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -215,6 +210,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, 3, cs.metadata.maxRetries)
 		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
 		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
+		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
 	})
 
 	t.Run("Init with valid appConfigConnectionString metadata", func(t *testing.T) {
@@ -223,6 +219,7 @@ func TestInit(t *testing.T) {
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
+		testProperties[subscribePollInterval] = "30000000000"
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -236,6 +233,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, 3, cs.metadata.maxRetries)
 		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
 		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
+		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
 	})
 }
 
@@ -246,16 +244,18 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
+		testProperties[subscribePollInterval] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
 		want := metadata{
-			host:          "testHost",
-			maxRetries:    3,
-			retryDelay:    time.Second * 4,
-			maxRetryDelay: time.Second * 120,
+			host:                  "testHost",
+			maxRetries:            3,
+			retryDelay:            time.Second * 4,
+			maxRetryDelay:         time.Second * 120,
+			subscribePollInterval: time.Second * 30,
 		}
 
 		m, _ := parseMetadata(meta)
@@ -271,16 +271,18 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
+		testProperties[subscribePollInterval] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
 		}}
 
 		want := metadata{
-			connectionString: "testConnectionString",
-			maxRetries:       3,
-			retryDelay:       time.Second * 4,
-			maxRetryDelay:    time.Second * 120,
+			connectionString:      "testConnectionString",
+			maxRetries:            3,
+			retryDelay:            time.Second * 4,
+			maxRetryDelay:         time.Second * 120,
+			subscribePollInterval: time.Second * 30,
 		}
 
 		m, _ := parseMetadata(meta)
@@ -297,6 +299,7 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
+		testProperties[subscribePollInterval] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -313,6 +316,7 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
+		testProperties[subscribePollInterval] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,

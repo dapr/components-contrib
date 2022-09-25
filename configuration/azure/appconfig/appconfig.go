@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	host                         = "appConfigHost"
-	connectionString             = "appConfigConnectionString"
+	host                         = "host"
+	connectionString             = "connectionString"
 	maxRetries                   = "maxRetries"
 	retryDelay                   = "retryDelay"
 	maxRetryDelay                = "maxRetryDelay"
@@ -43,7 +43,7 @@ const (
 	defaultMaxRetries            = 3
 	defaultRetryDelay            = time.Second * 4
 	defaultMaxRetryDelay         = time.Second * 120
-	defaultSubscribePollInterval = time.Second * 30
+	defaultSubscribePollInterval = time.Hour * 24
 )
 
 type azAppConfigClient interface {
@@ -56,8 +56,6 @@ type ConfigurationStore struct {
 	client               azAppConfigClient
 	metadata             metadata
 	subscribeStopChanMap sync.Map
-	keysToSubIDMap       map[string]string
-	subIDToKeyListMap    map[string][]string
 
 	logger logger.Logger
 }
@@ -65,9 +63,7 @@ type ConfigurationStore struct {
 // NewAzureAppConfigurationStore returns a new Azure App Configuration store.
 func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 	s := &ConfigurationStore{
-		keysToSubIDMap:    make(map[string]string),
-		subIDToKeyListMap: make(map[string][]string),
-		logger:            logger,
+		logger: logger,
 	}
 
 	return s
@@ -266,33 +262,13 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 }
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	subscribeID := uuid.New().String()
-	stop := make(chan struct{})
-	r.subscribeStopChanMap.Store(subscribeID, stop)
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
 	if sentinelKey == "" {
 		return "", fmt.Errorf("sentinel key is not provided in metadata")
 	}
-	actualKeyToSubscribeSlice := make([]string, 0)
-	for _, key := range req.Keys {
-		_, found := r.keysToSubIDMap[key]
-		if !found {
-			actualKeyToSubscribeSlice = append(actualKeyToSubscribeSlice, key)
-			r.keysToSubIDMap[key] = subscribeID
-		}
-	}
-	if len(actualKeyToSubscribeSlice) == 0 {
-		return "", fmt.Errorf("all provided keys are already subscribed")
-	}
-	value, found := r.subIDToKeyListMap[subscribeID]
-	if found {
-		value = append(value, actualKeyToSubscribeSlice...)
-		r.subIDToKeyListMap[subscribeID] = value
-	} else {
-		r.subIDToKeyListMap[subscribeID] = actualKeyToSubscribeSlice
-	}
-
-	req.Keys = actualKeyToSubscribeSlice
+	subscribeID := uuid.New().String()
+	stop := make(chan struct{})
+	r.subscribeStopChanMap.Store(subscribeID, stop)
 	go r.doSubscribe(ctx, req, handler, sentinelKey, subscribeID, stop)
 	return subscribeID, nil
 }
@@ -304,7 +280,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			Keys:     []string{sentinelKey},
 			Metadata: req.Metadata,
 		})
-		if err != nil {
+		if err == nil {
 			r.logger.Debugf("fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
 		} else {
 			items, err := r.Get(ctx, &configuration.GetRequest{
@@ -314,7 +290,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			if err != nil {
 				r.logger.Errorf("fail to get configuration key changes: %s", err)
 			} else {
-				r.handleSubscribedChange(ctx, req, handler, items, id)
+				r.handleSubscribedChange(ctx, handler, items, id)
 			}
 		}
 		select {
@@ -327,13 +303,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 	}
 }
 
-func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, items *configuration.GetResponse, id string) {
-	defer func() {
-		if err := recover(); err != nil {
-			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
-		}
-	}()
-
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, items *configuration.GetResponse, id string) {
 	e := &configuration.UpdateEvent{
 		Items: items.Items,
 		ID:    id,
@@ -356,13 +326,7 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		// already exist subscription
 		r.subscribeStopChanMap.Delete(req.ID)
 		close(oldStopChan.(chan struct{}))
-		keys, found := r.subIDToKeyListMap[req.ID]
-		if found {
-			for _, key := range keys {
-				delete(r.keysToSubIDMap, key)
-			}
-			delete(r.subIDToKeyListMap, req.ID)
-		}
+		return nil
 	}
-	return nil
+	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }

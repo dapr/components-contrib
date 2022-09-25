@@ -266,7 +266,11 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	if sentinelKey == "" {
 		return "", fmt.Errorf("sentinel key is not provided in metadata")
 	}
-	subscribeID := uuid.New().String()
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate uuid, error is %s", err)
+	}
+	subscribeID := uuid.String()
 	stop := make(chan struct{})
 	r.subscribeStopChanMap.Store(subscribeID, stop)
 	go r.doSubscribe(ctx, req, handler, sentinelKey, subscribeID, stop)

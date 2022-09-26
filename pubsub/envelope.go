@@ -51,6 +51,7 @@ const (
 	SourceField          = "source"
 	IDField              = "id"
 	SubjectField         = "subject"
+	TimeField            = "time"
 )
 
 // unmarshalPrecise is a wrapper around encoding/json's Decoder
@@ -110,6 +111,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TraceIDField:         traceParent,
 		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
+		TimeField:            time.Now().Format(time.RFC3339),
 	}
 
 	ce[ceDataField] = ceData
@@ -127,6 +129,14 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
 		return m, err
+	}
+
+	customTimeVal, keyExists := m[TimeField]
+
+	if keyExists {
+		m[TimeField] = customTimeVal
+	} else {
+		m[TimeField] = time.Now().Format(time.RFC3339)
 	}
 
 	m[TraceIDField] = traceParent

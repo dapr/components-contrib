@@ -142,7 +142,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse maxRetries field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse maxRetries field: %w", err)
 		}
 		m.maxRetries = parsedVal
 	}
@@ -151,7 +151,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[maxRetryDelay]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse maxRetryDelay field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse maxRetryDelay field: %w", err)
 		}
 		m.maxRetryDelay = time.Duration(parsedVal)
 	}
@@ -160,7 +160,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[retryDelay]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse retryDelay field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse retryDelay field: %w", err)
 		}
 		m.retryDelay = time.Duration(parsedVal)
 	}
@@ -169,7 +169,7 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[subscribePollInterval]; ok && val != "" {
 		parsedVal, err := strconv.Atoi(val)
 		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse subscribePollInterval field: %s", err)
+			return m, fmt.Errorf("azure appconfig error: can't parse subscribePollInterval field: %w", err)
 		}
 		m.subscribePollInterval = time.Duration(parsedVal)
 	}
@@ -247,7 +247,7 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 				items[*setting.Key] = item
 			}
 		} else {
-			return nil, fmt.Errorf("failed to load all keys, error is %s", err)
+			return nil, fmt.Errorf("failed to load all keys, error is %w", err)
 		}
 	}
 	return items, nil
@@ -268,7 +268,7 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate subscription id, error is %s", err)
+		return "", fmt.Errorf("failed to generate subscription id, error is %w", err)
 	}
 	subscribeID := uuid.String()
 	stop := make(chan struct{})
@@ -284,7 +284,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			Keys:     []string{sentinelKey},
 			Metadata: req.Metadata,
 		})
-		if err == nil {
+		if err != nil {
 			r.logger.Debugf("fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
 		} else {
 			items, err := r.Get(ctx, &configuration.GetRequest{

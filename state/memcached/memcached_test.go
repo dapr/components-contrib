@@ -96,6 +96,16 @@ func TestParseTTL(t *testing.T) {
 		assert.NotNil(t, err, "tll is not an integer")
 		assert.Nil(t, ttl)
 	})
+	t.Run("TTL is a negative integer ends up translated to 0", func(t *testing.T) {
+		ttlInSeconds := -1
+		ttl, err := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, int(*ttl), 0)
+	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
 		ttlInSeconds := 12345
 		ttl, err := store.parseTTL(&state.SetRequest{

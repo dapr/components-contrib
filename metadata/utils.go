@@ -43,7 +43,7 @@ const (
 	MaxBulkSubCountKey string = "maxBulkSubCount"
 
 	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
-	MaxBulkAwaitDurationMilliSecondsKey string = "maxBulkAwaitDurationMilliSeconds"
+	MaxBulkSubAwaitDurationMsKey string = "maxBulkSubAwaitDurationMs"
 
 	// MaxBulkPubBytesKey defines the maximum bytes to publish in a bulk publish request metadata.
 	MaxBulkPubBytesKey string = "maxBulkPubBytes"

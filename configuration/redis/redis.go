@@ -291,8 +291,9 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		// already exist subscription
 		r.subscribeStopChanMap.Delete(req.ID)
 		close(oldStopChan.(chan struct{}))
+		return nil
 	}
-	return nil
+	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }
 
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, id string, stop chan struct{}) {

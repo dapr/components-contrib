@@ -264,7 +264,7 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
 	if sentinelKey == "" {
-		return "", fmt.Errorf("sentinel key is not provided in metadata")
+		return "", fmt.Errorf("azure appconfig error: sentinel key is not provided in metadata")
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {

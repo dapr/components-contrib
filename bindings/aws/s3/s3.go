@@ -190,9 +190,9 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	var presignURL string
 	if metadata.PresignTTL != "" {
-		url, err := s.presignObject(metadata.Bucket, key, metadata.PresignTTL)
-		if err != nil {
-			return nil, fmt.Errorf("s3 binding error: %s", err)
+		url, presignErr := s.presignObject(metadata.Bucket, key, metadata.PresignTTL)
+		if presignErr != nil {
+			return nil, fmt.Errorf("s3 binding error: %s", presignErr)
 		}
 
 		presignURL = url

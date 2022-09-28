@@ -24,12 +24,12 @@ import (
 )
 
 const (
-	// DefaultMaxBulkCount is the default max bulk count for kafka pubsub component
+	// DefaultMaxBulkSubCount is the default max bulk count for kafka pubsub component
 	// if the MaxBulkCountKey is not set in the metadata.
-	DefaultMaxBulkCount = 80
-	// DefaultMaxBulkAwaitDurationMilliSeconds is the default max bulk await duration for kafka pubsub component
+	DefaultMaxBulkSubCount = 80
+	// DefaultMaxBulkSubAwaitDurationMs is the default max bulk await duration for kafka pubsub component
 	// if the MaxBulkAwaitDurationKey is not set in the metadata.
-	DefaultMaxBulkAwaitDurationMilliSeconds = 10000
+	DefaultMaxBulkSubAwaitDurationMs = 10000
 )
 
 // asBase64String implements the `fmt.Stringer` interface in order to print

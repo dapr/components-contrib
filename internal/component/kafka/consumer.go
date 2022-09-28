@@ -44,7 +44,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		return fmt.Errorf("error getting bulk handler config for topic %s: %w", claim.Topic(), err)
 	}
 	if isBulkSubscribe {
-		ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds) * time.Millisecond)
+		ticker := time.NewTicker(time.Duration(handlerConfig.SubscribeConfig.MaxBulkSubAwaitDurationMs) * time.Millisecond)
 		defer ticker.Stop()
 		messages := make([]*sarama.ConsumerMessage, 0, handlerConfig.SubscribeConfig.MaxBulkSubCount)
 		for {
@@ -227,7 +227,7 @@ func (k *Kafka) checkBulkSubscribe(topic string) bool {
 	if bulkHandlerConfig, ok := k.subscribeTopics[topic]; ok &&
 		bulkHandlerConfig.IsBulkSubscribe &&
 		bulkHandlerConfig.BulkHandler != nil && (bulkHandlerConfig.SubscribeConfig.MaxBulkSubCount > 0) &&
-		bulkHandlerConfig.SubscribeConfig.MaxBulkAwaitDurationMilliSeconds > 0 {
+		bulkHandlerConfig.SubscribeConfig.MaxBulkSubAwaitDurationMs > 0 {
 		return true
 	}
 	return false

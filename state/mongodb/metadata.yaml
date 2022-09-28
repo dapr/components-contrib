@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: mongodb
+version: v1
+status: stable
+title: "MongoDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-mongodb/
+  - title: Connection options
+    url: https://www.mongodb.com/docs/manual/reference/connection-string/#std-label-connections-connection-options
+capabilities:
+  # If actorStateStore is present, the metadata key actorStateStore can be used
+  - actorStateStore
+  - crud
+  - transactional
+  - etag
+  - query
+metadata:
+  - name: server
+    # Required if host is not set
+    required: false
+    description: "The server to connect to, when using DNS SRV record. One of \"server\" and \"host\" is required."
+    example: '"server.example.com"'
+  - name: host
+    # Required if server is not set
+    required: false
+    description: "The host to connect to. One of \"server\" and \"host\" is required."
+    example: '"mongo-mongodb.default.svc.cluster.local:27017"'
+  - name: username
+    description: "The username of the user to connect with (applicable in conjunction with \"host\")"
+    example: '"admin"'
+  - name: password
+    sensitive: true
+    description: "The password of the user (applicable in conjunction with \"host\")"
+    example: '"password"'
+  - name: databaseName
+    description: "The name of the database to use."
+    default: '"daprStore"'
+    example: '"daprStore"'
+  - name: collectionName
+    description: "The name of the collection to use."
+    default: '"daprCollection"'
+    example: '"daprCollection"'
+  - name: writeconcern
+    description: "The write concern to use"
+    example: '"majority", "2"'
+  - name: readconcern
+    description: "The read concern to use"
+    type: string
+    allowedValues: 
+      - "available"
+      - "local"
+      - "linearizable"
+      - "majority"
+      - "snapshot"
+    example: '"local"'
+  - name: operationTimeout
+    description: "The timeout for the operation."
+    type: duration
+    default: '"5s"'
+    example: '"10s"'
+  - name: params
+    description: "Additional parameters to use when connecting. The params field accepts a query string that specifies connection specific options as \"<name>=<value>\" pairs, separated by \"&\" and prefixed with \"?\". See the MongoDB manual for the list of available options and their use cases."
+    example: '"?authSource=daprStore&ssl=true"'

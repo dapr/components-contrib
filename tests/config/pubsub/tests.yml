@@ -12,7 +12,7 @@
 componentType: pubsub
 components:
   - component: azure.eventhubs
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ["publish", "subscribe", "multiplehandlers", "bulkpublish"]
     config:
       pubsubName: azure-eventhubs
       testTopicName: eventhubs-pubsub-topic
@@ -24,7 +24,7 @@ components:
       publishMetadata:
         partitionKey: abcd
   - component: azure.servicebus
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
@@ -44,7 +44,7 @@ components:
     allOperations: true
   - component: kafka
     profile: confluent
-    allOperations: true    
+    allOperations: true
   - component: pulsar
     operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt

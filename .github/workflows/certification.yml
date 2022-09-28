@@ -303,7 +303,7 @@ jobs:
 
       - name: Calculate total coverage
         run: |
-          threshold=80.0
+          threshold=60.0
           echo "threshold=$threshold" >> $GITHUB_ENV
           aboveThreshold=0
           totalFiles=0

@@ -40,10 +40,12 @@ const (
 	retryDelay                   = "retryDelay"
 	maxRetryDelay                = "maxRetryDelay"
 	subscribePollInterval        = "subscribePollInterval"
+	requestTimeout               = "requestTimeout"
 	defaultMaxRetries            = 3
 	defaultRetryDelay            = time.Second * 4
 	defaultMaxRetryDelay         = time.Second * 120
 	defaultSubscribePollInterval = time.Hour * 24
+	defaultRequestTimeout        = time.Second * 15
 )
 
 type azAppConfigClient interface {
@@ -53,9 +55,9 @@ type azAppConfigClient interface {
 
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client               azAppConfigClient
-	metadata             metadata
-	subscribeStopChanMap sync.Map
+	client                azAppConfigClient
+	metadata              metadata
+	subscribeCancelCtxMap sync.Map
 
 	logger logger.Logger
 }
@@ -174,23 +176,37 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 		m.subscribePollInterval = time.Duration(parsedVal)
 	}
 
+	m.requestTimeout = defaultRequestTimeout
+	if val, ok := meta.Properties[requestTimeout]; ok && val != "" {
+		parsedVal, err := strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("azure appconfig error: can't parse requestTimeout field: %w", err)
+		}
+		m.requestTimeout = time.Duration(parsedVal)
+	}
+
 	return m, nil
 }
 
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
+	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
+	defer cancel()
+
 	keys := req.Keys
 	var items map[string]*configuration.Item
 
 	if len(keys) == 0 {
 		var err error
-		if items, err = r.getAll(ctx, req); err != nil {
+		if items, err = r.getAll(timeoutContext, req); err != nil {
 			return &configuration.GetResponse{}, err
 		}
 	} else {
 		items = make(map[string]*configuration.Item, len(keys))
 		for _, key := range keys {
+			// here contxt.TODO() is used because the SDK panics when a cancelled context is passed in GetSetting
+			// Needs to be modified to use timeoutContext once the SDK is fixed
 			resp, err := r.client.GetSetting(
-				ctx,
+				context.TODO(),
 				key,
 				&azappconfig.GetSettingOptions{
 					Label: r.getLabelFromMetadata(req.Metadata),
@@ -211,7 +227,6 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			items[key] = item
 		}
 	}
-
 	return &configuration.GetResponse{
 		Items: items,
 	}, nil
@@ -233,8 +248,10 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		},
 		nil)
 
+	// here contxt.TODO() is used because the SDK panics when a cancelled context is passed in NextPage
+	// Needs to be modified to use ctx once the SDK is fixed
 	for allSettingsPgr.More() {
-		if revResp, err := allSettingsPgr.NextPage(ctx); err == nil {
+		if revResp, err := allSettingsPgr.NextPage(context.TODO()); err == nil {
 			for _, setting := range revResp.Settings {
 				item := &configuration.Item{
 					Metadata: map[string]string{},
@@ -268,16 +285,16 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate subscription id, error is %w", err)
+		return "", fmt.Errorf("azure appconfig error: failed to generate uuid, error is %w", err)
 	}
 	subscribeID := uuid.String()
-	stop := make(chan struct{})
-	r.subscribeStopChanMap.Store(subscribeID, stop)
-	go r.doSubscribe(ctx, req, handler, sentinelKey, subscribeID, stop)
+	childContext, cancel := context.WithCancel(ctx)
+	r.subscribeCancelCtxMap.Store(subscribeID, cancel)
+	go r.doSubscribe(childContext, req, handler, sentinelKey, subscribeID)
 	return subscribeID, nil
 }
 
-func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, sentinelKey string, id string, stop chan struct{}) {
+func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, sentinelKey string, id string) {
 	for {
 		// get sentinel key changes
 		_, err := r.Get(ctx, &configuration.GetRequest{
@@ -285,21 +302,19 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			Metadata: req.Metadata,
 		})
 		if err != nil {
-			r.logger.Debugf("fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
+			r.logger.Debugf("azure appconfig error: fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
 		} else {
 			items, err := r.Get(ctx, &configuration.GetRequest{
 				Keys:     req.Keys,
 				Metadata: req.Metadata,
 			})
 			if err != nil {
-				r.logger.Errorf("fail to get configuration key changes: %s", err)
+				r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
 			} else {
 				r.handleSubscribedChange(ctx, handler, items, id)
 			}
 		}
 		select {
-		case <-stop:
-			return
 		case <-ctx.Done():
 			return
 		case <-time.After(r.metadata.subscribePollInterval):
@@ -314,7 +329,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 	err := handler(ctx, e)
 	if err != nil {
-		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
+		r.logger.Errorf("azure appconfig error: fail to call handler to notify event for configuration update subscribe: %s", err)
 	}
 }
 
@@ -326,11 +341,11 @@ func (r *ConfigurationStore) getSentinelKeyFromMetadata(metadata map[string]stri
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
+	if cancelContext, ok := r.subscribeCancelCtxMap.Load(req.ID); ok {
 		// already exist subscription
-		r.subscribeStopChanMap.Delete(req.ID)
-		close(oldStopChan.(chan struct{}))
+		r.subscribeCancelCtxMap.Delete(req.ID)
+		cancelContext.(context.CancelFunc)()
 		return nil
 	}
-	return fmt.Errorf("subscription with id %s does not exist", req.ID)
+	return fmt.Errorf("azure appconfig error: subscription with id %s does not exist", req.ID)
 }

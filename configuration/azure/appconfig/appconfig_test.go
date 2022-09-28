@@ -149,15 +149,16 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 	s := NewAzureAppConfigurationStore(logger.NewLogger("test")).(*ConfigurationStore)
 
 	s.client = &MockConfigurationStore{}
-	s.subscribeStopChanMap.Store("id1", make(chan struct{}))
+	cancelContext, cancel := context.WithCancel(context.Background())
+	s.subscribeCancelCtxMap.Store("id1", cancel)
 
 	t.Run("call unsubscribe with incorrect subId", func(t *testing.T) {
 		req := configuration.UnsubscribeRequest{
 			ID: "id_not_exist",
 		}
-		err := s.Unsubscribe(context.Background(), &req)
+		err := s.Unsubscribe(cancelContext, &req)
 		assert.NotNil(t, err)
-		_, ok := s.subscribeStopChanMap.Load("id1")
+		_, ok := s.subscribeCancelCtxMap.Load("id1")
 		assert.True(t, ok)
 	})
 
@@ -165,9 +166,9 @@ func Test_unsubscribeConfigurationWithProvidedKeys(t *testing.T) {
 		req := configuration.UnsubscribeRequest{
 			ID: "id1",
 		}
-		err := s.Unsubscribe(context.Background(), &req)
+		err := s.Unsubscribe(cancelContext, &req)
 		assert.Nil(t, err)
-		_, ok := s.subscribeStopChanMap.Load("id1")
+		_, ok := s.subscribeCancelCtxMap.Load("id1")
 		assert.False(t, ok)
 	})
 }
@@ -197,6 +198,7 @@ func TestInit(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 		testProperties[subscribePollInterval] = "30000000000"
+		testProperties[requestTimeout] = "30000000000"
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -211,6 +213,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
 		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
 		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
+		assert.Equal(t, time.Second*30, cs.metadata.requestTimeout)
 	})
 
 	t.Run("Init with valid appConfigConnectionString metadata", func(t *testing.T) {
@@ -220,6 +223,7 @@ func TestInit(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 		testProperties[subscribePollInterval] = "30000000000"
+		testProperties[requestTimeout] = "30000000000"
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -234,6 +238,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
 		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
 		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
+		assert.Equal(t, time.Second*30, cs.metadata.requestTimeout)
 	})
 }
 
@@ -245,6 +250,7 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 		testProperties[subscribePollInterval] = "30000000000"
+		testProperties[requestTimeout] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -256,6 +262,7 @@ func Test_parseMetadata(t *testing.T) {
 			retryDelay:            time.Second * 4,
 			maxRetryDelay:         time.Second * 120,
 			subscribePollInterval: time.Second * 30,
+			requestTimeout:        time.Second * 30,
 		}
 
 		m, _ := parseMetadata(meta)
@@ -272,6 +279,7 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 		testProperties[subscribePollInterval] = "30000000000"
+		testProperties[requestTimeout] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -283,6 +291,7 @@ func Test_parseMetadata(t *testing.T) {
 			retryDelay:            time.Second * 4,
 			maxRetryDelay:         time.Second * 120,
 			subscribePollInterval: time.Second * 30,
+			requestTimeout:        time.Second * 30,
 		}
 
 		m, _ := parseMetadata(meta)
@@ -300,6 +309,7 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 		testProperties[subscribePollInterval] = "30000000000"
+		testProperties[requestTimeout] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -317,6 +327,7 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[retryDelay] = "4000000000"
 		testProperties[maxRetryDelay] = "120000000000"
 		testProperties[subscribePollInterval] = "30000000000"
+		testProperties[requestTimeout] = "30000000000"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,

@@ -22,4 +22,5 @@ type metadata struct {
 	maxRetryDelay         time.Duration
 	retryDelay            time.Duration
 	subscribePollInterval time.Duration
+	requestTimeout        time.Duration
 }

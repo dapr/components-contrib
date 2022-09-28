@@ -46,7 +46,8 @@ const (
 
 	metadataKey = "key"
 
-	maxResults = 1000
+	maxResults       = 1000
+	presignOperation = "presign"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket.
@@ -78,6 +79,10 @@ type createResponse struct {
 	Location   string  `json:"location"`
 	VersionID  *string `json:"versionID"`
 	PresignURL string  `json:"presignURL,omitempty"`
+}
+
+type presignResponse struct {
+	PresignURL string `json:"presignURL"`
 }
 
 type listPayload struct {
@@ -138,6 +143,7 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 		bindings.GetOperation,
 		bindings.DeleteOperation,
 		bindings.ListOperation,
+		presignOperation,
 	}
 }
 
@@ -184,18 +190,9 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	var presignURL string
 	if metadata.PresignTTL != "" {
-		d, parseErr := time.ParseDuration(metadata.PresignTTL)
-		if parseErr != nil {
-			return nil, fmt.Errorf("s3 binding error: Cannot parse duration %s: %s", metadata.PresignTTL, parseErr)
-		}
-
-		req, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
-			Bucket: aws.String(metadata.Bucket),
-			Key:    aws.String(key),
-		})
-		url, signErr := req.Presign(d)
-		if signErr != nil {
-			return nil, fmt.Errorf("s3 binding error: Failed to presign URL: %s", signErr)
+		url, err := s.presignObject(metadata.Bucket, key, metadata.PresignTTL)
+		if err != nil {
+			return nil, fmt.Errorf("s3 binding error: %s", err)
 		}
 
 		presignURL = url
@@ -213,6 +210,57 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
 	}, nil
+}
+
+func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	metadata, err := s.metadata.mergeWithRequestMetadata(req)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
+	}
+	var key string
+	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
+		key = val
+	} else {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
+	}
+
+	if metadata.PresignTTL == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataPresignTTL)
+	}
+
+	url, err := s.presignObject(metadata.Bucket, key, metadata.PresignTTL)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: %w", err)
+	}
+
+	jsonResponse, err := json.Marshal(presignResponse{
+		PresignURL: url,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: Error marshalling presign response: %w", err)
+	}
+
+	return &bindings.InvokeResponse{
+		Data: jsonResponse,
+	}, nil
+}
+
+func (s *AWSS3) presignObject(bucket, key, ttl string) (string, error) {
+	d, err := time.ParseDuration(ttl)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse duration %s: %w", ttl, err)
+	}
+
+	objReq, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	url, err := objReq.Presign(d)
+	if err != nil {
+		return "", fmt.Errorf("failed to presign URL: %w", err)
+	}
+
+	return url, nil
 }
 
 func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -316,6 +364,8 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		return s.delete(ctx, req)
 	case bindings.ListOperation:
 		return s.list(ctx, req)
+	case presignOperation:
+		return s.presign(ctx, req)
 	default:
 		return nil, fmt.Errorf("s3 binding error. unsupported operation %s", req.Operation)
 	}

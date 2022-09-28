@@ -15,7 +15,7 @@ package oauth2
 
 import (
 	"context"
-	"encoding/json"
+	"net/http"
 	"strings"
 
 	"github.com/fasthttp-contrib/sessions"
@@ -23,6 +23,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"golang.org/x/oauth2"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 )
 
@@ -55,14 +56,14 @@ const (
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
+func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		return func(ctx *fasthttp.RequestCtx) {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conf := &oauth2.Config{
 				ClientID:     meta.ClientID,
 				ClientSecret: meta.ClientSecret,
@@ -73,10 +74,10 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 					TokenURL: meta.TokenURL,
 				},
 			}
-			session := sessions.StartFasthttp(ctx)
+			session := sessions.Start(w, r)
 			if session.GetString(meta.AuthHeaderName) != "" {
-				ctx.Request.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
-				h(ctx)
+				w.Header().Set(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
+				next.ServeHTTP(w, r)
 
 				return
 			}
@@ -111,21 +112,15 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 					}
 				}
 			}
-		}
+		})
 	}, nil
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2MiddlewareMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var middlewareMetadata oAuth2MiddlewareMetadata
-	err = json.Unmarshal(b, &middlewareMetadata)
+	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}
-
 	return &middlewareMetadata, nil
 }

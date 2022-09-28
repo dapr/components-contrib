@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: azure.cosmosdb
+version: v1
+status: stable
+title: "Azure Cosmos DB (SQL API)"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-cosmosdb/
+capabilities:
+  # If actorStateStore is present, the metadata key actorStateStore can be used
+  - actorStateStore
+  - crud
+  - transactional
+  - etag
+  - ttl
+  - query
+authenticationProfiles:
+  - title: "Master key"
+    description: "Authenticate using a pre-shared \"master key\"."
+    metadata:
+      - name: masterKey
+        required: true
+        sensitive: true
+        description: "The key to authenticate to the Cosmos DB account."
+        example: '"my-secret-key"'
+  - title: "Azure AD: Managed identity"
+    description: "Authenticate using Azure AD and a managed identity."
+    metadata:
+      - name: azureClientId
+        required: false
+        description: "Client ID (application ID). Required if the service has multiple identities assigned."
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+  - title: "Azure AD: Client credentials"
+    description: "Authenticate using Azure AD with client credentials, also known as \"service principals\"."
+    metadata:
+      - name: azureTenantId
+        required: true
+        description: "ID of the Azure AD tenant"
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+      - name: azureClientId
+        required: true
+        description: "Client ID (application ID)"
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureClientSecret
+        required: true
+        sensitive: true
+        description: "Client secret (application password)"
+        example: '"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"'
+  - title: "Azure AD: Client certificate"
+    description: "Authenticate using Azure AD with a client certificate (in PFX/PKCS#12 format). One of azureCertificate and azureCertificateFile is required."
+    metadata:
+      - name: azureTenantId
+        required: true
+        description: "ID of the Azure AD tenant."
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+      - name: azureClientId
+        required: true
+        description: "Client ID (application ID)."
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureCertificate
+        required: false
+        sensitive: true
+        description: "Certificate and private key (in PFX/PKCS#12 format)."
+        example: |
+          "-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY----- \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE-----"
+      - name: azureCertificateFile
+        required: false
+        sensitive: true
+        description: "Path to PFX/PKCS#12 file on disk, containing the certificate and private key."
+        example: "/path/to/file.pem"
+      - name: azureCertificatePassword
+        required: false
+        sensitive: true
+        description: "Password for the certificate if encrypted."
+        example: "password"
+metadata:
+  - name: url
+    required: true
+    description: "The Cosmos DB url."
+    example: '"https://******.documents.azure.com:443/"'
+  - name: database
+    required: true
+    description: "The name of the database."
+    example: '"db"'
+  - name: collection
+    required: true
+    description: "The name of the collection (container)."
+    example: '"collection"'

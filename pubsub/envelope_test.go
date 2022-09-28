@@ -41,6 +41,7 @@ func TestEnvelopeXML(t *testing.T) {
 		assert.Equal(t, "1.0", envelope[SpecVersionField])
 		assert.Equal(t, "routed.topic", envelope[TopicField])
 		assert.Equal(t, "mypubsub", envelope[PubsubField])
+		assert.NotNil(t, envelope[TimeField])
 	})
 
 	t.Run("xml without content-type", func(t *testing.T) {
@@ -52,6 +53,7 @@ func TestEnvelopeXML(t *testing.T) {
 		assert.Equal(t, "1.0", envelope[SpecVersionField])
 		assert.Equal(t, "routed.topic", envelope[TopicField])
 		assert.Equal(t, "mypubsub", envelope[PubsubField])
+		assert.NotNil(t, envelope[TimeField])
 	})
 }
 
@@ -246,6 +248,7 @@ func TestNewFromExisting(t *testing.T) {
 		m := map[string]interface{}{
 			"specversion": "1.0",
 			"customfield": "a",
+			"time":        "2021-08-02T09:00:00Z",
 		}
 		b, _ := json.Marshal(&m)
 
@@ -257,6 +260,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "pubsub", n[PubsubField])
 		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
+		assert.Equal(t, "2021-08-02T09:00:00Z", n[TimeField])
 		assert.Nil(t, n[DataField])
 		assert.Nil(t, n[DataBase64Field])
 	})
@@ -271,6 +275,7 @@ func TestNewFromExisting(t *testing.T) {
 			"specversion": "1.0",
 			"customfield": "a",
 			"data":        "hello world",
+			"time":        "2021-08-02T09:00:00Z",
 		}
 		b, _ := json.Marshal(&m)
 
@@ -282,6 +287,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "pubsub", n[PubsubField])
 		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
+		assert.Equal(t, "2021-08-02T09:00:00Z", n[TimeField])
 		assert.Nil(t, n[DataBase64Field])
 		assert.Equal(t, "hello world", n[DataField])
 	})
@@ -302,6 +308,7 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Equal(t, "pubsub", n[PubsubField])
 		assert.Equal(t, "1", n[TraceParentField])
 		assert.Equal(t, "key=value", n[TraceStateField])
+		assert.NotNil(t, n[TimeField])
 		assert.Nil(t, n[DataField])
 		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0x1}), n[DataBase64Field])
 	})
@@ -312,6 +319,7 @@ func TestCreateFromBinaryPayload(t *testing.T) {
 	envelope := NewCloudEventsEnvelope("", "", "", "", "", "",
 		"application/octet-stream", []byte{0x1}, "trace", "")
 	assert.Equal(t, base64Encoding, envelope[DataBase64Field])
+	assert.NotNil(t, envelope[TimeField])
 	assert.Nil(t, envelope[DataField])
 }
 

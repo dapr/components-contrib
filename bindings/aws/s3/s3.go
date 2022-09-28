@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -41,6 +42,7 @@ const (
 	metadataDecodeBase64 = "decodeBase64"
 	metadataEncodeBase64 = "encodeBase64"
 	metadataFilePath     = "filePath"
+	metadataPresignTTL   = "presignTTL"
 
 	metadataKey = "key"
 
@@ -69,11 +71,13 @@ type s3Metadata struct {
 	DisableSSL     bool   `json:"disableSSL,string"`
 	InsecureSSL    bool   `json:"insecureSSL,string"`
 	FilePath       string
+	PresignTTL     string
 }
 
 type createResponse struct {
-	Location  string  `json:"location"`
-	VersionID *string `json:"versionID"`
+	Location   string  `json:"location"`
+	VersionID  *string `json:"versionID"`
+	PresignURL string  `json:"presignURL,omitempty"`
 }
 
 type listPayload struct {
@@ -140,14 +144,14 @@ func (s *AWSS3) Operations() []bindings.OperationKind {
 func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
 	var key string
 	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
 		key = val
 	} else {
 		key = uuid.New().String()
-		s.logger.Debugf("key not found. generating key %s", key)
+		s.logger.Debugf("s3 binding: key not found. generating key %s", key)
 	}
 
 	d, err := strconv.Unquote(string(req.Data))
@@ -175,15 +179,35 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		Body:   r,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. Uploading: %w", err)
+		return nil, fmt.Errorf("s3 binding error: Uploading: %w", err)
+	}
+
+	var presignURL string
+	if metadata.PresignTTL != "" {
+		d, parseErr := time.ParseDuration(metadata.PresignTTL)
+		if parseErr != nil {
+			return nil, fmt.Errorf("s3 binding error: Cannot parse duration %s: %s", metadata.PresignTTL, parseErr)
+		}
+
+		req, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
+			Bucket: aws.String(metadata.Bucket),
+			Key:    aws.String(key),
+		})
+		url, signErr := req.Presign(d)
+		if signErr != nil {
+			return nil, fmt.Errorf("s3 binding error: Failed to presign URL: %s", signErr)
+		}
+
+		presignURL = url
 	}
 
 	jsonResponse, err := json.Marshal(createResponse{
-		Location:  resultUpload.Location,
-		VersionID: resultUpload.VersionID,
+		Location:   resultUpload.Location,
+		VersionID:  resultUpload.VersionID,
+		PresignURL: presignURL,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. Error marshalling create response: %w", err)
+		return nil, fmt.Errorf("s3 binding error: Error marshalling create response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -335,6 +359,10 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 
 	if val, ok := req.Metadata[metadataFilePath]; ok && val != "" {
 		merged.FilePath = val
+	}
+
+	if val, ok := req.Metadata[metadataPresignTTL]; ok && val != "" {
+		merged.PresignTTL = val
 	}
 
 	return merged, nil

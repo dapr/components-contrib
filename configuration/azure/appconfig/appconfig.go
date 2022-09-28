@@ -203,8 +203,8 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	} else {
 		items = make(map[string]*configuration.Item, len(keys))
 		for _, key := range keys {
-			// here contxt.TODO() is used because the SDK panics when a cancelled context is passed in GetSetting
-			// Needs to be modified to use timeoutContext once the SDK is fixed
+			// TODO: here contxt.TODO() is used because the SDK panics when a cancelled context is passed in GetSetting
+			// Issue - https://github.com/Azure/azure-sdk-for-go/issues/19223 . Needs to be modified to use timeoutContext once the SDK is fixed
 			resp, err := r.client.GetSetting(
 				context.TODO(),
 				key,
@@ -248,8 +248,8 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		},
 		nil)
 
-	// here contxt.TODO() is used because the SDK panics when a cancelled context is passed in NextPage
-	// Needs to be modified to use ctx once the SDK is fixed
+	// TODO: here contxt.TODO() is used because the SDK panics when a cancelled context is passed in NextPage
+	// Issue - https://github.com/Azure/azure-sdk-for-go/issues/19223 . It needs to be modified to use ctx once the SDK is fixed
 	for allSettingsPgr.More() {
 		if revResp, err := allSettingsPgr.NextPage(context.TODO()); err == nil {
 			for _, setting := range revResp.Settings {

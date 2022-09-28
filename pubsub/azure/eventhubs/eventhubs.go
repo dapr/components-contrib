@@ -567,9 +567,9 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 }
 
 // BulkPublish sends data to Azure Event Hubs in bulk.
-func (aeh *AzureEventHubs) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	if _, ok := aeh.hubClients[req.Topic]; !ok {
-		if err := aeh.ensurePublisherClient(aeh.publishCtx, req.Topic); err != nil {
+		if err := aeh.ensurePublisherClient(ctx, req.Topic); err != nil {
 			err = fmt.Errorf("error on establishing hub connection: %s", err)
 			return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 		}
@@ -591,7 +591,7 @@ func (aeh *AzureEventHubs) BulkPublish(req *pubsub.BulkPublishRequest) (pubsub.B
 	}
 
 	// Send events.
-	err := aeh.hubClients[req.Topic].SendBatch(aeh.publishCtx, eventhub.NewEventBatchIterator(events...), opts...)
+	err := aeh.hubClients[req.Topic].SendBatch(ctx, eventhub.NewEventBatchIterator(events...), opts...)
 	if err != nil {
 		// Partial success is not supported by Azure Event Hubs.
 		// If an error occurs, all events are considered failed.

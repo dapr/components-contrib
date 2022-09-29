@@ -16,7 +16,7 @@ This secret store [supports the following features][features]:
 ## Test network instability
 1. Vault component does not expose a time out configuration option. For this test, let's assume a 1 minute timeout.
 2. Retrieve a key to show the connection is fine.
-3. Interrupt the network (Vault port, 8200git pus) for longer than the established timeout value.
+3. Interrupt the network (Vault port, 8200) for longer than the established timeout value.
 4. Wait a few seconds (less than the timeout value).
 5. Try to read the key from step 2 and assert it is still there.
 

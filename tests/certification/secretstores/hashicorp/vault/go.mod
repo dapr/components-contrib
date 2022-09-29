@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/dapr/components-contrib v1.8.0-rc.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
-	github.com/dapr/dapr v1.8.4-0.20220922033213-ca2b9a109f5e
+	github.com/dapr/dapr v1.8.4-0.20220922185601-283c260751e3 // We require dapr/dapr#5208 merged
 	github.com/dapr/go-sdk v1.4.0
 	github.com/dapr/kit v0.0.2
 	github.com/golang/protobuf v1.5.2

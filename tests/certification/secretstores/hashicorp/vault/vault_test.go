@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -149,9 +150,8 @@ func TestMultipleKVRetrieval(t *testing.T) {
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Verify component is registered", testComponentFound(t, secretStoreName, currentGrpcPort)).
-		// Exposing features is broken on dapr 1.8. We can enable this in 1.9
-		// Step("Verify component has support for multiple key-values under the same secret",
-		//	testComponentHasFeature(t, secretStoreName, string(secretstores.FeatureMultipleKeyValuesPerSecret), currentGrpcPort)).
+		Step("Verify component has support for multiple key-values under the same secret",
+			testComponentHasFeature(t, secretStoreName, string(secretstores.FeatureMultipleKeyValuesPerSecret), currentGrpcPort)).
 		Step("Test retrieval of a secret with multiple key-values", testGetMultipleKeyValuesFromSecret).
 		Step("Stop Memcached server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
 		Run()
@@ -172,6 +172,7 @@ func testComponentFound(t *testing.T, targetComponentName string, currentGrpcPor
 		assert.NotNil(t, resp)
 		assert.NotNil(t, resp.GetRegisteredComponents())
 
+		// Find the component
 		componentFound := false
 		for _, component := range resp.GetRegisteredComponents() {
 			if component.GetName() == targetComponentName {
@@ -185,47 +186,44 @@ func testComponentFound(t *testing.T, targetComponentName string, currentGrpcPor
 	}
 }
 
-// Exposing features is broken on dapr 1.8. We can enable this in 1.9
+func testComponentHasFeature(t *testing.T, targetComponentName string, targetCapability string, currentGrpcPort int) flow.Runnable {
+	return func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
 
-// func testComponentHasFeature(t *testing.T, targetComponentName string, targetCapability string, currentGrpcPort int) flow.Runnable {
-// 	return func(ctx flow.Context) error {
-// 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-// 		if err != nil {
-// 			panic(err)
-// 		}
-// 		defer client.Close()
+		clientCtx := context.Background()
 
-// 		clientCtx := context.Background()
+		resp, err := client.GrpcClient().GetMetadata(clientCtx, &empty.Empty{})
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.NotNil(t, resp.GetRegisteredComponents())
 
-// 		resp, err := client.GrpcClient().GetMetadata(clientCtx, &empty.Empty{})
-// 		assert.Empty(t, resp.String())
-// 		assert.NoError(t, err)
-// 		assert.NotNil(t, resp)
-// 		assert.NotNil(t, resp.GetRegisteredComponents())
+		// Find the component
+		var capabilities []string = []string{}
+		for _, component := range resp.GetRegisteredComponents() {
+			if component.GetName() == targetComponentName {
+				capabilities = component.GetCapabilities()
+				break
+			}
+		}
+		assert.NotEmpty(t, capabilities)
 
-// 		// Find the component
-// 		var capabilities []string = []string{}
-// 		for _, component := range resp.GetRegisteredComponents() {
-// 			if component.GetName() == targetComponentName {
-// 				capabilities = component.GetCapabilities()
-// 				break
-// 			}
-// 		}
-// 		assert.NotEmpty(t, capabilities)
+		// Find capability
+		capabilityFound := false
+		for _, cap := range capabilities {
+			if cap == targetCapability {
+				capabilityFound = true
+				break
+			}
+		}
+		assert.True(t, capabilityFound)
 
-// 		// Find capability
-// 		capabilityFound := false
-// 		for _, cap := range capabilities {
-// 			if cap == targetCapability {
-// 				capabilityFound = true
-// 				break
-// 			}
-// 		}
-// 		assert.True(t, capabilityFound)
-
-// 		return nil
-// 	}
-// }
+		return nil
+	}
+}
 
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")

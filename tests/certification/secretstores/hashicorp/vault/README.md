@@ -13,6 +13,13 @@ This secret store [supports the following features][features]:
 2. Able to do retrieve secrets.
 3. Negative test to fetch record with key, that is not present.
 
+## Test network instability
+1. Vault component does not expose a time out configuration option. For this test, let's assume a 1 minute timeout.
+2. Retrieve a key to show the connection is fine.
+3. Interrupt the network (Vault port, 8200git pus) for longer than the established timeout value.
+4. Wait a few seconds (less than the timeout value).
+5. Try to read the key from step 2 and assert it is still there.
+
 
 ## Test support for multiple keys under the same secret
 1. Test retrieval of secrets with multiple keys under it

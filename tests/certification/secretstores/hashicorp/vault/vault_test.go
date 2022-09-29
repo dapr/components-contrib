@@ -23,6 +23,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -40,6 +41,10 @@ const (
 	dockerComposeProjectName = "hashicorp-vault"
 	secretStoreComponentPath = "./components/default"
 	secretStoreName          = "my-hashicorp-vault" // as set in the component YAML
+
+	networkInstabilityTime   = 1 * time.Minute
+	waitAfterInstabilityTime = networkInstabilityTime / 4
+	servicePortToInterrupt   = "8200"
 )
 
 func TestBasicSecretRetrieval(t *testing.T) {
@@ -96,6 +101,10 @@ func TestBasicSecretRetrieval(t *testing.T) {
 		Step("Verify component is registered", testComponentFound(t, secretStoreName, currentGrpcPort)).
 		Step("Run basic secret retrieval test", testGetKnownSecret).
 		Step("Test retrieval of secret that does not exist", testGetMissingSecret).
+		Step("Interrupt network for 1 minute",
+			network.InterruptNetwork(networkInstabilityTime, nil, nil, servicePortToInterrupt)).
+		Step("Wait for component to recover", flow.Sleep(waitAfterInstabilityTime)).
+		Step("Run basic test again to verify reconnection occurred", testGetKnownSecret).
 		Step("Stop Memcached server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
 		Run()
 }

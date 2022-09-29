@@ -15,8 +15,7 @@ This secret store [supports the following features][features]:
 
 
 ## Test support for multiple keys under the same secret
-1. Test feature is exposed via `Features`
-2. Test retrieval of secrets with multiple keys under it
+1. Test retrieval of secrets with multiple keys under it
 
 
 ## Out of scope

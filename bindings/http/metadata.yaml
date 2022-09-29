@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: http
+version: v1
+status: stable
+title: "HTTP"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/http/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: create
+      description: "Alias for \"post\", for backwards-compatibility."
+    - name: get
+      description: "Read data/records."
+    - name: head
+      description: "Identical to get except that the server does not return a response body."
+    - name: post
+      description: "Typically used to create records or send commands."
+    - name: put
+      description: "Update data/records."
+    - name: patch
+      description: "Sometimes used to update a subset of fields of a record."
+    - name: delete
+      description: "Delete a data/record."
+    - name: options
+      description: "Requests for information about the communication options available (not commonly used)."
+    - name: trace
+      description: "Used to invoke a remote, application-layer loop-back of the request message (not commonly used)."
+capabilities: []
+metadata:
+  - name: url
+    required: true
+    description: "The base URL of the HTTP endpoint to invoke"
+    example: '"http://host:port/path", "http://myservice:8000/customer"'
+    # If omitted, uses the same values as "<root>.binding"
+    binding:
+      output: true

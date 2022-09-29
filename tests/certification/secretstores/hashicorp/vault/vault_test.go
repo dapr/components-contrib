@@ -106,7 +106,7 @@ func TestBasicSecretRetrieval(t *testing.T) {
 			network.InterruptNetwork(networkInstabilityTime, nil, nil, servicePortToInterrupt)).
 		Step("Wait for component to recover", flow.Sleep(waitAfterInstabilityTime)).
 		Step("Run basic test again to verify reconnection occurred", testGetKnownSecret).
-		Step("Stop Memcached server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
+		Step("Stop HashiCorp Vault server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
 		Run()
 }
 
@@ -153,7 +153,7 @@ func TestMultipleKVRetrieval(t *testing.T) {
 		Step("Verify component has support for multiple key-values under the same secret",
 			testComponentHasFeature(t, secretStoreName, string(secretstores.FeatureMultipleKeyValuesPerSecret), currentGrpcPort)).
 		Step("Test retrieval of a secret with multiple key-values", testGetMultipleKeyValuesFromSecret).
-		Step("Stop Memcached server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
+		Step("Stop HashiCorp Vault server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
 		Run()
 }
 

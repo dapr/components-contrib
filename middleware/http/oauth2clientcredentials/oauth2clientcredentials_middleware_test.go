@@ -113,7 +113,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
-	r := httptest.NewRequest("GET", "http://dapr.io", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
 	w := httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
@@ -173,7 +173,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
-	r := httptest.NewRequest("GET", "http://dapr.io", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
 	w := httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
@@ -181,7 +181,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
 
 	// Second handler call should still return 'cached' abc Token
-	r = httptest.NewRequest("GET", "http://dapr.io", nil)
+	r = httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
 	w = httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
@@ -192,7 +192,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// Third call should return def Token
-	r = httptest.NewRequest("GET", "http://dapr.io", nil)
+	r = httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
 	w = httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 

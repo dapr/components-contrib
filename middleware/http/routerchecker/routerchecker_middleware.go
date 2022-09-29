@@ -53,7 +53,14 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			isPass := re.MatchString(r.URL.String())
+			u := r.URL.Path
+			if len(u) == 0 || u[0] != '/' {
+				u = "/" + u
+			}
+			if len(r.URL.RawQuery) > 0 {
+				u += "?" + r.URL.RawQuery
+			}
+			isPass := re.MatchString(u)
 			if !isPass {
 				httputils.RespondWithErrorAndMessage(w, http.StatusBadRequest, "invalid router")
 				return

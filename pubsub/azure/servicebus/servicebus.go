@@ -569,7 +569,7 @@ func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHa
 		implResps := make([]impl.HandlerResponseItem, len(resps))
 		for i, resp := range resps {
 			implResps[i] = impl.HandlerResponseItem{
-				EntryID: resp.EntryID,
+				EntryId: resp.EntryId,
 				Error:   resp.Error,
 			}
 		}

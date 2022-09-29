@@ -175,7 +175,7 @@ type KafkaBulkMessage struct {
 
 // KafkaBulkMessageEntry is an item contained inside bulk event arriving from a message bus instance.
 type KafkaBulkMessageEntry struct {
-	EntryID     string            `json:"entryID"`
+	EntryId     string            `json:"entryId"` //nolint:stylecheck
 	Event       []byte            `json:"event"`
 	ContentType string            `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`

@@ -143,7 +143,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 				}
 			}
 			childMessage := KafkaBulkMessageEntry{
-				EntryID:  strconv.Itoa(i),
+				EntryId:  strconv.Itoa(i),
 				Event:    message.Value,
 				Metadata: metadata,
 			}
@@ -159,7 +159,7 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 	if err != nil {
 		for i, resp := range responses {
 			// An extra check to confirm that runtime returned responses are in order
-			if resp.EntryID != messageValues[i].EntryID {
+			if resp.EntryId != messageValues[i].EntryId {
 				return errors.New("entry id mismatch while processing bulk messages")
 			}
 			if resp.Error != nil {

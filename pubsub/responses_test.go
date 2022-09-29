@@ -22,7 +22,7 @@ import (
 func TestNewBulkPublishResponse(t *testing.T) {
 	messages := []BulkMessageEntry{
 		{
-			EntryID: "1",
+			EntryId: "1",
 			Event:   []byte("event 1"),
 			Metadata: map[string]string{
 				"ttlInSeconds": "22",
@@ -30,7 +30,7 @@ func TestNewBulkPublishResponse(t *testing.T) {
 			ContentType: "text/plain",
 		},
 		{
-			EntryID: "2",
+			EntryId: "2",
 			Event:   []byte("event 2"),
 			Metadata: map[string]string{
 				"ttlInSeconds": "11",
@@ -45,11 +45,11 @@ func TestNewBulkPublishResponse(t *testing.T) {
 		expectedRes := BulkPublishResponse{
 			Statuses: []BulkPublishResponseEntry{
 				{
-					EntryID: "1",
+					EntryId: "1",
 					Status:  PublishSucceeded,
 				},
 				{
-					EntryID: "2",
+					EntryId: "2",
 					Status:  PublishSucceeded,
 				},
 			},
@@ -63,12 +63,12 @@ func TestNewBulkPublishResponse(t *testing.T) {
 		expectedRes := BulkPublishResponse{
 			Statuses: []BulkPublishResponseEntry{
 				{
-					EntryID: "1",
+					EntryId: "1",
 					Status:  PublishFailed,
 					Error:   assert.AnError,
 				},
 				{
-					EntryID: "2",
+					EntryId: "2",
 					Status:  PublishFailed,
 					Error:   assert.AnError,
 				},

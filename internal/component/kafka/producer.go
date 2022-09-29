@@ -157,7 +157,7 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 	// Check if all the messages have failed
 	if len(pErrs) != len(entries) {
 		// This is a partial success scenario
-		for _, entry := range entries { //nolint:stylecheck
+		for _, entry := range entries {
 			// Check if the entryId was not seen in the pErrs list
 			if _, ok := alreadySeen[entry.EntryId]; !ok {
 				// this is a message that has succeeded

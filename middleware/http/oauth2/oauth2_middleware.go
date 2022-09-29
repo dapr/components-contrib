@@ -82,7 +82,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 			session := sessions.Start(w, r)
 
 			if session.GetString(meta.AuthHeaderName) != "" {
-				w.Header().Set(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
+				w.Header().Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -135,7 +135,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 				authHeader := token.Type() + " " + token.AccessToken
 				session.Set(meta.AuthHeaderName, authHeader)
-				w.Header().Set(meta.AuthHeaderName, authHeader)
+				w.Header().Add(meta.AuthHeaderName, authHeader)
 				httputils.RespondWithRedirect(w, http.StatusFound, redirectURL.String())
 			}
 		})

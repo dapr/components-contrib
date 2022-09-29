@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,16 +11,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package appconfig
+package metadataschema
 
-import "time"
-
-type metadata struct {
-	host                  string
-	connectionString      string
-	maxRetries            int
-	maxRetryDelay         time.Duration
-	retryDelay            time.Duration
-	subscribePollInterval time.Duration
-	requestTimeout        time.Duration
+// Bundle is the type for the component metadata bundle.
+type Bundle struct {
+	// Version of the component bundle schema.
+	SchemaVersion string `json:"schemaVersion" jsonschema:"enum=v1"`
+	// Date the bundle was generated, in format `20060102150405`
+	Date string `json:"date"`
+	// Component list.
+	Components []*ComponentMetadata `json:"components"`
 }

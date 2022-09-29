@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: azure.servicebusqueues
+version: v1
+status: stable
+title: "Azure Service Bus Queues"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/servicebusqueues/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish a new message in the queue."
+capabilities: []
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "The Service Bus connection string."
+        example: '"Endpoint=sb://************"'
+        # If omitted, uses the same values as "<root>.binding"
+        binding:
+          output: true
+          input: true
+  - title: "Azure AD: Managed identity"
+    description: "Authenticate using Azure AD and a managed identity."
+    metadata:
+      - name: namespaceName
+        description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
+        example: '"namespace.servicebus.windows.net"'
+        required: true
+        binding:
+          output: true
+          input: true
+      - name: azureClientId
+        required: false
+        description: "Client ID (application ID). Required if the service has multiple identities assigned."
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+  - title: "Azure AD: Client credentials"
+    description: "Authenticate using Azure AD with client credentials, also known as \"service principals\"."
+    metadata:
+      - name: namespaceName
+        description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
+        example: '"namespace.servicebus.windows.net"'
+        required: true
+        binding:
+          output: true
+          input: true
+      - name: azureTenantId
+        required: true
+        description: "ID of the Azure AD tenant"
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+      - name: azureClientId
+        required: true
+        description: "Client ID (application ID)"
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureClientSecret
+        sensitive: true
+        required: true
+        description: "Client secret (application password)"
+        example: '"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"'
+  - title: "Azure AD: Client certificate"
+    description: "Authenticate using Azure AD with a client certificate (in PFX/PKCS#12 format). One of azureCertificate and azureCertificateFile is required."
+    metadata:
+      - name: namespaceName
+        description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
+        example: '"namespace.servicebus.windows.net"'
+        required: true
+        binding:
+          output: true
+          input: true
+      - name: azureTenantId
+        required: true
+        description: "ID of the Azure AD tenant."
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+      - name: azureClientId
+        required: true
+        description: "Client ID (application ID)."
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureCertificate
+        sensitive: true
+        required: false
+        description: "Certificate and private key (in PFX/PKCS#12 format)."
+        example: |
+          "-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY----- \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE-----"
+      - name: azureCertificateFile
+        sensitive: true
+        required: false
+        description: "Path to PFX/PKCS#12 file on disk, containing the certificate and private key."
+        example: "/path/to/file.pem"
+      - name: azureCertificatePassword
+        sensitive: true
+        required: false
+        description: "Password for the certificate if encrypted."
+        example: "password"
+metadata:
+  - name: queueName
+    required: true
+    description: "The Service Bus queue name. Queue names are case-insensitive and will always be forced to lowercase."
+    # string is the default type if omitted
+    type: string
+    example: '"queuename"'
+    binding:
+      output: true
+      input: true
+  - name: ttlInSeconds
+    description: "Parameter to set the default message time to live. If this parameter is omitted, messages will expire after 14 days (the built-in default value in Azure Sevice Bus)."
+    type: number
+    example: '86400'
+    binding:
+      # input is omitted so it's assumed as false
+      output: true
+  - name: maxRetriableErrorsPerSec
+    description: "Maximum number of retriable errors that are processed per second. If a message fails to be processed with a retriable error, the component adds a delay before it starts processing another message, to avoid immediately re-processing messages that have failed"
+    type: number
+    default: '10'
+    example: '2'
+    binding:
+      # output is omitted so it's assumed as false
+      input: true
+  - name: minConnectionRecoveryInSec
+    description: "Minimum interval (in seconds) to wait before attempting to reconnect to Azure Service Bus in case of a connection failure."
+    type: number
+    default: '2'
+    example: '5'
+    binding:
+      # output is omitted so it's assumed as false
+      input: true
+  - name: maxConnectionRecoveryInSec
+    description: "Maximum interval (in seconds) to wait before attempting to reconnect to Azure Service Bus in case of a connection failure. After each attempt, the binding waits a random number of seconds, increasing every time, between the minimum and the maximum. Default is 300 seconds (5 minutes)."
+    type: number
+    default: '300'
+    example: '600'
+    binding:
+      # output is omitted so it's assumed as false
+      input: true
+  - name: maxActiveMessages
+    description: "Defines the maximum number of messages to be processing or in the buffer at once. This should be at least as big as the \"maxConcurrentHandlers\"."
+    type: number
+    default: '1'
+    example: '8'
+    binding:
+      input: true
+  - name: maxConcurrentHandlers
+    description: "Defines the maximum number of concurrent message handlers."
+    type: number
+    default: '1'
+    example: '5'
+    binding:
+      input: true
+  - name: lockRenewalInSec
+    description: "Defines the frequency at which buffered message locks will be renewed."
+    type: number
+    default: '20'
+    example: '10'
+    binding:
+      input: true
+  - name: timeoutInSec
+    description: "Timeout for all invocations to the Azure Service Bus endpoint, in seconds. Note that this option impacts network calls and it's unrelated to the TTL applies to messages."
+    type: number
+    default: '60'
+    example: '30'
+    # binding is not specified so it's the same as <root>.binding

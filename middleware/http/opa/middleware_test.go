@@ -125,7 +125,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				return httptest.NewRequest("GET", "https://my.site/allowed", nil)
+				return httptest.NewRequest(http.MethodGet, "https://my.site/allowed", nil)
 			},
 			status: 200,
 		},
@@ -143,7 +143,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				return httptest.NewRequest("GET", "https://my.site/forbidden", nil)
+				return httptest.NewRequest(http.MethodGet, "https://my.site/forbidden", nil)
 			},
 			status: 403,
 		},
@@ -161,7 +161,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				r := httptest.NewRequest("GET", "https://my.site", nil)
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
 				r.Header.Add("x-bad-header", "1")
 				return r
 			},
@@ -182,7 +182,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				r := httptest.NewRequest("GET", "https://my.site", nil)
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
 				r.Header.Add("X-BAD-HEADER", "1")
 				return r
 			},
@@ -252,7 +252,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				r := httptest.NewRequest("GET", "https://my.site", strings.NewReader("allow"))
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", strings.NewReader("allow"))
 				r.Header.Add("content-type", "text/plain; charset=utf8")
 				return r
 			},
@@ -272,7 +272,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				r := httptest.NewRequest("GET", "https://my.site", strings.NewReader("allow"))
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", strings.NewReader("allow"))
 				r.Header.Add("content-type", "text/plain; charset=utf8")
 				return r
 			},
@@ -293,7 +293,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				r := httptest.NewRequest("GET", "https://my.site", nil)
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
 				r.Header.Add("x-jwt-header", "1")
 				r.Header.Add("x-my-custom-header", "2")
 				return r
@@ -315,7 +315,7 @@ func TestOpaPolicy(t *testing.T) {
 				},
 			}},
 			req: func() *http.Request {
-				r := httptest.NewRequest("GET", "https://my.site", nil)
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
 				r.Header.Add("x-jwt-header", "1")
 				r.Header.Add("x-bad-header", "2")
 				return r
@@ -341,7 +341,7 @@ func TestOpaPolicy(t *testing.T) {
 			if test.req != nil {
 				r = test.req()
 			} else {
-				r = httptest.NewRequest("GET", "https://my.site", nil)
+				r = httptest.NewRequest(http.MethodGet, "https://my.site", nil)
 			}
 			w := httptest.NewRecorder()
 

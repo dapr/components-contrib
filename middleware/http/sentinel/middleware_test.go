@@ -51,7 +51,7 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 	handler, err := sentinel.GetHandler(meta)
 	assert.Nil(t, err)
 
-	r := httptest.NewRequest("GET", "http://localhost:5001/v1.0/nodeapp/healthz", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/nodeapp/healthz", nil)
 
 	counter := &counter{}
 	for i := 0; i < 100; i++ {

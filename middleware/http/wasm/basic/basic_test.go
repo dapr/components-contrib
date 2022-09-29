@@ -169,7 +169,7 @@ func Test_Example(t *testing.T) {
 	require.NoError(t, err)
 	handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
-	r := httptest.NewRequest("GET", "/v1.0/hi", nil)
+	r := httptest.NewRequest(http.MethodGet, "/v1.0/hi", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 	require.Equal(t, "/v1.0/hello", httputils.RequestURI(r))

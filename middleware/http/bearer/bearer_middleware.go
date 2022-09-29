@@ -37,8 +37,7 @@ func NewBearerMiddleware(_ logger.Logger) middleware.Middleware {
 }
 
 // Middleware is an oAuth2 authentication middleware.
-type Middleware struct {
-}
+type Middleware struct{}
 
 const (
 	bearerPrefix       = "bearer "

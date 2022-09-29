@@ -40,7 +40,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	handler, err := rchecker.GetHandler(meta)
 	assert.Nil(t, err)
 
-	r := httptest.NewRequest("GET", "http://localhost:5001/v1.0/invoke/qcg.default/method/%20cat%20password", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/invoke/qcg.default/method/%20cat%20password", nil)
 	w := httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
@@ -57,7 +57,7 @@ func TestRequestHandlerWithLegalRouterRule(t *testing.T) {
 	handler, err := rchecker.GetHandler(meta)
 	assert.Nil(t, err)
 
-	r := httptest.NewRequest("GET", "http://localhost:5001/v1.0/invoke/qcg.default/method", nil)
+	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/invoke/qcg.default/method", nil)
 	w := httptest.NewRecorder()
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 

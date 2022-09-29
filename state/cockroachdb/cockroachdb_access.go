@@ -131,6 +131,7 @@ func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW(), etag = etag + 1
 			 WHERE key = $3 AND etag = $4;`,
 			tableName), value, isBinary, req.Key, etag)
+
 	}
 
 	if err != nil {

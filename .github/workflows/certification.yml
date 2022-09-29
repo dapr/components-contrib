@@ -44,6 +44,7 @@ jobs:
         - pubsub.mqtt
         - state.mongodb
         - state.redis
+        - state.cockroachdb
         - state.postgresql
         - state.cassandra
         - state.memcached

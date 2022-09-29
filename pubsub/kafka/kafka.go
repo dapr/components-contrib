@@ -135,7 +135,7 @@ func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 		messages := make([]pubsub.BulkMessageEntry, 0)
 		for _, leafEvent := range event.Entries {
 			message := pubsub.BulkMessageEntry{
-				EntryID:     leafEvent.EntryID,
+				EntryId:     leafEvent.EntryId,
 				Event:       leafEvent.Event,
 				Metadata:    leafEvent.Metadata,
 				ContentType: leafEvent.ContentType,

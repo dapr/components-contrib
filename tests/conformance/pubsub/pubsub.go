@@ -235,7 +235,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					dataString := string(msg.Event)
 					if !strings.HasPrefix(dataString, dataPrefix) {
 						t.Logf("Ignoring message without expected prefix")
-						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].EntryId = msg.EntryId
 						bulkResponses[i].Error = nil
 						continue
 					}
@@ -243,7 +243,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					if err != nil {
 						t.Logf("Message did not contain a sequence number")
 						assert.Fail(t, "message did not contain a sequence number")
-						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].EntryId = msg.EntryId
 						bulkResponses[i].Error = err
 						hasAnyError = true
 						continue
@@ -257,7 +257,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					if alreadyProcessed {
 						t.Logf("Message was already processed: %d", sequence)
 
-						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].EntryId = msg.EntryId
 						bulkResponses[i].Error = nil
 						continue
 					}
@@ -283,7 +283,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						time.Sleep(1 * time.Second)
 						t.Logf("Simulating subscriber error")
 
-						bulkResponses[i].EntryID = msg.EntryID
+						bulkResponses[i].EntryId = msg.EntryId
 						bulkResponses[i].Error = errors.Errorf("conf test simulated error")
 						hasAnyError = true
 						continue
@@ -298,7 +298,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 					processedCBulk <- dataString
 
-					bulkResponses[i].EntryID = msg.EntryID
+					bulkResponses[i].EntryId = msg.EntryId
 					bulkResponses[i].Error = nil
 				}
 				if hasAnyError {
@@ -375,7 +375,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			for i, k := 0, config.MessageCount+1; i < config.MessageCount; {
 				data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
 				strK := strconv.Itoa(k)
-				req.Entries[i].EntryID = strK
+				req.Entries[i].EntryId = strK
 				req.Entries[i].ContentType = "text/plain"
 				req.Entries[i].Metadata = config.PublishMetadata
 				req.Entries[i].Event = data
@@ -390,7 +390,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			if err == nil {
 				for _, status := range res.Statuses {
 					if status.Status == pubsub.PublishSucceeded {
-						data := entryMap[status.EntryID]
+						data := entryMap[status.EntryId]
 						t.Logf("adding to awaited messages %s", data)
 						awaitingMessages[string(data)] = struct{}{}
 					}

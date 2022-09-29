@@ -28,7 +28,7 @@ import (
 
 // HandlerResponseItem represents a response from the handler for each message.
 type HandlerResponseItem struct {
-	EntryID string
+	EntryId string //nolint:stylecheck
 	Error   error
 }
 

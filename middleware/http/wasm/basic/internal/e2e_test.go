@@ -52,7 +52,7 @@ func Test_EndToEnd(t *testing.T) {
 			name:  "consoleLog stdout and stderr",
 			guest: guestWasm[guestWasmOutput],
 			test: func(t *testing.T, handler http.Handler, log fmt.Stringer) {
-				r := httptest.NewRequest("GET", "/", nil)
+				r := httptest.NewRequest(http.MethodGet, "/", nil)
 				w := httptest.NewRecorder()
 				handler.ServeHTTP(w, r)
 
@@ -79,7 +79,7 @@ request[0] Stderr
 			test: func(t *testing.T, handler http.Handler, log fmt.Stringer) {
 				// Service more requests than the pool size to ensure it works properly.
 				for i := 0; i < 3; i++ {
-					r := httptest.NewRequest("GET", "/", nil)
+					r := httptest.NewRequest(http.MethodGet, "/", nil)
 					w := httptest.NewRecorder()
 					handler.ServeHTTP(w, r)
 				}

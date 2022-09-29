@@ -42,8 +42,7 @@ func NewRateLimitMiddleware(_ logger.Logger) middleware.Middleware {
 }
 
 // Middleware is an ratelimit middleware.
-type Middleware struct {
-}
+type Middleware struct{}
 
 // GetHandler returns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {

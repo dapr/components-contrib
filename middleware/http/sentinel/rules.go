@@ -78,7 +78,7 @@ func (p propertyDataSource) ReadSource() ([]byte, error) {
 func (p propertyDataSource) Initialize() error {
 	src, err := p.ReadSource()
 	if err != nil {
-		err = fmt.Errorf("Fail to read source, err: %w", err)
+		err = fmt.Errorf("fail to read source, err: %w", err)
 
 		return err
 	}

@@ -157,8 +157,8 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		default:
 			r.metadata.ConsumerModel = "Clustering"
 			opts = append(opts, mqc.WithConsumerModel(mqc.Clustering))
-			r.logger.Warnf(`%s Consumer Model[%s] is invalid: expected [broadcasting, clustering];
-				"we will use default model [clustering]`, r.name, r.metadata.ConsumerModel)
+			r.logger.Warnf("%s Consumer Model[%s] is invalid: expected [broadcasting, clustering]; "+
+				"we will use default model [clustering]", r.name, r.metadata.ConsumerModel)
 		}
 	}
 	if r.metadata.FromWhere != "" {
@@ -172,9 +172,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		default:
 			r.metadata.FromWhere = "ConsumeFromLastOffset"
 			opts = append(opts, mqc.WithConsumeFromWhere(mqc.ConsumeFromLastOffset))
-			r.logger.Warnf(`%s Consumer FromWhere[%s] is error,
-				expected [ConsumeFromLastOffset, ConsumeFromFirstOffset, ConsumeFromTimestamp], 
-				we will use default value [ConsumeFromLastOffset]`, r.name, r.metadata.FromWhere)
+			r.logger.Warnf("%s Consumer FromWhere[%s] is error, "+
+				"expected [ConsumeFromLastOffset, ConsumeFromFirstOffset, ConsumeFromTimestamp], "+
+				"we will use default value [ConsumeFromLastOffset]", r.name, r.metadata.FromWhere)
 		}
 	}
 	if r.metadata.ConsumeOrderly != "" {
@@ -205,8 +205,8 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	} else if r.metadata.ConsumerBatchSize > 0 {
 		r.metadata.PullBatchSize = int32(r.metadata.ConsumerBatchSize)
 		opts = append(opts, mqc.WithPullBatchSize(r.metadata.PullBatchSize))
-		r.logger.Warnf(`set the number of msg pulled from the broker at a time, 
-				please use pullBatchSize instead of consumerBatchSize`)
+		r.logger.Warn("set the number of msg pulled from the broker at a time, " +
+			"please use pullBatchSize instead of consumerBatchSize")
 	}
 	c, e := mqc.NewPushConsumer(opts...)
 	if e != nil {
@@ -251,11 +251,11 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	} else if r.metadata.SendTimeOut > 0 {
 		r.metadata.SendTimeOutSec = r.metadata.SendTimeOut / int(time.Second.Nanoseconds())
 		opts = append(opts, mqp.WithSendMsgTimeout(time.Duration(r.metadata.SendTimeOutSec)*time.Second))
-		r.logger.Warnf("set the timeout for send msg to rocketmq broker, please use the keyword sendTimeOutSec. " +
+		r.logger.Warn("set the timeout for send msg to rocketmq broker, please use the keyword sendTimeOutSec. " +
 			"SendTimeOutSec is in seconds, SendTimeOut is in nanoseconds")
 	} else {
 		opts = append(opts, mqp.WithSendMsgTimeout(30*time.Second))
-		r.logger.Warnf("You have not set a timeout for send msg to rocketmq broker, " +
+		r.logger.Warn("You have not set a timeout for send msg to rocketmq broker, " +
 			"The default value of 30 seconds will be used. ")
 	}
 	switch r.metadata.ProducerQueueSelector {

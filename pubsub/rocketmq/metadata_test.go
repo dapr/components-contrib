@@ -26,8 +26,9 @@ import (
 func TestMetaDataDecode(t *testing.T) {
 	props := map[string]string{
 		"instanceName":               "dapr-rocketmq-test",
-		"producerGroupName":          "dapr-rocketmq-test-g-p",
-		"consumerGroupName":          "dapr-rocketmq-test-g-c",
+		"producerGroup":              "dapr-rocketmq-test-g-p",
+		"consumerGroup":              "dapr-rocketmq-test-g-c",
+		"groupName":                  "dapr-rocketmq-test-g-c",
 		"nameSpace":                  "dapr-test",
 		"nameServerDomain":           "www.baidu.com",
 		"nameServer":                 "test.nameserver",
@@ -46,13 +47,14 @@ func TestMetaDataDecode(t *testing.T) {
 		"consumeTimeout":             "10",
 		"consumerPullTimeout":        "10",
 		"pullInterval":               "10",
+		"consumerBatchSize":          "10",
 		"pullBatchSize":              "10",
 		"pullThresholdForQueue":      "100",
 		"pullThresholdForTopic":      "100",
 		"pullThresholdSizeForQueue":  "10",
 		"pullThresholdSizeForTopic":  "10",
 		"content-type":               "json",
-		"sendMsgTimeout":             "10",
+		"sendTimeOutSec":             "10",
 		"logLevel":                   "ERROR",
 		"mspProperties":              "UNIQ_KEY",
 	}
@@ -60,8 +62,9 @@ func TestMetaDataDecode(t *testing.T) {
 	metaData, err := parseRocketMQMetaData(pubsubMeta)
 	require.NoError(t, err)
 	assert.Equal(t, "dapr-rocketmq-test", metaData.InstanceName)
-	assert.Equal(t, "dapr-rocketmq-test-g-p", metaData.ProducerGroupName)
-	assert.Equal(t, "dapr-rocketmq-test-g-c", metaData.ConsumerGroupName)
+	assert.Equal(t, "dapr-rocketmq-test-g-p", metaData.ProducerGroup)
+	assert.Equal(t, "dapr-rocketmq-test-g-c", metaData.ConsumerGroup)
+	assert.Equal(t, "dapr-rocketmq-test-g-c", metaData.GroupName)
 	assert.Equal(t, "dapr-test", metaData.NameSpace)
 	assert.Equal(t, "www.baidu.com", metaData.NameServerDomain)
 	assert.Equal(t, "test.nameserver", metaData.NameServer)
@@ -81,12 +84,13 @@ func TestMetaDataDecode(t *testing.T) {
 	assert.Equal(t, 10, metaData.ConsumerPullTimeout)
 	assert.Equal(t, 10, metaData.PullInterval)
 	assert.Equal(t, int32(10), metaData.PullBatchSize)
+	assert.Equal(t, int(10), metaData.ConsumerBatchSize)
 	assert.Equal(t, int64(100), metaData.PullThresholdForQueue)
 	assert.Equal(t, int64(100), metaData.PullThresholdForTopic)
 	assert.Equal(t, 10, metaData.PullThresholdSizeForQueue)
 	assert.Equal(t, 10, metaData.PullThresholdSizeForTopic)
 	assert.Equal(t, "json", metaData.ContentType)
-	assert.Equal(t, 10, metaData.SendMsgTimeout)
+	assert.Equal(t, 10, metaData.SendTimeOutSec)
 	assert.Equal(t, "ERROR", metaData.LogLevel)
 	assert.Equal(t, "UNIQ_KEY", metaData.MsgProperties)
 }

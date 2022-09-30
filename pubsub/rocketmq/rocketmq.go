@@ -68,9 +68,9 @@ type rocketMQ struct {
 	name          string
 	metadata      *rocketMQMetaData
 	producer      mq.Producer
-	producerLock  sync.RWMutex
+	producerLock  sync.Mutex
 	consumer      mq.PushConsumer
-	consumerLock  sync.RWMutex
+	consumerLock  sync.Mutex
 	topics        map[string]mqc.MessageSelector
 	msgProperties map[string]bool
 	logger        logger.Logger
@@ -82,8 +82,8 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	return &rocketMQ{
 		name:         "rocketmq",
 		logger:       l,
-		producerLock: sync.RWMutex{},
-		consumerLock: sync.RWMutex{},
+		producerLock: sync.Mutex{},
+		consumerLock: sync.Mutex{},
 	}
 }
 
@@ -107,22 +107,30 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
+func parseNameServer(nameServer string) []string {
+	if strings.Contains(nameServer, ",") {
+		return strings.Split(nameServer, ",")
+	} else if strings.Contains(nameServer, ";") {
+		return strings.Split(nameServer, ";")
+	} else {
+		return []string{nameServer}
+	}
+}
+
 func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	opts := make([]mqc.Option, 0)
 	if r.metadata.InstanceName != "" {
 		opts = append(opts, mqc.WithInstance(r.metadata.InstanceName))
 	}
-	if r.metadata.ConsumerGroupName != "" {
-		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroupName))
+	if r.metadata.ConsumerGroup != "" {
+		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroup))
+	} else if r.metadata.GroupName != "" {
+		r.metadata.ConsumerGroup = r.metadata.GroupName
+		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroup))
+		r.logger.Warnf("set the consumer group name, please use the keyword consumerGroup")
 	}
 	if r.metadata.NameServer != "" {
-		if strings.Contains(r.metadata.NameServer, ",") {
-			opts = append(opts, mqc.WithNameServer(strings.Split(r.metadata.NameServer, ",")))
-		} else if strings.Contains(r.metadata.NameServer, ";") {
-			opts = append(opts, mqc.WithNameServer(strings.Split(r.metadata.NameServer, ";")))
-		} else {
-			opts = append(opts, mqc.WithNameServer([]string{r.metadata.NameServer}))
-		}
+		opts = append(opts, mqc.WithNameServer(parseNameServer(r.metadata.NameServer)))
 	}
 	if r.metadata.NameSpace != "" {
 		opts = append(opts, mqc.WithNamespace(r.metadata.NameSpace))
@@ -149,8 +157,8 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		default:
 			r.metadata.ConsumerModel = "Clustering"
 			opts = append(opts, mqc.WithConsumerModel(mqc.Clustering))
-			r.logger.Warnf("%s Consumer Model[%s] is error, expected [BroadCasting, Clustering], "+
-				"we will use default model [Clustering]", r.name, r.metadata.ConsumerModel)
+			r.logger.Warnf(`%s Consumer Model[%s] is invalid: expected [broadcasting, clustering];
+				"we will use default model [clustering]`, r.name, r.metadata.ConsumerModel)
 		}
 	}
 	if r.metadata.FromWhere != "" {
@@ -164,9 +172,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		default:
 			r.metadata.FromWhere = "ConsumeFromLastOffset"
 			opts = append(opts, mqc.WithConsumeFromWhere(mqc.ConsumeFromLastOffset))
-			r.logger.Warnf("%s Consumer FromWhere[%s] is error, "+
-				"expected [ConsumeFromLastOffset, ConsumeFromFirstOffset, ConsumeFromTimestamp], "+
-				"we will use default value [ConsumeFromLastOffset]", r.name, r.metadata.FromWhere)
+			r.logger.Warnf(`%s Consumer FromWhere[%s] is error,
+				expected [ConsumeFromLastOffset, ConsumeFromFirstOffset, ConsumeFromTimestamp], 
+				we will use default value [ConsumeFromLastOffset]`, r.name, r.metadata.FromWhere)
 		}
 	}
 	if r.metadata.ConsumeOrderly != "" {
@@ -187,17 +195,18 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithMaxReconsumeTimes(r.metadata.MaxReconsumeTimes))
 	}
 	if r.metadata.AutoCommit != "" {
-		if utils.IsTruthy(r.metadata.AutoCommit) {
-			opts = append(opts, mqc.WithAutoCommit(true))
-		} else {
-			opts = append(opts, mqc.WithAutoCommit(false))
-		}
+		opts = append(opts, mqc.WithAutoCommit(utils.IsTruthy(r.metadata.AutoCommit)))
 	}
 	if r.metadata.PullInterval > 0 {
 		opts = append(opts, mqc.WithPullInterval(time.Duration(r.metadata.PullInterval)*time.Millisecond))
 	}
 	if r.metadata.PullBatchSize > 0 {
 		opts = append(opts, mqc.WithPullBatchSize(r.metadata.PullBatchSize))
+	} else if r.metadata.ConsumerBatchSize > 0 {
+		r.metadata.PullBatchSize = int32(r.metadata.ConsumerBatchSize)
+		opts = append(opts, mqc.WithPullBatchSize(r.metadata.PullBatchSize))
+		r.logger.Warnf(`set the number of msg pulled from the broker at a time, 
+				please use pullBatchSize instead of consumerBatchSize`)
 	}
 	c, e := mqc.NewPushConsumer(opts...)
 	if e != nil {
@@ -211,17 +220,15 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	if r.metadata.InstanceName != "" {
 		opts = append(opts, mqp.WithInstanceName(r.metadata.InstanceName))
 	}
-	if r.metadata.ProducerGroupName != "" {
-		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroupName))
+	if r.metadata.ProducerGroup != "" {
+		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroup))
+	} else if r.metadata.GroupName != "" {
+		r.metadata.ProducerGroup = r.metadata.GroupName
+		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroup))
+		r.logger.Warnf("set the producer group name, please use the keyword producerGroup")
 	}
 	if r.metadata.NameServer != "" {
-		if strings.Contains(r.metadata.NameServer, ",") {
-			opts = append(opts, mqp.WithNameServer(strings.Split(r.metadata.NameServer, ",")))
-		} else if strings.Contains(r.metadata.NameServer, ";") {
-			opts = append(opts, mqp.WithNameServer(strings.Split(r.metadata.NameServer, ";")))
-		} else {
-			opts = append(opts, mqp.WithNameServer([]string{r.metadata.NameServer}))
-		}
+		opts = append(opts, mqp.WithNameServer(parseNameServer(r.metadata.NameServer)))
 	}
 	if r.metadata.NameSpace != "" {
 		opts = append(opts, mqp.WithNamespace(r.metadata.NameSpace))
@@ -239,8 +246,17 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	if r.metadata.Retries > 0 {
 		opts = append(opts, mqp.WithRetry(r.metadata.Retries))
 	}
-	if r.metadata.SendMsgTimeout > 0 {
-		opts = append(opts, mqp.WithSendMsgTimeout(time.Duration(r.metadata.SendMsgTimeout)*time.Second))
+	if r.metadata.SendTimeOutSec > 0 {
+		opts = append(opts, mqp.WithSendMsgTimeout(time.Duration(r.metadata.SendTimeOutSec)*time.Second))
+	} else if r.metadata.SendTimeOut > 0 {
+		r.metadata.SendTimeOutSec = r.metadata.SendTimeOut / int(time.Second.Nanoseconds())
+		opts = append(opts, mqp.WithSendMsgTimeout(time.Duration(r.metadata.SendTimeOutSec)*time.Second))
+		r.logger.Warnf("set the timeout for send msg to rocketmq broker, please use the keyword sendTimeOutSec. " +
+			"SendTimeOutSec is in seconds, SendTimeOut is in nanoseconds")
+	} else {
+		opts = append(opts, mqp.WithSendMsgTimeout(30*time.Second))
+		r.logger.Warnf("You have not set a timeout for send msg to rocketmq broker, " +
+			"The default value of 30 seconds will be used. ")
 	}
 	switch r.metadata.ProducerQueueSelector {
 	case HashQueueSelector:
@@ -357,7 +373,7 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 		go func() {
 			time.Sleep(time.Second)
 			if e = r.consumer.Start(); e == nil {
-				r.logger.Infof("consumer start success: Group[%s], Topics[%v]", r.metadata.ConsumerGroupName, r.topics)
+				r.logger.Infof("consumer start success: Group[%s], Topics[%v]", r.metadata.ConsumerGroup, r.topics)
 			} else {
 				r.logger.Errorf("consumer start failed: %v", e)
 			}
@@ -366,11 +382,11 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 
 	// subscribe topic
 	if e = r.consumer.Subscribe(req.Topic, *selector, cb); e != nil {
-		r.logger.Errorf("subscribe topic[%s] Group[%s] failed, error: %v", req.Topic, r.metadata.ConsumerGroupName, e)
+		r.logger.Errorf("subscribe topic[%s] Group[%s] failed, error: %v", req.Topic, r.metadata.ConsumerGroup, e)
 		return e
 	}
 
-	r.logger.Infof("subscribe topic[%s] success, Group[%s], Topics[%v]", req.Topic, r.metadata.ConsumerGroupName, r.topics)
+	r.logger.Infof("subscribe topic[%s] success, Group[%s], Topics[%v]", req.Topic, r.metadata.ConsumerGroup, r.topics)
 	return nil
 }
 
@@ -418,7 +434,7 @@ func (r *rocketMQ) buildPubsubMessage(topic, mqType, mqExpr string, msg *primiti
 	metadata := map[string]string{
 		metadataRocketmqType:          mqType,
 		metadataRocketmqExpression:    mqExpr,
-		metadataRocketmqConsumerGroup: r.metadata.ProducerGroupName,
+		metadataRocketmqConsumerGroup: r.metadata.ProducerGroup,
 	}
 	if msg.Queue != nil {
 		metadata[metadataRocketmqBrokerName] = msg.Queue.BrokerName

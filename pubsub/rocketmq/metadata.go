@@ -15,7 +15,6 @@ package rocketmq
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -47,10 +46,11 @@ const (
 type rocketMQMetaData struct {
 	// rocketmq instance name, it will be registered to the broker
 	InstanceName string `mapstructure:"instanceName"`
-	// consumer group name
-	ConsumerGroupName string `mapstructure:"consumerGroupName"`
+	// Deprecated: consumer group name
+	GroupName     string `mapstructure:"groupName"`
+	ConsumerGroup string `mapstructure:"consumerGroup"`
 	// producer group name
-	ProducerGroupName string `mapstructure:"producerGroupName"`
+	ProducerGroup string `mapstructure:"producerGroup"`
 	// rocketmq namespace
 	NameSpace string `mapstructure:"nameSpace"`
 	// rocketmq's name server domain
@@ -134,7 +134,9 @@ type rocketMQMetaData struct {
 	// Message pull Interval
 	PullInterval int `mapstructure:"pullInterval"`
 
-	// Batch pull size
+	// Deprecated: The number of messages pulled from the broker at a time
+	ConsumerBatchSize int `mapstructure:"consumerBatchSize"`
+	// The number of messages pulled from the broker at a time
 	PullBatchSize int32 `mapstructure:"pullBatchSize"`
 
 	// Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
@@ -145,8 +147,8 @@ type rocketMQMetaData struct {
 
 	// Flow control threshold on topic level, default value is -1(Unlimited)
 	//
-	// The value of {@code pullThresholdForQueue} will be overwrote and calculated based on
-	// {@code pullThresholdForTopic} if it is't unlimited
+	// The value of {@code pullThresholdForQueue} will be overwritten and calculated based on
+	// {@code pullThresholdForTopic} if it isn't unlimited
 	//
 	// For example, if the value of pullThresholdForTopic is 1000 and 10 message queues are assigned to this consumer,
 	// then pullThresholdForQueue will be set to 100
@@ -159,8 +161,8 @@ type rocketMQMetaData struct {
 
 	// Limit the cached message size on topic level, default value is -1 MiB(Unlimited)
 	//
-	// The value of {@code pullThresholdSizeForQueue} will be overwrote and calculated based on
-	// {@code pullThresholdSizeForTopic} if it is't unlimited
+	// The value of {@code pullThresholdSizeForQueue} will be overwritten and calculated based on
+	// {@code pullThresholdSizeForTopic} if it isn't unlimited
 	//
 	// For example, if the value of pullThresholdSizeForTopic is 1000 MiB and 10 message queues are
 	// assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
@@ -168,8 +170,11 @@ type rocketMQMetaData struct {
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	PullThresholdSizeForTopic int    `mapstructure:"pullThresholdSizeForTopic"`
 	ContentType               string `mapstructure:"content-type"` // msg's content-type
-	SendMsgTimeout            int    `mapstructure:"sendMsgTimeout"`
-	LogLevel                  string `mapstructure:"logLevel"`
+	// Deprecated: send msg timeout to connect rocketmq's broker, nanoseconds
+	SendTimeOut int `mapstructure:"sendTimeOut"`
+	// timeout for send msg to rocketmq broker, in seconds
+	SendTimeOutSec int    `mapstructure:"sendTimeOutSec"`
+	LogLevel       string `mapstructure:"logLevel"`
 
 	// The RocketMQ message properties in this collection are passed to the APP in Data
 	// Separate multiple properties with ","
@@ -184,20 +189,13 @@ func (s *rocketMQMetaData) Decode(in interface{}) error {
 }
 
 const (
-	keyInstance         string = "instance"
-	KeyConsumerGroup    string = "consumerGroup"
-	KeyProducerGroup    string = "producerGroup"
 	KeyConsumeFromWhere string = "consumeFromWhere"
-	KeyConsumeOrder     string = "consumeOrder"
 	KeyQueueSelector    string = "queueSelector"
-	KeySendMsgTimeout   string = "sendMsgTimeout"
-	KeySendTimeOut      string = "sendTimeOut"
 )
 
 func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) {
 	rMetaData := &rocketMQMetaData{
 		Retries:             3,
-		SendMsgTimeout:      30,
 		LogLevel:            "warn",
 		PullInterval:        100,
 		ConsumerPullTimeout: 30,
@@ -207,30 +205,11 @@ func parseRocketMQMetaData(metadata pubsub.Metadata) (*rocketMQMetaData, error) 
 		if err != nil {
 			return nil, fmt.Errorf("rocketmq configuration error: %w", err)
 		}
-		if rMetaData.InstanceName == "" {
-			rMetaData.InstanceName = metadata.Properties[keyInstance]
-		}
-		if rMetaData.ConsumerGroupName == "" {
-			rMetaData.ConsumerGroupName = metadata.Properties[KeyConsumerGroup]
-		}
-		if rMetaData.ProducerGroupName == "" {
-			rMetaData.ProducerGroupName = metadata.Properties[KeyProducerGroup]
-		}
 		if rMetaData.FromWhere == "" {
 			rMetaData.FromWhere = metadata.Properties[KeyConsumeFromWhere]
 		}
-		if rMetaData.ConsumeOrderly == "" {
-			rMetaData.ConsumeOrderly = metadata.Properties[KeyConsumeOrder]
-		}
 		if rMetaData.ProducerQueueSelector == "" {
 			rMetaData.ProducerQueueSelector = QueueSelectorType(metadata.Properties[KeyQueueSelector])
-		}
-		if _, ok := metadata.Properties[KeySendMsgTimeout]; !ok {
-			if v, ok := metadata.Properties[KeySendTimeOut]; ok {
-				if sendMsgTimeout, e := strconv.Atoi(v); e == nil {
-					rMetaData.SendMsgTimeout = sendMsgTimeout
-				}
-			}
 		}
 	}
 	return rMetaData, nil

@@ -174,7 +174,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.3.4
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.476
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.476
-	github.com/wapc/wapc-go v0.5.2
+	github.com/wapc/wapc-go v0.5.4
 	go.uber.org/ratelimit v0.2.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 )
@@ -510,7 +510,7 @@ require (
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
-	github.com/tetratelabs/wazero v1.0.0-pre.1 // indirect
+	github.com/tetratelabs/wazero v1.0.0-pre.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.6 // indirect

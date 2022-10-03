@@ -1,0 +1,4 @@
+github.com/http-wasm/http-wasm-guest-tinygo v0.0.0-20221003155246-9861b6949f5a h1:3c3Z4iB+1fIkTUTgA6TruLTYf+0yPv9OKh6QblwKodQ=
+github.com/http-wasm/http-wasm-guest-tinygo v0.0.0-20221003155246-9861b6949f5a/go.mod h1:BW239vhP/SKJUhoD0FxOd9rzxD527D9nA5b1HZtBMZA=
+github.com/tetratelabs/tinymem v0.1.0 h1:Qza1JAg9lquPPJ/CIei5qQYx7t18KLie83O2WR6CM58=
+github.com/tetratelabs/tinymem v0.1.0/go.mod h1:WFFTZFhLod6lTL+UetFAopVbGaB+KFsVcIY+RUv7NeY=

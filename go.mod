@@ -109,7 +109,7 @@ require (
 	github.com/supplyon/gremcos v0.1.0
 	github.com/tidwall/gjson v1.14.0 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
-	github.com/valyala/fasthttp v1.34.0
+	github.com/valyala/fasthttp v1.40.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0 // indirect
@@ -158,6 +158,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.4.1
 	github.com/aliyun/aliyun-log-go-sdk v0.1.37
 	github.com/apache/dubbo-go-hessian2 v1.11.0
+	github.com/http-wasm/http-wasm-host-go v0.0.0-20221003171454-a6d407906473
+	github.com/http-wasm/http-wasm-host-go/handler/fasthttp v0.0.0-20221003171454-a6d407906473
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.87
 	github.com/ipfs/go-ipfs-files v0.1.1
@@ -174,7 +176,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.3.4
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.476
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.476
-	github.com/wapc/wapc-go v0.5.2
+	github.com/wapc/wapc-go v0.5.4
 	go.uber.org/ratelimit v0.2.0
 	gopkg.in/couchbase/gocb.v1 v1.6.4
 )
@@ -510,7 +512,7 @@ require (
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
-	github.com/tetratelabs/wazero v1.0.0-pre.1 // indirect
+	github.com/tetratelabs/wazero v1.0.0-pre.2.0.20221003082636-0b4dbfd8d6ca
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.6 // indirect

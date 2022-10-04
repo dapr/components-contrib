@@ -298,7 +298,7 @@ jobs:
           echo "1" >> tmp/result_files/${{ matrix.component }}
         fi
 
-    - name: Upload test result artifact
+    - name: Upload result files
       uses: actions/upload-artifact@v3
       if: always()
       with:

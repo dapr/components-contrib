@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -126,6 +127,17 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 	return handler(ctx, &res)
 }
 
+type hubSender interface {
+	// Send sends an event to the Event Hub.
+	Send(context.Context, *eventhub.Event, ...eventhub.SendOption) error
+
+	// SendBatch sends a batch of events to the Event Hub.
+	SendBatch(context.Context, eventhub.BatchIterator, ...eventhub.BatchOption) error
+
+	// Close closes the sender.
+	Close(context.Context) error
+}
+
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
 	metadata           *azureEventHubsMetadata
@@ -133,7 +145,7 @@ type AzureEventHubs struct {
 	publishCtx         context.Context
 	publishCancel      context.CancelFunc
 	backOffConfig      retry.Config
-	hubClients         map[string]*eventhub.Hub
+	hubClients         map[string]hubSender
 	eventProcessors    map[string]*eph.EventProcessorHost
 	hubManager         *eventhub.HubManager
 	eventHubSettings   azauth.EnvironmentSettings
@@ -469,7 +481,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 
 	aeh.metadata = m
 	aeh.eventProcessors = map[string]*eph.EventProcessorHost{}
-	aeh.hubClients = map[string]*eventhub.Hub{}
+	aeh.hubClients = map[string]hubSender{}
 
 	if aeh.metadata.ConnectionString != "" {
 		// Validate connectionString.
@@ -564,6 +576,41 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
+// BulkPublish sends data to Azure Event Hubs in bulk.
+func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	if _, ok := aeh.hubClients[req.Topic]; !ok {
+		if err := aeh.ensurePublisherClient(ctx, req.Topic); err != nil {
+			err = fmt.Errorf("error on establishing hub connection: %s", err)
+			return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+		}
+	}
+
+	// Create a slice of events to send.
+	events := make([]*eventhub.Event, len(req.Entries))
+	for i, entry := range req.Entries {
+		events[i] = &eventhub.Event{Data: entry.Event}
+		if val, ok := entry.Metadata[partitionKeyMetadataKey]; ok {
+			events[i].PartitionKey = &val
+		}
+	}
+
+	// Configure options for sending events.
+	opts := []eventhub.BatchOption{
+		eventhub.BatchWithMaxSizeInBytes(utils.GetElemOrDefaultFromMap(
+			req.Metadata, pubsub.MaxBulkPubBytesKey, int(eventhub.DefaultMaxMessageSizeInBytes))),
+	}
+
+	// Send events.
+	err := aeh.hubClients[req.Topic].SendBatch(ctx, eventhub.NewEventBatchIterator(events...), opts...)
+	if err != nil {
+		// Partial success is not supported by Azure Event Hubs.
+		// If an error occurs, all events are considered failed.
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+}
+
 // Subscribe receives data from Azure Event Hubs.
 func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	err := aeh.validateSubscriptionAttributes()
@@ -651,7 +698,7 @@ func (aeh *AzureEventHubs) Close() (err error) {
 			aeh.logger.Warnf("error closing publish client properly for topic/eventHub %s: %s", topic, err)
 		}
 	}
-	aeh.hubClients = map[string]*eventhub.Hub{}
+	aeh.hubClients = map[string]hubSender{}
 	for topic, client := range aeh.eventProcessors {
 		ctx, cancel = context.WithTimeout(context.Background(), resourceGetTimeout)
 		err = client.Close(ctx)

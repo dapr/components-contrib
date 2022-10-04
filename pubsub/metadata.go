@@ -15,6 +15,11 @@ package pubsub
 
 import "github.com/dapr/components-contrib/metadata"
 
+const (
+	// MaxBulkPubBytesKey defines the maximum bytes to publish in a bulk publish request metadata.
+	MaxBulkPubBytesKey string = "maxBulkPubBytes"
+)
+
 // Metadata represents a set of message-bus specific properties.
 type Metadata struct {
 	metadata.Base `json:",inline"`

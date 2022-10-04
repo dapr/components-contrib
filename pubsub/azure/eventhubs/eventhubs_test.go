@@ -14,10 +14,13 @@ limitations under the License.
 package eventhubs
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -320,5 +323,75 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, (fmt.Sprintf(differentTopicConnectionStringErrorTmpl, topic)), err.Error())
 		assert.Equal(t, "", c)
+	})
+}
+
+type mockHubSender struct {
+	mock.Mock
+}
+
+func (m *mockHubSender) Send(ctx context.Context, event *eventhub.Event, opts ...eventhub.SendOption) error {
+	args := m.Called(ctx, event, opts)
+	return args.Error(0)
+}
+
+func (m *mockHubSender) SendBatch(ctx context.Context, iterator eventhub.BatchIterator, opts ...eventhub.BatchOption) error {
+	args := m.Called(ctx, iterator, opts)
+	return args.Error(0)
+}
+
+func (m *mockHubSender) Close(ctx context.Context) error {
+	return nil
+}
+
+func TestBulkPublish(t *testing.T) {
+	t.Run("bulk publish without hub should throw an error", func(t *testing.T) {
+		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		aeh := &AzureEventHubs{logger: testLogger, metadata: &azureEventHubsMetadata{ConnectionString: connectionString}}
+
+		req := pubsub.BulkPublishRequest{}
+		_, err := aeh.BulkPublish(context.Background(), &req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "error on establishing hub connection")
+	})
+
+	t.Run("bulk publish should invoke SendBatch", func(t *testing.T) {
+		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		topic := "testHub"
+
+		aeh := &AzureEventHubs{logger: testLogger, metadata: &azureEventHubsMetadata{ConnectionString: connectionString}}
+		aeh.hubClients = map[string]hubSender{}
+
+		hub := &mockHubSender{}
+		hub.On("SendBatch", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+		aeh.hubClients[topic] = hub
+
+		req := pubsub.BulkPublishRequest{
+			Entries: []pubsub.BulkMessageEntry{
+				{
+					EntryID:     "1",
+					Event:       []byte("event1"),
+					ContentType: "text/plain",
+				},
+				{
+					EntryID:     "2",
+					Event:       []byte("event2"),
+					ContentType: "text/plain",
+				},
+			},
+			PubsubName: "testPubSub",
+			Topic:      topic,
+		}
+
+		res, err := aeh.BulkPublish(context.Background(), &req)
+		assert.NoError(t, err)
+
+		assert.Equal(t, 2, len(res.Statuses))
+		assert.Equal(t, "1", res.Statuses[0].EntryID)
+		assert.Equal(t, "2", res.Statuses[1].EntryID)
+		assert.Equal(t, pubsub.PublishSucceeded, res.Statuses[0].Status)
+		assert.Equal(t, pubsub.PublishSucceeded, res.Statuses[1].Status)
+		hub.AssertCalled(t, "SendBatch", mock.Anything, mock.Anything, mock.Anything)
 	})
 }

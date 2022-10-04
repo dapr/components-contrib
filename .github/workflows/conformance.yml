@@ -455,10 +455,11 @@ jobs:
       run: |
         mkdir -p tmp/result_files
         echo "CONFORMANCE_FAILURE=$CONFORMANCE_FAILURE"
+        echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
         if [[ -v CONFORMANCE_FAILURE ]]; then
-          echo "0" >> tmp/result_files/${{ matrix.component }}
+          echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
         else
-          echo "1" >> tmp/result_files/${{ matrix.component }}
+          echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
         fi
 
     - name: Upload result files

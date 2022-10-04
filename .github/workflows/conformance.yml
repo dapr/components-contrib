@@ -399,8 +399,6 @@ jobs:
         if test $status -ne 0; then
           echo "Setting CONFORMANCE_FAILURE"
           echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
-        else
-          echo "CONFORMANCE_FAILURE=false" >> $GITHUB_ENV
         fi
         set -e
 
@@ -456,7 +454,8 @@ jobs:
       if: always()
       run: |
         mkdir -p tmp/result_files
-        if [[ -v ${{ env.CONFORMANCE_FAILURE }} ]]; then
+        echo "CONFORMANCE_FAILURE=$CONFORMANCE_FAILURE"
+        if [[ -v CONFORMANCE_FAILURE ]]; then
           echo "0" >> tmp/result_files/${{ matrix.component }}
         else
           echo "1" >> tmp/result_files/${{ matrix.component }}

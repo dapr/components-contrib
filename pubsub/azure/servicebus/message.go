@@ -86,13 +86,13 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic 
 }
 
 func NewBulkMessageEntryFromASBMessage(asbMsg *azservicebus.ReceivedMessage) (pubsub.BulkMessageEntry, error) {
-	entryID, err := uuid.NewRandom()
+	entryId, err := uuid.NewRandom() //nolint:stylecheck
 	if err != nil {
 		return pubsub.BulkMessageEntry{}, err
 	}
 
 	bulkMsgEntry := pubsub.BulkMessageEntry{
-		EntryID: entryID.String(),
+		EntryId: entryId.String(),
 		Event:   asbMsg.Body,
 	}
 

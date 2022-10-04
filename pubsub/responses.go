@@ -40,7 +40,7 @@ type AppResponse struct {
 // AppBulkResponseEntry Represents single response, as part of AppBulkResponse, to be
 // sent by subscibed App for the corresponding single message during bulk subscribe
 type AppBulkResponseEntry struct {
-	EntryID string            `json:"entryID"`
+	EntryId string            `json:"entryId"` //nolint:stylecheck
 	Status  AppResponseStatus `json:"status"`
 }
 
@@ -52,7 +52,7 @@ type AppBulkResponse struct {
 // BulkPublishResponseEntry Represents single publish response, as part of BulkPublishResponse
 // to be sent to publishing App for the corresponding single message during bulk publish
 type BulkPublishResponseEntry struct {
-	EntryID string            `json:"entryID"`
+	EntryId string            `json:"entryId"` //nolint:stylecheck
 	Status  BulkPublishStatus `json:"status"`
 	Error   error             `json:"error"`
 }
@@ -65,7 +65,7 @@ type BulkPublishResponse struct {
 // BulkSubscribeResponseEntry Represents single subscribe response item, as part of BulkSubscribeResponse
 // to be sent to building block for the corresponding single message during bulk subscribe
 type BulkSubscribeResponseEntry struct {
-	EntryID string `json:"entryID"`
+	EntryId string `json:"entryId"` //nolint:stylecheck
 	Error   error  `json:"error"`
 }
 
@@ -82,7 +82,7 @@ func NewBulkPublishResponse(messages []BulkMessageEntry, status BulkPublishStatu
 	response.Statuses = make([]BulkPublishResponseEntry, len(messages))
 	for i, msg := range messages {
 		st := BulkPublishResponseEntry{}
-		st.EntryID = msg.EntryID
+		st.EntryId = msg.EntryId
 		st.Status = status
 		if err != nil {
 			st.Error = err

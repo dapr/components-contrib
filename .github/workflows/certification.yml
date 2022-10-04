@@ -259,9 +259,6 @@ jobs:
         if test $status -ne 0; then
           echo "Setting CERTIFICATION_FAILURE"
           export CERTIFICATION_FAILURE=true
-          echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
-        else
-          echo "CERTIFICATION_FAILURE=false" >> $GITHUB_ENV
         fi
         set -e
 
@@ -285,14 +282,17 @@ jobs:
         done
 
         if [[ -v CERTIFICATION_FAILURE ]]; then
+          echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
           exit 1
+        else
+          echo "CERTIFICATION_FAILURE=false" >> $GITHUB_ENV
         fi
 
     - name: Prepare test result info
       if: always()
       run: |
         mkdir -p tmp/result_files
-        if [[ -v ${{ env.CERTIFICATION_FAILURE }} ]]; then
+        if [[ "${{ env.CERTIFICATION_FAILURE }}" == "true" ]]; then
           echo "0" >> tmp/result_files/${{ matrix.component }}
         else
           echo "1" >> tmp/result_files/${{ matrix.component }}

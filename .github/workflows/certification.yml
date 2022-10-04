@@ -52,6 +52,7 @@ jobs:
         - bindings.redis
         - secretstores.local.env
         - secretstores.local.file
+        - secretstores.hashicorp.vault
         - bindings.rabbitmq
         - bindings.localstorage
         - bindings.postgres

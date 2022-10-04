@@ -495,7 +495,7 @@ jobs:
         if: env.PR_NUMBER != ''
         uses: actions/download-artifact@v3
         continue-on-error: true
-        id: download
+        id: testresults
         with:
           name: result_files
           path: tmp/result_files

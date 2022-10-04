@@ -454,9 +454,8 @@ jobs:
       if: always()
       run: |
         mkdir -p tmp/result_files
-        echo "CONFORMANCE_FAILURE=$CONFORMANCE_FAILURE"
         echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
-        if [[ -v CONFORMANCE_FAILURE ]]; then
+        if [[ "${{ env.CONFORMANCE_FAILURE }}" == "true" ]]; then
           echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
         else
           echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"

@@ -15,7 +15,8 @@ for attempt in `seq $MAX_ATTEMPTS`; do
     # conformance tests / contents from tests/conformance/secrets.json
     if vault status && 
         vault kv put secret/dapr/conftestsecret conftestsecret=abcd &&
-        vault kv put secret/dapr/secondsecret secondsecret=efgh;
+        vault kv put secret/dapr/secondsecret secondsecret=efgh &&
+        vault kv put secret/dapr/multiplekeyvaluessecret first=1 second=2 third=3;
     then
         echo ✅ secrets set;
         sleep 1;

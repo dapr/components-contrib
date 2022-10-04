@@ -28,6 +28,8 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const fakeConnectionStringWithEntityPath = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+
 var testLogger = logger.NewLogger("test")
 
 func TestParseEventHubsMetadata(t *testing.T) {
@@ -262,7 +264,7 @@ func TestGetStoragePrefixString(t *testing.T) {
 
 func TestValidateAndGetHubName(t *testing.T) {
 	t.Run("valid connectionString with hub name", func(t *testing.T) {
-		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		connectionString := fakeConnectionStringWithEntityPath
 		h, err := validateAndGetHubName(connectionString)
 		assert.NoError(t, err)
 		assert.Equal(t, "testHub", h)
@@ -294,7 +296,7 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		assert.Equal(t, connectionString+";EntityPath=testHub", c)
 	})
 	t.Run("valid connectionString with hub name", func(t *testing.T) {
-		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		connectionString := fakeConnectionStringWithEntityPath
 		topic := "testHub"
 
 		aeh := &AzureEventHubs{logger: testLogger, metadata: &azureEventHubsMetadata{ConnectionString: connectionString}}
@@ -314,7 +316,7 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		assert.Equal(t, "", c)
 	})
 	t.Run("valid connectionString with different hub name", func(t *testing.T) {
-		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		connectionString := fakeConnectionStringWithEntityPath
 		topic := "differentHub"
 
 		aeh := &AzureEventHubs{logger: testLogger, metadata: &azureEventHubsMetadata{ConnectionString: connectionString}}
@@ -346,7 +348,7 @@ func (m *mockHubSender) Close(ctx context.Context) error {
 
 func TestBulkPublish(t *testing.T) {
 	t.Run("bulk publish without hub should throw an error", func(t *testing.T) {
-		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		connectionString := fakeConnectionStringWithEntityPath
 		aeh := &AzureEventHubs{logger: testLogger, metadata: &azureEventHubsMetadata{ConnectionString: connectionString}}
 
 		req := pubsub.BulkPublishRequest{}
@@ -356,7 +358,7 @@ func TestBulkPublish(t *testing.T) {
 	})
 
 	t.Run("bulk publish should invoke SendBatch", func(t *testing.T) {
-		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
+		connectionString := fakeConnectionStringWithEntityPath
 		topic := "testHub"
 
 		aeh := &AzureEventHubs{logger: testLogger, metadata: &azureEventHubsMetadata{ConnectionString: connectionString}}

@@ -97,9 +97,9 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		// Sarama completely ignores this field and is only to be used for
 		// pass-through data.
 		// This pass thorugh field is used for mapping errors, as seen in the mapKafkaProducerErrors method
-		// The EntryID will be unique for this request and the ProducerMessage is returned on the Errros channel,
+		// The EntryId will be unique for this request and the ProducerMessage is returned on the Errros channel,
 		// the metadata in that field is compared to the entry metadata to generate the right response on partial failures
-		msg.Metadata = entry.EntryID
+		msg.Metadata = entry.EntryId
 
 		for name, value := range metadata {
 			if name == key {
@@ -140,11 +140,11 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 	alreadySeen := map[string]struct{}{}
 
 	for _, pErr := range pErrs {
-		if entryID, ok := pErr.Msg.Metadata.(string); ok {
-			alreadySeen[entryID] = struct{}{}
+		if entryId, ok := pErr.Msg.Metadata.(string); ok { //nolint:stylecheck
+			alreadySeen[entryId] = struct{}{}
 			resp.Statuses = append(resp.Statuses, pubsub.BulkPublishResponseEntry{
 				Status:  pubsub.PublishFailed,
-				EntryID: entryID,
+				EntryId: entryId,
 				Error:   pErr.Err,
 			})
 		} else {
@@ -158,12 +158,12 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 	if len(pErrs) != len(entries) {
 		// This is a partial success scenario
 		for _, entry := range entries {
-			// Check if the entryID was not seen in the pErrs list
-			if _, ok := alreadySeen[entry.EntryID]; !ok {
+			// Check if the entryId was not seen in the pErrs list
+			if _, ok := alreadySeen[entry.EntryId]; !ok {
 				// this is a message that has succeeded
 				resp.Statuses = append(resp.Statuses, pubsub.BulkPublishResponseEntry{
 					Status:  pubsub.PublishSucceeded,
-					EntryID: entry.EntryID,
+					EntryId: entry.EntryId,
 				})
 			}
 		}

@@ -53,7 +53,7 @@ type BulkMessage struct {
 
 // BulkMessageEntry represents a single message inside a bulk request.
 type BulkMessageEntry struct {
-	EntryID     string            `json:"entryID"`
+	EntryId     string            `json:"entryId"` //nolint:stylecheck
 	Event       []byte            `json:"event"`
 	ContentType string            `json:"contentType,omitempty"`
 	Metadata    map[string]string `json:"metadata"`

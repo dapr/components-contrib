@@ -169,10 +169,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ env.PROJECT_PATH }}
     needs: generate-matrix
-    env:
-      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -200,7 +197,6 @@ jobs:
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ${{ env.PROJECT_PATH }}
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
@@ -460,8 +456,6 @@ jobs:
         else
           echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
         fi
-        ls -al tmp/
-        ls -al tmp/*/
 
     - name: Upload result files
       uses: actions/upload-artifact@v3
@@ -501,3 +495,5 @@ jobs:
         with:
           name: result_files
           path: tmp/result_files
+
+      - name: Build 

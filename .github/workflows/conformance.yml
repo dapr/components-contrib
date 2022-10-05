@@ -460,6 +460,8 @@ jobs:
         else
           echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
         fi
+        ls -al tmp/
+        ls -al tmp/*/
 
     - name: Upload result files
       uses: actions/upload-artifact@v3

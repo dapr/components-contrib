@@ -358,6 +358,45 @@ jobs:
           name: result_files
           path: tmp/result_files
 
+      - name: Build message
+        run: |
+          BASEPATH="${{steps.testresults.outputs.download-path}}"
+          NL=$'\n'
+          TABLE=""
+          ls "$BASEPATH" | while read f; do
+          while read LINE; do
+              if [[ "$LINE" == "1" ]]; then
+                TABLE="$TABLE| $f | ✅ |$NL"
+              elif [[ "$LINE" == "0" ]]; then
+                TABLE="$TABLE| $f | ❌ |$NL"
+              else
+                TABLE="$TABLE| $f | 🤔 |$NL"
+              fi
+            done < "$BASEPATH/$f"
+          done
+          echo "TABLE=$TABLE" >> $GITHUB_ENV
+
+      - name: Replace PR comment
+        if: env.PR_NUMBER != ''
+        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        with:
+          header: ${{ github.run_id }}
+          number: ${{ env.PR_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+          message: |
+            # Components certification test
+
+            🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+            Commit ref: ${{ env.CHECKOUT_REF }}
+
+            ## Result
+
+            | Component | Status |
+            | --- | --- |
+            ${{ env.TABLE }}
+
+
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3
         continue-on-error: true

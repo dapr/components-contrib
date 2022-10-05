@@ -390,7 +390,7 @@ jobs:
               echo "totalPer=$totalPer" >> $GITHUB_ENV
               echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
               echo "totalFiles=$totalFiles" >> $GITHUB_ENV
-            done < ${{steps.download.outputs.download-path}}/$f
+            done < "${{steps.download.outputs.download-path}}/$f"
           done
         continue-on-error: true
 

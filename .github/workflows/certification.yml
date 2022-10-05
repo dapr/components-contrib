@@ -129,8 +129,6 @@ jobs:
       with:
         header: ${{ github.run_id }}
         number: ${{ env.PR_NUMBER }}
-        hide: true
-        hide_classify: OUTDATED
         GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
         message: |
           # Components certification test

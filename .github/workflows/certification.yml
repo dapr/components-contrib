@@ -150,8 +150,6 @@ jobs:
       run:
         shell: bash
     needs: generate-matrix
-    env:
-      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -173,10 +171,9 @@ jobs:
           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
         fi
 
-    - name: Check out code onto GOPATH
+    - name: Check out code
       uses: actions/checkout@v2
       with:
-        path: ${{ env.PROJECT_PATH }}
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
@@ -188,7 +185,7 @@ jobs:
     - name: Configure certification test and source path
       run: |
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
-        export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
+        export TEST_PATH="tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
         export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
         echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV

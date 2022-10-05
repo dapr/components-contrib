@@ -8,7 +8,7 @@ require (
 	github.com/dapr/components-contrib v1.9.0-rc.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
 	github.com/dapr/dapr v1.9.0-rc.3
-	github.com/dapr/go-sdk v1.4.0
+	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3-0.20220930182601-272e358ba6a7
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.0
@@ -148,10 +148,3 @@ require (
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
-
-replace github.com/dapr/go-sdk => github.com/hunter007/dapr-go-sdk v1.3.1-0.20220709114046-2f2dc4f9a684
-
-// Uncomment for local development for testing with changes
-// in the Dapr runtime. Don't commit with this uncommented!
-//
-// replace github.com/dapr/dapr => ../../../../../dapr

@@ -245,6 +245,7 @@ jobs:
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
 
+        export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \

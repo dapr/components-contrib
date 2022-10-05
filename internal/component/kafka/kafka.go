@@ -20,6 +20,7 @@ import (
 
 	"github.com/Shopify/sarama"
 
+	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
@@ -38,7 +39,7 @@ type Kafka struct {
 	cancel          context.CancelFunc
 	consumer        consumer
 	config          *sarama.Config
-	subscribeTopics TopicHandlers
+	subscribeTopics TopicHandlerConfig
 	subscribeLock   sync.Mutex
 
 	backOffConfig retry.Config
@@ -53,7 +54,7 @@ type Kafka struct {
 func NewKafka(logger logger.Logger) *Kafka {
 	return &Kafka{
 		logger:          logger,
-		subscribeTopics: make(TopicHandlers),
+		subscribeTopics: make(TopicHandlerConfig),
 		subscribeLock:   sync.Mutex{},
 	}
 }
@@ -146,10 +147,36 @@ func (k *Kafka) Close() (err error) {
 // EventHandler is the handler used to handle the subscribed event.
 type EventHandler func(ctx context.Context, msg *NewEvent) error
 
+// BulkEventHandler is the handler used to handle the subscribed bulk event.
+type BulkEventHandler func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error)
+
+// SubscriptionHandlerConfig is the handler and configuration for subscription.
+type SubscriptionHandlerConfig struct {
+	IsBulkSubscribe bool
+	SubscribeConfig pubsub.BulkSubscribeConfig
+	BulkHandler     BulkEventHandler
+	Handler         EventHandler
+}
+
 // NewEvent is an event arriving from a message bus instance.
 type NewEvent struct {
 	Data        []byte            `json:"data"`
 	Topic       string            `json:"topic"`
 	Metadata    map[string]string `json:"metadata"`
 	ContentType *string           `json:"contentType,omitempty"`
+}
+
+// KafkaBulkMessage is a bulk event arriving from a message bus instance.
+type KafkaBulkMessage struct {
+	Entries  []KafkaBulkMessageEntry `json:"entries"`
+	Topic    string                  `json:"topic"`
+	Metadata map[string]string       `json:"metadata"`
+}
+
+// KafkaBulkMessageEntry is an item contained inside bulk event arriving from a message bus instance.
+type KafkaBulkMessageEntry struct {
+	EntryId     string            `json:"entryId"` //nolint:stylecheck
+	Event       []byte            `json:"event"`
+	ContentType string            `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
 }

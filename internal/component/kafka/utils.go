@@ -17,9 +17,19 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Shopify/sarama"
+)
+
+const (
+	// DefaultMaxBulkSubCount is the default max bulk count for kafka pubsub component
+	// if the MaxBulkCountKey is not set in the metadata.
+	DefaultMaxBulkSubCount = 80
+	// DefaultMaxBulkSubAwaitDurationMs is the default max bulk await duration for kafka pubsub component
+	// if the MaxBulkAwaitDurationKey is not set in the metadata.
+	DefaultMaxBulkSubAwaitDurationMs = 10000
 )
 
 // asBase64String implements the `fmt.Stringer` interface in order to print
@@ -52,16 +62,27 @@ func isValidPEM(val string) bool {
 	return block != nil
 }
 
-// Map of topics and their handlers
-type TopicHandlers map[string]EventHandler
+// TopicHandlerConfig is the map of topics and sruct containing handler and their config.
+type TopicHandlerConfig map[string]SubscriptionHandlerConfig
 
-// TopicList returns the list of topics
-func (th TopicHandlers) TopicList() []string {
-	topics := make([]string, len(th))
+// // TopicList returns the list of topics
+func (tbh TopicHandlerConfig) TopicList() []string {
+	topics := make([]string, len(tbh))
 	i := 0
-	for topic := range th {
+	for topic := range tbh {
 		topics[i] = topic
 		i++
 	}
 	return topics
+}
+
+// GetIntFromMetadata returns an int value from metadata OR default value if key not found or if its
+// value not convertible to int.
+func GetIntFromMetadata(metadata map[string]string, key string, defaultValue int) int {
+	if val, ok := metadata[key]; ok {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
 }

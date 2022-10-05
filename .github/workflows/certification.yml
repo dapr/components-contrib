@@ -361,20 +361,36 @@ jobs:
       - name: Build message
         run: |
           BASEPATH="${{steps.testresults.outputs.download-path}}"
-          NL=$'\n'
-          TABLE=""
+
+          mkdir -p tmp/
+
+          cat << EOT > tmp/message.txt
+          # Components conformance test
+
+          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+          Commit ref: ${{ env.CHECKOUT_REF }}
+
+          ## Result
+
+          | Component | Status |
+          | --- | --- |
+          EOT
+
           ls "$BASEPATH" | while read f; do
           while read LINE; do
               if [[ "$LINE" == "1" ]]; then
-                TABLE="$TABLE| $f | ✅ |$NL"
+                echo "| $f | ✅ |" >> tmp/message.txt
               elif [[ "$LINE" == "0" ]]; then
-                TABLE="$TABLE| $f | ❌ |$NL"
+                echo "| $f | ❌ |" >> tmp/message.txt
               else
-                TABLE="$TABLE| $f | 🤔 |$NL"
+                echo "| $f | 🤔 |" >> tmp/message.txt
               fi
             done < "$BASEPATH/$f"
           done
-          echo "TABLE=$TABLE" >> $GITHUB_ENV
+
+          echo "Final message"
+          cat tmp/message.txt
 
       - name: Replace PR comment
         if: env.PR_NUMBER != ''
@@ -383,19 +399,7 @@ jobs:
           header: ${{ github.run_id }}
           number: ${{ env.PR_NUMBER }}
           GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
-          message: |
-            # Components certification test
-
-            🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
-
-            Commit ref: ${{ env.CHECKOUT_REF }}
-
-            ## Result
-
-            | Component | Status |
-            | --- | --- |
-            ${{ env.TABLE }}
-
+          path: tmp/message.txt
 
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3

@@ -497,6 +497,7 @@ jobs:
           path: tmp/result_files
 
       - name: Build message
+        if: env.PR_NUMBER != ''
         run: |
           BASEPATH="${{steps.testresults.outputs.download-path}}"
 

@@ -31,6 +31,15 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+        fi
+
     - name: Install yq
       run: |
         sudo snap install yq
@@ -133,6 +142,21 @@ jobs:
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
+
+    - name: Create PR comment
+      if: env.PR_NUMBER != ''
+      uses: artursouza/sticky-pull-request-comment@v2.2.0
+      with:
+        header: ${{ github.run_id }}
+        number: ${{ env.PR_NUMBER }}
+        GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+        message: |
+          # Components conformance test
+
+          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+          Commit ref: ${{ env.CHECKOUT_REF }}
+
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
       cron-components: ${{ steps.cron-components.outputs.cron-components }}
@@ -143,10 +167,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ env.PROJECT_PATH }}
     needs: generate-matrix
-    env:
-      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -168,12 +189,12 @@ jobs:
         if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
           echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
-  
+
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ${{ env.PROJECT_PATH }}
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
@@ -423,6 +444,25 @@ jobs:
           exit 1
         fi
 
+    - name: Prepare test result info
+      if: always()
+      run: |
+        mkdir -p tmp/result_files
+        echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
+        if [[ "${{ env.CONFORMANCE_FAILURE }}" == "true" ]]; then
+          echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
+        else
+          echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
+        fi
+
+    - name: Upload result files
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: result_files
+        path: tmp/result_files
+        retention-days: 1
+
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
@@ -430,3 +470,70 @@ jobs:
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
+
+  post_job:
+    name: Post-completion
+    runs-on: ubuntu-latest
+    needs: conformance
+    steps:
+      - name: Parse repository_dispatch payload
+        if: github.event_name == 'repository_dispatch'
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+            echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+            echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+          fi
+
+      - name: Download test result artifact
+        if: env.PR_NUMBER != ''
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        id: testresults
+        with:
+          name: result_files
+          path: tmp/result_files
+
+      - name: Build message
+        if: env.PR_NUMBER != ''
+        run: |
+          BASEPATH="${{steps.testresults.outputs.download-path}}"
+
+          mkdir -p tmp/
+
+          cat << EOT > tmp/message.txt
+          # Components conformance test
+
+          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+          Commit ref: ${{ env.CHECKOUT_REF }}
+
+          ## Result
+
+          | Component | Status |
+          | --- | --- |
+          EOT
+
+          ls "$BASEPATH" | while read f; do
+          while read LINE; do
+              if [[ "$LINE" == "1" ]]; then
+                echo "| ${f%.*} | ✅ |" >> tmp/message.txt
+              elif [[ "$LINE" == "0" ]]; then
+                echo "| ${f%.*} | ❌ |" >> tmp/message.txt
+              else
+                echo "| ${f%.*} | 🤔 |" >> tmp/message.txt
+              fi
+            done < "$BASEPATH/$f"
+          done
+
+          echo "Final message"
+          cat tmp/message.txt
+
+      - name: Replace PR comment
+        if: env.PR_NUMBER != ''
+        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        with:
+          header: ${{ github.run_id }}
+          number: ${{ env.PR_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+          path: tmp/message.txt

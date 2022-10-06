@@ -112,7 +112,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Minute)
 	query, err := rego.New(
 		rego.Query("result = data.http.allow"),
 		rego.Module("inline.rego", meta.Rego),

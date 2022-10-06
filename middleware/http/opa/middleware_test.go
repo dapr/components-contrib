@@ -242,6 +242,7 @@ func TestOpaPolicy(t *testing.T) {
 		"allow on body contains allow": {
 			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
+					"readBody": "true",
 					"rego": `
 						package http
 						default allow = false
@@ -258,14 +259,14 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			status: 200,
 		},
-		"skip reading body": {
+		"body is not read by deafult": {
 			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
-					"skipBody": "true",
+					// `"readBody": "false"` is the default value
 					"rego": `
 						package http
 						default allow = false
-						allow = { "status_code": 403 } {
+						allow = { "allow": true } {
 							input.request.body == "allow"
 						}
 						`,

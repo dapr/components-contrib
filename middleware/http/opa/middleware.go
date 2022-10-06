@@ -42,7 +42,7 @@ type middlewareMetadata struct {
 	Rego                  string   `json:"rego"`
 	DefaultStatus         Status   `json:"defaultStatus,omitempty"`
 	IncludedHeaders       string   `json:"includedHeaders,omitempty"`
-	SkipBody              string   `json:"skipBody,omitempty"`
+	ReadBody              string   `json:"readBody,omitempty"`
 	includedHeadersParsed []string `json:"-"`
 }
 
@@ -142,7 +142,7 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 	}
 
 	var body string
-	if !utils.IsTruthy(meta.SkipBody) {
+	if utils.IsTruthy(meta.ReadBody) {
 		buf, _ := io.ReadAll(r.Body)
 		body = string(buf)
 

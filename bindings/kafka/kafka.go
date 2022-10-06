@@ -89,9 +89,12 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		return nil
 	}
 
-	ah := adaptHandler(handler)
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: false,
+		Handler:         adaptHandler(handler),
+	}
 	for _, t := range b.topics {
-		b.kafka.AddTopicHandler(t, ah)
+		b.kafka.AddTopicHandler(t, handlerConfig)
 	}
 
 	go func() {

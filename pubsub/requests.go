@@ -22,6 +22,14 @@ type PublishRequest struct {
 	ContentType *string           `json:"contentType,omitempty"`
 }
 
+// BulkPublishRequest is the request to publish mutilple messages.
+type BulkPublishRequest struct {
+	Entries    []BulkMessageEntry `json:"entries"`
+	PubsubName string             `json:"pubsubname"`
+	Topic      string             `json:"topic"`
+	Metadata   map[string]string  `json:"metadata"`
+}
+
 // SubscribeRequest is the request to subscribe to a topic.
 type SubscribeRequest struct {
 	Topic    string            `json:"topic"`
@@ -34,4 +42,27 @@ type NewMessage struct {
 	Topic       string            `json:"topic"`
 	Metadata    map[string]string `json:"metadata"`
 	ContentType *string           `json:"contentType,omitempty"`
+}
+
+// BulkMessage represents bulk message arriving from a message bus instance.
+type BulkMessage struct {
+	Entries  []BulkMessageEntry `json:"entries"`
+	Topic    string             `json:"topic"`
+	Metadata map[string]string  `json:"metadata"`
+}
+
+// BulkMessageEntry represents a single message inside a bulk request.
+type BulkMessageEntry struct {
+	EntryId     string            `json:"entryId"` //nolint:stylecheck
+	Event       []byte            `json:"event"`
+	ContentType string            `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
+// BulkSubscribeConfig represents the configuration for bulk subscribe.
+// It depends on specific componets to support these.
+type BulkSubscribeConfig struct {
+	MaxBulkSubCount           int `json:"maxBulkSubCount"`
+	MaxBulkSubAwaitDurationMs int `json:"maxBulkSubAwaitDurationMs"`
+	MaxBulkSizeBytes          int `json:"maxBulkSizeBytes"`
 }

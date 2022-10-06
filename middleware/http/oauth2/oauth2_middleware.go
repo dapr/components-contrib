@@ -107,7 +107,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 				redirectURL, ok := session.Get(redirectPath).(*url.URL)
 				if !ok {
 					httputils.RespondWithError(w, http.StatusInternalServerError)
-					m.logger.Errorf("Value saved in state key '%s' is not a *url.URL")
+					m.logger.Errorf("Value saved in state key '%s' is not a *url.URL", redirectPath)
 					return
 				}
 
@@ -129,7 +129,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 				token, err := conf.Exchange(r.Context(), code)
 				if err != nil {
 					httputils.RespondWithError(w, http.StatusInternalServerError)
-					m.logger.Errorf("Failed to exchange token: %v", err)
+					m.logger.Error("Failed to exchange token")
 					return
 				}
 

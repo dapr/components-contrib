@@ -77,7 +77,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 	endpointParams, err := url.ParseQuery(meta.EndpointParamsQuery)
 	if err != nil {
-		m.log.Errorf("Error parsing endpoint parameters: %s", err)
+		m.log.Warnf("Error parsing endpoint parameters: %s", err)
 		endpointParams, _ = url.ParseQuery("")
 	}
 

@@ -25,6 +25,7 @@ import (
 	"net/textproto"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/utils/strings/slices"
@@ -111,10 +112,12 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	query, err := rego.New(
 		rego.Query("result = data.http.allow"),
 		rego.Module("inline.rego", meta.Rego),
-	).PrepareForEval(context.Background())
+	).PrepareForEval(ctx)
+	cancel()
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +136,8 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 	headers := map[string]string{}
 
 	for key, value := range r.Header {
-		if slices.Contains(meta.includedHeadersParsed, key) {
-			headers[key] = value[0]
+		if len(value) > 0 && slices.Contains(meta.includedHeadersParsed, key) {
+			headers[key] = value[len(value)-1]
 		}
 	}
 

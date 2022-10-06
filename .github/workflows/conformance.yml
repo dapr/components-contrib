@@ -474,6 +474,7 @@ jobs:
   post_job:
     name: Post-completion
     runs-on: ubuntu-latest
+    if: always()
     needs:
       - conformance
       - generate-matrix
@@ -488,7 +489,7 @@ jobs:
           fi
 
       - name: Download test result artifact
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         uses: actions/download-artifact@v3
         continue-on-error: true
         id: testresults
@@ -497,7 +498,7 @@ jobs:
           path: tmp/result_files
 
       - name: Build message
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         # Abusing of the github-script action to be able to write this in JS
         uses: actions/github-script@v6
         with:
@@ -522,7 +523,13 @@ jobs:
             let notSuccess = []
             let notFound = []
             for (let i = 0; i < allComponents.length; i++) {
-                const component = allComponents[i]
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
                 let found = false
                 let success = false
                 try {

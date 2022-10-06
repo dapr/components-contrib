@@ -336,6 +336,7 @@ jobs:
   post_job:
     name: Post-completion
     runs-on: ubuntu-latest
+    if: always()
     needs: 
       - certification
       - generate-matrix
@@ -350,7 +351,7 @@ jobs:
           fi
 
       - name: Download test result artifact
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         uses: actions/download-artifact@v3
         continue-on-error: true
         id: testresults
@@ -359,7 +360,7 @@ jobs:
           path: tmp/result_files
 
       - name: Build message
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         # Abusing of the github-script action to be able to write this in JS
         uses: actions/github-script@v6
         with:
@@ -384,7 +385,13 @@ jobs:
             let notSuccess = []
             let notFound = []
             for (let i = 0; i < allComponents.length; i++) {
-                const component = allComponents[i]
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
                 let found = false
                 let success = false
                 try {
@@ -448,7 +455,7 @@ jobs:
             fs.writeFileSync('message.txt', message)
 
       - name: Replace PR comment
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         uses: artursouza/sticky-pull-request-comment@v2.2.0
         with:
           header: ${{ github.run_id }}
@@ -459,14 +466,14 @@ jobs:
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3
         continue-on-error: true
-        if: github.event_name == 'schedule'
+        if: success() && github.event_name == 'schedule'
         id: download
         with:
           name: certtest_cov
           path: tmp/cov_files
 
       - name: Calculate total coverage
-        if: github.event_name == 'schedule'
+        if: success() && github.event_name == 'schedule'
         run: |
           threshold=60.0
           echo "threshold=$threshold" >> $GITHUB_ENV
@@ -493,7 +500,7 @@ jobs:
         continue-on-error: true
 
       - name: Final Coverage Discord Notification
-        if: github.event_name == 'schedule'
+        if: success() && github.event_name == 'schedule'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9

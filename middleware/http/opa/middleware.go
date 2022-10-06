@@ -137,7 +137,7 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 
 	for key, value := range r.Header {
 		if len(value) > 0 && slices.Contains(meta.includedHeadersParsed, key) {
-			headers[key] = value[len(value)-1]
+			headers[key] = strings.Join(value, ", ")
 		}
 	}
 

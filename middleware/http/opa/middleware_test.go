@@ -259,7 +259,7 @@ func TestOpaPolicy(t *testing.T) {
 			},
 			status: 200,
 		},
-		"body is not read by deafult": {
+		"body is not read by default": {
 			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					// `"readBody": "false"` is the default value

@@ -522,7 +522,13 @@ jobs:
             let notSuccess = []
             let notFound = []
             for (let i = 0; i < allComponents.length; i++) {
-                const component = allComponents[i]
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
                 let found = false
                 let success = false
                 try {

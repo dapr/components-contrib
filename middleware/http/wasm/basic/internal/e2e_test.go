@@ -3,6 +3,8 @@ package internal_test
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"strconv"
@@ -11,7 +13,6 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 
 	"github.com/stretchr/testify/require"
-	"github.com/valyala/fasthttp"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/components-contrib/middleware/http/wasm/basic"
@@ -43,16 +44,17 @@ func Test_EndToEnd(t *testing.T) {
 		name     string
 		guest    []byte
 		poolSize int
-		test     func(t *testing.T, handler fasthttp.RequestHandler, log fmt.Stringer)
+		test     func(t *testing.T, handler http.Handler, log fmt.Stringer)
 	}
 
 	tests := []testCase{
 		{
 			name:  "consoleLog stdout and stderr",
 			guest: guestWasm[guestWasmOutput],
-			test: func(t *testing.T, handler fasthttp.RequestHandler, log fmt.Stringer) {
-				var ctx fasthttp.RequestCtx
-				handler(&ctx)
+			test: func(t *testing.T, handler http.Handler, log fmt.Stringer) {
+				r := httptest.NewRequest(http.MethodGet, "/", nil)
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, r)
 
 				// First, we expect any console logging written inline from
 				// init (main) and the request (rewrite) funcs to info level.
@@ -74,11 +76,12 @@ request[0] Stderr
 			name:     "multiple requests",
 			guest:    guestWasm[guestWasmOutput],
 			poolSize: 2,
-			test: func(t *testing.T, handler fasthttp.RequestHandler, log fmt.Stringer) {
+			test: func(t *testing.T, handler http.Handler, log fmt.Stringer) {
 				// Service more requests than the pool size to ensure it works properly.
 				for i := 0; i < 3; i++ {
-					var ctx fasthttp.RequestCtx
-					handler(&ctx)
+					r := httptest.NewRequest(http.MethodGet, "/", nil)
+					w := httptest.NewRecorder()
+					handler.ServeHTTP(w, r)
 				}
 
 				// We expect to see initialization (main) twice, once for each
@@ -110,6 +113,7 @@ Debug(wasm stderr: request[1] Stderr
 		},
 	}
 
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	for _, tt := range tests {
 		tc := tt
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,7 +129,7 @@ Debug(wasm stderr: request[1] Stderr
 			l := test.NewLogger()
 			handlerFn, err := basic.NewMiddleware(l).GetHandler(middleware.Metadata{Base: meta})
 			require.NoError(t, err)
-			tc.test(t, handlerFn(func(*fasthttp.RequestCtx) {}), l.(fmt.Stringer))
+			tc.test(t, handlerFn(h), l.(fmt.Stringer))
 		})
 	}
 }

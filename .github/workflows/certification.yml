@@ -244,7 +244,6 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
-
         export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
@@ -337,7 +336,10 @@ jobs:
   post_job:
     name: Post-completion
     runs-on: ubuntu-latest
-    needs: certification
+    if: always()
+    needs: 
+      - certification
+      - generate-matrix
     steps:
       - name: Parse repository_dispatch payload
         if: github.event_name == 'repository_dispatch'
@@ -349,7 +351,7 @@ jobs:
           fi
 
       - name: Download test result artifact
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         uses: actions/download-artifact@v3
         continue-on-error: true
         id: testresults
@@ -358,60 +360,120 @@ jobs:
           path: tmp/result_files
 
       - name: Build message
-        if: env.PR_NUMBER != ''
-        run: |
-          BASEPATH="${{steps.testresults.outputs.download-path}}"
+        if: always() && env.PR_NUMBER != ''
+        # Abusing of the github-script action to be able to write this in JS
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
+            const cloudComponents = ('${{ needs.generate-matrix.outputs.cloud-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cloud-components }}')) || []
+            const allComponents = [...prComponents, ...cloudComponents]
+            const basePath = '${{ steps.testresults.outputs.download-path }}'
+            const testType = 'certification'
 
-          mkdir -p tmp/
+            const fs = require('fs')
+            const path = require('path')
 
-          cat << EOT > tmp/message.txt
-          # Components conformance test
+            let message = `# Components ${testType} test
 
-          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+            🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
 
-          Commit ref: ${{ env.CHECKOUT_REF }}
+            Commit ref: ${{ env.CHECKOUT_REF }}`
 
-          ## Result
+            let allSuccess = true
+            let allFound = true
+            let notSuccess = []
+            let notFound = []
+            for (let i = 0; i < allComponents.length; i++) {
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
+                let found = false
+                let success = false
+                try {
+                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    read = read.split('\n')[0]
+                    switch (read) {
+                        case '1':
+                            found = true
+                            success = true
+                            break
+                        case '0':
+                            found = true
+                            success = false
+                    }
+                } catch (e) {
+                    // ignore errors, leave found = false
+                }
 
-          | Component | Status |
-          | --- | --- |
-          EOT
+                if (!found) {
+                    allFound = false
+                    notFound.push(component)
+                }
+                if (!success) {
+                    allSuccess = false
+                    notSuccess.push(component)
+                }
+            }
 
-          ls "$BASEPATH" | while read f; do
-          while read LINE; do
-              if [[ "$LINE" == "1" ]]; then
-                echo "| ${f%.*} | ✅ |" >> tmp/message.txt
-              elif [[ "$LINE" == "0" ]]; then
-                echo "| ${f%.*} | ❌ |" >> tmp/message.txt
-              else
-                echo "| ${f%.*} | 🤔 |" >> tmp/message.txt
-              fi
-            done < "$BASEPATH/$f"
-          done
+            if (allSuccess) {
+                if (allFound) {
+                    message += '\n\n' + `# ✅ All ${testType} tests passed
 
-          echo "Final message"
-          cat tmp/message.txt
+            All tests have reported a successful status` + '\n\n'
+                } else {
+                    message += '\n\n' + `# ⚠️ Some ${testType} tests did not report status
+
+            Although there were no failures reported, some tests did not report a status:` + '\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            } else {
+                message += '\n\n' + `# ❌ Some ${testType} tests failed
+
+            These tests failed:` + '\n\n'
+                for (let i = 0; i < notSuccess.length; i++) {
+                    message += '- ' + notSuccess[i] + '\n'
+                }
+                message += '\n'
+
+                if (!allFound) {
+                    message += 'Additionally, some tests did not report a status:\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            }
+
+            fs.writeFileSync('message.txt', message)
 
       - name: Replace PR comment
-        if: env.PR_NUMBER != ''
+        if: always() && env.PR_NUMBER != ''
         uses: artursouza/sticky-pull-request-comment@v2.2.0
         with:
           header: ${{ github.run_id }}
           number: ${{ env.PR_NUMBER }}
           GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
-          path: tmp/message.txt
+          path: message.txt
 
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3
         continue-on-error: true
-        if: github.event_name == 'schedule'
+        if: success() && github.event_name == 'schedule'
         id: download
         with:
           name: certtest_cov
           path: tmp/cov_files
 
       - name: Calculate total coverage
-        if: github.event_name == 'schedule'
+        if: success() && github.event_name == 'schedule'
         run: |
           threshold=80.0
           echo "threshold=$threshold" >> $GITHUB_ENV
@@ -438,7 +500,7 @@ jobs:
         continue-on-error: true
 
       - name: Final Coverage Discord Notification
-        if: github.event_name == 'schedule'
+        if: success() && github.event_name == 'schedule'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9

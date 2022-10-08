@@ -36,7 +36,8 @@ func NewMiddleware(logger logger.Logger) middleware.Middleware {
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (
-	func(next http.Handler) http.Handler, error) {
+	func(next http.Handler) http.Handler, error,
+) {
 	if err := m.getNativeMetadata(metadata); err != nil {
 		return nil, err
 	}
@@ -47,7 +48,6 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 				handle(nil, r, params)
 			}
 			next.ServeHTTP(w, r)
-
 		})
 	}, nil
 }

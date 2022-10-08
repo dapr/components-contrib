@@ -15,8 +15,8 @@ package redis
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/go-redis/redis/v8"
 
@@ -78,9 +78,31 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		}
 
 		return nil, nil
-	}
+	} else {
+		index := 0
+		var arg []string
+		for argKey := range req.Metadata {
 
-	return nil, errors.New("redis binding: missing key on write request metadata")
+			argIndex := fmt.Sprintf("%s%d", "arg", index)
+			if argKey == argIndex {
+				arg = append(arg, req.Metadata[argKey])
+			}
+			index++
+		}
+		var itf []interface{}
+		for _, data := range arg {
+			itf = append(itf, data)
+		}
+		data, err := r.client.Do(ctx, itf...).Result()
+		if err != nil {
+			return nil, err
+		} else {
+			s, _ := strconv.Unquote(fmt.Sprintf("%q", data))
+			rep := &bindings.InvokeResponse{}
+			rep.Data = []byte(s)
+			return rep, nil
+		}
+	}
 }
 
 func (r *Redis) Close() error {

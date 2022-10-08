@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"testing"
+	"unsafe"
 
 	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
@@ -28,6 +29,7 @@ import (
 const (
 	testData = `{"data":"data"}`
 	testKey  = "test"
+	testHsetData  = "1223"
 )
 
 func TestInvoke(t *testing.T) {
@@ -53,6 +55,35 @@ func TestInvoke(t *testing.T) {
 	getRes, err := c.Do(context.Background(), "GET", testKey).Result()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, getRes == testData)
+
+	bindingRes, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Data:     []byte(testData),
+		Metadata: map[string]string{
+			"arg0": "HSET",
+			"arg1": "website",
+			"arg2": "order_101",
+			"arg3": testHsetData,
+		},
+	})
+
+	assert.Equal(t, nil, err)
+
+	bindingRes, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Data:     []byte(testData),
+		Metadata: map[string]string{
+			"arg0": "HGET",
+			"arg1": "website",
+			"arg2": "order_101",
+		},
+	})
+
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, bindingRes != nil)
+	assert.Equal(t, testHsetData,BytesToString(bindingRes.Data))
+}
+
+func BytesToString(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
 }
 
 func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {

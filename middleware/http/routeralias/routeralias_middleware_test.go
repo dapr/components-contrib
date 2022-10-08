@@ -57,11 +57,12 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
 		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+		result := w.Result()
+		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default/method/mall/activity/info?id=123",
 			string(msg))
-		w.Result().Body.Close()
+		result.Body.Close()
 	})
 
 	t.Run("hit: change router with restful request", func(t *testing.T) {
@@ -72,11 +73,12 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
 		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+		result := w.Result()
+		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default/method/hello/activity/info?id=1",
 			string(msg))
-		w.Result().Body.Close()
+		result.Body.Close()
 	})
 
 	t.Run("hit: change router with restful request and query string", func(t *testing.T) {
@@ -87,11 +89,12 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
 		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+		result := w.Result()
+		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default/method/hello/activity/user?id=1&userid=123",
 			string(msg))
-		w.Result().Body.Close()
+		result.Body.Close()
 	})
 
 	t.Run("miss: no change router", func(t *testing.T) {
@@ -101,10 +104,11 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
 		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+		result := w.Result()
+		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default",
 			string(msg))
-		w.Result().Body.Close()
+		result.Body.Close()
 	})
 }

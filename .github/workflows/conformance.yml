@@ -22,7 +22,7 @@ on:
   pull_request:
     branches:
       - master
-      - release-*
+      - 'release-*'
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different
@@ -31,6 +31,15 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+        fi
+
     - name: Install yq
       run: |
         sudo snap install yq
@@ -133,6 +142,21 @@ jobs:
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
+
+    - name: Create PR comment
+      if: env.PR_NUMBER != ''
+      uses: artursouza/sticky-pull-request-comment@v2.2.0
+      with:
+        header: ${{ github.run_id }}
+        number: ${{ env.PR_NUMBER }}
+        GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+        message: |
+          # Components conformance test
+
+          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+          Commit ref: ${{ env.CHECKOUT_REF }}
+
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
       cron-components: ${{ steps.cron-components.outputs.cron-components }}
@@ -143,10 +167,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ env.PROJECT_PATH }}
     needs: generate-matrix
-    env:
-      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -168,12 +189,12 @@ jobs:
         if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
           echo "CHECKOUT_REPO=${{ github.event.client_payload.pull_head_repo }}" >> $GITHUB_ENV
           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
-  
+
     - name: Check out code onto GOPATH
       uses: actions/checkout@v2
       with:
-        path: ${{ env.PROJECT_PATH }}
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
@@ -423,6 +444,25 @@ jobs:
           exit 1
         fi
 
+    - name: Prepare test result info
+      if: always()
+      run: |
+        mkdir -p tmp/result_files
+        echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
+        if [[ "${{ env.CONFORMANCE_FAILURE }}" == "true" ]]; then
+          echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
+        else
+          echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
+        fi
+
+    - name: Upload result files
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: result_files
+        path: tmp/result_files
+        retention-days: 1
+
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
@@ -430,3 +470,133 @@ jobs:
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
+
+  post_job:
+    name: Post-completion
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - conformance
+      - generate-matrix
+    steps:
+      - name: Parse repository_dispatch payload
+        if: github.event_name == 'repository_dispatch'
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+            echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+            echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+          fi
+
+      - name: Download test result artifact
+        if: always() && env.PR_NUMBER != ''
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        id: testresults
+        with:
+          name: result_files
+          path: tmp/result_files
+
+      - name: Build message
+        if: always() && env.PR_NUMBER != ''
+        # Abusing of the github-script action to be able to write this in JS
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
+            const cronComponents = ('${{ needs.generate-matrix.outputs.cron-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cron-components }}')) || []
+            const allComponents = [...prComponents, ...cronComponents]
+            const basePath = '${{ steps.testresults.outputs.download-path }}'
+            const testType = 'conformance'
+
+            const fs = require('fs')
+            const path = require('path')
+
+            let message = `# Components ${testType} test
+
+            🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+            Commit ref: ${{ env.CHECKOUT_REF }}`
+
+            let allSuccess = true
+            let allFound = true
+            let notSuccess = []
+            let notFound = []
+            for (let i = 0; i < allComponents.length; i++) {
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
+                let found = false
+                let success = false
+                try {
+                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    read = read.split('\n')[0]
+                    switch (read) {
+                        case '1':
+                            found = true
+                            success = true
+                            break
+                        case '0':
+                            found = true
+                            success = false
+                    }
+                } catch (e) {
+                    // ignore errors, leave found = false
+                }
+
+                if (!found) {
+                    allFound = false
+                    notFound.push(component)
+                }
+                if (!success) {
+                    allSuccess = false
+                    notSuccess.push(component)
+                }
+            }
+
+            if (allSuccess) {
+                if (allFound) {
+                    message += '\n\n' + `# ✅ All ${testType} tests passed
+
+            All tests have reported a successful status` + '\n\n'
+                } else {
+                    message += '\n\n' + `# ⚠️ Some ${testType} tests did not report status
+
+            Although there were no failures reported, some tests did not report a status:` + '\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            } else {
+                message += '\n\n' + `# ❌ Some ${testType} tests failed
+
+            These tests failed:` + '\n\n'
+                for (let i = 0; i < notSuccess.length; i++) {
+                    message += '- ' + notSuccess[i] + '\n'
+                }
+                message += '\n'
+
+                if (!allFound) {
+                    message += 'Additionally, some tests did not report a status:\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            }
+
+            fs.writeFileSync('message.txt', message)
+
+      - name: Replace PR comment
+        if: env.PR_NUMBER != ''
+        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        with:
+          header: ${{ github.run_id }}
+          number: ${{ env.PR_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+          path: message.txt

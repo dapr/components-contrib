@@ -6,7 +6,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+tITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
@@ -20,6 +20,12 @@ const (
 	CloudEventContentType = "application/cloudevents+json"
 	// JSONContentType is the content type for JSON.
 	JSONContentType = "application/json"
+	// GRPCContentType is the content type for grpc.
+	GRPCContentType = "application/grpc"
+	// XMLContentType is the content type for xml.
+	XMLContentType = "application/xml"
+	// OctetStreamContentType is the content type for octet-stream.
+	OctetStreamContentType = "application/octet-stream"
 )
 
 // IsCloudEventContentType checks for content type.
@@ -32,18 +38,23 @@ func IsJSONContentType(contentType string) bool {
 	return isContentType(contentType, JSONContentType)
 }
 
+// IsGRPCContentType checks for content type.
+func IsGRPCContenttype(contentType string) bool {
+	return isContentType(contentType, GRPCContentType)
+}
+
 // IsStringContentType determines if content type is string.
 func IsStringContentType(contentType string) bool {
 	if strings.HasPrefix(strings.ToLower(contentType), "text/") {
 		return true
 	}
 
-	return isContentType(contentType, "application/xml")
+	return isContentType(contentType, XMLContentType)
 }
 
 // IsBinaryContentType determines if content type is byte[].
 func IsBinaryContentType(contentType string) bool {
-	return isContentType(contentType, "application/octet-stream")
+	return isContentType(contentType, OctetStreamContentType)
 }
 
 func isContentType(contentType string, expected string) bool {

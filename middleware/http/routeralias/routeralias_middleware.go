@@ -16,13 +16,11 @@ package routeralias
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/valyala/fasthttp"
 )
 
 // Middleware is an routeralias middleware.
@@ -38,26 +36,19 @@ func NewMiddleware(logger logger.Logger) middleware.Middleware {
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (
-	func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error,
-) {
+	func(next http.Handler) http.Handler, error) {
 	if err := m.getNativeMetadata(metadata); err != nil {
 		return nil, err
 	}
-	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		return func(ctx *fasthttp.RequestCtx) {
-			uri := ctx.Request.URI()
-
-			handle, params, _ := m.router.Lookup("", string(uri.Path()))
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handle, params, _ := m.router.Lookup("", r.URL.Path)
 			if handle != nil {
-				req := &http.Request{
-					URL: new(url.URL),
-				}
-				req.URL.RawQuery = string(uri.QueryString())
-				handle(nil, req, params)
-				ctx.Request.SetRequestURI(req.URL.RequestURI())
+				handle(nil, r, params)
 			}
-			h(ctx)
-		}
+			next.ServeHTTP(w, r)
+
+		})
 	}, nil
 }
 

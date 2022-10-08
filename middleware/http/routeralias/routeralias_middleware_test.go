@@ -14,20 +14,24 @@ limitations under the License.
 package routeralias
 
 import (
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/dapr/components-contrib/internal/httputils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/valyala/fasthttp"
 )
 
-type RouterOutput struct{}
-
-func (ro *RouterOutput) handle(ctx *fasthttp.RequestCtx) {
-	ctx.Error(string(ctx.RequestURI()), fasthttp.StatusOK)
+// mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
+func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	uri := httputils.RequestURI(r)
+	w.Write([]byte(uri))
 }
 
 func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
@@ -45,55 +49,58 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	handler, err := ralias.GetHandler(meta)
 	assert.Nil(t, err)
 
-	var ctx fasthttp.RequestCtx
-	output := new(RouterOutput)
-	ctx.Request.SetHost("localhost:5001")
-	ctx.Request.Header.SetMethod("GET")
-
 	t.Run("hit: change router with common request", func(t *testing.T) {
-		ctx.Request.SetRequestURI("/v1.0/mall/activity/info?id=123")
+		r := httptest.NewRequest(http.MethodGet,
+			"http://localhost:5001/v1.0/mall/activity/info?id=123", nil)
+		w := httptest.NewRecorder()
 
-		handler(output.handle)(&ctx)
-		msg := string(ctx.Response.Body())
-		assert.Equal(t, fasthttp.StatusOK, ctx.Response.Header.StatusCode())
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+		msg, err := ioutil.ReadAll(w.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default/method/mall/activity/info?id=123",
-			msg)
+			string(msg))
 	})
 
 	t.Run("hit: change router with restful request", func(t *testing.T) {
-		ctx.Request.SetRequestURI("/v1.0/hello/activity/1/info")
+		r := httptest.NewRequest(http.MethodGet,
+			"http://localhost:5001/v1.0/hello/activity/1/info", nil)
+		w := httptest.NewRecorder()
 
-		output = new(RouterOutput)
-		handler(output.handle)(&ctx)
-		msg := string(ctx.Response.Body())
-		assert.Equal(t, fasthttp.StatusOK, ctx.Response.Header.StatusCode())
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+		msg, err := ioutil.ReadAll(w.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default/method/hello/activity/info?id=1",
-			msg)
+			string(msg))
 	})
 
 	t.Run("hit: change router with restful request and query string", func(t *testing.T) {
-		ctx.Request.SetRequestURI("/v1.0/hello/activity/1/user?userid=123")
+		r := httptest.NewRequest(http.MethodGet,
+			"http://localhost:5001/v1.0/hello/activity/1/user?userid=123", nil)
+		w := httptest.NewRecorder()
 
-		output = new(RouterOutput)
-		handler(output.handle)(&ctx)
-		msg := string(ctx.Response.Body())
-		assert.Equal(t, fasthttp.StatusOK, ctx.Response.Header.StatusCode())
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+		msg, err := ioutil.ReadAll(w.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default/method/hello/activity/user?id=1&userid=123",
-			msg)
+			string(msg))
 	})
 
 	t.Run("miss: no change router", func(t *testing.T) {
-		ctx.Request.SetRequestURI("/v1.0/invoke/srv.default")
-
-		output = new(RouterOutput)
-		handler(output.handle)(&ctx)
-		msg := string(ctx.Response.Body())
-		assert.Equal(t, fasthttp.StatusOK, ctx.Response.Header.StatusCode())
+		r := httptest.NewRequest(http.MethodGet,
+			"http://localhost:5001/v1.0/invoke/srv.default", nil)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+		msg, err := ioutil.ReadAll(w.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 		assert.Equal(t,
 			"/v1.0/invoke/srv.default",
-			msg)
+			string(msg))
 	})
 }

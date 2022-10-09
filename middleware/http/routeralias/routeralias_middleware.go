@@ -20,15 +20,13 @@ import (
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+
 	"github.com/gorilla/mux"
 )
 
 type contextKey int
 
-const (
-	varsKey contextKey = iota
-	routeKey
-)
+const varsKey contextKey = iota
 
 // Middleware is an routeralias middleware.
 type Middleware struct {

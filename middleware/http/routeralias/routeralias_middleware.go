@@ -14,19 +14,26 @@ limitations under the License.
 package routeralias
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	"github.com/gorilla/mux"
+)
 
-	"github.com/julienschmidt/httprouter"
+type contextKey int
+
+const (
+	varsKey contextKey = iota
+	routeKey
 )
 
 // Middleware is an routeralias middleware.
 type Middleware struct {
 	logger logger.Logger
-	router *httprouter.Router
+	router *mux.Router
 }
 
 // NewMiddleware returns a new routerchecker middleware.
@@ -43,9 +50,11 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			handle, params, _ := m.router.Lookup("", r.URL.Path)
-			if handle != nil {
-				handle(nil, r, params)
+			var match mux.RouteMatch
+			if m.router.Match(r, &match) {
+				ctx := context.WithValue(r.Context(), varsKey, match.Vars)
+				r = r.WithContext(ctx)
+				match.Handler.ServeHTTP(w, r)
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -53,22 +62,31 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) error {
-	m.router = httprouter.New()
+	m.router = mux.NewRouter()
 	for key, value := range metadata.Properties {
-		m.router.Handle("", key, m.routerConvert(value))
+		m.router.Handle(key, m.routerConvert(value))
 	}
 
 	return nil
 }
 
-func (m *Middleware) routerConvert(daprRouter string) func(resp http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	return func(resp http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (m *Middleware) routerConvert(daprRouter string) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		params := vars(req)
 		vals := req.URL.Query()
-		for _, param := range params {
-			vals.Add(param.Key, param.Value)
+		for key, val := range params {
+			vals.Add(key, val)
 		}
 		req.URL.RawQuery = vals.Encode()
 		req.URL.Path = daprRouter
 		req.RequestURI = fmt.Sprintf("%s?%s", daprRouter, req.URL.RawQuery)
+	})
+}
+
+// vars returns the route variables for the current request, if any.
+func vars(r *http.Request) map[string]string {
+	if rv := r.Context().Value(varsKey); rv != nil {
+		return rv.(map[string]string)
 	}
+	return nil
 }

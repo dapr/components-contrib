@@ -38,9 +38,9 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	meta := middleware.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				"/v1.0/mall/activity/info":      "/v1.0/invoke/srv.default/method/mall/activity/info",
-				"/v1.0/hello/activity/:id/info": "/v1.0/invoke/srv.default/method/hello/activity/info",
-				"/v1.0/hello/activity/:id/user": "/v1.0/invoke/srv.default/method/hello/activity/user",
+				"/v1.0/mall/activity/info":       "/v1.0/invoke/srv.default/method/mall/activity/info",
+				"/v1.0/hello/activity/{id}/info": "/v1.0/invoke/srv.default/method/hello/activity/info",
+				"/v1.0/hello/activity/{id}/user": "/v1.0/invoke/srv.default/method/hello/activity/user",
 			},
 		},
 	}

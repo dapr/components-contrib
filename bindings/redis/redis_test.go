@@ -68,7 +68,7 @@ func TestCommonCmd(t *testing.T) {
 	}
 	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
-	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	_, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Data:     []byte(testData),
 		Metadata: map[string]string{
 			"arg0": "HSET",
@@ -80,7 +80,7 @@ func TestCommonCmd(t *testing.T) {
 
 	assert.Equal(t, nil, err)
 
-	bindingRes, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+	bindingRes, err1 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Data:     []byte(testData),
 		Metadata: map[string]string{
 			"arg0": "HGET",
@@ -89,7 +89,7 @@ func TestCommonCmd(t *testing.T) {
 		},
 	})
 
-	assert.Equal(t, nil, err)
+	assert.Equal(t, nil, err1)
 	assert.Equal(t, true, bindingRes != nil)
 	assert.Equal(t, testHsetData,BytesToString(bindingRes.Data))
 }

@@ -82,7 +82,6 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		index := 0
 		var arg []string
 		for argKey := range req.Metadata {
-
 			argIndex := fmt.Sprintf("%s%d", "arg", index)
 			if argKey == argIndex {
 				arg = append(arg, req.Metadata[argKey])

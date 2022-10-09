@@ -55,8 +55,20 @@ func TestInvoke(t *testing.T) {
 	getRes, err := c.Do(context.Background(), "GET", testKey).Result()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, getRes == testData)
+}
 
-	bindingRes, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+
+func TestCommonCmd(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	bind := &Redis{
+		client: c,
+		logger: logger.NewLogger("test"),
+	}
+	bind.ctx, bind.cancel = context.WithCancel(context.Background())
+
+	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
 		Data:     []byte(testData),
 		Metadata: map[string]string{
 			"arg0": "HSET",

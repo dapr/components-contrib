@@ -15,14 +15,12 @@ package ratelimit
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/didip/tollbooth"
-	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttpadaptor"
 
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/components-contrib/middleware/http/nethttpadaptor"
 	"github.com/dapr/kit/logger"
 )
 
@@ -39,17 +37,15 @@ const (
 )
 
 // NewRateLimitMiddleware returns a new ratelimit middleware.
-func NewRateLimitMiddleware(logger logger.Logger) *Middleware {
-	return &Middleware{logger: logger}
+func NewRateLimitMiddleware(_ logger.Logger) middleware.Middleware {
+	return &Middleware{}
 }
 
 // Middleware is an ratelimit middleware.
-type Middleware struct {
-	logger logger.Logger
-}
+type Middleware struct{}
 
 // GetHandler returns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
+func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -57,13 +53,8 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 
 	limiter := tollbooth.NewLimiter(meta.MaxRequestsPerSecond, nil)
 
-	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		limitHandler := tollbooth.LimitFuncHandler(limiter, nethttpadaptor.NewNetHTTPHandlerFunc(m.logger, h))
-		wrappedHandler := fasthttpadaptor.NewFastHTTPHandlerFunc(limitHandler.ServeHTTP)
-
-		return func(ctx *fasthttp.RequestCtx) {
-			wrappedHandler(ctx)
-		}
+	return func(next http.Handler) http.Handler {
+		return tollbooth.LimitHandler(limiter, next)
 	}, nil
 }
 
@@ -74,7 +65,7 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 	if val, ok := metadata.Properties[maxRequestsPerSecondKey]; ok {
 		f, err := strconv.ParseFloat(val, 64)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing ratelimit middleware property %s: %+v", maxRequestsPerSecondKey, err)
+			return nil, fmt.Errorf("error parsing ratelimit middleware property %s: %w", maxRequestsPerSecondKey, err)
 		}
 		if f <= 0 {
 			return nil, fmt.Errorf("ratelimit middleware property %s must be a positive value", maxRequestsPerSecondKey)

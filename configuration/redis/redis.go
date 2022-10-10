@@ -291,14 +291,20 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		// already exist subscription
 		r.subscribeStopChanMap.Delete(req.ID)
 		close(oldStopChan.(chan struct{}))
+		return nil
 	}
-	return nil
+	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }
 
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, id string, stop chan struct{}) {
 	// enable notify-keyspace-events by redis Set command
 	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
-	p := r.client.Subscribe(ctx, redisChannel4revision)
+	var p *redis.PubSub
+	if redisChannel4revision == keySpaceAny {
+		p = r.client.PSubscribe(ctx, redisChannel4revision)
+	} else {
+		p = r.client.Subscribe(ctx, redisChannel4revision)
+	}
 	for {
 		select {
 		case <-stop:
@@ -312,11 +318,6 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 }
 
 func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message, id string) {
-	defer func() {
-		if err := recover(); err != nil {
-			r.logger.Errorf("panic in handleSubscribedChange(）method and recovered: %s", err)
-		}
-	}()
 	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
 	if err != nil {
 		r.logger.Errorf("parse redis key failed: %s", err)

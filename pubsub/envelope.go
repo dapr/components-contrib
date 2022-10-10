@@ -29,6 +29,8 @@ import (
 const (
 	// DefaultCloudEventType is the default event type for an Dapr published event.
 	DefaultCloudEventType = "com.dapr.event.sent"
+	// DefaultBulkEventType is the default bulk event type for a Dapr published event.
+	DefaultBulkEventType = "com.dapr.event.sent.bulk"
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation.
 	CloudEventsSpecVersion = "1.0"
 	// DefaultCloudEventSource is the default event source.
@@ -51,6 +53,7 @@ const (
 	SourceField          = "source"
 	IDField              = "id"
 	SubjectField         = "subject"
+	TimeField            = "time"
 )
 
 // unmarshalPrecise is a wrapper around encoding/json's Decoder
@@ -110,6 +113,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TraceIDField:         traceParent,
 		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
+		TimeField:            time.Now().Format(time.RFC3339),
 	}
 
 	ce[ceDataField] = ceData
@@ -127,6 +131,14 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
 		return m, err
+	}
+
+	customTimeVal, keyExists := m[TimeField]
+
+	if keyExists {
+		m[TimeField] = customTimeVal
+	} else {
+		m[TimeField] = time.Now().Format(time.RFC3339)
 	}
 
 	m[TraceIDField] = traceParent

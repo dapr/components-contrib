@@ -6,15 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
 	"time"
 
-	"github.com/valyala/fasthttp"
 	"github.com/wapc/wapc-go"
 	"github.com/wapc/wapc-go/engines/wazero"
 
+	"github.com/dapr/components-contrib/internal/httputils"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -69,7 +71,7 @@ func NewMiddleware(logger logger.Logger) middleware.Middleware {
 }
 
 // GetHandler returns the HTTP handler provided by wasm basic middleware.
-func (m *wapcMiddleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
+func (m *wapcMiddleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	rh, err := m.getHandler(metadata)
 	if err != nil {
 		return nil, err
@@ -148,11 +150,11 @@ type wapcRequestHandler struct {
 	pool           *wapc.Pool
 }
 
-func (rh *wapcRequestHandler) requestHandler(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-	return func(ctx *fasthttp.RequestCtx) {
+func (rh *wapcRequestHandler) requestHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		instance, err := rh.pool.Get(1 * time.Second)
 		if err != nil {
-			ctx.Error("wasm pool busy", fasthttp.StatusInternalServerError)
+			httputils.RespondWithErrorAndMessage(w, http.StatusInternalServerError, "wasm pool busy")
 			return
 		}
 		defer func() {
@@ -161,7 +163,7 @@ func (rh *wapcRequestHandler) requestHandler(h fasthttp.RequestHandler) fasthttp
 			_ = rh.pool.Return(instance)
 		}()
 
-		err = rh.handle(ctx, instance)
+		err = rh.handle(r, instance)
 		if stdout := rh.stdout.String(); len(stdout) > 0 {
 			rh.logger.Debugf("wasm stdout: %s", stdout)
 		}
@@ -169,20 +171,20 @@ func (rh *wapcRequestHandler) requestHandler(h fasthttp.RequestHandler) fasthttp
 			rh.logger.Debugf("wasm stderr: %s", stderr)
 		}
 		if err != nil {
-			ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
+			httputils.RespondWithErrorAndMessage(w, http.StatusInternalServerError, err.Error())
 		} else {
-			h(ctx)
+			next.ServeHTTP(w, r)
 		}
-	}
+	})
 }
 
 // handle is like fasthttp.RequestHandler, except it accepts a waPC instance
 // and returns an error.
-func (rh *wapcRequestHandler) handle(ctx *fasthttp.RequestCtx, instance wapc.Instance) error {
-	if uri, err := instance.Invoke(ctx, "rewrite", ctx.RequestURI()); err != nil {
+func (rh *wapcRequestHandler) handle(r *http.Request, instance wapc.Instance) error {
+	if uri, err := instance.Invoke(ctx, "rewrite", []byte(httputils.RequestURI(r))); err != nil {
 		return err
 	} else {
-		ctx.Request.SetRequestURIBytes(uri)
+		r.URL, _ = url.Parse(string(uri))
 	}
 	return nil
 }

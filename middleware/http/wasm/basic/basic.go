@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -178,15 +177,14 @@ func (rh *wapcRequestHandler) requestHandler(next http.Handler) http.Handler {
 	})
 }
 
-// handle is like fasthttp.RequestHandler, except it accepts a waPC instance
-// and returns an error.
+// handle is like http.Handler, except it accepts a waPC instance and returns
+// an error.
 func (rh *wapcRequestHandler) handle(r *http.Request, instance wapc.Instance) error {
 	if uri, err := instance.Invoke(ctx, "rewrite", []byte(httputils.RequestURI(r))); err != nil {
 		return err
 	} else {
-		r.URL, _ = url.Parse(string(uri))
+		return httputils.SetRequestURI(r, string(uri))
 	}
-	return nil
 }
 
 // Close implements io.Closer

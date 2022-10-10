@@ -193,7 +193,6 @@ require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
-	github.com/dapr/go-sdk v0.8.1-0.20200925214701-2d699b6c653f // indirect
 	github.com/dubbogo/gost v1.11.25 // indirect
 	github.com/dubbogo/triple v1.1.8 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect

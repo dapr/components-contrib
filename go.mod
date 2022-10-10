@@ -117,10 +117,11 @@ require (
 	go.mongodb.org/mongo-driver v1.10.3
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
-	golang.org/x/net v0.0.0-20220927171203-f486391704dc.0-20220309155454-6242fa91716a
-	google.golang.org/api v0.74.0
-	google.golang.org/genproto v0.0.0-20220405205423-9d709892a2bf
-	google.golang.org/grpc v1.48.0
+	golang.org/x/net v0.0.0-20220909164309-bea034e7d591
+	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
+	google.golang.org/api v0.93.0
+	google.golang.org/genproto v0.0.0-20220909194730-69f6226f97e5
+	google.golang.org/grpc v1.49.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect
@@ -236,7 +237,6 @@ require (
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
-	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/shirou/gopsutil v3.20.11+incompatible // indirect

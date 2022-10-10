@@ -15,12 +15,13 @@ package bearer
 
 import (
 	"context"
-	"encoding/json"
+	"net/http"
 	"strings"
 
 	oidc "github.com/coreos/go-oidc"
-	"github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/internal/httputils"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -31,14 +32,12 @@ type bearerMiddlewareMetadata struct {
 }
 
 // NewBearerMiddleware returns a new oAuth2 middleware.
-func NewBearerMiddleware(logger logger.Logger) *Middleware {
-	return &Middleware{logger: logger}
+func NewBearerMiddleware(_ logger.Logger) middleware.Middleware {
+	return &Middleware{}
 }
 
 // Middleware is an oAuth2 authentication middleware.
-type Middleware struct {
-	logger logger.Logger
-}
+type Middleware struct{}
 
 const (
 	bearerPrefix       = "bearer "
@@ -46,7 +45,7 @@ const (
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
+func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -61,38 +60,30 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		ClientID: meta.ClientID,
 	})
 
-	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		return func(ctx *fasthttp.RequestCtx) {
-			authHeader := string(ctx.Request.Header.Peek(fasthttp.HeaderAuthorization))
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("authorization")
 			if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
-				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
-
+				httputils.RespondWithError(w, http.StatusUnauthorized)
 				return
 			}
 			rawToken := authHeader[bearerPrefixLength:]
-			_, err := verifier.Verify(ctx, rawToken)
+			_, err := verifier.Verify(r.Context(), rawToken)
 			if err != nil {
-				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
-
+				httputils.RespondWithError(w, http.StatusUnauthorized)
 				return
 			}
 
-			h(ctx)
-		}
+			next.ServeHTTP(w, r)
+		})
 	}, nil
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*bearerMiddlewareMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var middlewareMetadata bearerMiddlewareMetadata
-	err = json.Unmarshal(b, &middlewareMetadata)
+	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}
-
 	return &middlewareMetadata, nil
 }

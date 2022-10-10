@@ -14,15 +14,16 @@ limitations under the License.
 package sentinel
 
 import (
-	"encoding/json"
 	"fmt"
+	"net/http"
 
 	sentinel "github.com/alibaba/sentinel-golang/api"
 	"github.com/alibaba/sentinel-golang/core/base"
 	"github.com/alibaba/sentinel-golang/core/config"
 	"github.com/pkg/errors"
-	"github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/internal/httputils"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -40,7 +41,7 @@ type middlewareMetadata struct {
 }
 
 // NewMiddleware returns a new sentinel middleware.
-func NewMiddleware(logger logger.Logger) *Middleware {
+func NewMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 
@@ -50,7 +51,7 @@ type Middleware struct {
 }
 
 // GetHandler returns the HTTP handler provided by sentinel middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error) {
+func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	var (
 		meta *middlewareMetadata
 		err  error
@@ -72,23 +73,22 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 		return nil, err
 	}
 
-	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		return func(ctx *fasthttp.RequestCtx) {
-			resourceName := string(ctx.Method()) + ":" + string(ctx.Path())
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resourceName := r.Method + ":" + r.URL.Path
 			entry, err := sentinel.Entry(
 				resourceName,
 				sentinel.WithResourceType(base.ResTypeWeb),
 				sentinel.WithTrafficType(base.Inbound),
 			)
 			if err != nil {
-				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusTooManyRequests), fasthttp.StatusTooManyRequests)
-
+				httputils.RespondWithError(w, http.StatusTooManyRequests)
 				return
 			}
-
 			defer entry.Exit()
-			h(ctx)
-		}
+
+			next.ServeHTTP(w, r)
+		})
 	}, nil
 }
 
@@ -97,7 +97,6 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.FlowRules, newFlowRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel flow rules: %s", meta.FlowRules)
-
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -106,7 +105,6 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.IsolationRules, newIsolationRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel isolation rules: %s", meta.IsolationRules)
-
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -115,7 +113,6 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.CircuitBreakerRules, newCircuitBreakerRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel circuit breaker rules: %s", meta.CircuitBreakerRules)
-
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -124,7 +121,6 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.HotSpotParamRules, newHotSpotParamRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel hotspot param rules: %s", meta.HotSpotParamRules)
-
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -133,7 +129,6 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 		err := loadRules(meta.SystemRules, newSystemRuleDataSource)
 		if err != nil {
 			msg := fmt.Sprintf("fail to load sentinel system rules: %s", meta.SystemRules)
-
 			return errors.Wrap(err, msg)
 		}
 	}
@@ -158,16 +153,10 @@ func (m *Middleware) newSentinelConfig(metadata *middlewareMetadata) *config.Ent
 }
 
 func getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var md middlewareMetadata
-	err = json.Unmarshal(b, &md)
+	err := mdutils.DecodeMetadata(metadata.Properties, &md)
 	if err != nil {
 		return nil, err
 	}
-
 	return &md, nil
 }

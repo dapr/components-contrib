@@ -125,6 +125,14 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 		}
 		parsedInt := int32(parsedVal)
 
+		// Notice that for Dapr, -1 means "persist with no TTL".
+		// Memcached uses "0" as the non-expiring marker TTL.
+		// https://github.com/memcached/memcached/wiki/Commands#set
+		// So let's translate Dapr's -1 and beyound to Memcache's 0
+		if parsedInt < 0 {
+			parsedInt = 0
+		}
+
 		return &parsedInt, nil
 	}
 

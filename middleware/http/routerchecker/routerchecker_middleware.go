@@ -14,11 +14,12 @@ limitations under the License.
 package routerchecker
 
 import (
-	"encoding/json"
+	"fmt"
+	"net/http"
 	"regexp"
 
-	"github.com/valyala/fasthttp"
-
+	"github.com/dapr/components-contrib/internal/httputils"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -29,7 +30,7 @@ type Metadata struct {
 }
 
 // NewRouterCheckerMiddleware returns a new routerchecker middleware.
-func NewMiddleware(logger logger.Logger) *Middleware {
+func NewMiddleware(logger logger.Logger) middleware.Middleware {
 	return &Middleware{logger: logger}
 }
 
@@ -39,44 +40,34 @@ type Middleware struct {
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (
-	func(h fasthttp.RequestHandler) fasthttp.RequestHandler, error,
-) {
+func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	return func(h fasthttp.RequestHandler) fasthttp.RequestHandler {
-		return func(ctx *fasthttp.RequestCtx) {
-			isPass, err := regexp.MatchString(meta.Rule, string(ctx.RequestURI()))
-			if err != nil {
-				m.logger.Error("regexp match failed", err.Error())
-				ctx.Error("regexp match failed", fasthttp.StatusBadRequest)
+	re, err := regexp.Compile(meta.Rule)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile rule regexp: %w", err)
+	}
 
-				return
-			}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			isPass := re.MatchString(httputils.RequestURI(r))
 			if !isPass {
-				ctx.Error("invalid router", fasthttp.StatusBadRequest)
-
+				httputils.RespondWithErrorAndMessage(w, http.StatusBadRequest, "invalid router")
 				return
 			}
-			h(ctx)
-		}
+			next.ServeHTTP(w, r)
+		})
 	}, nil
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*Metadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	var middlewareMetadata Metadata
-	err = json.Unmarshal(b, &middlewareMetadata)
+	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}
-
 	return &middlewareMetadata, nil
 }

@@ -260,7 +260,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 
 	_, err = azblob.UploadBufferToBlockBlob(ctx, req.Data, blobURL, azblob.UploadToBlockBlobOptions{
 		Parallelism:     16,
-		Metadata:        req.Metadata,
+		Metadata:        a.sanitizeMetadata(req.Metadata),
 		BlobHTTPHeaders: blobHTTPHeaders,
 	})
 	if err != nil {
@@ -461,4 +461,42 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 	}
 
 	return false
+}
+
+func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[string]string {
+	for key, val := range metadata {
+		// Keep only letters and digits
+		n := 0
+		newKey := make([]byte, len(key))
+		for i := 0; i < len(key); i++ {
+			if (key[i] >= 'A' && key[i] <= 'Z') ||
+				(key[i] >= 'a' && key[i] <= 'z') ||
+				(key[i] >= '0' && key[i] <= '9') {
+				newKey[n] = key[i]
+				n++
+			}
+		}
+
+		if n != len(key) {
+			nks := string(newKey[:n])
+			a.logger.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
+			delete(metadata, key)
+			metadata[nks] = val
+			key = nks
+		}
+
+		// Remove all non-ascii characters
+		n = 0
+		newVal := make([]byte, len(val))
+		for i := 0; i < len(val); i++ {
+			if val[i] > 127 {
+				continue
+			}
+			newVal[n] = val[i]
+			n++
+		}
+		metadata[key] = string(newVal[:n])
+	}
+
+	return metadata
 }

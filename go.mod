@@ -77,7 +77,6 @@ require (
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
-	github.com/jackc/pgx/v4 v4.17.2
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/json-iterator/go v1.1.12
 	github.com/kataras/go-errors v0.0.3 // indirect
@@ -303,14 +302,8 @@ require (
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/serf v0.9.6 // indirect
-	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.13.0 // indirect
-	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.12.0 // indirect
-	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/klauspost/compress v1.15.11 // indirect

@@ -107,8 +107,17 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 <<<<<<< HEAD
 	golang.org/x/net v0.0.0-20220927171203-f486391704dc // indirect
+<<<<<<< HEAD
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2 // indirect
+=======
+<<<<<<< HEAD
+	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
+>>>>>>> Ran make modtidy-all
 	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7 // indirect
+=======
+	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2 // indirect
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
+>>>>>>> Ran make modtidy-all
 	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
 =======
 	golang.org/x/net v0.0.0-20220728181054-f92ba40d432d // indirect
@@ -123,10 +132,13 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 <<<<<<< HEAD
+<<<<<<< HEAD
 	google.golang.org/genproto v0.0.0-20220909194730-69f6226f97e5 // indirect
 	google.golang.org/grpc v1.49.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 =======
+=======
+>>>>>>> Ran make modtidy-all
 <<<<<<< HEAD
 	google.golang.org/genproto v0.0.0-20220622171453-ea41d75dfa0f // indirect
 	google.golang.org/grpc v1.48.0 // indirect
@@ -136,7 +148,15 @@ require (
 	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 >>>>>>> Fixing mod tidy errors
+<<<<<<< HEAD
 >>>>>>> Fixing mod tidy errors
+=======
+=======
+	google.golang.org/genproto v0.0.0-20220909194730-69f6226f97e5 // indirect
+	google.golang.org/grpc v1.49.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
+>>>>>>> Ran make modtidy-all
+>>>>>>> Ran make modtidy-all
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

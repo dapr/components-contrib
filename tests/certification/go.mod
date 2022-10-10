@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.9.0-rc.1
 	github.com/dapr/dapr v1.9.0-rc.3
-	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
+	github.com/dapr/go-sdk v0.8.1-0.20200925214701-2d699b6c653f
 	github.com/dapr/kit v0.0.3-0.20220930182601-272e358ba6a7
 	github.com/google/go-cmp v0.5.8
 	github.com/pkg/errors v0.9.1

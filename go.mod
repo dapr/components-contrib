@@ -5,7 +5,7 @@ go 1.19
 require (
 	cloud.google.com/go v0.104.0 // indirect
 	cloud.google.com/go/datastore v1.1.0
-	cloud.google.com/go/pubsub v1.12.2
+	cloud.google.com/go/pubsub v1.25.1
 	cloud.google.com/go/storage v1.23.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
@@ -177,7 +177,6 @@ require gopkg.in/couchbaselabs/jsonx.v1 v1.0.1 // indirect
 require (
 	cloud.google.com/go/compute v1.7.0 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
-	cloud.google.com/go/kms v1.4.0 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.1 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1 // indirect
@@ -201,6 +200,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	github.com/googleapis/go-type-adapters v1.0.0 // indirect
 	github.com/hashicorp/go-hclog v1.0.0 // indirect
 	github.com/jackc/puddle/v2 v2.0.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect

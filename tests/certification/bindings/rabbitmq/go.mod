@@ -8,7 +8,7 @@ require (
 	github.com/dapr/dapr v1.9.0-rc.3
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3-0.20220930182601-272e358ba6a7
-	github.com/rabbitmq/amqp091-go v1.3.4
+	github.com/rabbitmq/amqp091-go v1.5.0
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/multierr v1.8.0
 )

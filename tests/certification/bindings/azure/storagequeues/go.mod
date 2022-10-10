@@ -137,10 +137,13 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 <<<<<<< HEAD
+<<<<<<< HEAD
 	google.golang.org/genproto v0.0.0-20220909194730-69f6226f97e5 // indirect
 	google.golang.org/grpc v1.49.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 =======
+=======
+>>>>>>> Ran make modtidy-all
 <<<<<<< HEAD
 	google.golang.org/genproto v0.0.0-20220622171453-ea41d75dfa0f // indirect
 	google.golang.org/grpc v1.48.0 // indirect
@@ -150,7 +153,15 @@ require (
 	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 >>>>>>> Fixing mod tidy errors
+<<<<<<< HEAD
 >>>>>>> Fixing mod tidy errors
+=======
+=======
+	google.golang.org/genproto v0.0.0-20220909194730-69f6226f97e5 // indirect
+	google.golang.org/grpc v1.49.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
+>>>>>>> Ran make modtidy-all
+>>>>>>> Ran make modtidy-all
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

@@ -137,7 +137,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Priority = priority
 	}
 
-	err = r.channel.Publish("", r.metadata.QueueName, false, false, pub)
+	err = r.channel.PublishWithContext(ctx, "", r.metadata.QueueName, false, false, pub)
 
 	if err != nil {
 		return nil, err

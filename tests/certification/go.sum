@@ -134,8 +134,6 @@ github.com/dapr/dapr v1.9.0-rc.3 h1:WLATw9Ky44lM5CVbzrd/M04yQXON4+NL9GH6K89v8Mo=
 github.com/dapr/dapr v1.9.0-rc.3/go.mod h1:LUNByfXcsSuvXkNFZq+JCsgiCgAZO3uaQDu5LCheBj8=
 github.com/dapr/go-sdk v0.8.1-0.20200925214701-2d699b6c653f h1:pMADMfKJ39FwsoCtqQFs/LyPAbuNfzt1ksr42ScpSS4=
 github.com/dapr/go-sdk v0.8.1-0.20200925214701-2d699b6c653f/go.mod h1:hre4W06eUYUDzWZBo+ZkOJdjnzuW9GZwZBRYOymvmvs=
-github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721 h1:EXY9Z1GtR0MC3tQzlYsKryT2HcipE79LhF7u/njeOzM=
-github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3-0.20220930182601-272e358ba6a7 h1:XDb+PwAOxbVNvLxkmwPgKlH5ltYlDdz/GcEDMe8RJxE=
 github.com/dapr/kit v0.0.3-0.20220930182601-272e358ba6a7/go.mod h1:FR+yc0R0szlKnJooVqJvl7FhWf21wzY4/EzmyFQrESw=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -308,7 +306,6 @@ github.com/googleapis/gnostic v0.5.1/go.mod h1:6U4PtQXGIEt/Z3h5MAT7FNofLnw9vXk2c
 github.com/googleapis/gnostic v0.5.5 h1:9fHAtK0uDfpveeqqo1hkEZJcFvYXAiCN3UutL8F9xHw=
 github.com/googleapis/gnostic v0.5.5/go.mod h1:7+EbHbldMins07ALC74bsA81Ovc97DwqyJO1AENw9kA=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
 github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=

@@ -74,7 +74,7 @@ func (c *CosmosDBGremlinAPI) Init(metadata bindings.Metadata) error {
 		return errors.New("CosmosDBGremlinAPI Error: failed to create the Cosmos Graph DB connector")
 	}
 
-	c.client = client
+	c.client = &client
 
 	return nil
 }
@@ -118,7 +118,7 @@ func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeReque
 			respStartTimeKey: startTime.Format(time.RFC3339Nano),
 		},
 	}
-	d, err := c.client.Execute(gq)
+	d, err := (*c.client).Execute(gq)
 	if err != nil {
 		return nil, errors.New("CosmosDBGremlinAPI Error:error excuting gremlin")
 	}

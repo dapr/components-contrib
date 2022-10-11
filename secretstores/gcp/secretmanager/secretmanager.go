@@ -103,13 +103,14 @@ func (s *Store) GetSecret(ctx context.Context, req secretstores.GetSecretRequest
 	if req.Name == "" {
 		return res, fmt.Errorf("missing secret name in request")
 	}
+	secretName := fmt.Sprintf("projects/%s/secrets/%s", s.ProjectID, req.Name)
 
 	versionID := "latest"
 	if value, ok := req.Metadata[VersionID]; ok {
 		versionID = value
 	}
 
-	secret, err := s.getSecret(ctx, req.Name, versionID)
+	secret, err := s.getSecret(ctx, secretName, versionID)
 	if err != nil {
 		return res, fmt.Errorf("failed to access secret version: %v", err)
 	}
@@ -156,7 +157,7 @@ func (s *Store) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecre
 
 func (s *Store) getSecret(ctx context.Context, secretName string, versionID string) (*string, error) {
 	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", s.ProjectID, secretName, versionID),
+		Name: fmt.Sprintf("%s/%s", secretName, versionID),
 	}
 	result, err := s.client.AccessSecretVersion(ctx, accessRequest)
 	if err != nil {

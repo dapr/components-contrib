@@ -341,13 +341,13 @@ func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global boo
 	return nil
 }
 
-func (r *rabbitMQInMemoryBroker) Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error {
+func (r *rabbitMQInMemoryBroker) PublishWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error {
 	// This is actually how the SDK implements it
-	_, err := r.PublishWithDeferredConfirm(exchange, key, mandatory, immediate, msg)
+	_, err := r.PublishWithDeferredConfirmWithContext(ctx, exchange, key, mandatory, immediate, msg)
 	return err
 }
 
-func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirm(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error) {
+func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error) {
 	if string(msg.Body) == errorChannelConnection {
 		return nil, errors.New(errorChannelConnection)
 	}

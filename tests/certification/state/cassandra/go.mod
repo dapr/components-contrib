@@ -13,7 +13,7 @@ require (
 
 require (
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/gocql/gocql v0.0.0-20210515062232-b7ef815b4556 // indirect
+	github.com/gocql/gocql v1.2.1 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.7.0 // indirect

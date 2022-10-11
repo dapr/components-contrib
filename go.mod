@@ -155,7 +155,7 @@ require (
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.5
 	github.com/jackc/pgx/v5 v5.0.2
-	github.com/labd/commercetools-go-sdk v0.3.2
+	github.com/labd/commercetools-go-sdk v1.1.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.0
 	github.com/pashagolub/pgxmock/v2 v2.1.0
 	github.com/rabbitmq/amqp091-go v1.5.0
@@ -181,7 +181,6 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
-	github.com/appscode/go-querystring v0.0.0-20170504095604-0126cfb3f1dc // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/bits-and-blooms/bitset v1.3.3 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
@@ -315,7 +314,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/linkedin/goavro/v2 v2.12.0 // indirect
-	github.com/mattn/go-ieproxy v0.0.9 // indirect
+	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect

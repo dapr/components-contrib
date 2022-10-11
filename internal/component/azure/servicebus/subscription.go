@@ -197,7 +197,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 	// Receiver loop
 	for {
 		select {
-		case s.activeMessagesChan <- struct{}{}:
+		case s.activeOperationsChan <- struct{}{}:
 			// No-op
 			// This blocks if there are too many active operations already
 			// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`

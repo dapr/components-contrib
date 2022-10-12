@@ -259,11 +259,17 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 		return err
 	}
 
-	userAgent := "dapr-" + logger.DaprVersion
+	clientOpts := &servicebus.ClientOptions{
+		ApplicationID: "dapr-" + logger.DaprVersion,
+		// TODO: Use the built-in retry in the SDK rather than our own on top of that
+		/*RetryOptions: servicebus.RetryOptions{
+			MaxRetries: int32(a.metadata.PublishMaxRetries),
+			RetryDelay: time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond,
+		},*/
+	}
+
 	if a.metadata.ConnectionString != "" {
-		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
+		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, clientOpts)
 		if err != nil {
 			return err
 		}
@@ -283,9 +289,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 			return innerErr
 		}
 
-		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
+		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, clientOpts)
 		if innerErr != nil {
 			return innerErr
 		}

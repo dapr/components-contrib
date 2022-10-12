@@ -15,6 +15,7 @@ package servicebus
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -196,11 +197,12 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 	// Receiver loop
 	for {
 		select {
-		// This blocks if there are too many active operations already
-		// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`
 		case s.activeOperationsChan <- struct{}{}:
-		// Return if context is canceled
+			// No-op
+			// This blocks if there are too many active operations already
+			// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`
 		case <-ctx.Done():
+			// Return if context is canceled
 			s.logger.Debugf("Receive context for %s done", s.entity)
 			return ctx.Err()
 		}
@@ -216,21 +218,22 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 			return err
 		}
 
-		// Invoke only once
-		if onFirstSuccess != nil {
-			onFirstSuccess()
-			onFirstSuccess = nil
-		}
-
 		l := len(msgs)
 		if l == 0 {
 			// We got no message, which is unusual too
 			s.logger.Warn("Received 0 messages from Service Bus")
 			<-s.activeOperationsChan
-			continue
-		} else if l > 1 && !bulkEnabled {
+			// Return an error to force the Service Bus component to try and reconnect.
+			return errors.New("received 0 messages from Service Bus")
+		} else if l > 1 {
 			// We are requesting one message only; this should never happen
 			s.logger.Errorf("Expected one message from Service Bus, but received %d", l)
+		}
+
+		// Invoke only once
+		if onFirstSuccess != nil {
+			onFirstSuccess()
+			onFirstSuccess = nil
 		}
 
 		s.logger.Debugf("Received messages: %d; current active operations usage: %d/%d", l, len(s.activeOperationsChan), cap(s.activeOperationsChan))

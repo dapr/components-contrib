@@ -17,7 +17,7 @@ import (
 	"context"
 	"time"
 
-	"fortio.org/fortio/log"
+	"github.com/zouyx/agollo/v3/component/log"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"

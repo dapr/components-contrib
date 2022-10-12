@@ -303,11 +303,6 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	sender, err := a.senderForTopic(a.publishCtx, req.Topic)
-	if err != nil {
-		return err
-	}
-
 	// a.logger.Debugf("Creating message with body: %s", string(req.Data))
 	msg, err := NewASBMessageFromPubsubRequest(req)
 	if err != nil {
@@ -325,40 +320,43 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	}
 	return retry.NotifyRecover(
 		func() (err error) {
+			// Get the sender
+			var sender *servicebus.Sender
+			sender, err = a.senderForTopic(a.publishCtx, req.Topic)
+			if err != nil {
+				return err
+			}
+
+			// Try sending the message
 			ctx, cancel := context.WithTimeout(a.publishCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 			defer cancel()
-
 			err = sender.SendMessage(ctx, msg, nil)
 			if err != nil {
+				if impl.IsNetworkError(err) {
+					// Retry after reconnecting
+					a.deleteSenderForTopic(req.Topic)
+					return err
+				}
+
 				var amqpError *amqp.Error
-				var expError *servicebus.Error
 				if errors.As(err, &amqpError) {
 					if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
-						return amqpError // Retries.
+						// Retry (no need to reconnect)
+						return amqpError
 					}
 				}
 
-				if errors.Is(err, amqp.ErrConnClosed) {
-					return err // Retries.
-				}
-
-				if errors.As(err, &expError) {
-					if expError.Code == "connlost" {
-						a.logger.Warn(expError.Error())
-						return expError // Retries.
-					}
-				}
-
-				return backoff.Permanent(err) // Does not retry.
+				// Do not retry on other errors
+				return backoff.Permanent(err)
 			}
 			return nil
 		},
 		bo,
 		func(err error, _ time.Duration) {
-			a.logger.Debugf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
+			a.logger.Warnf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
 		},
 		func() {
-			a.logger.Debugf("Successfully published service bus message (%s) after it previously failed", msgID)
+			a.logger.Infof("Successfully published service bus message (%s) after it previously failed", msgID)
 		},
 	)
 }
@@ -397,7 +395,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-				if err != context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
 				}
 				return
@@ -413,15 +411,8 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 					bo.Reset()
 				},
 			)
-			if err != nil {
-				var detachError *amqp.DetachError
-				var amqpError *amqp.Error
-				if errors.Is(err, detachError) ||
-					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
-					a.logger.Debug(err)
-				} else {
-					a.logger.Error(err)
-				}
+			if err != nil && !errors.Is(err, context.Canceled) {
+				a.logger.Error(err)
 			}
 
 			// Gracefully close the connection (in case it's not closed already)
@@ -468,6 +459,15 @@ func (a *azureServiceBus) senderForTopic(ctx context.Context, topic string) (*se
 		return sender, nil
 	}
 
+	a.topicsLock.Lock()
+	defer a.topicsLock.Unlock()
+
+	// Check again after acquiring a write lock in case another goroutine created the sender
+	sender, ok = a.topics[topic]
+	if ok && sender != nil {
+		return sender, nil
+	}
+
 	// Ensure the topic exists the first time it is referenced.
 	var err error
 	if !a.metadata.DisableEntityManagement {
@@ -475,8 +475,8 @@ func (a *azureServiceBus) senderForTopic(ctx context.Context, topic string) (*se
 			return nil, err
 		}
 	}
-	a.topicsLock.Lock()
-	defer a.topicsLock.Unlock()
+
+	// Create the sender
 	sender, err = a.client.NewSender(topic, nil)
 	if err != nil {
 		return nil, err
@@ -484,6 +484,20 @@ func (a *azureServiceBus) senderForTopic(ctx context.Context, topic string) (*se
 	a.topics[topic] = sender
 
 	return sender, nil
+}
+
+// deleteSenderForTopic deletes a sender for a topic, closing the connection
+func (a *azureServiceBus) deleteSenderForTopic(topic string) {
+	a.topicsLock.Lock()
+	defer a.topicsLock.Unlock()
+
+	sender, ok := a.topics[topic]
+	if ok && sender != nil {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
+		_ = sender.Close(closeCtx)
+		closeCancel()
+	}
+	delete(a.topics, topic)
 }
 
 func (a *azureServiceBus) ensureTopic(ctx context.Context, topic string) error {

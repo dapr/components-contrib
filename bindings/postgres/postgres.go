@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -59,7 +59,7 @@ func (p *Postgres) Init(metadata bindings.Metadata) error {
 		return errors.Wrap(err, "error opening DB connection")
 	}
 
-	p.db, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
+	p.db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return errors.Wrap(err, "unable to ping the DB")
 	}

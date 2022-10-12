@@ -67,7 +67,7 @@ func TestParseMetadata(t *testing.T) {
 				replicas:       3,
 				memoryStorage:  true,
 				rateLimit:      20000,
-				hearbeat:       time.Duration(time.Second * 1),
+				hearbeat:       time.Second * 1,
 			},
 			expectErr: false,
 		},

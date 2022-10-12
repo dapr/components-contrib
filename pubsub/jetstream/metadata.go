@@ -117,7 +117,6 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		if duration, err := time.ParseDuration(trimmed); err == nil {
 			backOff = append(backOff, duration)
 		}
-
 	}
 	m.backOff = backOff
 

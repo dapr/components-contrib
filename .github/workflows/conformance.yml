@@ -193,7 +193,7 @@ jobs:
         fi
 
     - name: Check out code onto GOPATH
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -353,7 +353,7 @@ jobs:
         echo "NAMESPACE=default" >> $GITHUB_ENV
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
         go-version: '^1.19'
     

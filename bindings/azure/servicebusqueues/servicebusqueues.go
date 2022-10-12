@@ -177,8 +177,8 @@ func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.
 
 	// Send the message
 	ctx, cancel := context.WithTimeout(invokeCtx, a.timeout)
+	defer cancel()
 	err = sender.SendMessage(ctx, msg, nil)
-	cancel()
 	if err != nil {
 		if impl.IsNetworkError(err) {
 			// Force reconnection on next call
@@ -269,20 +269,18 @@ func (a *AzureServiceBusQueues) getSender() (*servicebus.Sender, error) {
 
 	// Acquire a write lock then try checking a.sender again in case another goroutine modified that in the meanwhile
 	a.senderLock.Lock()
+	defer a.senderLock.Unlock()
 
 	if a.sender != nil {
-		a.senderLock.Unlock()
 		return a.sender, nil
 	}
 
 	// Create a new sender
 	sender, err := a.client.NewSender(a.metadata.QueueName, nil)
 	if err != nil {
-		a.senderLock.Unlock()
 		return nil, err
 	}
 	a.sender = sender
-	a.senderLock.Unlock()
 
 	return sender, nil
 }

@@ -329,8 +329,8 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 
 			// Try sending the message
 			ctx, cancel := context.WithTimeout(a.publishCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+			defer cancel()
 			err = sender.SendMessage(ctx, msg, nil)
-			cancel()
 			if err != nil {
 				if impl.IsNetworkError(err) {
 					// Retry after reconnecting

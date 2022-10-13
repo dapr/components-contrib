@@ -46,12 +46,12 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 		config.Net.TLS.Enable = false
 		return nil
 	}
+	config.Net.TLS.Enable = true
+
 	if !metadata.TLSSkipVerify && metadata.TLSCaCert == "" {
-		config.Net.TLS.Enable = false
 		return nil
 	}
-
-	// nolint: gosec
+	//nolint:gosec
 	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: metadata.TLSSkipVerify, MinVersion: tls.VersionTLS12}
 	if metadata.TLSCaCert != "" {
 		caCertPool := x509.NewCertPool()

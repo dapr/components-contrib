@@ -290,12 +290,12 @@ func (r *rocketMQ) Features() []pubsub.Feature {
 }
 
 func (r *rocketMQ) getProducer() (mq.Producer, error) {
-	if r.producer != nil {
+	if nil != r.producer {
 		return r.producer, nil
 	}
 	r.producerLock.Lock()
 	defer r.producerLock.Unlock()
-	if r.producer != nil {
+	if nil != r.producer {
 		return r.producer, nil
 	}
 	producer, e := r.setUpProducer()
@@ -361,7 +361,7 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 
 	r.topics[req.Topic] = *selector
 
-	if r.consumer == nil {
+	if nil == r.consumer {
 		// if consumer is not initialized, initialize it
 		if r.consumer, e = r.setUpConsumer(); e != nil {
 			return fmt.Errorf("consumer setup failed: %v", e)
@@ -493,7 +493,7 @@ func (r *rocketMQ) Close() error {
 
 	r.producer = nil
 
-	if r.consumer != nil {
+	if nil != r.consumer {
 		_ = r.consumer.Shutdown()
 		r.consumer = nil
 	}

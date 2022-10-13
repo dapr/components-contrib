@@ -30,6 +30,7 @@ import (
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
+	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -37,7 +38,9 @@ import (
 )
 
 const (
-	errorMessagePrefix = "azure service bus error:"
+	errorMessagePrefix            = "azure service bus error:"
+	defaultMaxBulkSubCount        = 100
+	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
 )
 
 var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
@@ -256,11 +259,17 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 		return err
 	}
 
-	userAgent := "dapr-" + logger.DaprVersion
+	clientOpts := &servicebus.ClientOptions{
+		ApplicationID: "dapr-" + logger.DaprVersion,
+		// TODO: Use the built-in retry in the SDK rather than our own on top of that
+		/*RetryOptions: servicebus.RetryOptions{
+			MaxRetries: int32(a.metadata.PublishMaxRetries),
+			RetryDelay: time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond,
+		},*/
+	}
+
 	if a.metadata.ConnectionString != "" {
-		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
+		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, clientOpts)
 		if err != nil {
 			return err
 		}
@@ -280,9 +289,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 			return innerErr
 		}
 
-		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
+		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, clientOpts)
 		if innerErr != nil {
 			return innerErr
 		}
@@ -359,7 +366,97 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	)
 }
 
+func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	// If the request is empty, sender.SendMessageBatch will panic later.
+	// Return an empty response to avoid this.
+	if len(req.Entries) == 0 {
+		a.logger.Warnf("Empty bulk publish request, skipping")
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+	}
+
+	sender, err := a.senderForTopic(ctx, req.Topic)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Create a new batch of messages with batch options.
+	batchOpts := &servicebus.MessageBatchOptions{
+		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytesKey, defaultMaxBulkPubBytes),
+	}
+
+	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Add messages from the bulk publish request to the batch.
+	err = UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Azure Service Bus does not return individual status for each message in the request.
+	err = sender.SendMessageBatch(ctx, batchMsg, nil)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+}
+
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	sub := impl.NewSubscription(
+		subscribeCtx,
+		a.metadata.MaxActiveMessages,
+		a.metadata.TimeoutInSec,
+		a.metadata.MaxRetriableErrorsPerSec,
+		a.metadata.MaxConcurrentHandlers,
+		"topic "+req.Topic,
+		a.logger,
+	)
+
+	receiveAndBlockFn := func(onFirstSuccess func()) error {
+		return sub.ReceiveAndBlock(
+			a.getHandlerFunc(req.Topic, handler),
+			a.metadata.LockRenewalInSec,
+			false, // Bulk is not supported in regular Subscribe.
+			onFirstSuccess,
+		)
+	}
+
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn)
+}
+
+func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	maxBulkSubCount := utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
+	sub := impl.NewBulkSubscription(
+		subscribeCtx,
+		a.metadata.MaxActiveMessages,
+		a.metadata.TimeoutInSec,
+		maxBulkSubCount,
+		a.metadata.MaxRetriableErrorsPerSec,
+		a.metadata.MaxConcurrentHandlers,
+		"topic "+req.Topic,
+		a.logger,
+	)
+
+	receiveAndBlockFn := func(onFirstSuccess func()) error {
+		return sub.ReceiveAndBlock(
+			a.getBulkHandlerFunc(req.Topic, handler),
+			a.metadata.LockRenewalInSec,
+			true, // Bulk is supported in BulkSubscribe.
+			onFirstSuccess,
+		)
+	}
+
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn)
+}
+
+// doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
+// The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
+func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error,
+) error {
 	subID := a.metadata.ConsumerID
 	if !a.metadata.DisableEntityManagement {
 		err := a.ensureSubscription(subscribeCtx, subID, req.Topic)
@@ -374,19 +471,14 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
 	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
 
+	onFirstSuccess := func() {
+		// Reset the backoff when the subscription is successful and we have received the first message
+		bo.Reset()
+	}
+
 	go func() {
 		// Reconnect loop.
 		for {
-			sub := impl.NewSubscription(
-				subscribeCtx,
-				a.metadata.MaxActiveMessages,
-				a.metadata.TimeoutInSec,
-				a.metadata.MaxRetriableErrorsPerSec,
-				a.metadata.MaxConcurrentHandlers,
-				"topic "+req.Topic,
-				a.logger,
-			)
-
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
 				return a.client.NewReceiverForSubscription(req.Topic, subID, nil)
@@ -399,16 +491,9 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 				return
 			}
 
-			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = sub.ReceiveAndBlock(
-				a.getHandlerFunc(req.Topic, handler),
-				a.metadata.LockRenewalInSec,
-				func() {
-					// Reset the backoff when the subscription is successful and we have received the first message
-					bo.Reset()
-				},
-			)
+			err = receiveAndBlockFn(onFirstSuccess)
 			if err != nil {
 				var detachError *amqp.DetachError
 				var amqpError *amqp.Error
@@ -442,16 +527,58 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 }
 
 func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) impl.HandlerFunc {
-	return func(ctx context.Context, asbMsg *servicebus.ReceivedMessage) error {
-		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsg, topic)
+	emptyResponseItems := []impl.HandlerResponseItem{}
+	// Only the first ASB message is used in the actual handler invocation.
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		if len(asbMsgs) != 1 {
+			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))
+		}
+
+		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsgs[0], topic)
 		if err != nil {
-			return fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+			return emptyResponseItems, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
 		}
 
 		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
 		defer handleCancel()
-		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsg.MessageID, topic)
-		return handler(handleCtx, pubsubMsg)
+		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsgs[0].MessageID, topic)
+		return emptyResponseItems, handler(handleCtx, pubsubMsg)
+	}
+}
+
+func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHandler) impl.HandlerFunc {
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		pubsubMsgs := make([]pubsub.BulkMessageEntry, len(asbMsgs))
+		for i, asbMsg := range asbMsgs {
+			pubsubMsg, err := NewBulkMessageEntryFromASBMessage(asbMsg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+			}
+			pubsubMsgs[i] = pubsubMsg
+		}
+
+		// Note, no metadata is currently supported here.
+		// In the future, we could add propagate metadata to the handler if required.
+		bulkMessage := &pubsub.BulkMessage{
+			Entries:  pubsubMsgs,
+			Metadata: map[string]string{},
+			Topic:    topic,
+		}
+
+		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
+		defer handleCancel()
+		a.logger.Debugf("Calling app's handler for %d messages on topic %s", len(asbMsgs), topic)
+		resps, err := handler(handleCtx, bulkMessage)
+
+		implResps := make([]impl.HandlerResponseItem, len(resps))
+		for i, resp := range resps {
+			implResps[i] = impl.HandlerResponseItem{
+				EntryId: resp.EntryId,
+				Error:   resp.Error,
+			}
+		}
+
+		return implResps, err
 	}
 }
 

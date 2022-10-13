@@ -16,6 +16,7 @@ package servicebusqueues
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -230,6 +231,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			err = sub.ReceiveAndBlock(
 				a.getHandlerFunc(handler),
 				a.metadata.LockRenewalInSec,
+				false, // Bulk is not supported here.
 				func() {
 					// Reset the backoff when the subscription is successful and we have received the first message
 					bo.Reset()
@@ -268,7 +270,12 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 }
 
 func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFunc {
-	return func(ctx context.Context, msg *servicebus.ReceivedMessage) error {
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		if len(asbMsgs) != 1 {
+			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))
+		}
+
+		msg := asbMsgs[0]
 		metadata := make(map[string]string)
 		metadata[id] = msg.MessageID
 		if msg.CorrelationID != nil {
@@ -289,7 +296,7 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 			Data:     msg.Body,
 			Metadata: metadata,
 		})
-		return err
+		return []impl.HandlerResponseItem{}, err
 	}
 }
 

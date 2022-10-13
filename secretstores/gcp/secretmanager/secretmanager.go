@@ -157,7 +157,7 @@ func (s *Store) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecre
 
 func (s *Store) getSecret(ctx context.Context, secretName string, versionID string) (*string, error) {
 	accessRequest := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: fmt.Sprintf("%s/%s", secretName, versionID),
+		Name: fmt.Sprintf("%s/versions/%s", secretName, versionID),
 	}
 	result, err := s.client.AccessSecretVersion(ctx, accessRequest)
 	if err != nil {
@@ -195,6 +195,10 @@ func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*
 	}
 
 	return &meta, nil
+}
+
+func (s *Store) Close() error {
+	return s.client.Close()
 }
 
 // Features returns the features available in this secret store.

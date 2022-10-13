@@ -27,9 +27,9 @@ import (
 )
 
 const (
-	testData = `{"data":"data"}`
-	testKey  = "test"
-	testHsetData  = "1223"
+	testData     = `{"data":"data"}`
+	testKey      = "test"
+	testHsetData = "1223"
 )
 
 func TestInvoke(t *testing.T) {
@@ -57,7 +57,6 @@ func TestInvoke(t *testing.T) {
 	assert.Equal(t, true, getRes == testData)
 }
 
-
 func TestCommonCmd(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()
@@ -69,7 +68,7 @@ func TestCommonCmd(t *testing.T) {
 	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
 	_, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
-		Data:     []byte(testData),
+		Data: []byte(testData),
 		Metadata: map[string]string{
 			"arg0": "HSET",
 			"arg1": "website",
@@ -81,7 +80,7 @@ func TestCommonCmd(t *testing.T) {
 	assert.Equal(t, nil, err)
 
 	bindingRes, err1 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
-		Data:     []byte(testData),
+		Data: []byte(testData),
 		Metadata: map[string]string{
 			"arg0": "HGET",
 			"arg1": "website",
@@ -91,7 +90,7 @@ func TestCommonCmd(t *testing.T) {
 
 	assert.Equal(t, nil, err1)
 	assert.Equal(t, true, bindingRes != nil)
-	assert.Equal(t, testHsetData,BytesToString(bindingRes.Data))
+	assert.Equal(t, testHsetData, BytesToString(bindingRes.Data))
 }
 
 func BytesToString(b []byte) string {

@@ -19,6 +19,8 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/internal/component/kafka"
+	"github.com/dapr/components-contrib/metadata"
+
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -36,7 +38,32 @@ func (p *PubSub) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	p.kafka.AddTopicHandler(req.Topic, adaptHandler(handler))
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: false,
+		Handler:         adaptHandler(handler),
+	}
+	return p.subscribeUtil(ctx, req, handlerConfig)
+}
+
+func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
+	handler pubsub.BulkHandler,
+) error {
+	subConfig := pubsub.BulkSubscribeConfig{
+		MaxBulkSubCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkSubCountKey,
+			kafka.DefaultMaxBulkSubCount),
+		MaxBulkSubAwaitDurationMs: kafka.GetIntFromMetadata(req.Metadata,
+			metadata.MaxBulkSubAwaitDurationMsKey, kafka.DefaultMaxBulkSubAwaitDurationMs),
+	}
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: true,
+		SubscribeConfig: subConfig,
+		BulkHandler:     adaptBulkHandler(handler),
+	}
+	return p.subscribeUtil(ctx, req, handlerConfig)
+}
+
+func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest, handlerConfig kafka.SubscriptionHandlerConfig) error {
+	p.kafka.AddTopicHandler(req.Topic, handlerConfig)
 
 	go func() {
 		// Wait for context cancelation
@@ -78,6 +105,11 @@ func (p *PubSub) Publish(req *pubsub.PublishRequest) error {
 	return p.kafka.Publish(req.Topic, req.Data, req.Metadata)
 }
 
+// BatchPublish messages to Kafka cluster.
+func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	return p.kafka.BulkPublish(ctx, req.Topic, req.Entries, req.Metadata)
+}
+
 func (p *PubSub) Close() (err error) {
 	p.subscribeCancel()
 	return p.kafka.Close()
@@ -94,6 +126,27 @@ func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
 			Data:        event.Data,
 			Metadata:    event.Metadata,
 			ContentType: event.ContentType,
+		})
+	}
+}
+
+func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
+	return func(ctx context.Context, event *kafka.KafkaBulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
+		messages := make([]pubsub.BulkMessageEntry, 0)
+		for _, leafEvent := range event.Entries {
+			message := pubsub.BulkMessageEntry{
+				EntryId:     leafEvent.EntryId,
+				Event:       leafEvent.Event,
+				Metadata:    leafEvent.Metadata,
+				ContentType: leafEvent.ContentType,
+			}
+			messages = append(messages, message)
+		}
+
+		return handler(ctx, &pubsub.BulkMessage{
+			Topic:    event.Topic,
+			Entries:  messages,
+			Metadata: event.Metadata,
 		})
 	}
 }

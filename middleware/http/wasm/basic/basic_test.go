@@ -3,13 +3,15 @@ package basic
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/dapr/components-contrib/internal/httputils"
 	"github.com/dapr/components-contrib/metadata"
 
 	"github.com/stretchr/testify/require"
-	"github.com/valyala/fasthttp"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/components-contrib/middleware/http/wasm/basic/internal/test"
@@ -165,11 +167,11 @@ func Test_Example(t *testing.T) {
 	l := test.NewLogger()
 	handlerFn, err := NewMiddleware(l).GetHandler(middleware.Metadata{Base: meta})
 	require.NoError(t, err)
-	handler := handlerFn(func(*fasthttp.RequestCtx) {})
+	handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
-	var ctx fasthttp.RequestCtx
-	ctx.Request.SetRequestURI("/v1.0/hi")
-	handler(&ctx)
-	require.Equal(t, "/v1.0/hello", string(ctx.RequestURI()))
+	r := httptest.NewRequest(http.MethodGet, "/v1.0/hi", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	require.Equal(t, "/v1.0/hello", httputils.RequestURI(r))
 	require.Empty(t, l.(fmt.Stringer).String())
 }

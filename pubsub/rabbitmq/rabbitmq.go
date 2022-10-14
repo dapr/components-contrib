@@ -66,8 +66,8 @@ type rabbitMQ struct {
 
 // interface used to allow unit testing.
 type rabbitMQChannelBroker interface {
-	Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
-	PublishWithDeferredConfirm(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
+	PublishWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
+	PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error
 	Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
@@ -190,7 +190,7 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 		routingKey = val
 	}
 
-	confirm, err := r.channel.PublishWithDeferredConfirm(req.Topic, routingKey, false, false, amqp.Publishing{
+	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(r.ctx, req.Topic, routingKey, false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,

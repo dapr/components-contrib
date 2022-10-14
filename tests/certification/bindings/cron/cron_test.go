@@ -46,9 +46,9 @@ func TestCronBinding(t *testing.T) {
 	httpPort := ports[1]
 	appPort := ports[2]
 
-	// Test Frequent Invocations
+	// Test Frequent Trigger
 	application := func(ctx flow.Context, s common.Service) error {
-		// For cron component with invocation @every 1s, check if the app is invoked 10 times within 10 seconds
+		// For cron component with trigger @every 1s, check if the app is invoked 10 times within 10 seconds
 		counter := 10
 		cronContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
@@ -92,7 +92,7 @@ func TestCronBinding(t *testing.T) {
 			embedded.WithDaprHTTPPort(httpPort),
 			componentRuntimeOptions(),
 		)).
-		Step("wait for cron invocations", flow.Sleep(time.Second*10)).
+		Step("wait for cron to trigger", flow.Sleep(time.Second*10)).
 		Step("check schedule cancel", testDelete).
 		Step("stop sidecar", sidecar.Stop("cron-sidecar")).
 		Step("stop app", app.Stop("cronapp")).
@@ -102,7 +102,7 @@ func TestCronBinding(t *testing.T) {
 	counter := 3
 	cronContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	application3s := func(ctx flow.Context, s common.Service) error {
-		// For cron component with invocation @every 3s, check if the app is invoked correctly after app restart
+		// For cron component with trigger @every 3s, check if the app is invoked correctly after app restart
 
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler("cron3s", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
@@ -133,11 +133,11 @@ func TestCronBinding(t *testing.T) {
 			embedded.WithDaprHTTPPort(httpPort),
 			componentRuntimeOptions(),
 		)).
-		Step("start cron invocation", flow.Sleep(time.Second*4)).
+		Step("start cron trigger", flow.Sleep(time.Second*4)).
 		Step("stop app", app.Stop("cronapp3s")).
 		Step("wait before app restart", flow.Sleep(time.Second*5)).
 		Step(app.Run("cronapp3s", fmt.Sprintf(":%d", appPort), application3s)).
-		Step("wait for cron invocation", flow.Sleep(time.Second*6)).
+		Step("wait for cron trigger", flow.Sleep(time.Second*6)).
 		Step("stop sidecar", sidecar.Stop("cron-sidecar3s")).
 		Step("stop app", app.Stop("cronapp3s")).
 		Run()
@@ -146,7 +146,7 @@ func TestCronBinding(t *testing.T) {
 	counter = 3
 	cronContext, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	application3s = func(ctx flow.Context, s common.Service) error {
-		// For cron component with invocation @every 3s, check if the app is invoked correctly after sidecar restart
+		// For cron component with trigger @every 3s, check if the app is invoked correctly after sidecar restart
 
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler("cron3s", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
@@ -177,7 +177,7 @@ func TestCronBinding(t *testing.T) {
 			embedded.WithDaprHTTPPort(httpPort),
 			componentRuntimeOptions(),
 		)).
-		Step("wait for cron invocations", flow.Sleep(time.Second*4)).
+		Step("wait for cron trigger", flow.Sleep(time.Second*4)).
 		Step("stop sidecar", sidecar.Stop("cron-sidecar3s")).
 		Step("wait before sidecar restart", flow.Sleep(time.Second*5)).
 		Step(sidecar.Run("cron-sidecar3s",
@@ -187,7 +187,7 @@ func TestCronBinding(t *testing.T) {
 			embedded.WithDaprHTTPPort(httpPort),
 			componentRuntimeOptions(),
 		)).
-		Step("wait for cron invocation", flow.Sleep(time.Second*6)).
+		Step("wait for cron trigger", flow.Sleep(time.Second*6)).
 		// Step("stop sidecar", sidecar.Stop("cron-sidecar3s")).
 		Step("stop app", app.Stop("cronapp3s")).
 		Run()

@@ -16,6 +16,7 @@ package jetstream
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -37,6 +38,14 @@ type metadata struct {
 	startTime      time.Time
 	deliverAll     bool
 	flowControl    bool
+	ackWait        time.Duration
+	maxDeliver     int
+	backOff        []time.Duration
+	maxAckPending  int
+	replicas       int
+	memoryStorage  bool
+	rateLimit      uint64
+	hearbeat       time.Duration
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -91,6 +100,41 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 
 	if v, err := strconv.ParseBool(psm.Properties["flowControl"]); err == nil {
 		m.flowControl = v
+	}
+	if v, err := time.ParseDuration(psm.Properties["ackWait"]); err == nil {
+		m.ackWait = v
+	}
+
+	if v, err := strconv.Atoi(psm.Properties["maxDeliver"]); err == nil {
+		m.maxDeliver = v
+	}
+
+	backOffSlice := strings.Split(psm.Properties["backOff"], ",")
+	var backOff []time.Duration
+
+	for _, item := range backOffSlice {
+		trimmed := strings.TrimSpace(item)
+		if duration, err := time.ParseDuration(trimmed); err == nil {
+			backOff = append(backOff, duration)
+		}
+	}
+	m.backOff = backOff
+
+	if v, err := strconv.Atoi(psm.Properties["maxAckPending"]); err == nil {
+		m.maxAckPending = v
+	}
+	if v, err := strconv.Atoi(psm.Properties["replicas"]); err == nil {
+		m.replicas = v
+	}
+	if v, err := strconv.ParseBool(psm.Properties["memoryStorage"]); err == nil {
+		m.memoryStorage = v
+	}
+	if v, err := strconv.ParseUint(psm.Properties["rateLimit"], 10, 64); err == nil {
+		m.rateLimit = v
+	}
+
+	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
+		m.hearbeat = v
 	}
 
 	return m, nil

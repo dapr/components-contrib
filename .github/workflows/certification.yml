@@ -170,7 +170,7 @@ jobs:
         fi
 
     - name: Check out code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
@@ -221,7 +221,7 @@ jobs:
         done
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
         go-version: '^1.19'
 
@@ -475,7 +475,7 @@ jobs:
       - name: Calculate total coverage
         if: success() && github.event_name == 'schedule'
         run: |
-          threshold=80.0
+          threshold=60.0
           echo "threshold=$threshold" >> $GITHUB_ENV
           aboveThreshold=0
           totalFiles=0

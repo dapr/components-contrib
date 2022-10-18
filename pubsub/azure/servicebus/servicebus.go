@@ -21,12 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/go-amqp"
-	"github.com/cenkalti/backoff/v4"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
+	"github.com/cenkalti/backoff/v4"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
@@ -42,20 +40,6 @@ const (
 	defaultMaxBulkSubCount        = 100
 	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
 )
-
-var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
-	"com.microsoft:server-busy'":             {},
-	amqp.ErrorResourceLimitExceeded:          {},
-	amqp.ErrorResourceLocked:                 {},
-	amqp.ErrorTransferLimitExceeded:          {},
-	amqp.ErrorInternalError:                  {},
-	amqp.ErrorIllegalState:                   {},
-	"com.microsoft:message-lock-lost":        {},
-	"com.microsoft:session-cannot-be-locked": {},
-	"com.microsoft:timeout":                  {},
-	"com.microsoft:session-lock-lost":        {},
-	"com.microsoft:store-lock-lost":          {},
-}
 
 type azureServiceBus struct {
 	metadata    metadata
@@ -341,12 +325,9 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 					return err
 				}
 
-				var amqpError *amqp.Error
-				if errors.As(err, &amqpError) {
-					if _, ok := retriableSendingErrors[amqpError.Condition]; ok {
-						// Retry (no need to reconnect)
-						return amqpError
-					}
+				if impl.IsRetriableAMQPError(err) {
+					// Retry (no need to reconnect)
+					return err
 				}
 
 				// Do not retry on other errors

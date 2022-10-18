@@ -18,9 +18,8 @@ import (
 	"testing"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
-
-var maxConcurrentHandlers = 100
 
 func TestNewBulkSubscription_MaxBulkSubCountShouldBeGreaterThanZero(t *testing.T) {
 	testcases := []struct {
@@ -52,7 +51,7 @@ func TestNewBulkSubscription_MaxBulkSubCountShouldBeGreaterThanZero(t *testing.T
 				1,
 				tc.maxBulkSubCountParam,
 				10,
-				&maxConcurrentHandlers,
+				ptr.Of(100),
 				"test",
 				logger.NewLogger("test"))
 			if bulkSubscription.maxBulkSubCount != tc.maxBulkSubCountExpected {

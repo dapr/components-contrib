@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -38,13 +37,10 @@ const (
 )
 
 type azureServiceBus struct {
-	metadata   *impl.Metadata
-	client     *impl.Client
-	logger     logger.Logger
-	features   []pubsub.Feature
-	topics     map[string]*servicebus.Sender
-	topicsLock *sync.RWMutex
-
+	metadata      *impl.Metadata
+	client        *impl.Client
+	logger        logger.Logger
+	features      []pubsub.Feature
 	publishCtx    context.Context
 	publishCancel context.CancelFunc
 }
@@ -52,10 +48,8 @@ type azureServiceBus struct {
 // NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
 func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger:     logger,
-		features:   []pubsub.Feature{pubsub.FeatureMessageTTL},
-		topics:     map[string]*servicebus.Sender{},
-		topicsLock: &sync.RWMutex{},
+		logger:   logger,
+		features: []pubsub.Feature{pubsub.FeatureMessageTTL},
 	}
 }
 
@@ -92,9 +86,16 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	}
 	return retry.NotifyRecover(
 		func() (err error) {
+			// Ensure the queue or topic exists the first time it is referenced
+			// This does nothing if DisableEntityManagement is true
+			err = a.client.EnsureTopic(a.publishCtx, req.Topic)
+			if err != nil {
+				return err
+			}
+
 			// Get the sender
 			var sender *servicebus.Sender
-			sender, err = a.senderForTopic(a.publishCtx, req.Topic)
+			sender, err = a.client.GetSender(a.publishCtx, req.Topic)
 			if err != nil {
 				return err
 			}
@@ -106,7 +107,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 			if err != nil {
 				if impl.IsNetworkError(err) {
 					// Retry after reconnecting
-					a.deleteSenderForTopic(req.Topic)
+					a.client.CloseSender(req.Topic)
 					return err
 				}
 
@@ -138,7 +139,15 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
 	}
 
-	sender, err := a.senderForTopic(ctx, req.Topic)
+	// Ensure the queue or topic exists the first time it is referenced
+	// This does nothing if DisableEntityManagement is true
+	err := a.client.EnsureTopic(a.publishCtx, req.Topic)
+	if err != nil {
+		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+	}
+
+	// Get the sender
+	sender, err := a.client.GetSender(ctx, req.Topic)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
@@ -338,84 +347,9 @@ func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHa
 	}
 }
 
-// senderForTopic returns the sender for a topic, or creates a new one if it doesn't exist
-func (a *azureServiceBus) senderForTopic(ctx context.Context, topic string) (*servicebus.Sender, error) {
-	a.topicsLock.RLock()
-	sender, ok := a.topics[topic]
-	a.topicsLock.RUnlock()
-	if ok && sender != nil {
-		return sender, nil
-	}
-
-	a.topicsLock.Lock()
-	defer a.topicsLock.Unlock()
-
-	// Check again after acquiring a write lock in case another goroutine created the sender
-	sender, ok = a.topics[topic]
-	if ok && sender != nil {
-		return sender, nil
-	}
-
-	// Ensure the topic exists the first time it is referenced
-	// This does nothing if DisableEntityManagement is true
-	err := a.client.EnsureTopic(ctx, topic)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the sender
-	sender, err = a.client.GetClient().NewSender(topic, nil)
-	if err != nil {
-		return nil, err
-	}
-	a.topics[topic] = sender
-
-	return sender, nil
-}
-
-// deleteSenderForTopic deletes a sender for a topic, closing the connection
-func (a *azureServiceBus) deleteSenderForTopic(topic string) {
-	a.topicsLock.Lock()
-	defer a.topicsLock.Unlock()
-
-	sender, ok := a.topics[topic]
-	if ok && sender != nil {
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
-		_ = sender.Close(closeCtx)
-		closeCancel()
-	}
-	delete(a.topics, topic)
-}
-
 func (a *azureServiceBus) Close() (err error) {
-	a.topicsLock.Lock()
-	defer a.topicsLock.Unlock()
-
 	a.publishCancel()
-
-	// Close all topics, up to 3 in parallel
-	workersCh := make(chan bool, 3)
-	for k, t := range a.topics {
-		// Blocks if we have too many goroutines
-		workersCh <- true
-		go func(k string, t *servicebus.Sender) {
-			a.logger.Debugf("Closing topic %s", k)
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.metadata.TimeoutInSec)*time.Second)
-			err = t.Close(ctx)
-			cancel()
-			if err != nil {
-				// Log only
-				a.logger.Warnf("%s closing topic %s: %+v", errorMessagePrefix, k, err)
-			}
-			<-workersCh
-		}(k, t)
-	}
-	for i := 0; i < cap(workersCh); i++ {
-		// Wait for all workers to be done
-		workersCh <- true
-	}
-	close(workersCh)
-
+	a.client.CloseAllSenders(a.logger)
 	return nil
 }
 

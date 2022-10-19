@@ -222,12 +222,10 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error,
 ) error {
-	subID := a.metadata.ConsumerID
-	if !a.metadata.DisableEntityManagement {
-		err := a.client.EnsureSubscription(subscribeCtx, subID, req.Topic)
-		if err != nil {
-			return err
-		}
+	// Does nothing if DisableEntityManagement is true
+	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic)
+	if err != nil {
+		return err
 	}
 
 	// Reconnection backoff policy
@@ -246,12 +244,12 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 		for {
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.GetClient().NewReceiverForSubscription(req.Topic, subID, nil)
+				return a.client.GetClient().NewReceiverForSubscription(req.Topic, a.metadata.ConsumerID, nil)
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if errors.Is(err, context.Canceled) {
-					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, subID, req.Topic)
+					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, a.metadata.ConsumerID, req.Topic)
 				}
 				return
 			}
@@ -358,12 +356,11 @@ func (a *azureServiceBus) senderForTopic(ctx context.Context, topic string) (*se
 		return sender, nil
 	}
 
-	// Ensure the topic exists the first time it is referenced.
-	var err error
-	if !a.metadata.DisableEntityManagement {
-		if err = a.client.EnsureTopic(ctx, topic); err != nil {
-			return nil, err
-		}
+	// Ensure the topic exists the first time it is referenced
+	// This does nothing if DisableEntityManagement is true
+	err := a.client.EnsureTopic(ctx, topic)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the sender
